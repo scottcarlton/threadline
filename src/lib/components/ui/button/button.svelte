@@ -8,6 +8,7 @@
 		class?: string;
 		disabled?: boolean;
 		type?: 'button' | 'submit' | 'reset';
+		form?: string;
 		onclick?: (e: MouseEvent) => void;
 		href?: string;
 		children?: import('svelte').Snippet;
@@ -19,6 +20,7 @@
 		class: className = '',
 		disabled = false,
 		type = 'button',
+		form,
 		onclick,
 		href,
 		children,
@@ -34,6 +36,7 @@
 	<button
 		{type}
 		{disabled}
+		{form}
 		{onclick}
 		class={cn(buttonVariants({ variant, size }), className)}
 		{...restProps}

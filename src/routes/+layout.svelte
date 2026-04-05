@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import Sidebar from '$lib/components/layout/sidebar.svelte';
 	import Navbar from '$lib/components/layout/navbar.svelte';
+	import AssistantPanel from '$lib/components/ai/AssistantPanel.svelte';
 
 	let { children, data } = $props();
 
@@ -14,6 +15,7 @@
 	);
 
 	let sidebarCollapsed = $state(false);
+	let assistantOpen = $state(false);
 </script>
 
 {#if isAuthRoute}
@@ -30,10 +32,17 @@
 				user={data.user}
 				organization={data.organization}
 				onsidebarToggle={() => (sidebarCollapsed = !sidebarCollapsed)}
+				onassistantToggle={() => (assistantOpen = !assistantOpen)}
 			/>
 			<main class="flex-1 overflow-y-auto p-6">
 				{@render children()}
 			</main>
 		</div>
 	</div>
+
+	<AssistantPanel
+		open={assistantOpen}
+		ontoggle={() => (assistantOpen = !assistantOpen)}
+		role={data.membership?.role ?? 'guest'}
+	/>
 {/if}
