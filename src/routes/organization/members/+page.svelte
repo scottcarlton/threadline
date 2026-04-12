@@ -577,7 +577,7 @@
 			{:else}
 				<h2 class="text-base font-semibold">Member Details</h2>
 			{/if}
-			<button onclick={closeDrawer} class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground shrink-0">
+			<button onclick={closeDrawer} aria-label="Close" class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground shrink-0">
 				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 				</svg>
@@ -689,6 +689,7 @@
 									<div class="flex items-center gap-1 rounded-lg border px-2.5 py-1">
 										<span class="text-sm">{ba.brands?.name ?? 'Unknown'}</span>
 										<button
+											aria-label="Remove brand access"
 											class="text-muted-foreground hover:text-destructive transition-colors"
 											disabled={drawerRemovingAccess === ba.id}
 											onclick={() => drawerRemoveBrandAccess(ba.id)}

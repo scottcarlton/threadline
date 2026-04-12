@@ -81,7 +81,9 @@ You have access to tools to query and modify data. Be thorough but concise in yo
 		});
 
 		// Tool use loop
-		while (response.stop_reason === 'tool_use') {
+		const MAX_TOOL_ITERATIONS = 10;
+		let toolIterations = 0;
+		while (response.stop_reason === 'tool_use' && toolIterations++ < MAX_TOOL_ITERATIONS) {
 			const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
 			for (const block of response.content) {

@@ -672,7 +672,7 @@
 														<td class="px-3 py-2">{brand.name}</td>
 														<td class="px-3 py-2 text-muted-foreground">{brand.email || '—'}</td>
 														<td class="px-3 py-2">
-															<button class="text-muted-foreground hover:text-destructive" onclick={() => removeParsedBrand(i)}>
+															<button aria-label="Remove brand" class="text-muted-foreground hover:text-destructive" onclick={() => removeParsedBrand(i)}>
 																<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 																	<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 																</svg>
@@ -784,7 +784,7 @@
 														<td class="px-3 py-2">{member.email}</td>
 														<td class="px-3 py-2 capitalize text-muted-foreground">{member.role}</td>
 														<td class="px-3 py-2">
-															<button class="text-muted-foreground hover:text-destructive" onclick={() => removeParsedMember(i)}>
+															<button aria-label="Remove member" class="text-muted-foreground hover:text-destructive" onclick={() => removeParsedMember(i)}>
 																<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 																	<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 																</svg>

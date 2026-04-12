@@ -825,9 +825,11 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		});
 
 		const actions: Array<{ tool: string; input: Record<string, unknown>; result: unknown }> = [];
+		const MAX_TOOL_ITERATIONS = 10;
+		let toolIterations = 0;
 
 		// Handle tool use loop (Claude may call multiple tools in sequence)
-		while (response.stop_reason === 'tool_use') {
+		while (response.stop_reason === 'tool_use' && toolIterations++ < MAX_TOOL_ITERATIONS) {
 			const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
 			for (const block of response.content) {

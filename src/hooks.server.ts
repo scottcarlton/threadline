@@ -2,14 +2,13 @@ import * as Sentry from '@sentry/sveltekit';
 import { createServerClient } from '@supabase/ssr';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import { PUBLIC_SENTRY_DSN } from '$env/static/public';
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SENTRY_DSN } from '$env/static/public';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import type { OrgType } from '$lib/types/database.js';
 
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
-	tracesSampleRate: 1.0
+	tracesSampleRate: 0.1
 });
 
 const PUBLIC_ROUTES = ['/login', '/signup', '/invite', '/buyer-invite', '/auth/callback', '/upload', '/features', '/intelligence', '/solutions', '/pricing'];
@@ -67,20 +66,12 @@ const authHandle: Handle = async ({ event, resolve }) => {
 		throw redirect(303, '/insight');
 	}
 
-
 	// Load user context for authenticated routes
 	if (session && user && !isPublicRoute) {
-		const { data: profile } = await supabase
-			.from('profiles')
-			.select('*')
-			.eq('id', user.id)
-			.single();
-
-		// Query ALL memberships for multi-org support
-		const { data: allMemberships } = await supabase
-			.from('organization_members')
-			.select('*, organizations(*)')
-			.eq('profile_id', user.id);
+		const [{ data: profile }, { data: allMemberships }] = await Promise.all([
+			supabase.from('profiles').select('*').eq('id', user.id).single(),
+			supabase.from('organization_members').select('*, organizations(*)').eq('profile_id', user.id)
+		]);
 
 		if (allMemberships?.length) {
 			event.locals.allMemberships = allMemberships as any;

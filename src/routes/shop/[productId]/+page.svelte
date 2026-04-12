@@ -202,6 +202,7 @@
 	>
 		<!-- Close button -->
 		<button
+			aria-label="Close"
 			class="absolute top-4 right-4 rounded-full p-2 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
 			onclick={closeLightbox}
 		>
@@ -213,6 +214,7 @@
 		<!-- Previous -->
 		{#if images.length > 1}
 			<button
+				aria-label="Previous image"
 				class="absolute left-4 rounded-full p-2 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
 				onclick={(e) => { e.stopPropagation(); prevImage(); }}
 			>
@@ -236,6 +238,7 @@
 		<!-- Next -->
 		{#if images.length > 1}
 			<button
+				aria-label="Next image"
 				class="absolute right-4 rounded-full p-2 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
 				onclick={(e) => { e.stopPropagation(); nextImage(); }}
 			>

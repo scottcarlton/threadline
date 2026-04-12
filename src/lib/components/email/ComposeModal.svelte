@@ -352,6 +352,7 @@
 									{email}
 									<button
 										type="button"
+										aria-label="Remove {email}"
 										class="rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors"
 										onclick={() => removeEmail(email)}
 									>

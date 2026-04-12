@@ -301,6 +301,7 @@
 					onclick={() => preferences.setAutoHideDock(!$preferences.autoHideDock)}
 					role="switch"
 					aria-checked={$preferences.autoHideDock}
+					aria-label="Auto-hide dock"
 				>
 					<span class="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform {$preferences.autoHideDock ? 'translate-x-5 dark:bg-zinc-900' : 'translate-x-0'}"></span>
 				</button>

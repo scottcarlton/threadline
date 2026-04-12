@@ -206,12 +206,6 @@ body {
 	animation-play-state: paused;
 }
 
-/* Pixel float */
-@keyframes pixel-float {
-	0%, 100% { transform: translateY(0); opacity: 0.5; }
-	50% { transform: translateY(-6px); opacity: 1; }
-}
-
 /* Card lift */
 .card-lift {
 	transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
