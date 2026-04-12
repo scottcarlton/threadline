@@ -24,6 +24,11 @@
 	const brandAssets = $derived((data.brandAssets ?? []) as BrandAsset[]);
 	const productCount = $derived(data.productCount as number);
 	const expenseSummary = $derived(data.expenseSummary as { total: number; pendingCount: number; pendingAmount: number });
+	const performance = $derived(data.performance as {
+		ytdRevenue: number; ytdShipped: number; ytdOrders: number; totalOrders: number;
+		uniqueAccounts: number; avgOrderValue: number; yoyGrowth: number;
+		topAccounts: { id: string; name: string; total: number }[];
+	});
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
 	const canEdit = $derived(
 		data.membership?.role === 'admin' ||
@@ -223,6 +228,67 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Performance Dashboard -->
+	{#if performance && performance.totalOrders > 0}
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<Card>
+				<CardContent class="pt-4 pb-4">
+					<p class="text-sm font-medium text-muted-foreground">YTD Revenue</p>
+					<p class="mt-1 text-2xl font-semibold">{fmt.format(performance.ytdRevenue)}</p>
+					{#if performance.yoyGrowth !== 0}
+						<p class="mt-0.5 text-sm {performance.yoyGrowth > 0 ? 'text-emerald-600' : 'text-red-600'}">
+							{performance.yoyGrowth > 0 ? '+' : ''}{Math.round(performance.yoyGrowth)}% vs last year
+						</p>
+					{/if}
+				</CardContent>
+			</Card>
+			<Card>
+				<CardContent class="pt-4 pb-4">
+					<p class="text-sm font-medium text-muted-foreground">YTD Orders</p>
+					<p class="mt-1 text-2xl font-semibold">{performance.ytdOrders}</p>
+					<p class="mt-0.5 text-sm text-muted-foreground">{fmt.format(performance.avgOrderValue)} avg</p>
+				</CardContent>
+			</Card>
+			<Card>
+				<CardContent class="pt-4 pb-4">
+					<p class="text-sm font-medium text-muted-foreground">Active Accounts</p>
+					<p class="mt-1 text-2xl font-semibold">{performance.uniqueAccounts}</p>
+					<p class="mt-0.5 text-sm text-muted-foreground">{performance.totalOrders} lifetime orders</p>
+				</CardContent>
+			</Card>
+			<Card>
+				<CardContent class="pt-4 pb-4">
+					<p class="text-sm font-medium text-muted-foreground">Shipped Revenue</p>
+					<p class="mt-1 text-2xl font-semibold">{fmt.format(performance.ytdShipped)}</p>
+					{#if performance.ytdRevenue > 0}
+						<p class="mt-0.5 text-sm text-muted-foreground">{Math.round((performance.ytdShipped / performance.ytdRevenue) * 100)}% of booked</p>
+					{/if}
+				</CardContent>
+			</Card>
+		</div>
+
+		{#if performance.topAccounts.length > 0}
+			<Card>
+				<CardHeader>
+					<CardTitle class="text-base">Top Accounts</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div class="space-y-2">
+						{#each performance.topAccounts as acct, i}
+							<a href="/accounts/{acct.id}" class="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-muted/50">
+								<div class="flex items-center gap-3">
+									<span class="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground">{i + 1}</span>
+									<span class="text-sm font-medium">{acct.name}</span>
+								</div>
+								<span class="text-sm font-medium font-mono">{fmt.format(acct.total)}</span>
+							</a>
+						{/each}
+					</div>
+				</CardContent>
+			</Card>
+		{/if}
+	{/if}
 
 	<div class="grid gap-6 lg:grid-cols-[1fr_400px]">
 	<!-- Left column: Details + Products -->

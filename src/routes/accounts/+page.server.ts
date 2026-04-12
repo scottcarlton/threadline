@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const currentYear = new Date().getFullYear();
 
-	const [accountsRes, ordersRes, healthMap] = await Promise.all([
+	const [accountsRes, ordersRes, healthMap, tagAssignmentsRes] = await Promise.all([
 		supabase
 			.from('accounts')
 			.select('*, territories(name)')
@@ -20,7 +20,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.select('account_id, total_amount')
 			.eq('organization_id', organization.id)
 			.eq('order_year', currentYear),
-		computeAccountHealth(supabase, organization.id)
+		computeAccountHealth(supabase, organization.id),
+		supabase
+			.from('account_tag_assignments')
+			.select('account_id, account_tags(id, name, color)')
 	]);
 
 	// Build YTD totals per account
@@ -35,9 +38,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 		accountHealth[id] = health;
 	}
 
+	// Build tag map per account
+	const accountTagMap: Record<string, { id: string; name: string; color: string }[]> = {};
+	for (const assignment of tagAssignmentsRes.data ?? []) {
+		const tag = assignment.account_tags as any;
+		if (!tag) continue;
+		if (!accountTagMap[assignment.account_id]) accountTagMap[assignment.account_id] = [];
+		accountTagMap[assignment.account_id].push({ id: tag.id, name: tag.name, color: tag.color });
+	}
+
 	return {
 		accounts: accountsRes.data ?? [],
 		accountTotals: totals,
-		accountHealth
+		accountHealth,
+		accountTags: accountTagMap
 	};
 };
