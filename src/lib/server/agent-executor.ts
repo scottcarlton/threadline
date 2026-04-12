@@ -1,0 +1,169 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { ANTHROPIC_API_KEY } from '$env/static/private';
+import { executeToolCall } from './ai-tools.js';
+import { supabaseAdmin } from './supabase.js';
+
+const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+
+interface AgentExecutionParams {
+	agentId: string;
+	orgId: string;
+	prompt: string;
+	systemPrompt: string;
+	triggeredBy: 'user' | 'event' | 'schedule';
+	triggerId?: string;
+	eventContext?: Record<string, unknown>;
+}
+
+interface AgentExecutionResult {
+	output: string;
+	toolsUsed: string[];
+	runId: string;
+}
+
+export async function executeAgent(params: AgentExecutionParams): Promise<AgentExecutionResult> {
+	const startTime = Date.now();
+	const toolsUsed: string[] = [];
+
+	// Create run record
+	const { data: run } = await supabaseAdmin
+		.from('org_agent_runs')
+		.insert({
+			agent_id: params.agentId,
+			organization_id: params.orgId,
+			trigger_id: params.triggerId ?? null,
+			triggered_by: params.triggeredBy,
+			input_prompt: params.prompt,
+			status: 'running'
+		})
+		.select()
+		.single();
+
+	const runId = run?.id;
+
+	try {
+		// Get org info for context
+		const { data: org } = await supabaseAdmin
+			.from('organizations')
+			.select('name')
+			.eq('id', params.orgId)
+			.single();
+
+		const eventInfo = params.eventContext
+			? `\n\nEvent context: ${JSON.stringify(params.eventContext)}`
+			: '';
+
+		const systemBlocks: Anthropic.TextBlockParam[] = [
+			{
+				type: 'text',
+				text: `You are a custom AI agent for ${org?.name ?? 'an organization'} on Threadline, a wholesale fashion platform.
+
+${params.systemPrompt}
+
+You have access to tools to query and modify data. Be thorough but concise in your responses.${eventInfo}`
+			}
+		];
+
+		// Import tool definitions from the AI endpoint
+		// We reuse the same tools but call them with the admin client
+		const { _toolDefinitions } = await import('../../routes/api/ai/+server.js');
+
+		const messages: Anthropic.MessageParam[] = [
+			{ role: 'user', content: params.prompt }
+		];
+
+		let response = await anthropic.messages.create({
+			model: 'claude-sonnet-4-20250514',
+			max_tokens: 4096,
+			system: systemBlocks,
+			tools: _toolDefinitions,
+			messages
+		});
+
+		// Tool use loop
+		while (response.stop_reason === 'tool_use') {
+			const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+			for (const block of response.content) {
+				if (block.type !== 'tool_use') continue;
+
+				const toolInput = block.input as Record<string, unknown>;
+				toolsUsed.push(block.name);
+
+				const result = await executeToolCall(block.name, toolInput, {
+					supabase: supabaseAdmin,
+					organizationId: params.orgId,
+					userId: '', // Agent runs as system
+					brandScope: null, // Full access
+					orgType: 'rep', // Default for automated agents
+					origin: ''
+				});
+
+				toolResults.push({
+					type: 'tool_result',
+					tool_use_id: block.id,
+					content: JSON.stringify(result)
+				});
+			}
+
+			messages.push({ role: 'assistant', content: response.content });
+			messages.push({ role: 'user', content: toolResults });
+
+			response = await anthropic.messages.create({
+				model: 'claude-sonnet-4-20250514',
+				max_tokens: 4096,
+				system: systemBlocks,
+				tools: _toolDefinitions,
+				messages
+			});
+		}
+
+		// Extract text
+		const textBlocks = response.content.filter(
+			(block): block is Anthropic.TextBlock => block.type === 'text'
+		);
+		let output = textBlocks.map((b) => b.text).join('\n');
+
+		// Strip suggestions line if present
+		const lines = output.trimEnd().split('\n');
+		const lastLine = lines[lines.length - 1];
+		if (lastLine?.startsWith('SUGGESTIONS:')) {
+			output = lines.slice(0, -1).join('\n').trimEnd();
+		}
+
+		const duration = Date.now() - startTime;
+
+		// Update run record
+		if (runId) {
+			await supabaseAdmin
+				.from('org_agent_runs')
+				.update({
+					output_text: output,
+					tools_used: toolsUsed,
+					status: 'completed',
+					completed_at: new Date().toISOString(),
+					duration_ms: duration
+				})
+				.eq('id', runId);
+		}
+
+		return { output, toolsUsed, runId: runId ?? '' };
+	} catch (err) {
+		const duration = Date.now() - startTime;
+		const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+
+		if (runId) {
+			await supabaseAdmin
+				.from('org_agent_runs')
+				.update({
+					status: 'failed',
+					error_message: errorMessage,
+					completed_at: new Date().toISOString(),
+					duration_ms: duration
+				})
+				.eq('id', runId);
+		}
+
+		throw err;
+	}
+}

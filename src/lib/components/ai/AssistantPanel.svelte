@@ -1,12 +1,16 @@
 <script lang="ts">
 	import { cn } from '$lib/utils.js';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import { conversation } from '$lib/stores/conversation.js';
+	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import type { UserRole } from '$lib/types/database.js';
+	import { preferences } from '$lib/stores/preferences.js';
+	const { messages, loading } = conversation;
 
-	type Message = {
-		role: 'user' | 'assistant';
-		content: string;
-	};
+	const chatFontStyle = $derived(
+		$preferences.chatFont === 'sans' ? 'font-family: Georgia, "Times New Roman", serif; font-size: 16px'
+		: $preferences.chatFont === 'system' ? 'font-family: system-ui, sans-serif; font-size: 16px'
+		: 'font-family: var(--font-sans); font-size: 16px'
+	);
 
 	type Props = {
 		open: boolean;
@@ -16,35 +20,42 @@
 
 	let { open, ontoggle, role = 'member' }: Props = $props();
 
-	let messages = $state<Message[]>([]);
 	let inputValue = $state('');
-	let loading = $state(false);
 	let messagesContainer = $state<HTMLDivElement | null>(null);
+	let fileInput = $state<HTMLInputElement | null>(null);
+	let attachedFiles = $state<{ file: File; preview?: string }[]>([]);
+	let voiceState = $state<'idle' | 'listening' | 'speaking'>('idle');
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let recognition = $state<any>(null);
+	let currentAudio = $state<HTMLAudioElement | null>(null);
+
+	const hasText = $derived(inputValue.trim().length > 0);
+	const hasAttachments = $derived(attachedFiles.length > 0);
 
 	const suggestedPrompts: Record<string, string[]> = {
 		admin: [
-			'Show me a summary of all orders this season',
-			'Create a new brand called "Luxe Label"',
-			'How many active accounts do we have?',
-			'What are our top brands by revenue?'
+			'Summarize my orders this season',
+			'Which accounts haven\'t ordered yet?',
+			'What\'s our revenue by brand?',
+			'Create a new brand'
 		],
 		owner: [
-			'Show me a summary of all orders this season',
-			'Create a new brand called "Luxe Label"',
-			'How many active accounts do we have?',
-			'What are our top brands by revenue?'
+			'Summarize my orders this season',
+			'Which accounts haven\'t ordered yet?',
+			'What\'s our revenue by brand?',
+			'Create a new brand'
 		],
 		member: [
 			'Show me my brand orders',
-			'What accounts have placed orders recently?',
-			'Create an order for my brand',
-			'Show me dashboard metrics'
+			'What accounts have ordered recently?',
+			'Create an order',
+			'Show me revenue metrics'
 		],
 		guest: [
 			'Show me current orders',
 			'How many brands are there?',
 			'What shows are coming up?',
-			'Show me dashboard metrics'
+			'Show me revenue metrics'
 		]
 	};
 
@@ -58,56 +69,80 @@
 		}
 	}
 
-	async function sendMessage(text?: string) {
+	async function fileToBase64(file: File): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => {
+				const result = reader.result as string;
+				resolve(result.split(',')[1]);
+			};
+			reader.onerror = reject;
+			reader.readAsDataURL(file);
+		});
+	}
+
+	async function handleSend(text?: string) {
 		const msg = text ?? inputValue.trim();
-		if (!msg || loading) return;
+		if (!msg && !hasAttachments) return;
+
+		let files: FileAttachment[] | undefined;
+		if (attachedFiles.length > 0) {
+			files = await Promise.all(
+				attachedFiles.map(async ({ file }) => ({
+					name: file.name,
+					type: file.type,
+					data: await fileToBase64(file),
+					size: file.size
+				}))
+			);
+		}
 
 		inputValue = '';
-		messages = [...messages, { role: 'user', content: msg }];
-		loading = true;
+		attachedFiles = [];
+		await conversation.sendMessage(msg || 'What is this file?', files);
 		scrollToBottom();
 
-		try {
-			// Build conversation history (exclude the latest user message, it's sent as `message`)
-			const conversationHistory = messages.slice(0, -1).map((m) => ({
-				role: m.role,
-				content: m.content
-			}));
+		// Play AI voice response if we were in voice mode
+		if (voiceState === 'listening' || voiceState === 'speaking') {
+			const allMessages = $messages;
+			const lastMessage = allMessages[allMessages.length - 1];
+			if (lastMessage?.role === 'assistant') {
+				await playVoiceResponse(lastMessage.content);
+			}
+		}
+	}
 
-			const res = await fetch('/api/ai', {
+	async function playVoiceResponse(text: string) {
+		voiceState = 'speaking';
+		try {
+			const res = await fetch('/api/voice', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					message: msg,
-					conversationHistory
-				})
+				body: JSON.stringify({ text: text.slice(0, 1000), voiceId: $preferences.voiceId })
 			});
-
-			const data = await res.json();
-
 			if (!res.ok) {
-				messages = [
-					...messages,
-					{ role: 'assistant', content: data.error ?? 'Something went wrong. Please try again.' }
-				];
-			} else {
-				messages = [...messages, { role: 'assistant', content: data.response }];
+				voiceState = 'idle';
+				return;
 			}
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const audio = new Audio(url);
+			currentAudio = audio;
+			audio.onended = () => {
+				voiceState = 'idle';
+				currentAudio = null;
+				URL.revokeObjectURL(url);
+			};
+			audio.play();
 		} catch {
-			messages = [
-				...messages,
-				{ role: 'assistant', content: 'Network error. Please check your connection and try again.' }
-			];
-		} finally {
-			loading = false;
-			scrollToBottom();
+			voiceState = 'idle';
 		}
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
-			sendMessage();
+			handleSend();
 		}
 	}
 
@@ -117,18 +152,98 @@
 			ontoggle();
 		}
 	}
+
+	function handleFileSelect(e: Event) {
+		const input = e.target as HTMLInputElement;
+		if (!input.files) return;
+		for (const file of input.files) {
+			const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+			attachedFiles = [...attachedFiles, { file, preview }];
+		}
+		input.value = '';
+	}
+
+	function removeFile(index: number) {
+		const removed = attachedFiles[index];
+		if (removed.preview) URL.revokeObjectURL(removed.preview);
+		attachedFiles = attachedFiles.filter((_, i) => i !== index);
+	}
+
+	function formatFileSize(bytes: number): string {
+		if (bytes < 1024) return `${bytes}B`;
+		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+		return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+	}
+
+	function toggleVoice() {
+		if (voiceState === 'listening') {
+			stopListening();
+			return;
+		}
+		if (voiceState === 'speaking') {
+			if (currentAudio) {
+				currentAudio.pause();
+				currentAudio = null;
+			}
+			voiceState = 'idle';
+			return;
+		}
+		startListening();
+	}
+
+	function startListening() {
+		const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+		if (!SpeechRecognition) {
+			inputValue = '(Voice input not supported in this browser)';
+			return;
+		}
+		recognition = new SpeechRecognition();
+		recognition.continuous = false;
+		recognition.interimResults = true;
+		recognition.lang = 'en-US';
+
+		recognition.onresult = (event: any) => {
+			let transcript = '';
+			for (let i = 0; i < event.results.length; i++) {
+				transcript += event.results[i][0].transcript;
+			}
+			inputValue = transcript;
+		};
+
+		recognition.onend = () => {
+			if (voiceState === 'listening') {
+				voiceState = 'idle';
+				if (inputValue.trim()) {
+					handleSend();
+				}
+			}
+		};
+
+		recognition.onerror = () => {
+			voiceState = 'idle';
+		};
+
+		voiceState = 'listening';
+		recognition.start();
+	}
+
+	function stopListening() {
+		if (recognition) {
+			recognition.stop();
+			recognition = null;
+		}
+		voiceState = 'idle';
+	}
 </script>
 
 <svelte:window onkeydown={handleGlobalKeydown} />
 
-<!-- Backdrop -->
 {#if open}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onclick={ontoggle}></div>
 {/if}
 
-<!-- Panel -->
 <div
 	class={cn(
 		'fixed right-0 top-0 z-50 flex h-full w-full flex-col border-l bg-background shadow-xl transition-transform duration-300 ease-in-out sm:w-[28rem]',
@@ -136,78 +251,44 @@
 	)}
 >
 	<!-- Header -->
-	<div class="flex items-center justify-between border-b px-4 py-3">
+	<div class="flex items-center justify-between border-b px-5 py-3.5">
 		<div class="flex items-center gap-2">
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-5 w-5 text-primary"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				stroke-width="1.5"
-			>
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-				/>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
 			</svg>
-			<h2 class="text-sm font-semibold">AI Assistant</h2>
-			<kbd
-				class="ml-2 hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-block"
-			>
-				{navigator?.platform?.includes('Mac') ? '\u2318' : 'Ctrl'}+K
-			</kbd>
+			<h2 class="text-[13px] font-semibold">AI Assistant</h2>
 		</div>
 		<button
 			onclick={ontoggle}
-			class="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+			class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 			aria-label="Close assistant"
 		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-5 w-5"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				stroke-width="1.5"
-			>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 				<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 			</svg>
 		</button>
 	</div>
 
 	<!-- Messages -->
-	<div bind:this={messagesContainer} class="flex-1 space-y-4 overflow-y-auto p-4">
-		{#if messages.length === 0 && !loading}
-			<div class="flex h-full flex-col items-center justify-center gap-4 text-center">
-				<div class="rounded-full bg-primary/10 p-3">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-8 w-8 text-primary"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="1.5"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M13 10V3L4 14h7v7l9-11h-7z"
-						/>
+	<div bind:this={messagesContainer} class="flex-1 space-y-3 overflow-y-auto p-4" style={chatFontStyle}>
+		{#if $messages.length === 0 && !$loading}
+			<div class="flex h-full flex-col items-center justify-center gap-4 text-center px-4">
+				<div class="rounded-full bg-muted p-3">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
 					</svg>
 				</div>
 				<div>
-					<p class="text-sm font-medium">How can I help?</p>
-					<p class="mt-1 text-xs text-muted-foreground">
-						Ask me about orders, brands, accounts, or anything in ThreadLine.
+					<p class="text-[13px] font-medium">How can I help?</p>
+					<p class="mt-1 text-[12px] text-muted-foreground">
+						Ask about orders, brands, accounts, or anything in Threadline.
 					</p>
 				</div>
-				<div class="mt-2 flex w-full flex-col gap-2">
+				<div class="mt-2 flex w-full flex-col gap-1.5">
 					{#each currentPrompts as prompt}
 						<button
-							class="rounded-md border px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-							onclick={() => sendMessage(prompt)}
+							class="rounded-lg border px-3 py-2 text-left text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							onclick={() => handleSend(prompt)}
 						>
 							{prompt}
 						</button>
@@ -215,33 +296,39 @@
 				</div>
 			</div>
 		{:else}
-			{#each messages as msg}
+			{#each $messages as msg}
 				<div class={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
 					<div
 						class={cn(
-							'max-w-[85%] rounded-lg px-3 py-2 text-sm',
+							'max-w-[85%] rounded-none px-3.5 py-2.5 text-[13px] leading-relaxed',
 							msg.role === 'user'
 								? 'bg-primary text-primary-foreground'
 								: 'bg-muted text-foreground'
 						)}
 					>
+						{#if msg.attachments && msg.attachments.length > 0}
+							<div class="mb-2 flex flex-wrap gap-1.5">
+								{#each msg.attachments as attachment}
+									<span class="inline-flex items-center gap-1 rounded bg-black/10 px-1.5 py-0.5 text-[11px]">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+										</svg>
+										{attachment.name}
+									</span>
+								{/each}
+							</div>
+						{/if}
 						<p class="whitespace-pre-wrap">{msg.content}</p>
 					</div>
 				</div>
 			{/each}
 
-			{#if loading}
+			{#if $loading}
 				<div class="flex justify-start">
-					<div class="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-2">
-						<div class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50"></div>
-						<div
-							class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50"
-							style="animation-delay: 0.1s"
-						></div>
-						<div
-							class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50"
-							style="animation-delay: 0.2s"
-						></div>
+					<div class="flex items-center gap-1.5 rounded-none bg-muted px-3.5 py-2.5">
+						<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40"></div>
+						<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40" style="animation-delay: 0.15s"></div>
+						<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40" style="animation-delay: 0.3s"></div>
 					</div>
 				</div>
 			{/if}
@@ -249,36 +336,137 @@
 	</div>
 
 	<!-- Input -->
-	<div class="border-t p-4">
-		<div class="flex items-end gap-2">
+	<div class="p-4 pt-2">
+		<div class="rounded-none border bg-background shadow-sm transition-colors focus-within:ring-2 focus-within:ring-ring/20 focus-within:border-ring">
+			<!-- Textarea -->
 			<textarea
 				bind:value={inputValue}
 				onkeydown={handleKeydown}
-				placeholder="Ask anything about your data..."
+				placeholder="Ask anything..."
 				rows={1}
-				disabled={loading}
-				class="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+				disabled={$loading}
+				class="w-full resize-none border-0 bg-transparent px-4 pt-3 pb-1 text-[14px] placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
+				style={chatFontStyle}
 			></textarea>
-			<Button
-				size="sm"
-				disabled={loading || !inputValue.trim()}
-				onclick={() => sendMessage()}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
+
+			<!-- Attached files -->
+			{#if hasAttachments}
+				<div class="flex flex-wrap gap-2 px-3 pb-1">
+					{#each attachedFiles as { file, preview }, i}
+						<div class="group relative flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2 py-1">
+							{#if preview}
+								<img src={preview} alt={file.name} class="h-8 w-8 rounded object-cover" />
+							{:else}
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+								</svg>
+							{/if}
+							<div class="flex flex-col">
+								<span class="max-w-[120px] truncate text-[11px] font-medium">{file.name}</span>
+								<span class="text-[10px] text-muted-foreground">{formatFileSize(file.size)}</span>
+							</div>
+							<button
+								onclick={() => removeFile(i)}
+								class="ml-1 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+								aria-label="Remove file"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			<!-- Toolbar row -->
+			<div class="flex items-center justify-between px-3 pb-2.5 pt-1">
+				<!-- Left: Add file -->
+				<input
+					bind:this={fileInput}
+					type="file"
+					multiple
+					accept="image/*,.pdf,.csv,.txt,.json,.xlsx,.xls,.doc,.docx"
+					onchange={handleFileSelect}
+					class="hidden"
+				/>
+				<button
+					onclick={() => fileInput?.click()}
+					disabled={$loading}
+					class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+					aria-label="Attach file"
 				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M12 19V5m0 0l-7 7m7-7l7 7"
-					/>
-				</svg>
-			</Button>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+					</svg>
+				</button>
+
+				<!-- Right: Voice or Send -->
+				{#if hasText || hasAttachments}
+					<!-- Send button -->
+					<button
+						onclick={() => handleSend()}
+						disabled={$loading}
+						class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+						aria-label="Send message"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+						</svg>
+					</button>
+				{:else if voiceState === 'listening'}
+					<!-- Voice active: wave animation -->
+					<button
+						onclick={toggleVoice}
+						class="flex h-8 w-8 items-center justify-center rounded-full bg-destructive text-destructive-foreground transition-colors"
+						aria-label="Stop listening"
+					>
+						<div class="flex items-center gap-[3px]">
+							<span class="voice-bar h-3 w-[3px] rounded-full bg-current"></span>
+							<span class="voice-bar h-4 w-[3px] rounded-full bg-current" style="animation-delay: 0.15s"></span>
+							<span class="voice-bar h-2.5 w-[3px] rounded-full bg-current" style="animation-delay: 0.3s"></span>
+							<span class="voice-bar h-3.5 w-[3px] rounded-full bg-current" style="animation-delay: 0.45s"></span>
+						</div>
+					</button>
+				{:else if voiceState === 'speaking'}
+					<!-- AI speaking: wave animation -->
+					<button
+						onclick={toggleVoice}
+						class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors"
+						aria-label="Stop speaking"
+					>
+						<div class="flex items-center gap-[3px]">
+							<span class="voice-bar h-3 w-[3px] rounded-full bg-current"></span>
+							<span class="voice-bar h-4 w-[3px] rounded-full bg-current" style="animation-delay: 0.15s"></span>
+							<span class="voice-bar h-2.5 w-[3px] rounded-full bg-current" style="animation-delay: 0.3s"></span>
+							<span class="voice-bar h-3.5 w-[3px] rounded-full bg-current" style="animation-delay: 0.45s"></span>
+						</div>
+					</button>
+				{:else}
+					<!-- Mic button (idle) -->
+					<button
+						onclick={toggleVoice}
+						disabled={$loading}
+						class="flex h-8 w-8 items-center justify-center rounded-full bg-foreground/10 text-foreground transition-colors hover:bg-foreground/20 disabled:opacity-50"
+						aria-label="Voice input"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+						</svg>
+					</button>
+				{/if}
+			</div>
 		</div>
 	</div>
 </div>
+
+<style>
+	.voice-bar {
+		animation: voice-wave 0.6s ease-in-out infinite alternate;
+	}
+
+	@keyframes voice-wave {
+		0% { transform: scaleY(0.4); }
+		100% { transform: scaleY(1); }
+	}
+</style>

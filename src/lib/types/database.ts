@@ -1,5 +1,9 @@
-export type UserRole = 'admin' | 'owner' | 'member' | 'guest';
+export type UserRole = 'admin' | 'owner' | 'member' | 'sales' | 'guest';
+export type OrgType = 'rep' | 'brand';
+export type IntegrationProvider = 'google_sheets' | 'slack' | 'notion' | 'microsoft' | 'discord';
 export type OrderStatus = 'draft' | 'submitted' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+export type ExpenseCategory = 'trade_show' | 'samples' | 'marketing' | 'travel' | 'meals' | 'shipping' | 'photography' | 'office' | 'other';
 
 export interface Profile {
 	id: string;
@@ -14,6 +18,8 @@ export interface Organization {
 	name: string;
 	slug: string;
 	logo_url: string | null;
+	sso_enforced: boolean;
+	org_type: OrgType;
 	created_at: string;
 	updated_at: string;
 }
@@ -23,6 +29,7 @@ export interface OrganizationMember {
 	organization_id: string;
 	profile_id: string;
 	role: UserRole;
+	commission_rate: number;
 	invited_by: string | null;
 	invited_at: string;
 	accepted_at: string | null;
@@ -49,12 +56,16 @@ export interface Brand {
 	organization_id: string;
 	name: string;
 	logo_url: string | null;
-	contact_name: string | null;
+	contact_first_name: string | null;
+	contact_last_name: string | null;
 	contact_email: string | null;
 	contact_phone: string | null;
 	website: string | null;
 	notes: string | null;
+	commission_rate: number;
 	is_active: boolean;
+	is_self_brand: boolean;
+	archived_at: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -63,7 +74,8 @@ export interface Account {
 	id: string;
 	organization_id: string;
 	business_name: string;
-	contact_name: string | null;
+	contact_first_name: string | null;
+	contact_last_name: string | null;
 	contact_email: string | null;
 	phone: string | null;
 	address_line1: string | null;
@@ -73,7 +85,19 @@ export interface Account {
 	zip: string | null;
 	country: string;
 	notes: string | null;
+	territory_id: string | null;
 	is_active: boolean;
+	archived_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface Territory {
+	id: string;
+	organization_id: string;
+	name: string;
+	assigned_to: string | null;
+	notes: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -88,22 +112,100 @@ export interface Season {
 	updated_at: string;
 }
 
+export interface SeasonDelivery {
+	id: string;
+	season_id: string;
+	organization_id: string;
+	label: string;
+	delivery_month: number;
+	delivery_day: number;
+	sort_order: number;
+	created_at: string;
+	seasons?: Season;
+}
+
 export interface Show {
 	id: string;
 	organization_id: string;
-	season_id: string | null;
-	year: number | null;
 	name: string;
+	notes: string | null;
+	is_active: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ShowDate {
+	id: string;
+	show_id: string;
+	organization_id: string;
+	year: number;
+	month: number;
 	venue: string | null;
 	city: string | null;
 	state: string | null;
 	start_date: string | null;
 	end_date: string | null;
+	contact_name: string | null;
+	contact_email: string | null;
+	contact_phone: string | null;
 	notes: string | null;
+	created_at: string;
+	shows?: Show;
+}
+
+export interface ShowDateDocument {
+	id: string;
+	show_date_id: string;
+	organization_id: string;
+	name: string;
+	file_path: string;
+	file_size: number | null;
+	mime_type: string | null;
+	uploaded_by: string | null;
+	created_at: string;
+}
+
+export interface SourceType {
+	id: string;
+	organization_id: string;
+	name: string;
+	sort_order: number;
 	is_active: boolean;
 	created_at: string;
+}
+
+export interface ShowVisit {
+	id: string;
+	organization_id: string;
+	show_date_id: string;
+	account_id: string;
+	status: string;
+	notes: string | null;
+	is_new_account: boolean;
+	created_by: string | null;
+	created_at: string;
 	updated_at: string;
-	seasons?: Season;
+	accounts?: Account;
+}
+
+export interface Appointment {
+	id: string;
+	organization_id: string;
+	show_date_id: string;
+	account_id: string;
+	appointment_type: string;
+	location_type: string;
+	location_detail: string | null;
+	scheduled_date: string | null;
+	scheduled_time: string | null;
+	duration_minutes: number;
+	notes: string | null;
+	status: string;
+	created_by: string | null;
+	created_at: string;
+	updated_at: string;
+	accounts?: Account;
+	show_dates?: ShowDate;
 }
 
 export interface Order {
@@ -115,8 +217,13 @@ export interface Order {
 	season_id: string | null;
 	order_year: number | null;
 	show_id: string | null;
+	show_date_id: string | null;
+	source_type_id: string | null;
+	delivery_id: string | null;
+	expected_ship_date: string | null;
 	status: OrderStatus;
 	total_amount: number;
+	shipped_amount: number | null;
 	notes: string | null;
 	created_by: string;
 	submitted_at: string | null;
@@ -124,6 +231,8 @@ export interface Order {
 	shipped_at: string | null;
 	delivered_at: string | null;
 	cancelled_at: string | null;
+	cancelled_reason: string | null;
+	connection_id: string | null;
 	created_at: string;
 	updated_at: string;
 	brands?: Brand;
@@ -135,6 +244,8 @@ export interface Order {
 export interface OrderLine {
 	id: string;
 	order_id: string;
+	product_id: string | null;
+	variant_id: string | null;
 	style_number: string | null;
 	description: string | null;
 	color: string | null;
@@ -143,5 +254,331 @@ export interface OrderLine {
 	unit_price: number;
 	line_total: number;
 	sort_order: number;
+	original_qty: number | null;
+	removed_at: string | null;
+	removed_reason: string | null;
 	created_at: string;
+}
+
+export interface Product {
+	id: string;
+	organization_id: string;
+	brand_id: string;
+	style_number: string;
+	name: string;
+	description: string | null;
+	wholesale_price: number;
+	retail_price: number | null;
+	category: string | null;
+	subcategory: string | null;
+	season_id: string | null;
+	is_active: boolean;
+	archived_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ProductVariant {
+	id: string;
+	product_id: string;
+	color: string | null;
+	size: string | null;
+	sku: string | null;
+	barcode: string | null;
+	price_override: number | null;
+	is_active: boolean;
+	created_at: string;
+}
+
+export interface ProductImage {
+	id: string;
+	product_id: string;
+	file_path: string;
+	file_size: number | null;
+	mime_type: string | null;
+	sort_order: number;
+	is_primary: boolean;
+	uploaded_by: string | null;
+	created_at: string;
+}
+
+export interface CommissionOverride {
+	id: string;
+	organization_id: string;
+	brand_id: string;
+	account_id: string;
+	rate: number;
+	created_at: string;
+}
+
+export interface MemberBrandCommission {
+	id: string;
+	organization_id: string;
+	member_id: string;
+	brand_id: string;
+	rate: number;
+	created_at: string;
+}
+
+export interface BrandAsset {
+	id: string;
+	brand_id: string;
+	organization_id: string;
+	name: string;
+	file_path: string;
+	file_size: number | null;
+	mime_type: string | null;
+	category: string;
+	uploaded_by: string | null;
+	created_at: string;
+}
+
+export interface EmailConnection {
+	id: string;
+	profile_id: string;
+	provider: string;
+	email_address: string;
+	access_token: string;
+	refresh_token: string;
+	token_expires_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface DiscoveredContact {
+	id: string;
+	organization_id: string;
+	email: string;
+	name: string | null;
+	status: 'new' | 'saved' | 'dismissed';
+	first_seen_at: string;
+	last_seen_at: string;
+	message_count: number;
+	discovered_by: string | null;
+	notes: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface EmailLog {
+	id: string;
+	organization_id: string;
+	sent_by: string;
+	to_email: string;
+	subject: string;
+	body: string | null;
+	gmail_message_id: string | null;
+	gmail_thread_id: string | null;
+	related_type: string | null;
+	related_id: string | null;
+	created_at: string;
+}
+
+export interface IntegrationConnection {
+	id: string;
+	organization_id: string;
+	provider: IntegrationProvider;
+	status: 'active' | 'disconnected' | 'error';
+	access_token: string;
+	refresh_token: string | null;
+	token_expires_at: string | null;
+	scopes: string[];
+	external_account_id: string | null;
+	external_account_name: string | null;
+	config: Record<string, unknown>;
+	connected_by: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface IntegrationSyncLog {
+	id: string;
+	organization_id: string;
+	connection_id: string;
+	action: string;
+	status: 'success' | 'error' | 'pending';
+	details: Record<string, unknown>;
+	error_message: string | null;
+	triggered_by: string | null;
+	created_at: string;
+}
+
+export interface AccountUser {
+	id: string;
+	account_id: string;
+	profile_id: string;
+	role: string;
+	invited_by: string | null;
+	accepted_at: string | null;
+	created_at: string;
+	accounts?: Account & { organizations?: Organization };
+	profiles?: Profile;
+}
+
+export interface AccountBrandAccess {
+	id: string;
+	account_id: string;
+	brand_id: string;
+	organization_id: string;
+	granted_by: string | null;
+	granted_at: string;
+	brands?: Brand;
+}
+
+export interface OrganizationSsoProvider {
+	id: string;
+	organization_id: string;
+	supabase_provider_id: string;
+	domain: string;
+	provider_type: string;
+	display_name: string | null;
+	metadata_url: string | null;
+	created_at: string;
+	updated_at: string;
+	created_by: string | null;
+}
+
+export interface BrandExpense {
+	id: string;
+	organization_id: string;
+	brand_id: string;
+	expense_number: string;
+	category: ExpenseCategory;
+	description: string;
+	amount: number;
+	expense_date: string;
+	status: ExpenseStatus;
+	notes: string | null;
+	submitted_by: string;
+	reviewed_by: string | null;
+	review_notes: string | null;
+	submitted_at: string | null;
+	approved_at: string | null;
+	rejected_at: string | null;
+	created_at: string;
+	updated_at: string;
+	brands?: Brand;
+	profiles?: Profile;
+}
+
+export interface ExpenseReceipt {
+	id: string;
+	expense_id: string;
+	organization_id: string;
+	name: string;
+	file_path: string;
+	file_size: number | null;
+	mime_type: string | null;
+	uploaded_by: string | null;
+	created_at: string;
+}
+
+export type AgentTriggerType = 'event' | 'schedule';
+
+export interface OrgAgent {
+	id: string;
+	organization_id: string;
+	name: string;
+	slug: string;
+	description: string | null;
+	system_prompt: string;
+	icon: string;
+	is_active: boolean;
+	created_by: string;
+	created_at: string;
+	updated_at: string;
+	profiles?: Profile;
+}
+
+export interface OrgAgentTrigger {
+	id: string;
+	agent_id: string;
+	organization_id: string;
+	trigger_type: AgentTriggerType;
+	event_name: string | null;
+	cron_expression: string | null;
+	trigger_prompt: string;
+	notify_channel: string;
+	is_active: boolean;
+	last_run_at: string | null;
+	created_at: string;
+}
+
+export interface OrgAgentRun {
+	id: string;
+	agent_id: string;
+	organization_id: string;
+	trigger_id: string | null;
+	triggered_by: string;
+	input_prompt: string;
+	output_text: string | null;
+	tools_used: string[] | null;
+	status: string;
+	error_message: string | null;
+	started_at: string;
+	completed_at: string | null;
+	duration_ms: number | null;
+}
+
+export type ConnectionStatus = 'pending' | 'active' | 'suspended' | 'disconnected';
+
+export interface OrgConnection {
+	id: string;
+	rep_org_id: string;
+	brand_org_id: string;
+	rep_brand_id: string | null;
+	status: ConnectionStatus;
+	commission_rate: number | null;
+	connected_at: string | null;
+	disconnected_at: string | null;
+	requested_by: string | null;
+	approved_by: string | null;
+	created_at: string;
+	updated_at: string;
+	rep_org?: Organization;
+	brand_org?: Organization;
+}
+
+export interface ConnectionInvite {
+	id: string;
+	brand_org_id: string;
+	code: string;
+	created_by: string;
+	expires_at: string;
+	max_uses: number;
+	use_count: number;
+	created_at: string;
+}
+
+export interface FederatedOrderLink {
+	id: string;
+	order_id: string;
+	connection_id: string;
+	source_org_id: string;
+	target_org_id: string;
+	status: 'active' | 'revoked';
+	created_at: string;
+}
+
+export interface FederatedAccountLink {
+	id: string;
+	account_id: string;
+	connection_id: string;
+	source_org_id: string;
+	target_org_id: string;
+	created_at: string;
+}
+
+export interface BuyerInvitation {
+	id: string;
+	account_id: string;
+	organization_id: string;
+	email: string;
+	token: string;
+	invited_by: string;
+	expires_at: string;
+	accepted_at: string | null;
+	created_at: string;
+	accounts?: Account;
+	organizations?: Organization;
 }

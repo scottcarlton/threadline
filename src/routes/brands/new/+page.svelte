@@ -10,11 +10,14 @@
 	let { data } = $props();
 
 	let name = $state('');
-	let contactName = $state('');
+	let contactFirstName = $state('');
+	let contactLastName = $state('');
 	let contactEmail = $state('');
 	let contactPhone = $state('');
 	let website = $state('');
+	let commissionRate = $state('');
 	let notes = $state('');
+	let inviteContact = $state(true);
 	let error = $state('');
 	let loading = $state(false);
 
@@ -25,16 +28,51 @@
 		const { error: err } = await supabase.from('brands').insert({
 			organization_id: data.organization?.id,
 			name,
-			contact_name: contactName || null,
+			contact_first_name: contactFirstName || null,
+			contact_last_name: contactLastName || null,
 			contact_email: contactEmail || null,
 			contact_phone: contactPhone || null,
 			website: website || null,
+			commission_rate: parseFloat(commissionRate) || 0,
 			notes: notes || null
 		});
 
-		loading = false;
 		if (err) {
+			loading = false;
 			error = err.message;
+			return;
+		}
+
+		// Fetch the newly created brand to get its ID
+		const { data: newBrand } = await supabase
+			.from('brands')
+			.select('id')
+			.eq('organization_id', data.organization?.id)
+			.eq('name', name)
+			.order('created_at', { ascending: false })
+			.limit(1)
+			.single();
+
+		// Auto-invite contact as a team member scoped to this brand
+		if (inviteContact && contactEmail && newBrand) {
+			try {
+				await fetch('/api/invite/send', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						email: contactEmail,
+						role: 'member',
+						brandIds: [newBrand.id]
+					})
+				});
+			} catch {
+				// Invite failure shouldn't block brand creation
+			}
+		}
+
+		loading = false;
+		if (newBrand) {
+			goto(`/brands/${newBrand.id}`);
 		} else {
 			goto('/brands');
 		}
@@ -58,14 +96,24 @@
 				</div>
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2">
-						<Label for="contact-name">Contact name</Label>
-						<Input id="contact-name" bind:value={contactName} placeholder="Jane Smith" />
+						<Label for="contact-first-name">First name</Label>
+						<Input id="contact-first-name" bind:value={contactFirstName} placeholder="Jane" />
 					</div>
 					<div class="space-y-2">
-						<Label for="contact-email">Contact email</Label>
-						<Input id="contact-email" type="email" bind:value={contactEmail} placeholder="jane@example.com" />
+						<Label for="contact-last-name">Last name</Label>
+						<Input id="contact-last-name" bind:value={contactLastName} placeholder="Smith" />
 					</div>
 				</div>
+				<div class="space-y-2">
+					<Label for="contact-email">Contact email</Label>
+					<Input id="contact-email" type="email" bind:value={contactEmail} placeholder="jane@example.com" />
+				</div>
+				{#if contactEmail}
+					<label class="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+						<input type="checkbox" bind:checked={inviteContact} class="rounded border-input" />
+						Invite as team member (scoped to this brand)
+					</label>
+				{/if}
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2">
 						<Label for="contact-phone">Phone</Label>
@@ -75,6 +123,10 @@
 						<Label for="website">Website</Label>
 						<Input id="website" bind:value={website} placeholder="https://example.com" />
 					</div>
+				</div>
+				<div class="space-y-2">
+					<Label for="commission-rate">Commission Rate (%)</Label>
+					<Input id="commission-rate" type="number" step="0.01" min="0" max="100" bind:value={commissionRate} placeholder="e.g. 15" />
 				</div>
 				<div class="space-y-2">
 					<Label for="notes">Notes</Label>

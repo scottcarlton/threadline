@@ -1,14 +1,43 @@
+import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { computeAccountHealth } from '$lib/server/account-health.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
+	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { supabase, organization } = locals;
-	if (!organization) return { accounts: [] };
+	if (!organization) return { accounts: [], accountTotals: {}, accountHealth: {} };
 
-	const { data: accounts } = await supabase
-		.from('accounts')
-		.select('*')
-		.eq('organization_id', organization.id)
-		.order('business_name');
+	const currentYear = new Date().getFullYear();
 
-	return { accounts: accounts ?? [] };
+	const [accountsRes, ordersRes, healthMap] = await Promise.all([
+		supabase
+			.from('accounts')
+			.select('*, territories(name)')
+			.eq('organization_id', organization.id)
+			.order('business_name'),
+		supabase
+			.from('orders')
+			.select('account_id, total_amount')
+			.eq('organization_id', organization.id)
+			.eq('order_year', currentYear),
+		computeAccountHealth(supabase, organization.id)
+	]);
+
+	// Build YTD totals per account
+	const totals: Record<string, number> = {};
+	for (const order of ordersRes.data ?? []) {
+		totals[order.account_id] = (totals[order.account_id] ?? 0) + Number(order.total_amount);
+	}
+
+	// Convert health map to serializable object
+	const accountHealth: Record<string, ReturnType<typeof healthMap.get>> = {};
+	for (const [id, health] of healthMap) {
+		accountHealth[id] = health;
+	}
+
+	return {
+		accounts: accountsRes.data ?? [],
+		accountTotals: totals,
+		accountHealth
+	};
 };

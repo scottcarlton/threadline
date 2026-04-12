@@ -170,10 +170,9 @@ BEGIN
   INSERT INTO public.seasons (organization_id, name, sort_order) VALUES
     (NEW.id, 'Spring', 1),
     (NEW.id, 'Summer', 2),
-    (NEW.id, 'Pre-Fall', 3),
-    (NEW.id, 'Fall', 4),
-    (NEW.id, 'Resort', 5),
-    (NEW.id, 'Holiday', 6);
+    (NEW.id, 'Fall', 3),
+    (NEW.id, 'Resort', 4),
+    (NEW.id, 'Holiday', 5);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER

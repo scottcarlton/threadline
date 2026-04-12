@@ -9,7 +9,8 @@
 	let { data } = $props();
 
 	let businessName = $state('');
-	let contactName = $state('');
+	let contactFirstName = $state('');
+	let contactLastName = $state('');
 	let contactEmail = $state('');
 	let phone = $state('');
 	let addressLine1 = $state('');
@@ -25,10 +26,11 @@
 		error = '';
 		loading = true;
 
-		const { error: err } = await supabase.from('accounts').insert({
+		const { data: newAccount, error: err } = await supabase.from('accounts').insert({
 			organization_id: data.organization?.id,
 			business_name: businessName,
-			contact_name: contactName || null,
+			contact_first_name: contactFirstName || null,
+			contact_last_name: contactLastName || null,
 			contact_email: contactEmail || null,
 			phone: phone || null,
 			address_line1: addressLine1 || null,
@@ -37,14 +39,25 @@
 			state: accountState || null,
 			zip: zip || null,
 			notes: notes || null
-		});
+		}).select('id').single();
+
+		if (err) {
+			loading = false;
+			error = err.message;
+			return;
+		}
+
+		// Auto-invite contact to buyer portal if email provided
+		if (contactEmail.trim() && newAccount?.id) {
+			await fetch('/api/buyer-invite/send', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: contactEmail.trim(), accountId: newAccount.id, brandIds: [] })
+			});
+		}
 
 		loading = false;
-		if (err) {
-			error = err.message;
-		} else {
-			goto('/accounts');
-		}
+		goto('/accounts');
 	}
 </script>
 
@@ -63,10 +76,14 @@
 					<Label for="business-name">Business name *</Label>
 					<Input id="business-name" bind:value={businessName} required placeholder="Bloom Boutique" />
 				</div>
-				<div class="grid gap-4 sm:grid-cols-2">
+				<div class="grid gap-4 sm:grid-cols-3">
 					<div class="space-y-2">
-						<Label for="contact-name">Contact name</Label>
-						<Input id="contact-name" bind:value={contactName} placeholder="Jane Smith" />
+						<Label for="contact-first-name">First name</Label>
+						<Input id="contact-first-name" bind:value={contactFirstName} placeholder="Jane" />
+					</div>
+					<div class="space-y-2">
+						<Label for="contact-last-name">Last name</Label>
+						<Input id="contact-last-name" bind:value={contactLastName} placeholder="Smith" />
 					</div>
 					<div class="space-y-2">
 						<Label for="contact-email">Email</Label>
