@@ -584,8 +584,13 @@
 			</div>
 
 			<div class="mt-3">
-				<button type="button" class="text-sm underline hover:no-underline" onclick={useAllBrands}>
+				<button
+					type="button"
+					class="inline-flex items-center gap-1 text-sm underline hover:no-underline"
+					onclick={useAllBrands}
+				>
 					Continue with All Brands
+					<span aria-hidden="true">→</span>
 				</button>
 			</div>
 		</div>
