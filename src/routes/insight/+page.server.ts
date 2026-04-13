@@ -117,16 +117,19 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.order('order_year', { ascending: false })
 	);
 
-	const availableYears = [
+	const yearRowList = (yearRows ?? []) as Array<{ order_year: number | null }>;
+	const availableYears: number[] = [
 		...new Set(
-			(yearRows ?? [])
-				.map((r: any) => r.order_year as number | null)
-				.filter((y): y is number => y !== null)
+			yearRowList
+				.map((r) => r.order_year)
+				.filter((y: number | null): y is number => y !== null)
 		)
 	];
 
 	const yearParam = url.searchParams.get('year');
-	const selectedYear = yearParam ? parseInt(yearParam, 10) : (availableYears[0] ?? null);
+	const selectedYear: number | null = yearParam
+		? parseInt(yearParam, 10)
+		: (availableYears[0] ?? null);
 
 	const [seasonSummaryResult, yearlySummaryResult] = await Promise.all([
 		supabase.rpc('get_season_summary', {
