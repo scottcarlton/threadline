@@ -591,7 +591,7 @@
 					onclick={useAllBrands}
 				>
 					Continue with All Brands
-					<LongArrow direction="right" class="h-3 w-5" />
+					<LongArrow direction="right" class="h-4 w-4" />
 				</button>
 			</div>
 		</div>
