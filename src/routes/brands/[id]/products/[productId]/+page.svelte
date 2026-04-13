@@ -229,11 +229,19 @@
 	<div class="flex items-start justify-between gap-4">
 		<div>
 			<h2 class="text-xl font-semibold">{product.name}</h2>
-			{#if product.season_id || product.product_year}
+			{#if product.season_id || product.product_year || product.category}
 				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-				<p class="mt-1 text-sm text-muted-foreground">
-					{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
-				</p>
+				{@const seasonYear = [seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+				<div class="mt-1 flex items-center gap-2">
+					{#if seasonYear}
+						<span class="text-sm text-muted-foreground">{seasonYear}</span>
+					{/if}
+					{#if product.category}
+						<Badge variant="secondary"
+							>{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}</Badge
+						>
+					{/if}
+				</div>
 			{/if}
 		</div>
 		<div class="text-xl font-semibold">{fmt.format(Number(product.wholesale_price))}</div>
@@ -379,12 +387,6 @@
 						<div class="flex justify-between">
 							<dt class="text-muted-foreground">Retail</dt>
 							<dd>{fmt.format(Number(product.retail_price))}</dd>
-						</div>
-					{/if}
-					{#if product.category}
-						<div class="flex justify-between">
-							<dt class="text-muted-foreground">Category</dt>
-							<dd>{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}</dd>
 						</div>
 					{/if}
 					{#if product.description}
