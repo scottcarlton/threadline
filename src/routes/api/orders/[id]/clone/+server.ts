@@ -11,11 +11,7 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 	const orderId = params.id;
 
 	const [orderResult, linesResult] = await Promise.all([
-		supabaseAdmin
-			.from('orders')
-			.select('*')
-			.eq('id', orderId)
-			.single(),
+		supabaseAdmin.from('orders').select('*').eq('id', orderId).single(),
 		supabaseAdmin
 			.from('order_lines')
 			.select('*')

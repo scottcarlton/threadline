@@ -5,7 +5,8 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { session, organization, orgType, membership } = locals;
 	if (!session || !organization) return json({ error: 'Unauthorized' }, { status: 401 });
-	if (orgType !== 'brand') return json({ error: 'Only brand orgs can approve connections' }, { status: 403 });
+	if (orgType !== 'brand')
+		return json({ error: 'Only brand orgs can approve connections' }, { status: 403 });
 	if (!membership || !['admin', 'owner'].includes(membership.role)) {
 		return json({ error: 'Admin or owner required' }, { status: 403 });
 	}
@@ -26,7 +27,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.select()
 		.single();
 
-	if (error || !connection) return json({ error: 'Connection not found or already processed' }, { status: 404 });
+	if (error || !connection)
+		return json({ error: 'Connection not found or already processed' }, { status: 404 });
 
 	return json({ connection });
 };

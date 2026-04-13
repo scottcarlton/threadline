@@ -184,14 +184,33 @@
 
 {#if !data.connected}
 	<div class="flex h-[calc(100vh-200px)] items-center justify-center">
-		<div class="text-center max-w-sm">
-			<svg viewBox="0 0 78 80" fill="none" xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-muted-foreground">
-				<path stroke="currentColor" stroke-width="1.5" d="M10.4 9.11A10 10 0 0 1 20.22 1h37.56a10 10 0 0 1 9.82 8.11l8.11 42.2a10 10 0 0 1-9.82 11.9H54.7a6.36 6.36 0 0 0-5.65 3.45 6.36 6.36 0 0 1-5.66 3.45H34.6a6.36 6.36 0 0 1-5.66-3.45 6.36 6.36 0 0 0-5.65-3.46H12.1a10 10 0 0 1-9.8-11.89l8.11-42.2Z" />
-				<path stroke="currentColor" stroke-width="1.5" d="M14.3 9.03a5 5 0 0 1 4.91-4.08H58.8a5 5 0 0 1 4.91 4.08l8.07 43.22a6 6 0 0 1-5.9 7.1H52.76a5.72 5.72 0 0 0-5.24 3.41 5.72 5.72 0 0 1-5.23 3.42h-6.58a5.72 5.72 0 0 1-5.23-3.42 5.72 5.72 0 0 0-5.24-3.4h-13.1a6 6 0 0 1-5.9-7.1L14.3 9.02Z" />
-				<path stroke="currentColor" stroke-width="1.5" d="m2.36 55.6 3.2 14.06A12 12 0 0 0 17.26 79h43.48a12 12 0 0 0 11.7-9.34l3.2-14.06" />
+		<div class="max-w-sm text-center">
+			<svg
+				viewBox="0 0 78 80"
+				fill="none"
+				xmlns="http://www.w3.org/2000/svg"
+				class="mx-auto h-16 w-16 text-muted-foreground"
+			>
+				<path
+					stroke="currentColor"
+					stroke-width="1.5"
+					d="M10.4 9.11A10 10 0 0 1 20.22 1h37.56a10 10 0 0 1 9.82 8.11l8.11 42.2a10 10 0 0 1-9.82 11.9H54.7a6.36 6.36 0 0 0-5.65 3.45 6.36 6.36 0 0 1-5.66 3.45H34.6a6.36 6.36 0 0 1-5.66-3.45 6.36 6.36 0 0 0-5.65-3.46H12.1a10 10 0 0 1-9.8-11.89l8.11-42.2Z"
+				/>
+				<path
+					stroke="currentColor"
+					stroke-width="1.5"
+					d="M14.3 9.03a5 5 0 0 1 4.91-4.08H58.8a5 5 0 0 1 4.91 4.08l8.07 43.22a6 6 0 0 1-5.9 7.1H52.76a5.72 5.72 0 0 0-5.24 3.41 5.72 5.72 0 0 1-5.23 3.42h-6.58a5.72 5.72 0 0 1-5.23-3.42 5.72 5.72 0 0 0-5.24-3.4h-13.1a6 6 0 0 1-5.9-7.1L14.3 9.02Z"
+				/>
+				<path
+					stroke="currentColor"
+					stroke-width="1.5"
+					d="m2.36 55.6 3.2 14.06A12 12 0 0 0 17.26 79h43.48a12 12 0 0 0 11.7-9.34l3.2-14.06"
+				/>
 			</svg>
 			<h2 class="mt-4 text-lg font-semibold">Connect your email</h2>
-			<p class="mt-2 text-sm text-muted-foreground">Connect your Gmail account to send and receive emails directly from Threadline.</p>
+			<p class="mt-2 text-sm text-muted-foreground">
+				Connect your Gmail account to send and receive emails directly from Threadline.
+			</p>
 			<Button class="mt-5" href="/settings">Go to Settings</Button>
 		</div>
 	</div>
@@ -203,8 +222,19 @@
 			<div class="flex items-center justify-between border-b px-4 py-3">
 				<h2 class="text-base font-semibold">Inbox</h2>
 				<Button size="sm" onclick={() => (composeOpen = true)}>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+						/>
 					</svg>
 					Compose
 				</Button>
@@ -262,9 +292,7 @@
 							<button
 								class={cn(
 									'flex w-full flex-col gap-1 rounded-lg px-3 py-3 text-left transition-colors',
-									selectedEmailId === email.id
-										? 'bg-accent'
-										: 'hover:bg-muted/50'
+									selectedEmailId === email.id ? 'bg-accent' : 'hover:bg-muted/50'
 								)}
 								onclick={() => selectEmail(email)}
 							>
@@ -274,7 +302,12 @@
 									{:else}
 										<span class="h-2 w-2 shrink-0"></span>
 									{/if}
-									<span class={cn('flex-1 truncate text-sm', email.unread ? 'font-semibold' : 'font-normal')}>
+									<span
+										class={cn(
+											'flex-1 truncate text-sm',
+											email.unread ? 'font-semibold' : 'font-normal'
+										)}
+									>
 										{email.from}
 									</span>
 									<span class="shrink-0 text-xs text-muted-foreground">
@@ -282,7 +315,9 @@
 									</span>
 								</div>
 								<div class="ml-4">
-									<p class={cn('truncate text-sm', email.unread ? 'font-medium' : 'text-foreground')}>
+									<p
+										class={cn('truncate text-sm', email.unread ? 'font-medium' : 'text-foreground')}
+									>
 										{email.subject}
 									</p>
 									<p class="mt-0.5 truncate text-sm text-muted-foreground">
@@ -301,10 +336,27 @@
 			{#if !selectedEmail}
 				<div class="flex h-full items-center justify-center">
 					<div class="text-center">
-						<svg viewBox="0 0 78 80" fill="none" xmlns="http://www.w3.org/2000/svg" class="mx-auto h-10 w-10 text-muted-foreground/40">
-							<path stroke="currentColor" stroke-width="1.5" d="M10.4 9.11A10 10 0 0 1 20.22 1h37.56a10 10 0 0 1 9.82 8.11l8.11 42.2a10 10 0 0 1-9.82 11.9H54.7a6.36 6.36 0 0 0-5.65 3.45 6.36 6.36 0 0 1-5.66 3.45H34.6a6.36 6.36 0 0 1-5.66-3.45 6.36 6.36 0 0 0-5.65-3.46H12.1a10 10 0 0 1-9.8-11.89l8.11-42.2Z" />
-							<path stroke="currentColor" stroke-width="1.5" d="M14.3 9.03a5 5 0 0 1 4.91-4.08H58.8a5 5 0 0 1 4.91 4.08l8.07 43.22a6 6 0 0 1-5.9 7.1H52.76a5.72 5.72 0 0 0-5.24 3.41 5.72 5.72 0 0 1-5.23 3.42h-6.58a5.72 5.72 0 0 1-5.23-3.42 5.72 5.72 0 0 0-5.24-3.4h-13.1a6 6 0 0 1-5.9-7.1L14.3 9.02Z" />
-							<path stroke="currentColor" stroke-width="1.5" d="m2.36 55.6 3.2 14.06A12 12 0 0 0 17.26 79h43.48a12 12 0 0 0 11.7-9.34l3.2-14.06" />
+						<svg
+							viewBox="0 0 78 80"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+							class="mx-auto h-10 w-10 text-muted-foreground/40"
+						>
+							<path
+								stroke="currentColor"
+								stroke-width="1.5"
+								d="M10.4 9.11A10 10 0 0 1 20.22 1h37.56a10 10 0 0 1 9.82 8.11l8.11 42.2a10 10 0 0 1-9.82 11.9H54.7a6.36 6.36 0 0 0-5.65 3.45 6.36 6.36 0 0 1-5.66 3.45H34.6a6.36 6.36 0 0 1-5.66-3.45 6.36 6.36 0 0 0-5.65-3.46H12.1a10 10 0 0 1-9.8-11.89l8.11-42.2Z"
+							/>
+							<path
+								stroke="currentColor"
+								stroke-width="1.5"
+								d="M14.3 9.03a5 5 0 0 1 4.91-4.08H58.8a5 5 0 0 1 4.91 4.08l8.07 43.22a6 6 0 0 1-5.9 7.1H52.76a5.72 5.72 0 0 0-5.24 3.41 5.72 5.72 0 0 1-5.23 3.42h-6.58a5.72 5.72 0 0 1-5.23-3.42 5.72 5.72 0 0 0-5.24-3.4h-13.1a6 6 0 0 1-5.9-7.1L14.3 9.02Z"
+							/>
+							<path
+								stroke="currentColor"
+								stroke-width="1.5"
+								d="m2.36 55.6 3.2 14.06A12 12 0 0 0 17.26 79h43.48a12 12 0 0 0 11.7-9.34l3.2-14.06"
+							/>
 						</svg>
 						<p class="mt-3 text-sm text-muted-foreground">Select an email to read</p>
 					</div>
@@ -359,7 +411,7 @@
 											{formatRelativeTime(message.date)}
 										</span>
 									</div>
-									<div class="mt-3 whitespace-pre-wrap text-sm leading-relaxed">
+									<div class="mt-3 text-sm leading-relaxed whitespace-pre-wrap">
 										{message.body}
 									</div>
 								</div>
@@ -375,7 +427,7 @@
 							bind:value={replyBody}
 							placeholder="Write a reply..."
 							rows="3"
-							class="flex-1 resize-none rounded-none border border-input bg-background px-4 py-3 text-sm shadow-sm placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:border-ring"
+							class="flex-1 resize-none rounded-none border border-input bg-background px-4 py-3 text-sm shadow-sm placeholder:text-muted-foreground/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
 						></textarea>
 					</div>
 					<div class="mt-3 flex justify-end">
@@ -388,8 +440,5 @@
 		</div>
 	</div>
 
-	<ComposeModal
-		open={composeOpen}
-		ontoggle={() => (composeOpen = !composeOpen)}
-	/>
+	<ComposeModal open={composeOpen} ontoggle={() => (composeOpen = !composeOpen)} />
 {/if}

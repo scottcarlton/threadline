@@ -5,16 +5,20 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardContent,
+		CardFooter
+	} from '$lib/components/ui/card/index.js';
 	import type { OrgAgent, OrgAgentTrigger, OrgAgentRun } from '$lib/types/database.js';
 
 	let { data } = $props();
 	const agent = $derived(data.agent as OrgAgent);
 	const triggers = $derived(data.triggers as OrgAgentTrigger[]);
 	const runs = $derived(data.runs as OrgAgentRun[]);
-	const isAdmin = $derived(
-		data.membership?.role === 'admin' || data.membership?.role === 'owner'
-	);
+	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
 
 	// Edit state
 	let editing = $state(false);
@@ -116,9 +120,7 @@
 			insertData.cron_expression = triggerCron;
 		}
 
-		const { error: err } = await supabase
-			.from('org_agent_triggers')
-			.insert(insertData);
+		const { error: err } = await supabase.from('org_agent_triggers').insert(insertData);
 
 		if (err) {
 			triggerError = err.message;
@@ -176,7 +178,14 @@
 			{/if}
 
 			{#if editing}
-				<form id="edit-form" onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="space-y-4">
+				<form
+					id="edit-form"
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleSave();
+					}}
+					class="space-y-4"
+				>
 					<div class="space-y-2">
 						<Label for="name">Name</Label>
 						<Input id="name" bind:value={editName} />
@@ -191,7 +200,7 @@
 							id="prompt"
 							bind:value={editPrompt}
 							rows="8"
-							class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 						></textarea>
 					</div>
 				</form>
@@ -209,7 +218,9 @@
 					{/if}
 					<div>
 						<dt class="text-sm font-medium text-muted-foreground">System Prompt</dt>
-						<dd class="mt-1 whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-sm">{agent.system_prompt}</dd>
+						<dd class="mt-1 rounded-md bg-muted/50 p-3 text-sm whitespace-pre-wrap">
+							{agent.system_prompt}
+						</dd>
 					</div>
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div>
@@ -218,7 +229,13 @@
 						</div>
 						<div>
 							<dt class="text-sm font-medium text-muted-foreground">Created</dt>
-							<dd class="mt-1">{new Date(agent.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</dd>
+							<dd class="mt-1">
+								{new Date(agent.created_at).toLocaleDateString('en-US', {
+									month: 'short',
+									day: 'numeric',
+									year: 'numeric'
+								})}
+							</dd>
 						</div>
 					</div>
 				</dl>
@@ -250,20 +267,26 @@
 			{#if showTriggerForm}
 				<div class="space-y-4 border-b pb-4">
 					{#if triggerError}
-						<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{triggerError}</div>
+						<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+							{triggerError}
+						</div>
 					{/if}
 
 					<div class="space-y-2">
 						<Label>Trigger Type</Label>
 						<div class="flex gap-2">
 							<button
-								class="rounded-md border px-3 py-1.5 text-sm {triggerType === 'event' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}"
-								onclick={() => (triggerType = 'event')}
-							>Event</button>
+								class="rounded-md border px-3 py-1.5 text-sm {triggerType === 'event'
+									? 'bg-primary text-primary-foreground'
+									: 'text-muted-foreground hover:text-foreground'}"
+								onclick={() => (triggerType = 'event')}>Event</button
+							>
 							<button
-								class="rounded-md border px-3 py-1.5 text-sm {triggerType === 'schedule' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}"
-								onclick={() => (triggerType = 'schedule')}
-							>Schedule</button>
+								class="rounded-md border px-3 py-1.5 text-sm {triggerType === 'schedule'
+									? 'bg-primary text-primary-foreground'
+									: 'text-muted-foreground hover:text-foreground'}"
+								onclick={() => (triggerType = 'schedule')}>Schedule</button
+							>
 						</div>
 					</div>
 
@@ -303,7 +326,7 @@
 							bind:value={triggerPrompt}
 							rows="3"
 							placeholder="e.g. Check which accounts placed this order's brand last season but haven't ordered yet this season. Summarize findings."
-							class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 						></textarea>
 					</div>
 
@@ -327,7 +350,9 @@
 			{/if}
 
 			{#if triggers.length === 0 && !showTriggerForm}
-				<p class="text-sm text-muted-foreground">No triggers configured. Add a trigger to automate this agent.</p>
+				<p class="text-sm text-muted-foreground">
+					No triggers configured. Add a trigger to automate this agent.
+				</p>
 			{:else}
 				<div class="divide-y">
 					{#each triggers as trigger}
@@ -335,15 +360,21 @@
 							<div>
 								<div class="flex items-center gap-2">
 									<Badge variant="secondary">
-										{trigger.trigger_type === 'event' ? trigger.event_name?.replace('_', ' ') : 'Scheduled'}
+										{trigger.trigger_type === 'event'
+											? trigger.event_name?.replace('_', ' ')
+											: 'Scheduled'}
 									</Badge>
 									{#if !trigger.is_active}
 										<Badge variant="secondary">Disabled</Badge>
 									{/if}
 								</div>
-								<p class="mt-1 text-sm text-muted-foreground line-clamp-1">{trigger.trigger_prompt}</p>
+								<p class="mt-1 line-clamp-1 text-sm text-muted-foreground">
+									{trigger.trigger_prompt}
+								</p>
 								{#if trigger.notify_channel !== 'none'}
-									<p class="mt-0.5 text-sm text-muted-foreground">Notifies via {trigger.notify_channel}</p>
+									<p class="mt-0.5 text-sm text-muted-foreground">
+										Notifies via {trigger.notify_channel}
+									</p>
 								{/if}
 							</div>
 							{#if isAdmin}
@@ -353,11 +384,26 @@
 										onclick={() => toggleTrigger(trigger)}
 										aria-label={trigger.is_active ? 'Disable' : 'Enable'}
 									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
 											{#if trigger.is_active}
-												<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M15.75 5.25v13.5m-7.5-13.5v13.5"
+												/>
 											{:else}
-												<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"
+												/>
 											{/if}
 										</svg>
 									</button>
@@ -366,8 +412,19 @@
 										onclick={() => deleteTrigger(trigger.id)}
 										aria-label="Delete trigger"
 									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+											/>
 										</svg>
 									</button>
 								</div>
@@ -386,7 +443,9 @@
 		</CardHeader>
 		<CardContent>
 			{#if runs.length === 0}
-				<p class="text-sm text-muted-foreground">No runs yet. Invoke this agent from the AI chat or trigger it with an event.</p>
+				<p class="text-sm text-muted-foreground">
+					No runs yet. Invoke this agent from the AI chat or trigger it with an event.
+				</p>
 			{:else}
 				<div class="divide-y">
 					{#each runs as run}
@@ -396,25 +455,39 @@
 						>
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center gap-2">
-									<span class="inline-flex h-2 w-2 rounded-full {run.status === 'completed' ? 'bg-emerald-500' : run.status === 'failed' ? 'bg-red-500' : 'bg-amber-500'}"></span>
+									<span
+										class="inline-flex h-2 w-2 rounded-full {run.status === 'completed'
+											? 'bg-emerald-500'
+											: run.status === 'failed'
+												? 'bg-red-500'
+												: 'bg-amber-500'}"
+									></span>
 									<span class="text-sm font-medium">{run.triggered_by}</span>
-									<span class="text-sm text-muted-foreground">{formatDuration(run.duration_ms)}</span>
+									<span class="text-sm text-muted-foreground"
+										>{formatDuration(run.duration_ms)}</span
+									>
 								</div>
-								<p class="mt-0.5 text-sm text-muted-foreground line-clamp-1">{run.input_prompt}</p>
+								<p class="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{run.input_prompt}</p>
 							</div>
 							<span class="ml-2 shrink-0 text-sm text-muted-foreground">
-								{new Date(run.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+								{new Date(run.started_at).toLocaleDateString('en-US', {
+									month: 'short',
+									day: 'numeric'
+								})}
 							</span>
 						</button>
 						{#if expandedRun === run.id}
-							<div class="border-l-2 border-muted pl-4 py-3">
+							<div class="border-l-2 border-muted py-3 pl-4">
 								{#if run.output_text}
-									<p class="whitespace-pre-wrap text-sm">{run.output_text}</p>
+									<p class="text-sm whitespace-pre-wrap">{run.output_text}</p>
 								{/if}
 								{#if run.tools_used?.length}
 									<div class="mt-2 flex flex-wrap gap-1">
 										{#each run.tools_used as tool}
-											<span class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">{tool}</span>
+											<span
+												class="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+												>{tool}</span
+											>
 										{/each}
 									</div>
 								{/if}
@@ -436,7 +509,9 @@
 				<div class="flex items-center justify-between">
 					<div>
 						<p class="text-sm font-medium text-destructive">Delete Agent</p>
-						<p class="text-sm text-muted-foreground">This will permanently delete the agent and all its triggers and run history.</p>
+						<p class="text-sm text-muted-foreground">
+							This will permanently delete the agent and all its triggers and run history.
+						</p>
 					</div>
 					<Button variant="destructive" size="sm" onclick={handleDelete}>Delete</Button>
 				</div>

@@ -29,11 +29,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const currentYear = new Date().getFullYear();
 
 	const [brandsRes, ordersRes] = await Promise.all([
-		supabase
-			.from('brands')
-			.select('*')
-			.eq('organization_id', organization.id)
-			.order('name'),
+		supabase.from('brands').select('*').eq('organization_id', organization.id).order('name'),
 		supabase
 			.from('orders')
 			.select('brand_id, total_amount')

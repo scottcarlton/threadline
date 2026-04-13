@@ -31,12 +31,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const orgId = organization.id;
 
 	// ── Setup checklist (onboarding state) ──────────────────────────────
-	const [brandCountCheck, productCountCheck, accountCountCheck, orderCountCheck] = await Promise.all([
-		supabase.from('brands').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('is_active', true),
-		supabase.from('products').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('is_active', true),
-		supabase.from('accounts').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('is_active', true),
-		supabase.from('orders').select('id', { count: 'exact', head: true }).eq('organization_id', orgId)
-	]);
+	const [brandCountCheck, productCountCheck, accountCountCheck, orderCountCheck] =
+		await Promise.all([
+			supabase
+				.from('brands')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', orgId)
+				.eq('is_active', true),
+			supabase
+				.from('products')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', orgId)
+				.eq('is_active', true),
+			supabase
+				.from('accounts')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', orgId)
+				.eq('is_active', true),
+			supabase
+				.from('orders')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', orgId)
+		]);
 
 	const hasBrands = (brandCountCheck.count ?? 0) > 0;
 	const hasProducts = (productCountCheck.count ?? 0) > 0;
@@ -92,15 +108,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	// Get available years from orders
-	const { data: yearRows } = await scopeByRep(supabase
-		.from('orders')
-		.select('order_year')
-		.eq('organization_id', orgId)
-		.not('order_year', 'is', null)
-		.order('order_year', { ascending: false }));
+	const { data: yearRows } = await scopeByRep(
+		supabase
+			.from('orders')
+			.select('order_year')
+			.eq('organization_id', orgId)
+			.not('order_year', 'is', null)
+			.order('order_year', { ascending: false })
+	);
 
 	const availableYears = [
-		...new Set((yearRows ?? []).map((r: any) => r.order_year as number | null).filter((y): y is number => y !== null))
+		...new Set(
+			(yearRows ?? [])
+				.map((r: any) => r.order_year as number | null)
+				.filter((y): y is number => y !== null)
+		)
 	];
 
 	const yearParam = url.searchParams.get('year');
@@ -133,7 +155,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Load all season_deliveries for the org, joined with season info
 	const { data: deliveryRows } = await supabase
 		.from('season_deliveries')
-		.select('id, season_id, label, delivery_month, delivery_day, sort_order, seasons(name, sort_order)')
+		.select(
+			'id, season_id, label, delivery_month, delivery_day, sort_order, seasons(name, sort_order)'
+		)
 		.eq('organization_id', orgId)
 		.order('delivery_month', { ascending: true })
 		.order('delivery_day', { ascending: true });
@@ -177,12 +201,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (selectedYear && deliveries.length > 0) {
 		const priorYear = selectedYear - 1;
 
-		const { data: orderAgg } = await scopeByRep(supabase
-			.from('orders')
-			.select('account_id, delivery_id, order_year, total_amount')
-			.eq('organization_id', orgId)
-			.not('delivery_id', 'is', null)
-			.in('order_year', [selectedYear, priorYear]));
+		const { data: orderAgg } = await scopeByRep(
+			supabase
+				.from('orders')
+				.select('account_id, delivery_id, order_year, total_amount')
+				.eq('organization_id', orgId)
+				.not('delivery_id', 'is', null)
+				.in('order_year', [selectedYear, priorYear])
+		);
 
 		// Aggregate in JS since supabase-js doesn't support GROUP BY with SUM
 		const aggMap = new Map<string, number>();
@@ -240,7 +266,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			id: string;
 			business_name: string;
 			contact_first_name: string | null;
-				contact_last_name: string | null;
+			contact_last_name: string | null;
 			city: string | null;
 			state: string | null;
 		} | null;
@@ -262,32 +288,43 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}[] = [];
 
 	// All-shows summary data (when no show selected)
-	let showSummary: { showDateId: string; appointments: number; orders: number; revenue: number }[] = [];
+	let showSummary: { showDateId: string; appointments: number; orders: number; revenue: number }[] =
+		[];
 	let showAppointments: any[] = [];
 
 	if (selectedShowDateId) {
 		const [visitsResult, ordersResult, deliveriesResult, appointmentsResult] = await Promise.all([
-			scopeByRep(supabase
-				.from('show_visits')
-				.select('id, organization_id, show_date_id, account_id, status, notes, is_new_account, created_by, created_at, updated_at, accounts(id, business_name, contact_first_name, contact_last_name, city, state), profiles!show_visits_created_by_fkey(display_name)')
-				.eq('show_date_id', selectedShowDateId)
-				.eq('organization_id', orgId)),
-			scopeByRep(supabase
-				.from('orders')
-				.select('id, account_id, delivery_id, total_amount')
-				.eq('show_date_id', selectedShowDateId)
-				.eq('organization_id', orgId)),
+			scopeByRep(
+				supabase
+					.from('show_visits')
+					.select(
+						'id, organization_id, show_date_id, account_id, status, notes, is_new_account, created_by, created_at, updated_at, accounts(id, business_name, contact_first_name, contact_last_name, city, state), profiles!show_visits_created_by_fkey(display_name)'
+					)
+					.eq('show_date_id', selectedShowDateId)
+					.eq('organization_id', orgId)
+			),
+			scopeByRep(
+				supabase
+					.from('orders')
+					.select('id, account_id, delivery_id, total_amount')
+					.eq('show_date_id', selectedShowDateId)
+					.eq('organization_id', orgId)
+			),
 			supabase
 				.from('season_deliveries')
 				.select('id, label, delivery_month, delivery_day, sort_order')
 				.eq('organization_id', orgId)
 				.order('delivery_month', { ascending: true })
 				.order('delivery_day', { ascending: true }),
-			scopeByRep(supabase
-				.from('appointments')
-				.select('*, accounts(id, business_name, contact_first_name, contact_last_name, city, state), profiles!appointments_created_by_fkey(display_name)')
-				.eq('show_date_id', selectedShowDateId)
-				.eq('organization_id', orgId))
+			scopeByRep(
+				supabase
+					.from('appointments')
+					.select(
+						'*, accounts(id, business_name, contact_first_name, contact_last_name, city, state), profiles!appointments_created_by_fkey(display_name)'
+					)
+					.eq('show_date_id', selectedShowDateId)
+					.eq('organization_id', orgId)
+			)
 		]);
 
 		showVisits = (visitsResult.data ?? []) as unknown as typeof showVisits;
@@ -299,16 +336,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const showDateIds = showDates.map((sd) => sd.id);
 
 		const [allApptsResult, allOrdersResult] = await Promise.all([
-			scopeByRep(supabase
-				.from('appointments')
-				.select('id, show_date_id')
-				.in('show_date_id', showDateIds)
-				.eq('organization_id', orgId)),
-			scopeByRep(supabase
-				.from('orders')
-				.select('id, show_date_id, total_amount')
-				.in('show_date_id', showDateIds)
-				.eq('organization_id', orgId))
+			scopeByRep(
+				supabase
+					.from('appointments')
+					.select('id, show_date_id')
+					.in('show_date_id', showDateIds)
+					.eq('organization_id', orgId)
+			),
+			scopeByRep(
+				supabase
+					.from('orders')
+					.select('id, show_date_id, total_amount')
+					.in('show_date_id', showDateIds)
+					.eq('organization_id', orgId)
+			)
 		]);
 
 		const allAppts = allApptsResult.data ?? [];
@@ -363,7 +404,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Uses shipped_amount if set, falls back to total_amount
 	let commissionQuery = supabase
 		.from('orders')
-		.select('id, order_number, account_id, brand_id, season_id, order_year, total_amount, shipped_amount, shipped_at, brands(name, commission_rate), accounts(business_name), seasons(name)')
+		.select(
+			'id, order_number, account_id, brand_id, season_id, order_year, total_amount, shipped_amount, shipped_at, brands(name, commission_rate), accounts(business_name), seasons(name)'
+		)
 		.eq('organization_id', orgId)
 		.in('status', ['shipped', 'delivered']);
 
@@ -469,11 +512,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// ── Scoreboard KPIs ─────────────────────────────────────────────────
 	const healthMap = await computeAccountHealth(supabase, orgId);
 	const healthValues = Array.from(healthMap.values());
-	const atRiskCount = healthValues.filter(h => h.label === 'at_risk').length;
+	const atRiskCount = healthValues.filter((h) => h.label === 'at_risk').length;
 	const totalAccounts = healthValues.length;
-	const avgHealthScore = totalAccounts > 0
-		? Math.round(healthValues.reduce((sum, h) => sum + h.score, 0) / totalAccounts)
-		: 0;
+	const avgHealthScore =
+		totalAccounts > 0
+			? Math.round(healthValues.reduce((sum, h) => sum + h.score, 0) / totalAccounts)
+			: 0;
 
 	// YTD revenue from yearly summary
 	const currentYear = new Date().getFullYear();
@@ -481,11 +525,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const priorRevRow = yearlySummary.find((y: { year: number }) => y.year === currentYear - 1);
 	const ytdRevenue = (ytdRevRow as any)?.revenue ?? 0;
 	const priorRevenue = (priorRevRow as any)?.revenue ?? 0;
-	const revenueChange = priorRevenue > 0 ? ((ytdRevenue - priorRevenue) / priorRevenue) * 100 : null;
+	const revenueChange =
+		priorRevenue > 0 ? ((ytdRevenue - priorRevenue) / priorRevenue) * 100 : null;
 
 	const ytdOrderCount = (ytdRevRow as any)?.order_count ?? 0;
 	const priorOrderCount = (priorRevRow as any)?.order_count ?? 0;
-	const orderChange = priorOrderCount > 0 ? ((ytdOrderCount - priorOrderCount) / priorOrderCount) * 100 : null;
+	const orderChange =
+		priorOrderCount > 0 ? ((ytdOrderCount - priorOrderCount) / priorOrderCount) * 100 : null;
 
 	const scoreboard = [
 		{

@@ -4,6 +4,6 @@
 	let { class: className = '', children, ...restProps }: Props = $props();
 </script>
 
-<h5 class={cn('mb-1 font-medium leading-none tracking-tight', className)} {...restProps}>
+<h5 class={cn('mb-1 leading-none font-medium tracking-tight', className)} {...restProps}>
 	{@render children?.()}
 </h5>

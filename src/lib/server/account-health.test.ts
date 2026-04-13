@@ -19,10 +19,7 @@ function buildSupabase(accounts: Record<string, unknown>[], orders: Record<strin
 
 describe('computeAccountHealth', () => {
 	it('labels a new account (<90 days, no orders) as "new" with score 0', async () => {
-		const supabase = buildSupabase(
-			[makeAccount({ id: 'a1', created_at: daysAgo(30) })],
-			[]
-		);
+		const supabase = buildSupabase([makeAccount({ id: 'a1', created_at: daysAgo(30) })], []);
 		const result = await computeAccountHealth(supabase, 'org-1');
 		const health = result.get('a1');
 
@@ -33,10 +30,7 @@ describe('computeAccountHealth', () => {
 	});
 
 	it('labels an inactive account (>90 days, no orders) with score 10', async () => {
-		const supabase = buildSupabase(
-			[makeAccount({ id: 'a1', created_at: daysAgo(200) })],
-			[]
-		);
+		const supabase = buildSupabase([makeAccount({ id: 'a1', created_at: daysAgo(200) })], []);
 		const result = await computeAccountHealth(supabase, 'org-1');
 		const health = result.get('a1');
 
@@ -140,10 +134,7 @@ describe('computeAccountHealth', () => {
 				total_amount: 10000
 			})
 		);
-		const supabase = buildSupabase(
-			[makeAccount({ id: 'a1', created_at: daysAgo(365) })],
-			orders
-		);
+		const supabase = buildSupabase([makeAccount({ id: 'a1', created_at: daysAgo(365) })], orders);
 		const result = await computeAccountHealth(supabase, 'org-1');
 		const health = result.get('a1');
 
@@ -194,7 +185,9 @@ describe('computeAccountHealth', () => {
 
 		// YoY growth = 50%, so +20 for growth
 		expect(health!.yoyGrowth).toBe(50);
-		expect(health!.signals).toEqual(expect.arrayContaining([expect.stringContaining('Growing 50% YoY')]));
+		expect(health!.signals).toEqual(
+			expect.arrayContaining([expect.stringContaining('Growing 50% YoY')])
+		);
 	});
 
 	it('scores growth: negative YoY adds declining signal', async () => {
@@ -219,7 +212,9 @@ describe('computeAccountHealth', () => {
 		const health = result.get('a1');
 
 		expect(health!.yoyGrowth).toBe(-50);
-		expect(health!.signals).toEqual(expect.arrayContaining([expect.stringContaining('Declining 50% YoY')]));
+		expect(health!.signals).toEqual(
+			expect.arrayContaining([expect.stringContaining('Declining 50% YoY')])
+		);
 	});
 
 	it('caps score at 35 for accounts that ordered last year but not this year', async () => {
@@ -247,9 +242,24 @@ describe('computeAccountHealth', () => {
 		const supabase = buildSupabase(
 			[makeAccount({ id: 'a1', created_at: daysAgo(730) })],
 			[
-				makeOrder({ account_id: 'a1', order_year: priorYear, total_amount: 3000, created_at: daysAgo(400) }),
-				makeOrder({ account_id: 'a1', order_year: currentYear, total_amount: 5000, created_at: daysAgo(10) }),
-				makeOrder({ account_id: 'a1', order_year: currentYear, total_amount: 7000, created_at: daysAgo(5) })
+				makeOrder({
+					account_id: 'a1',
+					order_year: priorYear,
+					total_amount: 3000,
+					created_at: daysAgo(400)
+				}),
+				makeOrder({
+					account_id: 'a1',
+					order_year: currentYear,
+					total_amount: 5000,
+					created_at: daysAgo(10)
+				}),
+				makeOrder({
+					account_id: 'a1',
+					order_year: currentYear,
+					total_amount: 7000,
+					created_at: daysAgo(5)
+				})
 			]
 		);
 		const result = await computeAccountHealth(supabase, 'org-1');
@@ -269,7 +279,12 @@ describe('computeAccountHealth', () => {
 				makeAccount({ id: 'a2', created_at: daysAgo(365) })
 			],
 			[
-				makeOrder({ account_id: 'a2', order_year: currentYear, total_amount: 60000, created_at: daysAgo(5) })
+				makeOrder({
+					account_id: 'a2',
+					order_year: currentYear,
+					total_amount: 60000,
+					created_at: daysAgo(5)
+				})
 			]
 		);
 		const result = await computeAccountHealth(supabase, 'org-1');

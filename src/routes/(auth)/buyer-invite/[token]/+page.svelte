@@ -3,7 +3,13 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardDescription,
+		CardContent
+	} from '$lib/components/ui/card/index.js';
 
 	let { data } = $props();
 	const invitation = $derived(data.invitation);
@@ -109,7 +115,8 @@
 	<CardHeader>
 		<CardTitle>Buyer Portal Invitation</CardTitle>
 		<CardDescription>
-			You've been invited to access <strong>{invitation.accountName}</strong> on {invitation.orgName}'s buyer portal.
+			You've been invited to access <strong>{invitation.accountName}</strong> on {invitation.orgName}'s
+			buyer portal.
 		</CardDescription>
 	</CardHeader>
 	<CardContent>
@@ -150,7 +157,13 @@
 				</div>
 			</div>
 		{:else if mode === 'otp-verify'}
-			<form onsubmit={(e) => { e.preventDefault(); verifyAndAccept(); }} class="space-y-4">
+			<form
+				onsubmit={(e) => {
+					e.preventDefault();
+					verifyAndAccept();
+				}}
+				class="space-y-4"
+			>
 				<p class="text-sm text-muted-foreground">Enter the code sent to {invitation.email}</p>
 				<div class="space-y-2">
 					<Label for="otp">Verification code</Label>
@@ -167,7 +180,11 @@
 					{loading ? 'Joining...' : 'Verify & Join'}
 				</Button>
 				<div class="flex justify-center gap-4 text-sm">
-					<button type="button" class="text-muted-foreground hover:text-foreground" onclick={sendOtp}>
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground"
+						onclick={sendOtp}
+					>
 						Resend code
 					</button>
 					<button type="button" class="text-muted-foreground hover:text-foreground" onclick={reset}>

@@ -31,7 +31,7 @@ describe('computeRevenueLeakage', () => {
 		expect(insights).toHaveLength(1);
 		expect(insights[0].entity_id).toBe('a1');
 		expect(insights[0].insight_type).toBe('revenue_leakage');
-		expect(insights[0].title).toContain("Lapsed Store");
+		expect(insights[0].title).toContain('Lapsed Store');
 		expect(insights[0].title).toContain(String(currentYear));
 		expect(insights[0].metadata.prior_revenue).toBe(20000);
 	});
@@ -88,9 +88,7 @@ describe('computeRevenueLeakage', () => {
 	it('assigns priority scores with highest revenue getting 95', async () => {
 		const supabase = createMockSupabase({
 			orders: {
-				data: [
-					makeOrder({ account_id: 'a1', order_year: priorYear, total_amount: 50000 })
-				]
+				data: [makeOrder({ account_id: 'a1', order_year: priorYear, total_amount: 50000 })]
 			},
 			accounts: {
 				data: [{ id: 'a1', business_name: 'Top' }]
@@ -137,9 +135,7 @@ describe('computeOverdueOrders', () => {
 		const tenDaysAgo = new Date(Date.now() - 10 * 86400000).toISOString().split('T')[0];
 		const supabase = createMockSupabase({
 			orders: {
-				data: [
-					makeOverdueOrder({ expected_ship_date: tenDaysAgo })
-				]
+				data: [makeOverdueOrder({ expected_ship_date: tenDaysAgo })]
 			}
 		});
 
@@ -152,9 +148,7 @@ describe('computeOverdueOrders', () => {
 		const yesterday = new Date(Date.now() - 1 * 86400000).toISOString().split('T')[0];
 		const supabase = createMockSupabase({
 			orders: {
-				data: [
-					makeOverdueOrder({ expected_ship_date: yesterday })
-				]
+				data: [makeOverdueOrder({ expected_ship_date: yesterday })]
 			}
 		});
 
@@ -166,9 +160,7 @@ describe('computeOverdueOrders', () => {
 		const longAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
 		const supabase = createMockSupabase({
 			orders: {
-				data: [
-					makeOverdueOrder({ expected_ship_date: longAgo })
-				]
+				data: [makeOverdueOrder({ expected_ship_date: longAgo })]
 			}
 		});
 
@@ -262,9 +254,7 @@ describe('refreshInsights', () => {
 	it('returns correct inserted count when insights are generated', async () => {
 		const supabase = createMockSupabase({
 			orders: {
-				data: [
-					makeOrder({ account_id: 'a1', order_year: priorYear, total_amount: 10000 })
-				]
+				data: [makeOrder({ account_id: 'a1', order_year: priorYear, total_amount: 10000 })]
 			},
 			accounts: {
 				data: [{ id: 'a1', business_name: 'Test' }]

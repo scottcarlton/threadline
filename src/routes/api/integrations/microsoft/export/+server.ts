@@ -30,7 +30,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.order('created_at', { ascending: false });
 
 	if (queryError || !data?.length) {
-		return json({ error: queryError ? 'Failed to fetch data' : 'No data to export' }, { status: 400 });
+		return json(
+			{ error: queryError ? 'Failed to fetch data' : 'No data to export' },
+			{ status: 400 }
+		);
 	}
 
 	const rows = data.map(schema.mapRow);

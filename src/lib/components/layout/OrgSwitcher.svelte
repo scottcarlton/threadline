@@ -43,7 +43,9 @@
 			onclick={() => (open = !open)}
 			class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent"
 		>
-			<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+			<div
+				class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground"
+			>
 				{currentOrg.name.charAt(0).toUpperCase()}
 			</div>
 			<div class="min-w-0 flex-1">
@@ -52,8 +54,14 @@
 			</div>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
-				class={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
-				fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+				class={cn(
+					'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+					open && 'rotate-180'
+				)}
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="2"
 			>
 				<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
 			</svg>
@@ -63,7 +71,7 @@
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="fixed inset-0 z-40" onclick={() => (open = false)}></div>
-			<div class="absolute left-5 right-5 z-50 mt-1 rounded-lg border bg-popover p-1 shadow-lg">
+			<div class="absolute right-5 left-5 z-50 mt-1 rounded-lg border bg-popover p-1 shadow-lg">
 				{#each allMemberships as m}
 					<button
 						onclick={() => switchOrg(m.organizations.id)}
@@ -74,7 +82,9 @@
 								: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
 						)}
 					>
-						<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-bold text-primary">
+						<div
+							class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-bold text-primary"
+						>
 							{m.organizations.name.charAt(0).toUpperCase()}
 						</div>
 						<div class="min-w-0 flex-1">
@@ -82,7 +92,14 @@
 							<p class="text-sm text-muted-foreground">{orgTypeLabel(m.organizations.org_type)}</p>
 						</div>
 						{#if m.organizations.id === currentOrg.id}
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4 shrink-0 text-primary"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2.5"
+							>
 								<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
 							</svg>
 						{/if}

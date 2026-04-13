@@ -40,9 +40,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			email_address: emailAddress,
 			access_token: tokens.access_token ?? '',
 			refresh_token: tokens.refresh_token ?? '',
-			token_expires_at: tokens.expiry_date
-				? new Date(tokens.expiry_date).toISOString()
-				: null,
+			token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
 			updated_at: new Date().toISOString()
 		},
 		{ onConflict: 'profile_id, provider' }

@@ -68,9 +68,7 @@ export async function refreshInsights(
 	// Insert new insights
 	let inserted = 0;
 	if (allInsights.length > 0) {
-		const { error } = await supabase
-			.from('insight_actions')
-			.insert(allInsights);
+		const { error } = await supabase.from('insight_actions').insert(allInsights);
 
 		if (error) {
 			errors.push(`Insert failed: ${error.message}`);
@@ -132,11 +130,11 @@ export async function computeRevenueLeakage(
 		.select('id, business_name')
 		.in('id', lapsedAccountIds);
 
-	const nameMap = new Map((accounts ?? []).map(a => [a.id, a.business_name]));
+	const nameMap = new Map((accounts ?? []).map((a) => [a.id, a.business_name]));
 
 	// Build insights sorted by prior revenue (highest first)
 	const sorted = lapsedAccountIds
-		.map(id => ({ id, revenue: lapsedRevenue.get(id) ?? 0 }))
+		.map((id) => ({ id, revenue: lapsedRevenue.get(id) ?? 0 }))
 		.sort((a, b) => b.revenue - a.revenue);
 
 	return sorted.map((account, index) => ({
@@ -145,7 +143,10 @@ export async function computeRevenueLeakage(
 		insight_type: 'revenue_leakage',
 		entity_type: 'account',
 		entity_id: account.id,
-		priority_score: Math.min(95, 70 + Math.round((account.revenue / (sorted[0].revenue || 1)) * 25)),
+		priority_score: Math.min(
+			95,
+			70 + Math.round((account.revenue / (sorted[0].revenue || 1)) * 25)
+		),
 		title: `${nameMap.get(account.id) ?? 'Unknown'} hasn't ordered in ${currentYear}`,
 		description: `Ordered $${account.revenue.toLocaleString()} in ${priorYear} but nothing this year. Re-engage to recover revenue.`,
 		metadata: {
@@ -198,10 +199,16 @@ export async function computeOrderGaps(
 	}
 
 	// Find gaps: had order in prior year delivery window, no order in current year
-	const gaps: { accountId: string; deliveryId: string; priorAmount: number; deliveryLabel: string; seasonName: string }[] = [];
+	const gaps: {
+		accountId: string;
+		deliveryId: string;
+		priorAmount: number;
+		deliveryLabel: string;
+		seasonName: string;
+	}[] = [];
 
-	const accountIds = new Set(orders.map(o => o.account_id));
-	const deliveryMap = new Map(deliveries.map(d => [d.id, d]));
+	const accountIds = new Set(orders.map((o) => o.account_id));
+	const deliveryMap = new Map(deliveries.map((d) => [d.id, d]));
 
 	// Only check delivery windows that haven't passed yet (upcoming or current month)
 	const currentMonth = new Date().getMonth() + 1;
@@ -232,24 +239,27 @@ export async function computeOrderGaps(
 	if (gaps.length === 0) return [];
 
 	// Get account names
-	const gapAccountIds = [...new Set(gaps.map(g => g.accountId))];
+	const gapAccountIds = [...new Set(gaps.map((g) => g.accountId))];
 	const { data: accounts } = await supabase
 		.from('accounts')
 		.select('id, business_name')
 		.in('id', gapAccountIds);
 
-	const nameMap = new Map((accounts ?? []).map(a => [a.id, a.business_name]));
+	const nameMap = new Map((accounts ?? []).map((a) => [a.id, a.business_name]));
 
 	// Sort by prior amount descending
 	gaps.sort((a, b) => b.priorAmount - a.priorAmount);
 
-	return gaps.map(gap => ({
+	return gaps.map((gap) => ({
 		organization_id: organizationId,
 		user_id: null,
 		insight_type: 'order_gap',
 		entity_type: 'account',
 		entity_id: gap.accountId,
-		priority_score: Math.min(90, 60 + Math.round((gap.priorAmount / (gaps[0].priorAmount || 1)) * 30)),
+		priority_score: Math.min(
+			90,
+			60 + Math.round((gap.priorAmount / (gaps[0].priorAmount || 1)) * 30)
+		),
 		title: `${nameMap.get(gap.accountId) ?? 'Unknown'} missing ${gap.deliveryLabel} order`,
 		description: `Ordered $${gap.priorAmount.toLocaleString()} for ${gap.seasonName} ${gap.deliveryLabel} last year but no order yet for ${currentYear}.`,
 		metadata: {
@@ -300,7 +310,7 @@ export async function computeCallQueue(
 		.select('id, business_name')
 		.in('id', allAccountIds.length > 0 ? allAccountIds : ['__none__']);
 
-	const nameMap = new Map((accounts ?? []).map(a => [a.id, a.business_name]));
+	const nameMap = new Map((accounts ?? []).map((a) => [a.id, a.business_name]));
 
 	// Score each account for call priority
 	type CallCandidate = {
@@ -368,7 +378,7 @@ export async function computeCallQueue(
 	candidates.sort((a, b) => b.score - a.score);
 	const topCandidates = candidates.slice(0, 15);
 
-	return topCandidates.map(c => ({
+	return topCandidates.map((c) => ({
 		organization_id: organizationId,
 		user_id: null,
 		insight_type: 'call_queue',
@@ -394,7 +404,9 @@ export async function computeOverdueOrders(
 
 	const { data: overdueOrders } = await supabase
 		.from('orders')
-		.select('id, order_number, total_amount, expected_ship_date, status, account_id, brand_id, accounts(business_name), brands(name)')
+		.select(
+			'id, order_number, total_amount, expected_ship_date, status, account_id, brand_id, accounts(business_name), brands(name)'
+		)
 		.eq('organization_id', organizationId)
 		.in('status', ['confirmed', 'submitted'])
 		.lt('expected_ship_date', today)
@@ -403,7 +415,7 @@ export async function computeOverdueOrders(
 
 	if (!overdueOrders || overdueOrders.length === 0) return [];
 
-	return overdueOrders.map(order => {
+	return overdueOrders.map((order) => {
 		const shipDate = new Date(order.expected_ship_date);
 		const daysOverdue = Math.floor((Date.now() - shipDate.getTime()) / (1000 * 60 * 60 * 24));
 		const accountName = (order as any).accounts?.business_name ?? 'Unknown';

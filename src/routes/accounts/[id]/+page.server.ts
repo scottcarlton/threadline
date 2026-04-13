@@ -6,36 +6,38 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { supabase, organization } = locals;
 
-	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes] = await Promise.all([
-		supabase
-			.from('accounts')
-			.select('*')
-			.eq('id', params.id)
-			.single(),
-		supabase
-			.from('orders')
-			.select('brand_id, total_amount, status, order_year, brands(id, name)')
-			.eq('account_id', params.id),
-		supabase
-			.from('orders')
-			.select('id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)')
-			.eq('account_id', params.id)
-			.order('created_at', { ascending: false })
-			.limit(20),
-		supabase
-			.from('appointments')
-			.select('id, appointment_type, scheduled_date, scheduled_time, status, notes, created_at, show_dates(id, year, month, city, state, shows(name))')
-			.eq('account_id', params.id)
-			.order('created_at', { ascending: false })
-			.limit(20),
-		supabase
-			.from('email_logs')
-			.select('id, to_email, subject, created_at, sent_by, profiles:sent_by(display_name)')
-			.eq('related_type', 'account')
-			.eq('related_id', params.id)
-			.order('created_at', { ascending: false })
-			.limit(20)
-	]);
+	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes] = await Promise.all(
+		[
+			supabase.from('accounts').select('*').eq('id', params.id).single(),
+			supabase
+				.from('orders')
+				.select('brand_id, total_amount, status, order_year, brands(id, name)')
+				.eq('account_id', params.id),
+			supabase
+				.from('orders')
+				.select(
+					'id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)'
+				)
+				.eq('account_id', params.id)
+				.order('created_at', { ascending: false })
+				.limit(20),
+			supabase
+				.from('appointments')
+				.select(
+					'id, appointment_type, scheduled_date, scheduled_time, status, notes, created_at, show_dates(id, year, month, city, state, shows(name))'
+				)
+				.eq('account_id', params.id)
+				.order('created_at', { ascending: false })
+				.limit(20),
+			supabase
+				.from('email_logs')
+				.select('id, to_email, subject, created_at, sent_by, profiles:sent_by(display_name)')
+				.eq('related_type', 'account')
+				.eq('related_id', params.id)
+				.order('created_at', { ascending: false })
+				.limit(20)
+		]
+	);
 
 	if (accountRes.error || !accountRes.data) {
 		throw error(404, 'Account not found');
@@ -80,10 +82,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.eq('account_id', params.id),
 		organization
 			? supabase
-				.from('account_tags')
-				.select('*')
-				.eq('organization_id', organization.id)
-				.order('sort_order')
+					.from('account_tags')
+					.select('*')
+					.eq('organization_id', organization.id)
+					.order('sort_order')
 			: Promise.resolve({ data: [] })
 	]);
 
@@ -109,25 +111,40 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// Load all brands for the invite dialog
 	const { data: allBrands } = organization
 		? await supabase
-			.from('brands')
-			.select('id, name')
-			.eq('organization_id', organization.id)
-			.eq('is_active', true)
-			.order('name')
+				.from('brands')
+				.select('id, name')
+				.eq('organization_id', organization.id)
+				.eq('is_active', true)
+				.order('name')
 		: { data: [] };
 
 	// Build activity timeline
-	type ActivityItem = { type: string; id: string; title: string; subtitle: string | null; date: string; status?: string };
+	type ActivityItem = {
+		type: string;
+		id: string;
+		title: string;
+		subtitle: string | null;
+		date: string;
+		status?: string;
+	};
 	const activity: ActivityItem[] = [];
 
 	for (const o of recentOrdersRes.data ?? []) {
 		const brandName = (o.brands as any)?.name ?? '';
-		const latestDate = o.cancelled_at ?? o.delivered_at ?? o.shipped_at ?? o.confirmed_at ?? o.submitted_at ?? o.created_at;
+		const latestDate =
+			o.cancelled_at ??
+			o.delivered_at ??
+			o.shipped_at ??
+			o.confirmed_at ??
+			o.submitted_at ??
+			o.created_at;
 		activity.push({
 			type: 'order',
 			id: o.id,
 			title: `Order ${o.order_number}`,
-			subtitle: brandName ? `${brandName} · $${Number(o.total_amount).toLocaleString()}` : `$${Number(o.total_amount).toLocaleString()}`,
+			subtitle: brandName
+				? `${brandName} · $${Number(o.total_amount).toLocaleString()}`
+				: `$${Number(o.total_amount).toLocaleString()}`,
 			date: latestDate,
 			status: o.status
 		});
