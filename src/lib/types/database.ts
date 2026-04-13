@@ -262,6 +262,7 @@ export interface Order {
 	source_type_id: string | null;
 	delivery_id: string | null;
 	expected_ship_date: string | null;
+	start_ship_date: string | null;
 	status: OrderStatus;
 	total_amount: number;
 	shipped_amount: number | null;

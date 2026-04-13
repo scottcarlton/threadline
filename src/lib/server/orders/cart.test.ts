@@ -95,10 +95,15 @@ describe('buildOrders', () => {
 		groups[0].delivery = { kind: 'delivery', delivery_id: 'd-1' };
 		expect(buildOrders(groups, ctx())[0].delivery_id).toBe('d-1');
 
-		groups[0].delivery = { kind: 'custom', expected_ship_date: '2026-06-01' };
+		groups[0].delivery = {
+			kind: 'custom',
+			start_ship_date: '2026-05-15',
+			expected_ship_date: '2026-06-01'
+		};
 		const built = buildOrders(groups, ctx());
 		expect(built[0].delivery_id).toBeNull();
 		expect(built[0].expected_ship_date).toBe('2026-06-01');
+		expect(built[0].start_ship_date).toBe('2026-05-15');
 	});
 
 	it('passes through location_id per group', () => {

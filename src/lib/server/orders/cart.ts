@@ -14,7 +14,7 @@ export type CartLine = {
 
 export type DeliveryChoice =
 	| { kind: 'delivery'; delivery_id: string }
-	| { kind: 'custom'; expected_ship_date: string };
+	| { kind: 'custom'; start_ship_date: string; expected_ship_date: string };
 
 export type OrderGroup = {
 	brand_id: string;
@@ -42,6 +42,7 @@ export type NewOrder = {
 	order_year: number | null;
 	delivery_id: string | null;
 	expected_ship_date: string | null;
+	start_ship_date: string | null;
 	status: OrderStatus;
 	total_amount: number;
 	lines: Array<Omit<CartLine, 'brand_id' | 'season_id'>>;
@@ -105,6 +106,7 @@ export function buildOrders(
 		delivery_id: group.delivery?.kind === 'delivery' ? group.delivery.delivery_id : null,
 		expected_ship_date:
 			group.delivery?.kind === 'custom' ? group.delivery.expected_ship_date : null,
+		start_ship_date: group.delivery?.kind === 'custom' ? group.delivery.start_ship_date : null,
 		status,
 		total_amount: group.total,
 		lines: group.lines.map((l) => ({

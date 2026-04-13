@@ -202,7 +202,9 @@
 		return seasons.find((s) => s.id === id)?.name ?? 'Season';
 	}
 	function deliveryLabelFor(d: SeasonDeliveryRow): string {
-		return `${d.label} (${monthAbbrev[d.delivery_month - 1]} ${d.delivery_day})`;
+		// Display as a window from the 1st of the delivery month → the delivery day.
+		const dd = String(d.delivery_day).padStart(2, '0');
+		return `${d.delivery_month}/01 - ${d.delivery_month}/${dd}`;
 	}
 	function describeDelivery(meta: { delivery: DeliveryChoice | null } | undefined): string {
 		const choice = meta?.delivery;
@@ -211,8 +213,12 @@
 			const d = deliveries.find((x) => x.id === choice.delivery_id);
 			return d ? deliveryLabelFor(d) : 'Delivery';
 		}
-		const dt = new Date(choice.expected_ship_date);
-		return `Custom — ${monthAbbrev[dt.getMonth()]} ${dt.getDate()}`;
+		const fmtShort = (s: string) => {
+			if (!s) return '—';
+			const dt = new Date(s);
+			return `${monthAbbrev[dt.getMonth()]} ${dt.getDate()}`;
+		};
+		return `Custom — ${fmtShort(choice.start_ship_date)} → ${fmtShort(choice.expected_ship_date)}`;
 	}
 	const EMPTY_META: { delivery: DeliveryChoice | null; location_id: string | null } = {
 		delivery: null,
@@ -241,7 +247,15 @@
 			case 'Items':
 				return cart.items.length > 0 && cart.items.every(itemIsSized);
 			case 'Delivery':
-				return groups.length > 0 && groups.every((g) => getMeta(g.brand_id, g.season_id).delivery !== null);
+				return (
+					groups.length > 0 &&
+					groups.every((g) => {
+						const d = getMeta(g.brand_id, g.season_id).delivery;
+						if (!d) return false;
+						if (d.kind === 'custom') return !!d.start_ship_date && !!d.expected_ship_date;
+						return true;
+					})
+				);
 			case 'Account':
 				return hasAccountChoice;
 			case 'Location':
@@ -759,7 +773,61 @@
 							</div>
 						</div>
 
-						{#if seasonDeliveries.length > 0}
+						{#if meta.delivery?.kind === 'custom'}
+							<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+								<div>
+									<Label for={`start-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
+										Start Ship
+									</Label>
+									<Input
+										id={`start-${groupKey(g.brand_id, g.season_id)}`}
+										type="date"
+										class="mt-1"
+										value={meta.delivery.start_ship_date}
+										oninput={(e) => {
+											const v = (e.target as HTMLInputElement).value;
+											const current = meta.delivery as Extract<typeof meta.delivery, { kind: 'custom' }>;
+											setMeta(g.brand_id, g.season_id, {
+												delivery: {
+													kind: 'custom',
+													start_ship_date: v,
+													expected_ship_date: current.expected_ship_date
+												}
+											});
+										}}
+									/>
+								</div>
+								<div>
+									<Label for={`end-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
+										Complete Ship
+									</Label>
+									<Input
+										id={`end-${groupKey(g.brand_id, g.season_id)}`}
+										type="date"
+										class="mt-1"
+										value={meta.delivery.expected_ship_date}
+										oninput={(e) => {
+											const v = (e.target as HTMLInputElement).value;
+											const current = meta.delivery as Extract<typeof meta.delivery, { kind: 'custom' }>;
+											setMeta(g.brand_id, g.season_id, {
+												delivery: {
+													kind: 'custom',
+													start_ship_date: current.start_ship_date,
+													expected_ship_date: v
+												}
+											});
+										}}
+									/>
+								</div>
+							</div>
+							<button
+								type="button"
+								class="mt-3 text-sm underline hover:no-underline"
+								onclick={() => setMeta(g.brand_id, g.season_id, { delivery: null })}
+							>
+								Use preset options
+							</button>
+						{:else if seasonDeliveries.length > 0}
 							<div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
 								{#each seasonDeliveries as d (d.id)}
 									<button
@@ -774,29 +842,31 @@
 									</button>
 								{/each}
 							</div>
+							<button
+								type="button"
+								class="inline-flex items-center gap-1 text-sm underline hover:no-underline"
+								onclick={() =>
+									setMeta(g.brand_id, g.season_id, {
+										delivery: { kind: 'custom', start_ship_date: '', expected_ship_date: '' }
+									})}
+							>
+								<span aria-hidden="true">+</span> Add Custom Dates
+							</button>
 						{:else}
 							<p class="mb-3 text-sm text-muted-foreground">
-								No delivery slots configured for this season. Use a custom date below.
+								No delivery slots configured for this season.
 							</p>
-						{/if}
-
-						<div class="flex items-center gap-2">
-							<Label for={`custom-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
-								Custom date:
-							</Label>
-							<Input
-								id={`custom-${groupKey(g.brand_id, g.season_id)}`}
-								type="date"
-								class="w-44"
-								value={meta.delivery?.kind === 'custom' ? meta.delivery.expected_ship_date : ''}
-								oninput={(e) => {
-									const v = (e.target as HTMLInputElement).value;
+							<button
+								type="button"
+								class="inline-flex items-center gap-1 text-sm underline hover:no-underline"
+								onclick={() =>
 									setMeta(g.brand_id, g.season_id, {
-										delivery: v ? { kind: 'custom', expected_ship_date: v } : null
-									});
-								}}
-							/>
-						</div>
+										delivery: { kind: 'custom', start_ship_date: '', expected_ship_date: '' }
+									})}
+							>
+								<span aria-hidden="true">+</span> Add Custom Dates
+							</button>
+						{/if}
 					</div>
 				{/each}
 			</div>

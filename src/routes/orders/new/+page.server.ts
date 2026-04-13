@@ -161,6 +161,7 @@ export const actions: Actions = {
 					order_year: o.order_year,
 					delivery_id: o.delivery_id,
 					expected_ship_date: o.expected_ship_date,
+					start_ship_date: o.start_ship_date,
 					status: o.status,
 					total_amount: o.total_amount,
 					created_by: user.id,
