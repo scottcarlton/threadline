@@ -1114,11 +1114,7 @@
 						{#each modalProducts as p (p.id)}
 							{@const added = productInCart(p)}
 							{@const imgId = primaryImageId(p)}
-							<div
-								class="flex flex-col rounded-lg border border-border transition {added
-									? 'ring-1 ring-red-500/60'
-									: ''}"
-							>
+							<div class="flex flex-col rounded-lg border border-foreground">
 								<div class="aspect-square overflow-hidden rounded-t-lg bg-muted">
 									{#if imgId}
 										<img
