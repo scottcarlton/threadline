@@ -214,10 +214,22 @@
 		const dt = new Date(choice.expected_ship_date);
 		return `Custom — ${monthAbbrev[dt.getMonth()]} ${dt.getDate()}`;
 	}
+	const EMPTY_META: { delivery: DeliveryChoice | null; location_id: string | null } = {
+		delivery: null,
+		location_id: null
+	};
+	// Pure read — never mutate during render. Initialization happens in the $effect below.
 	function getMeta(brand_id: string, season_id: string) {
+		return cart.groupMeta[groupKey(brand_id, season_id)] ?? EMPTY_META;
+	}
+	function setMeta(
+		brand_id: string,
+		season_id: string,
+		patch: Partial<{ delivery: DeliveryChoice | null; location_id: string | null }>
+	) {
 		const key = groupKey(brand_id, season_id);
-		if (!cart.groupMeta[key]) cart.groupMeta[key] = { delivery: null, location_id: null };
-		return cart.groupMeta[key];
+		const current = cart.groupMeta[key] ?? { delivery: null, location_id: null };
+		cart.groupMeta[key] = { ...current, ...patch };
 	}
 
 	function canAdvance(): boolean {
@@ -393,9 +405,14 @@
 		return cart.items.find((it) => it.product_id === product_id);
 	}
 
-	// Keep group meta clean
+	// Initialize group meta entries when groups change, and prune entries that no longer apply.
 	$effect(() => {
-		const validKeys = new Set(groups.map((g) => groupKey(g.brand_id, g.season_id)));
+		const validKeys = new Set<string>();
+		for (const g of groups) {
+			const key = groupKey(g.brand_id, g.season_id);
+			validKeys.add(key);
+			if (!cart.groupMeta[key]) cart.groupMeta[key] = { delivery: null, location_id: null };
+		}
 		for (const k of Object.keys(cart.groupMeta)) {
 			if (!validKeys.has(k)) delete cart.groupMeta[k];
 		}
@@ -406,8 +423,9 @@
 		if (account && accountLocations.length === 1) {
 			const loc = accountLocations[0];
 			for (const g of groups) {
-				const m = getMeta(g.brand_id, g.season_id);
-				if (!m.location_id) m.location_id = loc.id;
+				if (!getMeta(g.brand_id, g.season_id).location_id) {
+					setMeta(g.brand_id, g.season_id, { location_id: loc.id });
+				}
 			}
 		}
 	});
@@ -750,7 +768,7 @@
 											'delivery' && meta.delivery.delivery_id === d.id
 											? 'border-foreground bg-muted/30'
 											: 'hover:border-foreground'}"
-										onclick={() => (meta.delivery = { kind: 'delivery', delivery_id: d.id })}
+										onclick={() => setMeta(g.brand_id, g.season_id, { delivery: { kind: 'delivery', delivery_id: d.id } })}
 									>
 										{deliveryLabelFor(d)}
 									</button>
@@ -773,7 +791,9 @@
 								value={meta.delivery?.kind === 'custom' ? meta.delivery.expected_ship_date : ''}
 								oninput={(e) => {
 									const v = (e.target as HTMLInputElement).value;
-									meta.delivery = v ? { kind: 'custom', expected_ship_date: v } : null;
+									setMeta(g.brand_id, g.season_id, {
+										delivery: v ? { kind: 'custom', expected_ship_date: v } : null
+									});
 								}}
 							/>
 						</div>
@@ -824,8 +844,8 @@
 									class="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-amber-700 hover:bg-muted/50"
 									onclick={useFreeform}
 								>
-									<span>Use "{accountQuery.trim()}" as a freeform name</span>
-									<span class="text-muted-foreground">Save as draft</span>
+									<span>Add "{accountQuery.trim()}" as new account</span>
+									<span class="text-muted-foreground">New Account</span>
 								</button>
 							</li>
 						</ul>
@@ -872,7 +892,7 @@
 									loc.id
 										? 'border-foreground bg-muted/30'
 										: 'hover:border-foreground'}"
-									onclick={() => (meta.location_id = loc.id)}
+									onclick={() => setMeta(g.brand_id, g.season_id, { location_id: loc.id })}
 								>
 									<div class="font-medium">{loc.label}{loc.is_default ? ' (default)' : ''}</div>
 									<div class="text-muted-foreground">
