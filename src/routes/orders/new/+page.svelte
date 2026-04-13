@@ -603,7 +603,7 @@
 						</span>
 					{/if}
 				</div>
-				<Button onclick={openAddItemsModal}>+ Add</Button>
+				<Button onclick={openAddItemsModal}>+ Add Items</Button>
 			</div>
 
 			{#if cart.items.length === 0}
@@ -1133,11 +1133,10 @@
 										{brandName(p.brand_id)}{p.season_id ? ' · ' + seasonName(p.season_id) : ''}
 									</div>
 									<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
-									<div class="mt-auto flex gap-2 pt-3">
+									<div class="mt-auto grid grid-cols-2 gap-2 pt-3">
 										<Button
 											size="sm"
 											variant={added ? 'outline' : 'default'}
-											class="flex-1"
 											onclick={() => toggleProduct(p)}
 										>
 											{added ? 'Remove' : 'Add'}
