@@ -4,7 +4,7 @@
 **Version:** 1.0
 **Last Updated:** April 12, 2026
 **Status:** Living Document
-**Related:** [Threadline_Features_BRD.md](./Threadline_Features_BRD.md) · [Threadline_Roles_Permissions_BRD.md](./Threadline_Roles_Permissions_BRD.md)
+**Related:** [features.md](./features.md) · [roles-permissions.md](./roles-permissions.md)
 
 ---
 
@@ -14,11 +14,11 @@ This document defines the marketing strategy, website requirements, content plan
 
 ### 1.1 Release Timeline
 
-| Phase            | Date           | Description                                                                                                   |
-| ---------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
+| Phase | Date | Description |
+|---|---|---|
 | **Early Access** | April 30, 2026 | Invite-only release for founding users. Core features complete. Gather feedback, validate product-market fit. |
-| **Beta Release** | May 30, 2026   | Open waitlist, expanded access. Marketing site fully live. Content engine running.                            |
-| **Full Release** | June 30, 2026  | Public launch. All features, billing, and integrations live. PR and paid acquisition begin.                   |
+| **Beta Release** | May 30, 2026 | Open waitlist, expanded access. Marketing site fully live. Content engine running. |
+| **Full Release** | June 30, 2026 | Public launch. All features, billing, and integrations live. PR and paid acquisition begin. |
 
 ### 1.2 Competitive Landscape
 
@@ -27,7 +27,6 @@ This document defines the marketing strategy, website requirements, content plan
 **JOOR** — Enterprise-grade wholesale B2B platform. Key strengths: 14,000+ brands, 675,000+ buyers across 150 countries, JOOR Pay (embedded payments with net terms), JOOR Passport (digital trade show portal), advanced assortment tools. Targets mid-market to enterprise fashion brands and retailers.
 
 **Threadline's Differentiators:**
-
 - AI-powered insights engine (Stitches) — revenue leakage, order gaps, predictive signals
 - Built-in automation agents (custom AI workflows per org)
 - Multi-org federation (rep ↔ brand connections with cross-org visibility)
@@ -38,7 +37,6 @@ This document defines the marketing strategy, website requirements, content plan
 ### 1.3 Design Inspiration
 
 Ramp.com serves as the design benchmark for Threadline's marketing site:
-
 - Clean, spacious layouts with strong visual hierarchy
 - Motion and interaction design for tactility and engagement
 - Product-led storytelling (show, don't tell)
@@ -53,7 +51,6 @@ Ramp.com serves as the design benchmark for Threadline's marketing site:
 ### 2.1 Current State
 
 **Existing Pages (6):**
-
 - `/` — Homepage with hero, stats, features overview, FAQ
 - `/features` — 6 core features with descriptions and CTAs
 - `/intelligence` — Stitches AI engine marketing page
@@ -62,7 +59,6 @@ Ramp.com serves as the design benchmark for Threadline's marketing site:
 - `/workspace` — Placeholder ("Coming Soon")
 
 **Existing Assets:**
-
 - MarketingNav component (logo, 4 nav links, auth CTAs)
 - MarketingFooter component (minimal)
 - Scroll animations via Motion library
@@ -70,7 +66,6 @@ Ramp.com serves as the design benchmark for Threadline's marketing site:
 - Tailwind CSS design system
 
 **Known Issues:**
-
 - No Open Graph tags, meta descriptions, or structured data on any page
 - No sitemap.xml
 - Footer contains placeholder copy unrelated to wholesale positioning
@@ -90,7 +85,7 @@ Primary Nav:
   Solutions → [Independent Reps, Showroom Owners, Sales Agencies, Brands]
   Pricing
   Resources → [Blog, Help Center, Getting Started, API Docs]
-
+  
 Secondary Nav (top-right):
   Login | Sign Up Free
 
@@ -107,54 +102,53 @@ Footer:
 
 **Phase 1 — Early Access (by April 30):**
 
-| Page                                 | Status       | Requirements                                                                                                    |
-| ------------------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------- |
-| Homepage `/`                         | Needs update | Update hero for Early Access CTA, add social proof section, update footer, fix stats with real/credible numbers |
-| Features `/features`                 | Needs update | Expand to sub-pages per feature. Add product screenshots/mockups. Add comparison table vs competitors           |
-| Pricing `/pricing`                   | Exists       | Add FAQ, add feature comparison table per tier, add "Contact Sales" for enterprise                              |
-| Early Access Landing `/early-access` | New          | Dedicated landing page with waitlist signup, value props, founding member benefits                              |
-| Terms of Service `/legal/terms`      | New          | Full legal terms page                                                                                           |
-| Privacy Policy `/legal/privacy`      | New          | Full privacy policy page                                                                                        |
-| Security `/security`                 | New          | Security practices, SOC 2 roadmap, encryption, SSO, RLS details                                                 |
+| Page | Status | Requirements |
+|---|---|---|
+| Homepage `/` | Needs update | Update hero for Early Access CTA, add social proof section, update footer, fix stats with real/credible numbers |
+| Features `/features` | Needs update | Expand to sub-pages per feature. Add product screenshots/mockups. Add comparison table vs competitors |
+| Pricing `/pricing` | Exists | Add FAQ, add feature comparison table per tier, add "Contact Sales" for enterprise |
+| Early Access Landing `/early-access` | New | Dedicated landing page with waitlist signup, value props, founding member benefits |
+| Terms of Service `/legal/terms` | New | Full legal terms page |
+| Privacy Policy `/legal/privacy` | New | Full privacy policy page |
+| Security `/security` | New | Security practices, SOC 2 roadmap, encryption, SSO, RLS details |
 
 **Phase 2 — Beta Release (by May 30):**
 
-| Page                                                      | Status          | Requirements                                                                                      |
-| --------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
-| Blog `/blog`                                              | New             | Content hub with categories: Product Updates, Industry Insights, Best Practices, Customer Stories |
-| Blog Post Template `/blog/[slug]`                         | New             | Individual post pages with author, date, read time, share buttons, related posts                  |
-| Solutions: Independent Reps `/solutions/independent-reps` | Needs expansion | Dedicated landing page with persona-specific messaging, use cases, testimonials                   |
-| Solutions: Showroom Owners `/solutions/showroom-owners`   | Needs expansion | Dedicated landing page                                                                            |
-| Solutions: Sales Agencies `/solutions/sales-agencies`     | Needs expansion | Dedicated landing page                                                                            |
-| Solutions: Brands `/solutions/brands`                     | New             | Brand org-specific landing page (product catalog, buyer portal, rep connections)                  |
-| Integrations `/integrations`                              | New             | Integration directory page showing all connections (Google, Slack, Notion, etc.)                  |
-| Integration Detail `/integrations/[slug]`                 | New             | Per-integration page with setup guide, features, screenshots                                      |
-| Help Center `/help`                                       | New             | Searchable knowledge base with categories                                                         |
-| Getting Started `/help/getting-started`                   | New             | Step-by-step onboarding guide for new users                                                       |
-| About `/about`                                            | New             | Company story, mission, team, values                                                              |
-| Contact `/contact`                                        | New             | Contact form, email, support hours                                                                |
-| Changelog `/changelog`                                    | New             | Product updates and release notes feed                                                            |
+| Page | Status | Requirements |
+|---|---|---|
+| Blog `/blog` | New | Content hub with categories: Product Updates, Industry Insights, Best Practices, Customer Stories |
+| Blog Post Template `/blog/[slug]` | New | Individual post pages with author, date, read time, share buttons, related posts |
+| Solutions: Independent Reps `/solutions/independent-reps` | Needs expansion | Dedicated landing page with persona-specific messaging, use cases, testimonials |
+| Solutions: Showroom Owners `/solutions/showroom-owners` | Needs expansion | Dedicated landing page |
+| Solutions: Sales Agencies `/solutions/sales-agencies` | Needs expansion | Dedicated landing page |
+| Solutions: Brands `/solutions/brands` | New | Brand org-specific landing page (product catalog, buyer portal, rep connections) |
+| Integrations `/integrations` | New | Integration directory page showing all connections (Google, Slack, Notion, etc.) |
+| Integration Detail `/integrations/[slug]` | New | Per-integration page with setup guide, features, screenshots |
+| Help Center `/help` | New | Searchable knowledge base with categories |
+| Getting Started `/help/getting-started` | New | Step-by-step onboarding guide for new users |
+| About `/about` | New | Company story, mission, team, values |
+| Contact `/contact` | New | Contact form, email, support hours |
+| Changelog `/changelog` | New | Product updates and release notes feed |
 
 **Phase 3 — Full Release (by June 30):**
 
-| Page                                   | Status | Requirements                                                               |
-| -------------------------------------- | ------ | -------------------------------------------------------------------------- |
-| Case Studies `/customers/[slug]`       | New    | Customer success stories with metrics, quotes, before/after                |
-| Customers Index `/customers`           | New    | Logo wall, featured stories, industry filter                               |
-| Compare Pages `/compare/[competitor]`  | New    | Threadline vs Brandboom, Threadline vs JOOR, Threadline vs NuORDER         |
-| API Documentation `/developers`        | New    | API reference, authentication, webhooks, SDKs                              |
-| Buyer Portal Marketing `/buyer-portal` | New    | Dedicated page marketing the buyer-facing experience                       |
-| Press/Media Kit `/press`               | New    | Press releases, brand assets, logos, media inquiries                       |
-| Careers `/careers`                     | New    | Job listings (even if future), culture, benefits                           |
-| Webinar/Events `/events`               | New    | Upcoming webinars, trade shows, recorded sessions                          |
-| ROI Calculator `/roi`                  | New    | Interactive tool: input order volume, reps, brands → see projected savings |
+| Page | Status | Requirements |
+|---|---|---|
+| Case Studies `/customers/[slug]` | New | Customer success stories with metrics, quotes, before/after |
+| Customers Index `/customers` | New | Logo wall, featured stories, industry filter |
+| Compare Pages `/compare/[competitor]` | New | Threadline vs Brandboom, Threadline vs JOOR, Threadline vs NuORDER |
+| API Documentation `/developers` | New | API reference, authentication, webhooks, SDKs |
+| Buyer Portal Marketing `/buyer-portal` | New | Dedicated page marketing the buyer-facing experience |
+| Press/Media Kit `/press` | New | Press releases, brand assets, logos, media inquiries |
+| Careers `/careers` | New | Job listings (even if future), culture, benefits |
+| Webinar/Events `/events` | New | Upcoming webinars, trade shows, recorded sessions |
+| ROI Calculator `/roi` | New | Interactive tool: input order volume, reps, brands → see projected savings |
 
 ---
 
 ### 2.3 Website Technical Requirements
 
 **SEO:**
-
 - [ ] Meta title and description on every page (unique, keyword-targeted)
 - [ ] Open Graph tags (og:title, og:description, og:image) on every page
 - [ ] Twitter Card tags on every page
@@ -167,7 +161,6 @@ Footer:
 - [ ] Page speed optimization (Core Web Vitals targets)
 
 **Analytics & Tracking:**
-
 - [ ] Google Analytics 4 (or Plausible/Fathom for privacy-first)
 - [ ] Google Search Console
 - [ ] Event tracking on CTAs (signup, waitlist, demo request)
@@ -176,7 +169,6 @@ Footer:
 - [ ] Heatmapping tool (Hotjar, PostHog, or similar)
 
 **Performance:**
-
 - [ ] Lighthouse score targets: Performance 90+, Accessibility 95+, SEO 95+
 - [ ] Image optimization pipeline (WebP/AVIF, lazy loading, responsive srcset)
 - [ ] Font subsetting and preloading
@@ -184,7 +176,6 @@ Footer:
 - [ ] Critical CSS inlining
 
 **Legal & Compliance:**
-
 - [ ] Cookie consent banner (GDPR)
 - [ ] Terms of Service page (reviewed by legal)
 - [ ] Privacy Policy page (reviewed by legal)
@@ -210,7 +201,6 @@ Footer:
 ### 3.2 Marketing Graphics
 
 **Product Screenshots & Mockups:**
-
 - [ ] Hero dashboard screenshot (polished, populated with realistic data)
 - [ ] Feature-specific screenshots (orders, insights, buyer portal, agents, reports)
 - [ ] Mobile responsive mockups (phone + tablet)
@@ -218,7 +208,6 @@ Footer:
 - [ ] Before/after comparison graphics (manual process vs Threadline)
 
 **Illustrations & Diagrams:**
-
 - [ ] How it works diagram (Connect → Learn → Act flow)
 - [ ] Architecture/federation diagram (Rep Org ↔ Brand Org ↔ Buyer)
 - [ ] Integration ecosystem diagram (all connected platforms)
@@ -226,7 +215,6 @@ Footer:
 - [ ] ROI/value proposition infographics
 
 **Social Media Assets:**
-
 - [ ] LinkedIn banner and profile image
 - [ ] Twitter/X header and profile image
 - [ ] Instagram profile image and highlight covers
@@ -234,7 +222,6 @@ Footer:
 - [ ] Open Graph default share image (1200×630)
 
 **Trade Show / Print:**
-
 - [ ] One-pager / sell sheet (PDF, print-ready)
 - [ ] Pitch deck (presentation for investors/partners)
 - [ ] Business cards
@@ -242,7 +229,6 @@ Footer:
 - [ ] QR code materials linking to signup/demo
 
 **Video:**
-
 - [ ] Product demo video (2–3 min overview)
 - [ ] Feature-specific micro-demos (30–60 sec each)
 - [ ] Customer testimonial videos (post-beta)
@@ -265,45 +251,44 @@ Footer:
 
 **Phase 1: Early Access (April 14–30)**
 
-| Week      | Content                                    | Channel                        |
-| --------- | ------------------------------------------ | ------------------------------ |
-| Apr 14–18 | "Introducing Threadline" announcement post | Blog, LinkedIn                 |
-| Apr 14–18 | 3 teaser social posts (features preview)   | LinkedIn, Twitter/X, Instagram |
-| Apr 21–25 | "Why We Built Threadline" founder story    | Blog, LinkedIn                 |
-| Apr 21–25 | Early Access signup landing page live      | Website                        |
-| Apr 28–30 | Early Access launch email to waitlist      | Email                          |
-| Apr 28–30 | "What's Coming" product roadmap post       | Blog                           |
+| Week | Content | Channel |
+|---|---|---|
+| Apr 14–18 | "Introducing Threadline" announcement post | Blog, LinkedIn |
+| Apr 14–18 | 3 teaser social posts (features preview) | LinkedIn, Twitter/X, Instagram |
+| Apr 21–25 | "Why We Built Threadline" founder story | Blog, LinkedIn |
+| Apr 21–25 | Early Access signup landing page live | Website |
+| Apr 28–30 | Early Access launch email to waitlist | Email |
+| Apr 28–30 | "What's Coming" product roadmap post | Blog |
 
 **Phase 2: Beta (May 1–30)**
 
-| Week   | Content                                            | Channel             |
-| ------ | -------------------------------------------------- | ------------------- |
-| Week 1 | "Getting Started with Threadline" guide            | Blog, Help Center   |
-| Week 1 | Feature deep-dive: AI Insights & Stitches          | Blog, LinkedIn      |
-| Week 2 | Comparison: Threadline vs Brandboom vs JOOR        | Blog, SEO           |
+| Week | Content | Channel |
+|---|---|---|
+| Week 1 | "Getting Started with Threadline" guide | Blog, Help Center |
+| Week 1 | Feature deep-dive: AI Insights & Stitches | Blog, LinkedIn |
+| Week 2 | Comparison: Threadline vs Brandboom vs JOOR | Blog, SEO |
 | Week 2 | 5 social posts (tips, features, behind-the-scenes) | LinkedIn, Twitter/X |
-| Week 3 | Feature deep-dive: Buyer Portal                    | Blog                |
-| Week 3 | Email newsletter #1 to beta users                  | Email               |
-| Week 4 | "How [Early User] Saved X Hours/Week" case study   | Blog, LinkedIn      |
-| Week 4 | Beta feedback roundup + what we shipped            | Blog, Email         |
+| Week 3 | Feature deep-dive: Buyer Portal | Blog |
+| Week 3 | Email newsletter #1 to beta users | Email |
+| Week 4 | "How [Early User] Saved X Hours/Week" case study | Blog, LinkedIn |
+| Week 4 | Beta feedback roundup + what we shipped | Blog, Email |
 
 **Phase 3: Full Launch (June 1–30)**
 
-| Week   | Content                                                    | Channel                      |
-| ------ | ---------------------------------------------------------- | ---------------------------- |
-| Week 1 | Full launch announcement + PR outreach                     | Blog, Email, LinkedIn, Press |
-| Week 1 | Product Hunt launch                                        | Product Hunt                 |
-| Week 2 | "Complete Guide to Wholesale Order Management" pillar page | Blog, SEO                    |
-| Week 2 | 3 customer testimonial videos                              | YouTube, LinkedIn, Website   |
-| Week 3 | Trade show integration guide                               | Blog                         |
-| Week 3 | Email sequence: 5-part onboarding drip                     | Email                        |
-| Week 4 | "State of Wholesale 2026" industry report                  | Blog, LinkedIn, Email        |
-| Week 4 | Webinar: "Modernizing Your Wholesale Operation"            | Events, YouTube              |
+| Week | Content | Channel |
+|---|---|---|
+| Week 1 | Full launch announcement + PR outreach | Blog, Email, LinkedIn, Press |
+| Week 1 | Product Hunt launch | Product Hunt |
+| Week 2 | "Complete Guide to Wholesale Order Management" pillar page | Blog, SEO |
+| Week 2 | 3 customer testimonial videos | YouTube, LinkedIn, Website |
+| Week 3 | Trade show integration guide | Blog |
+| Week 3 | Email sequence: 5-part onboarding drip | Email |
+| Week 4 | "State of Wholesale 2026" industry report | Blog, LinkedIn, Email |
+| Week 4 | Webinar: "Modernizing Your Wholesale Operation" | Events, YouTube |
 
 ### 4.3 Email Marketing
 
 **Sequences to Build:**
-
 - [ ] Waitlist nurture (Early Access period — 3 emails)
 - [ ] Welcome/onboarding (new signups — 5 emails over 14 days)
 - [ ] Beta feedback request (post-beta — 2 emails)
@@ -312,7 +297,6 @@ Footer:
 - [ ] Re-engagement sequence (inactive users — 3 emails)
 
 **Email Infrastructure:**
-
 - [ ] Select email platform (Resend, Postmark, SendGrid, or ConvertKit)
 - [ ] Design email templates (responsive, on-brand)
 - [ ] Set up transactional vs marketing email separation
@@ -322,7 +306,6 @@ Footer:
 ### 4.4 SEO Strategy
 
 **Target Keywords (primary):**
-
 - wholesale order management software
 - B2B wholesale platform
 - fashion wholesale software
@@ -333,7 +316,6 @@ Footer:
 - commission tracking software wholesale
 
 **Target Keywords (long-tail / comparison):**
-
 - Brandboom alternative
 - JOOR alternative
 - NuORDER alternative
@@ -342,7 +324,6 @@ Footer:
 - wholesale buyer portal software
 
 **SEO Content Plan:**
-
 - [ ] Keyword research and mapping (assign primary keyword per page)
 - [ ] Competitor backlink analysis (Brandboom, JOOR, NuORDER)
 - [ ] Pillar page strategy (1 pillar + 5–10 cluster articles per topic)
@@ -475,33 +456,33 @@ AI Agents
 
 ### Phase 1: Pre-Launch → Early Access (April 12–30)
 
-| Date      | Milestone                 | Deliverables                                                                                                    |
-| --------- | ------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Apr 12–16 | Brand & Design Foundation | Brand guidelines doc, logo variations, color/type finalization, OG images                                       |
-| Apr 16–20 | Website Updates           | Homepage refresh, Early Access landing page, footer fix, SEO basics (meta tags, sitemap), Terms & Privacy pages |
-| Apr 20–24 | Content Creation          | "Introducing Threadline" blog post, founder story draft, 6 social posts, waitlist email sequence                |
-| Apr 24–28 | Launch Prep               | Analytics setup (GA4, Search Console), email platform configured, social profiles created, product screenshots  |
-| Apr 30    | **Early Access Launch**   | Waitlist opens, first blog posts live, social announcement, Early Access emails sent                            |
+| Date | Milestone | Deliverables |
+|---|---|---|
+| Apr 12–16 | Brand & Design Foundation | Brand guidelines doc, logo variations, color/type finalization, OG images |
+| Apr 16–20 | Website Updates | Homepage refresh, Early Access landing page, footer fix, SEO basics (meta tags, sitemap), Terms & Privacy pages |
+| Apr 20–24 | Content Creation | "Introducing Threadline" blog post, founder story draft, 6 social posts, waitlist email sequence |
+| Apr 24–28 | Launch Prep | Analytics setup (GA4, Search Console), email platform configured, social profiles created, product screenshots |
+| Apr 30 | **Early Access Launch** | Waitlist opens, first blog posts live, social announcement, Early Access emails sent |
 
 ### Phase 2: Early Access → Beta (May 1–30)
 
-| Date      | Milestone             | Deliverables                                                                        |
-| --------- | --------------------- | ----------------------------------------------------------------------------------- |
-| May 1–7   | Content Engine Starts | Getting Started guide, first feature deep-dive, Help Center launched (10 articles)  |
-| May 7–14  | Solutions Expansion   | Dedicated solutions pages (4), integrations directory page, comparison blog posts   |
-| May 14–21 | Social Proof          | First case study, testimonial collection, customer logos for website                |
-| May 21–28 | Beta Prep             | Changelog page, About page, Contact page, blog category pages, 20+ help articles    |
-| May 30    | **Beta Launch**       | Open waitlist, marketing site fully live, beta announcement email + social campaign |
+| Date | Milestone | Deliverables |
+|---|---|---|
+| May 1–7 | Content Engine Starts | Getting Started guide, first feature deep-dive, Help Center launched (10 articles) |
+| May 7–14 | Solutions Expansion | Dedicated solutions pages (4), integrations directory page, comparison blog posts |
+| May 14–21 | Social Proof | First case study, testimonial collection, customer logos for website |
+| May 21–28 | Beta Prep | Changelog page, About page, Contact page, blog category pages, 20+ help articles |
+| May 30 | **Beta Launch** | Open waitlist, marketing site fully live, beta announcement email + social campaign |
 
 ### Phase 3: Beta → Full Release (June 1–30)
 
-| Date      | Milestone             | Deliverables                                                                              |
-| --------- | --------------------- | ----------------------------------------------------------------------------------------- |
-| Jun 1–7   | Launch Marketing Prep | Press kit, Product Hunt listing draft, launch email sequence, paid ad creatives           |
-| Jun 7–14  | Content Blitz         | Competitor comparison pages, pillar SEO content, 3 customer videos, webinar prep          |
-| Jun 14–21 | PR & Outreach         | Press outreach to trade publications, influencer/partner outreach, guest post submissions |
-| Jun 21–28 | Final Polish          | ROI calculator, API docs, careers page, all help docs complete (40+ articles)             |
-| Jun 30    | **Full Launch**       | Product Hunt launch, press release, paid ads go live, full public availability            |
+| Date | Milestone | Deliverables |
+|---|---|---|
+| Jun 1–7 | Launch Marketing Prep | Press kit, Product Hunt listing draft, launch email sequence, paid ad creatives |
+| Jun 7–14 | Content Blitz | Competitor comparison pages, pillar SEO content, 3 customer videos, webinar prep |
+| Jun 14–21 | PR & Outreach | Press outreach to trade publications, influencer/partner outreach, guest post submissions |
+| Jun 21–28 | Final Polish | ROI calculator, API docs, careers page, all help docs complete (40+ articles) |
+| Jun 30 | **Full Launch** | Product Hunt launch, press release, paid ads go live, full public availability |
 
 ---
 
@@ -542,18 +523,18 @@ AI Agents
 
 ### 9.1 Recommended Marketing Stack
 
-| Category          | Recommended Tool                       | Purpose                                          |
-| ----------------- | -------------------------------------- | ------------------------------------------------ |
-| Email Marketing   | Resend or ConvertKit                   | Transactional + marketing emails                 |
-| Analytics         | Google Analytics 4 + Plausible         | Traffic, conversions, privacy-friendly analytics |
-| SEO               | Google Search Console + Ahrefs/SEMrush | Rankings, keyword tracking, backlinks            |
-| Social Scheduling | Buffer or Typefully                    | Schedule posts across platforms                  |
-| Design            | Figma                                  | Marketing graphics, social templates             |
-| Video             | Loom + Descript                        | Product demos, testimonial editing               |
-| Help Docs         | Built-in (SvelteKit) or GitBook        | Knowledge base and support docs                  |
-| CRM / Waitlist    | Built-in or Loops.so                   | Waitlist management, lead tracking               |
-| Heatmaps          | PostHog or Hotjar                      | User behavior on marketing site                  |
-| Feedback          | Canny or built-in                      | Feature requests and feedback collection         |
+| Category | Recommended Tool | Purpose |
+|---|---|---|
+| Email Marketing | Resend or ConvertKit | Transactional + marketing emails |
+| Analytics | Google Analytics 4 + Plausible | Traffic, conversions, privacy-friendly analytics |
+| SEO | Google Search Console + Ahrefs/SEMrush | Rankings, keyword tracking, backlinks |
+| Social Scheduling | Buffer or Typefully | Schedule posts across platforms |
+| Design | Figma | Marketing graphics, social templates |
+| Video | Loom + Descript | Product demos, testimonial editing |
+| Help Docs | Built-in (SvelteKit) or GitBook | Knowledge base and support docs |
+| CRM / Waitlist | Built-in or Loops.so | Waitlist management, lead tracking |
+| Heatmaps | PostHog or Hotjar | User behavior on marketing site |
+| Feedback | Canny or built-in | Feature requests and feedback collection |
 
 ### 9.2 Design System for Marketing
 
@@ -597,4 +578,4 @@ AI Agents
 
 ---
 
-_This is a living document. Update as marketing strategy evolves, content is published, and launch milestones are hit._
+*This is a living document. Update as marketing strategy evolves, content is published, and launch milestones are hit.*

@@ -28,7 +28,6 @@ Threadline is a multi-tenant B2B platform connecting sales rep organizations, br
 The highest-privilege organizational role with full platform access including account-level operations.
 
 **Capabilities:**
-
 - Full read/write access to all features and data across the organization
 - Manage billing, subscription, and account lifecycle
 - Delete the organization
@@ -42,7 +41,6 @@ The highest-privilege organizational role with full platform access including ac
 - Full access to commission settings at all levels (member, brand, member-brand override, account override)
 
 **Restrictions:**
-
 - Cannot change the Owner's role
 - Cannot change their own role
 
@@ -53,7 +51,6 @@ The highest-privilege organizational role with full platform access including ac
 Full operational access with some account-level restrictions compared to Admin.
 
 **Capabilities:**
-
 - All capabilities of Admin **except** billing management and organization deletion
 - Manage team members, roles, and commission rates
 - Full brand, product, and order management
@@ -62,7 +59,6 @@ Full operational access with some account-level restrictions compared to Admin.
 - Manage integrations
 
 **Restrictions:**
-
 - Cannot access billing or subscription management
 - Cannot delete the organization
 - Cannot change their own role
@@ -74,12 +70,10 @@ Full operational access with some account-level restrictions compared to Admin.
 Standard team member with read/write access, optionally scoped to specific brands.
 
 **Brand Scoping:**
-
 - **Unscoped (default):** Can see and work with all brands in the organization
 - **Scoped:** Can only see and work with brands explicitly assigned via `member_brand_access`
 
 **Capabilities:**
-
 - View and work with orders, products, and accounts within their brand scope
 - Create and edit orders for brands in scope
 - Submit expenses for brands in scope
@@ -89,7 +83,6 @@ Standard team member with read/write access, optionally scoped to specific brand
 - View contacts and account information within scope
 
 **Restrictions:**
-
 - Cannot access organization admin settings (members, security, billing, integrations)
 - Cannot create, edit, or delete brands or products
 - Cannot approve/reject connections or invitations
@@ -105,7 +98,6 @@ A role designed for field sales representatives working specific territories and
 **Brand Scoping:** Always scoped to assigned brands via `member_brand_access`.
 
 **Capabilities:**
-
 - View and manage orders for assigned brand accounts
 - View and manage appointments for scoped accounts
 - Submit expenses for assigned brands
@@ -113,7 +105,6 @@ A role designed for field sales representatives working specific territories and
 - Connect personal email
 
 **Restrictions:**
-
 - Cannot access the Brands page (actively redirected away)
 - Cannot access organization admin settings
 - Cannot create, edit, or delete brands or products
@@ -127,17 +118,14 @@ A role designed for field sales representatives working specific territories and
 Read-only access for external collaborators or limited users.
 
 **Brand Scoping:**
-
 - **Unscoped (default):** Can see all brands
 - **Scoped:** Can only see brands assigned via `member_brand_access`
 
 **Capabilities:**
-
 - View orders, products, accounts, and brands within scope (read-only)
 - Connect personal email
 
 **Restrictions:**
-
 - Cannot create, edit, or delete any data
 - Cannot access organization admin settings
 - Cannot submit expenses
@@ -153,13 +141,11 @@ A separate role managed through the `account_users` table rather than organizati
 **Access Scoping:** Controlled per-account via `account_brand_access` — each buyer account is granted visibility into specific brands.
 
 **Capabilities:**
-
 - Browse product catalogs for brands their account has access to
 - Submit orders for accessible brands
 - View order history for their accounts
 
 **Restrictions:**
-
 - No access to organizational features (settings, team, expenses, appointments, insights)
 - Cannot see brands outside their account's granted access
 - Cannot modify product or brand data
@@ -172,130 +158,130 @@ A separate role managed through the `account_users` table rather than organizati
 
 ### 4.1 Organization Management
 
-| Feature                     | Admin | Owner | Member | Sales | Guest | Buyer |
-| --------------------------- | ----- | ----- | ------ | ----- | ----- | ----- |
-| View org settings           | Yes   | Yes   | No     | No    | No    | No    |
-| Edit org settings           | Yes   | Yes   | No     | No    | No    | No    |
-| Manage billing/subscription | Yes   | No    | No     | No    | No    | No    |
-| Delete organization         | Yes   | No    | No     | No    | No    | No    |
-| Configure SSO               | Yes   | Yes   | No     | No    | No    | No    |
-| Enforce SSO                 | Yes   | Yes   | No     | No    | No    | No    |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View org settings | Yes | Yes | No | No | No | No |
+| Edit org settings | Yes | Yes | No | No | No | No |
+| Manage billing/subscription | Yes | No | No | No | No | No |
+| Delete organization | Yes | No | No | No | No | No |
+| Configure SSO | Yes | Yes | No | No | No | No |
+| Enforce SSO | Yes | Yes | No | No | No | No |
 
 ### 4.2 Team Management
 
-| Feature              | Admin | Owner | Member | Sales | Guest | Buyer |
-| -------------------- | ----- | ----- | ------ | ----- | ----- | ----- |
-| View members list    | Yes   | Yes   | No     | No    | No    | No    |
-| Invite new members   | Yes   | Yes   | No     | No    | No    | No    |
-| Remove members       | Yes   | Yes   | No     | No    | No    | No    |
-| Change member roles  | Yes   | Yes   | No     | No    | No    | No    |
-| Set commission rates | Yes   | Yes   | No     | No    | No    | No    |
-| Assign brand scoping | Yes   | Yes   | No     | No    | No    | No    |
-| Change Owner role    | No    | No    | No     | No    | No    | No    |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View members list | Yes | Yes | No | No | No | No |
+| Invite new members | Yes | Yes | No | No | No | No |
+| Remove members | Yes | Yes | No | No | No | No |
+| Change member roles | Yes | Yes | No | No | No | No |
+| Set commission rates | Yes | Yes | No | No | No | No |
+| Assign brand scoping | Yes | Yes | No | No | No | No |
+| Change Owner role | No | No | No | No | No | No |
 
 ### 4.3 Brands & Products
 
-| Feature              | Admin | Owner | Member | Sales               | Guest  | Buyer          |
-| -------------------- | ----- | ----- | ------ | ------------------- | ------ | -------------- |
-| View brands          | All   | All   | Scoped | Scoped              | Scoped | Account-scoped |
-| Create brands        | Yes   | Yes   | No     | No                  | No     | No             |
-| Edit brands          | Yes   | Yes   | No     | No                  | No     | No             |
-| Delete brands        | Yes   | Yes   | No     | No                  | No     | No             |
-| Access brands page   | Yes   | Yes   | Yes    | **No (redirected)** | Yes    | No             |
-| View products        | All   | All   | Scoped | Scoped              | Scoped | Account-scoped |
-| Create/edit products | Yes   | Yes   | No     | No                  | No     | No             |
-| Delete products      | Yes   | Yes   | No     | No                  | No     | No             |
-| Manage seasons       | Yes   | Yes   | No     | No                  | No     | No             |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View brands | All | All | Scoped | Scoped | Scoped | Account-scoped |
+| Create brands | Yes | Yes | No | No | No | No |
+| Edit brands | Yes | Yes | No | No | No | No |
+| Delete brands | Yes | Yes | No | No | No | No |
+| Access brands page | Yes | Yes | Yes | **No (redirected)** | Yes | No |
+| View products | All | All | Scoped | Scoped | Scoped | Account-scoped |
+| Create/edit products | Yes | Yes | No | No | No | No |
+| Delete products | Yes | Yes | No | No | No | No |
+| Manage seasons | Yes | Yes | No | No | No | No |
 
 ### 4.4 Orders
 
-| Feature            | Admin | Owner | Member | Sales  | Guest              | Buyer          |
-| ------------------ | ----- | ----- | ------ | ------ | ------------------ | -------------- |
-| View orders        | All   | All   | Scoped | Scoped | Scoped (read-only) | Account-scoped |
-| Create orders      | Yes   | Yes   | Scoped | Scoped | No                 | Account-scoped |
-| Edit orders        | Yes   | Yes   | Scoped | Scoped | No                 | No             |
-| Submit orders      | Yes   | Yes   | Scoped | Scoped | No                 | Account-scoped |
-| Generate order PDF | Yes   | Yes   | Scoped | Scoped | No                 | No             |
-| Email orders       | Yes   | Yes   | Scoped | Scoped | No                 | No             |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View orders | All | All | Scoped | Scoped | Scoped (read-only) | Account-scoped |
+| Create orders | Yes | Yes | Scoped | Scoped | No | Account-scoped |
+| Edit orders | Yes | Yes | Scoped | Scoped | No | No |
+| Submit orders | Yes | Yes | Scoped | Scoped | No | Account-scoped |
+| Generate order PDF | Yes | Yes | Scoped | Scoped | No | No |
+| Email orders | Yes | Yes | Scoped | Scoped | No | No |
 
 ### 4.5 Accounts (Buyer Management)
 
-| Feature                        | Admin | Owner | Member | Sales  | Guest  | Buyer       |
-| ------------------------------ | ----- | ----- | ------ | ------ | ------ | ----------- |
-| View accounts                  | All   | All   | Scoped | Scoped | Scoped | Own account |
-| Create accounts                | Yes   | Yes   | No     | No     | No     | No          |
-| Edit accounts                  | Yes   | Yes   | No     | No     | No     | No          |
-| Bulk import accounts           | Yes   | Yes   | No     | No     | No     | No          |
-| Manage buyer users             | Yes   | Yes   | No     | No     | No     | No          |
-| Grant brand access to accounts | Yes   | Yes   | No     | No     | No     | No          |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View accounts | All | All | Scoped | Scoped | Scoped | Own account |
+| Create accounts | Yes | Yes | No | No | No | No |
+| Edit accounts | Yes | Yes | No | No | No | No |
+| Bulk import accounts | Yes | Yes | No | No | No | No |
+| Manage buyer users | Yes | Yes | No | No | No | No |
+| Grant brand access to accounts | Yes | Yes | No | No | No | No |
 
 ### 4.6 Appointments
 
-| Feature                  | Admin | Owner | Member | Sales  | Guest | Buyer |
-| ------------------------ | ----- | ----- | ------ | ------ | ----- | ----- |
-| View appointments        | All   | All   | Scoped | Scoped | No    | No    |
-| Create appointments      | Yes   | Yes   | Scoped | Scoped | No    | No    |
-| Edit appointments        | Yes   | Yes   | Scoped | Scoped | No    | No    |
-| Manage appointment types | Yes   | Yes   | No     | No     | No    | No    |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View appointments | All | All | Scoped | Scoped | No | No |
+| Create appointments | Yes | Yes | Scoped | Scoped | No | No |
+| Edit appointments | Yes | Yes | Scoped | Scoped | No | No |
+| Manage appointment types | Yes | Yes | No | No | No | No |
 
 ### 4.7 Expenses
 
-| Feature                 | Admin | Owner | Member | Sales  | Guest | Buyer |
-| ----------------------- | ----- | ----- | ------ | ------ | ----- | ----- |
-| View expenses           | All   | All   | Scoped | Scoped | No    | No    |
-| Submit expenses         | Yes   | Yes   | Scoped | Scoped | No    | No    |
-| Approve/reject expenses | Yes   | Yes   | No     | No     | No    | No    |
-| Attach receipts         | Yes   | Yes   | Scoped | Scoped | No    | No    |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View expenses | All | All | Scoped | Scoped | No | No |
+| Submit expenses | Yes | Yes | Scoped | Scoped | No | No |
+| Approve/reject expenses | Yes | Yes | No | No | No | No |
+| Attach receipts | Yes | Yes | Scoped | Scoped | No | No |
 
 **Expense categories:** Trade show, Samples, Marketing, Travel, Meals, Shipping, Photography, Office, Other
 
 ### 4.8 Connections (Rep-to-Brand B2B)
 
-| Feature                        | Admin | Owner | Member | Sales | Guest | Buyer |
-| ------------------------------ | ----- | ----- | ------ | ----- | ----- | ----- |
-| View connections               | Yes   | Yes   | No     | No    | No    | No    |
-| Request connection             | Yes   | Yes   | No     | No    | No    | No    |
-| Approve/reject connection      | Yes   | Yes   | No     | No    | No    | No    |
-| Disconnect                     | Yes   | Yes   | No     | No    | No    | No    |
-| Set connection commission rate | Yes   | Yes   | No     | No    | No    | No    |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View connections | Yes | Yes | No | No | No | No |
+| Request connection | Yes | Yes | No | No | No | No |
+| Approve/reject connection | Yes | Yes | No | No | No | No |
+| Disconnect | Yes | Yes | No | No | No | No |
+| Set connection commission rate | Yes | Yes | No | No | No | No |
 
 **Connection statuses:** Pending → Active → Suspended / Disconnected
 
 ### 4.9 Integrations
 
-| Feature                    | Admin | Owner | Member | Sales | Guest | Buyer |
-| -------------------------- | ----- | ----- | ------ | ----- | ----- | ----- |
-| Configure org integrations | Yes   | Yes   | No     | No    | No    | No    |
-| Connect personal email     | Yes   | Yes   | Yes    | Yes   | Yes   | No    |
-| View email inbox           | Yes   | Yes   | Yes    | Yes   | Yes   | No    |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| Configure org integrations | Yes | Yes | No | No | No | No |
+| Connect personal email | Yes | Yes | Yes | Yes | Yes | No |
+| View email inbox | Yes | Yes | Yes | Yes | Yes | No |
 
 **Supported integrations:** Google Sheets, Microsoft (Outlook/Excel/Teams), Slack, Notion, Discord
 
 ### 4.10 Insights & Analytics
 
-| Feature          | Admin | Owner | Member | Sales  | Guest | Buyer |
-| ---------------- | ----- | ----- | ------ | ------ | ----- | ----- |
-| View insights    | All   | All   | Scoped | Scoped | No    | No    |
-| Dismiss insights | Yes   | Yes   | Yes    | Yes    | No    | No    |
-| Refresh insights | Yes   | Yes   | Yes    | Yes    | No    | No    |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View insights | All | All | Scoped | Scoped | No | No |
+| Dismiss insights | Yes | Yes | Yes | Yes | No | No |
+| Refresh insights | Yes | Yes | Yes | Yes | No | No |
 
 ### 4.11 Shows & Territories
 
-| Feature                | Admin | Owner | Member | Sales | Guest | Buyer |
-| ---------------------- | ----- | ----- | ------ | ----- | ----- | ----- |
-| View shows             | Yes   | Yes   | Yes    | Yes   | Yes   | No    |
-| Create/edit shows      | Yes   | Yes   | No     | No    | No    | No    |
-| Manage show dates/docs | Yes   | Yes   | No     | No    | No    | No    |
-| View territories       | Yes   | Yes   | Yes    | Yes   | Yes   | No    |
-| Manage territories     | Yes   | Yes   | No     | No    | No    | No    |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View shows | Yes | Yes | Yes | Yes | Yes | No |
+| Create/edit shows | Yes | Yes | No | No | No | No |
+| Manage show dates/docs | Yes | Yes | No | No | No | No |
+| View territories | Yes | Yes | Yes | Yes | Yes | No |
+| Manage territories | Yes | Yes | No | No | No | No |
 
 ### 4.12 AI Agents
 
-| Feature                 | Admin | Owner | Member | Sales | Guest | Buyer |
-| ----------------------- | ----- | ----- | ------ | ----- | ----- | ----- |
-| View agents             | Yes   | Yes   | No     | No    | No    | No    |
-| Create/configure agents | Yes   | Yes   | No     | No    | No    | No    |
-| Trigger agents          | Yes   | Yes   | No     | No    | No    | No    |
+| Feature | Admin | Owner | Member | Sales | Guest | Buyer |
+|---|---|---|---|---|---|---|
+| View agents | Yes | Yes | No | No | No | No |
+| Create/configure agents | Yes | Yes | No | No | No | No |
+| Trigger agents | Yes | Yes | No | No | No | No |
 
 ---
 
@@ -303,14 +289,14 @@ A separate role managed through the `account_users` table rather than organizati
 
 Brand scoping determines which brands a user can see and interact with. It applies differently per role:
 
-| Role   | Default Scope  | Can Be Scoped?   | Scoping Mechanism            |
-| ------ | -------------- | ---------------- | ---------------------------- |
-| Admin  | All brands     | No (always full) | N/A                          |
-| Owner  | All brands     | No (always full) | N/A                          |
-| Member | All brands     | Yes              | `member_brand_access` table  |
-| Sales  | Must be scoped | Yes (required)   | `member_brand_access` table  |
-| Guest  | All brands     | Yes              | `member_brand_access` table  |
-| Buyer  | Account-scoped | N/A              | `account_brand_access` table |
+| Role | Default Scope | Can Be Scoped? | Scoping Mechanism |
+|---|---|---|---|
+| Admin | All brands | No (always full) | N/A |
+| Owner | All brands | No (always full) | N/A |
+| Member | All brands | Yes | `member_brand_access` table |
+| Sales | Must be scoped | Yes (required) | `member_brand_access` table |
+| Guest | All brands | Yes | `member_brand_access` table |
+| Buyer | Account-scoped | N/A | `account_brand_access` table |
 
 **Rule:** If `member_brand_access` contains entries for a user, they are scoped to only those brands. If no entries exist, they have access to all brands (except Sales, who should always be scoped).
 
@@ -353,18 +339,18 @@ Commissions are resolved in the following priority order (highest priority first
 
 ## 9. Key Data Tables
 
-| Table                     | Purpose                                             |
-| ------------------------- | --------------------------------------------------- |
-| `profiles`                | User profile data                                   |
-| `organizations`           | Org settings, type, SSO config                      |
-| `organization_members`    | Membership records linking users to orgs with roles |
-| `member_brand_access`     | Brand scoping for Member/Sales/Guest roles          |
-| `invitations`             | Org member invitation records                       |
-| `buyer_invitations`       | Separate buyer invitation flow                      |
-| `account_users`           | Links buyer profiles to accounts                    |
-| `account_brand_access`    | Controls which brands a buyer account can see       |
-| `org_connections`         | Rep-to-brand B2B connection records                 |
-| `member_brand_commission` | Per-member-brand commission overrides               |
+| Table | Purpose |
+|---|---|
+| `profiles` | User profile data |
+| `organizations` | Org settings, type, SSO config |
+| `organization_members` | Membership records linking users to orgs with roles |
+| `member_brand_access` | Brand scoping for Member/Sales/Guest roles |
+| `invitations` | Org member invitation records |
+| `buyer_invitations` | Separate buyer invitation flow |
+| `account_users` | Links buyer profiles to accounts |
+| `account_brand_access` | Controls which brands a buyer account can see |
+| `org_connections` | Rep-to-brand B2B connection records |
+| `member_brand_commission` | Per-member-brand commission overrides |
 
 ---
 
@@ -379,4 +365,4 @@ Commissions are resolved in the following priority order (highest priority first
 
 ---
 
-_This is a living document. Update as roles, permissions, or features change._
+*This is a living document. Update as roles, permissions, or features change.*
