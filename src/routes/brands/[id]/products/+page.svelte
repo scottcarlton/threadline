@@ -376,6 +376,12 @@
 					<div class="p-4">
 						<p class="text-xs text-muted-foreground">{product.style_number}</p>
 						<p class="mt-0.5 text-sm font-medium">{product.name}</p>
+						{#if product.season_id || product.product_year}
+							{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+							<p class="mt-0.5 text-sm text-muted-foreground">
+								{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+							</p>
+						{/if}
 						<div class="mt-2 flex items-center justify-between">
 							<span class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</span>
 							<span class="text-xs text-muted-foreground"

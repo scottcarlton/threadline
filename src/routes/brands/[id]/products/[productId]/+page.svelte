@@ -365,6 +365,13 @@
 						<dt class="text-muted-foreground">Name</dt>
 						<dd class="font-medium">{product.name}</dd>
 					</div>
+					{#if product.season_id || product.product_year}
+						{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+						<div class="flex justify-between">
+							<dt class="text-muted-foreground">Season</dt>
+							<dd>{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}</dd>
+						</div>
+					{/if}
 					<div class="flex justify-between">
 						<dt class="text-muted-foreground">Wholesale</dt>
 						<dd class="font-medium">{fmt.format(Number(product.wholesale_price))}</dd>
