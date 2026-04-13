@@ -1115,9 +1115,9 @@
 							{@const added = productInCart(p)}
 							{@const imgId = primaryImageId(p)}
 							<div
-								class="flex flex-col rounded-lg border transition {added
-									? 'border-red-500/60'
-									: 'border-border'}"
+								class="flex flex-col rounded-lg border border-border transition {added
+									? 'ring-1 ring-red-500/60'
+									: ''}"
 							>
 								<div class="aspect-square overflow-hidden rounded-t-lg bg-muted">
 									{#if imgId}
