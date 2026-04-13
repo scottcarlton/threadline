@@ -205,7 +205,7 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/brands/{brand.id}/products">← Products</Button>
+			<Button variant="ghost" size="sm" href="/brands/{brand.id}/products">⟵ Products</Button>
 			<h1 class="text-2xl font-bold">{product.style_number}</h1>
 			<Badge variant={product.archived_at ? 'destructive' : 'success'}>
 				{product.archived_at ? 'Archived' : 'Active'}

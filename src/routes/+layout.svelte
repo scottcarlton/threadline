@@ -269,7 +269,7 @@
 		// Skip all other shortcuts when inside editable fields
 		if (isEditableTarget()) return;
 
-		// "/" + "k" chord → focus AI input
+		// "/" + "k" chord ⟶ focus AI input
 		if (
 			e.key === 'k' &&
 			!e.metaKey &&

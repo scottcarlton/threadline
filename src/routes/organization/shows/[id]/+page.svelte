@@ -244,7 +244,7 @@
 <div class="mx-auto max-w-2xl space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/organization/shows">← Back</Button>
+			<Button variant="ghost" size="sm" href="/organization/shows">⟵ Back</Button>
 			<h1 class="text-2xl font-bold">{show.name}</h1>
 		</div>
 		{#if canEdit && !editing}

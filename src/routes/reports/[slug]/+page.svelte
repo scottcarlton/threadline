@@ -29,7 +29,7 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/reports">← Reports</Button>
+			<Button variant="ghost" size="sm" href="/reports">⟵ Reports</Button>
 			<h1 class="text-3xl">{title}</h1>
 		</div>
 		<div class="flex items-center gap-2">

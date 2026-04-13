@@ -59,7 +59,7 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/organization/contacts">← Back</Button>
+			<Button variant="ghost" size="sm" href="/organization/contacts">⟵ Back</Button>
 			<div
 				class="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-semibold"
 			>

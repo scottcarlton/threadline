@@ -300,7 +300,7 @@
 									pasteValue = '';
 								}}
 							>
-								← Back
+								⟵ Back
 							</button>
 						</div>
 

@@ -234,7 +234,7 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/brands">← Back</Button>
+			<Button variant="ghost" size="sm" href="/brands">⟵ Back</Button>
 			<h1 class="text-3xl">{brand.name}</h1>
 			<Badge
 				variant={brand.archived_at ? 'destructive' : brand.is_active ? 'success' : 'secondary'}

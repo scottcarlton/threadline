@@ -111,7 +111,7 @@
 		}
 	});
 
-	// Convert OrderItems → CartLines (one line per color/size with qty > 0) for submit
+	// Convert OrderItems ⟶ CartLines (one line per color/size with qty > 0) for submit
 	function toCartLines(items: OrderItem[]): CartLine[] {
 		const lines: CartLine[] = [];
 		for (const it of items) {
@@ -429,7 +429,7 @@
 		const state = normalize(a.state ?? '');
 		if (name.startsWith(q)) return 100;
 		if (name.includes(q)) return 80;
-		// Token prefix match ("ml leddys" → "mlleddys" → starts with q stripped? Handled by normalize above.)
+		// Token prefix match ("ml leddys" ⟶ "mlleddys" ⟶ starts with q stripped? Handled by normalize above.)
 		// Token initial match: e.g. "ml" matches "M.L. Leddy's"
 		const tokens = a.business_name.toLowerCase().split(/\s+/);
 		const initials = tokens.map((t) => t.replace(/[^a-z0-9]/g, '').charAt(0)).join('');
@@ -485,7 +485,7 @@
 	<!-- Top nav: Back (left) + Cancel (right) -->
 	<div class="mb-4 flex items-center justify-between">
 		{#if currentStep > 0}
-			<Button variant="ghost" size="sm" onclick={prevStep}>← Back</Button>
+			<Button variant="ghost" size="sm" onclick={prevStep}>⟵ Back</Button>
 		{:else}
 			<span></span>
 		{/if}
@@ -519,7 +519,7 @@
 			>
 				<div class="text-lg font-semibold">Order</div>
 				<p class="mt-2 text-sm text-muted-foreground">
-					Standard wholesale order with full lifecycle (draft → submitted → confirmed → shipped).
+					Standard wholesale order with full lifecycle (draft ⟶ submitted ⟶ confirmed ⟶ shipped).
 				</p>
 			</button>
 			<button
@@ -590,7 +590,7 @@
 					onclick={useAllBrands}
 				>
 					Continue with All Brands
-					<span aria-hidden="true">→</span>
+					<span aria-hidden="true">⟶</span>
 				</button>
 			</div>
 		</div>

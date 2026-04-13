@@ -261,7 +261,7 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/accounts">← Back</Button>
+			<Button variant="ghost" size="sm" href="/accounts">⟵ Back</Button>
 			<h1 class="text-3xl">{account.business_name}</h1>
 			<Badge variant={account.is_active ? 'success' : 'secondary'}>
 				{account.is_active ? 'Active' : 'Inactive'}
