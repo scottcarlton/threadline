@@ -535,7 +535,7 @@
 
 <svelte:head><title>New {cart.type === 'note' ? 'Note' : 'Order'} — Threadline</title></svelte:head>
 
-<div class="mx-auto max-w-5xl p-6">
+<div class="w-full p-6">
 	<!-- Top nav: Back (left) + Cancel (right) -->
 	<div class="mb-4 flex items-center justify-between">
 		{#if currentStep > 0}
