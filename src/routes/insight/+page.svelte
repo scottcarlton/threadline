@@ -13,7 +13,11 @@
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
 
 	// Action feed data
-	let insightActions = $state(data.insightActions ?? []);
+	let insightActions = $state<any[]>(data.insightActions ?? []);
+
+	$effect(() => {
+		insightActions = data.insightActions ?? [];
+	});
 	const scoreboard = $derived(data.scoreboard ?? []);
 	let isRefreshing = $state(false);
 	let deepDiveOpen = $state(false);
@@ -429,7 +433,7 @@
 	];
 
 	// Setup checklist
-	const firstName = data.user?.display_name?.split(' ')[0] ?? 'there';
+	const firstName = $derived(data.user?.display_name?.split(' ')[0] ?? 'there');
 
 	function handleShortcut(prompt: string) {
 		const input = document.getElementById('ai-dock-input') as HTMLInputElement;

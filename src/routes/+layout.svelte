@@ -894,7 +894,7 @@
 	}
 
 	/* Prevent pasting styled content */
-	.ai-input * {
+	:global(.ai-input *) {
 		font: inherit;
 		color: inherit;
 	}
