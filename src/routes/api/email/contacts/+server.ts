@@ -21,10 +21,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			.select('contact_first_name, contact_last_name, contact_email')
 			.eq('organization_id', orgId)
 			.not('contact_email', 'is', null),
-		supabase
-			.from('discovered_contacts')
-			.select('name, email')
-			.eq('organization_id', orgId)
+		supabase.from('discovered_contacts').select('name, email').eq('organization_id', orgId)
 	]);
 
 	// Deduplicate by email
@@ -34,7 +31,10 @@ export const GET: RequestHandler = async ({ locals }) => {
 		if (a.contact_email) {
 			const email = a.contact_email.toLowerCase();
 			if (!contactMap.has(email)) {
-				contactMap.set(email, { email, name: [a.contact_first_name, a.contact_last_name].filter(Boolean).join(' ') });
+				contactMap.set(email, {
+					email,
+					name: [a.contact_first_name, a.contact_last_name].filter(Boolean).join(' ')
+				});
 			}
 		}
 	}
@@ -43,7 +43,10 @@ export const GET: RequestHandler = async ({ locals }) => {
 		if (b.contact_email) {
 			const email = b.contact_email.toLowerCase();
 			if (!contactMap.has(email)) {
-				contactMap.set(email, { email, name: [b.contact_first_name, b.contact_last_name].filter(Boolean).join(' ') });
+				contactMap.set(email, {
+					email,
+					name: [b.contact_first_name, b.contact_last_name].filter(Boolean).join(' ')
+				});
 			}
 		}
 	}

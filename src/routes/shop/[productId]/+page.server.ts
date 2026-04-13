@@ -9,7 +9,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const { data: product, error: err } = await supabaseAdmin
 		.from('products')
-		.select('*, brands(id, name), product_variants(id, color, size, sku), product_images(id, file_path, is_primary, sort_order)')
+		.select(
+			'*, brands(id, name), product_variants(id, color, size, sku), product_images(id, file_path, is_primary, sort_order)'
+		)
 		.eq('id', params.productId)
 		.eq('is_active', true)
 		.is('archived_at', null)

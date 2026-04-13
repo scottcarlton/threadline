@@ -28,9 +28,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const { data: existingProfile } = await supabaseAdmin
 		.from('profiles')
 		.select('id')
-		.eq('id', (
-			await supabaseAdmin.auth.admin.listUsers()
-		).data.users.find((u) => u.email === email)?.id ?? '')
+		.eq(
+			'id',
+			(await supabaseAdmin.auth.admin.listUsers()).data.users.find((u) => u.email === email)?.id ??
+				''
+		)
 		.single();
 
 	if (existingProfile) {

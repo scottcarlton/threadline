@@ -68,9 +68,7 @@ You have access to tools to query and modify data. Be thorough but concise in yo
 		// We reuse the same tools but call them with the admin client
 		const { _toolDefinitions } = await import('../../routes/api/ai/+server.js');
 
-		const messages: Anthropic.MessageParam[] = [
-			{ role: 'user', content: params.prompt }
-		];
+		const messages: Anthropic.MessageParam[] = [{ role: 'user', content: params.prompt }];
 
 		let response = await anthropic.messages.create({
 			model: 'claude-sonnet-4-20250514',

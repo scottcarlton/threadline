@@ -1,9 +1,24 @@
 export type UserRole = 'admin' | 'owner' | 'member' | 'sales' | 'guest';
 export type OrgType = 'rep' | 'brand';
 export type IntegrationProvider = 'google_sheets' | 'slack' | 'notion' | 'microsoft' | 'discord';
-export type OrderStatus = 'draft' | 'submitted' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus =
+	| 'draft'
+	| 'submitted'
+	| 'confirmed'
+	| 'shipped'
+	| 'delivered'
+	| 'cancelled';
 export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
-export type ExpenseCategory = 'trade_show' | 'samples' | 'marketing' | 'travel' | 'meals' | 'shipping' | 'photography' | 'office' | 'other';
+export type ExpenseCategory =
+	| 'trade_show'
+	| 'samples'
+	| 'marketing'
+	| 'travel'
+	| 'meals'
+	| 'shipping'
+	| 'photography'
+	| 'office'
+	| 'other';
 
 export interface Profile {
 	id: string;
@@ -423,6 +438,43 @@ export interface AccountBrandAccess {
 	granted_by: string | null;
 	granted_at: string;
 	brands?: Brand;
+}
+
+export interface Notification {
+	id: string;
+	organization_id: string;
+	user_id: string;
+	type: string;
+	title: string;
+	body: string | null;
+	link: string | null;
+	read_at: string | null;
+	created_at: string;
+}
+
+export interface NotificationPreferences {
+	id: string;
+	user_id: string;
+	organization_id: string;
+	order_updates: boolean;
+	comments: boolean;
+	buyer_activity: boolean;
+	team_activity: boolean;
+	email_digest: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface EmailTemplate {
+	id: string;
+	organization_id: string;
+	name: string;
+	subject: string;
+	body: string;
+	category: string;
+	created_by: string | null;
+	created_at: string;
+	updated_at: string;
 }
 
 export interface OrderComment {

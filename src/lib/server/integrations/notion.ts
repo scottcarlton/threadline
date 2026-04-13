@@ -54,7 +54,9 @@ export async function exchangeCode(
 	};
 }
 
-async function getNotionClient(organizationId: string): Promise<{ client: Client; connection: IntegrationConnection } | null> {
+async function getNotionClient(
+	organizationId: string
+): Promise<{ client: Client; connection: IntegrationConnection } | null> {
 	const { data: connection } = await supabaseAdmin
 		.from('integration_connections')
 		.select('*')
@@ -69,7 +71,9 @@ async function getNotionClient(organizationId: string): Promise<{ client: Client
 	return { client, connection: connection as IntegrationConnection };
 }
 
-export async function listDatabases(organizationId: string): Promise<{ id: string; title: string }[]> {
+export async function listDatabases(
+	organizationId: string
+): Promise<{ id: string; title: string }[]> {
 	const result = await getNotionClient(organizationId);
 	if (!result) return [];
 
@@ -153,10 +157,7 @@ export async function pullFromNotion(
 }
 
 // Get a single page's content (blocks)
-export async function getPageContent(
-	organizationId: string,
-	pageId: string
-): Promise<any[]> {
+export async function getPageContent(organizationId: string, pageId: string): Promise<any[]> {
 	const result = await getNotionClient(organizationId);
 	if (!result) return [];
 
@@ -201,33 +202,33 @@ export function mapToNotionProperties(dataType: SyncDataType, row: any): Record<
 	switch (dataType) {
 		case 'orders':
 			return {
-				'Name': notionProps.title(row.order_number ?? ''),
+				Name: notionProps.title(row.order_number ?? ''),
 				'External ID': notionProps.richText(row.id),
-				'Account': notionProps.richText(row.accounts?.business_name ?? ''),
-				'Brand': notionProps.richText(row.brands?.name ?? ''),
-				'Season': notionProps.richText(row.seasons?.name ?? ''),
-				'Status': notionProps.select(row.status ?? 'draft'),
-				'Total': notionProps.number(row.total_amount ?? 0),
-				...(row.submitted_at ? { 'Submitted': notionProps.date(row.submitted_at) } : {})
+				Account: notionProps.richText(row.accounts?.business_name ?? ''),
+				Brand: notionProps.richText(row.brands?.name ?? ''),
+				Season: notionProps.richText(row.seasons?.name ?? ''),
+				Status: notionProps.select(row.status ?? 'draft'),
+				Total: notionProps.number(row.total_amount ?? 0),
+				...(row.submitted_at ? { Submitted: notionProps.date(row.submitted_at) } : {})
 			};
 		case 'accounts':
 			return {
-				'Name': notionProps.title(row.business_name ?? ''),
+				Name: notionProps.title(row.business_name ?? ''),
 				'External ID': notionProps.richText(row.id),
-				...(row.contact_email ? { 'Email': notionProps.email(row.contact_email) } : {}),
-				...(row.phone ? { 'Phone': notionProps.phone(row.phone) } : {}),
-				...(row.city ? { 'City': notionProps.richText(row.city) } : {}),
-				...(row.state ? { 'State': notionProps.richText(row.state) } : {}),
-				'Active': notionProps.checkbox(row.is_active ?? true)
+				...(row.contact_email ? { Email: notionProps.email(row.contact_email) } : {}),
+				...(row.phone ? { Phone: notionProps.phone(row.phone) } : {}),
+				...(row.city ? { City: notionProps.richText(row.city) } : {}),
+				...(row.state ? { State: notionProps.richText(row.state) } : {}),
+				Active: notionProps.checkbox(row.is_active ?? true)
 			};
 		case 'brands':
 			return {
-				'Name': notionProps.title(row.name ?? ''),
+				Name: notionProps.title(row.name ?? ''),
 				'External ID': notionProps.richText(row.id),
-				...(row.contact_email ? { 'Email': notionProps.email(row.contact_email) } : {}),
-				...(row.website ? { 'Website': notionProps.url(row.website) } : {}),
+				...(row.contact_email ? { Email: notionProps.email(row.contact_email) } : {}),
+				...(row.website ? { Website: notionProps.url(row.website) } : {}),
 				'Commission Rate': notionProps.number(row.commission_rate ?? 0),
-				'Active': notionProps.checkbox(row.is_active ?? true)
+				Active: notionProps.checkbox(row.is_active ?? true)
 			};
 	}
 }

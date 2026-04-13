@@ -4,8 +4,18 @@ import { supabaseAdmin } from './supabase.js';
 import { computeAccountHealth } from './account-health.js';
 import { sendSlackMessage } from './integrations/slack.js';
 import { sendDiscordMessage } from './integrations/discord.js';
-import { exportToSheet, EXPORT_SCHEMAS, type ExportDataType } from './integrations/google-sheets.js';
-import { listDatabases, syncToNotion, pullFromNotion, mapToNotionProperties, type SyncDataType } from './integrations/notion.js';
+import {
+	exportToSheet,
+	EXPORT_SCHEMAS,
+	type ExportDataType
+} from './integrations/google-sheets.js';
+import {
+	listDatabases,
+	syncToNotion,
+	pullFromNotion,
+	mapToNotionProperties,
+	type SyncDataType
+} from './integrations/notion.js';
 
 type ToolContext = {
 	supabase: SupabaseClient;
@@ -103,10 +113,7 @@ export async function executeToolCall(
 	}
 }
 
-async function createBrand(
-	input: Record<string, unknown>,
-	ctx: ToolContext
-): Promise<ToolResult> {
+async function createBrand(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
 	const { data, error } = await ctx.supabase
 		.from('brands')
 		.insert({
@@ -126,10 +133,7 @@ async function createBrand(
 	return { success: true, data };
 }
 
-async function updateBrand(
-	input: Record<string, unknown>,
-	ctx: ToolContext
-): Promise<ToolResult> {
+async function updateBrand(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
 	const { brand_id, ...updates } = input;
 	const { data, error } = await ctx.supabase
 		.from('brands')
@@ -198,10 +202,7 @@ async function updateAccount(
 	return { success: true, data };
 }
 
-async function createOrder(
-	input: Record<string, unknown>,
-	ctx: ToolContext
-): Promise<ToolResult> {
+async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
 	// Fuzzy match account by business_name
 	const { data: accounts, error: accError } = await ctx.supabase
 		.from('accounts')
@@ -343,18 +344,17 @@ async function addOrderLines(
 
 	// Update order total
 	const total = rows.reduce((sum, r) => sum + r.line_total, 0);
-	await ctx.supabase.rpc('increment_order_total', {
-		p_order_id: orderId,
-		p_amount: total
-	}).then(({ error: rpcError }) => {
-		// Fallback: if RPC doesn't exist, update directly
-		if (rpcError) {
-			return ctx.supabase
-				.from('orders')
-				.update({ total_amount: total })
-				.eq('id', orderId);
-		}
-	});
+	await ctx.supabase
+		.rpc('increment_order_total', {
+			p_order_id: orderId,
+			p_amount: total
+		})
+		.then(({ error: rpcError }) => {
+			// Fallback: if RPC doesn't exist, update directly
+			if (rpcError) {
+				return ctx.supabase.from('orders').update({ total_amount: total }).eq('id', orderId);
+			}
+		});
 
 	return { success: true, data: { lines_added: data?.length ?? rows.length, total_added: total } };
 }
@@ -389,10 +389,7 @@ async function updateOrderStatus(
 	return { success: true, data };
 }
 
-async function createSeason(
-	input: Record<string, unknown>,
-	ctx: ToolContext
-): Promise<ToolResult> {
+async function createSeason(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
 	const { data, error } = await ctx.supabase
 		.from('seasons')
 		.insert({
@@ -407,10 +404,7 @@ async function createSeason(
 	return { success: true, data };
 }
 
-async function createShow(
-	input: Record<string, unknown>,
-	ctx: ToolContext
-): Promise<ToolResult> {
+async function createShow(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
 	let seasonId: string | null = null;
 	if (input.season_name) {
 		const { data: seasons } = await ctx.supabase
@@ -442,10 +436,7 @@ async function createShow(
 	return { success: true, data };
 }
 
-async function queryData(
-	input: Record<string, unknown>,
-	ctx: ToolContext
-): Promise<ToolResult> {
+async function queryData(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
 	const entity = input.entity as string;
 	const filters = (input.filters as Record<string, unknown>) ?? {};
 
@@ -472,7 +463,8 @@ async function queryData(
 	} else if (entity === 'shows') {
 		selectStr = '*, seasons(name)';
 	} else if (entity === 'territories') {
-		selectStr = '*, organization_members(profiles!organization_members_profile_id_fkey(display_name))';
+		selectStr =
+			'*, organization_members(profiles!organization_members_profile_id_fkey(display_name))';
 	} else if (entity === 'appointments') {
 		selectStr = '*, accounts(business_name), show_dates(shows(name))';
 	} else if (entity === 'show_dates') {
@@ -485,7 +477,8 @@ async function queryData(
 
 	// order_lines doesn't have organization_id — filter by order_id from filters
 	if (entity === 'order_lines') {
-		if (!filters.order_id) return { success: false, error: 'order_id filter required for order_lines' };
+		if (!filters.order_id)
+			return { success: false, error: 'order_id filter required for order_lines' };
 	} else if (entity === 'contacts') {
 		query = query.eq('organization_id', ctx.organizationId).in('status', ['new', 'saved']);
 	} else {
@@ -523,7 +516,9 @@ async function getDashboardMetrics(
 		// Total orders with optional filters
 		let ordersQuery = ctx.supabase
 			.from('orders')
-			.select('id, status, total_amount, created_at, brand_id, season_id, order_year', { count: 'exact' })
+			.select('id, status, total_amount, created_at, brand_id, season_id, order_year', {
+				count: 'exact'
+			})
 			.eq('organization_id', ctx.organizationId);
 
 		if (ctx.brandScope) {
@@ -625,7 +620,10 @@ async function draftEmail(input: Record<string, unknown>, ctx: ToolContext): Pro
 
 	const email = await resolveEmail(to, ctx);
 	if (!email) {
-		return { success: false, error: `Could not find email address for "${to}". Please provide a valid email address.` };
+		return {
+			success: false,
+			error: `Could not find email address for "${to}". Please provide a valid email address.`
+		};
 	}
 
 	return {
@@ -655,7 +653,10 @@ async function sendEmail(input: Record<string, unknown>, ctx: ToolContext): Prom
 	try {
 		const gmail = await getGmailClient(ctx.userId);
 		if (!gmail) {
-			return { success: false, error: 'Gmail is not connected. Please connect Gmail in Settings first.' };
+			return {
+				success: false,
+				error: 'Gmail is not connected. Please connect Gmail in Settings first.'
+			};
 		}
 
 		// Get sender email
@@ -698,7 +699,10 @@ async function searchEmails(input: Record<string, unknown>, ctx: ToolContext): P
 	try {
 		const gmail = await getGmailClient(ctx.userId);
 		if (!gmail) {
-			return { success: false, error: 'Gmail is not connected. Please connect Gmail in Settings first.' };
+			return {
+				success: false,
+				error: 'Gmail is not connected. Please connect Gmail in Settings first.'
+			};
 		}
 
 		const parts: string[] = [];
@@ -735,7 +739,10 @@ async function searchEmails(input: Record<string, unknown>, ctx: ToolContext): P
 			}
 		};
 	} catch (err) {
-		return { success: false, error: err instanceof Error ? err.message : 'Failed to search emails' };
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to search emails'
+		};
 	}
 }
 
@@ -753,11 +760,18 @@ async function resolveMember(name: string, ctx: ToolContext): Promise<string | n
 }
 
 // --- Territory tools ---
-async function createTerritory(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function createTerritory(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	let assignedTo: string | null = null;
 	if (input.assigned_to_name) {
 		assignedTo = await resolveMember(input.assigned_to_name as string, ctx);
-		if (!assignedTo) return { success: false, error: `Team member not found matching "${input.assigned_to_name}"` };
+		if (!assignedTo)
+			return {
+				success: false,
+				error: `Team member not found matching "${input.assigned_to_name}"`
+			};
 	}
 
 	const { data, error } = await ctx.supabase
@@ -775,14 +789,21 @@ async function createTerritory(input: Record<string, unknown>, ctx: ToolContext)
 	return { success: true, data };
 }
 
-async function updateTerritory(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function updateTerritory(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 	if (input.name) updates.name = input.name;
 	if (input.notes !== undefined) updates.notes = input.notes || null;
 	if (input.assigned_to_name !== undefined) {
 		if (input.assigned_to_name) {
 			const memberId = await resolveMember(input.assigned_to_name as string, ctx);
-			if (!memberId) return { success: false, error: `Team member not found matching "${input.assigned_to_name}"` };
+			if (!memberId)
+				return {
+					success: false,
+					error: `Team member not found matching "${input.assigned_to_name}"`
+				};
 			updates.assigned_to = memberId;
 		} else {
 			updates.assigned_to = null;
@@ -801,7 +822,10 @@ async function updateTerritory(input: Record<string, unknown>, ctx: ToolContext)
 	return { success: true, data };
 }
 
-async function assignAccountTerritory(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function assignAccountTerritory(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	// Fuzzy match account
 	const { data: accounts } = await ctx.supabase
 		.from('accounts')
@@ -810,7 +834,8 @@ async function assignAccountTerritory(input: Record<string, unknown>, ctx: ToolC
 		.ilike('business_name', `%${input.account_name as string}%`)
 		.limit(1);
 
-	if (!accounts?.length) return { success: false, error: `Account not found matching "${input.account_name}"` };
+	if (!accounts?.length)
+		return { success: false, error: `Account not found matching "${input.account_name}"` };
 
 	let territoryId: string | null = null;
 	if (input.territory_name) {
@@ -820,7 +845,8 @@ async function assignAccountTerritory(input: Record<string, unknown>, ctx: ToolC
 			.eq('organization_id', ctx.organizationId)
 			.ilike('name', `%${input.territory_name as string}%`)
 			.limit(1);
-		if (!territories?.length) return { success: false, error: `Territory not found matching "${input.territory_name}"` };
+		if (!territories?.length)
+			return { success: false, error: `Territory not found matching "${input.territory_name}"` };
 		territoryId = territories[0].id;
 	}
 
@@ -830,11 +856,17 @@ async function assignAccountTerritory(input: Record<string, unknown>, ctx: ToolC
 		.eq('id', accounts[0].id);
 
 	if (error) return { success: false, error: error.message };
-	return { success: true, data: { account: accounts[0].business_name, territory: input.territory_name ?? 'removed' } };
+	return {
+		success: true,
+		data: { account: accounts[0].business_name, territory: input.territory_name ?? 'removed' }
+	};
 }
 
 // --- Appointment tools ---
-async function createAppointment(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function createAppointment(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	// Fuzzy match account
 	const { data: accounts } = await ctx.supabase
 		.from('accounts')
@@ -843,7 +875,8 @@ async function createAppointment(input: Record<string, unknown>, ctx: ToolContex
 		.ilike('business_name', `%${input.account_name as string}%`)
 		.limit(1);
 
-	if (!accounts?.length) return { success: false, error: `Account not found matching "${input.account_name}"` };
+	if (!accounts?.length)
+		return { success: false, error: `Account not found matching "${input.account_name}"` };
 
 	let showDateId: string | null = null;
 	if (input.show_name && input.location_type === 'show') {
@@ -883,7 +916,10 @@ async function createAppointment(input: Record<string, unknown>, ctx: ToolContex
 	return { success: true, data };
 }
 
-async function updateAppointment(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function updateAppointment(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 	if (input.status) updates.status = input.status;
 	if (input.scheduled_date) updates.scheduled_date = input.scheduled_date;
@@ -903,7 +939,10 @@ async function updateAppointment(input: Record<string, unknown>, ctx: ToolContex
 	return { success: true, data };
 }
 
-async function deleteAppointment(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function deleteAppointment(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const { error } = await ctx.supabase
 		.from('appointments')
 		.delete()
@@ -915,7 +954,10 @@ async function deleteAppointment(input: Record<string, unknown>, ctx: ToolContex
 }
 
 // --- Order editing tools ---
-async function updateOrderLine(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function updateOrderLine(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const lineId = input.line_id as string;
 	const newQty = input.qty as number;
 	if (newQty < 1) return { success: false, error: 'Quantity must be at least 1' };
@@ -946,7 +988,10 @@ async function updateOrderLine(input: Record<string, unknown>, ctx: ToolContext)
 	return { success: true, data };
 }
 
-async function removeOrderLine(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function removeOrderLine(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const lineId = input.line_id as string;
 	const reason = input.reason as string;
 
@@ -992,7 +1037,10 @@ async function updateOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 }
 
 // --- Archive tool ---
-async function archiveEntity(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function archiveEntity(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const entityType = input.entity_type as string;
 	const entityId = input.entity_id as string;
 	const action = input.action as string;
@@ -1017,12 +1065,17 @@ async function archiveEntity(input: Record<string, unknown>, ctx: ToolContext): 
 }
 
 // --- Analytics tools ---
-async function getSalesReport(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function getSalesReport(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const groupBy = input.group_by as string;
 
 	let query = ctx.supabase
 		.from('orders')
-		.select('id, total_amount, brand_id, account_id, order_year, created_by, brands(name), accounts(business_name, territory_id, territories(name))')
+		.select(
+			'id, total_amount, brand_id, account_id, order_year, created_by, brands(name), accounts(business_name, territory_id, territories(name))'
+		)
 		.eq('organization_id', ctx.organizationId)
 		.neq('status', 'cancelled');
 
@@ -1030,8 +1083,11 @@ async function getSalesReport(input: Record<string, unknown>, ctx: ToolContext):
 	if (input.order_year) query = query.eq('order_year', input.order_year as number);
 	if (input.season_name) {
 		const { data: seasons } = await ctx.supabase
-			.from('seasons').select('id').eq('organization_id', ctx.organizationId)
-			.ilike('name', `%${input.season_name as string}%`).limit(1);
+			.from('seasons')
+			.select('id')
+			.eq('organization_id', ctx.organizationId)
+			.ilike('name', `%${input.season_name as string}%`)
+			.limit(1);
 		if (seasons?.[0]) query = query.eq('season_id', seasons[0].id);
 	}
 
@@ -1094,7 +1150,10 @@ async function getSalesReport(input: Record<string, unknown>, ctx: ToolContext):
 	return { success: true, data: { group_by: groupBy, report } };
 }
 
-async function getStyleVelocity(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function getStyleVelocity(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const days = (input.days as number) ?? 14;
 	const minAccounts = (input.min_accounts as number) ?? 2;
 
@@ -1116,13 +1175,21 @@ async function getStyleVelocity(input: Record<string, unknown>, ctx: ToolContext
 	const limit = (input.limit as number) ?? 20;
 	results = results.slice(0, limit);
 
-	return { success: true, data: { days_window: days, min_accounts: minAccounts, trending_styles: results } };
+	return {
+		success: true,
+		data: { days_window: days, min_accounts: minAccounts, trending_styles: results }
+	};
 }
 
-async function getCommissionReport(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function getCommissionReport(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	let query = ctx.supabase
 		.from('orders')
-		.select('id, total_amount, shipped_amount, brand_id, created_by, brands(name, commission_rate), accounts(business_name)')
+		.select(
+			'id, total_amount, shipped_amount, brand_id, created_by, brands(name, commission_rate), accounts(business_name)'
+		)
 		.eq('organization_id', ctx.organizationId)
 		.neq('status', 'cancelled');
 
@@ -1131,8 +1198,11 @@ async function getCommissionReport(input: Record<string, unknown>, ctx: ToolCont
 
 	if (input.brand_name) {
 		const { data: brands } = await ctx.supabase
-			.from('brands').select('id').eq('organization_id', ctx.organizationId)
-			.ilike('name', `%${input.brand_name as string}%`).limit(1);
+			.from('brands')
+			.select('id')
+			.eq('organization_id', ctx.organizationId)
+			.ilike('name', `%${input.brand_name as string}%`)
+			.limit(1);
 		if (brands?.[0]) query = query.eq('brand_id', brands[0].id);
 	}
 
@@ -1142,7 +1212,9 @@ async function getCommissionReport(input: Record<string, unknown>, ctx: ToolCont
 	// Load member brand commissions
 	const { data: memberCommissions } = await ctx.supabase
 		.from('member_brand_commissions')
-		.select('member_id, brand_id, rate, organization_members(profiles!organization_members_profile_id_fkey(display_name))')
+		.select(
+			'member_id, brand_id, rate, organization_members(profiles!organization_members_profile_id_fkey(display_name))'
+		)
 		.eq('organization_id', ctx.organizationId);
 
 	// Load members for name resolution
@@ -1164,9 +1236,15 @@ async function getCommissionReport(input: Record<string, unknown>, ctx: ToolCont
 	}
 
 	// Brand commission summary
-	const brandSummary = new Map<string, { name: string; rate: number; totalSales: number; commission: number }>();
+	const brandSummary = new Map<
+		string,
+		{ name: string; rate: number; totalSales: number; commission: number }
+	>();
 	// Rep commission summary
-	const repSummary = new Map<string, { name: string; brand: string; rate: number; totalSales: number; commission: number }>();
+	const repSummary = new Map<
+		string,
+		{ name: string; brand: string; rate: number; totalSales: number; commission: number }
+	>();
 
 	for (const order of orders ?? []) {
 		const brandName = (order.brands as any)?.name ?? 'Unknown';
@@ -1178,9 +1256,14 @@ async function getCommissionReport(input: Record<string, unknown>, ctx: ToolCont
 		const existing = brandSummary.get(bKey);
 		if (existing) {
 			existing.totalSales += amount;
-			existing.commission += amount * brandRate / 100;
+			existing.commission += (amount * brandRate) / 100;
 		} else {
-			brandSummary.set(bKey, { name: brandName, rate: brandRate, totalSales: amount, commission: amount * brandRate / 100 });
+			brandSummary.set(bKey, {
+				name: brandName,
+				rate: brandRate,
+				totalSales: amount,
+				commission: (amount * brandRate) / 100
+			});
 		}
 
 		// Rep commission
@@ -1193,9 +1276,15 @@ async function getCommissionReport(input: Record<string, unknown>, ctx: ToolCont
 				const existingRep = repSummary.get(rKey);
 				if (existingRep) {
 					existingRep.totalSales += amount;
-					existingRep.commission += amount * repRate / 100;
+					existingRep.commission += (amount * repRate) / 100;
 				} else {
-					repSummary.set(rKey, { name: repName, brand: brandName, rate: repRate, totalSales: amount, commission: amount * repRate / 100 });
+					repSummary.set(rKey, {
+						name: repName,
+						brand: brandName,
+						rate: repRate,
+						totalSales: amount,
+						commission: (amount * repRate) / 100
+					});
 				}
 			}
 		}
@@ -1204,14 +1293,19 @@ async function getCommissionReport(input: Record<string, unknown>, ctx: ToolCont
 	return {
 		success: true,
 		data: {
-			brand_commissions: Array.from(brandSummary.values()).sort((a, b) => b.totalSales - a.totalSales),
+			brand_commissions: Array.from(brandSummary.values()).sort(
+				(a, b) => b.totalSales - a.totalSales
+			),
 			rep_commissions: Array.from(repSummary.values()).sort((a, b) => b.commission - a.commission)
 		}
 	};
 }
 
 // --- Account Health tool ---
-async function getAccountHealth(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function getAccountHealth(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const healthMap = await computeAccountHealth(ctx.supabase, ctx.organizationId);
 
 	const filter = input.filter as string | undefined; // 'at_risk', 'new', 'excellent', etc.
@@ -1220,7 +1314,7 @@ async function getAccountHealth(input: Record<string, unknown>, ctx: ToolContext
 	let accounts = Array.from(healthMap.values());
 
 	if (filter) {
-		accounts = accounts.filter(a => a.label === filter);
+		accounts = accounts.filter((a) => a.label === filter);
 	}
 
 	// Sort: at_risk first, then by score ascending (worst first)
@@ -1232,9 +1326,9 @@ async function getAccountHealth(input: Record<string, unknown>, ctx: ToolContext
 		.select('id, business_name')
 		.eq('organization_id', ctx.organizationId);
 
-	const nameMap = new Map((acctNames ?? []).map(a => [a.id, a.business_name]));
+	const nameMap = new Map((acctNames ?? []).map((a) => [a.id, a.business_name]));
 
-	const result = accounts.slice(0, limit).map(a => ({
+	const result = accounts.slice(0, limit).map((a) => ({
 		account: nameMap.get(a.accountId) ?? 'Unknown',
 		score: a.score,
 		label: a.label,
@@ -1247,12 +1341,12 @@ async function getAccountHealth(input: Record<string, unknown>, ctx: ToolContext
 
 	const summary = {
 		total: healthMap.size,
-		excellent: accounts.filter(a => a.label === 'excellent').length,
-		good: accounts.filter(a => a.label === 'good').length,
-		fair: accounts.filter(a => a.label === 'fair').length,
-		at_risk: accounts.filter(a => a.label === 'at_risk').length,
-		inactive: accounts.filter(a => a.label === 'inactive').length,
-		new_accounts: accounts.filter(a => a.label === 'new').length,
+		excellent: accounts.filter((a) => a.label === 'excellent').length,
+		good: accounts.filter((a) => a.label === 'good').length,
+		fair: accounts.filter((a) => a.label === 'fair').length,
+		at_risk: accounts.filter((a) => a.label === 'at_risk').length,
+		inactive: accounts.filter((a) => a.label === 'inactive').length,
+		new_accounts: accounts.filter((a) => a.label === 'new').length
 	};
 
 	return { success: true, data: { summary, accounts: result } };
@@ -1262,24 +1356,28 @@ async function getAccountHealth(input: Record<string, unknown>, ctx: ToolContext
 async function addProduct(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
 	// Fuzzy match brand
 	const { data: brands } = await ctx.supabase
-		.from("brands")
-		.select("id, name")
-		.eq("organization_id", ctx.organizationId)
-		.ilike("name", `%${input.brand_name as string}%`)
+		.from('brands')
+		.select('id, name')
+		.eq('organization_id', ctx.organizationId)
+		.ilike('name', `%${input.brand_name as string}%`)
 		.limit(1);
 
-	if (!brands?.length) return { success: false, error: `Brand not found matching "${input.brand_name}"` };
+	if (!brands?.length)
+		return { success: false, error: `Brand not found matching "${input.brand_name}"` };
 
 	let seasonId: string | null = null;
 	if (input.season_name) {
 		const { data: seasons } = await ctx.supabase
-			.from("seasons").select("id").eq("organization_id", ctx.organizationId)
-			.ilike("name", `%${input.season_name as string}%`).limit(1);
+			.from('seasons')
+			.select('id')
+			.eq('organization_id', ctx.organizationId)
+			.ilike('name', `%${input.season_name as string}%`)
+			.limit(1);
 		seasonId = seasons?.[0]?.id ?? null;
 	}
 
 	const { data, error } = await ctx.supabase
-		.from("products")
+		.from('products')
 		.insert({
 			organization_id: ctx.organizationId,
 			brand_id: brands[0].id,
@@ -1291,7 +1389,7 @@ async function addProduct(input: Record<string, unknown>, ctx: ToolContext): Pro
 			description: (input.description as string) ?? null,
 			season_id: seasonId
 		})
-		.select("*, brands(name)")
+		.select('*, brands(name)')
 		.single();
 
 	if (error) return { success: false, error: error.message };
@@ -1306,7 +1404,11 @@ async function sendSlack(input: Record<string, unknown>, ctx: ToolContext): Prom
 		url: input.url as string | undefined,
 		color: input.color as string | undefined
 	});
-	if (!sent) return { success: false, error: 'Slack is not connected. Ask the user to connect Slack in Organization > Integrations.' };
+	if (!sent)
+		return {
+			success: false,
+			error: 'Slack is not connected. Ask the user to connect Slack in Organization > Integrations.'
+		};
 	return { success: true, data: { sent: true } };
 }
 
@@ -1317,14 +1419,26 @@ async function sendDiscord(input: Record<string, unknown>, ctx: ToolContext): Pr
 		url: input.url as string | undefined,
 		color: input.color as string | undefined
 	});
-	if (!sent) return { success: false, error: 'Discord is not connected. Ask the user to connect Discord in Organization > Integrations.' };
+	if (!sent)
+		return {
+			success: false,
+			error:
+				'Discord is not connected. Ask the user to connect Discord in Organization > Integrations.'
+		};
 	return { success: true, data: { sent: true } };
 }
 
-async function exportGoogleSheet(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function exportGoogleSheet(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const dataType = input.data_type as ExportDataType;
 	const schema = EXPORT_SCHEMAS[dataType];
-	if (!schema) return { success: false, error: `Invalid data type: ${dataType}. Use orders, accounts, or brands.` };
+	if (!schema)
+		return {
+			success: false,
+			error: `Invalid data type: ${dataType}. Use orders, accounts, or brands.`
+		};
 
 	let query = ctx.supabase
 		.from(schema.query)
@@ -1348,13 +1462,30 @@ async function exportGoogleSheet(input: Record<string, unknown>, ctx: ToolContex
 		rows: rows.map(schema.mapRow)
 	});
 
-	if (!result) return { success: false, error: 'Google Sheets is not connected. Ask the user to connect Google Sheets in Organization > Integrations.' };
-	return { success: true, data: { spreadsheetUrl: result.spreadsheetUrl, spreadsheetId: result.spreadsheetId, rowCount: result.rowCount } };
+	if (!result)
+		return {
+			success: false,
+			error:
+				'Google Sheets is not connected. Ask the user to connect Google Sheets in Organization > Integrations.'
+		};
+	return {
+		success: true,
+		data: {
+			spreadsheetUrl: result.spreadsheetUrl,
+			spreadsheetId: result.spreadsheetId,
+			rowCount: result.rowCount
+		}
+	};
 }
 
 async function listNotionDbs(ctx: ToolContext): Promise<ToolResult> {
 	const databases = await listDatabases(ctx.organizationId);
-	if (!databases.length) return { success: false, error: 'No Notion databases found. Either Notion is not connected or no databases have been shared with the integration.' };
+	if (!databases.length)
+		return {
+			success: false,
+			error:
+				'No Notion databases found. Either Notion is not connected or no databases have been shared with the integration.'
+		};
 	return { success: true, data: { databases } };
 }
 
@@ -1362,7 +1493,11 @@ async function syncNotion(input: Record<string, unknown>, ctx: ToolContext): Pro
 	const dataType = input.data_type as SyncDataType;
 	const databaseId = input.database_id as string;
 	const schema = EXPORT_SCHEMAS[dataType];
-	if (!schema) return { success: false, error: `Invalid data type: ${dataType}. Use orders, accounts, or brands.` };
+	if (!schema)
+		return {
+			success: false,
+			error: `Invalid data type: ${dataType}. Use orders, accounts, or brands.`
+		};
 
 	let query = ctx.supabase
 		.from(schema.query)
@@ -1378,18 +1513,31 @@ async function syncNotion(input: Record<string, unknown>, ctx: ToolContext): Pro
 	if (error) return { success: false, error: error.message };
 	if (!rows?.length) return { success: false, error: `No ${dataType} data found to sync.` };
 
-	const notionRows = rows.map(row => ({
+	const notionRows = (rows as Array<Record<string, any>>).map((row) => ({
 		externalId: row.id,
 		properties: mapToNotionProperties(dataType, row)
 	}));
 
 	const result = await syncToNotion(ctx.organizationId, databaseId, notionRows);
-	if (result.created === 0 && result.updated === 0) return { success: false, error: 'Notion sync failed. Notion may not be connected or the database ID may be invalid.' };
+	if (result.created === 0 && result.updated === 0)
+		return {
+			success: false,
+			error: 'Notion sync failed. Notion may not be connected or the database ID may be invalid.'
+		};
 	return { success: true, data: result };
 }
 
 async function pullNotion(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	const pages = await pullFromNotion(ctx.organizationId, input.database_id as string, input.page_size as number | undefined);
-	if (!pages.length) return { success: false, error: 'No pages found. Either Notion is not connected, the database ID is invalid, or the database is empty.' };
+	const pages = await pullFromNotion(
+		ctx.organizationId,
+		input.database_id as string,
+		input.page_size as number | undefined
+	);
+	if (!pages.length)
+		return {
+			success: false,
+			error:
+				'No pages found. Either Notion is not connected, the database ID is invalid, or the database is empty.'
+		};
 	return { success: true, data: { pages, count: pages.length } };
 }

@@ -45,7 +45,10 @@ const extractionTool: Anthropic.Tool = {
 						name: { type: 'string', description: 'Product name or description' },
 						wholesale_price: { type: 'number', description: 'Wholesale price as a decimal number' },
 						retail_price: { type: 'number', description: 'Retail/MSRP price if shown' },
-						category: { type: 'string', description: 'Product category (e.g., Tops, Bottoms, Dresses)' },
+						category: {
+							type: 'string',
+							description: 'Product category (e.g., Tops, Bottoms, Dresses)'
+						},
 						description: { type: 'string', description: 'Additional product description' },
 						sizes: {
 							type: 'array',
@@ -85,10 +88,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	if (file.size > MAX_FILE_SIZE) {
-		return json(
-			{ error: 'File is too large. Maximum size is 20MB.' },
-			{ status: 400 }
-		);
+		return json({ error: 'File is too large. Maximum size is 20MB.' }, { status: 400 });
 	}
 
 	const arrayBuffer = await file.arrayBuffer();
@@ -105,7 +105,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						data: base64
 					}
 				} as unknown as Anthropic.ContentBlockParam,
-				{ type: 'text', text: 'Extract all products from this linesheet. You MUST call the parse_products tool with the results.' }
+				{
+					type: 'text',
+					text: 'Extract all products from this linesheet. You MUST call the parse_products tool with the results.'
+				}
 			]
 		: [
 				{
@@ -116,7 +119,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						data: base64
 					}
 				},
-				{ type: 'text', text: 'Extract all products from this linesheet. You MUST call the parse_products tool with the results.' }
+				{
+					type: 'text',
+					text: 'Extract all products from this linesheet. You MUST call the parse_products tool with the results.'
+				}
 			];
 
 	try {
@@ -132,14 +138,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Find the tool_use block — guaranteed to be valid structured JSON
 		const toolBlock = response.content.find((b) => b.type === 'tool_use');
 		if (!toolBlock || toolBlock.type !== 'tool_use') {
-			return json({ error: 'AI did not return product data. Try a clearer image or use CSV import.' }, { status: 422 });
+			return json(
+				{ error: 'AI did not return product data. Try a clearer image or use CSV import.' },
+				{ status: 422 }
+			);
 		}
 
 		const input = toolBlock.input as { products?: Record<string, unknown>[] };
 		const products = input.products;
 
 		if (!Array.isArray(products) || products.length === 0) {
-			return json({ error: 'No products found in this file. Try a clearer image or use CSV import.' }, { status: 422 });
+			return json(
+				{ error: 'No products found in this file. Try a clearer image or use CSV import.' },
+				{ status: 422 }
+			);
 		}
 
 		// Normalize each product
@@ -159,7 +171,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		console.error('Linesheet parse error:', err);
 		const message = err instanceof Error ? err.message : 'Unknown error';
 		if (message.includes('Could not process') || message.includes('image')) {
-			return json({ error: 'Could not process this file. Make sure it\'s a clear image or PDF of a linesheet.' }, { status: 422 });
+			return json(
+				{
+					error: "Could not process this file. Make sure it's a clear image or PDF of a linesheet."
+				},
+				{ status: 422 }
+			);
 		}
 		return json({ error: 'Failed to analyze linesheet. Please try again.' }, { status: 500 });
 	}

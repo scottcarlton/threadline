@@ -4,7 +4,7 @@
 **Version:** 1.0
 **Last Updated:** April 12, 2026
 **Status:** Living Document
-**Related:** [Threadline_Features_BRD.md](./Threadline_Features_BRD.md) · [Threadline_Roles_Permissions_BRD.md](./Threadline_Roles_Permissions_BRD.md)
+**Related:** [features.md](./features.md) · [roles-permissions.md](./roles-permissions.md)
 
 ---
 

@@ -7,14 +7,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const [orderResult, linesResult] = await Promise.all([
 		supabase
 			.from('orders')
-			.select('*, brands(name, commission_rate), accounts(business_name, contact_email), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name))')
+			.select(
+				'*, brands(name, commission_rate), accounts(business_name, contact_email), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name))'
+			)
 			.eq('id', params.id)
 			.single(),
-		supabase
-			.from('order_lines')
-			.select('*')
-			.eq('order_id', params.id)
-			.order('sort_order')
+		supabase.from('order_lines').select('*').eq('order_id', params.id).order('sort_order')
 	]);
 
 	if (orderResult.error || !orderResult.data) {

@@ -4,6 +4,9 @@
 	let { class: className = '', children, ...restProps }: Props = $props();
 </script>
 
-<span class={cn('flex h-full w-full items-center justify-center rounded-full bg-muted', className)} {...restProps}>
+<span
+	class={cn('flex h-full w-full items-center justify-center rounded-full bg-muted', className)}
+	{...restProps}
+>
 	{@render children?.()}
 </span>

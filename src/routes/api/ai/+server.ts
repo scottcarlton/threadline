@@ -234,10 +234,16 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				to: { type: 'string', description: 'Recipient email address, or account/brand name to look up contact email' },
+				to: {
+					type: 'string',
+					description: 'Recipient email address, or account/brand name to look up contact email'
+				},
 				subject: { type: 'string', description: 'Email subject line' },
 				body: { type: 'string', description: 'Email body text' },
-				related_type: { type: 'string', description: 'Related entity type: account, brand, or order' },
+				related_type: {
+					type: 'string',
+					description: 'Related entity type: account, brand, or order'
+				},
 				related_id: { type: 'string', description: 'Related entity ID' }
 			},
 			required: ['to', 'subject', 'body']
@@ -246,14 +252,17 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'send_email',
 		description:
-			'Send an email via the user\'s connected Gmail account. Only call this after the user has confirmed a draft. Requires Gmail to be connected.',
+			"Send an email via the user's connected Gmail account. Only call this after the user has confirmed a draft. Requires Gmail to be connected.",
 		input_schema: {
 			type: 'object' as const,
 			properties: {
 				to: { type: 'string', description: 'Recipient email address' },
 				subject: { type: 'string', description: 'Email subject line' },
 				body: { type: 'string', description: 'Email body text' },
-				related_type: { type: 'string', description: 'Related entity type: account, brand, or order' },
+				related_type: {
+					type: 'string',
+					description: 'Related entity type: account, brand, or order'
+				},
 				related_id: { type: 'string', description: 'Related entity ID' }
 			},
 			required: ['to', 'subject', 'body']
@@ -261,7 +270,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'search_emails',
-		description: 'Search the user\'s Gmail inbox for emails. Requires Gmail to be connected.',
+		description: "Search the user's Gmail inbox for emails. Requires Gmail to be connected.",
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -278,8 +287,14 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				name: { type: 'string', description: 'Territory name (required), e.g. "West Coast", "Southeast"' },
-				assigned_to_name: { type: 'string', description: 'Name of the team member to assign (fuzzy match)' },
+				name: {
+					type: 'string',
+					description: 'Territory name (required), e.g. "West Coast", "Southeast"'
+				},
+				assigned_to_name: {
+					type: 'string',
+					description: 'Name of the team member to assign (fuzzy match)'
+				},
 				notes: { type: 'string', description: 'Optional notes' }
 			},
 			required: ['name']
@@ -293,7 +308,10 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 			properties: {
 				territory_id: { type: 'string', description: 'Territory ID (required)' },
 				name: { type: 'string', description: 'New name' },
-				assigned_to_name: { type: 'string', description: 'New assigned rep name (fuzzy match), or empty to unassign' },
+				assigned_to_name: {
+					type: 'string',
+					description: 'New assigned rep name (fuzzy match), or empty to unassign'
+				},
 				notes: { type: 'string', description: 'New notes' }
 			},
 			required: ['territory_id']
@@ -305,22 +323,42 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				account_name: { type: 'string', description: 'Account business name (fuzzy match, required)' },
-				territory_name: { type: 'string', description: 'Territory name (fuzzy match). Leave empty to remove from territory.' }
+				account_name: {
+					type: 'string',
+					description: 'Account business name (fuzzy match, required)'
+				},
+				territory_name: {
+					type: 'string',
+					description: 'Territory name (fuzzy match). Leave empty to remove from territory.'
+				}
 			},
 			required: ['account_name']
 		}
 	},
 	{
 		name: 'create_appointment',
-		description: 'Schedule an appointment with an account. Can be at a show, on the road, by phone, video, or other.',
+		description:
+			'Schedule an appointment with an account. Can be at a show, on the road, by phone, video, or other.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				account_name: { type: 'string', description: 'Account business name (fuzzy match, required)' },
-				location_type: { type: 'string', enum: ['show', 'road', 'phone', 'video', 'other'], description: 'Type of appointment location (required)' },
-				location_detail: { type: 'string', description: 'Address, phone number, meeting link, or other details' },
-				show_name: { type: 'string', description: 'Show name (fuzzy match) — only when location_type is "show"' },
+				account_name: {
+					type: 'string',
+					description: 'Account business name (fuzzy match, required)'
+				},
+				location_type: {
+					type: 'string',
+					enum: ['show', 'road', 'phone', 'video', 'other'],
+					description: 'Type of appointment location (required)'
+				},
+				location_detail: {
+					type: 'string',
+					description: 'Address, phone number, meeting link, or other details'
+				},
+				show_name: {
+					type: 'string',
+					description: 'Show name (fuzzy match) — only when location_type is "show"'
+				},
 				scheduled_date: { type: 'string', description: 'Date (YYYY-MM-DD)' },
 				scheduled_time: { type: 'string', description: 'Time (HH:MM, 24h format)' },
 				duration_minutes: { type: 'number', description: 'Duration in minutes (default 30)' },
@@ -336,7 +374,11 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 			type: 'object' as const,
 			properties: {
 				appointment_id: { type: 'string', description: 'Appointment ID (required)' },
-				status: { type: 'string', enum: ['scheduled', 'completed', 'cancelled', 'no_show'], description: 'New status' },
+				status: {
+					type: 'string',
+					enum: ['scheduled', 'completed', 'cancelled', 'no_show'],
+					description: 'New status'
+				},
 				scheduled_date: { type: 'string', description: 'New date (YYYY-MM-DD)' },
 				scheduled_time: { type: 'string', description: 'New time (HH:MM)' },
 				duration_minutes: { type: 'number', description: 'New duration' },
@@ -400,20 +442,33 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				entity_type: { type: 'string', enum: ['brand', 'account'], description: 'Type of entity (required)' },
+				entity_type: {
+					type: 'string',
+					enum: ['brand', 'account'],
+					description: 'Type of entity (required)'
+				},
 				entity_id: { type: 'string', description: 'Entity ID (required)' },
-				action: { type: 'string', enum: ['archive', 'unarchive'], description: 'Archive or unarchive (required)' }
+				action: {
+					type: 'string',
+					enum: ['archive', 'unarchive'],
+					description: 'Archive or unarchive (required)'
+				}
 			},
 			required: ['entity_type', 'entity_id', 'action']
 		}
 	},
 	{
 		name: 'get_sales_report',
-		description: 'Get a sales report grouped by brand, account, territory, or rep. Returns order counts, revenue, and averages.',
+		description:
+			'Get a sales report grouped by brand, account, territory, or rep. Returns order counts, revenue, and averages.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				group_by: { type: 'string', enum: ['brand', 'account', 'territory', 'rep'], description: 'How to group the data (required)' },
+				group_by: {
+					type: 'string',
+					enum: ['brand', 'account', 'territory', 'rep'],
+					description: 'How to group the data (required)'
+				},
 				order_year: { type: 'number', description: 'Filter by year' },
 				season_name: { type: 'string', description: 'Filter by season (fuzzy match)' }
 			},
@@ -422,13 +477,20 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'get_style_velocity',
-		description: 'Get trending/hot-selling styles. Shows which styles are being ordered by the most accounts in a given time window. Useful for identifying demand signals and trending products.',
+		description:
+			'Get trending/hot-selling styles. Shows which styles are being ordered by the most accounts in a given time window. Useful for identifying demand signals and trending products.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				days: { type: 'number', description: 'Time window in days (default 14). Common values: 7, 14, 30.' },
+				days: {
+					type: 'number',
+					description: 'Time window in days (default 14). Common values: 7, 14, 30.'
+				},
 				brand_name: { type: 'string', description: 'Filter by brand name (fuzzy match)' },
-				min_accounts: { type: 'number', description: 'Minimum number of accounts to qualify as trending (default 2)' },
+				min_accounts: {
+					type: 'number',
+					description: 'Minimum number of accounts to qualify as trending (default 2)'
+				},
 				limit: { type: 'number', description: 'Max results to return (default 20)' }
 			},
 			required: []
@@ -436,7 +498,8 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'get_commission_report',
-		description: 'Get commission breakdown showing brand commission rates, rep commission rates, and earned amounts.',
+		description:
+			'Get commission breakdown showing brand commission rates, rep commission rates, and earned amounts.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -449,11 +512,16 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'get_account_health',
-		description: 'Get account health scores. Shows which accounts are thriving, at risk, or need attention. Can filter by health label.',
+		description:
+			'Get account health scores. Shows which accounts are thriving, at risk, or need attention. Can filter by health label.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				filter: { type: 'string', enum: ['excellent', 'good', 'fair', 'at_risk', 'inactive', 'new'], description: 'Filter by health label. Omit to see all.' },
+				filter: {
+					type: 'string',
+					enum: ['excellent', 'good', 'fair', 'at_risk', 'inactive', 'new'],
+					description: 'Filter by health label. Omit to see all.'
+				},
 				limit: { type: 'number', description: 'Max results (default 20)' }
 			},
 			required: []
@@ -461,7 +529,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'add_product',
-		description: 'Add a product to a brand\'s catalog.',
+		description: "Add a product to a brand's catalog.",
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -479,7 +547,8 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'send_slack_message',
-		description: 'Send a notification message to the connected Slack channel. Requires Slack to be connected.',
+		description:
+			'Send a notification message to the connected Slack channel. Requires Slack to be connected.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -493,7 +562,8 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'send_discord_message',
-		description: 'Send a notification message to the connected Discord channel. Requires Discord to be connected.',
+		description:
+			'Send a notification message to the connected Discord channel. Requires Discord to be connected.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -507,20 +577,29 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'export_to_google_sheet',
-		description: 'Export data (orders, accounts, or brands) to a Google Sheets spreadsheet. Creates a new spreadsheet or adds a tab to an existing one. Requires Google Sheets to be connected.',
+		description:
+			'Export data (orders, accounts, or brands) to a Google Sheets spreadsheet. Creates a new spreadsheet or adds a tab to an existing one. Requires Google Sheets to be connected.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				data_type: { type: 'string', enum: ['orders', 'accounts', 'brands'], description: 'Type of data to export (required)' },
+				data_type: {
+					type: 'string',
+					enum: ['orders', 'accounts', 'brands'],
+					description: 'Type of data to export (required)'
+				},
 				title: { type: 'string', description: 'Sheet/tab title (defaults to data type + date)' },
-				spreadsheet_id: { type: 'string', description: 'Existing spreadsheet ID to add a tab to. Omit to create new.' }
+				spreadsheet_id: {
+					type: 'string',
+					description: 'Existing spreadsheet ID to add a tab to. Omit to create new.'
+				}
 			},
 			required: ['data_type']
 		}
 	},
 	{
 		name: 'list_notion_databases',
-		description: 'List available Notion databases in the connected workspace. Requires Notion to be connected.',
+		description:
+			'List available Notion databases in the connected workspace. Requires Notion to be connected.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {},
@@ -529,19 +608,29 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'sync_to_notion',
-		description: 'Sync data (orders, accounts, or brands) to a Notion database. Creates or updates pages. Requires Notion to be connected.',
+		description:
+			'Sync data (orders, accounts, or brands) to a Notion database. Creates or updates pages. Requires Notion to be connected.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				data_type: { type: 'string', enum: ['orders', 'accounts', 'brands'], description: 'Type of data to sync (required)' },
-				database_id: { type: 'string', description: 'Notion database ID to sync to (required). Use list_notion_databases to find available databases.' }
+				data_type: {
+					type: 'string',
+					enum: ['orders', 'accounts', 'brands'],
+					description: 'Type of data to sync (required)'
+				},
+				database_id: {
+					type: 'string',
+					description:
+						'Notion database ID to sync to (required). Use list_notion_databases to find available databases.'
+				}
 			},
 			required: ['data_type', 'database_id']
 		}
 	},
 	{
 		name: 'pull_from_notion',
-		description: 'Pull pages from a Notion database. Returns page data including properties. Requires Notion to be connected.',
+		description:
+			'Pull pages from a Notion database. Returns page data including properties. Requires Notion to be connected.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -582,7 +671,8 @@ const WRITE_TOOLS = new Set([
 ]);
 
 function describeCurrentPage(path: string): string {
-	if (path === '/') return 'Home'; if (path === '/dashboard') return 'Buyer dashboard';
+	if (path === '/') return 'Home';
+	if (path === '/dashboard') return 'Buyer dashboard';
 	if (path === '/brands') return 'Brands list';
 	if (path.match(/^\/brands\/[^/]+\/products\/new/)) return 'Creating a new product';
 	if (path.match(/^\/brands\/[^/]+\/products\/[^/]+/)) return 'Viewing a product detail page';
@@ -608,7 +698,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const { message, files, conversationHistory, currentPage, entityContext: entityCtx, agentId } = await request.json();
+	const {
+		message,
+		files,
+		conversationHistory,
+		currentPage,
+		entityContext: entityCtx,
+		agentId
+	} = await request.json();
 	const origin = request.headers.get('origin') || new URL(request.url).origin;
 	const requestStartTime = Date.now();
 
@@ -717,10 +814,25 @@ Important rules:
 	let setupInfo = '';
 	if (locals.orgType === 'rep') {
 		const [brandCheck, productCheck, accountCheck, orderCheck] = await Promise.all([
-			locals.supabase.from('brands').select('id', { count: 'exact', head: true }).eq('organization_id', locals.organization.id).eq('is_active', true),
-			locals.supabase.from('products').select('id', { count: 'exact', head: true }).eq('organization_id', locals.organization.id).eq('is_active', true),
-			locals.supabase.from('accounts').select('id', { count: 'exact', head: true }).eq('organization_id', locals.organization.id).eq('is_active', true),
-			locals.supabase.from('orders').select('id', { count: 'exact', head: true }).eq('organization_id', locals.organization.id)
+			locals.supabase
+				.from('brands')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', locals.organization.id)
+				.eq('is_active', true),
+			locals.supabase
+				.from('products')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', locals.organization.id)
+				.eq('is_active', true),
+			locals.supabase
+				.from('accounts')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', locals.organization.id)
+				.eq('is_active', true),
+			locals.supabase
+				.from('orders')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', locals.organization.id)
 		]);
 		const hasBrands = (brandCheck.count ?? 0) > 0;
 		const hasProducts = (productCheck.count ?? 0) > 0;
@@ -762,7 +874,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 	// Mark the last tool for caching (caches all tools up to this point)
 	const cachedTools = _toolDefinitions.map((tool, i) =>
 		i === _toolDefinitions.length - 1
-			? { ...tool, cache_control: { type: 'ephemeral' } } as any
+			? ({ ...tool, cache_control: { type: 'ephemeral' } } as any)
 			: tool
 	);
 
@@ -781,12 +893,18 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			const classifyResponse = await anthropic.messages.create({
 				model: 'claude-haiku-4-5-20251001',
 				max_tokens: 20,
-				system: [{ type: 'text', text: 'Classify whether this user message to a business assistant requires looking up or modifying data (tools), or can be answered conversationally (e.g. greetings, thanks, general knowledge, clarifying questions, opinions). Respond with exactly one word: TOOLS or CHAT' }],
+				system: [
+					{
+						type: 'text',
+						text: 'Classify whether this user message to a business assistant requires looking up or modifying data (tools), or can be answered conversationally (e.g. greetings, thanks, general knowledge, clarifying questions, opinions). Respond with exactly one word: TOOLS or CHAT'
+					}
+				],
 				messages: [{ role: 'user', content: userContent }]
 			});
-			const classification = classifyResponse.content[0]?.type === 'text'
-				? classifyResponse.content[0].text.trim().toUpperCase()
-				: 'TOOLS';
+			const classification =
+				classifyResponse.content[0]?.type === 'text'
+					? classifyResponse.content[0].text.trim().toUpperCase()
+					: 'TOOLS';
 			useHaiku = classification === 'CHAT';
 		}
 
@@ -810,7 +928,9 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 				try {
 					suggestions = JSON.parse(lastLine.slice('SUGGESTIONS:'.length));
 					responseText = lines.slice(0, -1).join('\n').trimEnd();
-				} catch { /* leave as-is */ }
+				} catch {
+					/* leave as-is */
+				}
 			}
 
 			return json({ response: responseText, suggestions });
@@ -923,19 +1043,17 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		// Log agent run if this was an agent invocation
 		if (resolvedAgentId) {
 			const toolNames = actions.map((a) => a.tool);
-			await locals.supabase
-				.from('org_agent_runs')
-				.insert({
-					agent_id: resolvedAgentId,
-					organization_id: locals.organization!.id,
-					triggered_by: 'user',
-					input_prompt: cleanMessage,
-					output_text: responseText,
-					tools_used: toolNames.length > 0 ? toolNames : null,
-					status: 'completed',
-					completed_at: new Date().toISOString(),
-					duration_ms: Date.now() - requestStartTime
-				});
+			await locals.supabase.from('org_agent_runs').insert({
+				agent_id: resolvedAgentId,
+				organization_id: locals.organization!.id,
+				triggered_by: 'user',
+				input_prompt: cleanMessage,
+				output_text: responseText,
+				tools_used: toolNames.length > 0 ? toolNames : null,
+				status: 'completed',
+				completed_at: new Date().toISOString(),
+				duration_ms: Date.now() - requestStartTime
+			});
 		}
 
 		return json({

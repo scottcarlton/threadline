@@ -5,18 +5,40 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardContent,
+		CardFooter
+	} from '$lib/components/ui/card/index.js';
 	import type { Product, ProductVariant, ProductImage } from '$lib/types/database.js';
 
 	let { data } = $props();
 	const brand = $derived(data.brand as { id: string; name: string });
-	const product = $derived(data.product as Product & { product_variants: ProductVariant[]; product_images: ProductImage[] });
+	const product = $derived(
+		data.product as Product & { product_variants: ProductVariant[]; product_images: ProductImage[] }
+	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
 	const canEdit = $derived(data.membership?.role !== 'guest');
-	const velocity = $derived(data.velocity as { orders30d: number; units30d: number; revenue30d: number; orders90d: number; units90d: number; revenue90d: number });
+	const velocity = $derived(
+		data.velocity as {
+			orders30d: number;
+			units30d: number;
+			revenue30d: number;
+			orders90d: number;
+			units90d: number;
+			revenue90d: number;
+		}
+	);
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-	const fmtShort = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+	const fmtShort = new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: 'USD',
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 0
+	});
 
 	// Edit state
 	let editing = $state(false);
@@ -44,26 +66,40 @@
 	}
 
 	async function handleSave() {
-		saving = true; saveError = '';
-		const { error } = await supabase.from('products').update({
-			style_number: editStyle, name: editName, description: editDescription || null,
-			wholesale_price: parseFloat(editWholesale) || 0,
-			retail_price: parseFloat(editRetail) || null,
-			category: editCategory || null, subcategory: editSubcategory || null,
-			season_id: editSeasonId || null, updated_at: new Date().toISOString()
-		}).eq('id', product.id);
+		saving = true;
+		saveError = '';
+		const { error } = await supabase
+			.from('products')
+			.update({
+				style_number: editStyle,
+				name: editName,
+				description: editDescription || null,
+				wholesale_price: parseFloat(editWholesale) || 0,
+				retail_price: parseFloat(editRetail) || null,
+				category: editCategory || null,
+				subcategory: editSubcategory || null,
+				season_id: editSeasonId || null,
+				updated_at: new Date().toISOString()
+			})
+			.eq('id', product.id);
 		saving = false;
-		if (error) { saveError = error.message; return; }
+		if (error) {
+			saveError = error.message;
+			return;
+		}
 		editing = false;
 		invalidateAll();
 	}
 
 	async function toggleArchive() {
-		await supabase.from('products').update({
-			archived_at: product.archived_at ? null : new Date().toISOString(),
-			is_active: !!product.archived_at,
-			updated_at: new Date().toISOString()
-		}).eq('id', product.id);
+		await supabase
+			.from('products')
+			.update({
+				archived_at: product.archived_at ? null : new Date().toISOString(),
+				is_active: !!product.archived_at,
+				updated_at: new Date().toISOString()
+			})
+			.eq('id', product.id);
 		invalidateAll();
 	}
 
@@ -80,7 +116,8 @@
 
 	function toggleNewSize(size: string) {
 		const next = new Set(selectedNewSizes);
-		if (next.has(size)) next.delete(size); else next.add(size);
+		if (next.has(size)) next.delete(size);
+		else next.add(size);
 		selectedNewSizes = next;
 	}
 
@@ -190,23 +227,54 @@
 			<Card>
 				<CardContent class="pt-4 pb-4">
 					<p class="text-sm font-medium text-muted-foreground">Last 30 Days</p>
-					<p class="mt-1 text-2xl font-semibold">{velocity.units30d} <span class="text-sm font-normal text-muted-foreground">units</span></p>
-					<p class="mt-0.5 text-sm text-muted-foreground">{velocity.orders30d} account{velocity.orders30d !== 1 ? 's' : ''} · {fmtShort.format(velocity.revenue30d)}</p>
+					<p class="mt-1 text-2xl font-semibold">
+						{velocity.units30d} <span class="text-sm font-normal text-muted-foreground">units</span>
+					</p>
+					<p class="mt-0.5 text-sm text-muted-foreground">
+						{velocity.orders30d} account{velocity.orders30d !== 1 ? 's' : ''} · {fmtShort.format(
+							velocity.revenue30d
+						)}
+					</p>
 				</CardContent>
 			</Card>
 			<Card>
 				<CardContent class="pt-4 pb-4">
 					<p class="text-sm font-medium text-muted-foreground">Last 90 Days</p>
-					<p class="mt-1 text-2xl font-semibold">{velocity.units90d} <span class="text-sm font-normal text-muted-foreground">units</span></p>
-					<p class="mt-0.5 text-sm text-muted-foreground">{velocity.orders90d} account{velocity.orders90d !== 1 ? 's' : ''} · {fmtShort.format(velocity.revenue90d)}</p>
+					<p class="mt-1 text-2xl font-semibold">
+						{velocity.units90d} <span class="text-sm font-normal text-muted-foreground">units</span>
+					</p>
+					<p class="mt-0.5 text-sm text-muted-foreground">
+						{velocity.orders90d} account{velocity.orders90d !== 1 ? 's' : ''} · {fmtShort.format(
+							velocity.revenue90d
+						)}
+					</p>
 				</CardContent>
 			</Card>
 			<Card>
 				<CardContent class="pt-4 pb-4">
 					<p class="text-sm font-medium text-muted-foreground">Velocity</p>
-					{@const trend = velocity.units30d > 0 && velocity.units90d > 0 ? (velocity.units30d / (velocity.units90d / 3)) : 0}
-					<p class="mt-1 text-2xl font-semibold {trend >= 1.2 ? 'text-emerald-600' : trend <= 0.8 ? 'text-red-600' : ''}">{trend > 0 ? `${Math.round(trend * 100)}%` : '—'}</p>
-					<p class="mt-0.5 text-sm text-muted-foreground">{trend >= 1.2 ? 'Accelerating' : trend <= 0.8 ? 'Slowing' : trend > 0 ? 'Steady' : 'No data'}</p>
+					{@const trend =
+						velocity.units30d > 0 && velocity.units90d > 0
+							? velocity.units30d / (velocity.units90d / 3)
+							: 0}
+					<p
+						class="mt-1 text-2xl font-semibold {trend >= 1.2
+							? 'text-emerald-600'
+							: trend <= 0.8
+								? 'text-red-600'
+								: ''}"
+					>
+						{trend > 0 ? `${Math.round(trend * 100)}%` : '—'}
+					</p>
+					<p class="mt-0.5 text-sm text-muted-foreground">
+						{trend >= 1.2
+							? 'Accelerating'
+							: trend <= 0.8
+								? 'Slowing'
+								: trend > 0
+									? 'Steady'
+									: 'No data'}
+					</p>
 				</CardContent>
 			</Card>
 		</div>
@@ -216,11 +284,20 @@
 	<Card>
 		<CardContent class="pt-6">
 			{#if saveError}
-				<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{saveError}</div>
+				<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+					{saveError}
+				</div>
 			{/if}
 
 			{#if editing}
-				<form id="edit-form" onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="space-y-4">
+				<form
+					id="edit-form"
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleSave();
+					}}
+					class="space-y-4"
+				>
 					<div class="grid gap-4 sm:grid-cols-3">
 						<div class="space-y-2">
 							<Label for="style">Style Number *</Label>
@@ -246,7 +323,11 @@
 						</div>
 						<div class="space-y-2">
 							<Label for="season">Season</Label>
-							<select id="season" bind:value={editSeasonId} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+							<select
+								id="season"
+								bind:value={editSeasonId}
+								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+							>
 								<option value="">None</option>
 								{#each seasons as season}
 									<option value={season.id}>{season.name}</option>
@@ -256,7 +337,12 @@
 					</div>
 					<div class="space-y-2">
 						<Label for="desc">Description</Label>
-						<textarea id="desc" bind:value={editDescription} rows="3" class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"></textarea>
+						<textarea
+							id="desc"
+							bind:value={editDescription}
+							rows="3"
+							class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+						></textarea>
 					</div>
 				</form>
 			{:else}
@@ -293,7 +379,9 @@
 		{#if editing}
 			<CardFooter class="justify-between">
 				<Button variant="outline" onclick={() => (editing = false)}>Cancel</Button>
-				<Button type="submit" form="edit-form" disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+				<Button type="submit" form="edit-form" disabled={saving}
+					>{saving ? 'Saving...' : 'Save'}</Button
+				>
 			</CardFooter>
 		{/if}
 	</Card>
@@ -304,7 +392,9 @@
 			<div class="flex items-center justify-between">
 				<CardTitle class="text-base">Variants ({product.product_variants?.length ?? 0})</CardTitle>
 				{#if canEdit && !addingVariants}
-					<Button variant="outline" size="sm" onclick={() => (addingVariants = true)}>Add Variants</Button>
+					<Button variant="outline" size="sm" onclick={() => (addingVariants = true)}
+						>Add Variants</Button
+					>
 				{/if}
 			</div>
 		</CardHeader>
@@ -314,24 +404,51 @@
 					<!-- Color / Print -->
 					<div class="space-y-2">
 						<p class="text-sm font-medium">Color or Print</p>
-						<p class="text-sm text-muted-foreground">Solid colors, prints, or patterns (e.g. Navy, Leopard, Floral Stripe)</p>
+						<p class="text-sm text-muted-foreground">
+							Solid colors, prints, or patterns (e.g. Navy, Leopard, Floral Stripe)
+						</p>
 						<div class="flex items-center gap-3">
-							<input type="color" bind:value={newColorHex} class="h-9 w-9 shrink-0 cursor-pointer rounded border-0 p-0" title="Pick a swatch color (optional)" />
-							<Input bind:value={newColor} placeholder="e.g. Navy, Leopard Print, Floral" class="flex-1" />
+							<input
+								type="color"
+								bind:value={newColorHex}
+								class="h-9 w-9 shrink-0 cursor-pointer rounded border-0 p-0"
+								title="Pick a swatch color (optional)"
+							/>
+							<Input
+								bind:value={newColor}
+								placeholder="e.g. Navy, Leopard Print, Floral"
+								class="flex-1"
+							/>
 						</div>
 					</div>
 
 					<!-- Sizes -->
 					<div class="space-y-2">
 						<p class="text-sm font-medium">Sizes</p>
-						<div class="flex gap-1 rounded-lg bg-muted p-1 w-fit mb-2">
-							<button class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode === 'letter' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}" onclick={() => (sizeMode = 'letter')}>Letter</button>
-							<button class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode === 'number' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}" onclick={() => (sizeMode = 'number')}>Numeric</button>
+						<div class="mb-2 flex w-fit gap-1 rounded-lg bg-muted p-1">
+							<button
+								class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode ===
+								'letter'
+									? 'bg-background text-foreground shadow-sm'
+									: 'text-muted-foreground'}"
+								onclick={() => (sizeMode = 'letter')}>Letter</button
+							>
+							<button
+								class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode ===
+								'number'
+									? 'bg-background text-foreground shadow-sm'
+									: 'text-muted-foreground'}"
+								onclick={() => (sizeMode = 'number')}>Numeric</button
+							>
 						</div>
 						<div class="flex flex-wrap gap-2">
 							{#each sizeMode === 'letter' ? commonSizes : numberedSizes as size}
 								<button
-									class="flex h-9 w-11 items-center justify-center rounded-lg border-2 text-sm font-medium transition-all {selectedNewSizes.has(size) ? 'border-primary bg-primary/10 text-primary' : 'border-muted text-muted-foreground hover:border-foreground/20'}"
+									class="flex h-9 w-11 items-center justify-center rounded-lg border-2 text-sm font-medium transition-all {selectedNewSizes.has(
+										size
+									)
+										? 'border-primary bg-primary/10 text-primary'
+										: 'border-muted text-muted-foreground hover:border-foreground/20'}"
 									onclick={() => toggleNewSize(size)}
 								>
 									{size}
@@ -343,7 +460,9 @@
 									bind:value={customSize}
 									placeholder="Custom"
 									class="h-9 w-20 rounded-lg border-2 border-dashed border-muted bg-background px-2 text-center text-sm focus:border-primary focus:outline-none"
-									onkeydown={(e) => { if (e.key === 'Enter') addCustomSize(); }}
+									onkeydown={(e) => {
+										if (e.key === 'Enter') addCustomSize();
+									}}
 								/>
 								{#if customSize.trim()}
 									<button class="text-xs text-primary" onclick={addCustomSize}>Add</button>
@@ -354,15 +473,24 @@
 
 					{#if newColor.trim() && selectedNewSizes.size > 0}
 						<p class="text-sm text-muted-foreground">
-							This will create <span class="font-medium text-foreground">{selectedNewSizes.size}</span> variant{selectedNewSizes.size > 1 ? 's' : ''} for {newColor.trim()}
+							This will create <span class="font-medium text-foreground"
+								>{selectedNewSizes.size}</span
+							>
+							variant{selectedNewSizes.size > 1 ? 's' : ''} for {newColor.trim()}
 						</p>
 					{/if}
 
 					<div class="flex gap-2">
-						<Button size="sm" onclick={addSizeRun} disabled={savingVariants || (!newColor.trim() && selectedNewSizes.size === 0)}>
+						<Button
+							size="sm"
+							onclick={addSizeRun}
+							disabled={savingVariants || (!newColor.trim() && selectedNewSizes.size === 0)}
+						>
 							{savingVariants ? 'Adding...' : 'Add Variants'}
 						</Button>
-						<Button variant="outline" size="sm" onclick={() => (addingVariants = false)}>Cancel</Button>
+						<Button variant="outline" size="sm" onclick={() => (addingVariants = false)}
+							>Cancel</Button
+						>
 					</div>
 				</div>
 			{/if}
@@ -387,11 +515,16 @@
 									<span class="text-xs text-muted-foreground">SKU: {variant.sku}</span>
 								{/if}
 								{#if variant.price_override}
-									<span class="text-xs text-muted-foreground">{fmt.format(Number(variant.price_override))}</span>
+									<span class="text-xs text-muted-foreground"
+										>{fmt.format(Number(variant.price_override))}</span
+									>
 								{/if}
 							</div>
 							{#if canEdit}
-								<button class="text-xs text-muted-foreground hover:text-destructive transition-colors" onclick={() => removeVariant(variant.id)}>Remove</button>
+								<button
+									class="text-xs text-muted-foreground transition-colors hover:text-destructive"
+									onclick={() => removeVariant(variant.id)}>Remove</button
+								>
 							{/if}
 						</div>
 					{/each}
@@ -407,8 +540,19 @@
 				<CardTitle class="text-base">Images ({product.product_images?.length ?? 0})</CardTitle>
 				{#if canEdit}
 					<div>
-						<input type="file" accept="image/*" bind:this={fileInput} onchange={handleImageUpload} class="hidden" />
-						<Button variant="outline" size="sm" onclick={() => fileInput?.click()} disabled={uploading}>
+						<input
+							type="file"
+							accept="image/*"
+							bind:this={fileInput}
+							onchange={handleImageUpload}
+							class="hidden"
+						/>
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={() => fileInput?.click()}
+							disabled={uploading}
+						>
 							{uploading ? 'Uploading...' : 'Upload Image'}
 						</Button>
 					</div>
@@ -421,17 +565,36 @@
 			{:else}
 				<div class="grid grid-cols-3 gap-3">
 					{#each (product.product_images ?? []).sort((a, b) => a.sort_order - b.sort_order) as image}
-						<div class="group relative aspect-square overflow-hidden rounded-lg border {image.is_primary ? 'ring-2 ring-primary' : ''}">
-							<img src="/api/products/{product.id}/images/{image.id}" alt="Product" class="h-full w-full object-cover" />
+						<div
+							class="group relative aspect-square overflow-hidden rounded-lg border {image.is_primary
+								? 'ring-2 ring-primary'
+								: ''}"
+						>
+							<img
+								src="/api/products/{product.id}/images/{image.id}"
+								alt="Product"
+								class="h-full w-full object-cover"
+							/>
 							{#if image.is_primary}
-								<span class="absolute left-2 top-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">Primary</span>
+								<span
+									class="absolute top-2 left-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground"
+									>Primary</span
+								>
 							{/if}
 							{#if canEdit}
-								<div class="absolute inset-0 flex items-end justify-center gap-2 bg-black/0 pb-2 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100">
+								<div
+									class="absolute inset-0 flex items-end justify-center gap-2 bg-black/0 pb-2 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100"
+								>
 									{#if !image.is_primary}
-										<button class="rounded bg-white/90 px-2 py-1 text-[11px] font-medium text-zinc-900" onclick={() => setPrimaryImage(image.id)}>Set Primary</button>
+										<button
+											class="rounded bg-white/90 px-2 py-1 text-[11px] font-medium text-zinc-900"
+											onclick={() => setPrimaryImage(image.id)}>Set Primary</button
+										>
 									{/if}
-									<button class="rounded bg-red-500/90 px-2 py-1 text-[11px] font-medium text-white" onclick={() => deleteImage(image.id)}>Delete</button>
+									<button
+										class="rounded bg-red-500/90 px-2 py-1 text-[11px] font-medium text-white"
+										onclick={() => deleteImage(image.id)}>Delete</button
+									>
 								</div>
 							{/if}
 						</div>

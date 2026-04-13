@@ -16,7 +16,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		const accountId = id.slice(accountPrefix.length);
 		const { data: account } = await supabase
 			.from('accounts')
-			.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone, city, state')
+			.select(
+				'id, business_name, contact_first_name, contact_last_name, contact_email, phone, city, state'
+			)
 			.eq('id', accountId)
 			.single();
 
@@ -32,7 +34,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 		return {
 			contact: {
-				name: [account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') || null,
+				name:
+					[account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') || null,
 				email: account.contact_email,
 				phone: account.phone,
 				source: 'account' as const,
@@ -48,7 +51,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		const brandId = id.slice(brandPrefix.length);
 		const { data: brand } = await supabase
 			.from('brands')
-			.select('id, name, contact_first_name, contact_last_name, contact_email, contact_phone, website')
+			.select(
+				'id, name, contact_first_name, contact_last_name, contact_email, contact_phone, website'
+			)
 			.eq('id', brandId)
 			.single();
 
@@ -86,6 +91,42 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	if (!discovered) throw error(404, 'Contact not found');
 
+	// Activity: emails to/from this contact
+	const { data: emailActivity } = await supabase
+		.from('email_logs')
+		.select('id, to_email, subject, created_at, profiles:sent_by(display_name)')
+		.ilike('to_email', discovered.email)
+		.order('created_at', { ascending: false })
+		.limit(15);
+
+	// Auto-link: suggest accounts by matching email domain
+	const domain = discovered.email.split('@')[1]?.toLowerCase();
+	let suggestedAccounts: { id: string; business_name: string; contact_email: string | null }[] = [];
+	if (domain && !['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com'].includes(domain)) {
+		const { data: matches } = await supabase
+			.from('accounts')
+			.select('id, business_name, contact_email')
+			.eq('organization_id', organization.id)
+			.ilike('contact_email', `%@${domain}`)
+			.limit(5);
+		suggestedAccounts = matches ?? [];
+	}
+
+	// Also check for exact email match across accounts
+	const { data: exactMatches } = await supabase
+		.from('accounts')
+		.select('id, business_name, contact_email')
+		.eq('organization_id', organization.id)
+		.ilike('contact_email', discovered.email)
+		.limit(3);
+
+	if (exactMatches && exactMatches.length > 0) {
+		const existingIds = new Set(suggestedAccounts.map((a) => a.id));
+		for (const m of exactMatches) {
+			if (!existingIds.has(m.id)) suggestedAccounts.unshift(m);
+		}
+	}
+
 	return {
 		contact: {
 			name: discovered.name,
@@ -100,6 +141,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			firstSeenAt: discovered.first_seen_at,
 			lastSeenAt: discovered.last_seen_at
 		},
-		orders: []
+		orders: [],
+		suggestedAccounts,
+		emailActivity: (emailActivity ?? []).map((e: any) => ({
+			id: e.id,
+			subject: e.subject,
+			senderName: e.profiles?.display_name ?? null,
+			date: e.created_at
+		}))
 	};
 };
