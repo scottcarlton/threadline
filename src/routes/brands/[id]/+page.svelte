@@ -234,15 +234,7 @@
 
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/brands"><LongArrow direction="left" /> Back</Button>
-			<h1 class="text-3xl">{brand.name}</h1>
-			<Badge
-				variant={brand.archived_at ? 'destructive' : brand.is_active ? 'success' : 'secondary'}
-			>
-				{brand.archived_at ? 'Archived' : brand.is_active ? 'Active' : 'Inactive'}
-			</Badge>
-		</div>
+		<Button variant="ghost" size="sm" href="/brands"><LongArrow direction="left" /> Back</Button>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				{#if isAdmin}
@@ -252,6 +244,27 @@
 				{/if}
 				<Button size="sm" onclick={startEdit}>Edit</Button>
 			</div>
+		{/if}
+	</div>
+
+	<div class="space-y-1">
+		<div class="flex items-center gap-3">
+			<h1 class="text-3xl">{brand.name}</h1>
+			<Badge
+				variant={brand.archived_at ? 'destructive' : brand.is_active ? 'success' : 'secondary'}
+			>
+				{brand.archived_at ? 'Archived' : brand.is_active ? 'Active' : 'Inactive'}
+			</Badge>
+		</div>
+		{#if brand.website}
+			<a
+				href={brand.website}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="text-sm text-muted-foreground hover:text-foreground hover:underline"
+			>
+				{brand.website}
+			</a>
 		{/if}
 	</div>
 
@@ -428,18 +441,6 @@
 								<div>
 									<dt class="text-sm font-medium text-muted-foreground">Phone</dt>
 									<dd class="mt-1">{brand.contact_phone ?? '—'}</dd>
-								</div>
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Website</dt>
-									<dd class="mt-1">
-										{#if brand.website}
-											<a href={brand.website} target="_blank" class="text-primary hover:underline"
-												>{brand.website}</a
-											>
-										{:else}
-											—
-										{/if}
-									</dd>
 								</div>
 							</div>
 							{#if isAdmin}
