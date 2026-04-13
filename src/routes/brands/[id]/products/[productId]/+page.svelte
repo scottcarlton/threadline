@@ -21,6 +21,9 @@
 		data.product as Product & { product_variants: ProductVariant[]; product_images: ProductImage[] }
 	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
+	const primaryImage = $derived(
+		product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]
+	);
 	const canEdit = $derived(data.membership?.role !== 'guest');
 	const velocity = $derived(
 		data.velocity as {
@@ -205,7 +208,7 @@
 	}
 </script>
 
-<div class="mx-auto max-w-2xl space-y-6">
+<div class="mx-auto max-w-7xl space-y-6">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"
@@ -220,6 +223,36 @@
 			</div>
 		{/if}
 	</div>
+
+	<div class="grid gap-6 lg:grid-cols-[420px_1fr]">
+		<!-- Left: primary image -->
+		<div class="aspect-square w-full overflow-hidden rounded-lg border bg-muted lg:sticky lg:top-6 lg:self-start">
+			{#if primaryImage}
+				<img
+					src={`/api/products/${product.id}/images/${primaryImage.id}`}
+					alt={product.name}
+					class="h-full w-full object-cover"
+				/>
+			{:else}
+				<div class="flex h-full w-full items-center justify-center text-muted-foreground">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						class="h-16 w-16 opacity-40"
+					>
+						<rect x="3" y="3" width="18" height="18" rx="2" />
+						<circle cx="8.5" cy="8.5" r="1.5" />
+						<path d="M21 15l-5-5L5 21" />
+					</svg>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Right: details column -->
+		<div class="space-y-6 min-w-0">
 
 	<!-- Name + price banner -->
 	<div class="flex items-center justify-between gap-4">
@@ -629,4 +662,6 @@
 			{/if}
 		</CardContent>
 	</Card>
+		</div>
+	</div>
 </div>
