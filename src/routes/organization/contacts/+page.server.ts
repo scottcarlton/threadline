@@ -74,8 +74,51 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
+	// Detect potential duplicates among discovered contacts
+	const discovered = discoveredRes.data ?? [];
+	const emailMap = new Map<string, string[]>();
+	for (const d of discovered) {
+		const key = d.email.toLowerCase();
+		if (!emailMap.has(key)) emailMap.set(key, []);
+		emailMap.get(key)!.push(d.id);
+	}
+
+	// Also check for discovered contacts that match known contact emails
+	type DuplicateGroup = { email: string; contacts: { id: string; name: string | null; source: string }[] };
+	const duplicates: DuplicateGroup[] = [];
+
+	for (const d of discovered) {
+		const key = d.email.toLowerCase();
+		if (seenEmails.has(key)) {
+			const known = knownContacts.find((k) => k.email.toLowerCase() === key);
+			if (known) {
+				duplicates.push({
+					email: key,
+					contacts: [
+						{ id: d.id, name: d.name, source: 'discovered' },
+						{ id: `${known.source}-${known.sourceId}`, name: known.name, source: known.source }
+					]
+				});
+			}
+		}
+	}
+
+	// Check for duplicate emails within discovered contacts
+	for (const [email, ids] of emailMap) {
+		if (ids.length > 1) {
+			duplicates.push({
+				email,
+				contacts: ids.map((id) => {
+					const c = discovered.find((d) => d.id === id)!;
+					return { id, name: c.name, source: 'discovered' };
+				})
+			});
+		}
+	}
+
 	return {
 		knownContacts,
-		discoveredContacts: discoveredRes.data ?? []
+		discoveredContacts: discovered,
+		duplicates
 	};
 };
