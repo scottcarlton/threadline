@@ -18,6 +18,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		.select(
 			'id, brand_id, season_id, style_number, name, wholesale_price, category, product_variants(id, color, size, price_override), product_images(id, is_primary, sort_order)'
 		)
+		// (product_images included for modal grid thumbnails)
 		.eq('organization_id', locals.organization.id)
 		.eq('is_active', true)
 		.is('archived_at', null)

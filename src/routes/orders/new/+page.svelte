@@ -25,7 +25,13 @@
 		state: string | null;
 		is_default: boolean;
 	};
-	type ProductVariant = { id: string; color: string | null; size: string | null; price_override: number | null };
+	type ProductVariant = {
+		id: string;
+		color: string | null;
+		size: string | null;
+		price_override: number | null;
+	};
+	type ProductImage = { id: string; is_primary: boolean; sort_order: number | null };
 	type Product = {
 		id: string;
 		brand_id: string;
@@ -35,6 +41,22 @@
 		wholesale_price: number;
 		category: string | null;
 		product_variants: ProductVariant[];
+		product_images: ProductImage[];
+	};
+
+	// A per-product picked entry; colors/sizes chosen via qty grid. Matches the prior wizard's pattern.
+	type OrderItem = {
+		product_id: string;
+		brand_id: string;
+		season_id: string;
+		style_number: string;
+		name: string;
+		unit_price: number;
+		image_id: string | null;
+		available_colors: string[];
+		available_sizes: string[];
+		selected_color: string;
+		size_qtys: Record<string, number>; // size -> qty (per selected color)
 	};
 
 	let { data } = $props();
@@ -46,17 +68,17 @@
 	const isBuyer = $derived(data.isBuyer === true);
 
 	const monthAbbrev = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 	// ── Cart state ──────────────────────────────────────────────────────────
 	const cart = $state<{
-		type: OrderType;
-		brandFilter: 'all' | string[]; // 'all' or list of brand_ids
-		lines: CartLine[];
+		type: OrderType | null;
+		brandFilter: 'all' | string[];
+		items: OrderItem[];
 		groupMeta: Record<string, { delivery: DeliveryChoice | null; location_id: string | null }>;
 		account_id: string | null;
 		freeform_name: string | null;
 		order_year: number;
-		// Freeform draft account details (saved as a real account on submit when filled in)
 		freeformDetails: {
 			business_name: string;
 			contact_first_name: string;
@@ -69,9 +91,9 @@
 			zip: string;
 		};
 	}>({
-		type: 'order',
+		type: null,
 		brandFilter: 'all',
-		lines: [],
+		items: [],
 		groupMeta: {},
 		account_id: isBuyer && accounts.length === 1 ? accounts[0].id : null,
 		freeform_name: null,
@@ -89,22 +111,59 @@
 		}
 	});
 
+	// Convert OrderItems → CartLines (one line per color/size with qty > 0) for submit
+	function toCartLines(items: OrderItem[]): CartLine[] {
+		const lines: CartLine[] = [];
+		for (const it of items) {
+			for (const size of it.available_sizes.length > 0 ? it.available_sizes : ['']) {
+				const qty = it.size_qtys[size] ?? 0;
+				if (qty <= 0) continue;
+				lines.push({
+					product_id: it.product_id,
+					brand_id: it.brand_id,
+					season_id: it.season_id,
+					style_number: it.style_number,
+					description: it.name,
+					color: it.selected_color || null,
+					size: size || null,
+					qty,
+					unit_price: it.unit_price
+				});
+			}
+		}
+		return lines;
+	}
+
+	function itemUnits(it: OrderItem): number {
+		return Object.values(it.size_qtys).reduce((s, q) => s + (q || 0), 0);
+	}
+	function itemTotal(it: OrderItem): number {
+		return itemUnits(it) * it.unit_price;
+	}
+	function itemIsSized(it: OrderItem): boolean {
+		return itemUnits(it) > 0;
+	}
+
+	// Groups — derived from sized cart items; these are what the Delivery/Review steps show.
 	function groupKey(brand_id: string, season_id: string): string {
 		return `${brand_id}::${season_id}`;
 	}
-
 	const groups = $derived.by(() => {
-		const map = new Map<string, { brand_id: string; season_id: string; lines: CartLine[]; total: number }>();
-		for (const l of cart.lines) {
-			if (l.qty <= 0) continue;
-			const key = groupKey(l.brand_id, l.season_id);
+		const map = new Map<
+			string,
+			{ brand_id: string; season_id: string; items: OrderItem[]; total: number; units: number }
+		>();
+		for (const it of cart.items) {
+			if (!itemIsSized(it)) continue;
+			const key = groupKey(it.brand_id, it.season_id);
 			let g = map.get(key);
 			if (!g) {
-				g = { brand_id: l.brand_id, season_id: l.season_id, lines: [], total: 0 };
+				g = { brand_id: it.brand_id, season_id: it.season_id, items: [], total: 0, units: 0 };
 				map.set(key, g);
 			}
-			g.lines.push(l);
-			g.total += l.qty * l.unit_price;
+			g.items.push(it);
+			g.total += itemTotal(it);
+			g.units += itemUnits(it);
 		}
 		return [...map.values()];
 	});
@@ -113,7 +172,8 @@
 	const accountLocations = $derived(
 		cart.account_id ? allLocations.filter((l) => l.account_id === cart.account_id) : []
 	);
-	const isFreeform = $derived(cart.account_id === null);
+	const isFreeform = $derived(cart.account_id === null && (cart.freeform_name?.trim().length ?? 0) > 0);
+	const hasAccountChoice = $derived(cart.account_id !== null || isFreeform);
 	const needsLocationStep = $derived(account !== null && accountLocations.length >= 2);
 	const needsAccountDetailsStep = $derived(isFreeform);
 
@@ -129,16 +189,16 @@
 	let currentStep = $state(0);
 	const stepName = $derived(stepsAll[currentStep] ?? 'Review');
 
+	// Clamp currentStep when stepsAll shrinks (e.g., user picks a single-location account, Location step drops)
+	$effect(() => {
+		if (currentStep >= stepsAll.length) currentStep = stepsAll.length - 1;
+	});
+
 	function brandName(id: string): string {
 		return brands.find((b) => b.id === id)?.name ?? 'Brand';
 	}
 	function seasonName(id: string): string {
 		return seasons.find((s) => s.id === id)?.name ?? 'Season';
-	}
-	function accountLabel(a: Account | null): string {
-		if (!a) return '';
-		const loc = [a.city, a.state].filter(Boolean).join(', ');
-		return loc ? `${a.business_name} — ${loc}` : a.business_name;
 	}
 	function deliveryLabelFor(d: SeasonDeliveryRow): string {
 		return `${d.label} (${monthAbbrev[d.delivery_month - 1]} ${d.delivery_day})`;
@@ -162,19 +222,19 @@
 	function canAdvance(): boolean {
 		switch (stepName) {
 			case 'Type':
-				return true;
+				return cart.type !== null;
 			case 'Brand':
 				return cart.brandFilter === 'all' || (cart.brandFilter as string[]).length > 0;
 			case 'Items':
-				return cart.lines.some((l) => l.qty > 0);
+				return cart.items.length > 0 && cart.items.every(itemIsSized);
 			case 'Delivery':
-				return groups.every((g) => getMeta(g.brand_id, g.season_id).delivery !== null);
+				return groups.length > 0 && groups.every((g) => getMeta(g.brand_id, g.season_id).delivery !== null);
 			case 'Account':
-				return cart.account_id !== null || (cart.freeform_name?.trim().length ?? 0) > 0;
+				return hasAccountChoice;
 			case 'Location':
 				return groups.every((g) => getMeta(g.brand_id, g.season_id).location_id !== null);
 			case 'Details':
-				return true; // optional — can save later
+				return true;
 			case 'Review':
 				return true;
 		}
@@ -188,7 +248,51 @@
 		if (currentStep > 0) currentStep--;
 	}
 
-	// ── Add Items modal state ───────────────────────────────────────────────
+	function handleCancel() {
+		goto('/orders');
+	}
+
+	function pickType(t: OrderType) {
+		cart.type = t;
+		nextStep();
+	}
+
+	// Brand filter ↔ combobox
+	let brandQuery = $state('');
+	const brandMatches = $derived(
+		brandQuery.trim()
+			? brands.filter((b) =>
+					normalize(b.name).includes(normalize(brandQuery))
+				)
+			: brands
+	);
+	function normalize(s: string): string {
+		return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+	}
+	function brandSelected(id: string): boolean {
+		return cart.brandFilter !== 'all' && (cart.brandFilter as string[]).includes(id);
+	}
+	function toggleBrand(id: string) {
+		if (cart.brandFilter === 'all') {
+			cart.brandFilter = [id];
+			return;
+		}
+		const list = cart.brandFilter as string[];
+		const i = list.indexOf(id);
+		if (i >= 0) list.splice(i, 1);
+		else list.push(id);
+	}
+	function useAllBrands() {
+		cart.brandFilter = 'all';
+		nextStep();
+	}
+
+	const allowedBrandIds = $derived.by(() => {
+		if (cart.brandFilter === 'all') return brands.map((b) => b.id);
+		return cart.brandFilter as string[];
+	});
+
+	// ── Items / modal ───────────────────────────────────────────────────────
 	let modalOpen = $state(false);
 	let modalSearch = $state('');
 	let modalSeason = $state<string | null>(null);
@@ -198,13 +302,8 @@
 	let modalProducts = $state<Product[]>([]);
 	let modalLoading = $state(false);
 	let modalDebounce: ReturnType<typeof setTimeout> | undefined;
-	let modalSelectedProduct = $state<Product | null>(null);
-	let modalQty = $state<Record<string, number>>({}); // variant_id -> qty
-
-	const allowedBrandIds = $derived.by(() => {
-		if (cart.brandFilter === 'all') return brands.map((b) => b.id);
-		return cart.brandFilter as string[];
-	});
+	// Sidebar: which product is currently being sized
+	let sizingProductId = $state<string | null>(null);
 
 	async function loadModalProducts() {
 		modalLoading = true;
@@ -215,7 +314,7 @@
 		if (modalSeason) params.append('season_id', modalSeason);
 		if (modalMinPrice) params.set('min_price', modalMinPrice);
 		if (modalMaxPrice) params.set('max_price', modalMaxPrice);
-		params.set('limit', '100');
+		params.set('limit', '200');
 		try {
 			const res = await fetch(`/api/products?${params.toString()}`);
 			const json = await res.json();
@@ -227,12 +326,12 @@
 
 	function openAddItemsModal() {
 		modalOpen = true;
-		modalSelectedProduct = null;
-		modalQty = {};
+		sizingProductId = null;
 		loadModalProducts();
 	}
 	function closeAddItemsModal() {
 		modalOpen = false;
+		sizingProductId = null;
 	}
 
 	function onModalSearchChange() {
@@ -240,80 +339,60 @@
 		modalDebounce = setTimeout(loadModalProducts, 250);
 	}
 
-	// Hide products that already have line items in the cart (de-noise)
-	const inCartProductIds = $derived(
-		new Set(cart.lines.map((l) => l.product_id).filter((id): id is string => !!id))
-	);
-	const visibleProducts = $derived(modalProducts.filter((p) => !inCartProductIds.has(p.id)));
-
-	function selectProduct(p: Product) {
-		modalSelectedProduct = p;
-		modalQty = {};
+	function primaryImageId(p: Product): string | null {
+		const primary = p.product_images?.find((i) => i.is_primary);
+		return primary?.id ?? p.product_images?.[0]?.id ?? null;
+	}
+	function productColors(p: Product): string[] {
+		return [...new Set(p.product_variants.map((v) => v.color).filter(Boolean) as string[])];
+	}
+	function productSizes(p: Product): string[] {
+		return [...new Set(p.product_variants.map((v) => v.size).filter(Boolean) as string[])];
 	}
 
-	function commitProductToCart() {
-		if (!modalSelectedProduct) return;
-		const p = modalSelectedProduct;
-		if (!p.season_id) {
-			alert('Product has no season assigned — cannot add to cart.');
-			return;
-		}
-		for (const variant of p.product_variants) {
-			const qty = modalQty[variant.id] ?? 0;
-			if (qty <= 0) continue;
-			cart.lines.push({
-				product_id: p.id,
-				brand_id: p.brand_id,
-				season_id: p.season_id,
-				style_number: p.style_number,
-				description: p.name,
-				color: variant.color,
-				size: variant.size,
-				qty,
-				unit_price: variant.price_override ?? p.wholesale_price
-			});
-		}
-		modalSelectedProduct = null;
-		modalQty = {};
+	function productInCart(p: Product): boolean {
+		return cart.items.some((it) => it.product_id === p.id);
 	}
 
-	function removeLine(idx: number) {
-		cart.lines.splice(idx, 1);
+	function addProduct(p: Product) {
+		if (productInCart(p)) return;
+		if (!p.season_id) return;
+		const colors = productColors(p);
+		const sizes = productSizes(p);
+		const size_qtys: Record<string, number> = {};
+		for (const s of sizes) size_qtys[s] = 0;
+		cart.items.push({
+			product_id: p.id,
+			brand_id: p.brand_id,
+			season_id: p.season_id,
+			style_number: p.style_number,
+			name: p.name,
+			unit_price: p.wholesale_price,
+			image_id: primaryImageId(p),
+			available_colors: colors,
+			available_sizes: sizes,
+			selected_color: colors[0] ?? '',
+			size_qtys
+		});
+	}
+	function removeProduct(product_id: string) {
+		const i = cart.items.findIndex((it) => it.product_id === product_id);
+		if (i >= 0) cart.items.splice(i, 1);
+		if (sizingProductId === product_id) sizingProductId = null;
+	}
+	function toggleProduct(p: Product) {
+		if (productInCart(p)) removeProduct(p.id);
+		else addProduct(p);
+	}
+	function openSizing(p: Product) {
+		if (!productInCart(p)) addProduct(p);
+		sizingProductId = p.id;
+	}
+	function findItem(product_id: string): OrderItem | undefined {
+		return cart.items.find((it) => it.product_id === product_id);
 	}
 
-	function moveLineToGroup(lineIdx: number, brand_id: string, season_id: string) {
-		const l = cart.lines[lineIdx];
-		if (!l) return;
-		l.brand_id = brand_id;
-		l.season_id = season_id;
-	}
-
-	// ── Submit ──────────────────────────────────────────────────────────────
-	let submitting = $state(false);
-	let submitError = $state<string | null>(null);
-	let submitStatus = $state<'draft' | 'submitted'>('draft');
-	let formEl = $state<HTMLFormElement | undefined>(undefined);
-
-	const payload = $derived({
-		type: cart.type,
-		account_id: cart.account_id,
-		freeform_name: cart.freeform_name,
-		order_year: cart.order_year,
-		submitStatus,
-		lines: cart.lines,
-		groups: groups.map((g) => ({
-			brand_id: g.brand_id,
-			season_id: g.season_id,
-			delivery: getMeta(g.brand_id, g.season_id).delivery,
-			location_id: getMeta(g.brand_id, g.season_id).location_id
-		}))
-	});
-
-	function handleCancel() {
-		goto('/orders');
-	}
-
-	// Keep group meta clean: drop entries for groups that no longer exist
+	// Keep group meta clean
 	$effect(() => {
 		const validKeys = new Set(groups.map((g) => groupKey(g.brand_id, g.season_id)));
 		for (const k of Object.keys(cart.groupMeta)) {
@@ -321,7 +400,7 @@
 		}
 	});
 
-	// If the user picks an account with only one location, auto-assign that location to all groups
+	// Auto-assign location when account has exactly one
 	$effect(() => {
 		if (account && accountLocations.length === 1) {
 			const loc = accountLocations[0];
@@ -332,59 +411,111 @@
 		}
 	});
 
-	function brandFilterToggle(id: string) {
-		if (cart.brandFilter === 'all') {
-			cart.brandFilter = [id];
-			return;
-		}
-		const list = cart.brandFilter as string[];
-		const i = list.indexOf(id);
-		if (i >= 0) list.splice(i, 1);
-		else list.push(id);
-		if (list.length === 0) cart.brandFilter = 'all';
+	// ── Account combobox ────────────────────────────────────────────────────
+	let accountQuery = $state('');
+	let accountFocus = $state(false);
+	const accountMatches = $derived.by(() => {
+		const q = normalize(accountQuery);
+		if (!q) return accounts;
+		return accounts
+			.map((a) => ({ a, score: accountScore(a, q) }))
+			.filter((x) => x.score > 0)
+			.sort((x, y) => y.score - x.score)
+			.map((x) => x.a);
+	});
+	function accountScore(a: Account, q: string): number {
+		const name = normalize(a.business_name);
+		const city = normalize(a.city ?? '');
+		const state = normalize(a.state ?? '');
+		if (name.startsWith(q)) return 100;
+		if (name.includes(q)) return 80;
+		// Token prefix match ("ml leddys" → "mlleddys" → starts with q stripped? Handled by normalize above.)
+		// Token initial match: e.g. "ml" matches "M.L. Leddy's"
+		const tokens = a.business_name.toLowerCase().split(/\s+/);
+		const initials = tokens.map((t) => t.replace(/[^a-z0-9]/g, '').charAt(0)).join('');
+		if (initials.startsWith(q)) return 60;
+		if (city.includes(q) || state.includes(q)) return 20;
+		return 0;
 	}
-	function setBrandFilterAll() {
-		cart.brandFilter = 'all';
+	function accountLabel(a: Account): string {
+		const loc = [a.city, a.state].filter(Boolean).join(', ');
+		return loc ? `${a.business_name} — ${loc}` : a.business_name;
+	}
+	function pickAccount(a: Account) {
+		cart.account_id = a.id;
+		cart.freeform_name = null;
+		accountQuery = a.business_name;
+		accountFocus = false;
+	}
+	function useFreeform() {
+		cart.account_id = null;
+		cart.freeform_name = accountQuery.trim() || null;
+		accountFocus = false;
+	}
+	function clearAccount() {
+		cart.account_id = null;
+		cart.freeform_name = null;
+		accountQuery = '';
 	}
 
-	function variantPrice(p: Product, v: ProductVariant): number {
-		return v.price_override ?? p.wholesale_price;
-	}
+	// ── Submit ──────────────────────────────────────────────────────────────
+	let submitting = $state(false);
+	let submitError = $state<string | null>(null);
+	let submitStatus = $state<'draft' | 'submitted'>('draft');
+
+	const payload = $derived({
+		type: cart.type ?? 'order',
+		account_id: cart.account_id,
+		freeform_name: cart.freeform_name,
+		order_year: cart.order_year,
+		submitStatus,
+		lines: toCartLines(cart.items),
+		groups: groups.map((g) => ({
+			brand_id: g.brand_id,
+			season_id: g.season_id,
+			delivery: getMeta(g.brand_id, g.season_id).delivery,
+			location_id: getMeta(g.brand_id, g.season_id).location_id
+		}))
+	});
 </script>
 
-<svelte:head><title>New Order — Threadline</title></svelte:head>
+<svelte:head><title>New {cart.type === 'note' ? 'Note' : 'Order'} — Threadline</title></svelte:head>
 
 <div class="mx-auto max-w-5xl p-6">
+	<!-- Top nav: Back (left) + Cancel (right) -->
+	<div class="mb-4 flex items-center justify-between">
+		{#if currentStep > 0}
+			<Button variant="ghost" size="sm" onclick={prevStep}>← Back</Button>
+		{:else}
+			<span></span>
+		{/if}
+		<Button variant="ghost" size="sm" onclick={handleCancel}>Cancel</Button>
+	</div>
+
 	<!-- Header / progress -->
-	<div class="mb-6 flex items-center justify-between">
-		<div>
-			<h1 class="text-2xl font-semibold">New {cart.type === 'note' ? 'Note' : 'Order'}</h1>
-			<p class="text-sm text-muted-foreground">Step {currentStep + 1} of {stepsAll.length} — {stepName}</p>
-		</div>
-		<Button variant="ghost" onclick={handleCancel}>Cancel</Button>
+	<div class="mb-4">
+		<h1 class="text-2xl font-semibold">New {cart.type === 'note' ? 'Note' : 'Order'}</h1>
+		<p class="text-sm text-muted-foreground">
+			Step {currentStep + 1} of {stepsAll.length} — {stepName}
+		</p>
 	</div>
 
 	<div class="mb-6 flex gap-1">
-		{#each stepsAll as s, i (s)}
+		{#each stepsAll as s, i (s + i)}
 			<div
-				class="h-1.5 flex-1 rounded-full {i <= currentStep
-					? 'bg-foreground'
-					: 'bg-border'}"
+				class="h-1.5 flex-1 rounded-full {i <= currentStep ? 'bg-foreground' : 'bg-border'}"
 				aria-label={s}
 			></div>
 		{/each}
 	</div>
 
-	<!-- Step bodies -->
+	<!-- ── Type step ──────────────────────────────────────────────────── -->
 	{#if stepName === 'Type'}
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 			<button
 				type="button"
-				class="rounded-lg border p-6 text-left transition hover:border-foreground {cart.type ===
-				'order'
-					? 'border-foreground bg-muted/30'
-					: ''}"
-				onclick={() => (cart.type = 'order')}
+				class="rounded-lg border p-6 text-left transition hover:border-foreground"
+				onclick={() => pickType('order')}
 			>
 				<div class="text-lg font-semibold">Order</div>
 				<p class="mt-2 text-sm text-muted-foreground">
@@ -393,115 +524,183 @@
 			</button>
 			<button
 				type="button"
-				class="rounded-lg border p-6 text-left transition hover:border-foreground {cart.type ===
-				'note'
-					? 'border-foreground bg-muted/30'
-					: ''}"
-				onclick={() => (cart.type = 'note')}
+				class="rounded-lg border p-6 text-left transition hover:border-foreground"
+				onclick={() => pickType('note')}
 			>
 				<div class="text-lg font-semibold">Note</div>
 				<p class="mt-2 text-sm text-muted-foreground">
-					Quick capture for shows or the road. At least one item required; account can be added
-					later.
+					Quick capture for shows or the road. At least one item required; account can be added later.
 				</p>
 			</button>
 		</div>
 	{/if}
 
+	<!-- ── Brand step ─────────────────────────────────────────────────── -->
 	{#if stepName === 'Brand'}
 		<div>
-			<p class="mb-4 text-sm text-muted-foreground">
-				Choose which brands to include. You can switch this later by reopening the Add Items modal.
-			</p>
-			<div class="mb-3 flex flex-wrap gap-2">
-				<button
-					type="button"
-					class="rounded-full border px-4 py-1.5 text-sm transition {cart.brandFilter === 'all'
-						? 'border-foreground bg-foreground text-background'
-						: 'hover:border-foreground'}"
-					onclick={setBrandFilterAll}
-				>
-					All Brands
+			<Label for="brand-search">Brands</Label>
+			<Input
+				id="brand-search"
+				class="mt-1"
+				placeholder="Search brands…"
+				bind:value={brandQuery}
+			/>
+
+			{#if cart.brandFilter !== 'all' && (cart.brandFilter as string[]).length > 0}
+				<div class="mt-3 flex flex-wrap gap-2">
+					{#each cart.brandFilter as string[] as id (id)}
+						<button
+							type="button"
+							class="flex items-center gap-1 rounded-full border border-foreground bg-foreground px-3 py-1 text-sm text-background"
+							onclick={() => toggleBrand(id)}
+						>
+							{brandName(id)}
+							<span aria-hidden="true">×</span>
+						</button>
+					{/each}
+				</div>
+			{/if}
+
+			<div class="mt-3 max-h-80 overflow-auto rounded-lg border">
+				<ul class="divide-y">
+					{#each brandMatches as b (b.id)}
+						<li>
+							<button
+								type="button"
+								class="flex w-full items-center justify-between px-4 py-3 text-left text-sm transition hover:bg-muted/50"
+								onclick={() => toggleBrand(b.id)}
+							>
+								<span>{b.name}</span>
+								<span class="text-muted-foreground">
+									{brandSelected(b.id) ? '✓ Selected' : ''}
+								</span>
+							</button>
+						</li>
+					{/each}
+					{#if brandMatches.length === 0}
+						<li class="px-4 py-3 text-sm text-muted-foreground">No matching brands.</li>
+					{/if}
+				</ul>
+			</div>
+
+			<div class="mt-3">
+				<button type="button" class="text-sm underline hover:no-underline" onclick={useAllBrands}>
+					Continue with All Brands
 				</button>
-				{#each brands as b (b.id)}
-					{@const selected =
-						cart.brandFilter !== 'all' && (cart.brandFilter as string[]).includes(b.id)}
-					<button
-						type="button"
-						class="rounded-full border px-4 py-1.5 text-sm transition {selected
-							? 'border-foreground bg-foreground text-background'
-							: 'hover:border-foreground'}"
-						onclick={() => brandFilterToggle(b.id)}
-					>
-						{b.name}
-					</button>
-				{/each}
 			</div>
 		</div>
 	{/if}
 
+	<!-- ── Items step ─────────────────────────────────────────────────── -->
 	{#if stepName === 'Items'}
 		<div>
 			<div class="mb-4 flex items-center justify-between">
-				<div>
-					<div class="text-sm text-muted-foreground">
-						{cart.lines.length} item{cart.lines.length === 1 ? '' : 's'} added
-					</div>
+				<div class="text-sm text-muted-foreground">
+					{cart.items.length} product{cart.items.length === 1 ? '' : 's'}
+					{#if cart.items.some((i) => !itemIsSized(i))}
+						· <span class="text-amber-700">
+							{cart.items.filter((i) => !itemIsSized(i)).length} unsized
+						</span>
+					{/if}
 				</div>
-				<Button onclick={openAddItemsModal}>+ Add Items</Button>
+				<Button onclick={openAddItemsModal}>+ Add</Button>
 			</div>
 
-			{#if groups.length === 0}
+			{#if cart.items.length === 0}
 				<div class="rounded-lg border border-dashed p-12 text-center">
 					<div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							class="h-6 w-6 text-muted-foreground"
-						>
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-6 w-6 text-muted-foreground">
 							<circle cx="9" cy="21" r="1" />
 							<circle cx="20" cy="21" r="1" />
 							<path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
 						</svg>
 					</div>
-					<div class="text-base font-semibold">Cart is empty</div>
-					<p class="mt-1 text-sm text-muted-foreground">Click "Add Items" to start building.</p>
+					<div class="text-base font-semibold">No items yet</div>
+					<p class="mt-1 text-sm text-muted-foreground">Click Add to open the catalog.</p>
 				</div>
 			{:else}
-				<div class="space-y-4">
-					{#each groups as g (groupKey(g.brand_id, g.season_id))}
-						<div class="rounded-lg border">
-							<div class="flex items-center justify-between border-b px-4 py-3">
-								<div class="font-semibold">
-									{brandName(g.brand_id)}
-									<span class="text-muted-foreground"> · {seasonName(g.season_id)}</span>
+				<div class="space-y-3">
+					{#each cart.items as it, idx (it.product_id)}
+						<div class="rounded-lg border p-4">
+							<div class="flex items-start gap-3">
+								<div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
+									{#if it.image_id}
+										<img
+											src={`/api/products/${it.product_id}/images/${it.image_id}`}
+											alt=""
+											class="h-full w-full object-cover"
+										/>
+									{/if}
 								</div>
-								<div class="text-sm text-muted-foreground">
-									{g.lines.length} item{g.lines.length === 1 ? '' : 's'} ·
-									${g.total.toFixed(2)}
+								<div class="min-w-0 flex-1">
+									<div class="text-sm text-muted-foreground">{it.style_number}</div>
+									<div class="truncate text-base font-semibold">{it.name}</div>
+									<div class="text-sm text-muted-foreground">
+										{fmt.format(it.unit_price)} · {brandName(it.brand_id)} · {seasonName(it.season_id)}
+									</div>
+								</div>
+								<div class="shrink-0 text-right">
+									<div class="text-sm font-semibold">
+										{itemUnits(it)} unit{itemUnits(it) === 1 ? '' : 's'}
+									</div>
+									<div class="text-sm text-muted-foreground">{fmt.format(itemTotal(it))}</div>
+									<Button variant="ghost" size="sm" onclick={() => removeProduct(it.product_id)}>
+										Remove
+									</Button>
 								</div>
 							</div>
-							<ul class="divide-y">
-								{#each g.lines as l (cart.lines.indexOf(l))}
-									<li class="flex items-center justify-between px-4 py-2 text-sm">
-										<div>
-											<div class="font-medium">{l.style_number} — {l.description}</div>
-											<div class="text-muted-foreground">
-												{l.color ?? ''} {l.size ?? ''} · qty {l.qty}
-												· ${l.unit_price.toFixed(2)} ea
-											</div>
-										</div>
-										<Button
-											variant="ghost"
-											size="sm"
-											onclick={() => removeLine(cart.lines.indexOf(l))}>Remove</Button
+
+							{#if it.available_colors.length > 0}
+								<div class="mt-3 flex flex-wrap items-center gap-2">
+									<span class="text-sm text-muted-foreground">Color:</span>
+									{#each it.available_colors as color (color)}
+										<button
+											type="button"
+											class="rounded-full px-3 py-1 text-sm font-medium transition {it.selected_color ===
+											color
+												? 'bg-foreground text-background'
+												: 'bg-muted text-muted-foreground hover:text-foreground'}"
+											onclick={() => (cart.items[idx].selected_color = color)}
 										>
-									</li>
-								{/each}
-							</ul>
+											{color}
+										</button>
+									{/each}
+								</div>
+							{/if}
+
+							{#if it.available_sizes.length > 0}
+								<div class="mt-3 flex flex-wrap items-end gap-2">
+									{#each it.available_sizes as size (size)}
+										<div class="flex flex-col items-center gap-1">
+											<span class="text-sm text-muted-foreground">{size}</span>
+											<input
+												type="number"
+												min="0"
+												class="h-9 w-16 rounded border bg-background px-2 text-center text-sm"
+												value={it.size_qtys[size] ?? 0}
+												oninput={(e) => {
+													const n = parseInt((e.target as HTMLInputElement).value, 10);
+													cart.items[idx].size_qtys[size] = Number.isNaN(n) ? 0 : Math.max(0, n);
+												}}
+											/>
+										</div>
+									{/each}
+								</div>
+							{:else}
+								<div class="mt-3 flex items-center gap-2">
+									<span class="text-sm text-muted-foreground">Qty:</span>
+									<input
+										type="number"
+										min="0"
+										class="h-9 w-20 rounded border bg-background px-2 text-center text-sm"
+										value={it.size_qtys[''] ?? 0}
+										oninput={(e) => {
+											const n = parseInt((e.target as HTMLInputElement).value, 10);
+											cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
+										}}
+									/>
+								</div>
+							{/if}
 						</div>
 					{/each}
 				</div>
@@ -509,12 +708,13 @@
 		</div>
 	{/if}
 
+	<!-- ── Delivery step ──────────────────────────────────────────────── -->
 	{#if stepName === 'Delivery'}
 		<div>
 			<p class="mb-4 text-sm text-muted-foreground">
 				{groups.length === 1
 					? 'Pick the ship window for this order.'
-					: `${groups.length} orders will be created — one per brand+season group. Pick a ship window for each.`}
+					: `${groups.length} orders will be created — one per brand + season. Pick a ship window for each.`}
 			</p>
 			<div class="space-y-4">
 				{#each groups as g (groupKey(g.brand_id, g.season_id))}
@@ -526,25 +726,33 @@
 								{brandName(g.brand_id)}
 								<span class="text-muted-foreground"> · {seasonName(g.season_id)}</span>
 							</div>
-							<div class="text-sm text-muted-foreground">${g.total.toFixed(2)}</div>
+							<div class="text-sm text-muted-foreground">
+								{g.units} unit{g.units === 1 ? '' : 's'} · {fmt.format(g.total)}
+							</div>
 						</div>
 
-						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-							{#each seasonDeliveries as d (d.id)}
-								<button
-									type="button"
-									class="rounded border p-3 text-left text-sm transition {meta.delivery?.kind ===
-										'delivery' && meta.delivery.delivery_id === d.id
-										? 'border-foreground bg-muted/30'
-										: 'hover:border-foreground'}"
-									onclick={() => (meta.delivery = { kind: 'delivery', delivery_id: d.id })}
-								>
-									{deliveryLabelFor(d)}
-								</button>
-							{/each}
-						</div>
+						{#if seasonDeliveries.length > 0}
+							<div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+								{#each seasonDeliveries as d (d.id)}
+									<button
+										type="button"
+										class="rounded border p-3 text-left text-sm transition {meta.delivery?.kind ===
+											'delivery' && meta.delivery.delivery_id === d.id
+											? 'border-foreground bg-muted/30'
+											: 'hover:border-foreground'}"
+										onclick={() => (meta.delivery = { kind: 'delivery', delivery_id: d.id })}
+									>
+										{deliveryLabelFor(d)}
+									</button>
+								{/each}
+							</div>
+						{:else}
+							<p class="mb-3 text-sm text-muted-foreground">
+								No delivery slots configured for this season. Use a custom date below.
+							</p>
+						{/if}
 
-						<div class="mt-3 flex items-center gap-2">
+						<div class="flex items-center gap-2">
 							<Label for={`custom-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
 								Custom date:
 							</Label>
@@ -565,45 +773,75 @@
 		</div>
 	{/if}
 
+	<!-- ── Account step ───────────────────────────────────────────────── -->
 	{#if stepName === 'Account'}
 		<div>
-			<Label for="account-pick">Account</Label>
-			<select
-				id="account-pick"
-				class="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm"
-				value={cart.account_id ?? ''}
-				onchange={(e) => {
-					const v = (e.target as HTMLSelectElement).value;
-					cart.account_id = v || null;
-					if (cart.account_id) cart.freeform_name = null;
-				}}
-			>
-				<option value="">— Pick or use freeform below —</option>
-				{#each accounts as a (a.id)}
-					<option value={a.id}>{accountLabel(a)}</option>
-				{/each}
-			</select>
-
-			<div class="mt-6 rounded border border-dashed p-4">
-				<Label for="freeform">No matching account? Use a freeform name</Label>
+			<Label for="account-input">Account</Label>
+			<div class="relative mt-1">
 				<Input
-					id="freeform"
-					class="mt-2"
-					placeholder="e.g. Joe's Shop (new)"
-					value={cart.freeform_name ?? ''}
+					id="account-input"
+					placeholder="Type to search (e.g. “ml leddys”) or enter a new name"
+					value={accountQuery}
 					oninput={(e) => {
-						const v = (e.target as HTMLInputElement).value;
-						cart.freeform_name = v || null;
-						if (v) cart.account_id = null;
+						accountQuery = (e.target as HTMLInputElement).value;
+						accountFocus = true;
+						// Typing clears the confirmed selection so freeform can engage if user continues
+						if (cart.account_id !== null) cart.account_id = null;
+						cart.freeform_name = null;
 					}}
+					onfocus={() => (accountFocus = true)}
 				/>
-				<p class="mt-2 text-sm text-muted-foreground">
-					Freeform orders save as drafts. You'll need to add full account details before submitting.
-				</p>
+				{#if accountFocus && accountQuery.trim()}
+					<div class="absolute left-0 right-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-lg border bg-background shadow-lg">
+						<ul class="divide-y">
+							{#each accountMatches as a (a.id)}
+								<li>
+									<button
+										type="button"
+										class="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-muted/50"
+										onclick={() => pickAccount(a)}
+									>
+										<span class="font-medium">{a.business_name}</span>
+										<span class="text-muted-foreground">
+											{[a.city, a.state].filter(Boolean).join(', ')}
+										</span>
+									</button>
+								</li>
+							{/each}
+							<li>
+								<button
+									type="button"
+									class="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-amber-700 hover:bg-muted/50"
+									onclick={useFreeform}
+								>
+									<span>Use "{accountQuery.trim()}" as a freeform name</span>
+									<span class="text-muted-foreground">Save as draft</span>
+								</button>
+							</li>
+						</ul>
+					</div>
+				{/if}
 			</div>
+
+			{#if cart.account_id}
+				<div class="mt-3 flex items-center gap-2 rounded border border-foreground/30 bg-muted/30 px-3 py-2 text-sm">
+					<span class="font-semibold">{account?.business_name}</span>
+					<span class="text-muted-foreground">
+						{account ? [account.city, account.state].filter(Boolean).join(', ') : ''}
+					</span>
+					<button type="button" class="ml-auto underline" onclick={clearAccount}>Change</button>
+				</div>
+			{:else if isFreeform}
+				<div class="mt-3 flex items-center gap-2 rounded border border-amber-500/50 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+					<span class="font-semibold">{cart.freeform_name}</span>
+					<span>— freeform (will save as draft)</span>
+					<button type="button" class="ml-auto underline" onclick={clearAccount}>Change</button>
+				</div>
+			{/if}
 		</div>
 	{/if}
 
+	<!-- ── Location step ──────────────────────────────────────────────── -->
 	{#if stepName === 'Location'}
 		<div>
 			<p class="mb-4 text-sm text-muted-foreground">
@@ -639,16 +877,22 @@
 		</div>
 	{/if}
 
+	<!-- ── Details step (freeform only) ───────────────────────────────── -->
 	{#if stepName === 'Details'}
 		<div>
 			<p class="mb-4 text-sm text-muted-foreground">
-				These details will be saved as a new account when filled in. You can skip and come back later
-				— the orders will stay as drafts until this is complete.
+				These details save as a new account. You can skip and come back later — orders stay as drafts
+				until this is complete.
 			</p>
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div class="sm:col-span-2">
 					<Label for="biz">Business name</Label>
-					<Input id="biz" bind:value={cart.freeformDetails.business_name} class="mt-1" />
+					<Input
+						id="biz"
+						bind:value={cart.freeformDetails.business_name}
+						class="mt-1"
+						placeholder={cart.freeform_name ?? ''}
+					/>
 				</div>
 				<div>
 					<Label for="fn">Contact first name</Label>
@@ -686,6 +930,7 @@
 		</div>
 	{/if}
 
+	<!-- ── Review step ────────────────────────────────────────────────── -->
 	{#if stepName === 'Review'}
 		<div class="space-y-4">
 			<div class="rounded-lg border p-4">
@@ -698,9 +943,7 @@
 					{account ? account.business_name : (cart.freeform_name ?? '—')}
 				</div>
 				{#if isFreeform}
-					<div class="mt-1 text-sm text-amber-700">
-						Freeform — orders will be saved as drafts.
-					</div>
+					<div class="mt-1 text-sm text-amber-700">Freeform — orders will be saved as drafts.</div>
 				{/if}
 			</div>
 			<div class="rounded-lg border p-4">
@@ -719,8 +962,7 @@
 									{brandName(g.brand_id)} · {seasonName(g.season_id)}
 								</div>
 								<div class="text-sm text-muted-foreground">
-									{g.lines.length} item{g.lines.length === 1 ? '' : 's'} ·
-									${g.total.toFixed(2)}
+									{g.units} unit{g.units === 1 ? '' : 's'} · {fmt.format(g.total)}
 								</div>
 							</div>
 							<div class="text-sm text-muted-foreground">
@@ -738,7 +980,6 @@
 			{/if}
 
 			<form
-				bind:this={formEl}
 				method="POST"
 				action="?/submit"
 				use:enhance={() => {
@@ -771,173 +1012,243 @@
 						{cart.type === 'note' ? 'Save Note' : 'Submit Order'}
 					</Button>
 				</div>
-				{#if isFreeform}
-					<p class="mt-2 text-sm text-muted-foreground">
-						Add account details to enable submission past draft.
-					</p>
-				{/if}
 			</form>
 		</div>
 	{/if}
 
-	<!-- Step navigation -->
-	{#if stepName !== 'Review'}
-		<div class="mt-8 flex justify-between">
-			<Button variant="ghost" onclick={prevStep} disabled={currentStep === 0}>Back</Button>
+	<!-- Bottom nav: Next only (Back moved to top). Type step has no Next (click advances). -->
+	{#if stepName !== 'Review' && stepName !== 'Type'}
+		<div class="mt-8 flex justify-end">
 			<Button onclick={nextStep} disabled={!canAdvance()}>Next</Button>
-		</div>
-	{:else}
-		<div class="mt-8">
-			<Button variant="ghost" onclick={prevStep}>Back</Button>
 		</div>
 	{/if}
 </div>
 
-<!-- ── Add Items Modal ─────────────────────────────────────────────────── -->
+<!-- ── Full-screen Add Items modal ─────────────────────────────────────── -->
 {#if modalOpen}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+		class="fixed inset-0 z-50 flex flex-col bg-background"
 		role="dialog"
 		aria-modal="true"
 	>
-		<div class="flex h-[85vh] w-full max-w-5xl flex-col rounded-lg bg-background shadow-2xl">
-			<div class="flex items-center justify-between border-b px-5 py-3">
+		<!-- Top bar -->
+		<div class="flex items-center justify-between border-b px-5 py-3">
+			<div>
 				<h2 class="text-lg font-semibold">Add Items</h2>
-				<Button variant="ghost" size="sm" onclick={closeAddItemsModal}>Close</Button>
+				<p class="text-sm text-muted-foreground">
+					{cart.items.length} added · {cart.items.filter(itemIsSized).length} sized
+				</p>
 			</div>
-
-			<!-- Filters -->
-			<div class="flex flex-wrap items-center gap-3 border-b px-5 py-3">
-				<Input
-					placeholder="Search style # or name…"
-					bind:value={modalSearch}
-					oninput={onModalSearchChange}
-					class="w-64"
-				/>
-				<select
-					class="h-10 rounded-md border bg-background px-3 text-sm"
-					bind:value={modalSeason}
-					onchange={loadModalProducts}
+			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					class="rounded p-2 hover:bg-muted/50"
+					aria-label="Close"
+					onclick={closeAddItemsModal}
 				>
-					<option value={null}>All seasons</option>
-					{#each seasons as s (s.id)}
-						<option value={s.id}>{s.name}</option>
-					{/each}
-				</select>
-				<select
-					class="h-10 rounded-md border bg-background px-3 text-sm"
-					bind:value={modalBrand}
-					onchange={loadModalProducts}
-				>
-					<option value={null}>All brands</option>
-					{#each brands.filter((b) => allowedBrandIds.includes(b.id)) as b (b.id)}
-						<option value={b.id}>{b.name}</option>
-					{/each}
-				</select>
-				<Input
-					placeholder="Min $"
-					bind:value={modalMinPrice}
-					oninput={onModalSearchChange}
-					class="w-24"
-				/>
-				<Input
-					placeholder="Max $"
-					bind:value={modalMaxPrice}
-					oninput={onModalSearchChange}
-					class="w-24"
-				/>
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
+						<path d="M18 6L6 18M6 6l12 12" />
+					</svg>
+				</button>
+				<Button onclick={closeAddItemsModal}>Done</Button>
 			</div>
+		</div>
 
-			<!-- Body -->
-			<div class="flex flex-1 overflow-hidden">
-				<!-- Catalog list -->
-				<div class="w-1/2 overflow-auto border-r">
-					{#if modalLoading}
-						<div class="p-6 text-center text-sm text-muted-foreground">Loading…</div>
-					{:else if visibleProducts.length === 0}
-						<div class="p-12 text-center">
-							<div class="text-base font-semibold">No products match</div>
-							<p class="mt-1 text-sm text-muted-foreground">Adjust the filters above.</p>
-						</div>
-					{:else}
-						<ul class="divide-y">
-							{#each visibleProducts as p (p.id)}
-								<li>
-									<button
-										type="button"
-										class="w-full px-4 py-3 text-left transition hover:bg-muted/50 {modalSelectedProduct?.id ===
-										p.id
-											? 'bg-muted/50'
-											: ''}"
-										onclick={() => selectProduct(p)}
-									>
-										<div class="font-medium">{p.style_number} — {p.name}</div>
-										<div class="text-sm text-muted-foreground">
-											{brandName(p.brand_id)} · {p.season_id ? seasonName(p.season_id) : 'No season'}
-											· ${p.wholesale_price.toFixed(2)}
+		<!-- Filters -->
+		<div class="flex flex-wrap items-center gap-3 border-b px-5 py-3">
+			<Input
+				placeholder="Search style # or name…"
+				bind:value={modalSearch}
+				oninput={onModalSearchChange}
+				class="w-64"
+			/>
+			<select
+				class="h-10 rounded-md border bg-background px-3 text-sm"
+				bind:value={modalSeason}
+				onchange={loadModalProducts}
+			>
+				<option value={null}>All seasons</option>
+				{#each seasons as s (s.id)}
+					<option value={s.id}>{s.name}</option>
+				{/each}
+			</select>
+			<select
+				class="h-10 rounded-md border bg-background px-3 text-sm"
+				bind:value={modalBrand}
+				onchange={loadModalProducts}
+			>
+				<option value={null}>All brands</option>
+				{#each brands.filter((b) => allowedBrandIds.includes(b.id)) as b (b.id)}
+					<option value={b.id}>{b.name}</option>
+				{/each}
+			</select>
+			<Input placeholder="Min $" bind:value={modalMinPrice} oninput={onModalSearchChange} class="w-24" />
+			<Input placeholder="Max $" bind:value={modalMaxPrice} oninput={onModalSearchChange} class="w-24" />
+		</div>
+
+		<!-- Body: grid + optional sidebar -->
+		<div class="flex flex-1 overflow-hidden">
+			<div class="flex-1 overflow-auto p-5">
+				{#if modalLoading}
+					<div class="p-10 text-center text-sm text-muted-foreground">Loading…</div>
+				{:else if modalProducts.length === 0}
+					<div class="p-10 text-center">
+						<div class="text-base font-semibold">No products match</div>
+						<p class="mt-1 text-sm text-muted-foreground">Adjust the filters above.</p>
+					</div>
+				{:else}
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+						{#each modalProducts as p (p.id)}
+							{@const added = productInCart(p)}
+							{@const imgId = primaryImageId(p)}
+							<div class="flex flex-col rounded-lg border">
+								<div class="aspect-square overflow-hidden rounded-t-lg bg-muted">
+									{#if imgId}
+										<img
+											src={`/api/products/${p.id}/images/${imgId}`}
+											alt=""
+											class="h-full w-full object-cover"
+										/>
+									{:else}
+										<div class="flex h-full w-full items-center justify-center">
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.5"
+												class="h-10 w-10 text-muted-foreground/40"
+											>
+												<rect x="3" y="3" width="18" height="18" rx="2" />
+												<circle cx="8.5" cy="8.5" r="1.5" />
+												<path d="M21 15l-5-5L5 21" />
+											</svg>
 										</div>
-									</button>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-
-				<!-- Variant selector -->
-				<div class="w-1/2 overflow-auto p-5">
-					{#if !modalSelectedProduct}
-						<div class="flex h-full items-center justify-center text-sm text-muted-foreground">
-							Select a product to choose colors and sizes.
-						</div>
-					{:else}
-						{@const p = modalSelectedProduct}
-						<div class="mb-4">
-							<div class="text-base font-semibold">{p.style_number} — {p.name}</div>
-							<div class="text-sm text-muted-foreground">
-								{brandName(p.brand_id)} · ${p.wholesale_price.toFixed(2)}
+									{/if}
+								</div>
+								<div class="flex flex-1 flex-col gap-1 p-3">
+									<div class="text-sm text-muted-foreground">{p.style_number}</div>
+									<div class="line-clamp-2 text-sm font-semibold">{p.name}</div>
+									<div class="text-sm text-muted-foreground">
+										{brandName(p.brand_id)}{p.season_id ? ' · ' + seasonName(p.season_id) : ''}
+									</div>
+									<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
+									<div class="mt-auto flex gap-2 pt-3">
+										<Button
+											size="sm"
+											variant={added ? 'outline' : 'default'}
+											class="flex-1"
+											onclick={() => toggleProduct(p)}
+										>
+											{added ? 'Remove' : 'Add'}
+										</Button>
+										<Button
+											size="sm"
+											variant="outline"
+											disabled={!added}
+											onclick={() => openSizing(p)}
+										>
+											Size
+										</Button>
+									</div>
+								</div>
 							</div>
-						</div>
-						{#if p.product_variants.length === 0}
-							<p class="text-sm text-muted-foreground">No variants on this product.</p>
-						{:else}
-							<table class="w-full text-sm">
-								<thead>
-									<tr class="border-b text-left">
-										<th class="py-2">Color</th>
-										<th class="py-2">Size</th>
-										<th class="py-2">Price</th>
-										<th class="py-2 text-right">Qty</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each p.product_variants as v (v.id)}
-										<tr class="border-b">
-											<td class="py-2">{v.color ?? '—'}</td>
-											<td class="py-2">{v.size ?? '—'}</td>
-											<td class="py-2">${variantPrice(p, v).toFixed(2)}</td>
-											<td class="py-2 text-right">
-												<input
-													type="number"
-													min="0"
-													class="h-9 w-20 rounded border bg-background px-2 text-right text-sm"
-													value={modalQty[v.id] ?? 0}
-													oninput={(e) => {
-														const n = parseInt((e.target as HTMLInputElement).value, 10);
-														modalQty[v.id] = Number.isNaN(n) ? 0 : Math.max(0, n);
-													}}
-												/>
-											</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-							<div class="mt-4 flex justify-end">
-								<Button onclick={commitProductToCart}>Add to cart</Button>
-							</div>
-						{/if}
-					{/if}
-				</div>
+						{/each}
+					</div>
+				{/if}
 			</div>
+
+			<!-- Sizing sidebar -->
+			{#if sizingProductId}
+				{@const it = findItem(sizingProductId)}
+				{#if it}
+					<aside class="flex w-[380px] shrink-0 flex-col border-l">
+						<div class="flex items-center justify-between border-b px-4 py-3">
+							<div>
+								<div class="text-sm text-muted-foreground">{it.style_number}</div>
+								<div class="text-base font-semibold">{it.name}</div>
+							</div>
+							<button
+								type="button"
+								class="rounded p-1 hover:bg-muted/50"
+								aria-label="Close sizing"
+								onclick={() => (sizingProductId = null)}
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
+									<path d="M18 6L6 18M6 6l12 12" />
+								</svg>
+							</button>
+						</div>
+						<div class="flex-1 overflow-auto p-4">
+							{#if it.available_colors.length > 0}
+								<div class="mb-3">
+									<div class="mb-2 text-sm text-muted-foreground">Color</div>
+									<div class="flex flex-wrap gap-2">
+										{#each it.available_colors as color (color)}
+											{@const idx = cart.items.findIndex((x) => x.product_id === it.product_id)}
+											<button
+												type="button"
+												class="rounded-full px-3 py-1 text-sm font-medium transition {it.selected_color ===
+												color
+													? 'bg-foreground text-background'
+													: 'bg-muted text-muted-foreground hover:text-foreground'}"
+												onclick={() => (cart.items[idx].selected_color = color)}
+											>
+												{color}
+											</button>
+										{/each}
+									</div>
+								</div>
+							{/if}
+
+							{#if it.available_sizes.length > 0}
+								<div class="mb-2 text-sm text-muted-foreground">Sizes</div>
+								<div class="flex flex-wrap gap-3">
+									{#each it.available_sizes as size (size)}
+										{@const idx = cart.items.findIndex((x) => x.product_id === it.product_id)}
+										<div class="flex flex-col items-center gap-1">
+											<span class="text-sm text-muted-foreground">{size}</span>
+											<input
+												type="number"
+												min="0"
+												class="h-10 w-16 rounded border bg-background px-2 text-center text-sm"
+												value={it.size_qtys[size] ?? 0}
+												oninput={(e) => {
+													const n = parseInt((e.target as HTMLInputElement).value, 10);
+													cart.items[idx].size_qtys[size] = Number.isNaN(n) ? 0 : Math.max(0, n);
+												}}
+											/>
+										</div>
+									{/each}
+								</div>
+							{:else}
+								{@const idx = cart.items.findIndex((x) => x.product_id === it.product_id)}
+								<div class="flex items-center gap-2">
+									<span class="text-sm text-muted-foreground">Qty:</span>
+									<input
+										type="number"
+										min="0"
+										class="h-10 w-20 rounded border bg-background px-2 text-center text-sm"
+										value={it.size_qtys[''] ?? 0}
+										oninput={(e) => {
+											const n = parseInt((e.target as HTMLInputElement).value, 10);
+											cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
+										}}
+									/>
+								</div>
+							{/if}
+						</div>
+						<div class="border-t p-4 text-sm">
+							<div class="flex items-center justify-between">
+								<span class="text-muted-foreground">Total</span>
+								<span class="font-semibold">
+									{itemUnits(it)} units · {fmt.format(itemTotal(it))}
+								</span>
+							</div>
+						</div>
+					</aside>
+				{/if}
+			{/if}
 		</div>
 	</div>
 {/if}
