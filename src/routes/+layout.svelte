@@ -15,6 +15,7 @@
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { preferences } from '$lib/stores/preferences.js';
 
 	const { messages, loading } = conversation;
@@ -269,7 +270,7 @@
 		// Skip all other shortcuts when inside editable fields
 		if (isEditableTarget()) return;
 
-		// "/" + "k" chord ⟶ focus AI input
+		// "/" + "k" chord → focus AI input
 		if (
 			e.key === 'k' &&
 			!e.metaKey &&

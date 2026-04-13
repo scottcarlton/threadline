@@ -7,6 +7,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { Order, OrderLine, OrderStatus, BrandAsset } from '$lib/types/database.js';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { entityContext } from '$lib/stores/entityContext.js';
 
 	let { data } = $props();
@@ -469,7 +470,7 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/orders">⟵ Back</Button>
+			<Button variant="ghost" size="sm" href="/orders"><LongArrow direction="left" /> Back</Button>
 			<h1 class="font-mono text-3xl">{order.order_number}</h1>
 			{#if order.order_type === 'note'}
 				<Badge variant="outline">Note</Badge>
@@ -784,7 +785,7 @@
 							</div>
 							{#if order.shipped_amount != null}
 								<p class="text-sm text-muted-foreground">
-									Ordered: {fmt.format(Number(order.total_amount))} ⟶ Shipped: {fmt.format(
+									Ordered: {fmt.format(Number(order.total_amount))} → Shipped: {fmt.format(
 										Number(order.shipped_amount)
 									)}
 								</p>

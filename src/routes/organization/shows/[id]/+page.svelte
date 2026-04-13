@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import type { Show, ShowDate, ShowDateDocument } from '$lib/types/database.js';
 
 	type ShowWithDates = Show & { show_dates: ShowDate[] };
@@ -244,7 +245,7 @@
 <div class="mx-auto max-w-2xl space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/organization/shows">⟵ Back</Button>
+			<Button variant="ghost" size="sm" href="/organization/shows"><LongArrow direction="left" /> Back</Button>
 			<h1 class="text-2xl font-bold">{show.name}</h1>
 		</div>
 		{#if canEdit && !editing}

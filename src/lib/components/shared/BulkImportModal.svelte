@@ -1,4 +1,6 @@
 <script lang="ts">
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
+
 	type Props = {
 		open: boolean;
 		ontoggle: () => void;
@@ -300,7 +302,7 @@
 									pasteValue = '';
 								}}
 							>
-								⟵ Back
+								<LongArrow direction="left" /> Back
 							</button>
 						</div>
 

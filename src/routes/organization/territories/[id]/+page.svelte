@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -108,7 +109,7 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/organization/territories">⟵ Back</Button>
+			<Button variant="ghost" size="sm" href="/organization/territories"><LongArrow direction="left" /> Back</Button>
 			<h1 class="text-2xl font-bold">{territory.name}</h1>
 		</div>
 		{#if !editing}

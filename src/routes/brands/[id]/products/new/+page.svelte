@@ -3,6 +3,7 @@
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { Label } from '$lib/components/ui/label/index.js';
 
 	let { data } = $props();
@@ -172,7 +173,7 @@
 <div class="mx-auto max-w-5xl space-y-6">
 	<!-- Header -->
 	<div class="flex items-center gap-3">
-		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products">⟵ Products</Button>
+		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"><LongArrow direction="left" /> Products</Button>
 		<h1 class="text-3xl">New Product</h1>
 	</div>
 

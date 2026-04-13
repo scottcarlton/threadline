@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -97,7 +98,7 @@
 
 <div class="mx-auto max-w-2xl space-y-6">
 	<div class="flex items-center gap-3">
-		<Button variant="ghost" size="sm" href="/expenses">⟵ Back</Button>
+		<Button variant="ghost" size="sm" href="/expenses"><LongArrow direction="left" /> Back</Button>
 		<h1 class="text-3xl">New Expense</h1>
 	</div>
 

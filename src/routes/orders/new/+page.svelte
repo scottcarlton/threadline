@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { OrderType } from '$lib/types/database.js';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
 
 	type Brand = { id: string; name: string };
@@ -111,7 +112,7 @@
 		}
 	});
 
-	// Convert OrderItems ⟶ CartLines (one line per color/size with qty > 0) for submit
+	// Convert OrderItems → CartLines (one line per color/size with qty > 0) for submit
 	function toCartLines(items: OrderItem[]): CartLine[] {
 		const lines: CartLine[] = [];
 		for (const it of items) {
@@ -429,7 +430,7 @@
 		const state = normalize(a.state ?? '');
 		if (name.startsWith(q)) return 100;
 		if (name.includes(q)) return 80;
-		// Token prefix match ("ml leddys" ⟶ "mlleddys" ⟶ starts with q stripped? Handled by normalize above.)
+		// Token prefix match ("ml leddys" → "mlleddys" → starts with q stripped? Handled by normalize above.)
 		// Token initial match: e.g. "ml" matches "M.L. Leddy's"
 		const tokens = a.business_name.toLowerCase().split(/\s+/);
 		const initials = tokens.map((t) => t.replace(/[^a-z0-9]/g, '').charAt(0)).join('');
@@ -485,7 +486,7 @@
 	<!-- Top nav: Back (left) + Cancel (right) -->
 	<div class="mb-4 flex items-center justify-between">
 		{#if currentStep > 0}
-			<Button variant="ghost" size="sm" onclick={prevStep}>⟵ Back</Button>
+			<Button variant="ghost" size="sm" onclick={prevStep}><LongArrow direction="left" /> Back</Button>
 		{:else}
 			<span></span>
 		{/if}
@@ -519,7 +520,7 @@
 			>
 				<div class="text-lg font-semibold">Order</div>
 				<p class="mt-2 text-sm text-muted-foreground">
-					Standard wholesale order with full lifecycle (draft ⟶ submitted ⟶ confirmed ⟶ shipped).
+					Standard wholesale order with full lifecycle (draft → submitted → confirmed → shipped).
 				</p>
 			</button>
 			<button
@@ -590,7 +591,7 @@
 					onclick={useAllBrands}
 				>
 					Continue with All Brands
-					<span aria-hidden="true">⟶</span>
+					<LongArrow direction="right" class="h-3 w-5" />
 				</button>
 			</div>
 		</div>
@@ -649,7 +650,12 @@
 										{itemUnits(it)} unit{itemUnits(it) === 1 ? '' : 's'}
 									</div>
 									<div class="text-sm text-muted-foreground">{fmt.format(itemTotal(it))}</div>
-									<Button variant="ghost" size="sm" onclick={() => removeProduct(it.product_id)}>
+									<Button
+										variant="outline"
+										size="sm"
+										class="border-red-500/60 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30"
+										onclick={() => removeProduct(it.product_id)}
+									>
 										Remove
 									</Button>
 								</div>
@@ -1077,16 +1083,18 @@
 					<option value={s.id}>{s.name}</option>
 				{/each}
 			</select>
-			<select
-				class="h-10 rounded-md border bg-background px-3 text-sm"
-				bind:value={modalBrand}
-				onchange={loadModalProducts}
-			>
-				<option value={null}>All brands</option>
-				{#each brands.filter((b) => allowedBrandIds.includes(b.id)) as b (b.id)}
-					<option value={b.id}>{b.name}</option>
-				{/each}
-			</select>
+			{#if allowedBrandIds.length > 1}
+				<select
+					class="h-10 rounded-md border bg-background px-3 text-sm"
+					bind:value={modalBrand}
+					onchange={loadModalProducts}
+				>
+					<option value={null}>All brands</option>
+					{#each brands.filter((b) => allowedBrandIds.includes(b.id)) as b (b.id)}
+						<option value={b.id}>{b.name}</option>
+					{/each}
+				</select>
+			{/if}
 			<Input placeholder="Min $" bind:value={modalMinPrice} oninput={onModalSearchChange} class="w-24" />
 			<Input placeholder="Max $" bind:value={modalMaxPrice} oninput={onModalSearchChange} class="w-24" />
 		</div>
@@ -1106,7 +1114,11 @@
 						{#each modalProducts as p (p.id)}
 							{@const added = productInCart(p)}
 							{@const imgId = primaryImageId(p)}
-							<div class="flex flex-col rounded-lg border">
+							<div
+								class="flex flex-col rounded-lg border-2 transition {added
+									? 'border-foreground'
+									: 'border-border'}"
+							>
 								<div class="aspect-square overflow-hidden rounded-t-lg bg-muted">
 									{#if imgId}
 										<img
@@ -1142,6 +1154,9 @@
 										<Button
 											size="sm"
 											variant={added ? 'outline' : 'default'}
+											class={added
+												? 'border-red-500/60 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30'
+												: ''}
 											onclick={() => toggleProduct(p)}
 										>
 											{added ? 'Remove' : 'Add'}

@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import type { Product } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -197,7 +198,7 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/brands/{brand.id}">⟵ {brand.name}</Button>
+			<Button variant="ghost" size="sm" href="/brands/{brand.id}"><LongArrow direction="left" /> {brand.name}</Button>
 			<h1 class="text-3xl">Products</h1>
 			<span class="text-sm text-muted-foreground"
 				>{filtered.length} product{filtered.length !== 1 ? 's' : ''}</span
