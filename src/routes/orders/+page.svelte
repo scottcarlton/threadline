@@ -218,7 +218,6 @@
 
 	<!-- Type filter -->
 	<div class="flex flex-wrap items-center gap-2">
-		<span class="text-sm text-muted-foreground">Type:</span>
 		{#each ['all', 'order', 'note'] as t}
 			<button
 				class="rounded-full border px-3 py-1 text-sm transition {activeType === t
