@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
 
 	let { data } = $props();
@@ -29,7 +30,7 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/reports">← Reports</Button>
+			<Button variant="ghost" size="sm" href="/reports"><LongArrow direction="left" /> Reports</Button>
 			<h1 class="text-3xl">{title}</h1>
 		</div>
 		<div class="flex items-center gap-2">

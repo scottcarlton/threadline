@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -20,6 +21,9 @@
 		data.product as Product & { product_variants: ProductVariant[]; product_images: ProductImage[] }
 	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
+	const primaryImage = $derived(
+		product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]
+	);
 	const canEdit = $derived(data.membership?.role !== 'guest');
 	const velocity = $derived(
 		data.velocity as {
@@ -50,6 +54,7 @@
 	let editCategory = $state('');
 	let editSubcategory = $state('');
 	let editSeasonId = $state('');
+	let editProductYear = $state<number>(new Date().getFullYear());
 	let saveError = $state('');
 	let saving = $state(false);
 
@@ -62,6 +67,7 @@
 		editCategory = product.category ?? '';
 		editSubcategory = product.subcategory ?? '';
 		editSeasonId = product.season_id ?? '';
+		editProductYear = product.product_year ?? new Date().getFullYear();
 		editing = true;
 	}
 
@@ -79,6 +85,7 @@
 				category: editCategory || null,
 				subcategory: editSubcategory || null,
 				season_id: editSeasonId || null,
+				product_year: editProductYear || null,
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', product.id);
@@ -201,16 +208,12 @@
 	}
 </script>
 
-<div class="mx-auto max-w-2xl space-y-6">
+<div class="mx-auto max-w-7xl space-y-6">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/brands/{brand.id}/products">← Products</Button>
-			<h1 class="text-2xl font-bold">{product.style_number}</h1>
-			<Badge variant={product.archived_at ? 'destructive' : 'success'}>
-				{product.archived_at ? 'Archived' : 'Active'}
-			</Badge>
-		</div>
+		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"
+			><LongArrow direction="left" /> Products</Button
+		>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				<Button variant="outline" size="sm" onclick={toggleArchive}>
@@ -219,6 +222,64 @@
 				<Button size="sm" onclick={startEdit}>Edit</Button>
 			</div>
 		{/if}
+	</div>
+
+	<div class="grid gap-6 lg:grid-cols-[420px_1fr]">
+		<!-- Left: primary image -->
+		<div class="aspect-square w-full overflow-hidden rounded-lg border bg-muted lg:sticky lg:top-6 lg:self-start">
+			{#if primaryImage}
+				<img
+					src={`/api/products/${product.id}/images/${primaryImage.id}`}
+					alt={product.name}
+					class="h-full w-full object-cover"
+				/>
+			{:else}
+				<div class="flex h-full w-full items-center justify-center text-muted-foreground">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						class="h-16 w-16 opacity-40"
+					>
+						<rect x="3" y="3" width="18" height="18" rx="2" />
+						<circle cx="8.5" cy="8.5" r="1.5" />
+						<path d="M21 15l-5-5L5 21" />
+					</svg>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Right: details column -->
+		<div class="space-y-6 min-w-0">
+
+	<!-- Name + price banner -->
+	<div class="flex items-center justify-between gap-4">
+		<div>
+			<div class="mb-1 flex items-center gap-2">
+				<span class="font-mono text-sm text-muted-foreground">{product.style_number}</span>
+				<Badge variant={product.archived_at ? 'destructive' : 'success'}>
+					{product.archived_at ? 'Archived' : 'Active'}
+				</Badge>
+			</div>
+			<h2 class="text-xl font-semibold">{product.name}</h2>
+			{#if product.season_id || product.product_year || product.category}
+				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+				{@const seasonYear = [seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+				<div class="mt-1 flex items-center gap-2">
+					{#if seasonYear}
+						<span class="text-sm text-muted-foreground">{seasonYear}</span>
+					{/if}
+					{#if product.category}
+						<Badge variant="secondary"
+							>{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}</Badge
+						>
+					{/if}
+				</div>
+			{/if}
+		</div>
+		<div class="text-xl font-semibold">{fmt.format(Number(product.wholesale_price))}</div>
 	</div>
 
 	<!-- Style Velocity -->
@@ -281,6 +342,7 @@
 	{/if}
 
 	<!-- Product Details -->
+	{#if editing || product.retail_price || product.description}
 	<Card>
 		<CardContent class="pt-6">
 			{#if saveError}
@@ -308,7 +370,7 @@
 							<Input id="name" bind:value={editName} required />
 						</div>
 					</div>
-					<div class="grid gap-4 sm:grid-cols-4">
+					<div class="grid gap-4 sm:grid-cols-3">
 						<div class="space-y-2">
 							<Label for="wholesale">Wholesale</Label>
 							<Input id="wholesale" type="number" step="0.01" bind:value={editWholesale} />
@@ -321,7 +383,7 @@
 							<Label for="category">Category</Label>
 							<Input id="category" bind:value={editCategory} />
 						</div>
-						<div class="space-y-2">
+						<div class="space-y-2 sm:col-span-2">
 							<Label for="season">Season</Label>
 							<select
 								id="season"
@@ -333,6 +395,16 @@
 									<option value={season.id}>{season.name}</option>
 								{/each}
 							</select>
+						</div>
+						<div class="space-y-2">
+							<Label for="productYear">Year</Label>
+							<Input
+								id="productYear"
+								type="number"
+								min="2000"
+								max="2100"
+								bind:value={editProductYear}
+							/>
 						</div>
 					</div>
 					<div class="space-y-2">
@@ -347,24 +419,10 @@
 				</form>
 			{:else}
 				<dl class="space-y-3 text-sm">
-					<div class="flex justify-between">
-						<dt class="text-muted-foreground">Name</dt>
-						<dd class="font-medium">{product.name}</dd>
-					</div>
-					<div class="flex justify-between">
-						<dt class="text-muted-foreground">Wholesale</dt>
-						<dd class="font-medium">{fmt.format(Number(product.wholesale_price))}</dd>
-					</div>
 					{#if product.retail_price}
 						<div class="flex justify-between">
 							<dt class="text-muted-foreground">Retail</dt>
 							<dd>{fmt.format(Number(product.retail_price))}</dd>
-						</div>
-					{/if}
-					{#if product.category}
-						<div class="flex justify-between">
-							<dt class="text-muted-foreground">Category</dt>
-							<dd>{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}</dd>
 						</div>
 					{/if}
 					{#if product.description}
@@ -385,6 +443,7 @@
 			</CardFooter>
 		{/if}
 	</Card>
+	{/if}
 
 	<!-- Variants -->
 	<Card>
@@ -603,4 +662,6 @@
 			{/if}
 		</CardContent>
 	</Card>
+		</div>
+	</div>
 </div>

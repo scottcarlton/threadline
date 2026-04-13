@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
 
 	let { data } = $props();
@@ -59,7 +60,7 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/organization/contacts">← Back</Button>
+			<Button variant="ghost" size="sm" href="/organization/contacts"><LongArrow direction="left" /> Back</Button>
 			<div
 				class="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-semibold"
 			>

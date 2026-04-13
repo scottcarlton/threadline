@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import type { Product } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -197,7 +198,7 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/brands/{brand.id}">← {brand.name}</Button>
+			<Button variant="ghost" size="sm" href="/brands/{brand.id}"><LongArrow direction="left" /> {brand.name}</Button>
 			<h1 class="text-3xl">Products</h1>
 			<span class="text-sm text-muted-foreground"
 				>{filtered.length} product{filtered.length !== 1 ? 's' : ''}</span
@@ -375,6 +376,12 @@
 					<div class="p-4">
 						<p class="text-xs text-muted-foreground">{product.style_number}</p>
 						<p class="mt-0.5 text-sm font-medium">{product.name}</p>
+						{#if product.season_id || product.product_year}
+							{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+							<p class="mt-0.5 text-sm text-muted-foreground">
+								{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+							</p>
+						{/if}
 						<div class="mt-2 flex items-center justify-between">
 							<span class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</span>
 							<span class="text-xs text-muted-foreground"
