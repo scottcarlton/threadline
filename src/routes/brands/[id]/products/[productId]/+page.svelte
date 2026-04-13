@@ -337,7 +337,7 @@
 							<Input id="name" bind:value={editName} required />
 						</div>
 					</div>
-					<div class="grid gap-4 sm:grid-cols-4">
+					<div class="grid gap-4 sm:grid-cols-3">
 						<div class="space-y-2">
 							<Label for="wholesale">Wholesale</Label>
 							<Input id="wholesale" type="number" step="0.01" bind:value={editWholesale} />
@@ -350,7 +350,7 @@
 							<Label for="category">Category</Label>
 							<Input id="category" bind:value={editCategory} />
 						</div>
-						<div class="space-y-2">
+						<div class="space-y-2 sm:col-span-2">
 							<Label for="season">Season</Label>
 							<select
 								id="season"
