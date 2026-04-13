@@ -28,19 +28,23 @@
 
 		if (reduced) return;
 
-		document.querySelectorAll('.h-reveal').forEach((el, i) => {
+		document.querySelectorAll<HTMLElement>('.h-reveal').forEach((el, i) => {
 			animate(
 				el,
-				{ opacity: [0, 1], y: [60, 0] },
-				{ duration: 0.9, delay: 0.1 + i * 0.12, easing: ease }
+				{ opacity: [0, 1], y: [60, 0] } as Parameters<typeof animate>[1],
+				{ duration: 0.9, delay: 0.1 + i * 0.12, ease }
 			);
 		});
 
-		document.querySelectorAll('.reveal').forEach((el) => {
+		document.querySelectorAll<HTMLElement>('.reveal').forEach((el) => {
 			inView(
 				el,
 				() => {
-					animate(el, { opacity: [0, 1], y: [40, 0] }, { duration: 0.8, easing: ease });
+					animate(
+						el,
+						{ opacity: [0, 1], y: [40, 0] } as Parameters<typeof animate>[1],
+						{ duration: 0.8, ease }
+					);
 				},
 				{ amount: 0.15 }
 			);
@@ -50,11 +54,11 @@
 			inView(
 				p,
 				() => {
-					p.querySelectorAll('[data-s]').forEach((c, i) => {
+					p.querySelectorAll<HTMLElement>('[data-s]').forEach((c, i) => {
 						animate(
 							c,
-							{ opacity: [0, 1], y: [30, 0] },
-							{ duration: 0.6, delay: i * 0.08, easing: ease }
+							{ opacity: [0, 1], y: [30, 0] } as Parameters<typeof animate>[1],
+							{ duration: 0.6, delay: i * 0.08, ease }
 						);
 					});
 				},
@@ -73,7 +77,7 @@
 						(v: number) => {
 							el.textContent = p + Math.round(v * t) + s;
 						},
-						{ duration: 2, easing: ease }
+						{ duration: 2, ease }
 					);
 				});
 			},
