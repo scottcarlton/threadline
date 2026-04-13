@@ -1196,7 +1196,7 @@
 					<option value={s.id}>{s.name}</option>
 				{/each}
 			</select>
-			{#if allowedBrandIds.length > 1}
+			{#if cart.brandFilter === 'all' || (cart.brandFilter as string[]).length > 1}
 				<select
 					class="h-10 rounded-md border bg-background px-3 text-sm"
 					bind:value={modalBrand}
