@@ -841,10 +841,13 @@
 							<li>
 								<button
 									type="button"
-									class="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-amber-700 hover:bg-muted/50"
+									class="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-normal text-foreground hover:bg-muted/50"
 									onclick={useFreeform}
 								>
-									<span>Add "{accountQuery.trim()}" as new account</span>
+									<span class="flex items-center gap-2">
+										<span aria-hidden="true">+</span>
+										<span>Add "{accountQuery.trim()}" as new account</span>
+									</span>
 									<span class="text-muted-foreground">New Account</span>
 								</button>
 							</li>
