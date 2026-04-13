@@ -13,9 +13,7 @@ type MockResponse = { data?: unknown; error?: { message: string } | null };
  *     accounts: { data: [{ id: 'a1', created_at: '2024-01-01' }] }
  *   });
  */
-export function createMockSupabase(
-	responses: Record<string, MockResponse> = {}
-): SupabaseClient {
+export function createMockSupabase(responses: Record<string, MockResponse> = {}): SupabaseClient {
 	const chainable = (tableName: string) => {
 		const response = responses[tableName] ?? { data: null, error: null };
 

@@ -6,10 +6,18 @@
 	const navItems = $derived([
 		{ label: 'Profile', href: '/organization' },
 		{ label: 'Members', href: '/organization/members', badge: (data.teamCount as number) ?? 0 },
-		{ label: 'Contacts', href: '/organization/contacts', badge: (data.contactsCount as number) ?? 0 },
+		{
+			label: 'Contacts',
+			href: '/organization/contacts',
+			badge: (data.contactsCount as number) ?? 0
+		},
 		{ label: 'Shows', href: '/organization/shows', badge: (data.showsCount as number) ?? 0 },
 		{ label: 'Seasons', href: '/organization/seasons' },
-		{ label: 'Territories', href: '/organization/territories', badge: (data.territoriesCount as number) ?? 0 },
+		{
+			label: 'Territories',
+			href: '/organization/territories',
+			badge: (data.territoriesCount as number) ?? 0
+		},
 		{ label: 'Billing', href: '/organization/billing' },
 		{ label: 'Agents', href: '/organization/agents' },
 		{ label: 'Integrations', href: '/organization/integrations' },
@@ -24,7 +32,11 @@
 	}
 
 	// Hide org sidebar on detail pages (e.g., /organization/team/[id])
-	const detailPaths = ['/organization/shows/', '/organization/contacts/', '/organization/territories/'];
+	const detailPaths = [
+		'/organization/shows/',
+		'/organization/contacts/',
+		'/organization/territories/'
+	];
 	const isDetailView = $derived(
 		detailPaths.some((p) => {
 			const after = $page.url.pathname.slice(p.length);
@@ -39,11 +51,13 @@
 	<div class="space-y-6">
 		<div>
 			<h1 class="text-3xl">Organization</h1>
-			<p class="mt-1 text-sm font-mono text-muted-foreground">Manage your business, team, and catalog</p>
+			<p class="mt-1 font-mono text-sm text-muted-foreground">
+				Manage your business, team, and catalog
+			</p>
 		</div>
 
 		<div class="flex gap-8">
-			<nav class="w-48 shrink-0 self-start sticky top-0">
+			<nav class="sticky top-0 w-48 shrink-0 self-start">
 				<ul class="space-y-0.5">
 					{#each navItems as item}
 						<li>
@@ -58,7 +72,10 @@
 							>
 								{item.label}
 								{#if item.badge}
-									<span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-100 px-1.5 text-[11px] font-medium text-zinc-600">{item.badge}</span>
+									<span
+										class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-100 px-1.5 text-[11px] font-medium text-zinc-600"
+										>{item.badge}</span
+									>
 								{/if}
 							</a>
 						</li>

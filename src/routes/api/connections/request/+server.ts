@@ -5,7 +5,8 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { session, supabase, organization, orgType, membership } = locals;
 	if (!session || !organization) return json({ error: 'Unauthorized' }, { status: 401 });
-	if (orgType !== 'rep') return json({ error: 'Only rep orgs can request connections' }, { status: 403 });
+	if (orgType !== 'rep')
+		return json({ error: 'Only rep orgs can request connections' }, { status: 403 });
 	if (!membership || !['admin', 'owner'].includes(membership.role)) {
 		return json({ error: 'Admin or owner required' }, { status: 403 });
 	}
@@ -21,8 +22,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.single();
 
 	if (!invite) return json({ error: 'Invalid invite code' }, { status: 404 });
-	if (new Date(invite.expires_at) < new Date()) return json({ error: 'Invite code has expired' }, { status: 410 });
-	if (invite.max_uses > 0 && invite.use_count >= invite.max_uses) return json({ error: 'Invite code has reached max uses' }, { status: 410 });
+	if (new Date(invite.expires_at) < new Date())
+		return json({ error: 'Invite code has expired' }, { status: 410 });
+	if (invite.max_uses > 0 && invite.use_count >= invite.max_uses)
+		return json({ error: 'Invite code has reached max uses' }, { status: 410 });
 
 	// Check if connection already exists
 	const { data: existing } = await supabaseAdmin
@@ -33,8 +36,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.single();
 
 	if (existing) {
-		if (existing.status === 'active') return json({ error: 'Already connected to this brand' }, { status: 409 });
-		if (existing.status === 'pending') return json({ error: 'Connection request already pending' }, { status: 409 });
+		if (existing.status === 'active')
+			return json({ error: 'Already connected to this brand' }, { status: 409 });
+		if (existing.status === 'pending')
+			return json({ error: 'Connection request already pending' }, { status: 409 });
 	}
 
 	// Create the connection request

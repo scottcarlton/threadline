@@ -2,7 +2,11 @@ import * as Sentry from '@sentry/sveltekit';
 import { createServerClient } from '@supabase/ssr';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SENTRY_DSN } from '$env/static/public';
+import {
+	PUBLIC_SUPABASE_URL,
+	PUBLIC_SUPABASE_ANON_KEY,
+	PUBLIC_SENTRY_DSN
+} from '$env/static/public';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import type { OrgType } from '$lib/types/database.js';
 
@@ -11,7 +15,18 @@ Sentry.init({
 	tracesSampleRate: 0.1
 });
 
-const PUBLIC_ROUTES = ['/login', '/signup', '/invite', '/buyer-invite', '/auth/callback', '/upload', '/features', '/intelligence', '/solutions', '/pricing'];
+const PUBLIC_ROUTES = [
+	'/login',
+	'/signup',
+	'/invite',
+	'/buyer-invite',
+	'/auth/callback',
+	'/upload',
+	'/features',
+	'/intelligence',
+	'/solutions',
+	'/pricing'
+];
 
 const authHandle: Handle = async ({ event, resolve }) => {
 	const supabase = createServerClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
@@ -62,7 +77,10 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	}
 
 	// Redirect authenticated users away from login/signup
-	if (session && (event.url.pathname.startsWith('/login') || event.url.pathname.startsWith('/signup'))) {
+	if (
+		session &&
+		(event.url.pathname.startsWith('/login') || event.url.pathname.startsWith('/signup'))
+	) {
 		throw redirect(303, '/insight');
 	}
 
@@ -79,7 +97,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 			// Determine active org from cookie, fallback to first membership
 			const activeOrgId = event.cookies.get('active_org_id');
 			const membership = activeOrgId
-				? allMemberships.find((m: any) => m.organization_id === activeOrgId) ?? allMemberships[0]
+				? (allMemberships.find((m: any) => m.organization_id === activeOrgId) ?? allMemberships[0])
 				: allMemberships[0];
 
 			// Org member path
@@ -117,7 +135,8 @@ const authHandle: Handle = async ({ event, resolve }) => {
 						.single();
 
 					if (ssoProvider) {
-						const isSsoSession = user.app_metadata?.provider === 'sso' ||
+						const isSsoSession =
+							user.app_metadata?.provider === 'sso' ||
 							user.identities?.some((i: any) => i.provider === 'sso');
 						if (!isSsoSession) {
 							await supabase.auth.signOut();
@@ -159,7 +178,10 @@ const authHandle: Handle = async ({ event, resolve }) => {
 			} else {
 				// No org membership and not a buyer — redirect to onboarding
 				event.locals.user = profile;
-				if (!event.url.pathname.startsWith('/onboarding') && !event.url.pathname.startsWith('/api/')) {
+				if (
+					!event.url.pathname.startsWith('/onboarding') &&
+					!event.url.pathname.startsWith('/api/')
+				) {
 					throw redirect(303, '/onboarding');
 				}
 			}

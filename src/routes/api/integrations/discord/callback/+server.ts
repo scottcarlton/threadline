@@ -46,7 +46,13 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				guild_id: tokens.guildId,
 				guild_name: tokens.guildName,
 				channel_id: tokens.channelId,
-				notify_on: ['order_submitted', 'order_confirmed', 'order_shipped', 'order_cancelled', 'new_account']
+				notify_on: [
+					'order_submitted',
+					'order_confirmed',
+					'order_shipped',
+					'order_cancelled',
+					'new_account'
+				]
 			},
 			connected_by: locals.user.id,
 			updated_at: new Date().toISOString()

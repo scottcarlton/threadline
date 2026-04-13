@@ -4,7 +4,13 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardContent,
+		CardFooter
+	} from '$lib/components/ui/card/index.js';
 
 	let { data } = $props();
 
@@ -17,7 +23,10 @@
 	let slugEdited = $state(false);
 
 	function generateSlug(text: string): string {
-		return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+		return text
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/(^-|-$)/g, '');
 	}
 
 	function handleNameChange() {
@@ -58,7 +67,9 @@
 		loading = false;
 
 		if (err) {
-			error = err.message.includes('unique') ? 'An agent with that slug already exists.' : err.message;
+			error = err.message.includes('unique')
+				? 'An agent with that slug already exists.'
+				: err.message;
 		} else if (agent) {
 			goto(`/organization/agents/${agent.id}`);
 		}
@@ -82,7 +93,12 @@
 
 			<div class="space-y-2">
 				<Label for="name">Name *</Label>
-				<Input id="name" bind:value={name} oninput={handleNameChange} placeholder="e.g. Reorder Bot" />
+				<Input
+					id="name"
+					bind:value={name}
+					oninput={handleNameChange}
+					placeholder="e.g. Reorder Bot"
+				/>
 			</div>
 
 			<div class="space-y-2">
@@ -91,7 +107,9 @@
 					<span class="text-sm text-muted-foreground">@</span>
 					<Input id="slug" bind:value={slug} oninput={handleSlugInput} placeholder="reorder-bot" />
 				</div>
-				<p class="text-sm text-muted-foreground">Used to invoke the agent from chat with @{slug || 'slug'}</p>
+				<p class="text-sm text-muted-foreground">
+					Used to invoke the agent from chat with @{slug || 'slug'}
+				</p>
 			</div>
 
 			<div class="space-y-2">
@@ -106,9 +124,12 @@
 					bind:value={systemPrompt}
 					rows="8"
 					placeholder="Tell the agent who it is, what it should focus on, and how it should respond. For example:&#10;&#10;You are a reorder specialist. Analyze account ordering patterns and proactively identify accounts that should be placing reorders based on their historical buying frequency."
-					class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+					class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 				></textarea>
-				<p class="text-sm text-muted-foreground">This prompt is injected as additional context when the agent runs. It has access to all standard AI tools.</p>
+				<p class="text-sm text-muted-foreground">
+					This prompt is injected as additional context when the agent runs. It has access to all
+					standard AI tools.
+				</p>
 			</div>
 		</CardContent>
 		<CardFooter class="justify-between">

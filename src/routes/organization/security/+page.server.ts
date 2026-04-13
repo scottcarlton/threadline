@@ -10,11 +10,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.select('*')
 			.eq('organization_id', orgId)
 			.order('created_at', { ascending: true }),
-		supabaseAdmin
-			.from('organizations')
-			.select('sso_enforced')
-			.eq('id', orgId)
-			.single()
+		supabaseAdmin.from('organizations').select('sso_enforced').eq('id', orgId).single()
 	]);
 
 	return {

@@ -33,9 +33,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	}
 
 	// Check if user is a brand member scoped to this expense's brand
-	const isBrandReviewer = locals.brandScope !== null
-		&& locals.brandScope.includes(expenseResult.data.brand_id)
-		&& (locals.membership?.role === 'member' || locals.membership?.role === 'sales');
+	const isBrandReviewer =
+		locals.brandScope !== null &&
+		locals.brandScope.includes(expenseResult.data.brand_id) &&
+		(locals.membership?.role === 'member' || locals.membership?.role === 'sales');
 
 	return {
 		expense: expenseResult.data,

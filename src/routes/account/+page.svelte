@@ -17,7 +17,10 @@
 				<dl class="grid gap-4 sm:grid-cols-2">
 					<div>
 						<dt class="text-sm font-medium text-muted-foreground">Contact</dt>
-						<dd class="mt-1 text-base">{[account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') || '—'}</dd>
+						<dd class="mt-1 text-base">
+							{[account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') ||
+								'—'}
+						</dd>
 					</div>
 					<div>
 						<dt class="text-sm font-medium text-muted-foreground">Email</dt>
@@ -40,7 +43,11 @@
 							{#if account.address_line1}<p>{account.address_line1}</p>{/if}
 							{#if account.address_line2}<p>{account.address_line2}</p>{/if}
 							{#if account.city || account.state || account.zip}
-								<p>{[account.city, account.state].filter(Boolean).join(', ')}{account.zip ? ` ${account.zip}` : ''}</p>
+								<p>
+									{[account.city, account.state].filter(Boolean).join(', ')}{account.zip
+										? ` ${account.zip}`
+										: ''}
+								</p>
 							{/if}
 						</dd>
 					</div>

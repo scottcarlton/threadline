@@ -19,10 +19,12 @@
 		{ key: 'address_line1', label: 'Address' },
 		{ key: 'city', label: 'City' },
 		{ key: 'state', label: 'State' },
-		{ key: 'zip', label: 'ZIP' },
+		{ key: 'zip', label: 'ZIP' }
 	];
 
-	async function handleAccountImport(rows: Record<string, string>[]): Promise<{ success: number; errors: string[] }> {
+	async function handleAccountImport(
+		rows: Record<string, string>[]
+	): Promise<{ success: number; errors: string[] }> {
 		let success = 0;
 		const errors: string[] = [];
 
@@ -42,7 +44,7 @@
 				address_line1: row.address_line1?.trim() || null,
 				city: row.city?.trim() || null,
 				state: row.state?.trim() || null,
-				zip: row.zip?.trim() || null,
+				zip: row.zip?.trim() || null
 			});
 			if (error) {
 				errors.push(`Row ${i + 1} (${row.business_name}): ${error.message}`);
@@ -59,7 +61,9 @@
 	const accounts = $derived(data.accounts as Account[]);
 	const accountTotals = $derived((data.accountTotals ?? {}) as Record<string, number>);
 	const accountHealth = $derived((data.accountHealth ?? {}) as Record<string, AccountHealth>);
-	const accountTags = $derived((data.accountTags ?? {}) as Record<string, { id: string; name: string; color: string }[]>);
+	const accountTags = $derived(
+		(data.accountTags ?? {}) as Record<string, { id: string; name: string; color: string }[]>
+	);
 	const canEdit = $derived(data.membership?.role !== 'guest');
 
 	const tagColorMap: Record<string, string> = {
@@ -77,11 +81,16 @@
 		fair: { class: 'bg-amber-50 text-amber-700', label: 'Fair' },
 		at_risk: { class: 'bg-red-50 text-red-700', label: 'At Risk' },
 		inactive: { class: 'bg-zinc-100 text-zinc-500', label: 'Inactive' },
-		new: { class: 'bg-violet-50 text-violet-700', label: 'New' },
+		new: { class: 'bg-violet-50 text-violet-700', label: 'New' }
 	};
 
 	function fmt(value: number): string {
-		return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+		return new Intl.NumberFormat('en-US', {
+			style: 'currency',
+			currency: 'USD',
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 0
+		}).format(value);
 	}
 
 	let search = $state('');
@@ -89,7 +98,8 @@
 
 	const filtered = $derived(
 		accounts.filter((a) => {
-			const matchesSearch = a.business_name.toLowerCase().includes(search.toLowerCase()) ||
+			const matchesSearch =
+				a.business_name.toLowerCase().includes(search.toLowerCase()) ||
 				(a.contact_first_name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
 				(a.contact_last_name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
 				(a.city?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
@@ -133,7 +143,7 @@
 	<div class="flex items-center justify-between">
 		<div>
 			<h1 class="text-3xl">Accounts</h1>
-			<p class="mt-1 text-sm font-mono text-muted-foreground">Manage buyer accounts</p>
+			<p class="mt-1 font-mono text-sm text-muted-foreground">Manage buyer accounts</p>
 		</div>
 		<div class="flex items-center gap-2">
 			{#if filtered.length > 0}
@@ -142,7 +152,15 @@
 			{#if canEdit}
 				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
 				<Button href="/accounts/new">
-					<svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="-ml-1 h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+					>
 					Add Account
 				</Button>
 			{/if}
@@ -155,7 +173,7 @@
 		</div>
 		{#if archivedCount > 0}
 			<button
-				class="text-sm text-muted-foreground hover:text-foreground transition-colors"
+				class="text-sm text-muted-foreground transition-colors hover:text-foreground"
 				onclick={() => (showArchived = !showArchived)}
 			>
 				{showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
@@ -169,11 +187,24 @@
 				<p class="text-lg font-semibold">No accounts match your search</p>
 				<p class="mt-2 text-sm text-muted-foreground">Try adjusting your search terms</p>
 			{:else}
-				<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="0.4">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-1.997M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="mx-auto h-16 w-16 text-foreground"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="0.4"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-1.997M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
+					/>
 				</svg>
 				<p class="mt-4 text-lg font-semibold">Your accounts live here</p>
-				<p class="mt-2 text-sm text-muted-foreground">Add your first buyer account to start building relationships</p>
+				<p class="mt-2 text-sm text-muted-foreground">
+					Add your first buyer account to start building relationships
+				</p>
 			{/if}
 		</div>
 	{:else}
@@ -181,44 +212,81 @@
 			<table class="w-full">
 				<thead>
 					<tr class="border-b bg-muted/40">
-						<th class="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Account</th>
-						<th class="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Contact</th>
-						<th class="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Territory</th>
-						<th class="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Health</th>
-						<th class="px-4 py-2.5 text-right text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">YTD Total</th>
+						<th
+							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Account</th
+						>
+						<th
+							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Contact</th
+						>
+						<th
+							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Territory</th
+						>
+						<th
+							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Health</th
+						>
+						<th
+							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>YTD Total</th
+						>
 					</tr>
 				</thead>
 				<tbody class="divide-y">
 					{#each filtered as account}
-						<tr class="transition-colors hover:bg-muted/30 {account.archived_at ? 'opacity-50' : ''}">
+						<tr
+							class="transition-colors hover:bg-muted/30 {account.archived_at ? 'opacity-50' : ''}"
+						>
 							<td class="px-4 py-3">
-								<a href="/accounts/{account.id}" class="text-base hover:underline">{account.business_name}</a>
-								<div class="flex items-center gap-1.5 mt-0.5">
+								<a href="/accounts/{account.id}" class="text-base hover:underline"
+									>{account.business_name}</a
+								>
+								<div class="mt-0.5 flex items-center gap-1.5">
 									{#if account.city || account.state}
-										<span class="text-sm font-mono text-muted-foreground">{[account.city, account.state].filter(Boolean).join(', ')}</span>
+										<span class="font-mono text-sm text-muted-foreground"
+											>{[account.city, account.state].filter(Boolean).join(', ')}</span
+										>
 									{/if}
 									{#each accountTags[account.id] ?? [] as tag}
-										<span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium {tagColorMap[tag.color] ?? tagColorMap.zinc}">{tag.name}</span>
+										<span
+											class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium {tagColorMap[
+												tag.color
+											] ?? tagColorMap.zinc}">{tag.name}</span
+										>
 									{/each}
 								</div>
 							</td>
 							<td class="px-4 py-3">
-								<div class="text-sm text-foreground">{[account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') || '—'}</div>
+								<div class="text-sm text-foreground">
+									{[account.contact_first_name, account.contact_last_name]
+										.filter(Boolean)
+										.join(' ') || '—'}
+								</div>
 								{#if account.contact_email}
-									<div class="text-sm font-mono text-muted-foreground">{account.contact_email}</div>
+									<div class="font-mono text-sm text-muted-foreground">{account.contact_email}</div>
 								{/if}
 							</td>
 							<td class="px-4 py-3">
-								<span class="text-sm text-muted-foreground">{(account as any).territories?.name ?? '—'}</span>
+								<span class="text-sm text-muted-foreground"
+									>{(account as any).territories?.name ?? '—'}</span
+								>
 							</td>
 							<td class="px-4 py-3">
 								{#if account.archived_at}
-									<span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium bg-zinc-100 text-zinc-500">Archived</span>
+									<span
+										class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500"
+										>Archived</span
+									>
 								{:else}
 									{@const health = accountHealth[account.id]}
 									{@const badge = healthBadge[health?.label ?? 'inactive']}
 									<div>
-										<span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {badge.class}">{badge.label}</span>
+										<span
+											class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {badge.class}"
+											>{badge.label}</span
+										>
 										{#if health?.signals?.length}
 											<p class="mt-0.5 text-[11px] text-muted-foreground">{health.signals[0]}</p>
 										{/if}

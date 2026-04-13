@@ -4,14 +4,38 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardContent,
+		CardFooter
+	} from '$lib/components/ui/card/index.js';
 	import type { Territory } from '$lib/types/database.js';
 
 	let { data } = $props();
 	const territory = $derived(data.territory as Territory);
-	const accounts = $derived(data.accounts as Array<{ id: string; business_name: string; city: string | null; state: string | null; contact_first_name: string | null; contact_last_name: string | null }>);
-	const availableAccounts = $derived(data.availableAccounts as Array<{ id: string; business_name: string; city: string | null; state: string | null }>);
-	const members = $derived(data.members as unknown as Array<{ id: string; profiles: { display_name: string } | null }>);
+	const accounts = $derived(
+		data.accounts as Array<{
+			id: string;
+			business_name: string;
+			city: string | null;
+			state: string | null;
+			contact_first_name: string | null;
+			contact_last_name: string | null;
+		}>
+	);
+	const availableAccounts = $derived(
+		data.availableAccounts as Array<{
+			id: string;
+			business_name: string;
+			city: string | null;
+			state: string | null;
+		}>
+	);
+	const members = $derived(
+		data.members as unknown as Array<{ id: string; profiles: { display_name: string } | null }>
+	);
 
 	const assignedMember = $derived(members.find((m) => m.id === territory.assigned_to));
 
@@ -68,7 +92,8 @@
 	}
 
 	async function deleteTerritory() {
-		if (!confirm(`Delete "${territory.name}"? Accounts will be unassigned from this territory.`)) return;
+		if (!confirm(`Delete "${territory.name}"? Accounts will be unassigned from this territory.`))
+			return;
 		// Unassign all accounts first
 		await supabase
 			.from('accounts')
@@ -102,7 +127,14 @@
 			{/if}
 
 			{#if editing}
-				<form id="edit-form" onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="space-y-4">
+				<form
+					id="edit-form"
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleSave();
+					}}
+					class="space-y-4"
+				>
 					<div class="space-y-2">
 						<Label for="name">Name *</Label>
 						<Input id="name" bind:value={editName} required />
@@ -112,7 +144,7 @@
 						<select
 							id="assigned-to"
 							bind:value={editAssignedTo}
-							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 						>
 							<option value="">Unassigned</option>
 							{#each members as member}
@@ -131,7 +163,9 @@
 						<dt class="text-muted-foreground">Assigned Rep</dt>
 						<dd class="font-medium">
 							{#if assignedMember}
-								<a href="/organization/members?member={assignedMember.id}" class="hover:underline">{assignedMember.profiles?.display_name ?? 'Unknown'}</a>
+								<a href="/organization/members?member={assignedMember.id}" class="hover:underline"
+									>{assignedMember.profiles?.display_name ?? 'Unknown'}</a
+								>
 							{:else}
 								<span class="text-muted-foreground">Unassigned</span>
 							{/if}
@@ -163,15 +197,22 @@
 				<CardTitle class="text-base">Accounts ({accounts.length})</CardTitle>
 				{#if availableAccounts.length > 0}
 					<select
-						class="h-9 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						class="h-9 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 						onchange={(e) => {
 							const val = (e.target as HTMLSelectElement).value;
-							if (val) { addAccount(val); (e.target as HTMLSelectElement).value = ''; }
+							if (val) {
+								addAccount(val);
+								(e.target as HTMLSelectElement).value = '';
+							}
 						}}
 					>
 						<option value="">Add account...</option>
 						{#each availableAccounts as account}
-							<option value={account.id}>{account.business_name}{account.city ? ` — ${account.city}, ${account.state}` : ''}</option>
+							<option value={account.id}
+								>{account.business_name}{account.city
+									? ` — ${account.city}, ${account.state}`
+									: ''}</option
+							>
 						{/each}
 					</select>
 				{/if}
@@ -185,13 +226,17 @@
 					{#each accounts as account}
 						<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
 							<div>
-								<a href="/accounts/{account.id}" class="text-sm font-medium hover:underline">{account.business_name}</a>
+								<a href="/accounts/{account.id}" class="text-sm font-medium hover:underline"
+									>{account.business_name}</a
+								>
 								{#if account.city || account.state}
-									<p class="text-sm text-muted-foreground">{[account.city, account.state].filter(Boolean).join(', ')}</p>
+									<p class="text-sm text-muted-foreground">
+										{[account.city, account.state].filter(Boolean).join(', ')}
+									</p>
 								{/if}
 							</div>
 							<button
-								class="text-xs text-muted-foreground hover:text-destructive transition-colors"
+								class="text-xs text-muted-foreground transition-colors hover:text-destructive"
 								onclick={() => removeAccount(account.id)}
 							>
 								Remove

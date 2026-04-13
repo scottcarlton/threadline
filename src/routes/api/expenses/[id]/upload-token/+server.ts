@@ -25,15 +25,13 @@ export const POST: RequestHandler = async ({ params, locals, url }) => {
 	const token = crypto.randomUUID();
 	const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
 
-	const { error: insertError } = await supabaseAdmin
-		.from('expense_upload_tokens')
-		.insert({
-			expense_id: expenseId,
-			organization_id: orgId,
-			token,
-			created_by: locals.user.id,
-			expires_at: expiresAt
-		});
+	const { error: insertError } = await supabaseAdmin.from('expense_upload_tokens').insert({
+		expense_id: expenseId,
+		organization_id: orgId,
+		token,
+		created_by: locals.user.id,
+		expires_at: expiresAt
+	});
 
 	if (insertError) {
 		return json({ error: insertError.message }, { status: 500 });

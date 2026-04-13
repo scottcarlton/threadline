@@ -35,7 +35,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const isSales = locals.membership?.role === 'sales';
 	let apptQuery = supabase
 		.from('appointments')
-		.select('*, accounts(business_name, contact_first_name, contact_last_name, city, state), show_dates(show_id, year, month, city, state, shows(name)), profiles!appointments_created_by_fkey(display_name)')
+		.select(
+			'*, accounts(business_name, contact_first_name, contact_last_name, city, state), show_dates(show_id, year, month, city, state, shows(name)), profiles!appointments_created_by_fkey(display_name)'
+		)
 		.eq('organization_id', orgId)
 		.order('scheduled_date', { ascending: true })
 		.order('scheduled_time', { ascending: true });

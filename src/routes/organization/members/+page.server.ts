@@ -24,13 +24,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.eq('organization_id', organization.id)
 			.eq('is_active', true)
 			.order('name'),
-		supabase
-			.from('member_brand_commissions')
-			.select('*')
-			.eq('organization_id', organization.id),
-		supabase
-			.from('member_brand_access')
-			.select('member_id')
+		supabase.from('member_brand_commissions').select('*').eq('organization_id', organization.id),
+		supabase.from('member_brand_access').select('member_id')
 	]);
 
 	// Members with brand access are brand-scoped (not sales reps)

@@ -10,10 +10,12 @@
 
 	let { data } = $props();
 	const brand = $derived(data.brand as { id: string; name: string });
-	const products = $derived(data.products as (Product & {
-		product_variants: { id: string; color: string | null; size: string | null }[];
-		product_images: { id: string; file_path: string; is_primary: boolean }[];
-	})[]);
+	const products = $derived(
+		data.products as (Product & {
+			product_variants: { id: string; color: string | null; size: string | null }[];
+			product_images: { id: string; file_path: string; is_primary: boolean }[];
+		})[]
+	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
 	const canEdit = $derived(data.membership?.role !== 'guest');
 
@@ -25,11 +27,14 @@
 	let showArchived = $state(false);
 	let showImport = $state(false);
 
-	const categories = $derived([...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort());
+	const categories = $derived(
+		[...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort()
+	);
 
 	const filtered = $derived(
 		products.filter((p) => {
-			const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+			const matchesSearch =
+				p.name.toLowerCase().includes(search.toLowerCase()) ||
 				p.style_number.toLowerCase().includes(search.toLowerCase()) ||
 				(p.category?.toLowerCase().includes(search.toLowerCase()) ?? false);
 			const matchesSeason = !seasonFilter || p.season_id === seasonFilter;
@@ -59,14 +64,21 @@
 	let addError = $state('');
 
 	function resetForm() {
-		newStyleNumber = ''; newName = ''; newWholesalePrice = ''; newRetailPrice = '';
-		newCategory = ''; newDescription = ''; newSeasonId = ''; addError = '';
+		newStyleNumber = '';
+		newName = '';
+		newWholesalePrice = '';
+		newRetailPrice = '';
+		newCategory = '';
+		newDescription = '';
+		newSeasonId = '';
+		addError = '';
 		adding = false;
 	}
 
 	async function handleAdd() {
 		if (!newStyleNumber.trim() || !newName.trim()) return;
-		saving = true; addError = '';
+		saving = true;
+		addError = '';
 		const { error } = await supabase.from('products').insert({
 			organization_id: data.organization?.id,
 			brand_id: brand.id,
@@ -79,7 +91,10 @@
 			season_id: newSeasonId || null
 		});
 		saving = false;
-		if (error) { addError = error.message; return; }
+		if (error) {
+			addError = error.message;
+			return;
+		}
 		resetForm();
 		invalidateAll();
 	}
@@ -93,35 +108,50 @@
 		{ key: 'category', label: 'Category' },
 		{ key: 'sizes', label: 'Sizes' },
 		{ key: 'colors', label: 'Colors' },
-		{ key: 'description', label: 'Description' },
+		{ key: 'description', label: 'Description' }
 	];
 
-	async function handleImport(rows: Record<string, string>[]): Promise<{ success: number; errors: string[] }> {
+	async function handleImport(
+		rows: Record<string, string>[]
+	): Promise<{ success: number; errors: string[] }> {
 		let success = 0;
 		const errors: string[] = [];
 		for (let i = 0; i < rows.length; i++) {
 			const row = rows[i];
 			if (!row.style_number?.trim() || !row.name?.trim()) {
-				errors.push(`Row ${i + 1}: Style Number and Name are required`); continue;
+				errors.push(`Row ${i + 1}: Style Number and Name are required`);
+				continue;
 			}
-			const { data: product, error } = await supabase.from('products').insert({
-				organization_id: data.organization?.id,
-				brand_id: brand.id,
-				style_number: row.style_number.trim(),
-				name: row.name.trim(),
-				wholesale_price: parseFloat(row.wholesale_price) || 0,
-				retail_price: parseFloat(row.retail_price) || null,
-				category: row.category?.trim() || null,
-				description: row.description?.trim() || null,
-			}).select('id').single();
+			const { data: product, error } = await supabase
+				.from('products')
+				.insert({
+					organization_id: data.organization?.id,
+					brand_id: brand.id,
+					style_number: row.style_number.trim(),
+					name: row.name.trim(),
+					wholesale_price: parseFloat(row.wholesale_price) || 0,
+					retail_price: parseFloat(row.retail_price) || null,
+					category: row.category?.trim() || null,
+					description: row.description?.trim() || null
+				})
+				.select('id')
+				.single();
 			if (error || !product) {
 				errors.push(`Row ${i + 1} (${row.style_number}): ${error?.message ?? 'Failed to create'}`);
 				continue;
 			}
 
 			// Create variants from sizes and colors
-			const sizes = row.sizes?.split(',').map(s => s.trim()).filter(Boolean) ?? [];
-			const colors = row.colors?.split(',').map(s => s.trim()).filter(Boolean) ?? [];
+			const sizes =
+				row.sizes
+					?.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean) ?? [];
+			const colors =
+				row.colors
+					?.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean) ?? [];
 			const variants: { product_id: string; color: string | null; size: string | null }[] = [];
 
 			if (sizes.length > 0 && colors.length > 0) {
@@ -142,7 +172,10 @@
 
 			if (variants.length > 0) {
 				const { error: varErr } = await supabase.from('product_variants').insert(variants);
-				if (varErr) errors.push(`Row ${i + 1} (${row.style_number}): Product created but variants failed — ${varErr.message}`);
+				if (varErr)
+					errors.push(
+						`Row ${i + 1} (${row.style_number}): Product created but variants failed — ${varErr.message}`
+					);
 			}
 
 			success++;
@@ -152,8 +185,8 @@
 	}
 
 	function getVariantSummary(variants: { color: string | null; size: string | null }[]): string {
-		const colors = new Set(variants.map(v => v.color).filter(Boolean));
-		const sizes = new Set(variants.map(v => v.size).filter(Boolean));
+		const colors = new Set(variants.map((v) => v.color).filter(Boolean));
+		const sizes = new Set(variants.map((v) => v.size).filter(Boolean));
 		const parts: string[] = [];
 		if (colors.size > 0) parts.push(`${colors.size} color${colors.size > 1 ? 's' : ''}`);
 		if (sizes.size > 0) parts.push(`${sizes.size} size${sizes.size > 1 ? 's' : ''}`);
@@ -166,7 +199,9 @@
 		<div class="flex items-center gap-3">
 			<Button variant="ghost" size="sm" href="/brands/{brand.id}">← {brand.name}</Button>
 			<h1 class="text-3xl">Products</h1>
-			<span class="text-sm text-muted-foreground">{filtered.length} product{filtered.length !== 1 ? 's' : ''}</span>
+			<span class="text-sm text-muted-foreground"
+				>{filtered.length} product{filtered.length !== 1 ? 's' : ''}</span
+			>
 		</div>
 		{#if canEdit}
 			<div class="flex items-center gap-2">
@@ -207,7 +242,10 @@
 			<Input class="w-24" type="number" placeholder="Max $" bind:value={priceMax} />
 		</div>
 		{#if archivedCount > 0}
-			<button class="text-sm text-muted-foreground hover:text-foreground transition-colors" onclick={() => (showArchived = !showArchived)}>
+			<button
+				class="text-sm text-muted-foreground transition-colors hover:text-foreground"
+				onclick={() => (showArchived = !showArchived)}
+			>
 				{showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
 			</button>
 		{/if}
@@ -216,7 +254,7 @@
 	<!-- Add product form -->
 	{#if adding}
 		<Card>
-			<CardContent class="pt-5 pb-5 space-y-4">
+			<CardContent class="space-y-4 pt-5 pb-5">
 				<p class="text-sm font-medium">New Product</p>
 				{#if addError}
 					<div class="rounded-md bg-destructive/10 p-2 text-sm text-destructive">{addError}</div>
@@ -234,11 +272,23 @@
 				<div class="grid gap-4 sm:grid-cols-4">
 					<div class="space-y-2">
 						<Label for="wholesale">Wholesale Price *</Label>
-						<Input id="wholesale" type="number" step="0.01" bind:value={newWholesalePrice} placeholder="0.00" />
+						<Input
+							id="wholesale"
+							type="number"
+							step="0.01"
+							bind:value={newWholesalePrice}
+							placeholder="0.00"
+						/>
 					</div>
 					<div class="space-y-2">
 						<Label for="retail">Retail Price</Label>
-						<Input id="retail" type="number" step="0.01" bind:value={newRetailPrice} placeholder="0.00" />
+						<Input
+							id="retail"
+							type="number"
+							step="0.01"
+							bind:value={newRetailPrice}
+							placeholder="0.00"
+						/>
 					</div>
 					<div class="space-y-2">
 						<Label for="category">Category</Label>
@@ -246,7 +296,11 @@
 					</div>
 					<div class="space-y-2">
 						<Label for="season">Season</Label>
-						<select id="season" bind:value={newSeasonId} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+						<select
+							id="season"
+							bind:value={newSeasonId}
+							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+						>
 							<option value="">None</option>
 							{#each seasons as season}
 								<option value={season.id}>{season.name}</option>
@@ -259,7 +313,11 @@
 					<Input id="desc" bind:value={newDescription} placeholder="Optional product description" />
 				</div>
 				<div class="flex gap-2">
-					<Button size="sm" onclick={handleAdd} disabled={saving || !newStyleNumber.trim() || !newName.trim()}>
+					<Button
+						size="sm"
+						onclick={handleAdd}
+						disabled={saving || !newStyleNumber.trim() || !newName.trim()}
+					>
 						{saving ? 'Saving...' : 'Add Product'}
 					</Button>
 					<Button variant="outline" size="sm" onclick={resetForm}>Cancel</Button>
@@ -272,24 +330,44 @@
 	{#if filtered.length === 0 && !adding}
 		<div class="rounded-none border border-dashed p-10 text-center">
 			<p class="text-sm text-muted-foreground">
-				{search || seasonFilter ? 'No products match your filters.' : 'No products yet. Add your first product to build the catalog.'}
+				{search || seasonFilter
+					? 'No products match your filters.'
+					: 'No products yet. Add your first product to build the catalog.'}
 			</p>
 		</div>
 	{:else}
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{#each filtered as product}
-				{@const primaryImage = product.product_images?.find(i => i.is_primary) ?? product.product_images?.[0]}
+				{@const primaryImage =
+					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 				<a
 					href="/brands/{brand.id}/products/{product.id}"
-					class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md {product.archived_at ? 'opacity-50' : ''}"
+					class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md {product.archived_at
+						? 'opacity-50'
+						: ''}"
 				>
 					<div class="aspect-[4/3] overflow-hidden rounded-t-xl bg-muted">
 						{#if primaryImage}
-							<img src="/api/products/{product.id}/images/{primaryImage.id}" alt={product.name} class="h-full w-full object-cover" />
+							<img
+								src="/api/products/{product.id}/images/{primaryImage.id}"
+								alt={product.name}
+								class="h-full w-full object-cover"
+							/>
 						{:else}
 							<div class="flex h-full items-center justify-center text-muted-foreground">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-10 w-10"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="1"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
+									/>
 								</svg>
 							</div>
 						{/if}
@@ -299,10 +377,15 @@
 						<p class="mt-0.5 text-sm font-medium">{product.name}</p>
 						<div class="mt-2 flex items-center justify-between">
 							<span class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</span>
-							<span class="text-xs text-muted-foreground">{getVariantSummary(product.product_variants ?? [])}</span>
+							<span class="text-xs text-muted-foreground"
+								>{getVariantSummary(product.product_variants ?? [])}</span
+							>
 						</div>
 						{#if product.category}
-							<span class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{product.category}</span>
+							<span
+								class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+								>{product.category}</span
+							>
 						{/if}
 					</div>
 				</a>

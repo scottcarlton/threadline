@@ -3,7 +3,20 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const { supabase, organization } = locals;
 
-	if (!organization) return { expenses: [], brands: [], metrics: { totalPending: 0, totalApproved: 0, totalRejected: 0, avgExpense: 0, pendingCount: 0, approvedCount: 0, rejectedCount: 0 } };
+	if (!organization)
+		return {
+			expenses: [],
+			brands: [],
+			metrics: {
+				totalPending: 0,
+				totalApproved: 0,
+				totalRejected: 0,
+				avgExpense: 0,
+				pendingCount: 0,
+				approvedCount: 0,
+				rejectedCount: 0
+			}
+		};
 
 	const status = url.searchParams.get('status');
 	const brandId = url.searchParams.get('brand');
@@ -24,7 +37,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const [expensesResult, brandsResult] = await Promise.all([
 		query,
-		supabase.from('brands').select('id, name').eq('organization_id', organization.id).eq('is_active', true).order('name')
+		supabase
+			.from('brands')
+			.select('id, name')
+			.eq('organization_id', organization.id)
+			.eq('is_active', true)
+			.order('name')
 	]);
 
 	const expenses = expensesResult.data ?? [];
@@ -54,7 +72,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		totalPending,
 		totalApproved,
 		totalRejected,
-		avgExpense: expenses.length > 0 ? expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0) / expenses.length : 0,
+		avgExpense:
+			expenses.length > 0
+				? expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0) / expenses.length
+				: 0,
 		pendingCount,
 		approvedCount,
 		rejectedCount

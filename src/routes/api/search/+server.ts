@@ -36,7 +36,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.select('id, business_name, contact_first_name, contact_last_name, contact_email')
 		.eq('organization_id', orgId)
 		.or(`contact_first_name.not.is.null,contact_last_name.not.is.null`)
-		.or(`contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`)
+		.or(
+			`contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
+		)
 		.limit(3);
 
 	if (accountContacts) {
@@ -61,7 +63,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.select('id, name, contact_first_name, contact_last_name, contact_email')
 		.eq('organization_id', orgId)
 		.or(`contact_first_name.not.is.null,contact_last_name.not.is.null`)
-		.or(`contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`)
+		.or(
+			`contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
+		)
 		.limit(3);
 
 	if (brandContacts) {
@@ -105,7 +109,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.from('brands')
 		.select('id, name, contact_first_name, contact_last_name, contact_email, website')
 		.eq('organization_id', orgId)
-		.or(`name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`)
+		.or(
+			`name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
+		)
 		.limit(5);
 
 	if (brands) {
@@ -125,7 +131,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.from('accounts')
 		.select('id, business_name, contact_first_name, contact_last_name, contact_email, city, state')
 		.eq('organization_id', orgId)
-		.or(`business_name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm},city.ilike.${searchTerm}`)
+		.or(
+			`business_name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm},city.ilike.${searchTerm}`
+		)
 		.limit(5);
 
 	if (accounts) {
@@ -142,7 +150,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	// Search orders
 	const { data: orders } = await locals.supabase
 		.from('orders')
-		.select('id, order_number, status, order_year, brands(name), accounts(business_name), seasons(name)')
+		.select(
+			'id, order_number, status, order_year, brands(name), accounts(business_name), seasons(name)'
+		)
 		.eq('organization_id', orgId)
 		.or(`order_number.ilike.${searchTerm}`)
 		.limit(5);

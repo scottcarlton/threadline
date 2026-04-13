@@ -67,9 +67,7 @@ describe('parseMessage', () => {
 			labelIds: [],
 			payload: {
 				headers: [],
-				parts: [
-					{ mimeType: 'text/html', body: { data: encodeBase64Url('<p>Only HTML</p>') } }
-				]
+				parts: [{ mimeType: 'text/html', body: { data: encodeBase64Url('<p>Only HTML</p>') } }]
 			}
 		};
 
@@ -201,7 +199,9 @@ describe('buildRawEmail', () => {
 			content: Buffer.from('fake-pdf-content')
 		};
 
-		const raw = buildRawEmail('a@t.com', 'b@t.com', 'Order', 'See attached', undefined, [attachment]);
+		const raw = buildRawEmail('a@t.com', 'b@t.com', 'Order', 'See attached', undefined, [
+			attachment
+		]);
 		const decoded = decodeBase64Url(raw);
 
 		expect(decoded).toContain('Content-Type: multipart/mixed; boundary=');

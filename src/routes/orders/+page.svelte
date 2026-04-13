@@ -14,19 +14,47 @@
 	const brands = $derived(data.brands as { id: string; name: string }[]);
 	const showDates = $derived(data.showDates ?? []);
 	const canCreate = $derived(data.membership?.role !== 'guest');
-	const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-	const metrics = $derived(data.metrics as {
-		pipelineValue: number;
-		pipelineCount: number;
-		deliveredRevenue: number;
-		avgOrderValue: number;
-		needsAttention: { staleDrafts: number; overdueShipments: number; total: number };
-		conversion: { submitted: number; converted: number; rate: number };
+	const monthNames = [
+		'Jan',
+		'Feb',
+		'Mar',
+		'Apr',
+		'May',
+		'Jun',
+		'Jul',
+		'Aug',
+		'Sep',
+		'Oct',
+		'Nov',
+		'Dec'
+	];
+	const metrics = $derived(
+		data.metrics as {
+			pipelineValue: number;
+			pipelineCount: number;
+			deliveredRevenue: number;
+			avgOrderValue: number;
+			needsAttention: { staleDrafts: number; overdueShipments: number; total: number };
+			conversion: { submitted: number; converted: number; rate: number };
+		}
+	);
+
+	const fmt = new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: 'USD',
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 0
 	});
 
-	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
-	const statusTabs = ['all', 'draft', 'submitted', 'confirmed', 'shipped', 'delivered', 'cancelled'] as const;
+	const statusTabs = [
+		'all',
+		'draft',
+		'submitted',
+		'confirmed',
+		'shipped',
+		'delivered',
+		'cancelled'
+	] as const;
 	const statusLabels: Record<string, string> = {
 		all: 'All',
 		draft: 'Notes Out',
@@ -40,10 +68,11 @@
 
 	let search = $state('');
 	const filtered = $derived(
-		orders.filter((o) =>
-			o.order_number.toLowerCase().includes(search.toLowerCase()) ||
-			(o.accounts?.business_name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
-			(o.brands?.name?.toLowerCase().includes(search.toLowerCase()) ?? false)
+		orders.filter(
+			(o) =>
+				o.order_number.toLowerCase().includes(search.toLowerCase()) ||
+				(o.accounts?.business_name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+				(o.brands?.name?.toLowerCase().includes(search.toLowerCase()) ?? false)
 		)
 	);
 
@@ -132,7 +161,9 @@
 			status: o.status,
 			created_by: o.profiles?.display_name ?? '',
 			source: o.show_dates?.shows?.name ?? o.source_types?.name ?? '',
-			ship_window_start: o.season_deliveries?.delivery_month ? `${o.season_deliveries.delivery_month}/01` : '',
+			ship_window_start: o.season_deliveries?.delivery_month
+				? `${o.season_deliveries.delivery_month}/01`
+				: '',
 			expected_ship_date: o.expected_ship_date ?? '',
 			shipped_at: o.shipped_at ?? '',
 			total_amount: o.total_amount,
@@ -157,7 +188,9 @@
 	<div class="flex items-center justify-between">
 		<div>
 			<h1 class="text-3xl">Orders</h1>
-			<p class="mt-1 text-sm font-mono text-muted-foreground">{orders.length} order{orders.length !== 1 ? 's' : ''}</p>
+			<p class="mt-1 font-mono text-sm text-muted-foreground">
+				{orders.length} order{orders.length !== 1 ? 's' : ''}
+			</p>
 		</div>
 		<div class="flex items-center gap-2">
 			{#if filtered.length > 0}
@@ -165,7 +198,15 @@
 			{/if}
 			{#if canCreate}
 				<Button href="/orders/new">
-					<svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="-ml-1 h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+					>
 					New Order
 				</Button>
 			{/if}
@@ -176,7 +217,10 @@
 	<div class="flex gap-1 border-b">
 		{#each statusTabs as tab}
 			<button
-				class="whitespace-nowrap px-4 py-2 text-[13px] font-medium transition-colors -mb-px {activeStatus === tab ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+				class="-mb-px px-4 py-2 text-[13px] font-medium whitespace-nowrap transition-colors {activeStatus ===
+				tab
+					? 'text-foreground'
+					: 'text-muted-foreground hover:text-foreground'}"
 				style="border-bottom: 1px solid {activeStatus === tab ? 'currentColor' : 'transparent'}"
 				onclick={() => setFilter('status', tab)}
 			>
@@ -190,31 +234,56 @@
 		<!-- Pipeline Value -->
 		<Card>
 			<CardContent class="pt-4 pb-4">
-				<p class="text-sm font-medium font-mono text-muted-foreground">Pipeline Value</p>
+				<p class="font-mono text-sm font-medium text-muted-foreground">Pipeline Value</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.pipelineValue)}</p>
-				<p class="mt-0.5 text-xs font-mono text-muted-foreground">{metrics.pipelineCount} open order{metrics.pipelineCount !== 1 ? 's' : ''}</p>
+				<p class="mt-0.5 font-mono text-xs text-muted-foreground">
+					{metrics.pipelineCount} open order{metrics.pipelineCount !== 1 ? 's' : ''}
+				</p>
 			</CardContent>
 		</Card>
 
 		<!-- Revenue -->
 		<Card>
 			<CardContent class="pt-4 pb-4">
-				<p class="text-sm font-medium font-mono text-muted-foreground">Delivered Revenue</p>
+				<p class="font-mono text-sm font-medium text-muted-foreground">Delivered Revenue</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.deliveredRevenue)}</p>
-				<p class="mt-0.5 text-xs font-mono text-muted-foreground">{fmt.format(metrics.avgOrderValue)} avg order</p>
+				<p class="mt-0.5 font-mono text-xs text-muted-foreground">
+					{fmt.format(metrics.avgOrderValue)} avg order
+				</p>
 			</CardContent>
 		</Card>
 
 		<!-- Needs Attention -->
 		<Card class={metrics.needsAttention.total > 0 ? 'border-amber-300' : ''}>
 			<CardContent class="pt-4 pb-4">
-				<p class="text-sm font-medium font-mono {metrics.needsAttention.total > 0 ? 'text-amber-700' : 'text-muted-foreground'}">Needs Attention</p>
-				<p class="mt-1 text-2xl font-semibold {metrics.needsAttention.total > 0 ? 'text-amber-700' : ''}">{metrics.needsAttention.total}</p>
-				<p class="mt-0.5 text-xs font-mono {metrics.needsAttention.total > 0 ? 'text-amber-600' : 'text-muted-foreground'}">
+				<p
+					class="font-mono text-sm font-medium {metrics.needsAttention.total > 0
+						? 'text-amber-700'
+						: 'text-muted-foreground'}"
+				>
+					Needs Attention
+				</p>
+				<p
+					class="mt-1 text-2xl font-semibold {metrics.needsAttention.total > 0
+						? 'text-amber-700'
+						: ''}"
+				>
+					{metrics.needsAttention.total}
+				</p>
+				<p
+					class="mt-0.5 font-mono text-xs {metrics.needsAttention.total > 0
+						? 'text-amber-600'
+						: 'text-muted-foreground'}"
+				>
 					{#if metrics.needsAttention.total === 0}
 						All orders on track
 					{:else}
-						{#if metrics.needsAttention.staleDrafts > 0}{metrics.needsAttention.staleDrafts} stale note{metrics.needsAttention.staleDrafts !== 1 ? 's' : ''}{/if}{#if metrics.needsAttention.staleDrafts > 0 && metrics.needsAttention.overdueShipments > 0}, {/if}{#if metrics.needsAttention.overdueShipments > 0}{metrics.needsAttention.overdueShipments} overdue{/if}
+						{#if metrics.needsAttention.staleDrafts > 0}{metrics.needsAttention.staleDrafts} stale note{metrics
+								.needsAttention.staleDrafts !== 1
+								? 's'
+								: ''}{/if}{#if metrics.needsAttention.staleDrafts > 0 && metrics.needsAttention.overdueShipments > 0},
+						{/if}{#if metrics.needsAttention.overdueShipments > 0}{metrics.needsAttention
+								.overdueShipments} overdue{/if}
 					{/if}
 				</p>
 			</CardContent>
@@ -223,9 +292,11 @@
 		<!-- Conversion Rate -->
 		<Card>
 			<CardContent class="pt-4 pb-4">
-				<p class="text-sm font-medium font-mono text-muted-foreground">Conversion Rate</p>
+				<p class="font-mono text-sm font-medium text-muted-foreground">Conversion Rate</p>
 				<p class="mt-1 text-2xl font-semibold">{Math.round(metrics.conversion.rate * 100)}%</p>
-				<p class="mt-0.5 text-xs font-mono text-muted-foreground">{metrics.conversion.converted} of {metrics.conversion.submitted} submitted</p>
+				<p class="mt-0.5 font-mono text-xs text-muted-foreground">
+					{metrics.conversion.converted} of {metrics.conversion.submitted} submitted
+				</p>
 			</CardContent>
 		</Card>
 	</div>
@@ -259,8 +330,11 @@
 		>
 			<option value="">All Shows</option>
 			{#each showDates as sd}
-				{@const showName = Array.isArray(sd.shows) ? sd.shows[0]?.name : sd.shows?.name ?? 'Show'}
-				<option value={sd.id}>{showName} — {monthNames[(sd.month ?? 1) - 1]} {sd.year}{sd.city ? `, ${sd.city}` : ''}</option>
+				{@const showName = Array.isArray(sd.shows) ? sd.shows[0]?.name : (sd.shows?.name ?? 'Show')}
+				<option value={sd.id}
+					>{showName} — {monthNames[(sd.month ?? 1) - 1]}
+					{sd.year}{sd.city ? `, ${sd.city}` : ''}</option
+				>
 			{/each}
 		</select>
 	</div>
@@ -271,11 +345,24 @@
 				<p class="text-lg font-semibold">No orders match your search</p>
 				<p class="mt-2 text-sm text-muted-foreground">Try adjusting your filters</p>
 			{:else}
-				<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="0.4">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="mx-auto h-16 w-16 text-foreground"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="0.4"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+					/>
 				</svg>
 				<p class="mt-4 text-lg font-semibold">Ready for your first order</p>
-				<p class="mt-2 text-sm text-muted-foreground">Orders will appear here as you start writing business</p>
+				<p class="mt-2 text-sm text-muted-foreground">
+					Orders will appear here as you start writing business
+				</p>
 			{/if}
 		</div>
 	{:else}
@@ -285,16 +372,45 @@
 				<thead>
 					<tr class="border-b bg-muted/40">
 						<th class="w-10 px-4 py-2.5">
-							<input type="checkbox" checked={allSelected} onchange={toggleAll} class="h-4 w-4 rounded border-muted-foreground/30 accent-primary" />
+							<input
+								type="checkbox"
+								checked={allSelected}
+								onchange={toggleAll}
+								class="h-4 w-4 rounded border-muted-foreground/30 accent-primary"
+							/>
 						</th>
-						<th class="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Order</th>
-						<th class="px-4 py-2.5 text-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Status</th>
-						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 sm:table-cell">Brand</th>
-						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 md:table-cell">Source</th>
-						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 md:table-cell">Created</th>
-						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 lg:table-cell">Ship Window</th>
-						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 lg:table-cell">Shipped</th>
-						<th class="px-4 py-2.5 text-right text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Total</th>
+						<th
+							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Order</th
+						>
+						<th
+							class="px-4 py-2.5 text-center text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Status</th
+						>
+						<th
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
+							>Brand</th
+						>
+						<th
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
+							>Source</th
+						>
+						<th
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
+							>Created</th
+						>
+						<th
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
+							>Ship Window</th
+						>
+						<th
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
+							>Shipped</th
+						>
+						<th
+							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Total</th
+						>
 					</tr>
 				</thead>
 				<tbody class="divide-y">
@@ -302,39 +418,99 @@
 						{@const repName = (order as any).profiles?.display_name ?? '—'}
 						{@const showDate = (order as any).show_dates}
 						{@const sourceName = showDate?.shows?.name ?? (order as any).source_types?.name ?? null}
-						{@const sourceLocation = showDate ? [showDate.city, showDate.state].filter(Boolean).join(', ') : null}
+						{@const sourceLocation = showDate
+							? [showDate.city, showDate.state].filter(Boolean).join(', ')
+							: null}
 						{@const delivery = (order as any).season_deliveries}
-						{@const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']}
-						{@const shipWindowStart = delivery?.delivery_month ? `${monthNames[delivery.delivery_month - 1]} 1` : null}
-						{@const shipWindowEnd = order.expected_ship_date ? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}` : null}
-						<tr class="transition-colors hover:bg-muted/30 {selectedIds.has(order.id) ? 'bg-primary/5' : ''}">
+						{@const monthNames = [
+							'Jan',
+							'Feb',
+							'Mar',
+							'Apr',
+							'May',
+							'Jun',
+							'Jul',
+							'Aug',
+							'Sep',
+							'Oct',
+							'Nov',
+							'Dec'
+						]}
+						{@const shipWindowStart = delivery?.delivery_month
+							? `${monthNames[delivery.delivery_month - 1]} 1`
+							: null}
+						{@const shipWindowEnd = order.expected_ship_date
+							? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
+							: null}
+						<tr
+							class="transition-colors hover:bg-muted/30 {selectedIds.has(order.id)
+								? 'bg-primary/5'
+								: ''}"
+						>
 							<td class="w-10 px-4 py-3">
-								<input type="checkbox" checked={selectedIds.has(order.id)} onchange={() => toggleOne(order.id)} class="h-4 w-4 rounded border-muted-foreground/30 accent-primary" />
+								<input
+									type="checkbox"
+									checked={selectedIds.has(order.id)}
+									onchange={() => toggleOne(order.id)}
+									class="h-4 w-4 rounded border-muted-foreground/30 accent-primary"
+								/>
 							</td>
 							<td class="px-4 py-3">
-								<a href="/orders/{order.id}" class="text-base font-medium font-mono hover:underline">{order.order_number}</a>
+								<a href="/orders/{order.id}" class="font-mono text-base font-medium hover:underline"
+									>{order.order_number}</a
+								>
 								<p class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</p>
 							</td>
 							<td class="px-4 py-3 text-center">
-								<span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {statusBadgeColors[order.status] ?? 'bg-zinc-100 text-zinc-500'}">
+								<span
+									class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {statusBadgeColors[
+										order.status
+									] ?? 'bg-zinc-100 text-zinc-500'}"
+								>
 									{statusLabels[order.status] ?? order.status}
 								</span>
 							</td>
 							<td class="hidden px-4 py-3 sm:table-cell">
 								<span class="text-sm">{order.brands?.name ?? '—'}</span>
-								<p class="text-xs font-mono text-muted-foreground">{seasonLabel(order)}</p>
+								<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
 							</td>
 							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm {sourceName ? '' : 'text-muted-foreground/50'}">{sourceName ?? '—'}</span>
+								<span class="text-sm {sourceName ? '' : 'text-muted-foreground/50'}"
+									>{sourceName ?? '—'}</span
+								>
 								{#if showDate}
 									<p class="mt-0.5 text-xs text-muted-foreground">
-										<span class="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono font-medium mr-1">{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][showDate.month - 1]}</span><span class="font-mono">{sourceLocation}</span>
+										<span
+											class="mr-1 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-medium"
+											>{[
+												'Jan',
+												'Feb',
+												'Mar',
+												'Apr',
+												'May',
+												'Jun',
+												'Jul',
+												'Aug',
+												'Sep',
+												'Oct',
+												'Nov',
+												'Dec'
+											][showDate.month - 1]}</span
+										><span class="font-mono">{sourceLocation}</span>
 									</p>
 								{/if}
 							</td>
 							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm {repName === '—' ? 'text-muted-foreground/50' : ''}">{repName}</span>
-								<p class="text-xs font-mono text-muted-foreground">{new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+								<span class="text-sm {repName === '—' ? 'text-muted-foreground/50' : ''}"
+									>{repName}</span
+								>
+								<p class="font-mono text-xs text-muted-foreground">
+									{new Date(order.created_at).toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								</p>
 							</td>
 							<td class="hidden px-4 py-3 lg:table-cell">
 								{#if shipWindowStart}
@@ -348,7 +524,13 @@
 							</td>
 							<td class="hidden px-4 py-3 lg:table-cell">
 								{#if order.shipped_at}
-									<span class="text-sm text-muted-foreground">{new Date(order.shipped_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+									<span class="text-sm text-muted-foreground"
+										>{new Date(order.shipped_at).toLocaleDateString('en-US', {
+											month: 'short',
+											day: 'numeric',
+											year: 'numeric'
+										})}</span
+									>
 								{:else}
 									<span class="text-sm text-muted-foreground/50">—</span>
 								{/if}
@@ -356,7 +538,9 @@
 							<td class="px-4 py-3 text-right font-mono">
 								{#if order.shipped_amount != null}
 									<span class="text-sm">{fmt.format(Number(order.shipped_amount))}</span>
-									<p class="text-sm text-muted-foreground">{fmt.format(Number(order.total_amount))}</p>
+									<p class="text-sm text-muted-foreground">
+										{fmt.format(Number(order.total_amount))}
+									</p>
 								{:else}
 									<span class="text-sm">{fmt.format(Number(order.total_amount))}</span>
 									<p class="text-sm text-muted-foreground/50">—</p>
@@ -372,20 +556,38 @@
 	<!-- Bulk action bar -->
 	{#if selectedIds.size > 0}
 		{@const nextStatuses = bulkNextStatuses()}
-		<div class="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border bg-background px-4 py-3 shadow-lg">
+		<div
+			class="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border bg-background px-4 py-3 shadow-lg"
+		>
 			<span class="text-sm font-medium">{selectedIds.size} selected</span>
 			<div class="h-5 w-px bg-border"></div>
 			{#if nextStatuses.length > 0}
 				{#each nextStatuses as status}
 					<Button size="sm" onclick={() => bulkUpdateStatus(status)} disabled={bulkUpdating}>
-						{status === 'submitted' ? 'Submit' : status === 'confirmed' ? 'Confirm' : status === 'shipped' ? 'Mark Shipped' : 'Mark Delivered'}
+						{status === 'submitted'
+							? 'Submit'
+							: status === 'confirmed'
+								? 'Confirm'
+								: status === 'shipped'
+									? 'Mark Shipped'
+									: 'Mark Delivered'}
 					</Button>
 				{/each}
 			{:else}
 				<span class="text-sm text-muted-foreground">No common action available</span>
 			{/if}
-			<button class="ml-1 text-muted-foreground hover:text-foreground" onclick={() => (selectedIds = new Set())}>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+			<button
+				class="ml-1 text-muted-foreground hover:text-foreground"
+				onclick={() => (selectedIds = new Set())}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
 					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 				</svg>
 			</button>

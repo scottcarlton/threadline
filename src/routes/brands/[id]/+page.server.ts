@@ -6,11 +6,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const { supabase } = locals;
 
 	const [brandResult, assetsResult, productCountResult, expenseSummaryResult] = await Promise.all([
-		supabase
-			.from('brands')
-			.select('*')
-			.eq('id', params.id)
-			.single(),
+		supabase.from('brands').select('*').eq('id', params.id).single(),
 		supabase
 			.from('brand_assets')
 			.select('*')
@@ -21,10 +17,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.select('id', { count: 'exact', head: true })
 			.eq('brand_id', params.id)
 			.is('archived_at', null),
-		supabase
-			.from('brand_expenses')
-			.select('status, amount')
-			.eq('brand_id', params.id)
+		supabase.from('brand_expenses').select('status, amount').eq('brand_id', params.id)
 	]);
 
 	if (brandResult.error || !brandResult.data) {
