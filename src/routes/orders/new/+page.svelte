@@ -1164,16 +1164,7 @@
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
-				<button
-					type="button"
-					class="rounded p-2 hover:bg-muted/50"
-					aria-label="Close"
-					onclick={closeAddItemsModal}
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
-						<path d="M18 6L6 18M6 6l12 12" />
-					</svg>
-				</button>
+				<Button variant="ghost" onclick={closeAddItemsModal}>Cancel</Button>
 				<Button onclick={closeAddItemsModal}>Done</Button>
 			</div>
 		</div>
