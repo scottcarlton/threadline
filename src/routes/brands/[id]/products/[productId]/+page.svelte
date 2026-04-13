@@ -225,6 +225,20 @@
 		{/if}
 	</div>
 
+	<!-- Name + price banner -->
+	<div class="flex items-start justify-between gap-4">
+		<div>
+			<h2 class="text-xl font-semibold">{product.name}</h2>
+			{#if product.season_id || product.product_year}
+				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+				<p class="mt-1 text-sm text-muted-foreground">
+					{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+				</p>
+			{/if}
+		</div>
+		<div class="text-xl font-semibold">{fmt.format(Number(product.wholesale_price))}</div>
+	</div>
+
 	<!-- Style Velocity -->
 	{#if velocity && (velocity.units30d > 0 || velocity.units90d > 0)}
 		<div class="grid gap-4 sm:grid-cols-3">
@@ -361,21 +375,6 @@
 				</form>
 			{:else}
 				<dl class="space-y-3 text-sm">
-					<div class="flex justify-between">
-						<dt class="text-muted-foreground">Name</dt>
-						<dd class="font-medium">{product.name}</dd>
-					</div>
-					{#if product.season_id || product.product_year}
-						{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-						<div class="flex justify-between">
-							<dt class="text-muted-foreground">Season</dt>
-							<dd>{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}</dd>
-						</div>
-					{/if}
-					<div class="flex justify-between">
-						<dt class="text-muted-foreground">Wholesale</dt>
-						<dd class="font-medium">{fmt.format(Number(product.wholesale_price))}</dd>
-					</div>
 					{#if product.retail_price}
 						<div class="flex justify-between">
 							<dt class="text-muted-foreground">Retail</dt>
