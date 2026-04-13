@@ -208,13 +208,9 @@
 <div class="mx-auto max-w-2xl space-y-6">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"><LongArrow direction="left" /> Products</Button>
-			<h1 class="text-2xl font-bold">{product.style_number}</h1>
-			<Badge variant={product.archived_at ? 'destructive' : 'success'}>
-				{product.archived_at ? 'Archived' : 'Active'}
-			</Badge>
-		</div>
+		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"
+			><LongArrow direction="left" /> Products</Button
+		>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				<Button variant="outline" size="sm" onclick={toggleArchive}>
@@ -228,6 +224,12 @@
 	<!-- Name + price banner -->
 	<div class="flex items-start justify-between gap-4">
 		<div>
+			<div class="mb-1 flex items-center gap-2">
+				<span class="font-mono text-sm text-muted-foreground">{product.style_number}</span>
+				<Badge variant={product.archived_at ? 'destructive' : 'success'}>
+					{product.archived_at ? 'Archived' : 'Active'}
+				</Badge>
+			</div>
 			<h2 class="text-xl font-semibold">{product.name}</h2>
 			{#if product.season_id || product.product_year || product.category}
 				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
