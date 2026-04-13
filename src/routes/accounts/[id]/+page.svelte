@@ -92,6 +92,21 @@
 	const brandSummaries = $derived(data.brandSummaries as BrandSummary[]);
 	const health = $derived(data.accountHealth as AccountHealth | null);
 
+	type ActivityItem = { type: string; id: string; title: string; subtitle: string | null; date: string; status?: string };
+	const activity = $derived((data.activity ?? []) as ActivityItem[]);
+
+	const activityIcons: Record<string, string> = {
+		order: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+		appointment: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+		email: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'
+	};
+
+	const activityColors: Record<string, string> = {
+		order: 'bg-blue-50 text-blue-600',
+		appointment: 'bg-violet-50 text-violet-600',
+		email: 'bg-emerald-50 text-emerald-600'
+	};
+
 	const healthColors: Record<string, string> = {
 		excellent: 'text-emerald-600',
 		good: 'text-blue-600',
@@ -109,6 +124,38 @@
 		inactive: 'bg-zinc-100 text-zinc-500',
 		new: 'bg-violet-50 text-violet-700',
 	};
+
+	// Tags
+	type TagAssignment = { id: string; tag_id: string; account_tags?: { id: string; name: string; color: string } };
+	type AvailableTag = { id: string; name: string; color: string; sort_order: number };
+	const tagAssignments = $derived((data.tagAssignments ?? []) as TagAssignment[]);
+	const availableTags = $derived((data.availableTags ?? []) as AvailableTag[]);
+	const assignedTagIds = $derived(new Set(tagAssignments.map((t) => t.tag_id)));
+
+	const tagColorMap: Record<string, string> = {
+		amber: 'bg-amber-50 text-amber-700 border-amber-200',
+		red: 'bg-red-50 text-red-700 border-red-200',
+		violet: 'bg-violet-50 text-violet-700 border-violet-200',
+		blue: 'bg-blue-50 text-blue-700 border-blue-200',
+		zinc: 'bg-zinc-100 text-zinc-600 border-zinc-200',
+		emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+	};
+
+	async function toggleTag(tagId: string) {
+		if (assignedTagIds.has(tagId)) {
+			const assignment = tagAssignments.find((t) => t.tag_id === tagId);
+			if (assignment) {
+				await supabase.from('account_tag_assignments').delete().eq('id', assignment.id);
+			}
+		} else {
+			await supabase.from('account_tag_assignments').insert({
+				account_id: account.id,
+				tag_id: tagId,
+				assigned_by: data.user?.id
+			});
+		}
+		invalidateAll();
+	}
 
 	let editing = $state(false);
 	let businessName = $state('');
@@ -202,6 +249,21 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Tags -->
+	{#if availableTags.length > 0}
+		<div class="flex flex-wrap items-center gap-2">
+			{#each availableTags as tag}
+				{@const isAssigned = assignedTagIds.has(tag.id)}
+				<button
+					onclick={() => toggleTag(tag.id)}
+					class="inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors {isAssigned ? tagColorMap[tag.color] ?? tagColorMap.zinc : 'border-dashed border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50'}"
+				>
+					{tag.name}
+				</button>
+			{/each}
+		</div>
+	{/if}
 
 	<div class="grid gap-6 lg:grid-cols-[1fr_400px]">
 	<!-- Left column: Details -->
@@ -495,4 +557,53 @@
 
 	</div>
 	</div>
+
+	<!-- Activity Timeline -->
+	<Card>
+		<CardHeader>
+			<CardTitle class="text-base">Activity</CardTitle>
+		</CardHeader>
+		<CardContent>
+			{#if activity.length === 0}
+				<div class="py-8 text-center">
+					<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					</div>
+					<p class="mt-3 text-sm font-medium">No activity yet</p>
+					<p class="mt-1 text-sm text-muted-foreground">Orders, appointments, and emails will appear here</p>
+				</div>
+			{:else}
+				<div class="space-y-1">
+					{#each activity as item}
+						{@const iconPath = activityIcons[item.type] ?? activityIcons.order}
+						{@const colorClass = activityColors[item.type] ?? 'bg-muted text-muted-foreground'}
+						<a
+							href={item.type === 'order' ? `/orders/${item.id}` : item.type === 'appointment' ? `/appointments` : '#'}
+							class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
+						>
+							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full {colorClass}">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+									<path stroke-linecap="round" stroke-linejoin="round" d={iconPath} />
+								</svg>
+							</div>
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-medium">{item.title}</p>
+								{#if item.subtitle}
+									<p class="text-sm text-muted-foreground">{item.subtitle}</p>
+								{/if}
+							</div>
+							<div class="shrink-0 text-right">
+								<p class="text-sm text-muted-foreground">{new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+								{#if item.status}
+									<p class="text-sm capitalize text-muted-foreground">{item.status}</p>
+								{/if}
+							</div>
+						</a>
+					{/each}
+				</div>
+			{/if}
+		</CardContent>
+	</Card>
 </div>

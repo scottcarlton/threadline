@@ -19,8 +19,13 @@
 
 	let search = $state('');
 	let seasonFilter = $state('');
+	let categoryFilter = $state('');
+	let priceMin = $state('');
+	let priceMax = $state('');
 	let showArchived = $state(false);
 	let showImport = $state(false);
+
+	const categories = $derived([...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort());
 
 	const filtered = $derived(
 		products.filter((p) => {
@@ -28,8 +33,13 @@
 				p.style_number.toLowerCase().includes(search.toLowerCase()) ||
 				(p.category?.toLowerCase().includes(search.toLowerCase()) ?? false);
 			const matchesSeason = !seasonFilter || p.season_id === seasonFilter;
+			const matchesCategory = !categoryFilter || p.category === categoryFilter;
+			const min = parseFloat(priceMin);
+			const max = parseFloat(priceMax);
+			const price = Number(p.wholesale_price);
+			const matchesPrice = (!priceMin || price >= min) && (!priceMax || price <= max);
 			const matchesArchive = showArchived ? true : !p.archived_at;
-			return matchesSearch && matchesSeason && matchesArchive;
+			return matchesSearch && matchesSeason && matchesCategory && matchesPrice && matchesArchive;
 		})
 	);
 
@@ -180,6 +190,22 @@
 				<option value={season.id}>{season.name}</option>
 			{/each}
 		</select>
+		{#if categories.length > 0}
+			<select
+				class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+				bind:value={categoryFilter}
+			>
+				<option value="">All Categories</option>
+				{#each categories as cat}
+					<option value={cat}>{cat}</option>
+				{/each}
+			</select>
+		{/if}
+		<div class="flex items-center gap-1.5">
+			<Input class="w-24" type="number" placeholder="Min $" bind:value={priceMin} />
+			<span class="text-muted-foreground">–</span>
+			<Input class="w-24" type="number" placeholder="Max $" bind:value={priceMax} />
+		</div>
 		{#if archivedCount > 0}
 			<button class="text-sm text-muted-foreground hover:text-foreground transition-colors" onclick={() => (showArchived = !showArchived)}>
 				{showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}

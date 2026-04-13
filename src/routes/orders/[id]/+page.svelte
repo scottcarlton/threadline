@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
@@ -343,6 +343,46 @@
 		}
 	}
 
+	// Comments
+	type Comment = { id: string; author_id: string; body: string; created_at: string; profiles?: { display_name: string } | null };
+	const comments = $derived((data.comments ?? []) as Comment[]);
+	let commentBody = $state('');
+	let postingComment = $state(false);
+
+	async function postComment() {
+		if (!commentBody.trim()) return;
+		postingComment = true;
+		await supabase.from('order_comments').insert({
+			order_id: order.id,
+			author_id: data.user?.id,
+			body: commentBody.trim()
+		});
+		commentBody = '';
+		postingComment = false;
+		invalidateAll();
+	}
+
+	async function deleteComment(id: string) {
+		await supabase.from('order_comments').delete().eq('id', id);
+		invalidateAll();
+	}
+
+	// Clone order
+	let cloning = $state(false);
+
+	async function handleCloneOrder() {
+		cloning = true;
+		try {
+			const res = await fetch(`/api/orders/${order.id}/clone`, { method: 'POST' });
+			if (res.ok) {
+				const { id } = await res.json();
+				goto(`/orders/${id}`);
+			}
+		} finally {
+			cloning = false;
+		}
+	}
+
 	// Send dialog
 	let sendOpen = $state(false);
 	let sendTo = $state('');
@@ -425,6 +465,16 @@
 			<Badge variant={statusColors[order.status] as any ?? 'secondary'}>{statusLabels[order.status] ?? order.status}</Badge>
 		</div>
 		<div class="flex gap-2">
+			<Button variant="outline" size="sm" onclick={handleCloneOrder} disabled={cloning}>
+				{#if cloning}
+					<div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"></div>
+				{:else}
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+					</svg>
+				{/if}
+				Clone
+			</Button>
 			<Button variant="outline" size="sm" onclick={handleDownloadPdf} disabled={downloadingPdf}>
 				{#if downloadingPdf}
 					<div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"></div>
@@ -872,6 +922,54 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Comments -->
+<Card>
+	<CardHeader>
+		<CardTitle class="text-base">Notes & Comments</CardTitle>
+	</CardHeader>
+	<CardContent>
+		{#if comments.length > 0}
+			<div class="space-y-3 mb-4">
+				{#each comments as comment}
+					<div class="flex items-start gap-3">
+						<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+							{(comment.profiles?.display_name ?? '?')[0].toUpperCase()}
+						</div>
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center gap-2">
+								<span class="text-sm font-medium">{comment.profiles?.display_name ?? 'Unknown'}</span>
+								<span class="text-sm text-muted-foreground">{new Date(comment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+								{#if comment.author_id === data.user?.id}
+									<button class="text-sm text-muted-foreground hover:text-destructive" onclick={() => deleteComment(comment.id)}>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								{/if}
+							</div>
+							<p class="mt-0.5 text-sm text-foreground">{comment.body}</p>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		{#if canEdit}
+			<div class="flex gap-2">
+				<Input
+					class="flex-1"
+					placeholder="Add a note..."
+					bind:value={commentBody}
+					onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); postComment(); } }}
+				/>
+				<Button size="sm" onclick={postComment} disabled={postingComment || !commentBody.trim()}>
+					{postingComment ? 'Posting...' : 'Post'}
+				</Button>
+			</div>
+		{/if}
+	</CardContent>
+</Card>
 
 <!-- Cancel Order Modal -->
 {#if cancelOpen}

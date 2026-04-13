@@ -425,6 +425,34 @@ export interface AccountBrandAccess {
 	brands?: Brand;
 }
 
+export interface OrderComment {
+	id: string;
+	order_id: string;
+	author_id: string;
+	body: string;
+	created_at: string;
+	updated_at: string;
+	profiles?: Profile;
+}
+
+export interface AccountTag {
+	id: string;
+	organization_id: string;
+	name: string;
+	color: string;
+	sort_order: number;
+	created_at: string;
+}
+
+export interface AccountTagAssignment {
+	id: string;
+	account_id: string;
+	tag_id: string;
+	assigned_by: string | null;
+	created_at: string;
+	account_tags?: AccountTag;
+}
+
 export interface OrganizationSsoProvider {
 	id: string;
 	organization_id: string;

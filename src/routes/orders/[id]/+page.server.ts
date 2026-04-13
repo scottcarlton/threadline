@@ -21,8 +21,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		throw error(404, 'Order not found');
 	}
 
-	// Load brand assets, commission override, and rep info in parallel
-	const [brandAssetsRes, overrideRes, repRes] = await Promise.all([
+	// Load brand assets, commission override, rep info, and comments in parallel
+	const [brandAssetsRes, overrideRes, repRes, commentsRes] = await Promise.all([
 		supabase
 			.from('brand_assets')
 			.select('*')
@@ -38,7 +38,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.from('organization_members')
 			.select('id, commission_rate, profiles!organization_members_profile_id_fkey(display_name)')
 			.eq('profile_id', orderResult.data.created_by)
-			.single()
+			.single(),
+		supabase
+			.from('order_comments')
+			.select('*, profiles:author_id(display_name)')
+			.eq('order_id', params.id)
+			.order('created_at', { ascending: true })
 	]);
 
 	// Look up per-brand commission for the rep, fall back to their default rate
@@ -61,6 +66,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		brandAssets: brandAssetsRes.data ?? [],
 		commissionOverride: overrideRes.data?.rate ?? null,
 		repCommissionRate,
-		repName: (repRes.data?.profiles as any)?.display_name ?? null
+		repName: (repRes.data?.profiles as any)?.display_name ?? null,
+		comments: commentsRes.data ?? []
 	};
 };

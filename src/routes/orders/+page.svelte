@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
@@ -45,6 +46,64 @@
 			(o.brands?.name?.toLowerCase().includes(search.toLowerCase()) ?? false)
 		)
 	);
+
+	// Bulk selection
+	let selectedIds = $state<Set<string>>(new Set());
+	let bulkUpdating = $state(false);
+
+	const allSelected = $derived(filtered.length > 0 && filtered.every((o) => selectedIds.has(o.id)));
+
+	function toggleAll() {
+		if (allSelected) {
+			selectedIds = new Set();
+		} else {
+			selectedIds = new Set(filtered.map((o) => o.id));
+		}
+	}
+
+	function toggleOne(id: string) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		selectedIds = next;
+	}
+
+	const statusFlow: Record<string, string[]> = {
+		draft: ['submitted'],
+		submitted: ['confirmed'],
+		confirmed: ['shipped'],
+		shipped: ['delivered']
+	};
+
+	const bulkNextStatuses = $derived(() => {
+		const selected = filtered.filter((o) => selectedIds.has(o.id));
+		if (selected.length === 0) return [];
+		const sets = selected.map((o) => new Set(statusFlow[o.status] ?? []));
+		const common = [...sets[0]].filter((s) => sets.every((set) => set.has(s)));
+		return common;
+	});
+
+	async function bulkUpdateStatus(newStatus: string) {
+		bulkUpdating = true;
+		const ids = [...selectedIds];
+		const timestampField: Record<string, string> = {
+			submitted: 'submitted_at',
+			confirmed: 'confirmed_at',
+			shipped: 'shipped_at',
+			delivered: 'delivered_at'
+		};
+		const updateData: Record<string, unknown> = {
+			status: newStatus,
+			updated_at: new Date().toISOString()
+		};
+		if (timestampField[newStatus]) {
+			updateData[timestampField[newStatus]] = new Date().toISOString();
+		}
+		await supabase.from('orders').update(updateData).in('id', ids);
+		selectedIds = new Set();
+		bulkUpdating = false;
+		invalidateAll();
+	}
 
 	const statusBadgeColors: Record<string, string> = {
 		draft: 'bg-zinc-100 text-zinc-600',
@@ -225,6 +284,9 @@
 			<table class="w-full">
 				<thead>
 					<tr class="border-b bg-muted/40">
+						<th class="w-10 px-4 py-2.5">
+							<input type="checkbox" checked={allSelected} onchange={toggleAll} class="h-4 w-4 rounded border-muted-foreground/30 accent-primary" />
+						</th>
 						<th class="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Order</th>
 						<th class="px-4 py-2.5 text-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Status</th>
 						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 sm:table-cell">Brand</th>
@@ -245,7 +307,10 @@
 						{@const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']}
 						{@const shipWindowStart = delivery?.delivery_month ? `${monthNames[delivery.delivery_month - 1]} 1` : null}
 						{@const shipWindowEnd = order.expected_ship_date ? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}` : null}
-						<tr class="transition-colors hover:bg-muted/30">
+						<tr class="transition-colors hover:bg-muted/30 {selectedIds.has(order.id) ? 'bg-primary/5' : ''}">
+							<td class="w-10 px-4 py-3">
+								<input type="checkbox" checked={selectedIds.has(order.id)} onchange={() => toggleOne(order.id)} class="h-4 w-4 rounded border-muted-foreground/30 accent-primary" />
+							</td>
 							<td class="px-4 py-3">
 								<a href="/orders/{order.id}" class="text-base font-medium font-mono hover:underline">{order.order_number}</a>
 								<p class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</p>
@@ -301,6 +366,29 @@
 					{/each}
 				</tbody>
 			</table>
+		</div>
+	{/if}
+
+	<!-- Bulk action bar -->
+	{#if selectedIds.size > 0}
+		{@const nextStatuses = bulkNextStatuses()}
+		<div class="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border bg-background px-4 py-3 shadow-lg">
+			<span class="text-sm font-medium">{selectedIds.size} selected</span>
+			<div class="h-5 w-px bg-border"></div>
+			{#if nextStatuses.length > 0}
+				{#each nextStatuses as status}
+					<Button size="sm" onclick={() => bulkUpdateStatus(status)} disabled={bulkUpdating}>
+						{status === 'submitted' ? 'Submit' : status === 'confirmed' ? 'Confirm' : status === 'shipped' ? 'Mark Shipped' : 'Mark Delivered'}
+					</Button>
+				{/each}
+			{:else}
+				<span class="text-sm text-muted-foreground">No common action available</span>
+			{/if}
+			<button class="ml-1 text-muted-foreground hover:text-foreground" onclick={() => (selectedIds = new Set())}>
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</button>
 		</div>
 	{/if}
 </div>

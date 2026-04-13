@@ -59,7 +59,17 @@
 	const accounts = $derived(data.accounts as Account[]);
 	const accountTotals = $derived((data.accountTotals ?? {}) as Record<string, number>);
 	const accountHealth = $derived((data.accountHealth ?? {}) as Record<string, AccountHealth>);
+	const accountTags = $derived((data.accountTags ?? {}) as Record<string, { id: string; name: string; color: string }[]>);
 	const canEdit = $derived(data.membership?.role !== 'guest');
+
+	const tagColorMap: Record<string, string> = {
+		amber: 'bg-amber-50 text-amber-700',
+		red: 'bg-red-50 text-red-700',
+		violet: 'bg-violet-50 text-violet-700',
+		blue: 'bg-blue-50 text-blue-700',
+		zinc: 'bg-zinc-100 text-zinc-600',
+		emerald: 'bg-emerald-50 text-emerald-700'
+	};
 
 	const healthBadge: Record<string, { class: string; label: string }> = {
 		excellent: { class: 'bg-emerald-50 text-emerald-700', label: 'Excellent' },
@@ -183,9 +193,14 @@
 						<tr class="transition-colors hover:bg-muted/30 {account.archived_at ? 'opacity-50' : ''}">
 							<td class="px-4 py-3">
 								<a href="/accounts/{account.id}" class="text-base hover:underline">{account.business_name}</a>
-								{#if account.city || account.state}
-									<p class="text-sm font-mono text-muted-foreground">{[account.city, account.state].filter(Boolean).join(', ')}</p>
-								{/if}
+								<div class="flex items-center gap-1.5 mt-0.5">
+									{#if account.city || account.state}
+										<span class="text-sm font-mono text-muted-foreground">{[account.city, account.state].filter(Boolean).join(', ')}</span>
+									{/if}
+									{#each accountTags[account.id] ?? [] as tag}
+										<span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium {tagColorMap[tag.color] ?? tagColorMap.zinc}">{tag.name}</span>
+									{/each}
+								</div>
 							</td>
 							<td class="px-4 py-3">
 								<div class="text-sm text-foreground">{[account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') || '—'}</div>
