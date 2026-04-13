@@ -903,7 +903,7 @@
 			<div class="relative mt-1">
 				<Input
 					id="account-input"
-					placeholder="Type to search (e.g. “ml leddys”) or enter a new name"
+					placeholder={'Type to search (e.g. "Elm & Ivory") or enter a new account name'}
 					value={accountQuery}
 					oninput={(e) => {
 						accountQuery = (e.target as HTMLInputElement).value;
