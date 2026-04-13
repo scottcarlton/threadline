@@ -199,9 +199,10 @@
 
 	// ── Steps ───────────────────────────────────────────────────────────────
 	const stepsAll = $derived.by(() => {
-		const s = ['Type', 'Brand', 'Items', 'Delivery', 'Account'];
-		if (needsLocationStep) s.push('Location');
+		const s = ['Account'];
 		if (needsAccountDetailsStep) s.push('Details');
+		s.push('Type', 'Brand', 'Items', 'Delivery');
+		if (needsLocationStep) s.push('Location');
 		s.push('Review');
 		return s;
 	});
