@@ -65,6 +65,12 @@ Run `bun run test:run` before claiming work is complete.
 ### Empty states
 - Use the icon-circle + title + subtitle pattern. Do not use dashed-border boxes.
 
+### Type safety
+- `bun run check` must stay at **0 errors**. If you find pre-existing errors unrelated to your change, either fix them in the same PR (and call them out) or open a separate branch — never let them accumulate silently.
+- Don't let `any` leak from helpers. Wrappers like `scopeByRep(query: any)` return `any`, which poisons `.map`/`.filter` downstream. Annotate the result: `const rows = (result ?? []) as Array<{ field: type }>`.
+- Supabase joined selects (e.g. `.select('id, shows(name)')`) often infer the join as `never`. Cast the joined field: `sd.shows as { name?: string } | { name?: string }[] | null`.
+- Motion v12: use `ease` (not `easing`) in `AnimationOptions`. When `animate(element, keyframes)` picks the wrong overload, cast keyframes: `{...} as Parameters<typeof animate>[1]`. Use `querySelectorAll<HTMLElement>` for typed iteration.
+
 ## Git Workflow
 
 - `main` — production
@@ -76,6 +82,7 @@ Run `bun run test:run` before claiming work is complete.
 
 - Tasks and milestones live in Linear project **"Threadline"**
 - Move tickets to **In Progress** when you start work, not after completing it
+- Skills: `.claude/skills/linear-flow` (pickup → branch → PR → close), `.claude/skills/linear-milestone` (plan all tickets in a milestone), `.claude/skills/git-pre` (end-of-feature: verify → self-review → commit → sync dev → push → open PR)
 
 ## Verification Before Completion
 
@@ -98,6 +105,9 @@ Consult these before working in the relevant area. Do **not** inline their conte
 ### Brand
 - `docs/brand/guidelines.md` — voice, colors, typography, tone. Read before UI or marketing work.
 - `docs/brand/visual-guide.html` — rendered visual reference.
+
+### Design
+- `docs/design/frontend-ux.md` — UX principles (mental models, cognitive load, progressive disclosure, friction asymmetry, empty states, keyboard-first, status visibility). Read before designing or reviewing any UI. Skills: `.claude/skills/frontend-ux` (design-time), `.claude/skills/ux-review` (audit existing UI), `.claude/skills/brand-review` (audit against brand guidelines), `.claude/skills/spec` (turn an idea into a BRD-shaped spec).
 
 ### Marketing copy
 - `docs/content/homepage.md` — canonical copy for `/`.
