@@ -653,7 +653,7 @@
 									<Button
 										variant="outline"
 										size="sm"
-										class="border-red-500/60 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30"
+										class="border-red-500/70! text-red-500 hover:bg-red-500/10 hover:text-red-400"
 										onclick={() => removeProduct(it.product_id)}
 									>
 										Remove
@@ -1155,7 +1155,7 @@
 											size="sm"
 											variant={added ? 'outline' : 'default'}
 											class={added
-												? 'border-red-500/60 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30'
+												? 'border-red-500/70! text-red-500 hover:bg-red-500/10 hover:text-red-400'
 												: ''}
 											onclick={() => toggleProduct(p)}
 										>
