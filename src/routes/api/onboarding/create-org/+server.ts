@@ -17,10 +17,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	// Update profile display_name if provided
 	if (displayName) {
-		await supabaseAdmin
-			.from('profiles')
-			.update({ display_name: displayName })
-			.eq('id', userId);
+		await supabaseAdmin.from('profiles').update({ display_name: displayName }).eq('id', userId);
 	}
 
 	// Generate slug from org name

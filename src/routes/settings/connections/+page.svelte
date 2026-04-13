@@ -18,11 +18,16 @@
 
 	function statusColor(status: string): string {
 		switch (status) {
-			case 'active': return 'bg-emerald-500/10 text-emerald-600';
-			case 'pending': return 'bg-amber-500/10 text-amber-600';
-			case 'suspended': return 'bg-red-500/10 text-red-600';
-			case 'disconnected': return 'bg-zinc-500/10 text-zinc-500';
-			default: return 'bg-zinc-500/10 text-zinc-500';
+			case 'active':
+				return 'bg-emerald-500/10 text-emerald-600';
+			case 'pending':
+				return 'bg-amber-500/10 text-amber-600';
+			case 'suspended':
+				return 'bg-red-500/10 text-red-600';
+			case 'disconnected':
+				return 'bg-zinc-500/10 text-zinc-500';
+			default:
+				return 'bg-zinc-500/10 text-zinc-500';
 		}
 	}
 
@@ -129,7 +134,9 @@
 		<div class="space-y-4 rounded-none border p-5">
 			<div>
 				<h2 class="text-base font-semibold">Invite Codes</h2>
-				<p class="mt-0.5 text-sm text-muted-foreground">Share an invite code with reps so they can connect their Threadline to yours.</p>
+				<p class="mt-0.5 text-sm text-muted-foreground">
+					Share an invite code with reps so they can connect their Threadline to yours.
+				</p>
 			</div>
 
 			<Button onclick={generateInvite} disabled={loading}>Generate New Code</Button>
@@ -139,13 +146,14 @@
 					{#each data.invites as invite}
 						<div class="flex items-center justify-between rounded-lg border px-4 py-3">
 							<div>
-								<code class="text-sm font-mono font-medium">{invite.code}</code>
+								<code class="font-mono text-sm font-medium">{invite.code}</code>
 								<p class="text-sm text-muted-foreground">
-									Used {invite.use_count}{invite.max_uses > 0 ? `/${invite.max_uses}` : ''} times
-									&middot; Expires {fmt.format(new Date(invite.expires_at))}
+									Used {invite.use_count}{invite.max_uses > 0 ? `/${invite.max_uses}` : ''} times &middot;
+									Expires {fmt.format(new Date(invite.expires_at))}
 								</p>
 							</div>
-							<Button variant="outline" size="sm" onclick={() => copyCode(invite.code)}>Copy</Button>
+							<Button variant="outline" size="sm" onclick={() => copyCode(invite.code)}>Copy</Button
+							>
 						</div>
 					{/each}
 				</div>
@@ -158,15 +166,25 @@
 		<div class="space-y-4 rounded-none border p-5">
 			<div>
 				<h2 class="text-base font-semibold">Connect to a Brand</h2>
-				<p class="mt-0.5 text-sm text-muted-foreground">Enter an invite code from a brand to request a connection.</p>
+				<p class="mt-0.5 text-sm text-muted-foreground">
+					Enter an invite code from a brand to request a connection.
+				</p>
 			</div>
 
-			<form onsubmit={(e) => { e.preventDefault(); requestConnection(); }} class="space-y-3">
+			<form
+				onsubmit={(e) => {
+					e.preventDefault();
+					requestConnection();
+				}}
+				class="space-y-3"
+			>
 				<Input bind:value={joinCode} placeholder="Enter invite code" />
 
 				{#if data.brands.length > 0}
 					<div>
-						<label for="brand-select" class="text-sm font-medium">Map to local brand (optional)</label>
+						<label for="brand-select" class="text-sm font-medium"
+							>Map to local brand (optional)</label
+						>
 						<select
 							id="brand-select"
 							class="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -177,7 +195,9 @@
 								<option value={brand.id}>{brand.name}</option>
 							{/each}
 						</select>
-						<p class="mt-1 text-sm text-muted-foreground">Map this connection to one of your existing brand records for auto-federation.</p>
+						<p class="mt-1 text-sm text-muted-foreground">
+							Map this connection to one of your existing brand records for auto-federation.
+						</p>
 					</div>
 				{/if}
 
@@ -196,11 +216,15 @@
 				<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
 					<div>
 						<p class="text-sm font-medium">{partnerName(conn)}</p>
-						<p class="text-sm text-muted-foreground">Requested {fmt.format(new Date(conn.created_at))}</p>
+						<p class="text-sm text-muted-foreground">
+							Requested {fmt.format(new Date(conn.created_at))}
+						</p>
 					</div>
 					<div class="flex items-center gap-2">
 						{#if data.orgType === 'brand' && data.isAdmin}
-							<Button size="sm" onclick={() => approveConnection(conn.id)} disabled={loading}>Approve</Button>
+							<Button size="sm" onclick={() => approveConnection(conn.id)} disabled={loading}
+								>Approve</Button
+							>
 						{:else}
 							<span class="rounded-full px-2.5 py-1 text-sm {statusColor('pending')}">Pending</span>
 						{/if}
@@ -228,7 +252,12 @@
 					<div class="flex items-center gap-3">
 						<span class="rounded-full px-2.5 py-1 text-sm {statusColor('active')}">Active</span>
 						{#if data.isAdmin}
-							<Button variant="outline" size="sm" onclick={() => disconnect(conn.id)} disabled={loading}>Disconnect</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() => disconnect(conn.id)}
+								disabled={loading}>Disconnect</Button
+							>
 						{/if}
 					</div>
 				</div>
@@ -240,8 +269,19 @@
 	{#if data.connections.length === 0}
 		<div class="flex flex-col items-center justify-center py-16">
 			<div class="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.182-9.182a4.5 4.5 0 00-6.364 6.364l4.5 4.5a4.5 4.5 0 006.364-6.364l-1.757-1.757" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-7 w-7 text-muted-foreground"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="1.5"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.182-9.182a4.5 4.5 0 00-6.364 6.364l4.5 4.5a4.5 4.5 0 006.364-6.364l-1.757-1.757"
+					/>
 				</svg>
 			</div>
 			<h3 class="mt-4 text-base font-semibold">No connections yet</h3>

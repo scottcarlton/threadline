@@ -4,7 +4,13 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardContent,
+		CardFooter
+	} from '$lib/components/ui/card/index.js';
 
 	let { data } = $props();
 
@@ -26,20 +32,24 @@
 		error = '';
 		loading = true;
 
-		const { data: newAccount, error: err } = await supabase.from('accounts').insert({
-			organization_id: data.organization?.id,
-			business_name: businessName,
-			contact_first_name: contactFirstName || null,
-			contact_last_name: contactLastName || null,
-			contact_email: contactEmail || null,
-			phone: phone || null,
-			address_line1: addressLine1 || null,
-			address_line2: addressLine2 || null,
-			city: city || null,
-			state: accountState || null,
-			zip: zip || null,
-			notes: notes || null
-		}).select('id').single();
+		const { data: newAccount, error: err } = await supabase
+			.from('accounts')
+			.insert({
+				organization_id: data.organization?.id,
+				business_name: businessName,
+				contact_first_name: contactFirstName || null,
+				contact_last_name: contactLastName || null,
+				contact_email: contactEmail || null,
+				phone: phone || null,
+				address_line1: addressLine1 || null,
+				address_line2: addressLine2 || null,
+				city: city || null,
+				state: accountState || null,
+				zip: zip || null,
+				notes: notes || null
+			})
+			.select('id')
+			.single();
 
 		if (err) {
 			loading = false;
@@ -71,10 +81,22 @@
 				<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
 			{/if}
 
-			<form id="account-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-4">
+			<form
+				id="account-form"
+				onsubmit={(e) => {
+					e.preventDefault();
+					handleSubmit();
+				}}
+				class="space-y-4"
+			>
 				<div class="space-y-2">
 					<Label for="business-name">Business name *</Label>
-					<Input id="business-name" bind:value={businessName} required placeholder="Bloom Boutique" />
+					<Input
+						id="business-name"
+						bind:value={businessName}
+						required
+						placeholder="Bloom Boutique"
+					/>
 				</div>
 				<div class="grid gap-4 sm:grid-cols-3">
 					<div class="space-y-2">
@@ -87,7 +109,12 @@
 					</div>
 					<div class="space-y-2">
 						<Label for="contact-email">Email</Label>
-						<Input id="contact-email" type="email" bind:value={contactEmail} placeholder="jane@bloom.com" />
+						<Input
+							id="contact-email"
+							type="email"
+							bind:value={contactEmail}
+							placeholder="jane@bloom.com"
+						/>
 					</div>
 				</div>
 				<div class="space-y-2">
@@ -123,7 +150,7 @@
 						bind:value={notes}
 						rows="3"
 						placeholder="Any additional notes..."
-						class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 					></textarea>
 				</div>
 			</form>

@@ -52,7 +52,11 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 	if (Object.keys(updatePayload).length > 0) {
 		try {
-			await supabaseAuthAdmin('PUT', `/sso/providers/${existing.supabase_provider_id}`, updatePayload);
+			await supabaseAuthAdmin(
+				'PUT',
+				`/sso/providers/${existing.supabase_provider_id}`,
+				updatePayload
+			);
 		} catch (err: any) {
 			return json({ error: err.message }, { status: 500 });
 		}
@@ -108,16 +112,10 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 	}
 
 	// Delete from our table
-	await supabaseAdmin
-		.from('organization_sso_providers')
-		.delete()
-		.eq('id', params.id);
+	await supabaseAdmin.from('organization_sso_providers').delete().eq('id', params.id);
 
 	// Auto-disable enforcement to prevent lockout
-	await supabaseAdmin
-		.from('organizations')
-		.update({ sso_enforced: false })
-		.eq('id', orgId);
+	await supabaseAdmin.from('organizations').update({ sso_enforced: false }).eq('id', orgId);
 
 	return json({ success: true });
 };

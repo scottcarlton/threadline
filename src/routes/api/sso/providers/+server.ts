@@ -92,7 +92,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Clean up the Supabase SSO provider
 		try {
 			await supabaseAuthAdmin('DELETE', `/sso/providers/${ssoProvider.id}`);
-		} catch { /* best effort */ }
+		} catch {
+			/* best effort */
+		}
 		return json({ error: insertError.message }, { status: 500 });
 	}
 

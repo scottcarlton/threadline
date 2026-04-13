@@ -16,17 +16,28 @@
 		{ key: 'first_name', label: 'First Name', required: true },
 		{ key: 'last_name', label: 'Last Name', required: true },
 		{ key: 'email', label: 'Email', required: true },
-		{ key: 'role', label: 'Role', required: true },
+		{ key: 'role', label: 'Role', required: true }
 	];
 
-	async function handleTeamImport(rows: Record<string, string>[]): Promise<{ success: number; errors: string[] }> {
+	async function handleTeamImport(
+		rows: Record<string, string>[]
+	): Promise<{ success: number; errors: string[] }> {
 		let success = 0;
 		const errors: string[] = [];
 		for (let i = 0; i < rows.length; i++) {
 			const row = rows[i];
-			if (!row.first_name?.trim()) { errors.push(`Row ${i + 1}: First Name is required`); continue; }
-			if (!row.last_name?.trim()) { errors.push(`Row ${i + 1}: Last Name is required`); continue; }
-			if (!row.email?.trim()) { errors.push(`Row ${i + 1}: Email is required`); continue; }
+			if (!row.first_name?.trim()) {
+				errors.push(`Row ${i + 1}: First Name is required`);
+				continue;
+			}
+			if (!row.last_name?.trim()) {
+				errors.push(`Row ${i + 1}: Last Name is required`);
+				continue;
+			}
+			if (!row.email?.trim()) {
+				errors.push(`Row ${i + 1}: Email is required`);
+				continue;
+			}
 			const role = row.role?.trim().toLowerCase() ?? '';
 			if (!['admin', 'member', 'sales', 'guest'].includes(role)) {
 				errors.push(`Row ${i + 1} (${row.email}): Role must be admin, member, sales, or guest`);
@@ -48,22 +59,26 @@
 		return { success, errors };
 	}
 
-	const members = $derived(data.members as Array<{
-		id: string;
-		profile_id: string;
-		role: UserRole;
-		commission_rate: number;
-		created_at: string;
-		profiles: { id: string; display_name: string; avatar_url: string | null } | null;
-	}>);
-	const invitations = $derived(data.invitations as Array<{
-		id: string;
-		email: string;
-		role: UserRole;
-		token: string;
-		expires_at: string;
-		created_at: string;
-	}>);
+	const members = $derived(
+		data.members as Array<{
+			id: string;
+			profile_id: string;
+			role: UserRole;
+			commission_rate: number;
+			created_at: string;
+			profiles: { id: string; display_name: string; avatar_url: string | null } | null;
+		}>
+	);
+	const invitations = $derived(
+		data.invitations as Array<{
+			id: string;
+			email: string;
+			role: UserRole;
+			token: string;
+			expires_at: string;
+			created_at: string;
+		}>
+	);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
 	const memberBrandCommissions = $derived(data.memberBrandCommissions as MemberBrandCommission[]);
 	const scopedMemberIds = $derived(new Set(data.scopedMemberIds as string[]));
@@ -96,10 +111,14 @@
 		const url = `${window.location.origin}/invite/${token}`;
 		navigator.clipboard.writeText(url);
 		copiedId = id;
-		setTimeout(() => { copiedId = ''; }, 2000);
+		setTimeout(() => {
+			copiedId = '';
+		}, 2000);
 	}
 
-	const showBrandScope = $derived(inviteRole === 'member' || inviteRole === 'sales' || inviteRole === 'guest');
+	const showBrandScope = $derived(
+		inviteRole === 'member' || inviteRole === 'sales' || inviteRole === 'guest'
+	);
 
 	function toggleBrand(brandId: string) {
 		if (selectedBrandIds.includes(brandId)) {
@@ -111,12 +130,18 @@
 
 	const roleBadgeVariant = (role: UserRole) => {
 		switch (role) {
-			case 'owner': return 'default' as const;
-			case 'admin': return 'secondary' as const;
-			case 'member': return 'outline' as const;
-			case 'sales': return 'secondary' as const;
-			case 'guest': return 'warning' as const;
-			default: return 'outline' as const;
+			case 'owner':
+				return 'default' as const;
+			case 'admin':
+				return 'secondary' as const;
+			case 'member':
+				return 'outline' as const;
+			case 'sales':
+				return 'secondary' as const;
+			case 'guest':
+				return 'warning' as const;
+			default:
+				return 'outline' as const;
 		}
 	};
 
@@ -128,7 +153,11 @@
 		const res = await fetch('/api/invite/send', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ email: inviteEmail, role: inviteRole, brandIds: showBrandScope ? selectedBrandIds : [] })
+			body: JSON.stringify({
+				email: inviteEmail,
+				role: inviteRole,
+				brandIds: showBrandScope ? selectedBrandIds : []
+			})
 		});
 
 		const result = await res.json();
@@ -237,7 +266,9 @@
 			goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
 		}
 		// Reset flag after a tick so the effect doesn't reopen
-		setTimeout(() => { closingDrawer = false; }, 0);
+		setTimeout(() => {
+			closingDrawer = false;
+		}, 0);
 	}
 
 	async function openDrawer(memberId: string) {
@@ -259,19 +290,9 @@
 				.select('*, profiles!organization_members_profile_id_fkey(*)')
 				.eq('id', memberId)
 				.single(),
-			supabase
-				.from('member_brand_commissions')
-				.select('*, brands(name)')
-				.eq('member_id', memberId),
-			supabase
-				.from('member_brand_access')
-				.select('*, brands(name)')
-				.eq('member_id', memberId),
-			supabase
-				.from('territories')
-				.select('id, name')
-				.eq('assigned_to', memberId)
-				.order('name')
+			supabase.from('member_brand_commissions').select('*, brands(name)').eq('member_id', memberId),
+			supabase.from('member_brand_access').select('*, brands(name)').eq('member_id', memberId),
+			supabase.from('territories').select('id, name').eq('assigned_to', memberId).order('name')
 		]);
 
 		drawerData = {
@@ -288,7 +309,9 @@
 	const drawerCommissions = $derived(drawerData?.commissions ?? []);
 	const drawerBrandAccess = $derived(drawerData?.brandAccess ?? []);
 	const drawerTerritories = $derived(drawerData?.territories ?? []);
-	const drawerCommissionMap = $derived(new Map(drawerCommissions.map((c: any) => [c.brand_id, c.rate])));
+	const drawerCommissionMap = $derived(
+		new Map(drawerCommissions.map((c: any) => [c.brand_id, c.rate]))
+	);
 	const drawerAccessBrandIds = $derived(new Set(drawerBrandAccess.map((ba: any) => ba.brand_id)));
 	const drawerIsCurrentUser = $derived(drawerMember?.profile_id === currentUserId);
 	const drawerIsOwner = $derived(drawerMember?.role === 'owner');
@@ -347,7 +370,8 @@
 
 	async function drawerHandleRemove() {
 		if (!drawerMember) return;
-		if (!confirm(`Remove ${drawerMember.profiles?.display_name ?? 'this member'} from the team?`)) return;
+		if (!confirm(`Remove ${drawerMember.profiles?.display_name ?? 'this member'} from the team?`))
+			return;
 		const res = await fetch('/api/team/remove', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -364,7 +388,9 @@
 	<div class="flex items-center justify-between">
 		<div>
 			<h2 class="text-lg font-semibold">Members</h2>
-			<p class="mt-0.5 text-sm text-muted-foreground">Manage roles and access for your organization</p>
+			<p class="mt-0.5 text-sm text-muted-foreground">
+				Manage roles and access for your organization
+			</p>
 		</div>
 		<div class="flex items-center gap-2">
 			<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
@@ -372,7 +398,15 @@
 				{#if showInviteForm}
 					Cancel
 				{:else}
-					<svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="-ml-1 h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+					>
 					Add User
 				{/if}
 			</Button>
@@ -380,166 +414,188 @@
 	</div>
 
 	<div class="space-y-4">
-			<!-- Inline invite form -->
-			{#if showInviteForm}
-				<div class="rounded-lg border border-dashed p-4 space-y-3">
-					<div class="flex flex-wrap items-end gap-3">
-						<div class="flex-1 min-w-[200px]">
-							<label for="invite-email" class="text-sm font-medium">Email</label>
-							<Input
-								id="invite-email"
-								type="email"
-								bind:value={inviteEmail}
-								placeholder="team@example.com"
-							/>
-						</div>
-						<div class="w-36">
-							<label for="invite-role" class="text-sm font-medium">Role</label>
-							<select
-								id="invite-role"
-								bind:value={inviteRole}
-								class="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
-							>
-								<option value="member">Member</option>
-								<option value="sales">Sales</option>
-								<option value="admin">Admin</option>
-								<option value="guest">Guest</option>
-							</select>
-						</div>
-						<Button size="sm" onclick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
-							{inviting ? 'Sending...' : 'Send Invite'}
-						</Button>
+		<!-- Inline invite form -->
+		{#if showInviteForm}
+			<div class="space-y-3 rounded-lg border border-dashed p-4">
+				<div class="flex flex-wrap items-end gap-3">
+					<div class="min-w-[200px] flex-1">
+						<label for="invite-email" class="text-sm font-medium">Email</label>
+						<Input
+							id="invite-email"
+							type="email"
+							bind:value={inviteEmail}
+							placeholder="team@example.com"
+						/>
 					</div>
-					{#if showBrandScope && brands.length > 0}
-						<div class="space-y-2">
-							<p class="text-sm text-muted-foreground">Brand Access <span class="font-normal">(optional — leave empty for all)</span></p>
-							<div class="flex flex-wrap gap-2">
-								{#each brands as brand}
-									<button
-										type="button"
-										class="rounded-lg border px-2.5 py-1 text-sm transition-all {selectedBrandIds.includes(brand.id) ? 'border-primary bg-primary text-primary-foreground' : 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
-										onclick={() => toggleBrand(brand.id)}
-									>
-										{brand.name}
-									</button>
-								{/each}
-							</div>
-						</div>
-					{/if}
-					{#if inviteMessage}
-						<p class="text-sm text-muted-foreground">{inviteMessage}</p>
-					{/if}
+					<div class="w-36">
+						<label for="invite-role" class="text-sm font-medium">Role</label>
+						<select
+							id="invite-role"
+							bind:value={inviteRole}
+							class="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+						>
+							<option value="member">Member</option>
+							<option value="sales">Sales</option>
+							<option value="admin">Admin</option>
+							<option value="guest">Guest</option>
+						</select>
+					</div>
+					<Button size="sm" onclick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
+						{inviting ? 'Sending...' : 'Send Invite'}
+					</Button>
 				</div>
-			{/if}
-
-			<!-- Pending invitations (compact) -->
-			{#if invitations.length > 0}
-				<div class="space-y-2">
-					<p class="text-sm font-medium text-muted-foreground">Pending Invitations</p>
-					{#each invitations as invitation}
-						<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
-							<div class="flex items-center gap-3">
-								<span class="text-sm font-mono">{invitation.email}</span>
-								<Badge variant={roleBadgeVariant(invitation.role)}>{invitation.role}</Badge>
-							</div>
-							<div class="flex items-center gap-1">
+				{#if showBrandScope && brands.length > 0}
+					<div class="space-y-2">
+						<p class="text-sm text-muted-foreground">
+							Brand Access <span class="font-normal">(optional — leave empty for all)</span>
+						</p>
+						<div class="flex flex-wrap gap-2">
+							{#each brands as brand}
 								<button
-									class="text-sm text-muted-foreground hover:text-foreground transition-colors"
-									onclick={() => copyInviteLink(invitation.token, invitation.id)}
+									type="button"
+									class="rounded-lg border px-2.5 py-1 text-sm transition-all {selectedBrandIds.includes(
+										brand.id
+									)
+										? 'border-primary bg-primary text-primary-foreground'
+										: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
+									onclick={() => toggleBrand(brand.id)}
 								>
-									{copiedId === invitation.id ? 'Copied!' : 'Copy Link'}
+									{brand.name}
 								</button>
-								<button
-									class="text-sm text-muted-foreground hover:text-destructive transition-colors"
-									disabled={updatingId === invitation.id}
-									onclick={() => revokeInvite(invitation.id)}
-								>
-									Revoke
-								</button>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{/if}
-
-			{#if members.length === 0}
-				<div class="rounded-lg border border-dashed p-8 text-center">
-					<p class="text-muted-foreground">No team members found.</p>
-				</div>
-			{:else}
-				<div class="rounded-md border">
-					<table class="w-full">
-						<thead>
-							<tr class="border-b bg-muted/50">
-								<th class="px-4 py-3 text-left text-sm font-medium">Name</th>
-								<th class="px-4 py-3 text-left text-sm font-medium">Role</th>
-								<th class="px-4 py-3 text-right text-sm font-medium">Actions</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each members as member}
-								{@const isCurrentUser = member.profile_id === currentUserId}
-								{@const isOwner = member.role === 'owner'}
-								<tr
-									class="border-b last:border-0 cursor-pointer transition-colors hover:bg-muted/50 {drawerMemberId === member.id ? 'bg-muted/50' : ''}"
-									onclick={() => openDrawer(member.id)}
-								>
-									<td class="px-4 py-3">
-										<div class="flex items-center gap-3">
-											<div class="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
-												{member.profiles?.display_name?.charAt(0)?.toUpperCase() ?? '?'}
-											</div>
-											<div>
-												<span class="text-base font-medium">{member.profiles?.display_name ?? 'Unknown'} {#if isCurrentUser}<span class="ml-1 text-xs font-normal text-muted-foreground">(You)</span>{/if}</span>
-												<p class="text-xs font-mono text-muted-foreground">{memberEmails[member.profile_id] ?? ''}</p>
-											</div>
-										</div>
-									</td>
-									<td class="px-4 py-3">
-										{#if isOwner || isCurrentUser}
-											<Badge variant={roleBadgeVariant(member.role)}>
-												{member.role}
-											</Badge>
-										{:else}
-											<!-- svelte-ignore a11y_click_events_have_key_events -->
-											<!-- svelte-ignore a11y_no_static_element_interactions -->
-											<div onclick={(e) => e.stopPropagation()}>
-												<select
-													value={member.role}
-													disabled={updatingId === member.id}
-													onchange={(e) => handleRoleChange(member.id, (e.target as HTMLSelectElement).value as UserRole)}
-													class="h-8 rounded-md border border-input bg-background px-2 text-sm"
-												>
-													<option value="admin">Admin</option>
-													<option value="member">Member</option>
-													<option value="sales">Sales</option>
-													<option value="guest">Guest</option>
-												</select>
-											</div>
-										{/if}
-									</td>
-									<td class="px-4 py-3 text-right">
-										{#if !isOwner && !isCurrentUser}
-											<!-- svelte-ignore a11y_click_events_have_key_events -->
-											<!-- svelte-ignore a11y_no_static_element_interactions -->
-											<div onclick={(e) => e.stopPropagation()}>
-												<Button
-													variant="destructive"
-													size="sm"
-													disabled={updatingId === member.id}
-													onclick={() => handleRemove(member.id)}
-												>
-													Remove
-												</Button>
-											</div>
-										{/if}
-									</td>
-								</tr>
 							{/each}
-						</tbody>
-					</table>
-				</div>
-			{/if}
+						</div>
+					</div>
+				{/if}
+				{#if inviteMessage}
+					<p class="text-sm text-muted-foreground">{inviteMessage}</p>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Pending invitations (compact) -->
+		{#if invitations.length > 0}
+			<div class="space-y-2">
+				<p class="text-sm font-medium text-muted-foreground">Pending Invitations</p>
+				{#each invitations as invitation}
+					<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
+						<div class="flex items-center gap-3">
+							<span class="font-mono text-sm">{invitation.email}</span>
+							<Badge variant={roleBadgeVariant(invitation.role)}>{invitation.role}</Badge>
+						</div>
+						<div class="flex items-center gap-1">
+							<button
+								class="text-sm text-muted-foreground transition-colors hover:text-foreground"
+								onclick={() => copyInviteLink(invitation.token, invitation.id)}
+							>
+								{copiedId === invitation.id ? 'Copied!' : 'Copy Link'}
+							</button>
+							<button
+								class="text-sm text-muted-foreground transition-colors hover:text-destructive"
+								disabled={updatingId === invitation.id}
+								onclick={() => revokeInvite(invitation.id)}
+							>
+								Revoke
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		{#if members.length === 0}
+			<div class="rounded-lg border border-dashed p-8 text-center">
+				<p class="text-muted-foreground">No team members found.</p>
+			</div>
+		{:else}
+			<div class="rounded-md border">
+				<table class="w-full">
+					<thead>
+						<tr class="border-b bg-muted/50">
+							<th class="px-4 py-3 text-left text-sm font-medium">Name</th>
+							<th class="px-4 py-3 text-left text-sm font-medium">Role</th>
+							<th class="px-4 py-3 text-right text-sm font-medium">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each members as member}
+							{@const isCurrentUser = member.profile_id === currentUserId}
+							{@const isOwner = member.role === 'owner'}
+							<tr
+								class="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/50 {drawerMemberId ===
+								member.id
+									? 'bg-muted/50'
+									: ''}"
+								onclick={() => openDrawer(member.id)}
+							>
+								<td class="px-4 py-3">
+									<div class="flex items-center gap-3">
+										<div
+											class="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium"
+										>
+											{member.profiles?.display_name?.charAt(0)?.toUpperCase() ?? '?'}
+										</div>
+										<div>
+											<span class="text-base font-medium"
+												>{member.profiles?.display_name ?? 'Unknown'}
+												{#if isCurrentUser}<span
+														class="ml-1 text-xs font-normal text-muted-foreground">(You)</span
+													>{/if}</span
+											>
+											<p class="font-mono text-xs text-muted-foreground">
+												{memberEmails[member.profile_id] ?? ''}
+											</p>
+										</div>
+									</div>
+								</td>
+								<td class="px-4 py-3">
+									{#if isOwner || isCurrentUser}
+										<Badge variant={roleBadgeVariant(member.role)}>
+											{member.role}
+										</Badge>
+									{:else}
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div onclick={(e) => e.stopPropagation()}>
+											<select
+												value={member.role}
+												disabled={updatingId === member.id}
+												onchange={(e) =>
+													handleRoleChange(
+														member.id,
+														(e.target as HTMLSelectElement).value as UserRole
+													)}
+												class="h-8 rounded-md border border-input bg-background px-2 text-sm"
+											>
+												<option value="admin">Admin</option>
+												<option value="member">Member</option>
+												<option value="sales">Sales</option>
+												<option value="guest">Guest</option>
+											</select>
+										</div>
+									{/if}
+								</td>
+								<td class="px-4 py-3 text-right">
+									{#if !isOwner && !isCurrentUser}
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div onclick={(e) => e.stopPropagation()}>
+											<Button
+												variant="destructive"
+												size="sm"
+												disabled={updatingId === member.id}
+												onclick={() => handleRemove(member.id)}
+											>
+												Remove
+											</Button>
+										</div>
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -552,7 +608,7 @@
 
 <div
 	class={cn(
-		'fixed right-3 top-3 bottom-3 z-50 w-[calc(100vw-5rem)] overflow-hidden rounded-none border bg-background shadow-xl transition-transform duration-300 ease-in-out sm:w-[28rem]',
+		'fixed top-3 right-3 bottom-3 z-50 w-[calc(100vw-5rem)] overflow-hidden rounded-none border bg-background shadow-xl transition-transform duration-300 ease-in-out sm:w-[28rem]',
 		drawerOpen ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'
 	)}
 >
@@ -560,12 +616,16 @@
 		<!-- Header -->
 		<div class="flex items-center justify-between px-5 py-4">
 			{#if drawerMember}
-				<div class="flex items-center gap-3 min-w-0">
-					<div class="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-semibold shrink-0">
+				<div class="flex min-w-0 items-center gap-3">
+					<div
+						class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold"
+					>
 						{drawerMember.profiles?.display_name?.charAt(0)?.toUpperCase() ?? '?'}
 					</div>
 					<div class="min-w-0">
-						<h2 class="text-base font-semibold truncate">{drawerMember.profiles?.display_name ?? 'Unknown'}</h2>
+						<h2 class="truncate text-base font-semibold">
+							{drawerMember.profiles?.display_name ?? 'Unknown'}
+						</h2>
 						<div class="flex items-center gap-2">
 							<Badge variant={roleBadgeVariant(drawerMember.role)}>{drawerMember.role}</Badge>
 							{#if drawerIsCurrentUser}
@@ -577,18 +637,31 @@
 			{:else}
 				<h2 class="text-base font-semibold">Member Details</h2>
 			{/if}
-			<button onclick={closeDrawer} aria-label="Close" class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground shrink-0">
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+			<button
+				onclick={closeDrawer}
+				aria-label="Close"
+				class="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="1.5"
+				>
 					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 				</svg>
 			</button>
 		</div>
 
 		<!-- Content -->
-		<div class="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+		<div class="flex-1 space-y-6 overflow-y-auto px-5 py-5">
 			{#if drawerLoading}
 				<div class="flex items-center justify-center py-12">
-					<div class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"></div>
+					<div
+						class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
+					></div>
 				</div>
 			{:else if drawerMember}
 				<!-- Profile -->
@@ -606,7 +679,8 @@
 									<select
 										value={drawerMember.role}
 										disabled={drawerUpdatingRole}
-										onchange={(e) => drawerHandleRoleChange((e.target as HTMLSelectElement).value as UserRole)}
+										onchange={(e) =>
+											drawerHandleRoleChange((e.target as HTMLSelectElement).value as UserRole)}
 										class="h-8 rounded-md border border-input bg-background px-2 text-sm"
 									>
 										<option value="admin">Admin</option>
@@ -621,7 +695,13 @@
 						</div>
 						<div class="flex justify-between">
 							<dt class="text-muted-foreground">Member since</dt>
-							<dd>{new Date(drawerMember.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd>
+							<dd>
+								{new Date(drawerMember.created_at).toLocaleDateString('en-US', {
+									month: 'long',
+									day: 'numeric',
+									year: 'numeric'
+								})}
+							</dd>
 						</div>
 					</dl>
 				</div>
@@ -634,7 +714,10 @@
 						<div class="space-y-1.5">
 							{#each drawerTerritories as territory}
 								<div class="flex items-center rounded-lg border px-3 py-2">
-									<a href="/organization/territories/{territory.id}" class="text-sm font-medium hover:underline">{territory.name}</a>
+									<a
+										href="/organization/territories/{territory.id}"
+										class="text-sm font-medium hover:underline">{territory.name}</a
+									>
 								</div>
 							{/each}
 						</div>
@@ -661,8 +744,9 @@
 												max="100"
 												value={drawerCommissionMap.get(brand.id) ?? 0}
 												disabled={drawerUpdatingCommission === brand.id}
-												onchange={(e) => drawerUpdateCommission(brand.id, (e.target as HTMLInputElement).value)}
-												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-sm text-right"
+												onchange={(e) =>
+													drawerUpdateCommission(brand.id, (e.target as HTMLInputElement).value)}
+												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-right text-sm"
 											/>
 											<span class="text-xs text-muted-foreground">%</span>
 										</div>
@@ -690,12 +774,21 @@
 										<span class="text-sm">{ba.brands?.name ?? 'Unknown'}</span>
 										<button
 											aria-label="Remove brand access"
-											class="text-muted-foreground hover:text-destructive transition-colors"
+											class="text-muted-foreground transition-colors hover:text-destructive"
 											disabled={drawerRemovingAccess === ba.id}
 											onclick={() => drawerRemoveBrandAccess(ba.id)}
 										>
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-												<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-3.5 w-3.5"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+											>
+												<path
+													fill-rule="evenodd"
+													d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+													clip-rule="evenodd"
+												/>
 											</svg>
 										</button>
 									</div>
@@ -708,7 +801,10 @@
 								class="h-8 rounded-lg border border-input bg-background px-3 text-sm"
 								onchange={(e) => {
 									const val = (e.target as HTMLSelectElement).value;
-									if (val) { drawerAddBrandAccess(val); (e.target as HTMLSelectElement).value = ''; }
+									if (val) {
+										drawerAddBrandAccess(val);
+										(e.target as HTMLSelectElement).value = '';
+									}
 								}}
 							>
 								<option value="">Add brand access...</option>
@@ -742,4 +838,8 @@
 	onimport={handleTeamImport}
 />
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape' && drawerOpen) closeDrawer(); }} />
+<svelte:window
+	onkeydown={(e) => {
+		if (e.key === 'Escape' && drawerOpen) closeDrawer();
+	}}
+/>

@@ -41,10 +41,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Remove brand access entries first
-	await supabaseAdmin
-		.from('member_brand_access')
-		.delete()
-		.eq('member_id', memberId);
+	await supabaseAdmin.from('member_brand_access').delete().eq('member_id', memberId);
 
 	// Remove the member
 	const { error: deleteError } = await supabaseAdmin

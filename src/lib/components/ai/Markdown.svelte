@@ -50,9 +50,15 @@
 		margin-bottom: 0.25em;
 		line-height: 1.3;
 	}
-	.markdown :global(h1) { font-size: 1.1em; }
-	.markdown :global(h2) { font-size: 1em; }
-	.markdown :global(h3) { font-size: 0.95em; }
+	.markdown :global(h1) {
+		font-size: 1.1em;
+	}
+	.markdown :global(h2) {
+		font-size: 1em;
+	}
+	.markdown :global(h3) {
+		font-size: 0.95em;
+	}
 	.markdown :global(h1:first-child),
 	.markdown :global(h2:first-child),
 	.markdown :global(h3:first-child) {
@@ -64,8 +70,12 @@
 		margin: 0.4em 0;
 		padding-left: 1.5em;
 	}
-	.markdown :global(ul) { list-style-type: disc; }
-	.markdown :global(ol) { list-style-type: decimal; }
+	.markdown :global(ul) {
+		list-style-type: disc;
+	}
+	.markdown :global(ol) {
+		list-style-type: decimal;
+	}
 	.markdown :global(li) {
 		margin-bottom: 0.15em;
 	}

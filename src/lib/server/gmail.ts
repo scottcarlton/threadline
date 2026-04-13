@@ -44,20 +44,20 @@ export async function getGmailClient(profileId: string) {
 	client.setCredentials({
 		access_token: connection.access_token,
 		refresh_token: connection.refresh_token,
-		expiry_date: connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : undefined
+		expiry_date: connection.token_expires_at
+			? new Date(connection.token_expires_at).getTime()
+			: undefined
 	});
 
 	// Handle token refresh
 	client.on('tokens', async (tokens) => {
 		const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
 		if (tokens.access_token) updateData.access_token = tokens.access_token;
-		if (tokens.expiry_date) updateData.token_expires_at = new Date(tokens.expiry_date).toISOString();
+		if (tokens.expiry_date)
+			updateData.token_expires_at = new Date(tokens.expiry_date).toISOString();
 		if (tokens.refresh_token) updateData.refresh_token = tokens.refresh_token;
 
-		await supabaseAdmin
-			.from('email_connections')
-			.update(updateData)
-			.eq('id', connection.id);
+		await supabaseAdmin.from('email_connections').update(updateData).eq('id', connection.id);
 	});
 
 	return google.gmail({ version: 'v1', auth: client });

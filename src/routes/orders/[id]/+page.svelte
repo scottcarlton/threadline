@@ -215,8 +215,13 @@
 	}
 
 	function handleInlineKeydown(e: KeyboardEvent, line: OrderLine) {
-		if (e.key === 'Enter') { e.preventDefault(); saveInlineEdit(line); }
-		if (e.key === 'Escape') { inlineEditId = ''; }
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			saveInlineEdit(line);
+		}
+		if (e.key === 'Escape') {
+			inlineEditId = '';
+		}
 	}
 
 	// Add new line item
@@ -244,18 +249,16 @@
 		if (newQty < 1 || isNaN(price) || price < 0) return;
 		savingNewLine = true;
 		const maxSort = activeLines.reduce((max, l) => Math.max(max, l.sort_order), 0);
-		await supabase
-			.from('order_lines')
-			.insert({
-				order_id: order.id,
-				style_number: newStyleNumber || null,
-				description: newDescription || null,
-				color: newColor || null,
-				size: newSize || null,
-				qty: newQty,
-				unit_price: price,
-				sort_order: maxSort + 1
-			});
+		await supabase.from('order_lines').insert({
+			order_id: order.id,
+			style_number: newStyleNumber || null,
+			description: newDescription || null,
+			color: newColor || null,
+			size: newSize || null,
+			qty: newQty,
+			unit_price: price,
+			sort_order: maxSort + 1
+		});
 		savingNewLine = false;
 		resetNewLine();
 		invalidateAll();
@@ -344,7 +347,13 @@
 	}
 
 	// Comments
-	type Comment = { id: string; author_id: string; body: string; created_at: string; profiles?: { display_name: string } | null };
+	type Comment = {
+		id: string;
+		author_id: string;
+		body: string;
+		created_at: string;
+		profiles?: { display_name: string } | null;
+	};
 	const comments = $derived((data.comments ?? []) as Comment[]);
 	let commentBody = $state('');
 	let postingComment = $state(false);
@@ -461,33 +470,72 @@
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
 			<Button variant="ghost" size="sm" href="/orders">← Back</Button>
-			<h1 class="text-3xl font-mono">{order.order_number}</h1>
-			<Badge variant={statusColors[order.status] as any ?? 'secondary'}>{statusLabels[order.status] ?? order.status}</Badge>
+			<h1 class="font-mono text-3xl">{order.order_number}</h1>
+			<Badge variant={(statusColors[order.status] as any) ?? 'secondary'}
+				>{statusLabels[order.status] ?? order.status}</Badge
+			>
 		</div>
 		<div class="flex gap-2">
 			<Button variant="outline" size="sm" onclick={handleCloneOrder} disabled={cloning}>
 				{#if cloning}
-					<div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"></div>
+					<div
+						class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
+					></div>
 				{:else}
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+						/>
 					</svg>
 				{/if}
 				Clone
 			</Button>
 			<Button variant="outline" size="sm" onclick={handleDownloadPdf} disabled={downloadingPdf}>
 				{#if downloadingPdf}
-					<div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"></div>
+					<div
+						class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
+					></div>
 				{:else}
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+						/>
 					</svg>
 				{/if}
 				Download PDF
 			</Button>
 			<Button size="sm" onclick={openSendDialog}>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+					/>
 				</svg>
 				Send to Account
 			</Button>
@@ -498,11 +546,14 @@
 							Cancel
 						</Button>
 					{:else}
-						<Button
-							size="sm"
-							onclick={() => updateStatus(nextStatus)}
-						>
-							{nextStatus === 'submitted' ? 'Submit' : nextStatus === 'confirmed' ? 'Confirm' : nextStatus === 'shipped' ? 'Ship' : 'Mark Delivered'}
+						<Button size="sm" onclick={() => updateStatus(nextStatus)}>
+							{nextStatus === 'submitted'
+								? 'Submit'
+								: nextStatus === 'confirmed'
+									? 'Confirm'
+									: nextStatus === 'shipped'
+										? 'Ship'
+										: 'Mark Delivered'}
 						</Button>
 					{/if}
 				{/each}
@@ -519,14 +570,20 @@
 				<div class="flex items-center gap-1">
 					<div class="flex flex-col items-center">
 						<div
-							class="flex h-6 w-6 items-center justify-center rounded-full text-xs {isComplete ? 'bg-primary text-primary-foreground' : isCurrent ? 'border-2 border-primary' : 'border border-muted-foreground/30'}"
+							class="flex h-6 w-6 items-center justify-center rounded-full text-xs {isComplete
+								? 'bg-primary text-primary-foreground'
+								: isCurrent
+									? 'border-2 border-primary'
+									: 'border border-muted-foreground/30'}"
 						>
 							{#if isComplete}✓{/if}
 						</div>
 						<span class="mt-1 text-xs text-muted-foreground">{step.label}</span>
 					</div>
 					{#if i < timeline.length - 1}
-						<div class="mb-5 h-px w-12 {isComplete ? 'bg-primary' : 'bg-muted-foreground/30'}"></div>
+						<div
+							class="mb-5 h-px w-12 {isComplete ? 'bg-primary' : 'bg-muted-foreground/30'}"
+						></div>
 					{/if}
 				</div>
 			{/each}
@@ -540,20 +597,42 @@
 				<CardTitle class="text-base">Order Details</CardTitle>
 			</CardHeader>
 			<CardContent>
-				{@const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']}
+				{@const monthNames = [
+					'Jan',
+					'Feb',
+					'Mar',
+					'Apr',
+					'May',
+					'Jun',
+					'Jul',
+					'Aug',
+					'Sep',
+					'Oct',
+					'Nov',
+					'Dec'
+				]}
 				{@const showDateData = (order as any).show_dates}
-				{@const sourceDisplay = showDateData?.shows?.name ?? (order as any).source_types?.name ?? null}
-				{@const sourceLocation = showDateData ? [showDateData.city, showDateData.state].filter(Boolean).join(', ') : null}
+				{@const sourceDisplay =
+					showDateData?.shows?.name ?? (order as any).source_types?.name ?? null}
+				{@const sourceLocation = showDateData
+					? [showDateData.city, showDateData.state].filter(Boolean).join(', ')
+					: null}
 				{@const deliveryData = (order as any).season_deliveries}
 				{@const createdByName = (order as any).profiles?.display_name ?? null}
 				<dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
 					<div>
 						<dt class="text-xs text-muted-foreground">Account</dt>
-						<dd class="mt-0.5"><a href="/accounts/{order.account_id}" class="hover:underline">{order.accounts?.business_name}</a></dd>
+						<dd class="mt-0.5">
+							<a href="/accounts/{order.account_id}" class="hover:underline"
+								>{order.accounts?.business_name}</a
+							>
+						</dd>
 					</div>
 					<div>
 						<dt class="text-xs text-muted-foreground">Brand</dt>
-						<dd class="mt-0.5"><a href="/brands/{order.brand_id}" class="hover:underline">{order.brands?.name}</a></dd>
+						<dd class="mt-0.5">
+							<a href="/brands/{order.brand_id}" class="hover:underline">{order.brands?.name}</a>
+						</dd>
 					</div>
 					<div>
 						<dt class="text-xs text-muted-foreground">Season</dt>
@@ -565,7 +644,9 @@
 							{#if sourceDisplay}
 								<span>{sourceDisplay}</span>
 								{#if showDateData}
-									<p class="text-xs font-mono text-muted-foreground">{monthNames[showDateData.month - 1]} · {sourceLocation}</p>
+									<p class="font-mono text-xs text-muted-foreground">
+										{monthNames[showDateData.month - 1]} · {sourceLocation}
+									</p>
 								{/if}
 							{:else}
 								<span class="text-muted-foreground/50">—</span>
@@ -576,22 +657,42 @@
 						<dt class="text-xs text-muted-foreground">Ship Window</dt>
 						<dd class="mt-0.5">
 							{#if deliveryData?.delivery_month}
-								{monthNames[deliveryData.delivery_month - 1]} 1 — {order.expected_ship_date ? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}` : '—'}
+								{monthNames[deliveryData.delivery_month - 1]} 1 — {order.expected_ship_date
+									? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
+									: '—'}
 							{:else if order.expected_ship_date}
-								{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+								{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
+									month: 'short',
+									day: 'numeric',
+									year: 'numeric'
+								})}
 							{:else}
 								<span class="text-muted-foreground/50">—</span>
 							{/if}
 							{#if canEdit}
-								<button class="text-xs text-muted-foreground hover:text-foreground transition-colors ml-1" onclick={startEditShipDate}>
+								<button
+									class="ml-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+									onclick={startEditShipDate}
+								>
 									{order.expected_ship_date ? 'Edit' : 'Set'}
 								</button>
 							{/if}
 							{#if editingShipDate}
 								<div class="mt-1 flex items-center gap-2">
-									<input type="date" bind:value={shipDateValue} class="h-8 rounded-md border border-input bg-background px-2 text-sm" />
-									<button class="text-xs text-primary hover:underline" onclick={saveShipDate} disabled={savingShipDate}>{savingShipDate ? '...' : 'Save'}</button>
-									<button class="text-xs text-muted-foreground hover:underline" onclick={() => (editingShipDate = false)}>Cancel</button>
+									<input
+										type="date"
+										bind:value={shipDateValue}
+										class="h-8 rounded-md border border-input bg-background px-2 text-sm"
+									/>
+									<button
+										class="text-xs text-primary hover:underline"
+										onclick={saveShipDate}
+										disabled={savingShipDate}>{savingShipDate ? '...' : 'Save'}</button
+									>
+									<button
+										class="text-xs text-muted-foreground hover:underline"
+										onclick={() => (editingShipDate = false)}>Cancel</button
+									>
 								</div>
 							{/if}
 						</dd>
@@ -600,7 +701,11 @@
 						<dt class="text-xs text-muted-foreground">Shipped</dt>
 						<dd class="mt-0.5">
 							{#if order.shipped_at}
-								{new Date(order.shipped_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+								{new Date(order.shipped_at).toLocaleDateString('en-US', {
+									month: 'short',
+									day: 'numeric',
+									year: 'numeric'
+								})}
 							{:else}
 								<span class="text-muted-foreground/50">—</span>
 							{/if}
@@ -610,7 +715,13 @@
 						<dt class="text-xs text-muted-foreground">Created</dt>
 						<dd class="mt-0.5">
 							{#if createdByName}<span>{createdByName}</span>{/if}
-							<p class="text-xs font-mono text-muted-foreground">{new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+							<p class="font-mono text-xs text-muted-foreground">
+								{new Date(order.created_at).toLocaleDateString('en-US', {
+									month: 'short',
+									day: 'numeric',
+									year: 'numeric'
+								})}
+							</p>
 						</dd>
 					</div>
 				</dl>
@@ -619,28 +730,30 @@
 
 		<Card>
 			<CardHeader>
-				<CardTitle class="text-base font-mono">Order Total</CardTitle>
+				<CardTitle class="font-mono text-base">Order Total</CardTitle>
 			</CardHeader>
 			<CardContent>
-				<p class="text-3xl font-bold font-mono">{fmt.format(Number(order.total_amount))}</p>
-				<p class="mt-1 text-sm text-muted-foreground">{activeLines.length} line item{activeLines.length !== 1 ? 's' : ''}</p>
+				<p class="font-mono text-3xl font-bold">{fmt.format(Number(order.total_amount))}</p>
+				<p class="mt-1 text-sm text-muted-foreground">
+					{activeLines.length} line item{activeLines.length !== 1 ? 's' : ''}
+				</p>
 
 				<!-- Commission -->
 				<div class="mt-4 space-y-3">
 					{#if repCommissionRate > 0}
-					<div class="rounded-md border p-3 space-y-2">
-						<div class="flex items-center justify-between">
-							<span class="text-sm font-medium text-muted-foreground">
-								Commission ({repCommissionRate}%){repName ? ` — ${repName}` : ''}
-							</span>
-							<span class="text-sm font-medium">{fmt.format(repCommissionOnTotal)}</span>
+						<div class="space-y-2 rounded-md border p-3">
+							<div class="flex items-center justify-between">
+								<span class="text-sm font-medium text-muted-foreground">
+									Commission ({repCommissionRate}%){repName ? ` — ${repName}` : ''}
+								</span>
+								<span class="text-sm font-medium">{fmt.format(repCommissionOnTotal)}</span>
+							</div>
 						</div>
-					</div>
 					{/if}
 
 					<!-- Shipped amount -->
 					{#if isShippedOrDelivered}
-						<div class="rounded-md border p-3 space-y-2">
+						<div class="space-y-2 rounded-md border p-3">
 							<div class="flex items-center justify-between">
 								<span class="text-sm font-medium text-muted-foreground">Shipped Amount</span>
 								{#if canEdit}
@@ -649,9 +762,11 @@
 											type="number"
 											step="0.01"
 											min="0"
-											class="h-8 w-32 rounded-md border border-input bg-background px-2 text-sm text-right"
+											class="h-8 w-32 rounded-md border border-input bg-background px-2 text-right text-sm"
 											value={order.shipped_amount ?? ''}
-											oninput={(e) => { shippedAmountInput = (e.target as HTMLInputElement).value; }}
+											oninput={(e) => {
+												shippedAmountInput = (e.target as HTMLInputElement).value;
+											}}
 										/>
 										<button
 											type="button"
@@ -666,7 +781,9 @@
 							</div>
 							{#if order.shipped_amount != null}
 								<p class="text-sm text-muted-foreground">
-									Ordered: {fmt.format(Number(order.total_amount))} → Shipped: {fmt.format(Number(order.shipped_amount))}
+									Ordered: {fmt.format(Number(order.total_amount))} → Shipped: {fmt.format(
+										Number(order.shipped_amount)
+									)}
 								</p>
 								{#if repCommissionRate > 0}
 									<p class="text-sm font-medium">
@@ -685,11 +802,13 @@
 							<textarea
 								bind:value={notesValue}
 								rows="3"
-								class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+								class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 								placeholder="Add notes..."
 							></textarea>
-							<div class="flex gap-2 justify-end">
-								<Button variant="outline" size="sm" onclick={() => (editingNotes = false)}>Cancel</Button>
+							<div class="flex justify-end gap-2">
+								<Button variant="outline" size="sm" onclick={() => (editingNotes = false)}
+									>Cancel</Button
+								>
 								<Button size="sm" onclick={saveNotes} disabled={savingNotes}>
 									{savingNotes ? 'Saving...' : 'Save'}
 								</Button>
@@ -700,7 +819,10 @@
 							<div class="flex items-center justify-between">
 								<p class="text-xs font-medium text-muted-foreground">Notes</p>
 								{#if canEdit}
-									<button class="text-xs text-muted-foreground hover:text-foreground transition-colors" onclick={startEditNotes}>
+									<button
+										class="text-xs text-muted-foreground transition-colors hover:text-foreground"
+										onclick={startEditNotes}
+									>
 										{order.notes ? 'Edit' : 'Add'}
 									</button>
 								{/if}
@@ -741,7 +863,9 @@
 								<Button variant="outline" size="sm" onclick={enterEditMode}>Edit Items</Button>
 							{/if}
 							{#if !addingLine}
-								<Button variant="outline" size="sm" onclick={() => (addingLine = true)}>Add Item</Button>
+								<Button variant="outline" size="sm" onclick={() => (addingLine = true)}
+									>Add Item</Button
+								>
 							{/if}
 						{/if}
 					</div>
@@ -771,7 +895,7 @@
 							{#each activeLines as line}
 								<tr class="group border-b">
 									<td class="px-3 py-2">
-										<span class="text-sm font-mono">{line.style_number ?? '—'}</span>
+										<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
 										{#if line.description}
 											<p class="text-xs text-muted-foreground">{line.description}</p>
 										{/if}
@@ -780,15 +904,28 @@
 									<td class="px-3 py-2 text-sm">{line.size ?? '—'}</td>
 									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 									<td
-										class="px-3 py-2 text-right text-sm {!editMode && canEdit && order.status !== 'cancelled' && order.status !== 'delivered' ? 'cursor-pointer hover:bg-muted/50 rounded' : ''}"
-										ondblclick={() => { if (!editMode && canEdit && order.status !== 'cancelled' && order.status !== 'delivered') handleQtyDblClick(line); }}
+										class="px-3 py-2 text-right text-sm {!editMode &&
+										canEdit &&
+										order.status !== 'cancelled' &&
+										order.status !== 'delivered'
+											? 'cursor-pointer rounded hover:bg-muted/50'
+											: ''}"
+										ondblclick={() => {
+											if (
+												!editMode &&
+												canEdit &&
+												order.status !== 'cancelled' &&
+												order.status !== 'delivered'
+											)
+												handleQtyDblClick(line);
+										}}
 									>
 										{#if editMode}
 											<input
 												type="number"
 												min="1"
 												bind:value={editedQtys[line.id]}
-												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-sm text-right"
+												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-right text-sm"
 											/>
 										{:else if inlineEditId === line.id}
 											<input
@@ -797,22 +934,28 @@
 												bind:value={inlineEditQty}
 												onblur={() => saveInlineEdit(line)}
 												onkeydown={(e) => handleInlineKeydown(e, line)}
-												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-sm text-right"
+												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-right text-sm"
 												autofocus
 											/>
 										{:else}
 											{#if line.original_qty && line.original_qty !== line.qty}
-												<span class="text-muted-foreground line-through mr-1">{line.original_qty}</span>
+												<span class="mr-1 text-muted-foreground line-through"
+													>{line.original_qty}</span
+												>
 											{/if}
 											{line.qty}
 										{/if}
 									</td>
-									<td class="px-3 py-2 text-right text-sm font-mono">{fmt.format(Number(line.unit_price))}</td>
-									<td class="px-3 py-2 text-right text-sm font-mono font-medium">{fmt.format(Number(line.line_total))}</td>
+									<td class="px-3 py-2 text-right font-mono text-sm"
+										>{fmt.format(Number(line.unit_price))}</td
+									>
+									<td class="px-3 py-2 text-right font-mono text-sm font-medium"
+										>{fmt.format(Number(line.line_total))}</td
+									>
 									{#if canEdit && order.status !== 'cancelled' && order.status !== 'delivered'}
 										<td class="px-3 py-2 text-right">
 											<button
-												class="rounded px-2 py-1 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
+												class="rounded px-2 py-1 text-xs text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
 												onclick={() => startRemoveLine(line.id)}
 											>
 												Remove
@@ -826,32 +969,66 @@
 							{#if addingLine}
 								<tr class="border-b bg-muted/20">
 									<td class="px-3 py-2">
-										<input type="text" bind:value={newStyleNumber} placeholder="Style #" class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm" />
+										<input
+											type="text"
+											bind:value={newStyleNumber}
+											placeholder="Style #"
+											class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+										/>
 									</td>
 									<td class="px-3 py-2">
-										<input type="text" bind:value={newDescription} placeholder="Description" class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm" />
+										<input
+											type="text"
+											bind:value={newDescription}
+											placeholder="Description"
+											class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+										/>
 									</td>
 									<td class="px-3 py-2">
-										<input type="text" bind:value={newColor} placeholder="Color" class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm" />
+										<input
+											type="text"
+											bind:value={newColor}
+											placeholder="Color"
+											class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+										/>
 									</td>
 									<td class="px-3 py-2">
-										<input type="text" bind:value={newSize} placeholder="Size" class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm" />
+										<input
+											type="text"
+											bind:value={newSize}
+											placeholder="Size"
+											class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+										/>
 									</td>
 									<td class="px-3 py-2">
-										<input type="number" min="1" bind:value={newQty} class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm text-right" />
+										<input
+											type="number"
+											min="1"
+											bind:value={newQty}
+											class="h-8 w-full rounded-md border border-input bg-background px-2 text-right text-sm"
+										/>
 									</td>
 									<td class="px-3 py-2">
-										<input type="number" step="0.01" min="0" bind:value={newUnitPrice} placeholder="0.00" class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm text-right" />
+										<input
+											type="number"
+											step="0.01"
+											min="0"
+											bind:value={newUnitPrice}
+											placeholder="0.00"
+											class="h-8 w-full rounded-md border border-input bg-background px-2 text-right text-sm"
+										/>
 									</td>
 									<td class="px-3 py-2"></td>
 									<td class="px-3 py-2 text-right">
 										<div class="flex items-center justify-end gap-1">
-											<Button size="sm" onclick={saveNewLine} disabled={savingNewLine || newQty < 1 || !newUnitPrice}>
+											<Button
+												size="sm"
+												onclick={saveNewLine}
+												disabled={savingNewLine || newQty < 1 || !newUnitPrice}
+											>
 												{savingNewLine ? '...' : 'Add'}
 											</Button>
-											<Button variant="outline" size="sm" onclick={resetNewLine}>
-												Cancel
-											</Button>
+											<Button variant="outline" size="sm" onclick={resetNewLine}>Cancel</Button>
 										</div>
 									</td>
 								</tr>
@@ -859,8 +1036,15 @@
 						</tbody>
 						<tfoot>
 							<tr class="bg-muted/50">
-								<td colspan={canEdit && order.status !== 'cancelled' && order.status !== 'delivered' ? 7 : 6} class="px-3 py-2 text-right text-sm font-mono font-medium">Order Total</td>
-								<td class="px-3 py-2 text-right text-sm font-mono font-bold">{fmt.format(Number(order.total_amount))}</td>
+								<td
+									colspan={canEdit && order.status !== 'cancelled' && order.status !== 'delivered'
+										? 7
+										: 6}
+									class="px-3 py-2 text-right font-mono text-sm font-medium">Order Total</td
+								>
+								<td class="px-3 py-2 text-right font-mono text-sm font-bold"
+									>{fmt.format(Number(order.total_amount))}</td
+								>
 							</tr>
 						</tfoot>
 					</table>
@@ -870,20 +1054,24 @@
 			<!-- Removed lines -->
 			{#if removedLines.length > 0}
 				<div class="mt-4">
-					<p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Removed Items</p>
+					<p class="mb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+						Removed Items
+					</p>
 					<div class="rounded-md border border-dashed">
 						<table class="w-full">
 							<tbody>
 								{#each removedLines as line}
-									<tr class="border-b last:border-0 opacity-60">
+									<tr class="border-b opacity-60 last:border-0">
 										<td class="px-3 py-2 line-through">
-											<span class="text-sm font-mono">{line.style_number ?? '—'}</span>
+											<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
 											{#if line.description}
 												<p class="text-xs text-muted-foreground">{line.description}</p>
 											{/if}
 										</td>
 										<td class="px-3 py-2 text-sm">{line.color ?? '—'} / {line.size ?? '—'}</td>
-										<td class="px-3 py-2 text-right text-sm">{line.qty} x {fmt.format(Number(line.unit_price))}</td>
+										<td class="px-3 py-2 text-right text-sm"
+											>{line.qty} x {fmt.format(Number(line.unit_price))}</td
+										>
 										<td class="px-3 py-2 text-sm text-muted-foreground">{line.removed_reason}</td>
 									</tr>
 								{/each}
@@ -900,22 +1088,34 @@
 {#if removingLineId}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onclick={() => (removingLineId = '')}></div>
+	<div
+		class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+		onclick={() => (removingLineId = '')}
+	></div>
 	<div class="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="w-full max-w-md rounded-none border bg-card p-6 shadow-xl" onclick={(e: MouseEvent) => e.stopPropagation()}>
+		<div
+			class="w-full max-w-md rounded-none border bg-card p-6 shadow-xl"
+			onclick={(e: MouseEvent) => e.stopPropagation()}
+		>
 			<h2 class="text-base font-semibold">Remove Line Item</h2>
-			<p class="mt-1 text-sm text-muted-foreground">Please provide a reason for removing this item.</p>
+			<p class="mt-1 text-sm text-muted-foreground">
+				Please provide a reason for removing this item.
+			</p>
 			<textarea
 				bind:value={removeReason}
 				rows="3"
 				placeholder="Reason for removal..."
-				class="mt-4 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+				class="mt-4 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 			></textarea>
 			<div class="mt-4 flex justify-end gap-2">
 				<Button variant="outline" onclick={() => (removingLineId = '')}>Cancel</Button>
-				<Button variant="destructive" onclick={confirmRemoveLine} disabled={savingRemove || !removeReason.trim()}>
+				<Button
+					variant="destructive"
+					onclick={confirmRemoveLine}
+					disabled={savingRemove || !removeReason.trim()}
+				>
 					{savingRemove ? 'Removing...' : 'Remove Item'}
 				</Button>
 			</div>
@@ -930,20 +1130,45 @@
 	</CardHeader>
 	<CardContent>
 		{#if comments.length > 0}
-			<div class="space-y-3 mb-4">
+			<div class="mb-4 space-y-3">
 				{#each comments as comment}
 					<div class="flex items-start gap-3">
-						<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+						<div
+							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
+						>
 							{(comment.profiles?.display_name ?? '?')[0].toUpperCase()}
 						</div>
 						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2">
-								<span class="text-sm font-medium">{comment.profiles?.display_name ?? 'Unknown'}</span>
-								<span class="text-sm text-muted-foreground">{new Date(comment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+								<span class="text-sm font-medium"
+									>{comment.profiles?.display_name ?? 'Unknown'}</span
+								>
+								<span class="text-sm text-muted-foreground"
+									>{new Date(comment.created_at).toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										hour: 'numeric',
+										minute: '2-digit'
+									})}</span
+								>
 								{#if comment.author_id === data.user?.id}
-									<button class="text-sm text-muted-foreground hover:text-destructive" onclick={() => deleteComment(comment.id)}>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+									<button
+										class="text-sm text-muted-foreground hover:text-destructive"
+										onclick={() => deleteComment(comment.id)}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-3.5 w-3.5"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M6 18L18 6M6 6l12 12"
+											/>
 										</svg>
 									</button>
 								{/if}
@@ -961,7 +1186,12 @@
 					class="flex-1"
 					placeholder="Add a note..."
 					bind:value={commentBody}
-					onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); postComment(); } }}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' && !e.shiftKey) {
+							e.preventDefault();
+							postComment();
+						}
+					}}
 				/>
 				<Button size="sm" onclick={postComment} disabled={postingComment || !commentBody.trim()}>
 					{postingComment ? 'Posting...' : 'Post'}
@@ -975,22 +1205,34 @@
 {#if cancelOpen}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onclick={() => (cancelOpen = false)}></div>
+	<div
+		class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+		onclick={() => (cancelOpen = false)}
+	></div>
 	<div class="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="w-full max-w-md rounded-none border bg-card p-6 shadow-xl" onclick={(e: MouseEvent) => e.stopPropagation()}>
+		<div
+			class="w-full max-w-md rounded-none border bg-card p-6 shadow-xl"
+			onclick={(e: MouseEvent) => e.stopPropagation()}
+		>
 			<h2 class="text-base font-semibold">Cancel Order</h2>
-			<p class="mt-1 text-sm text-muted-foreground">This cannot be undone. Please provide a reason for cancellation.</p>
+			<p class="mt-1 text-sm text-muted-foreground">
+				This cannot be undone. Please provide a reason for cancellation.
+			</p>
 			<textarea
 				bind:value={cancelReason}
 				rows="3"
 				placeholder="Reason for cancellation..."
-				class="mt-4 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+				class="mt-4 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 			></textarea>
 			<div class="mt-4 flex justify-end gap-2">
 				<Button variant="outline" onclick={() => (cancelOpen = false)}>Keep Order</Button>
-				<Button variant="destructive" onclick={confirmCancel} disabled={cancellingOrder || !cancelReason.trim()}>
+				<Button
+					variant="destructive"
+					onclick={confirmCancel}
+					disabled={cancellingOrder || !cancelReason.trim()}
+				>
 					{cancellingOrder ? 'Cancelling...' : 'Cancel Order'}
 				</Button>
 			</div>
@@ -1022,7 +1264,14 @@
 					disabled={sendLoading}
 					aria-label="Close"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
 						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 					</svg>
 				</button>
@@ -1030,8 +1279,17 @@
 
 			{#if sendSuccess}
 				<div class="p-8 text-center">
-					<div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<div
+						class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-6 w-6 text-emerald-600"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
 							<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
 						</svg>
 					</div>
@@ -1045,7 +1303,12 @@
 				<div class="space-y-4 p-5">
 					<div class="space-y-2">
 						<Label for="send-to">To</Label>
-						<Input id="send-to" type="email" bind:value={sendTo} placeholder="recipient@example.com" />
+						<Input
+							id="send-to"
+							type="email"
+							bind:value={sendTo}
+							placeholder="recipient@example.com"
+						/>
 					</div>
 					<div class="space-y-2">
 						<Label for="send-subject">Subject</Label>
@@ -1057,7 +1320,7 @@
 							id="send-body"
 							bind:value={sendBody}
 							rows="6"
-							class="flex w-full resize-none rounded-none border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:border-ring"
+							class="flex w-full resize-none rounded-none border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
 						></textarea>
 					</div>
 
@@ -1092,7 +1355,9 @@
 					<Button variant="outline" onclick={closeSendDialog} disabled={sendLoading}>Cancel</Button>
 					<Button onclick={handleSendOrder} disabled={sendLoading}>
 						{#if sendLoading}
-							<div class="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"></div>
+							<div
+								class="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
+							></div>
 							Sending...
 						{:else}
 							Send

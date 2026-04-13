@@ -36,9 +36,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			status: 'active',
 			access_token: tokens.access_token ?? '',
 			refresh_token: tokens.refresh_token ?? '',
-			token_expires_at: tokens.expiry_date
-				? new Date(tokens.expiry_date).toISOString()
-				: null,
+			token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
 			scopes: ['spreadsheets', 'drive.file'],
 			external_account_id: email,
 			external_account_name: email,

@@ -13,14 +13,12 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 	const [orderResult, linesResult] = await Promise.all([
 		supabaseAdmin
 			.from('orders')
-			.select('*, brands(name, contact_first_name, contact_last_name, contact_email, contact_phone), accounts(business_name, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country), seasons(name), shows(name)')
+			.select(
+				'*, brands(name, contact_first_name, contact_last_name, contact_email, contact_phone), accounts(business_name, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country), seasons(name), shows(name)'
+			)
 			.eq('id', orderId)
 			.single(),
-		supabaseAdmin
-			.from('order_lines')
-			.select('*')
-			.eq('order_id', orderId)
-			.order('sort_order')
+		supabaseAdmin.from('order_lines').select('*').eq('order_id', orderId).order('sort_order')
 	]);
 
 	if (orderResult.error || !orderResult.data) {

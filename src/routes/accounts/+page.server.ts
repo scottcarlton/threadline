@@ -21,9 +21,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.eq('organization_id', organization.id)
 			.eq('order_year', currentYear),
 		computeAccountHealth(supabase, organization.id),
-		supabase
-			.from('account_tag_assignments')
-			.select('account_id, account_tags(id, name, color)')
+		supabase.from('account_tag_assignments').select('account_id, account_tags(id, name, color)')
 	]);
 
 	// Build YTD totals per account

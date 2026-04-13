@@ -132,89 +132,124 @@
 </h2>
 
 <div>
-		{#if error}
-			<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-				{error}
+	{#if error}
+		<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+			{error}
+		</div>
+	{/if}
+
+	{#if mode === 'choose'}
+		<div class="flex flex-col gap-3">
+			<Button size="lg" onclick={signInWithGoogle} disabled={loading} class="w-full">
+				Continue with Google
+			</Button>
+
+			<Button size="lg" variant="outline" onclick={() => (mode = 'otp-email')} class="w-full">
+				Continue with Email
+			</Button>
+
+			<Button size="lg" variant="outline" onclick={() => (mode = 'sso-email')} class="w-full">
+				Sign in with SSO
+			</Button>
+		</div>
+	{:else if mode === 'otp-email'}
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				sendOtp();
+			}}
+			class="space-y-4"
+		>
+			<div class="space-y-2">
+				<Label for="email">Email</Label>
+				<Input id="email" type="email" placeholder="you@example.com" bind:value={email} required />
 			</div>
-		{/if}
-
-		{#if mode === 'choose'}
-			<div class="flex flex-col gap-3">
-				<Button size="lg" onclick={signInWithGoogle} disabled={loading} class="w-full">
-					Continue with Google
-				</Button>
-
-				<Button size="lg" variant="outline" onclick={() => (mode = 'otp-email')} class="w-full">
-					Continue with Email
-				</Button>
-
-				<Button size="lg" variant="outline" onclick={() => (mode = 'sso-email')} class="w-full">
-					Sign in with SSO
-				</Button>
+			<Button size="lg" type="submit" class="w-full" disabled={loading || !email}>
+				{loading ? 'Sending code...' : 'Send sign-in code'}
+			</Button>
+		</form>
+	{:else if mode === 'otp-verify'}
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				verifyOtp();
+			}}
+			class="space-y-4"
+		>
+			<div class="space-y-2">
+				<Label for="otp">Verification code</Label>
+				<Input
+					id="otp"
+					type="text"
+					placeholder="Enter 6-digit code"
+					bind:value={otpCode}
+					autocomplete="one-time-code"
+					required
+				/>
 			</div>
-		{:else if mode === 'otp-email'}
-			<form onsubmit={(e) => { e.preventDefault(); sendOtp(); }} class="space-y-4">
-				<div class="space-y-2">
-					<Label for="email">Email</Label>
-					<Input id="email" type="email" placeholder="you@example.com" bind:value={email} required />
-				</div>
-				<Button size="lg" type="submit" class="w-full" disabled={loading || !email}>
-					{loading ? 'Sending code...' : 'Send sign-in code'}
-				</Button>
-			</form>
-		{:else if mode === 'otp-verify'}
-			<form onsubmit={(e) => { e.preventDefault(); verifyOtp(); }} class="space-y-4">
-				<div class="space-y-2">
-					<Label for="otp">Verification code</Label>
-					<Input
-						id="otp"
-						type="text"
-						placeholder="Enter 6-digit code"
-						bind:value={otpCode}
-						autocomplete="one-time-code"
-						required
-					/>
-				</div>
-				<Button size="lg" type="submit" class="w-full" disabled={loading || !otpCode}>
-					{loading ? 'Verifying...' : 'Verify code'}
-				</Button>
-				<button
-					type="button"
-					class="w-full text-center text-sm text-muted-foreground hover:text-foreground"
-					onclick={sendOtp}
-				>
-					Resend code
-				</button>
-			</form>
-		{:else if mode === 'sso-email'}
-			<form onsubmit={(e) => { e.preventDefault(); discoverSso(); }} class="space-y-4">
-				<div class="space-y-2">
-					<Label for="sso-email">Work Email</Label>
-					<Input id="sso-email" type="email" placeholder="you@company.com" bind:value={ssoEmail} required />
-					<p class="text-xs text-muted-foreground">Enter your work email to be redirected to your company's sign-in page</p>
-				</div>
-				<Button size="lg" type="submit" class="w-full" disabled={loading || !ssoEmail}>
-					{loading ? 'Checking...' : 'Continue with SSO'}
-				</Button>
-			</form>
-		{:else if mode === 'sso-redirect'}
-			<div class="flex flex-col items-center gap-3 py-4">
-				<svg class="h-6 w-6 animate-spin text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-				</svg>
-				<p class="text-sm text-muted-foreground">Redirecting to your identity provider...</p>
-			</div>
-		{/if}
-	</div>
-
-	<div class="mt-6 flex flex-col items-center gap-2 text-sm">
-		{#if mode !== 'choose'}
-			<button type="button" class="text-muted-foreground hover:text-foreground" onclick={reset}>
-				Back
+			<Button size="lg" type="submit" class="w-full" disabled={loading || !otpCode}>
+				{loading ? 'Verifying...' : 'Verify code'}
+			</Button>
+			<button
+				type="button"
+				class="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+				onclick={sendOtp}
+			>
+				Resend code
 			</button>
-		{/if}
-		<a href="/signup" class="text-muted-foreground hover:text-foreground">
-			Don't have an account? Sign up
-		</a>
-	</div>
+		</form>
+	{:else if mode === 'sso-email'}
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				discoverSso();
+			}}
+			class="space-y-4"
+		>
+			<div class="space-y-2">
+				<Label for="sso-email">Work Email</Label>
+				<Input
+					id="sso-email"
+					type="email"
+					placeholder="you@company.com"
+					bind:value={ssoEmail}
+					required
+				/>
+				<p class="text-xs text-muted-foreground">
+					Enter your work email to be redirected to your company's sign-in page
+				</p>
+			</div>
+			<Button size="lg" type="submit" class="w-full" disabled={loading || !ssoEmail}>
+				{loading ? 'Checking...' : 'Continue with SSO'}
+			</Button>
+		</form>
+	{:else if mode === 'sso-redirect'}
+		<div class="flex flex-col items-center gap-3 py-4">
+			<svg
+				class="h-6 w-6 animate-spin text-muted-foreground"
+				xmlns="http://www.w3.org/2000/svg"
+				fill="none"
+				viewBox="0 0 24 24"
+			>
+				<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+				<path
+					class="opacity-75"
+					fill="currentColor"
+					d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+				/>
+			</svg>
+			<p class="text-sm text-muted-foreground">Redirecting to your identity provider...</p>
+		</div>
+	{/if}
+</div>
+
+<div class="mt-6 flex flex-col items-center gap-2 text-sm">
+	{#if mode !== 'choose'}
+		<button type="button" class="text-muted-foreground hover:text-foreground" onclick={reset}>
+			Back
+		</button>
+	{/if}
+	<a href="/signup" class="text-muted-foreground hover:text-foreground">
+		Don't have an account? Sign up
+	</a>
+</div>

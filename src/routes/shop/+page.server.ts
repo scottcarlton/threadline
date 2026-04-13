@@ -17,7 +17,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	let productsQuery = supabase
 		.from('products')
-		.select('*, brands(id, name), product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order)')
+		.select(
+			'*, brands(id, name), product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order)'
+		)
 		.eq('is_active', true)
 		.is('archived_at', null)
 		.order('style_number');

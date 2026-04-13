@@ -170,8 +170,18 @@
 
 <div class="space-y-6">
 	<div class="flex items-center gap-3">
-		<a href="/organization/integrations" class="text-sm text-muted-foreground hover:text-foreground">
-			<svg xmlns="http://www.w3.org/2000/svg" class="inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+		<a
+			href="/organization/integrations"
+			class="text-sm text-muted-foreground hover:text-foreground"
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="inline h-4 w-4"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="2"
+			>
 				<path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
 			</svg>
 			Integrations
@@ -190,7 +200,9 @@
 						<Badge variant="success">Connected</Badge>
 					</div>
 					{#if connection.external_account_name}
-						<p class="mt-1 font-mono text-sm text-muted-foreground">{connection.external_account_name}</p>
+						<p class="mt-1 font-mono text-sm text-muted-foreground">
+							{connection.external_account_name}
+						</p>
 					{/if}
 					<p class="mt-1 text-xs text-muted-foreground">
 						Connected {formatDate(connection.created_at)}
@@ -225,14 +237,41 @@
 
 					<Button onclick={exportData} disabled={exporting} size="sm">
 						{#if exporting}
-							<svg class="mr-2 h-3.5 w-3.5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+							<svg
+								class="mr-2 h-3.5 w-3.5 animate-spin"
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
+							>
+								<circle
+									class="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									stroke-width="4"
+								/>
+								<path
+									class="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+								/>
 							</svg>
 							Exporting...
 						{:else}
-							<svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="mr-1.5 h-3.5 w-3.5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+								/>
 							</svg>
 							Export to Sheets
 						{/if}
@@ -240,19 +279,35 @@
 				</div>
 
 				{#if exportResult}
-					<div class="mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<div
+						class="mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-green-600"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
 							<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
 						</svg>
 						<p class="text-sm text-green-800">
 							Exported {exportResult.rows} rows.
-							<a href={exportResult.url} target="_blank" rel="noopener" class="font-medium underline">Open spreadsheet</a>
+							<a
+								href={exportResult.url}
+								target="_blank"
+								rel="noopener"
+								class="font-medium underline">Open spreadsheet</a
+							>
 						</p>
 					</div>
 				{/if}
 
 				{#if exportError}
-					<div class="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+					<div
+						class="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3"
+					>
 						<p class="text-sm text-red-800">{exportError}</p>
 					</div>
 				{/if}
@@ -268,12 +323,25 @@
 		<Card>
 			<CardContent class="pt-5 pb-5">
 				<h3 class="text-sm font-medium">Connected Services</h3>
-				<p class="mt-1 text-sm text-muted-foreground">Your Microsoft 365 connection enables these features</p>
+				<p class="mt-1 text-sm text-muted-foreground">
+					Your Microsoft 365 connection enables these features
+				</p>
 				<div class="mt-4 grid gap-3 sm:grid-cols-3">
 					<div class="rounded-lg border p-3">
 						<div class="flex items-center gap-2">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4 text-blue-600"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+								/>
 							</svg>
 							<span class="text-sm font-medium">Outlook</span>
 						</div>
@@ -281,8 +349,19 @@
 					</div>
 					<div class="rounded-lg border p-3">
 						<div class="flex items-center gap-2">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4 text-purple-600"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"
+								/>
 							</svg>
 							<span class="text-sm font-medium">Teams</span>
 						</div>
@@ -290,8 +369,19 @@
 					</div>
 					<div class="rounded-lg border p-3">
 						<div class="flex items-center gap-2">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125" />
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4 text-green-600"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125"
+								/>
 							</svg>
 							<span class="text-sm font-medium">Excel</span>
 						</div>
@@ -305,9 +395,7 @@
 		<Card>
 			<CardContent class="pt-5 pb-5">
 				<h3 class="text-sm font-medium">Export to Excel</h3>
-				<p class="mt-1 text-sm text-muted-foreground">
-					Create an Excel file in your OneDrive
-				</p>
+				<p class="mt-1 text-sm text-muted-foreground">Create an Excel file in your OneDrive</p>
 
 				<div class="mt-4 flex items-end gap-3">
 					<div>
@@ -325,9 +413,25 @@
 
 					<Button onclick={exportToExcel} disabled={msExporting} size="sm">
 						{#if msExporting}
-							<svg class="mr-2 h-3.5 w-3.5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+							<svg
+								class="mr-2 h-3.5 w-3.5 animate-spin"
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
+							>
+								<circle
+									class="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									stroke-width="4"
+								/>
+								<path
+									class="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+								/>
 							</svg>
 							Exporting...
 						{:else}
@@ -337,19 +441,35 @@
 				</div>
 
 				{#if msExportResult}
-					<div class="mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<div
+						class="mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-green-600"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
 							<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
 						</svg>
 						<p class="text-sm text-green-800">
 							Exported {msExportResult.rows} rows.
-							<a href={msExportResult.url} target="_blank" rel="noopener" class="font-medium underline">Open in OneDrive</a>
+							<a
+								href={msExportResult.url}
+								target="_blank"
+								rel="noopener"
+								class="font-medium underline">Open in OneDrive</a
+							>
 						</p>
 					</div>
 				{/if}
 
 				{#if msExportError}
-					<div class="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+					<div
+						class="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3"
+					>
 						<p class="text-sm text-red-800">{msExportError}</p>
 					</div>
 				{/if}
@@ -363,7 +483,8 @@
 			<CardContent class="pt-5 pb-5">
 				<h3 class="text-sm font-medium">Push Data to Notion</h3>
 				<p class="mt-1 text-sm text-muted-foreground">
-					Sync your Threadline data into a Notion database. Pages shared with the Threadline integration will appear below.
+					Sync your Threadline data into a Notion database. Pages shared with the Threadline
+					integration will appear below.
 				</p>
 
 				{#if loadingDatabases}
@@ -371,7 +492,8 @@
 				{:else if notionDatabases.length === 0}
 					<div class="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3">
 						<p class="text-sm text-yellow-800">
-							No databases found. Make sure you've shared at least one Notion database with the Threadline integration.
+							No databases found. Make sure you've shared at least one Notion database with the
+							Threadline integration.
 						</p>
 					</div>
 				{:else}
@@ -404,9 +526,25 @@
 
 						<Button onclick={syncToNotion} disabled={syncing || !selectedNotionDb} size="sm">
 							{#if syncing}
-								<svg class="mr-2 h-3.5 w-3.5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+								<svg
+									class="mr-2 h-3.5 w-3.5 animate-spin"
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+								>
+									<circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									/>
+									<path
+										class="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+									/>
 								</svg>
 								Syncing...
 							{:else}
@@ -416,8 +554,17 @@
 					</div>
 
 					{#if syncResult}
-						<div class="mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<div
+							class="mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4 text-green-600"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
 								<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
 							</svg>
 							<p class="text-sm text-green-800">
@@ -427,7 +574,9 @@
 					{/if}
 
 					{#if syncError}
-						<div class="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+						<div
+							class="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3"
+						>
 							<p class="text-sm text-red-800">{syncError}</p>
 						</div>
 					{/if}
@@ -443,20 +592,16 @@
 			<CardContent class="pt-5 pb-5">
 				<h3 class="text-sm font-medium">Channel</h3>
 				<p class="mt-1 text-sm text-muted-foreground">
-					Notifications are sent to <span class="font-mono font-medium">#{config.channel_name}</span> in <span class="font-medium">{config.team_name}</span>
+					Notifications are sent to <span class="font-mono font-medium">#{config.channel_name}</span
+					>
+					in <span class="font-medium">{config.team_name}</span>
 				</p>
 
 				<div class="mt-4">
 					<h3 class="text-sm font-medium">Notifications</h3>
 					<p class="mt-1 text-sm text-muted-foreground">Events that trigger a Slack message</p>
 					<div class="mt-3 space-y-2">
-						{#each [
-							{ key: 'order_submitted', label: 'Order submitted' },
-							{ key: 'order_confirmed', label: 'Order confirmed' },
-							{ key: 'order_shipped', label: 'Order shipped' },
-							{ key: 'order_cancelled', label: 'Order cancelled' },
-							{ key: 'new_account', label: 'New account created' }
-						] as event}
+						{#each [{ key: 'order_submitted', label: 'Order submitted' }, { key: 'order_confirmed', label: 'Order confirmed' }, { key: 'order_shipped', label: 'Order shipped' }, { key: 'order_cancelled', label: 'Order cancelled' }, { key: 'new_account', label: 'New account created' }] as event}
 							{@const notifyOn = (config.notify_on ?? []) as string[]}
 							<label class="flex items-center gap-2.5">
 								<input

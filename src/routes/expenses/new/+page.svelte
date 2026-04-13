@@ -4,7 +4,13 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardContent,
+		CardFooter
+	} from '$lib/components/ui/card/index.js';
 	import type { ExpenseCategory } from '$lib/types/database.js';
 	import ReceiptDropZone from '$lib/components/shared/ReceiptDropZone.svelte';
 
@@ -109,7 +115,7 @@
 				<select
 					id="brand"
 					bind:value={brandId}
-					class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+					class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 				>
 					<option value="">Select a brand</option>
 					{#each brands as brand}
@@ -124,7 +130,7 @@
 					<select
 						id="category"
 						bind:value={category}
-						class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 					>
 						{#each categoryOptions as opt}
 							<option value={opt.value}>{opt.label}</option>
@@ -133,7 +139,14 @@
 				</div>
 				<div class="space-y-2">
 					<Label for="amount">Amount *</Label>
-					<Input id="amount" type="number" step="0.01" min="0" placeholder="0.00" bind:value={amount} />
+					<Input
+						id="amount"
+						type="number"
+						step="0.01"
+						min="0"
+						placeholder="0.00"
+						bind:value={amount}
+					/>
 				</div>
 			</div>
 
@@ -154,7 +167,7 @@
 					bind:value={notes}
 					rows="3"
 					placeholder="Additional details..."
-					class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+					class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 				></textarea>
 			</div>
 			<!-- Receipts -->
@@ -166,8 +179,20 @@
 						{#each pendingReceipts as file, i}
 							<div class="flex items-center justify-between border px-3 py-2 text-sm">
 								<span class="truncate">{file.name}</span>
-								<button type="button" aria-label="Remove receipt" class="text-muted-foreground hover:text-destructive" onclick={() => removeReceipt(i)}>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<button
+									type="button"
+									aria-label="Remove receipt"
+									class="text-muted-foreground hover:text-destructive"
+									onclick={() => removeReceipt(i)}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
 										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 									</svg>
 								</button>

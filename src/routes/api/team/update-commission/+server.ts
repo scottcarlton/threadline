@@ -38,14 +38,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			.update({ rate: numRate })
 			.eq('id', existing.id);
 	} else {
-		await supabaseAdmin
-			.from('member_brand_commissions')
-			.insert({
-				organization_id: organization.id,
-				member_id: memberId,
-				brand_id: brandId,
-				rate: numRate
-			});
+		await supabaseAdmin.from('member_brand_commissions').insert({
+			organization_id: organization.id,
+			member_id: memberId,
+			brand_id: brandId,
+			rate: numRate
+		});
 	}
 
 	return json({ success: true });

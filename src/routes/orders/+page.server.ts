@@ -41,10 +41,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			brands: brandsRes.data ?? [],
 			showDates: [],
 			metrics: {
-				pipelineValue: orders.filter((o) => ['draft', 'submitted', 'confirmed'].includes(o.status)).reduce((s, o) => s + Number(o.total_amount), 0),
-				pipelineCount: orders.filter((o) => ['draft', 'submitted', 'confirmed'].includes(o.status)).length,
-				deliveredRevenue: orders.filter((o) => o.status === 'delivered').reduce((s, o) => s + Number(o.total_amount), 0),
-				avgOrderValue: orders.length > 0 ? orders.reduce((s, o) => s + Number(o.total_amount), 0) / orders.length : 0,
+				pipelineValue: orders
+					.filter((o) => ['draft', 'submitted', 'confirmed'].includes(o.status))
+					.reduce((s, o) => s + Number(o.total_amount), 0),
+				pipelineCount: orders.filter((o) => ['draft', 'submitted', 'confirmed'].includes(o.status))
+					.length,
+				deliveredRevenue: orders
+					.filter((o) => o.status === 'delivered')
+					.reduce((s, o) => s + Number(o.total_amount), 0),
+				avgOrderValue:
+					orders.length > 0
+						? orders.reduce((s, o) => s + Number(o.total_amount), 0) / orders.length
+						: 0,
 				needsAttention: { staleDrafts: 0, overdueShipments: 0, total: 0 },
 				conversion: { submitted: 0, converted: 0, rate: 0 }
 			}
@@ -57,7 +65,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	let query = supabase
 		.from('orders')
-		.select('*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)')
+		.select(
+			'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)'
+		)
 		.eq('organization_id', organization.id)
 		.order('created_at', { ascending: false });
 
@@ -70,9 +80,24 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const [ordersResult, seasonsResult, brandsResult, showDatesResult] = await Promise.all([
 		query,
-		supabase.from('seasons').select('*').eq('organization_id', organization.id).eq('is_active', true).order('sort_order'),
-		supabase.from('brands').select('id, name').eq('organization_id', organization.id).eq('is_active', true).order('name'),
-		supabase.from('show_dates').select('id, show_id, year, month, city, state, shows(name)').eq('organization_id', organization.id).order('year').order('month')
+		supabase
+			.from('seasons')
+			.select('*')
+			.eq('organization_id', organization.id)
+			.eq('is_active', true)
+			.order('sort_order'),
+		supabase
+			.from('brands')
+			.select('id, name')
+			.eq('organization_id', organization.id)
+			.eq('is_active', true)
+			.order('name'),
+		supabase
+			.from('show_dates')
+			.select('id, show_id, year, month, city, state, shows(name)')
+			.eq('organization_id', organization.id)
+			.order('year')
+			.order('month')
 	]);
 
 	const orders = ordersResult.data ?? [];
@@ -108,7 +133,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		if (o.status === 'draft' && new Date(o.created_at) < sevenDaysAgo) {
 			staleDrafts++;
 		}
-		if ((o.status === 'submitted' || o.status === 'confirmed') && o.expected_ship_date && o.expected_ship_date < todayStr) {
+		if (
+			(o.status === 'submitted' || o.status === 'confirmed') &&
+			o.expected_ship_date &&
+			o.expected_ship_date < todayStr
+		) {
 			overdueShipments++;
 		}
 		if (o.status !== 'draft') {
@@ -123,7 +152,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		pipelineValue,
 		pipelineCount,
 		deliveredRevenue,
-		avgOrderValue: deliveredCount > 0 ? deliveredRevenue / deliveredCount : (orders.length > 0 ? orders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) / orders.length : 0),
+		avgOrderValue:
+			deliveredCount > 0
+				? deliveredRevenue / deliveredCount
+				: orders.length > 0
+					? orders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) / orders.length
+					: 0,
 		needsAttention: {
 			staleDrafts,
 			overdueShipments,
