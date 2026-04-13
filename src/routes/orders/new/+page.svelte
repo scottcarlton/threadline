@@ -1118,7 +1118,13 @@
 							disabled={submitting}
 							onclick={() => (submitStatus = 'submitted')}
 						>
-							{cart.type === 'note' ? 'Save Note' : 'Submit Order'}
+							{cart.type === 'note'
+								? groups.length > 1
+									? 'Save Notes'
+									: 'Save Note'
+								: groups.length > 1
+									? 'Submit Orders'
+									: 'Submit Order'}
 						</Button>
 					{/if}
 				</div>
