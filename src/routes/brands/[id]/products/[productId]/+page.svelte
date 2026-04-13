@@ -309,6 +309,7 @@
 	{/if}
 
 	<!-- Product Details -->
+	{#if editing || product.retail_price || product.description}
 	<Card>
 		<CardContent class="pt-6">
 			{#if saveError}
@@ -409,6 +410,7 @@
 			</CardFooter>
 		{/if}
 	</Card>
+	{/if}
 
 	<!-- Variants -->
 	<Card>
