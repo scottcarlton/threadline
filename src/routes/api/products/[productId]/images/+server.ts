@@ -32,17 +32,15 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 		.select('id', { count: 'exact', head: true })
 		.eq('product_id', productId);
 
-	const { error: dbError } = await supabaseAdmin
-		.from('product_images')
-		.insert({
-			product_id: productId,
-			file_path: filePath,
-			file_size: file.size,
-			mime_type: file.type,
-			sort_order: (count ?? 0),
-			is_primary: (count ?? 0) === 0,
-			uploaded_by: locals.user.id
-		});
+	const { error: dbError } = await supabaseAdmin.from('product_images').insert({
+		product_id: productId,
+		file_path: filePath,
+		file_size: file.size,
+		mime_type: file.type,
+		sort_order: count ?? 0,
+		is_primary: (count ?? 0) === 0,
+		uploaded_by: locals.user.id
+	});
 
 	if (dbError) {
 		await supabaseAdmin.storage.from('brand-assets').remove([filePath]);

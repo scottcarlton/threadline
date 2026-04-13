@@ -221,7 +221,20 @@
 		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 	}
 
-	const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	const monthNames = [
+		'Jan',
+		'Feb',
+		'Mar',
+		'Apr',
+		'May',
+		'Jun',
+		'Jul',
+		'Aug',
+		'Sep',
+		'Oct',
+		'Nov',
+		'Dec'
+	];
 
 	function monthLabel(month: number): string {
 		return monthNames[month - 1] ?? '';
@@ -247,7 +260,14 @@
 			{/if}
 
 			{#if editing}
-				<form id="edit-form" onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="space-y-4">
+				<form
+					id="edit-form"
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleSave();
+					}}
+					class="space-y-4"
+				>
 					<div class="space-y-2">
 						<Label for="name">Show name *</Label>
 						<Input id="name" bind:value={name} required />
@@ -258,7 +278,7 @@
 							id="notes"
 							bind:value={notes}
 							rows="3"
-							class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 						></textarea>
 					</div>
 				</form>
@@ -292,7 +312,14 @@
 		<div class="flex items-center justify-between">
 			<h2 class="text-lg font-semibold">Dates</h2>
 			{#if canEdit && !addingDate}
-				<Button size="sm" variant="outline" onclick={() => { resetDateForm(); addingDate = true; }}>+ Add Date</Button>
+				<Button
+					size="sm"
+					variant="outline"
+					onclick={() => {
+						resetDateForm();
+						addingDate = true;
+					}}>+ Add Date</Button
+				>
 			{/if}
 		</div>
 
@@ -302,21 +329,29 @@
 			</div>
 		{/if}
 
-		{#each (show.show_dates ?? []) as date}
+		{#each show.show_dates ?? [] as date}
 			<Card>
 				<CardContent class="pt-4 pb-4">
 					{#if editingDateId === date.id}
 						{#if editDateError}
-							<div class="mb-3 rounded-md bg-destructive/10 p-2 text-sm text-destructive">{editDateError}</div>
+							<div class="mb-3 rounded-md bg-destructive/10 p-2 text-sm text-destructive">
+								{editDateError}
+							</div>
 						{/if}
-						<form onsubmit={(e) => { e.preventDefault(); updateDate(); }} class="space-y-3">
+						<form
+							onsubmit={(e) => {
+								e.preventDefault();
+								updateDate();
+							}}
+							class="space-y-3"
+						>
 							<div class="flex flex-wrap gap-3">
 								<div class="space-y-1">
 									<Label for="edit-month">Month</Label>
 									<select
 										id="edit-month"
 										bind:value={editMonth}
-										class="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+										class="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 									>
 										{#each monthNames as m, i}
 											<option value={i + 1}>{m}</option>
@@ -325,7 +360,14 @@
 								</div>
 								<div class="space-y-1">
 									<Label for="edit-year">Year</Label>
-									<Input id="edit-year" type="number" bind:value={editYear} min={2020} max={2040} class="w-24" />
+									<Input
+										id="edit-year"
+										type="number"
+										bind:value={editYear}
+										min={2020}
+										max={2040}
+										class="w-24"
+									/>
 								</div>
 								<div class="space-y-1">
 									<Label for="edit-city">City</Label>
@@ -353,15 +395,31 @@
 							<div class="flex flex-wrap gap-3">
 								<div class="space-y-1">
 									<Label for="edit-contact-name">Contact</Label>
-									<Input id="edit-contact-name" bind:value={editContactName} placeholder="Name" class="w-36" />
+									<Input
+										id="edit-contact-name"
+										bind:value={editContactName}
+										placeholder="Name"
+										class="w-36"
+									/>
 								</div>
 								<div class="space-y-1">
 									<Label for="edit-contact-email">Email</Label>
-									<Input id="edit-contact-email" type="email" bind:value={editContactEmail} placeholder="email@example.com" class="w-44" />
+									<Input
+										id="edit-contact-email"
+										type="email"
+										bind:value={editContactEmail}
+										placeholder="email@example.com"
+										class="w-44"
+									/>
 								</div>
 								<div class="space-y-1">
 									<Label for="edit-contact-phone">Phone</Label>
-									<Input id="edit-contact-phone" bind:value={editContactPhone} placeholder="(555) 123-4567" class="w-36" />
+									<Input
+										id="edit-contact-phone"
+										bind:value={editContactPhone}
+										placeholder="(555) 123-4567"
+										class="w-36"
+									/>
 								</div>
 							</div>
 							<div class="space-y-1">
@@ -372,7 +430,9 @@
 								<Button type="submit" size="sm" disabled={editDateLoading}>
 									{editDateLoading ? 'Saving...' : 'Save'}
 								</Button>
-								<Button variant="outline" size="sm" onclick={() => (editingDateId = null)}>Cancel</Button>
+								<Button variant="outline" size="sm" onclick={() => (editingDateId = null)}
+									>Cancel</Button
+								>
 							</div>
 						</form>
 					{:else}
@@ -380,13 +440,25 @@
 							<div class="flex items-center justify-between">
 								<div class="flex items-center gap-6 text-sm">
 									<span class="font-medium">{monthLabel(date.month)} {date.year}</span>
-									<span class="text-muted-foreground">{[date.city, date.state].filter(Boolean).join(', ') || '—'}</span>
+									<span class="text-muted-foreground"
+										>{[date.city, date.state].filter(Boolean).join(', ') || '—'}</span
+									>
 									<span class="text-muted-foreground">{date.venue || ''}</span>
 								</div>
 								{#if canEdit}
 									<div class="flex gap-1">
-										<Button variant="ghost" size="sm" class="cursor-pointer" onclick={() => startEditDate(date)}>Edit</Button>
-										<Button variant="ghost" size="sm" class="cursor-pointer text-destructive hover:text-destructive" onclick={() => deleteDate(date.id)}>Delete</Button>
+										<Button
+											variant="ghost"
+											size="sm"
+											class="cursor-pointer"
+											onclick={() => startEditDate(date)}>Edit</Button
+										>
+										<Button
+											variant="ghost"
+											size="sm"
+											class="cursor-pointer text-destructive hover:text-destructive"
+											onclick={() => deleteDate(date.id)}>Delete</Button
+										>
 									</div>
 								{/if}
 							</div>
@@ -396,7 +468,9 @@
 										<span>{date.contact_name}</span>
 									{/if}
 									{#if date.contact_email}
-										<a href="mailto:{date.contact_email}" class="hover:underline">{date.contact_email}</a>
+										<a href="mailto:{date.contact_email}" class="hover:underline"
+											>{date.contact_email}</a
+										>
 									{/if}
 									{#if date.contact_phone}
 										<span>{date.contact_phone}</span>
@@ -414,35 +488,71 @@
 											{#each documents[date.id] ?? [] as doc}
 												<div class="flex items-center justify-between text-sm">
 													<div class="flex items-center gap-2">
-														<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-															<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															class="h-3.5 w-3.5 text-muted-foreground"
+															fill="none"
+															viewBox="0 0 24 24"
+															stroke="currentColor"
+															stroke-width="1.5"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+															/>
 														</svg>
 														<span class="text-muted-foreground">{doc.name}</span>
 														{#if doc.file_size}
-															<span class="text-xs text-muted-foreground/60">{formatFileSize(doc.file_size)}</span>
+															<span class="text-xs text-muted-foreground/60"
+																>{formatFileSize(doc.file_size)}</span
+															>
 														{/if}
 													</div>
 													{#if canEdit}
-														<button class="text-xs text-muted-foreground hover:text-destructive transition-colors" onclick={() => deleteDocument(date.id, doc.id)}>Remove</button>
+														<button
+															class="text-xs text-muted-foreground transition-colors hover:text-destructive"
+															onclick={() => deleteDocument(date.id, doc.id)}>Remove</button
+														>
 													{/if}
 												</div>
 											{/each}
 										</div>
 									{/if}
 									{#if canEdit}
-										<label class="mt-2 inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+										<label
+											class="mt-2 inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+										>
 											{#if uploadingForDateId === date.id}
-												<div class="h-3 w-3 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground"></div>
+												<div
+													class="h-3 w-3 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground"
+												></div>
 												Uploading...
 											{:else}
-												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													class="h-3.5 w-3.5"
+													fill="none"
+													viewBox="0 0 24 24"
+													stroke="currentColor"
+													stroke-width="2"
+												>
 													<path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
 												</svg>
 												Attach file
 											{/if}
-											<input type="file" class="hidden" onchange={(e) => { const t = e.target as HTMLInputElement; const f = t.files?.[0]; if (f) uploadDocument(date.id, f); t.value = ''; }} />
+											<input
+												type="file"
+												class="hidden"
+												onchange={(e) => {
+													const t = e.target as HTMLInputElement;
+													const f = t.files?.[0];
+													if (f) uploadDocument(date.id, f);
+													t.value = '';
+												}}
+											/>
 										</label>
-										{#if uploadError && uploadingForDateId === '' }
+										{#if uploadError && uploadingForDateId === ''}
 											<p class="text-xs text-destructive">{uploadError}</p>
 										{/if}
 									{/if}
@@ -457,19 +567,25 @@
 		<!-- Add date form -->
 		{#if addingDate}
 			<Card>
-				<CardContent class="pt-4 pb-4 space-y-3">
+				<CardContent class="space-y-3 pt-4 pb-4">
 					<p class="text-sm font-medium">New Date</p>
 					{#if dateError}
 						<div class="rounded-md bg-destructive/10 p-2 text-sm text-destructive">{dateError}</div>
 					{/if}
-					<form onsubmit={(e) => { e.preventDefault(); saveDate(); }} class="space-y-3">
+					<form
+						onsubmit={(e) => {
+							e.preventDefault();
+							saveDate();
+						}}
+						class="space-y-3"
+					>
 						<div class="flex flex-wrap gap-3">
 							<div class="space-y-1">
 								<Label for="new-month">Month</Label>
 								<select
 									id="new-month"
 									bind:value={newMonth}
-									class="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+									class="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 								>
 									{#each monthNames as m, i}
 										<option value={i + 1}>{m}</option>
@@ -478,7 +594,14 @@
 							</div>
 							<div class="space-y-1">
 								<Label for="new-year">Year</Label>
-								<Input id="new-year" type="number" bind:value={newYear} min={2020} max={2040} class="w-24" />
+								<Input
+									id="new-year"
+									type="number"
+									bind:value={newYear}
+									min={2020}
+									max={2040}
+									class="w-24"
+								/>
 							</div>
 							<div class="space-y-1">
 								<Label for="new-city">City</Label>
@@ -490,7 +613,12 @@
 							</div>
 							<div class="space-y-1">
 								<Label for="new-venue">Venue</Label>
-								<Input id="new-venue" bind:value={newVenue} placeholder="Convention Center" class="w-44" />
+								<Input
+									id="new-venue"
+									bind:value={newVenue}
+									placeholder="Convention Center"
+									class="w-44"
+								/>
 							</div>
 						</div>
 						<div class="grid gap-3 sm:grid-cols-2">
@@ -506,15 +634,31 @@
 						<div class="flex flex-wrap gap-3">
 							<div class="space-y-1">
 								<Label for="new-contact-name">Contact</Label>
-								<Input id="new-contact-name" bind:value={newContactName} placeholder="Name" class="w-36" />
+								<Input
+									id="new-contact-name"
+									bind:value={newContactName}
+									placeholder="Name"
+									class="w-36"
+								/>
 							</div>
 							<div class="space-y-1">
 								<Label for="new-contact-email">Email</Label>
-								<Input id="new-contact-email" type="email" bind:value={newContactEmail} placeholder="email@example.com" class="w-44" />
+								<Input
+									id="new-contact-email"
+									type="email"
+									bind:value={newContactEmail}
+									placeholder="email@example.com"
+									class="w-44"
+								/>
 							</div>
 							<div class="space-y-1">
 								<Label for="new-contact-phone">Phone</Label>
-								<Input id="new-contact-phone" bind:value={newContactPhone} placeholder="(555) 123-4567" class="w-36" />
+								<Input
+									id="new-contact-phone"
+									bind:value={newContactPhone}
+									placeholder="(555) 123-4567"
+									class="w-36"
+								/>
 							</div>
 						</div>
 						<div class="space-y-1">
@@ -525,7 +669,9 @@
 							<Button type="submit" size="sm" disabled={dateLoading}>
 								{dateLoading ? 'Saving...' : 'Save Date'}
 							</Button>
-							<Button variant="outline" size="sm" onclick={() => (addingDate = false)}>Cancel</Button>
+							<Button variant="outline" size="sm" onclick={() => (addingDate = false)}
+								>Cancel</Button
+							>
 						</div>
 					</form>
 				</CardContent>

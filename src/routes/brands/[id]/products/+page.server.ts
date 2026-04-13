@@ -12,7 +12,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		supabase.from('brands').select('id, name').eq('id', brandId).single(),
 		supabase
 			.from('products')
-			.select('*, product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order)')
+			.select(
+				'*, product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order)'
+			)
 			.eq('brand_id', brandId)
 			.eq('organization_id', organization.id)
 			.order('style_number'),

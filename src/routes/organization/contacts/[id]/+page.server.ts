@@ -16,7 +16,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		const accountId = id.slice(accountPrefix.length);
 		const { data: account } = await supabase
 			.from('accounts')
-			.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone, city, state')
+			.select(
+				'id, business_name, contact_first_name, contact_last_name, contact_email, phone, city, state'
+			)
 			.eq('id', accountId)
 			.single();
 
@@ -32,7 +34,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 		return {
 			contact: {
-				name: [account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') || null,
+				name:
+					[account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') || null,
 				email: account.contact_email,
 				phone: account.phone,
 				source: 'account' as const,
@@ -48,7 +51,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		const brandId = id.slice(brandPrefix.length);
 		const { data: brand } = await supabase
 			.from('brands')
-			.select('id, name, contact_first_name, contact_last_name, contact_email, contact_phone, website')
+			.select(
+				'id, name, contact_first_name, contact_last_name, contact_email, contact_phone, website'
+			)
 			.eq('id', brandId)
 			.single();
 

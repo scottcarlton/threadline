@@ -7,7 +7,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [territoriesRes, membersRes, accountCountsRes] = await Promise.all([
 		supabase
 			.from('territories')
-			.select('*, organization_members(profiles!organization_members_profile_id_fkey(display_name))')
+			.select(
+				'*, organization_members(profiles!organization_members_profile_id_fkey(display_name))'
+			)
 			.eq('organization_id', organization.id)
 			.order('name'),
 		supabase

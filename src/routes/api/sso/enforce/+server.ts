@@ -7,7 +7,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 	if (!locals.membership || locals.membership.role !== 'owner') {
-		return json({ error: 'Only the organization owner can change SSO enforcement' }, { status: 403 });
+		return json(
+			{ error: 'Only the organization owner can change SSO enforcement' },
+			{ status: 403 }
+		);
 	}
 
 	const orgId = locals.organization!.id;
@@ -26,7 +29,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			.limit(1);
 
 		if (!providers || providers.length === 0) {
-			return json({ error: 'Configure an SSO provider before enabling enforcement' }, { status: 400 });
+			return json(
+				{ error: 'Configure an SSO provider before enabling enforcement' },
+				{ status: 400 }
+			);
 		}
 	}
 

@@ -7,7 +7,9 @@ export async function createExcelWorkbook(
 	// Create a new Excel file in OneDrive root
 	const data = await graphFetch(organizationId, `/me/drive/root:/${fileName}.xlsx:/content`, {
 		method: 'PUT',
-		headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+		headers: {
+			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+		},
 		body: ''
 	});
 
@@ -38,14 +40,10 @@ export async function exportToExcel(
 
 	if (sheetsData?.value?.[0]) {
 		const sheetId = sheetsData.value[0].id;
-		await graphFetch(
-			organizationId,
-			`/me/drive/items/${itemId}/workbook/worksheets/${sheetId}`,
-			{
-				method: 'PATCH',
-				body: JSON.stringify({ name: options.sheetName })
-			}
-		);
+		await graphFetch(organizationId, `/me/drive/items/${itemId}/workbook/worksheets/${sheetId}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ name: options.sheetName })
+		});
 	}
 
 	// Write data: headers + rows
@@ -79,7 +77,8 @@ export async function listDriveFiles(
 	organizationId: string,
 	mimeType?: string
 ): Promise<{ id: string; name: string; webUrl: string }[]> {
-	let path = '/me/drive/root/children?$select=id,name,webUrl,file&$top=50&$orderby=lastModifiedDateTime desc';
+	let path =
+		'/me/drive/root/children?$select=id,name,webUrl,file&$top=50&$orderby=lastModifiedDateTime desc';
 
 	if (mimeType) {
 		// Filter to Excel files only

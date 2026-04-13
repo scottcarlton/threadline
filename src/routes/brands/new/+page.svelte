@@ -5,7 +5,13 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardContent,
+		CardFooter
+	} from '$lib/components/ui/card/index.js';
 
 	let { data } = $props();
 
@@ -89,7 +95,14 @@
 				<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
 			{/if}
 
-			<form id="brand-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-4">
+			<form
+				id="brand-form"
+				onsubmit={(e) => {
+					e.preventDefault();
+					handleSubmit();
+				}}
+				class="space-y-4"
+			>
 				<div class="space-y-2">
 					<Label for="name">Brand name *</Label>
 					<Input id="name" bind:value={name} required placeholder="e.g. Velvet Rose" />
@@ -106,10 +119,15 @@
 				</div>
 				<div class="space-y-2">
 					<Label for="contact-email">Contact email</Label>
-					<Input id="contact-email" type="email" bind:value={contactEmail} placeholder="jane@example.com" />
+					<Input
+						id="contact-email"
+						type="email"
+						bind:value={contactEmail}
+						placeholder="jane@example.com"
+					/>
 				</div>
 				{#if contactEmail}
-					<label class="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+					<label class="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
 						<input type="checkbox" bind:checked={inviteContact} class="rounded border-input" />
 						Invite as team member (scoped to this brand)
 					</label>
@@ -126,7 +144,15 @@
 				</div>
 				<div class="space-y-2">
 					<Label for="commission-rate">Commission Rate (%)</Label>
-					<Input id="commission-rate" type="number" step="0.01" min="0" max="100" bind:value={commissionRate} placeholder="e.g. 15" />
+					<Input
+						id="commission-rate"
+						type="number"
+						step="0.01"
+						min="0"
+						max="100"
+						bind:value={commissionRate}
+						placeholder="e.g. 15"
+					/>
 				</div>
 				<div class="space-y-2">
 					<Label for="notes">Notes</Label>
@@ -135,7 +161,7 @@
 						bind:value={notes}
 						placeholder="Any additional notes..."
 						rows="3"
-						class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 					></textarea>
 				</div>
 			</form>

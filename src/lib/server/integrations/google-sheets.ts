@@ -56,10 +56,7 @@ async function getAuthenticatedClient(connection: IntegrationConnection, origin:
 			updateData.token_expires_at = new Date(tokens.expiry_date).toISOString();
 		if (tokens.refresh_token) updateData.refresh_token = tokens.refresh_token;
 
-		await supabaseAdmin
-			.from('integration_connections')
-			.update(updateData)
-			.eq('id', connection.id);
+		await supabaseAdmin.from('integration_connections').update(updateData).eq('id', connection.id);
 	});
 
 	return client;
@@ -153,9 +150,7 @@ export async function exportToSheet(
 
 	// Auto-resize columns and bold headers
 	const sheetRes = await client.sheets.spreadsheets.get({ spreadsheetId });
-	const sheet = sheetRes.data.sheets?.find(
-		(s) => s.properties?.title === options.title
-	);
+	const sheet = sheetRes.data.sheets?.find((s) => s.properties?.title === options.title);
 	const sheetId = sheet?.properties?.sheetId ?? 0;
 
 	await client.sheets.spreadsheets.batchUpdate({

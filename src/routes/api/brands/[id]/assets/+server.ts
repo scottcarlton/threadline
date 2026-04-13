@@ -112,10 +112,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Delete DB record
-	const { error: dbError } = await supabaseAdmin
-		.from('brand_assets')
-		.delete()
-		.eq('id', assetId);
+	const { error: dbError } = await supabaseAdmin.from('brand_assets').delete().eq('id', assetId);
 
 	if (dbError) {
 		return json({ error: 'DB delete failed: ' + dbError.message }, { status: 500 });

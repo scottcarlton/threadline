@@ -1,9 +1,24 @@
 export type UserRole = 'admin' | 'owner' | 'member' | 'sales' | 'guest';
 export type OrgType = 'rep' | 'brand';
 export type IntegrationProvider = 'google_sheets' | 'slack' | 'notion' | 'microsoft' | 'discord';
-export type OrderStatus = 'draft' | 'submitted' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus =
+	| 'draft'
+	| 'submitted'
+	| 'confirmed'
+	| 'shipped'
+	| 'delivered'
+	| 'cancelled';
 export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
-export type ExpenseCategory = 'trade_show' | 'samples' | 'marketing' | 'travel' | 'meals' | 'shipping' | 'photography' | 'office' | 'other';
+export type ExpenseCategory =
+	| 'trade_show'
+	| 'samples'
+	| 'marketing'
+	| 'travel'
+	| 'meals'
+	| 'shipping'
+	| 'photography'
+	| 'office'
+	| 'other';
 
 export interface Profile {
 	id: string;

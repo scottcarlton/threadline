@@ -90,7 +90,7 @@
 
 	<!-- Plan Comparison -->
 	<div>
-		<h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted-foreground">Plans</h2>
+		<h2 class="mb-4 text-sm font-medium tracking-wider text-muted-foreground uppercase">Plans</h2>
 		<div class="grid gap-4 sm:grid-cols-3">
 			{#each plans as plan}
 				{@const isCurrent = plan.id === currentPlan}
@@ -154,7 +154,9 @@
 			</CardHeader>
 			<CardContent>
 				<div class="rounded-lg border border-dashed p-6 text-center">
-					<p class="text-sm text-muted-foreground">Payment methods will be available when you upgrade to a paid plan.</p>
+					<p class="text-sm text-muted-foreground">
+						Payment methods will be available when you upgrade to a paid plan.
+					</p>
 				</div>
 			</CardContent>
 		</Card>
@@ -169,7 +171,9 @@
 			</CardHeader>
 			<CardContent>
 				<div class="rounded-lg border border-dashed p-6 text-center">
-					<p class="text-sm text-muted-foreground">No invoices yet. Invoices will appear here once you're on a paid plan.</p>
+					<p class="text-sm text-muted-foreground">
+						No invoices yet. Invoices will appear here once you're on a paid plan.
+					</p>
 				</div>
 			</CardContent>
 		</Card>

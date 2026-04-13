@@ -12,7 +12,13 @@ export type IntegrationEvent =
 	| 'new_account';
 
 type EventPayload = {
-	order_submitted: { orderNumber: string; accountName: string; brandName: string; total: number; url: string };
+	order_submitted: {
+		orderNumber: string;
+		accountName: string;
+		brandName: string;
+		total: number;
+		url: string;
+	};
 	order_confirmed: { orderNumber: string; accountName: string; url: string };
 	order_shipped: { orderNumber: string; accountName: string; url: string };
 	order_cancelled: { orderNumber: string; accountName: string; reason?: string; url: string };
@@ -65,7 +71,12 @@ export async function emitIntegrationEvent<E extends IntegrationEvent>(
 	// Send to all notification integrations in parallel
 	await Promise.allSettled([
 		sendSlackMessage(organizationId, message),
-		sendDiscordMessage(organizationId, { title: message.title, text: message.text, url: message.url, color: message.color }),
+		sendDiscordMessage(organizationId, {
+			title: message.title,
+			text: message.text,
+			url: message.url,
+			color: message.color
+		}),
 		sendTeamsMessage(organizationId, { title: message.title, text: message.text, url: message.url })
 	]);
 

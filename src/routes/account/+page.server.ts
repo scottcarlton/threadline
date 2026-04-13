@@ -10,7 +10,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const { data: account } = await supabaseAdmin
 		.from('accounts')
-		.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country')
+		.select(
+			'id, business_name, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country'
+		)
 		.eq('id', accountId)
 		.single();
 

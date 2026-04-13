@@ -47,7 +47,6 @@
 	</div>
 
 	<div class="border-b pb-6">
-
 		<div class="mt-6 space-y-4">
 			<div class="space-y-2">
 				<Label for="org-name">Organization Name</Label>

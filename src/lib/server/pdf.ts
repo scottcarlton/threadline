@@ -34,10 +34,7 @@ interface LineData {
 	line_total: number;
 }
 
-export async function generateOrderPdf(
-	order: OrderData,
-	lines: LineData[]
-): Promise<Uint8Array> {
+export async function generateOrderPdf(order: OrderData, lines: LineData[]): Promise<Uint8Array> {
 	const doc = await PDFDocument.create();
 	const helvetica = await doc.embedFont(StandardFonts.Helvetica);
 	const helveticaBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -123,7 +120,9 @@ export async function generateOrderPdf(
 		drawText(account.business_name, margin, y, { font: helveticaBold, size: 12 });
 		y -= 15;
 
-		const contactFullName = [account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ');
+		const contactFullName = [account.contact_first_name, account.contact_last_name]
+			.filter(Boolean)
+			.join(' ');
 		if (contactFullName) {
 			drawText(contactFullName, margin, y, { size: 10 });
 			y -= 13;
@@ -140,7 +139,8 @@ export async function generateOrderPdf(
 		const addressParts: string[] = [];
 		if (account.address_line1) addressParts.push(account.address_line1);
 		if (account.address_line2) addressParts.push(account.address_line2);
-		const cityStateZip = [account.city, account.state].filter(Boolean).join(', ') +
+		const cityStateZip =
+			[account.city, account.state].filter(Boolean).join(', ') +
 			(account.zip ? ' ' + account.zip : '');
 		if (cityStateZip.trim()) addressParts.push(cityStateZip);
 
@@ -175,13 +175,26 @@ export async function generateOrderPdf(
 	ensureSpace(headerHeight + rowHeight * Math.min(lines.length, 3) + 60);
 
 	// Table header
-	page.drawRectangle({ x: margin, y: y - headerHeight + 4, width: contentWidth, height: headerHeight, color: headerBg });
+	page.drawRectangle({
+		x: margin,
+		y: y - headerHeight + 4,
+		width: contentWidth,
+		height: headerHeight,
+		color: headerBg
+	});
 
 	let colX = margin + 5;
 	for (const col of columns) {
 		const align = 'align' in col ? col.align : undefined;
-		const textX = align === 'right' ? colX + col.width - helveticaBold.widthOfTextAtSize(col.label, 8) - 5 : colX;
-		drawText(col.label, textX, y - headerHeight + 11, { font: helveticaBold, size: 8, color: white });
+		const textX =
+			align === 'right'
+				? colX + col.width - helveticaBold.widthOfTextAtSize(col.label, 8) - 5
+				: colX;
+		drawText(col.label, textX, y - headerHeight + 11, {
+			font: helveticaBold,
+			size: 8,
+			color: white
+		});
 		colX += col.width + colGap;
 	}
 	y -= headerHeight + 2;
@@ -193,7 +206,13 @@ export async function generateOrderPdf(
 		const line = lines[i];
 
 		if (i % 2 === 1) {
-			page.drawRectangle({ x: margin, y: y - rowHeight + 6, width: contentWidth, height: rowHeight, color: lightGray });
+			page.drawRectangle({
+				x: margin,
+				y: y - rowHeight + 6,
+				width: contentWidth,
+				height: rowHeight,
+				color: lightGray
+			});
 		}
 
 		colX = margin + 5;
@@ -212,7 +231,8 @@ export async function generateOrderPdf(
 			const maxW = col.width - 10;
 			const display = truncate(value, maxW, helvetica, 9);
 			const align = 'align' in col ? col.align : undefined;
-			const textX = align === 'right' ? colX + col.width - helvetica.widthOfTextAtSize(display, 9) - 5 : colX;
+			const textX =
+				align === 'right' ? colX + col.width - helvetica.widthOfTextAtSize(display, 9) - 5 : colX;
 			drawText(display, textX, y - rowHeight + 10, { size: 9 });
 			colX += col.width + colGap;
 		}

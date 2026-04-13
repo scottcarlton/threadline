@@ -36,7 +36,10 @@ export async function listMessages(
 	}));
 }
 
-export async function getMessage(organizationId: string, messageId: string): Promise<OutlookMessage | null> {
+export async function getMessage(
+	organizationId: string,
+	messageId: string
+): Promise<OutlookMessage | null> {
 	const msg = await graphFetch(organizationId, `/me/messages/${messageId}`);
 	if (!msg) return null;
 

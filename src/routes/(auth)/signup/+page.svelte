@@ -91,7 +91,13 @@
 			</Button>
 		</div>
 	{:else if mode === 'otp-email'}
-		<form onsubmit={(e) => { e.preventDefault(); sendOtp(); }} class="space-y-4">
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				sendOtp();
+			}}
+			class="space-y-4"
+		>
 			<div class="space-y-2">
 				<Label for="email">Email</Label>
 				<Input id="email" type="email" placeholder="you@example.com" bind:value={email} required />
@@ -101,7 +107,13 @@
 			</Button>
 		</form>
 	{:else if mode === 'otp-verify'}
-		<form onsubmit={(e) => { e.preventDefault(); verifyOtp(); }} class="space-y-4">
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				verifyOtp();
+			}}
+			class="space-y-4"
+		>
 			<div class="space-y-2">
 				<Label for="otp">Verification code</Label>
 				<Input

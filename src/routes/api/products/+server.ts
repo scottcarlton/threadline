@@ -13,7 +13,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 	let query = locals.supabase
 		.from('products')
-		.select('id, style_number, name, wholesale_price, category, product_variants(id, color, size, price_override), product_images(id, is_primary, sort_order)')
+		.select(
+			'id, style_number, name, wholesale_price, category, product_variants(id, color, size, price_override), product_images(id, is_primary, sort_order)'
+		)
 		.eq('organization_id', locals.organization.id)
 		.eq('brand_id', brandId)
 		.eq('is_active', true)

@@ -6,11 +6,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (!organization) throw error(404, 'Organization not found');
 
 	const [territoryRes, accountsRes, allAccountsRes, membersRes] = await Promise.all([
-		supabase
-			.from('territories')
-			.select('*')
-			.eq('id', params.id)
-			.single(),
+		supabase.from('territories').select('*').eq('id', params.id).single(),
 		supabase
 			.from('accounts')
 			.select('id, business_name, city, state, contact_first_name, contact_last_name')

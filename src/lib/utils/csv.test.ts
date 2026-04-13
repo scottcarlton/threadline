@@ -69,10 +69,7 @@ describe('generateCSVString', () => {
 	});
 
 	it('handles missing values in subsequent rows', () => {
-		const result = generateCSVString([
-			{ a: 1, b: 2 },
-			{ a: 3 } as Record<string, unknown>
-		]);
+		const result = generateCSVString([{ a: 1, b: 2 }, { a: 3 } as Record<string, unknown>]);
 		const lines = result!.split('\n');
 
 		// b is undefined in second row → empty
@@ -80,18 +77,14 @@ describe('generateCSVString', () => {
 	});
 
 	it('escapes special characters in data values', () => {
-		const result = generateCSVString([
-			{ description: 'Red, Large', notes: 'says "hello"' }
-		]);
+		const result = generateCSVString([{ description: 'Red, Large', notes: 'says "hello"' }]);
 		const lines = result!.split('\n');
 
 		expect(lines[1]).toBe('"Red, Large","says ""hello"""');
 	});
 
 	it('escapes special characters in header names', () => {
-		const result = generateCSVString([
-			{ 'Name, First': 'Alice' }
-		]);
+		const result = generateCSVString([{ 'Name, First': 'Alice' }]);
 		const lines = result!.split('\n');
 
 		expect(lines[0]).toBe('"Name, First"');

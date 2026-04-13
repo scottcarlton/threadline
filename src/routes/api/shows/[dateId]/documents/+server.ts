@@ -34,17 +34,15 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 		return json({ error: 'Upload failed: ' + uploadError.message }, { status: 500 });
 	}
 
-	const { error: dbError } = await supabaseAdmin
-		.from('show_date_documents')
-		.insert({
-			show_date_id: dateId,
-			organization_id: orgId,
-			name: file.name,
-			file_path: filePath,
-			file_size: file.size,
-			mime_type: file.type,
-			uploaded_by: locals.user.id
-		});
+	const { error: dbError } = await supabaseAdmin.from('show_date_documents').insert({
+		show_date_id: dateId,
+		organization_id: orgId,
+		name: file.name,
+		file_path: filePath,
+		file_size: file.size,
+		mime_type: file.type,
+		uploaded_by: locals.user.id
+	});
 
 	if (dbError) {
 		await supabaseAdmin.storage.from('brand-assets').remove([filePath]);

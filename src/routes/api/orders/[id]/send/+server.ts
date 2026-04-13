@@ -26,11 +26,7 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 			)
 			.eq('id', orderId)
 			.single(),
-		supabaseAdmin
-			.from('order_lines')
-			.select('*')
-			.eq('order_id', orderId)
-			.order('sort_order')
+		supabaseAdmin.from('order_lines').select('*').eq('order_id', orderId).order('sort_order')
 	]);
 
 	if (orderResult.error || !orderResult.data) {
@@ -109,19 +105,28 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 	}
 
 	const emailSubject = subject?.trim() || `${brandName} Order #${order.order_number}`;
-	const emailBody = body?.trim() || [
-		`Hi ${[account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') || account.business_name},`,
-		'',
-		`Please find attached your order #${order.order_number} for ${brandName}.`,
-		'',
-		`Order Total: $${Number(order.total_amount).toFixed(2)}`,
-		order.notes ? `\nNotes: ${order.notes}` : '',
-		'',
-		'Thank you for your business!',
-		''
-	].join('\n');
+	const emailBody =
+		body?.trim() ||
+		[
+			`Hi ${[account.contact_first_name, account.contact_last_name].filter(Boolean).join(' ') || account.business_name},`,
+			'',
+			`Please find attached your order #${order.order_number} for ${brandName}.`,
+			'',
+			`Order Total: $${Number(order.total_amount).toFixed(2)}`,
+			order.notes ? `\nNotes: ${order.notes}` : '',
+			'',
+			'Thank you for your business!',
+			''
+		].join('\n');
 
-	const raw = buildRawEmail(connection.email_address, recipientEmail, emailSubject, emailBody, undefined, attachments);
+	const raw = buildRawEmail(
+		connection.email_address,
+		recipientEmail,
+		emailSubject,
+		emailBody,
+		undefined,
+		attachments
+	);
 
 	const sendResult = await gmail.users.messages.send({
 		userId: 'me',

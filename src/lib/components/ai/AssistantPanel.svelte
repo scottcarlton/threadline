@@ -7,9 +7,11 @@
 	const { messages, loading } = conversation;
 
 	const chatFontStyle = $derived(
-		$preferences.chatFont === 'sans' ? 'font-family: Georgia, "Times New Roman", serif; font-size: 16px'
-		: $preferences.chatFont === 'system' ? 'font-family: system-ui, sans-serif; font-size: 16px'
-		: 'font-family: var(--font-sans); font-size: 16px'
+		$preferences.chatFont === 'sans'
+			? 'font-family: Georgia, "Times New Roman", serif; font-size: 16px'
+			: $preferences.chatFont === 'system'
+				? 'font-family: system-ui, sans-serif; font-size: 16px'
+				: 'font-family: var(--font-sans); font-size: 16px'
 	);
 
 	type Props = {
@@ -35,14 +37,14 @@
 	const suggestedPrompts: Record<string, string[]> = {
 		admin: [
 			'Summarize my orders this season',
-			'Which accounts haven\'t ordered yet?',
-			'What\'s our revenue by brand?',
+			"Which accounts haven't ordered yet?",
+			"What's our revenue by brand?",
 			'Create a new brand'
 		],
 		owner: [
 			'Summarize my orders this season',
-			'Which accounts haven\'t ordered yet?',
-			'What\'s our revenue by brand?',
+			"Which accounts haven't ordered yet?",
+			"What's our revenue by brand?",
 			'Create a new brand'
 		],
 		member: [
@@ -192,7 +194,8 @@
 	}
 
 	function startListening() {
-		const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+		const SpeechRecognition =
+			(window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 		if (!SpeechRecognition) {
 			inputValue = '(Voice input not supported in this browser)';
 			return;
@@ -246,15 +249,26 @@
 
 <div
 	class={cn(
-		'fixed right-0 top-0 z-50 flex h-full w-full flex-col border-l bg-background shadow-xl transition-transform duration-300 ease-in-out sm:w-[28rem]',
+		'fixed top-0 right-0 z-50 flex h-full w-full flex-col border-l bg-background shadow-xl transition-transform duration-300 ease-in-out sm:w-[28rem]',
 		open ? 'translate-x-0' : 'translate-x-full'
 	)}
 >
 	<!-- Header -->
 	<div class="flex items-center justify-between border-b px-5 py-3.5">
 		<div class="flex items-center gap-2">
-			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-4 w-4 text-foreground"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+				/>
 			</svg>
 			<h2 class="text-[13px] font-semibold">AI Assistant</h2>
 		</div>
@@ -263,19 +277,41 @@
 			class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 			aria-label="Close assistant"
 		>
-			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-4 w-4"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="2"
+			>
 				<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 			</svg>
 		</button>
 	</div>
 
 	<!-- Messages -->
-	<div bind:this={messagesContainer} class="flex-1 space-y-3 overflow-y-auto p-4" style={chatFontStyle}>
+	<div
+		bind:this={messagesContainer}
+		class="flex-1 space-y-3 overflow-y-auto p-4"
+		style={chatFontStyle}
+	>
 		{#if $messages.length === 0 && !$loading}
-			<div class="flex h-full flex-col items-center justify-center gap-4 text-center px-4">
+			<div class="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
 				<div class="rounded-full bg-muted p-3">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-6 w-6 text-muted-foreground"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+						/>
 					</svg>
 				</div>
 				<div>
@@ -309,9 +345,22 @@
 						{#if msg.attachments && msg.attachments.length > 0}
 							<div class="mb-2 flex flex-wrap gap-1.5">
 								{#each msg.attachments as attachment}
-									<span class="inline-flex items-center gap-1 rounded bg-black/10 px-1.5 py-0.5 text-[11px]">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+									<span
+										class="inline-flex items-center gap-1 rounded bg-black/10 px-1.5 py-0.5 text-[11px]"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-3 w-3"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"
+											/>
 										</svg>
 										{attachment.name}
 									</span>
@@ -327,8 +376,14 @@
 				<div class="flex justify-start">
 					<div class="flex items-center gap-1.5 rounded-none bg-muted px-3.5 py-2.5">
 						<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40"></div>
-						<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40" style="animation-delay: 0.15s"></div>
-						<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40" style="animation-delay: 0.3s"></div>
+						<div
+							class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40"
+							style="animation-delay: 0.15s"
+						></div>
+						<div
+							class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40"
+							style="animation-delay: 0.3s"
+						></div>
 					</div>
 				</div>
 			{/if}
@@ -337,7 +392,9 @@
 
 	<!-- Input -->
 	<div class="p-4 pt-2">
-		<div class="rounded-none border bg-background shadow-sm transition-colors focus-within:ring-2 focus-within:ring-ring/20 focus-within:border-ring">
+		<div
+			class="rounded-none border bg-background shadow-sm transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20"
+		>
 			<!-- Textarea -->
 			<textarea
 				bind:value={inputValue}
@@ -353,12 +410,25 @@
 			{#if hasAttachments}
 				<div class="flex flex-wrap gap-2 px-3 pb-1">
 					{#each attachedFiles as { file, preview }, i}
-						<div class="group relative flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2 py-1">
+						<div
+							class="group relative flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2 py-1"
+						>
 							{#if preview}
 								<img src={preview} alt={file.name} class="h-8 w-8 rounded object-cover" />
 							{:else}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4 text-muted-foreground"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+									/>
 								</svg>
 							{/if}
 							<div class="flex flex-col">
@@ -370,7 +440,14 @@
 								class="ml-1 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
 								aria-label="Remove file"
 							>
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-3.5 w-3.5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+								>
 									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 								</svg>
 							</button>
@@ -380,7 +457,7 @@
 			{/if}
 
 			<!-- Toolbar row -->
-			<div class="flex items-center justify-between px-3 pb-2.5 pt-1">
+			<div class="flex items-center justify-between px-3 pt-1 pb-2.5">
 				<!-- Left: Add file -->
 				<input
 					bind:this={fileInput}
@@ -396,7 +473,14 @@
 					class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
 					aria-label="Attach file"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
 						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 					</svg>
 				</button>
@@ -410,8 +494,19 @@
 						class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
 						aria-label="Send message"
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2.5"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
+							/>
 						</svg>
 					</button>
 				{:else if voiceState === 'listening'}
@@ -423,9 +518,18 @@
 					>
 						<div class="flex items-center gap-[3px]">
 							<span class="voice-bar h-3 w-[3px] rounded-full bg-current"></span>
-							<span class="voice-bar h-4 w-[3px] rounded-full bg-current" style="animation-delay: 0.15s"></span>
-							<span class="voice-bar h-2.5 w-[3px] rounded-full bg-current" style="animation-delay: 0.3s"></span>
-							<span class="voice-bar h-3.5 w-[3px] rounded-full bg-current" style="animation-delay: 0.45s"></span>
+							<span
+								class="voice-bar h-4 w-[3px] rounded-full bg-current"
+								style="animation-delay: 0.15s"
+							></span>
+							<span
+								class="voice-bar h-2.5 w-[3px] rounded-full bg-current"
+								style="animation-delay: 0.3s"
+							></span>
+							<span
+								class="voice-bar h-3.5 w-[3px] rounded-full bg-current"
+								style="animation-delay: 0.45s"
+							></span>
 						</div>
 					</button>
 				{:else if voiceState === 'speaking'}
@@ -437,9 +541,18 @@
 					>
 						<div class="flex items-center gap-[3px]">
 							<span class="voice-bar h-3 w-[3px] rounded-full bg-current"></span>
-							<span class="voice-bar h-4 w-[3px] rounded-full bg-current" style="animation-delay: 0.15s"></span>
-							<span class="voice-bar h-2.5 w-[3px] rounded-full bg-current" style="animation-delay: 0.3s"></span>
-							<span class="voice-bar h-3.5 w-[3px] rounded-full bg-current" style="animation-delay: 0.45s"></span>
+							<span
+								class="voice-bar h-4 w-[3px] rounded-full bg-current"
+								style="animation-delay: 0.15s"
+							></span>
+							<span
+								class="voice-bar h-2.5 w-[3px] rounded-full bg-current"
+								style="animation-delay: 0.3s"
+							></span>
+							<span
+								class="voice-bar h-3.5 w-[3px] rounded-full bg-current"
+								style="animation-delay: 0.45s"
+							></span>
 						</div>
 					</button>
 				{:else}
@@ -450,8 +563,19 @@
 						class="flex h-8 w-8 items-center justify-center rounded-full bg-foreground/10 text-foreground transition-colors hover:bg-foreground/20 disabled:opacity-50"
 						aria-label="Voice input"
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
+							/>
 						</svg>
 					</button>
 				{/if}
@@ -466,7 +590,11 @@
 	}
 
 	@keyframes voice-wave {
-		0% { transform: scaleY(0.4); }
-		100% { transform: scaleY(1); }
+		0% {
+			transform: scaleY(0.4);
+		}
+		100% {
+			transform: scaleY(1);
+		}
 	}
 </style>

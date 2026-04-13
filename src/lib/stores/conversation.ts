@@ -59,7 +59,7 @@ function createConversationStore() {
 			const data = await res.json();
 			const assistantMessage: Message = {
 				role: 'assistant',
-				content: data.response ?? 'Sorry, I couldn\'t process that request.',
+				content: data.response ?? "Sorry, I couldn't process that request.",
 				suggestions: data.suggestions
 			};
 			messages.update((m) => [...m, assistantMessage]);

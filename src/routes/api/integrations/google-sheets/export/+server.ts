@@ -1,6 +1,10 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { exportToSheet, EXPORT_SCHEMAS, type ExportDataType } from '$lib/server/integrations/google-sheets';
+import {
+	exportToSheet,
+	EXPORT_SCHEMAS,
+	type ExportDataType
+} from '$lib/server/integrations/google-sheets';
 import { supabaseAdmin } from '$lib/server/supabase';
 
 export const POST: RequestHandler = async ({ request, locals, url }) => {
@@ -27,10 +31,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	const orgId = locals.organization!.id;
 
 	// Fetch data
-	let query = locals.supabase
-		.from(schema.query)
-		.select(schema.select)
-		.eq('organization_id', orgId);
+	let query = locals.supabase.from(schema.query).select(schema.select).eq('organization_id', orgId);
 
 	if (filters) {
 		for (const [key, value] of Object.entries(filters)) {
