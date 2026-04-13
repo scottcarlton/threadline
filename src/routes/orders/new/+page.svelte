@@ -193,6 +193,9 @@
 	const hasAccountChoice = $derived(cart.account_id !== null || isFreeform);
 	const needsLocationStep = $derived(account !== null && accountLocations.length >= 2);
 	const needsAccountDetailsStep = $derived(isFreeform);
+	const hasFreeformDetails = $derived(
+		(cart.freeformDetails.business_name?.trim().length ?? 0) > 0
+	);
 
 	// ── Steps ───────────────────────────────────────────────────────────────
 	const stepsAll = $derived.by(() => {
@@ -453,6 +456,18 @@
 		}
 	});
 
+	// Seed freeform business_name from the typed-in freeform_name on entry to Details
+	// step. This lets the value render at full contrast instead of a dim placeholder.
+	$effect(() => {
+		if (
+			stepName === 'Details' &&
+			cart.freeform_name &&
+			!(cart.freeformDetails.business_name?.trim().length ?? 0)
+		) {
+			cart.freeformDetails.business_name = cart.freeform_name;
+		}
+	});
+
 	// Auto-assign location when account has exactly one
 	$effect(() => {
 		if (account && accountLocations.length === 1) {
@@ -500,11 +515,13 @@
 		cart.freeform_name = null;
 		accountQuery = a.business_name;
 		accountFocus = false;
+		nextStep();
 	}
 	function useFreeform() {
 		cart.account_id = null;
 		cart.freeform_name = accountQuery.trim() || null;
 		accountFocus = false;
+		nextStep();
 	}
 	function clearAccount() {
 		cart.account_id = null;
@@ -599,21 +616,6 @@
 				placeholder="Search brands…"
 				bind:value={brandQuery}
 			/>
-
-			{#if cart.brandFilter !== 'all' && (cart.brandFilter as string[]).length > 0}
-				<div class="mt-3 flex flex-wrap gap-2">
-					{#each cart.brandFilter as string[] as id (id)}
-						<button
-							type="button"
-							class="flex items-center gap-1 rounded-full border border-foreground bg-foreground px-3 py-1 text-sm text-background"
-							onclick={() => toggleBrand(id)}
-						>
-							{brandName(id)}
-							<span aria-hidden="true">×</span>
-						</button>
-					{/each}
-				</div>
-			{/if}
 
 			<div class="mt-3 max-h-80 overflow-auto rounded-lg border">
 				<ul class="divide-y">
@@ -947,21 +949,6 @@
 				{/if}
 			</div>
 
-			{#if cart.account_id}
-				<div class="mt-3 flex items-center gap-2 rounded border border-foreground/30 bg-muted/30 px-3 py-2 text-sm">
-					<span class="font-semibold">{account?.business_name}</span>
-					<span class="text-muted-foreground">
-						{account ? [account.city, account.state].filter(Boolean).join(', ') : ''}
-					</span>
-					<button type="button" class="ml-auto underline" onclick={clearAccount}>Change</button>
-				</div>
-			{:else if isFreeform}
-				<div class="mt-3 flex items-center gap-2 rounded border border-amber-500/50 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-					<span class="font-semibold">{cart.freeform_name}</span>
-					<span>— freeform (will save as draft)</span>
-					<button type="button" class="ml-auto underline" onclick={clearAccount}>Change</button>
-				</div>
-			{/if}
 		</div>
 	{/if}
 
@@ -1011,12 +998,7 @@
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div class="sm:col-span-2">
 					<Label for="biz">Business name</Label>
-					<Input
-						id="biz"
-						bind:value={cart.freeformDetails.business_name}
-						class="mt-1"
-						placeholder={cart.freeform_name ?? ''}
-					/>
+					<Input id="biz" bind:value={cart.freeformDetails.business_name} class="mt-1" />
 				</div>
 				<div>
 					<Label for="fn">Contact first name</Label>
@@ -1066,8 +1048,10 @@
 				<div class="text-lg font-semibold">
 					{account ? account.business_name : (cart.freeform_name ?? '—')}
 				</div>
-				{#if isFreeform}
-					<div class="mt-1 text-sm text-amber-700">Freeform — orders will be saved as drafts.</div>
+				{#if isFreeform && !hasFreeformDetails}
+					<div class="mt-1 text-sm text-amber-700">
+						No account details — orders will be saved as drafts.
+					</div>
 				{/if}
 			</div>
 			<div class="rounded-lg border p-4">
@@ -1120,21 +1104,23 @@
 			>
 				<input type="hidden" name="payload" value={JSON.stringify(payload)} />
 				<div class="flex gap-3">
-					<Button
-						type="submit"
-						variant="outline"
-						disabled={submitting}
-						onclick={() => (submitStatus = 'draft')}
-					>
-						Save as Draft
-					</Button>
-					<Button
-						type="submit"
-						disabled={submitting || isFreeform}
-						onclick={() => (submitStatus = 'submitted')}
-					>
-						{cart.type === 'note' ? 'Save Note' : 'Submit Order'}
-					</Button>
+					{#if isFreeform && !hasFreeformDetails}
+						<Button
+							type="submit"
+							disabled={submitting}
+							onclick={() => (submitStatus = 'draft')}
+						>
+							Save as Draft
+						</Button>
+					{:else}
+						<Button
+							type="submit"
+							disabled={submitting}
+							onclick={() => (submitStatus = 'submitted')}
+						>
+							{cart.type === 'note' ? 'Save Note' : 'Submit Order'}
+						</Button>
+					{/if}
 				</div>
 			</form>
 		</div>
@@ -1142,7 +1128,16 @@
 
 	<!-- Bottom nav: Next only (Back moved to top). Type step has no Next (click advances). -->
 	{#if stepName !== 'Review' && stepName !== 'Type'}
-		<div class="mt-8 flex justify-end">
+		<div class="mt-8 flex items-center justify-end gap-4">
+			{#if stepName === 'Details'}
+				<button
+					type="button"
+					class="text-sm underline hover:no-underline"
+					onclick={nextStep}
+				>
+					Skip
+				</button>
+			{/if}
 			<Button onclick={nextStep} disabled={!canAdvance()}>Next</Button>
 		</div>
 	{/if}
