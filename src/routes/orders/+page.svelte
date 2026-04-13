@@ -57,7 +57,7 @@
 	] as const;
 	const statusLabels: Record<string, string> = {
 		all: 'All',
-		draft: 'Notes Out',
+		draft: 'Draft',
 		submitted: 'Submitted',
 		confirmed: 'Confirmed',
 		shipped: 'Shipped',
@@ -65,15 +65,18 @@
 		cancelled: 'Cancelled'
 	};
 	const activeStatus = $derived($page.url.searchParams.get('status') ?? 'all');
+	const activeType = $derived($page.url.searchParams.get('type') ?? 'all');
 
 	let search = $state('');
 	const filtered = $derived(
-		orders.filter(
-			(o) =>
+		orders.filter((o) => {
+			if (activeType !== 'all' && o.order_type !== activeType) return false;
+			return (
 				o.order_number.toLowerCase().includes(search.toLowerCase()) ||
 				(o.accounts?.business_name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
 				(o.brands?.name?.toLowerCase().includes(search.toLowerCase()) ?? false)
-		)
+			);
+		})
 	);
 
 	// Bulk selection
@@ -211,6 +214,20 @@
 				</Button>
 			{/if}
 		</div>
+	</div>
+
+	<!-- Type filter -->
+	<div class="flex flex-wrap items-center gap-2">
+		{#each ['all', 'order', 'note'] as t}
+			<button
+				class="rounded-full border px-3 py-1 text-sm transition {activeType === t
+					? 'border-foreground bg-foreground text-background'
+					: 'hover:border-foreground'}"
+				onclick={() => setFilter('type', t)}
+			>
+				{t === 'all' ? 'All' : t === 'note' ? 'Notes' : 'Orders'}
+			</button>
+		{/each}
 	</div>
 
 	<!-- Status tabs -->

@@ -239,7 +239,7 @@
 						<span class="flex-1">{inboxNav.label}</span>
 						{#if $unreadCount > 0}
 							<span
-								class="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white"
+								class="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-[10px] font-bold text-secondary-foreground"
 								>{$unreadCount > 99 ? '99+' : $unreadCount}</span
 							>
 						{/if}

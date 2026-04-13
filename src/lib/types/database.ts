@@ -8,6 +8,7 @@ export type OrderStatus =
 	| 'shipped'
 	| 'delivered'
 	| 'cancelled';
+export type OrderType = 'order' | 'note';
 export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 export type ExpenseCategory =
 	| 'trade_show'
@@ -103,6 +104,28 @@ export interface Account {
 	territory_id: string | null;
 	is_active: boolean;
 	archived_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface AccountLocation {
+	id: string;
+	account_id: string;
+	organization_id: string;
+	label: string;
+	contact_first_name: string | null;
+	contact_last_name: string | null;
+	contact_email: string | null;
+	phone: string | null;
+	address_line1: string | null;
+	address_line2: string | null;
+	city: string | null;
+	state: string | null;
+	zip: string | null;
+	country: string;
+	notes: string | null;
+	is_default: boolean;
+	sort_order: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -227,7 +250,10 @@ export interface Order {
 	id: string;
 	organization_id: string;
 	order_number: string;
-	account_id: string;
+	account_id: string | null;
+	freeform_name: string | null;
+	location_id: string | null;
+	order_type: OrderType;
 	brand_id: string;
 	season_id: string | null;
 	order_year: number | null;
@@ -236,6 +262,7 @@ export interface Order {
 	source_type_id: string | null;
 	delivery_id: string | null;
 	expected_ship_date: string | null;
+	start_ship_date: string | null;
 	status: OrderStatus;
 	total_amount: number;
 	shipped_amount: number | null;
@@ -287,6 +314,7 @@ export interface Product {
 	category: string | null;
 	subcategory: string | null;
 	season_id: string | null;
+	product_year: number | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;

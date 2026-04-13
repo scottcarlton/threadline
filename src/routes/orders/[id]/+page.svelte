@@ -7,6 +7,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { Order, OrderLine, OrderStatus, BrandAsset } from '$lib/types/database.js';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { entityContext } from '$lib/stores/entityContext.js';
 
 	let { data } = $props();
@@ -37,7 +38,7 @@
 	const repName = $derived(data.repName as string | null);
 
 	const statusLabels: Record<string, string> = {
-		draft: 'Notes Out',
+		draft: 'Draft',
 		submitted: 'Submitted',
 		confirmed: 'Confirmed',
 		shipped: 'Shipped',
@@ -95,7 +96,7 @@
 	}
 
 	const timeline = $derived([
-		{ status: 'draft', label: 'Notes Out', date: order.created_at },
+		{ status: 'draft', label: 'Draft', date: order.created_at },
 		{ status: 'submitted', label: 'Submitted', date: order.submitted_at },
 		{ status: 'confirmed', label: 'Confirmed', date: order.confirmed_at },
 		{ status: 'shipped', label: 'Shipped', date: order.shipped_at },
@@ -469,8 +470,11 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/orders">← Back</Button>
+			<Button variant="ghost" size="sm" href="/orders"><LongArrow direction="left" /> Back</Button>
 			<h1 class="font-mono text-3xl">{order.order_number}</h1>
+			{#if order.order_type === 'note'}
+				<Badge variant="outline">Note</Badge>
+			{/if}
 			<Badge variant={(statusColors[order.status] as any) ?? 'secondary'}
 				>{statusLabels[order.status] ?? order.status}</Badge
 			>

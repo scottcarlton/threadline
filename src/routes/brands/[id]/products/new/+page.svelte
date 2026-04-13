@@ -3,6 +3,7 @@
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { Label } from '$lib/components/ui/label/index.js';
 
 	let { data } = $props();
@@ -20,6 +21,7 @@
 	let styleNumber = $state('');
 	let category = $state('');
 	let seasonId = $state('');
+	let productYear = $state<number>(new Date().getFullYear());
 	let description = $state('');
 	let wholesalePrice = $state('');
 	let retailPrice = $state('');
@@ -106,7 +108,8 @@
 				wholesale_price: parseFloat(wholesalePrice) || 0,
 				retail_price: parseFloat(retailPrice) || null,
 				category: category.trim() || null,
-				season_id: seasonId || null
+				season_id: seasonId || null,
+				product_year: productYear || null
 			})
 			.select()
 			.single();
@@ -172,7 +175,7 @@
 <div class="mx-auto max-w-5xl space-y-6">
 	<!-- Header -->
 	<div class="flex items-center gap-3">
-		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products">← Products</Button>
+		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"><LongArrow direction="left" /> Products</Button>
 		<h1 class="text-3xl">New Product</h1>
 	</div>
 
@@ -344,18 +347,30 @@
 								placeholder="e.g. Tops, Bottoms, Dresses, Outerwear"
 							/>
 						</div>
-						<div class="space-y-2">
-							<Label for="season">Season</Label>
-							<select
-								id="season"
-								bind:value={seasonId}
-								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-							>
-								<option value="">None</option>
-								{#each seasons as season}
-									<option value={season.id}>{season.name}</option>
-								{/each}
-							</select>
+						<div class="grid grid-cols-[1fr_120px] gap-3">
+							<div class="space-y-2">
+								<Label for="season">Season</Label>
+								<select
+									id="season"
+									bind:value={seasonId}
+									class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+								>
+									<option value="">None</option>
+									{#each seasons as season}
+										<option value={season.id}>{season.name}</option>
+									{/each}
+								</select>
+							</div>
+							<div class="space-y-2">
+								<Label for="productYear">Year</Label>
+								<Input
+									id="productYear"
+									type="number"
+									min="2000"
+									max="2100"
+									bind:value={productYear}
+								/>
+							</div>
 						</div>
 					</div>
 				</div>
