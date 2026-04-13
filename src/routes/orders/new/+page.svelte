@@ -1116,7 +1116,7 @@
 							{@const imgId = primaryImageId(p)}
 							<div
 								class="flex flex-col rounded-lg border-2 transition {added
-									? 'border-foreground'
+									? 'border-red-500/60'
 									: 'border-border'}"
 							>
 								<div class="aspect-square overflow-hidden rounded-t-lg bg-muted">
