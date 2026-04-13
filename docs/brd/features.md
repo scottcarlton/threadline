@@ -385,7 +385,88 @@ Separate buyer-facing experience for browsing products and placing orders.
 
 ---
 
-### 2.12 Reports
+### 2.12 Brand Org Experience
+
+**Status: Partially Implemented (org type exists, brand-specific UX largely absent)**
+
+The Brand Org is a first-class organization type in Threadline. While the org_type flag and self-brand record exist, the platform experience is almost entirely designed from the rep perspective. This section covers brand-specific features needed to make Threadline equally valuable for brands.
+
+**Existing Capabilities:**
+- Brand org type with self-brand auto-creation on setup
+- Product catalog ownership (brands own products, reps access via connections)
+- Connection request receiving (reps request to connect, brand approves)
+- Shareable invite codes (DB infrastructure, minimal UI)
+- Federated order/account visibility (DB infrastructure via federated_order_links, federated_account_links)
+
+**Outstanding Features — Brand Insights:**
+- [ ] Brand-specific Insight page tuned to brand mental model (not a copy of rep experience)
+- [ ] Connected rep activity intelligence (which reps are writing, which are quiet)
+- [ ] Pipeline visibility across all connected reps (total value, order count, trend)
+- [ ] Top-performing accounts by revenue with rep attribution
+- [ ] Territory coverage gap detection across connected rep networks
+- [ ] Seasonal sell-through signals (styles moving vs. sitting)
+- [ ] Brand-specific daily AI briefing (new orders, rep activity, pending actions, product performance)
+
+**Outstanding Features — Connection Management:**
+- [ ] Full connection management UI (list connected reps, status, activity summary)
+- [ ] Approve/reject connection requests with context (rep org info, territory, other brands they carry)
+- [ ] Per-connection summary: order count, revenue, territory coverage, last activity
+- [ ] Commission rate configuration per connection
+- [ ] Connection invite flow with polished UI (generate link, share, QR code)
+- [ ] Configurable invite settings (expiry, max uses, auto-approve vs. review)
+- [ ] Connection activity feed (recent orders, new accounts from connected reps)
+- [ ] Suspend/disconnect rep with confirmation flow
+
+**Outstanding Features — Brand Order Management:**
+- [ ] Active order visibility — view all incoming orders from connected reps
+- [ ] Order confirmation/rejection from brand side (Submitted → Confirmed or Rejected)
+- [ ] Brand-side order notes (delivery updates, substitutions, stock issues)
+- [ ] Estimated ship date setting on confirmed orders
+- [ ] Order filtering by rep, status, date range, season, account
+- [ ] Order export (CSV)
+- [ ] Order requirements configuration (minimum values, lead times, pack sizes — Phase 2)
+- [ ] Soft/hard enforcement toggle per order rule
+
+**Outstanding Features — Buyer Portal Ownership:**
+- [ ] Brand-direct buyer access path (brand invites buyers independent of rep)
+- [ ] Dual-path coexistence (buyer accesses Brand A via rep, Brand B directly)
+- [ ] Brand-side buyer/account management UI (all accounts with brand access, any channel)
+- [ ] Per-account view: order history, revenue, last order, managing rep
+- [ ] Commission logic for brand-direct orders (no rep commission, or configurable)
+- [ ] Data model: `source`/`channel` field on account_brand_access to distinguish paths
+
+**Outstanding Features — Brand-to-Rep Communication:**
+- [ ] Brand announcements to all connected reps (one-to-many broadcast)
+- [ ] Announcement types: season launch, promotion, deadline, policy update
+- [ ] Announcements appear in rep's Inbox alongside emails
+- [ ] Attachment support (linesheets, marketing PDFs, images)
+- [ ] Direct messaging between brand and specific rep org (Phase 2)
+- [ ] Threaded conversations, read receipts (Phase 2)
+
+**Outstanding Features — Brand Onboarding:**
+- [ ] Dedicated brand onboarding flow (catalog setup → order config → invite reps → buyer portal)
+- [ ] AI linesheet parser prominently featured in catalog setup step
+- [ ] Persistent onboarding checklist (catalog uploaded, first rep connected, first order received)
+- [ ] Checklist visible in sidebar or Insight page until all steps completed
+
+**Outstanding Features — Brand Reports:**
+- [ ] Sales by Rep Agency (revenue, order count per connected rep)
+- [ ] Product Performance / Style Velocity (units ordered, revenue, velocity score per style)
+- [ ] Territory Coverage (accounts by territory across all reps, gap identification)
+- [ ] Account Penetration (ordering vs. dormant accounts, revenue trend)
+- [ ] Season Sell-Through (units ordered vs. available by season)
+- [ ] Order Pipeline (orders by status across all connected reps)
+
+**Open Questions:**
+- Should brand roles be renamed/adapted vs. rep roles (e.g., "Sales" → "Product Manager")?
+- How should the sidebar navigation differ for brand orgs vs. rep orgs?
+- Should brands see which other brands a connected rep carries (competitive intelligence)?
+- Should brand-direct buyer orders still notify the managing rep (if one exists)?
+- Is there a need for brand-to-brand connections (e.g., parent company seeing child brand data)?
+
+---
+
+### 2.13 Reports (Rep-Centric)
 
 **Status: Fully Implemented (pre-built); Custom Reports planned**
 
@@ -420,7 +501,7 @@ Pre-built report templates covering sales, commissions, pipeline, and show perfo
 
 ---
 
-### 2.13 Integrations
+### 2.14 Integrations
 
 **Status: Partially Implemented (5 live, 4 planned)**
 
@@ -453,7 +534,7 @@ Third-party service connections for data export, notifications, and sync.
 
 ---
 
-### 2.14 AI Agents & Automation
+### 2.15 AI Agents & Automation
 
 **Status: Partially Implemented (event triggers work, scheduled triggers pending)**
 
@@ -485,7 +566,7 @@ Custom AI agents that can be configured per organization with triggers and tool 
 
 ---
 
-### 2.15 Text Message (SMS) AI Ordering
+### 2.16 Text Message (SMS) AI Ordering
 
 **Status: Not Implemented**
 
@@ -512,7 +593,7 @@ AI-powered order placement and management via SMS text messaging, enabling buyer
 
 ---
 
-### 2.16 Email AI Ordering
+### 2.17 Email AI Ordering
 
 **Status: Not Implemented**
 
@@ -539,7 +620,7 @@ AI-powered order placement via inbound email, enabling buyers to place and manag
 
 ---
 
-### 2.17 Contacts
+### 2.18 Contacts
 
 **Status: Fully Implemented**
 
@@ -565,7 +646,7 @@ Contact management with auto-discovery from email integration.
 
 ---
 
-### 2.18 Territories
+### 2.19 Territories
 
 **Status: Fully Implemented**
 
@@ -589,7 +670,7 @@ Territory definitions for organizing accounts by geography or segment.
 
 ---
 
-### 2.19 Billing & Subscription
+### 2.20 Billing & Subscription
 
 **Status: Stub Implementation (UI only, no payment processing)**
 
@@ -619,7 +700,7 @@ Pricing page and billing UI exist but all payment functionality is disabled.
 
 ---
 
-### 2.20 Search
+### 2.21 Search
 
 **Status: Fully Implemented**
 
@@ -644,7 +725,7 @@ Global search across primary entities.
 
 ---
 
-### 2.21 Voice Features
+### 2.22 Voice Features
 
 **Status: Partially Implemented**
 
@@ -667,7 +748,7 @@ Voice input/output capabilities powered by ElevenLabs.
 
 ---
 
-### 2.22 Workspace
+### 2.23 Workspace
 
 **Status: Not Implemented (placeholder page)**
 
@@ -686,7 +767,7 @@ A workspace concept exists in routing but has no functional content.
 
 ---
 
-### 2.23 Onboarding
+### 2.24 Onboarding
 
 **Status: Fully Implemented (basic flow)**
 
@@ -710,7 +791,7 @@ Initial setup flow for new organizations.
 
 ---
 
-### 2.24 Security & SSO
+### 2.25 Security & SSO
 
 **Status: Fully Implemented**
 
@@ -855,6 +936,7 @@ Limited real-time features exist (appointment count polling, unread email count)
 | Reports | ✅ Complete | 8 pre-built templates; custom builder planned |
 | Search | ✅ Complete | ILIKE-based global search |
 | Buyer Portal | ✅ Complete | Shopping cart is client-side only |
+| Brand Org Experience | ⚠️ Partial | Org type exists; brand-specific UX largely absent |
 | SMS AI Ordering | 🔴 Not Started | AI-powered order placement via text message |
 | Email AI Ordering | 🔴 Not Started | AI-powered order placement via inbound email |
 | Connections | ⚠️ Partial | DB infrastructure complete; UI minimal |
