@@ -201,7 +201,7 @@
 	const stepsAll = $derived.by(() => {
 		const s = ['Account'];
 		if (needsAccountDetailsStep) s.push('Details');
-		s.push('Type', 'Brand', 'Items', 'Delivery');
+		s.push('Brand', 'Items', 'Delivery');
 		if (needsLocationStep) s.push('Location');
 		s.push('Review');
 		return s;
@@ -264,8 +264,6 @@
 
 	function canAdvance(): boolean {
 		switch (stepName) {
-			case 'Type':
-				return cart.type !== null;
 			case 'Brand':
 				return cart.brandFilter === 'all' || (cart.brandFilter as string[]).length > 0;
 			case 'Items':
@@ -301,11 +299,6 @@
 
 	function handleCancel() {
 		goto('/orders');
-	}
-
-	function pickType(t: OrderType) {
-		cart.type = t;
-		nextStep();
 	}
 
 	// Brand filter ↔ combobox
@@ -551,7 +544,7 @@
 	});
 </script>
 
-<svelte:head><title>New {cart.type === 'note' ? 'Note' : 'Order'} — Threadline</title></svelte:head>
+<svelte:head><title>New Order — Threadline</title></svelte:head>
 
 <div class="w-full p-6">
 	<!-- Top nav: Back (left) + Cancel (right) -->
@@ -566,7 +559,7 @@
 
 	<!-- Header / progress -->
 	<div class="mb-4">
-		<h1 class="text-2xl font-semibold">New {cart.type === 'note' ? 'Note' : 'Order'}</h1>
+		<h1 class="text-2xl font-semibold">New Order</h1>
 		<p class="text-sm text-muted-foreground">
 			Step {currentStep + 1} of {stepsAll.length} — {stepName}
 		</p>
@@ -580,32 +573,6 @@
 			></div>
 		{/each}
 	</div>
-
-	<!-- ── Type step ──────────────────────────────────────────────────── -->
-	{#if stepName === 'Type'}
-		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-			<button
-				type="button"
-				class="rounded-lg border p-6 text-left transition hover:border-foreground"
-				onclick={() => pickType('order')}
-			>
-				<div class="text-lg font-semibold">Order</div>
-				<p class="mt-2 text-sm text-muted-foreground">
-					Standard wholesale order with full lifecycle (draft → submitted → confirmed → shipped).
-				</p>
-			</button>
-			<button
-				type="button"
-				class="rounded-lg border p-6 text-left transition hover:border-foreground"
-				onclick={() => pickType('note')}
-			>
-				<div class="text-lg font-semibold">Note</div>
-				<p class="mt-2 text-sm text-muted-foreground">
-					Quick capture for shows or the road. At least one item required; account can be added later.
-				</p>
-			</button>
-		</div>
-	{/if}
 
 	<!-- ── Brand step ─────────────────────────────────────────────────── -->
 	{#if stepName === 'Brand'}
@@ -1105,36 +1072,34 @@
 			>
 				<input type="hidden" name="payload" value={JSON.stringify(payload)} />
 				<div class="flex gap-3">
-					{#if isFreeform && !hasFreeformDetails}
-						<Button
-							type="submit"
-							disabled={submitting}
-							onclick={() => (submitStatus = 'draft')}
-						>
-							Save as Draft
-						</Button>
-					{:else}
-						<Button
-							type="submit"
-							disabled={submitting}
-							onclick={() => (submitStatus = 'submitted')}
-						>
-							{cart.type === 'note'
-								? groups.length > 1
-									? 'Save Notes'
-									: 'Save Note'
-								: groups.length > 1
-									? 'Submit Orders'
-									: 'Submit Order'}
-						</Button>
-					{/if}
+					<Button
+						type="submit"
+						variant="outline"
+						disabled={submitting}
+						onclick={() => {
+							cart.type = 'note';
+							submitStatus = 'submitted';
+						}}
+					>
+						{groups.length > 1 ? 'Save as Notes' : 'Save as Note'}
+					</Button>
+					<Button
+						type="submit"
+						disabled={submitting || (isFreeform && !hasFreeformDetails)}
+						onclick={() => {
+							cart.type = 'order';
+							submitStatus = 'submitted';
+						}}
+					>
+						{groups.length > 1 ? 'Submit Orders' : 'Submit Order'}
+					</Button>
 				</div>
 			</form>
 		</div>
 	{/if}
 
-	<!-- Bottom nav: Next only (Back moved to top). Type step has no Next (click advances). -->
-	{#if stepName !== 'Review' && stepName !== 'Type'}
+	<!-- Bottom nav: Next only (Back moved to top). -->
+	{#if stepName !== 'Review'}
 		<div class="mt-8 flex items-center justify-end gap-4">
 			{#if stepName === 'Details'}
 				<button
