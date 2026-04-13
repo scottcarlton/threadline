@@ -23,6 +23,9 @@
 	const knownContacts = $derived(data.knownContacts as KnownContact[]);
 	const discoveredContacts = $derived(data.discoveredContacts as DiscoveredContact[]);
 
+	type DuplicateGroup = { email: string; contacts: { id: string; name: string | null; source: string }[] };
+	const duplicates = $derived((data.duplicates ?? []) as DuplicateGroup[]);
+
 	let activeTab = $state<'known' | 'discovered'>('known');
 	let search = $state('');
 	let scanning = $state(false);
@@ -253,6 +256,29 @@
 			</button>
 		</div>
 	</div>
+
+	<!-- Duplicate Alert -->
+	{#if duplicates.length > 0}
+		<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+			<div class="flex items-center gap-2">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+				</svg>
+				<p class="text-sm font-medium text-amber-800">{duplicates.length} potential duplicate{duplicates.length !== 1 ? 's' : ''} found</p>
+			</div>
+			<div class="mt-2 space-y-1.5">
+				{#each duplicates.slice(0, 3) as dup}
+					<div class="flex items-center gap-2 text-sm text-amber-700">
+						<span class="font-mono">{dup.email}</span>
+						<span class="text-amber-600">— found in {dup.contacts.map((c) => c.source).join(' & ')}</span>
+					</div>
+				{/each}
+				{#if duplicates.length > 3}
+					<p class="text-sm text-amber-600">and {duplicates.length - 3} more</p>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 	<!-- Known Tab -->
 	{#if activeTab === 'known'}

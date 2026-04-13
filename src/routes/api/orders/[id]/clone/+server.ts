@@ -1,6 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
+import { notifyOrgMembers } from '$lib/server/notifications';
 
 export const POST: RequestHandler = async ({ locals, params }) => {
 	if (!locals.session || !locals.user) {
@@ -76,6 +77,13 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 			return error(500, 'Failed to clone line items');
 		}
 	}
+
+	notifyOrgMembers(source.organization_id, locals.user.id, {
+		type: 'order_cloned',
+		title: `Order ${newOrder.order_number} cloned`,
+		body: `Cloned from ${source.order_number ?? 'an existing order'}`,
+		link: `/orders/${newOrder.id}`
+	});
 
 	return json({ id: newOrder.id, order_number: newOrder.order_number });
 };

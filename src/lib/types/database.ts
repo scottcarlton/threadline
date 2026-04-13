@@ -425,6 +425,43 @@ export interface AccountBrandAccess {
 	brands?: Brand;
 }
 
+export interface Notification {
+	id: string;
+	organization_id: string;
+	user_id: string;
+	type: string;
+	title: string;
+	body: string | null;
+	link: string | null;
+	read_at: string | null;
+	created_at: string;
+}
+
+export interface NotificationPreferences {
+	id: string;
+	user_id: string;
+	organization_id: string;
+	order_updates: boolean;
+	comments: boolean;
+	buyer_activity: boolean;
+	team_activity: boolean;
+	email_digest: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface EmailTemplate {
+	id: string;
+	organization_id: string;
+	name: string;
+	subject: string;
+	body: string;
+	category: string;
+	created_by: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
 export interface OrderComment {
 	id: string;
 	order_id: string;

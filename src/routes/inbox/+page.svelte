@@ -25,6 +25,21 @@
 
 	let { data } = $props();
 
+	type AccountEmailEntry = { email: string; accountId: string; accountName: string };
+	const accountEmailMap = $derived((data.accountEmailMap ?? []) as AccountEmailEntry[]);
+
+	const matchedAccount = $derived(() => {
+		if (!selectedEmail) return null;
+		const senderEmail = selectedEmail.fromEmail.toLowerCase();
+		const exactMatch = accountEmailMap.find((a) => a.email === senderEmail);
+		if (exactMatch) return exactMatch;
+		const domain = senderEmail.split('@')[1];
+		if (domain && !['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com'].includes(domain)) {
+			return accountEmailMap.find((a) => a.email.endsWith(`@${domain}`)) ?? null;
+		}
+		return null;
+	});
+
 	let filter = $state<'all' | 'accounts' | 'brands'>('all');
 	let searchQuery = $state('');
 	let emails = $state<EmailItem[]>([]);
@@ -302,6 +317,20 @@
 						{selectedEmail.from} &lt;{selectedEmail.fromEmail}&gt;
 					</p>
 				</div>
+
+				<!-- Account link suggestion -->
+				{#if matchedAccount()}
+					{@const acct = matchedAccount()}
+					<a
+						href="/accounts/{acct?.accountId}"
+						class="flex items-center gap-2 border-b bg-blue-50 px-6 py-2 text-sm text-blue-700 transition-colors hover:bg-blue-100"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.97a4.5 4.5 0 00-6.364-6.364L5.25 6.268a4.5 4.5 0 001.242 7.244" />
+						</svg>
+						<span>Linked to <strong>{acct?.accountName}</strong></span>
+					</a>
+				{/if}
 
 				<!-- Thread messages -->
 				<div class="flex-1 overflow-y-auto p-6">
