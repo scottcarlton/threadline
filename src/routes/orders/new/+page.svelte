@@ -1115,7 +1115,7 @@
 							{@const added = productInCart(p)}
 							{@const imgId = primaryImageId(p)}
 							<div
-								class="flex flex-col rounded-lg border-2 transition {added
+								class="flex flex-col rounded-lg border transition {added
 									? 'border-red-500/60'
 									: 'border-border'}"
 							>
