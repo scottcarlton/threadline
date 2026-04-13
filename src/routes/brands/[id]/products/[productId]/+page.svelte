@@ -222,7 +222,7 @@
 	</div>
 
 	<!-- Name + price banner -->
-	<div class="flex items-start justify-between gap-4">
+	<div class="flex items-center justify-between gap-4">
 		<div>
 			<div class="mb-1 flex items-center gap-2">
 				<span class="font-mono text-sm text-muted-foreground">{product.style_number}</span>
