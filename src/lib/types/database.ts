@@ -314,6 +314,7 @@ export interface Product {
 	category: string | null;
 	subcategory: string | null;
 	season_id: string | null;
+	product_year: number | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;

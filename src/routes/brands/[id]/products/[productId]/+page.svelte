@@ -51,6 +51,7 @@
 	let editCategory = $state('');
 	let editSubcategory = $state('');
 	let editSeasonId = $state('');
+	let editProductYear = $state<number>(new Date().getFullYear());
 	let saveError = $state('');
 	let saving = $state(false);
 
@@ -63,6 +64,7 @@
 		editCategory = product.category ?? '';
 		editSubcategory = product.subcategory ?? '';
 		editSeasonId = product.season_id ?? '';
+		editProductYear = product.product_year ?? new Date().getFullYear();
 		editing = true;
 	}
 
@@ -80,6 +82,7 @@
 				category: editCategory || null,
 				subcategory: editSubcategory || null,
 				season_id: editSeasonId || null,
+				product_year: editProductYear || null,
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', product.id);
@@ -334,6 +337,16 @@
 									<option value={season.id}>{season.name}</option>
 								{/each}
 							</select>
+						</div>
+						<div class="space-y-2">
+							<Label for="productYear">Year</Label>
+							<Input
+								id="productYear"
+								type="number"
+								min="2000"
+								max="2100"
+								bind:value={editProductYear}
+							/>
 						</div>
 					</div>
 					<div class="space-y-2">

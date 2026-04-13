@@ -37,6 +37,7 @@
 		id: string;
 		brand_id: string;
 		season_id: string | null;
+		product_year: number | null;
 		style_number: string;
 		name: string;
 		wholesale_price: number;
@@ -50,6 +51,7 @@
 		product_id: string;
 		brand_id: string;
 		season_id: string;
+		product_year: number | null;
 		style_number: string;
 		name: string;
 		unit_price: number;
@@ -57,7 +59,7 @@
 		available_colors: string[];
 		available_sizes: string[];
 		selected_color: string;
-		size_qtys: Record<string, number>; // size -> qty (per selected color)
+		size_qtys: Record<string, number>;
 	};
 
 	let { data } = $props();
@@ -152,14 +154,28 @@
 	const groups = $derived.by(() => {
 		const map = new Map<
 			string,
-			{ brand_id: string; season_id: string; items: OrderItem[]; total: number; units: number }
+			{
+				brand_id: string;
+				season_id: string;
+				product_year: number | null;
+				items: OrderItem[];
+				total: number;
+				units: number;
+			}
 		>();
 		for (const it of cart.items) {
 			if (!itemIsSized(it)) continue;
 			const key = groupKey(it.brand_id, it.season_id);
 			let g = map.get(key);
 			if (!g) {
-				g = { brand_id: it.brand_id, season_id: it.season_id, items: [], total: 0, units: 0 };
+				g = {
+					brand_id: it.brand_id,
+					season_id: it.season_id,
+					product_year: it.product_year,
+					items: [],
+					total: 0,
+					units: 0
+				};
 				map.set(key, g);
 			}
 			g.items.push(it);
@@ -200,6 +216,10 @@
 	}
 	function seasonName(id: string): string {
 		return seasons.find((s) => s.id === id)?.name ?? 'Season';
+	}
+	function seasonLabel(id: string, year: number | null | undefined): string {
+		const name = seasonName(id);
+		return year ? `${name} ${year}` : name;
 	}
 	function deliveryLabelFor(d: SeasonDeliveryRow): string {
 		// Display as a window from the 1st of the delivery month → the delivery day.
@@ -392,6 +412,7 @@
 			product_id: p.id,
 			brand_id: p.brand_id,
 			season_id: p.season_id,
+			product_year: p.product_year,
 			style_number: p.style_number,
 			name: p.name,
 			unit_price: p.wholesale_price,
@@ -674,7 +695,7 @@
 									<div class="text-sm text-muted-foreground">{it.style_number}</div>
 									<div class="truncate text-base font-semibold">{it.name}</div>
 									<div class="text-sm text-muted-foreground">
-										{fmt.format(it.unit_price)} · {brandName(it.brand_id)} · {seasonName(it.season_id)}
+										{fmt.format(it.unit_price)} · {brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
 									</div>
 								</div>
 								<div class="shrink-0 text-right">
@@ -766,7 +787,7 @@
 						<div class="mb-3 flex items-center justify-between">
 							<div class="font-semibold">
 								{brandName(g.brand_id)}
-								<span class="text-muted-foreground"> · {seasonName(g.season_id)}</span>
+								<span class="text-muted-foreground"> · {seasonLabel(g.season_id, g.product_year)}</span>
 							</div>
 							<div class="text-sm text-muted-foreground">
 								{g.units} unit{g.units === 1 ? '' : 's'} · {fmt.format(g.total)}
@@ -955,7 +976,7 @@
 					{@const meta = getMeta(g.brand_id, g.season_id)}
 					<div class="rounded-lg border p-4">
 						<div class="mb-3 font-semibold">
-							{brandName(g.brand_id)} · {seasonName(g.season_id)}
+							{brandName(g.brand_id)} · {seasonLabel(g.season_id, g.product_year)}
 						</div>
 						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 							{#each accountLocations as loc (loc.id)}
@@ -1062,7 +1083,7 @@
 						<li class="py-3">
 							<div class="flex items-center justify-between">
 								<div class="font-medium">
-									{brandName(g.brand_id)} · {seasonName(g.season_id)}
+									{brandName(g.brand_id)} · {seasonLabel(g.season_id, g.product_year)}
 								</div>
 								<div class="text-sm text-muted-foreground">
 									{g.units} unit{g.units === 1 ? '' : 's'} · {fmt.format(g.total)}
@@ -1239,7 +1260,7 @@
 									<div class="text-sm text-muted-foreground">{p.style_number}</div>
 									<div class="line-clamp-2 text-sm font-semibold">{p.name}</div>
 									<div class="text-sm text-muted-foreground">
-										{brandName(p.brand_id)}{p.season_id ? ' · ' + seasonName(p.season_id) : ''}
+										{brandName(p.brand_id)}{p.season_id ? ' · ' + seasonLabel(p.season_id, p.product_year) : ''}
 									</div>
 									<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
 									<div class="mt-auto grid grid-cols-2 gap-2 pt-3">

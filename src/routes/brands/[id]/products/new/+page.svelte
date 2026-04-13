@@ -21,6 +21,7 @@
 	let styleNumber = $state('');
 	let category = $state('');
 	let seasonId = $state('');
+	let productYear = $state<number>(new Date().getFullYear());
 	let description = $state('');
 	let wholesalePrice = $state('');
 	let retailPrice = $state('');
@@ -107,7 +108,8 @@
 				wholesale_price: parseFloat(wholesalePrice) || 0,
 				retail_price: parseFloat(retailPrice) || null,
 				category: category.trim() || null,
-				season_id: seasonId || null
+				season_id: seasonId || null,
+				product_year: productYear || null
 			})
 			.select()
 			.single();
@@ -345,18 +347,30 @@
 								placeholder="e.g. Tops, Bottoms, Dresses, Outerwear"
 							/>
 						</div>
-						<div class="space-y-2">
-							<Label for="season">Season</Label>
-							<select
-								id="season"
-								bind:value={seasonId}
-								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-							>
-								<option value="">None</option>
-								{#each seasons as season}
-									<option value={season.id}>{season.name}</option>
-								{/each}
-							</select>
+						<div class="grid grid-cols-[1fr_120px] gap-3">
+							<div class="space-y-2">
+								<Label for="season">Season</Label>
+								<select
+									id="season"
+									bind:value={seasonId}
+									class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+								>
+									<option value="">None</option>
+									{#each seasons as season}
+										<option value={season.id}>{season.name}</option>
+									{/each}
+								</select>
+							</div>
+							<div class="space-y-2">
+								<Label for="productYear">Year</Label>
+								<Input
+									id="productYear"
+									type="number"
+									min="2000"
+									max="2100"
+									bind:value={productYear}
+								/>
+							</div>
 						</div>
 					</div>
 				</div>

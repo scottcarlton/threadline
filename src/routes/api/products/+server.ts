@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	let query = locals.supabase
 		.from('products')
 		.select(
-			'id, brand_id, season_id, style_number, name, wholesale_price, category, product_variants(id, color, size, price_override), product_images(id, is_primary, sort_order)'
+			'id, brand_id, season_id, product_year, style_number, name, wholesale_price, category, product_variants(id, color, size, price_override), product_images(id, is_primary, sort_order)'
 		)
 		// (product_images included for modal grid thumbnails)
 		.eq('organization_id', locals.organization.id)
