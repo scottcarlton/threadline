@@ -650,14 +650,13 @@
 										{itemUnits(it)} unit{itemUnits(it) === 1 ? '' : 's'}
 									</div>
 									<div class="text-sm text-muted-foreground">{fmt.format(itemTotal(it))}</div>
-									<Button
-										variant="outline"
-										size="sm"
-										class="border-red-500/70! text-red-500 hover:bg-red-500/10 hover:text-red-400"
+									<button
+										type="button"
+										class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-[12px] font-medium text-red-500 transition-colors hover:bg-red-500/10"
 										onclick={() => removeProduct(it.product_id)}
 									>
 										Remove
-									</Button>
+									</button>
 								</div>
 							</div>
 
@@ -1151,16 +1150,17 @@
 									</div>
 									<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
 									<div class="mt-auto grid grid-cols-2 gap-2 pt-3">
-										<Button
-											size="sm"
-											variant={added ? 'outline' : 'default'}
-											class={added
-												? 'border-red-500/70! text-red-500 hover:bg-red-500/10 hover:text-red-400'
-												: ''}
-											onclick={() => toggleProduct(p)}
-										>
-											{added ? 'Remove' : 'Add'}
-										</Button>
+										{#if added}
+											<button
+												type="button"
+												class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-[12px] font-medium text-red-500 transition-colors hover:bg-red-500/10"
+												onclick={() => toggleProduct(p)}
+											>
+												Remove
+											</button>
+										{:else}
+											<Button size="sm" onclick={() => toggleProduct(p)}>Add</Button>
+										{/if}
 										<Button
 											size="sm"
 											variant="outline"
