@@ -10,6 +10,7 @@
 	import SearchDialog from '$lib/components/layout/SearchDialog.svelte';
 	import Markdown from '$lib/components/ai/Markdown.svelte';
 	import { startUnreadPolling } from '$lib/stores/unread.js';
+	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
 	import { conversation } from '$lib/stores/conversation.js';
@@ -63,10 +64,12 @@
 			const stopUnread = startUnreadPolling(60000);
 			const stopAppointments = startAppointmentPolling(60000);
 			const stopAttention = startOrderAttentionPolling(60000);
+			const stopNotifications = startNotificationPolling(30000);
 			return () => {
 				stopUnread?.();
 				stopAppointments?.();
 				stopAttention?.();
+				stopNotifications?.();
 			};
 		}
 	});
