@@ -23,6 +23,7 @@
 	const reviewerName = $derived(data.reviewerName as string | null);
 
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
+	const isBrandOrg = $derived(data.orgType === 'brand');
 	const isSubmitter = $derived(expense.submitted_by === data.user?.id);
 	const isBrandReviewer = $derived(data.isBrandReviewer as boolean);
 	const isDraft = $derived(expense.status === 'draft');
@@ -364,14 +365,12 @@
 					{:else}
 						<dl class="space-y-4">
 							<div class="grid gap-4 sm:grid-cols-2">
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Brand</dt>
-									<dd class="mt-1">{expense.brands?.name ?? '—'}</dd>
-								</div>
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Category</dt>
-									<dd class="mt-1">{categoryLabels[expense.category] ?? expense.category}</dd>
-								</div>
+								{#if !isBrandOrg}
+									<div>
+										<dt class="text-sm font-medium text-muted-foreground">Brand</dt>
+										<dd class="mt-1">{expense.brands?.name ?? '—'}</dd>
+									</div>
+								{/if}
 							</div>
 							<div class="grid gap-4 sm:grid-cols-2">
 								<div>
