@@ -1008,10 +1008,6 @@
 	{#if stepName === 'Review'}
 		<div class="space-y-4">
 			<div class="rounded-lg border p-4">
-				<div class="text-sm text-muted-foreground">Type</div>
-				<div class="text-lg font-semibold capitalize">{cart.type}</div>
-			</div>
-			<div class="rounded-lg border p-4">
 				<div class="text-sm text-muted-foreground">Account</div>
 				<div class="text-lg font-semibold">
 					{account ? account.business_name : (cart.freeform_name ?? '—')}
