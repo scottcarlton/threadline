@@ -922,7 +922,7 @@
 									{/each}
 									<button
 										type="button"
-										class="ml-auto h-9 text-sm underline hover:no-underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+										class="h-9 pl-2 text-sm underline hover:no-underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
 										disabled={itemUnits(it) === 0}
 										onclick={() => autoSize(idx)}
 										title="Apply the first non-zero size quantity to every size"
