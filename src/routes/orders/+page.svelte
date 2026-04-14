@@ -419,10 +419,12 @@
 							class="px-4 py-2.5 text-center text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Status</th
 						>
-						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
-							>Brand</th
-						>
+						{#if !isBrandOrg}
+							<th
+								class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
+								>Brand</th
+							>
+						{/if}
 						<th
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
 							>{isBrandOrg ? 'Rep' : 'Source'}</th
@@ -488,10 +490,24 @@
 								/>
 							</td>
 							<td class="px-4 py-3">
-								<a href="/orders/{order.id}" class="font-mono text-base font-medium hover:underline"
-									>{order.order_number}</a
-								>
-								<p class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</p>
+								{#if isBrandOrg}
+									<p class="text-sm font-medium">{order.accounts?.business_name ?? '—'}</p>
+									<a
+										href="/orders/{order.id}"
+										class="font-mono text-base font-medium hover:underline"
+										>{order.order_number}</a
+									>
+									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
+								{:else}
+									<a
+										href="/orders/{order.id}"
+										class="font-mono text-base font-medium hover:underline"
+										>{order.order_number}</a
+									>
+									<p class="text-sm text-muted-foreground">
+										{order.accounts?.business_name ?? '—'}
+									</p>
+								{/if}
 							</td>
 							<td class="px-4 py-3 text-center">
 								{#if order.order_type === 'note'}
@@ -506,13 +522,18 @@
 									</span>
 								{/if}
 							</td>
-							<td class="hidden px-4 py-3 sm:table-cell">
-								<span class="text-sm">{order.brands?.name ?? '—'}</span>
-								<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
-							</td>
+							{#if !isBrandOrg}
+								<td class="hidden px-4 py-3 sm:table-cell">
+									<span class="text-sm">{order.brands?.name ?? '—'}</span>
+									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
+								</td>
+							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
 								{#if isBrandOrg}
-									{@const repOrgName = (order as any).source_org?.name ?? '—'}
+									{@const repOrgName =
+										(order as any).source_org?.name ??
+										(order as any).profiles?.display_name ??
+										'—'}
 									<span class="text-sm {repOrgName === '—' ? 'text-muted-foreground/50' : ''}"
 										>{repOrgName}</span
 									>

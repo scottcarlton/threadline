@@ -1,50 +1,52 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
+/**
+ * Orders badge count — "unviewed + unconfirmed" semantics.
+ *
+ * Counts orders the current user hasn't opened yet OR orders in `submitted`
+ * status awaiting their confirm action (brand side only). Self-created orders
+ * are excluded. Viewed state tracked in `order_views`.
+ */
 export const GET: RequestHandler = async ({ locals }) => {
-	const { supabase, organization } = locals;
-	if (!organization) return json({ count: 0 });
+	const { supabase, organization, orgType, membership } = locals;
+	if (!organization || !locals.user?.id) return json({ count: 0 });
 
-	const orgId = organization.id;
-	const now = new Date();
-	const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-	const todayStr = now.toISOString().split('T')[0];
+	const userId = locals.user.id;
+	const role = membership?.role;
 
-	// Attention badge shows work that needs attention from SOMEONE ELSE.
-	// Orders the current user created themselves are excluded — they already
-	// know about them.
-	const currentUserId = locals.user?.id;
+	// Sales roles only see their own orders → everything is self-created → always 0.
+	if (role === 'sales') return json({ count: 0 });
 
-	let staleDraftsQuery = supabase
+	// ── (a) Unviewed orders in user's visibility scope, excluding self-created ──
+	// RLS already scopes `orders` to what the user can see (own-org + federated).
+	const { data: visible } = await supabase
 		.from('orders')
-		.select('id', { count: 'exact', head: true })
-		.eq('organization_id', orgId)
-		.eq('status', 'draft')
-		.lte('created_at', sevenDaysAgo);
+		.select('id')
+		.neq('created_by', userId);
 
-	let overdueQuery = supabase
-		.from('orders')
-		.select('id', { count: 'exact', head: true })
-		.eq('organization_id', orgId)
-		.in('status', ['submitted', 'confirmed'])
-		.lt('expected_ship_date', todayStr);
+	const { data: views } = await supabase
+		.from('order_views')
+		.select('order_id')
+		.eq('profile_id', userId);
+	const seen = new Set(((views ?? []) as Array<{ order_id: string }>).map((v) => v.order_id));
 
-	if (currentUserId) {
-		staleDraftsQuery = staleDraftsQuery.neq('created_by', currentUserId);
-		overdueQuery = overdueQuery.neq('created_by', currentUserId);
+	const attentionIds = new Set<string>();
+	for (const o of (visible ?? []) as Array<{ id: string }>) {
+		if (!seen.has(o.id)) attentionIds.add(o.id);
 	}
 
-	// Sales role: since we already exclude self-created orders, and sales can
-	// only see their own anyway, this always comes back as 0 for sales. Keep
-	// the role check in case that scope ever changes.
-	if (locals.membership?.role === 'sales' && currentUserId) {
-		staleDraftsQuery = staleDraftsQuery.eq('created_by', currentUserId);
-		overdueQuery = overdueQuery.eq('created_by', currentUserId);
+	// ── (b) Unconfirmed federated orders (brand admin/member/owner only) ──
+	if (orgType === 'brand' && role && ['admin', 'owner', 'member'].includes(role)) {
+		const { data: links } = await supabaseAdmin
+			.from('federated_order_links')
+			.select('order_id, orders!inner(status)')
+			.eq('target_org_id', organization.id)
+			.eq('status', 'active')
+			.eq('orders.status', 'submitted');
+		for (const l of (links ?? []) as Array<{ order_id: string }>) attentionIds.add(l.order_id);
 	}
 
-	const [staleDraftsRes, overdueRes] = await Promise.all([staleDraftsQuery, overdueQuery]);
-
-	return json({
-		count: (staleDraftsRes.count ?? 0) + (overdueRes.count ?? 0)
-	});
+	return json({ count: attentionIds.size });
 };
