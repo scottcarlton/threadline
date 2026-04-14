@@ -491,7 +491,9 @@
 							</td>
 							<td class="px-4 py-3">
 								{#if isBrandOrg}
-									<p class="text-sm font-medium">{order.accounts?.business_name ?? '—'}</p>
+									<p class="text-sm text-muted-foreground">
+										{order.accounts?.business_name ?? '—'}
+									</p>
 									<a
 										href="/orders/{order.id}"
 										class="font-mono text-base font-medium hover:underline"
