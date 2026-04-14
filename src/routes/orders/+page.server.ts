@@ -82,16 +82,46 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			}
 		};
 
-	// ── Brand org: federated orders ────────────────────────────────────────
+	// ── Brand org: federated orders PLUS the brand's own direct orders ────
 	if (orgType === 'brand') {
-		let federatedOrders = await listFederatedOrders(supabaseAdmin, organization.id);
+		const brandIsSales = locals.membership?.role === 'sales';
+		const brandUserId = locals.user?.id;
+
+		// 1. Direct orders owned by the brand org.
+		//    Sales reps only see their own. Admin/owner/member see all.
+		let directQuery = supabase
+			.from('orders')
+			.select(
+				'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)'
+			)
+			.eq('organization_id', organization.id)
+			.order('created_at', { ascending: false });
+		if (brandIsSales && brandUserId) directQuery = directQuery.eq('created_by', brandUserId);
+		if (status) directQuery = directQuery.eq('status', status);
+		if (seasonId) directQuery = directQuery.eq('season_id', seasonId);
+		if (year) directQuery = directQuery.eq('order_year', parseInt(year));
+		if (brandId) directQuery = directQuery.eq('brand_id', brandId);
+		if (showDateId) directQuery = directQuery.eq('show_date_id', showDateId);
+		const directRes = await directQuery;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const directOrders = ((directRes.data ?? []) as any[]).map((o) => ({
+			...o,
+			source_org: null as { id: string; name: string } | null
+		}));
+
+		// 2. Federated orders from connected rep orgs.
+		//    Brand sales reps don't see incoming federated orders (only their own work).
+		//    Admins and members see all federated orders.
+		let federatedOrders = brandIsSales
+			? []
+			: await listFederatedOrders(supabaseAdmin, organization.id);
 		if (status) federatedOrders = federatedOrders.filter((o) => o.status === status);
 		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.rep_org_id === repOrgId);
 		if (seasonId) federatedOrders = federatedOrders.filter((o) => o.season_id === seasonId);
 		if (brandId) federatedOrders = federatedOrders.filter((o) => o.brand_id === brandId);
 
-		// Reshape to match the rep-side row structure the page already renders.
-		const orders = federatedOrders.map((o) => ({
+		// Reshape federated to match the direct row structure.
+		const federatedReshaped = federatedOrders.map((o) => ({
 			id: o.id,
 			order_number: o.order_number,
 			status: o.status,
@@ -110,7 +140,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			source_org: { id: o.rep_org_id, name: o.rep_org_name }
 		}));
 
-		// Unique brands / seasons / reps for filter chips — derived from the federated set.
+		// Combine, dedupe by id (a federated order already owned by this org would duplicate),
+		// and re-sort newest first.
+		const orderMap = new Map<string, typeof directOrders[number] | (typeof federatedReshaped)[number]>();
+		for (const o of federatedReshaped) orderMap.set(o.id as string, o);
+		for (const o of directOrders) orderMap.set(o.id as string, o); // direct wins if dup
+		const orders = [...orderMap.values()].sort((a, b) =>
+			String(b.created_at).localeCompare(String(a.created_at))
+		);
+
+		// Filter chip sources — union of direct + federated.
 		const brandMap = new Map<string, { id: string; name: string }>();
 		const seasonMap = new Map<string, { id: string; name: string }>();
 		const repMap = new Map<string, { id: string; name: string }>();
@@ -119,6 +158,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			if (o.season_id && o.season_name)
 				seasonMap.set(o.season_id, { id: o.season_id, name: o.season_name });
 			repMap.set(o.rep_org_id, { id: o.rep_org_id, name: o.rep_org_name });
+		}
+		for (const o of directOrders) {
+			const b = (o.brands as { name?: string } | null)?.name;
+			const bid = o.brand_id as string | undefined;
+			if (bid && b) brandMap.set(bid, { id: bid, name: b });
+			const s = (o.seasons as { name?: string } | null)?.name;
+			const sid = o.season_id as string | undefined;
+			if (sid && s) seasonMap.set(sid, { id: sid, name: s });
 		}
 
 		// Metrics (same shape as rep side)
