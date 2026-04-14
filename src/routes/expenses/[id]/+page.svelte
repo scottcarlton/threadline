@@ -398,21 +398,16 @@
 									<dd class="mt-1 whitespace-pre-wrap">{expense.notes}</dd>
 								</div>
 							{/if}
-							<div class="grid gap-4 sm:grid-cols-2">
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Submitted By</dt>
-									<dd class="mt-1">{expense.profiles?.display_name ?? '—'}</dd>
-								</div>
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Created</dt>
-									<dd class="mt-1">
-										{new Date(expense.created_at).toLocaleDateString('en-US', {
-											month: 'short',
-											day: 'numeric',
-											year: 'numeric'
-										})}
-									</dd>
-								</div>
+							<div>
+								<dt class="text-sm font-medium text-muted-foreground">Submitted By</dt>
+								<dd class="mt-1">{expense.profiles?.display_name ?? '—'}</dd>
+								<dd class="mt-0.5 font-mono text-xs text-muted-foreground">
+									{new Date(expense.created_at).toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								</dd>
 							</div>
 						</dl>
 					{/if}
