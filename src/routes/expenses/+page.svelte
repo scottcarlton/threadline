@@ -244,7 +244,7 @@
 				<thead>
 					<tr class="border-b bg-muted/40">
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="w-48 px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Expense</th
 						>
 						<th
@@ -274,7 +274,7 @@
 				<tbody class="divide-y">
 					{#each filtered as expense}
 						<tr class="transition-colors hover:bg-muted/30">
-							<td class="px-4 py-3">
+							<td class="w-48 px-4 py-3 whitespace-nowrap">
 								<a
 									href="/expenses/{expense.id}"
 									class="font-mono text-base font-medium hover:underline"
