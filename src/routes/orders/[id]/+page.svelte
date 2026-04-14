@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
@@ -9,6 +10,13 @@
 	import type { Order, OrderLine, OrderStatus, BrandAsset } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { entityContext } from '$lib/stores/entityContext.js';
+	import { fetchOrderAttentionCount } from '$lib/stores/orderAttention.js';
+
+	// Refresh the Orders nav badge as soon as this page mounts — the loader
+	// just marked the order viewed; status changes below also call this.
+	onMount(() => {
+		fetchOrderAttentionCount();
+	});
 
 	let { data } = $props();
 	const order = $derived(data.order as Order);
@@ -134,6 +142,7 @@
 
 		await supabase.from('orders').update(updateData).eq('id', order.id);
 		invalidateAll();
+		fetchOrderAttentionCount();
 	}
 
 	const timeline = $derived([
