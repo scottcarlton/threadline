@@ -32,6 +32,7 @@
 	});
 	const canEdit = $derived(data.membership?.role !== 'guest');
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
+	const isBrandOrg = $derived(data.orgType === 'brand');
 
 	// Buyer invite dialog state
 	let showInviteDialog = $state(false);
@@ -436,8 +437,8 @@
 				{/if}
 			</Card>
 
-			<!-- Buyer Portal Access -->
-			{#if isAdmin}
+			<!-- Buyer Portal Access — any non-guest user (incl. sales reps) can invite / manage buyers. -->
+			{#if canEdit}
 				<Card>
 					<CardHeader>
 						<div class="flex items-center justify-between">
@@ -634,37 +635,39 @@
 				</Card>
 			{/if}
 
-			<!-- Brands -->
-			<Card>
-				<CardHeader>
-					<CardTitle class="text-base">Brands</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{#if brandSummaries.length === 0}
-						<p class="text-sm text-muted-foreground">
-							No orders yet. Brands will appear here once orders are created.
-						</p>
-					{:else}
-						<div class="space-y-2">
-							{#each brandSummaries as brand}
-								<a
-									href="/brands/{brand.id}"
-									class="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-muted/50"
-								>
-									<span class="text-sm font-medium">{brand.name}</span>
-									<div class="text-right">
-										<p class="text-sm font-medium">{fmt(brand.totalSales)}</p>
-										<p class="text-xs text-muted-foreground">
-											{brand.orderCount}
-											{brand.orderCount === 1 ? 'order' : 'orders'}
-										</p>
-									</div>
-								</a>
-							{/each}
-						</div>
-					{/if}
-				</CardContent>
-			</Card>
+			<!-- Brands — rep-org only; for brand orgs every account is implicitly their brand. -->
+			{#if !isBrandOrg}
+				<Card>
+					<CardHeader>
+						<CardTitle class="text-base">Brands</CardTitle>
+					</CardHeader>
+					<CardContent>
+						{#if brandSummaries.length === 0}
+							<p class="text-sm text-muted-foreground">
+								No orders yet. Brands will appear here once orders are created.
+							</p>
+						{:else}
+							<div class="space-y-2">
+								{#each brandSummaries as brand}
+									<a
+										href="/brands/{brand.id}"
+										class="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-muted/50"
+									>
+										<span class="text-sm font-medium">{brand.name}</span>
+										<div class="text-right">
+											<p class="text-sm font-medium">{fmt(brand.totalSales)}</p>
+											<p class="text-xs text-muted-foreground">
+												{brand.orderCount}
+												{brand.orderCount === 1 ? 'order' : 'orders'}
+											</p>
+										</div>
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</CardContent>
+				</Card>
+			{/if}
 		</div>
 	</div>
 
