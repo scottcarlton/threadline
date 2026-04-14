@@ -7,6 +7,7 @@
 	import type { OrderType } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
+	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 
 	type Brand = { id: string; name: string };
 	type Season = { id: string; name: string; sort_order: number | null };
@@ -147,7 +148,7 @@
 		return itemUnits(it) > 0;
 	}
 
-	// Groups — derived from sized cart items; these are what the Delivery/Review steps show.
+	// Groups — derived from sized cart items; these are what the Delivery/Finalize steps show.
 	function groupKey(brand_id: string, season_id: string): string {
 		return `${brand_id}::${season_id}`;
 	}
@@ -185,6 +186,44 @@
 		return [...map.values()];
 	});
 
+	// Groups decorated with stable `id` strings for svelte-dnd-action.
+	// Each item inside also gets an `id` (= product_id) so dnd can track cross-zone moves.
+	const groupDndItems = $derived(
+		groups.map((g) => ({
+			...g,
+			id: groupKey(g.brand_id, g.season_id),
+			items: g.items.map((it) => ({ ...it, id: it.product_id }))
+		}))
+	);
+
+	function handleItemsConsider(
+		group: { brand_id: string; season_id: string },
+		e: CustomEvent<DndEvent>
+	) {
+		// No-op: we compute the actual mutation in finalize. During consider the
+		// library animates the dragged item between zones; we don't need to mutate
+		// cart.items mid-drag because the source of truth is derived on finalize.
+		void group;
+		void e;
+	}
+
+	function handleItemsFinalize(
+		group: { brand_id: string; season_id: string },
+		e: CustomEvent<DndEvent<{ id: string }>>
+	) {
+		const ids = new Set(e.detail.items.map((i) => i.id));
+		const seasonRank = seasonSort(group.season_id);
+		for (const id of ids) {
+			const existing = cart.items.find((ci) => ci.product_id === id);
+			if (!existing) continue;
+			if (existing.brand_id !== group.brand_id) continue; // cross-brand drops ignored
+			if (existing.season_id === group.season_id) continue; // same-group re-drops no-op
+			// Forward-only: destination sort_order must be >= source sort_order.
+			if (seasonSort(existing.season_id) > seasonRank) continue;
+			moveItem(id, group.season_id);
+		}
+	}
+
 	const account = $derived(accounts.find((a) => a.id === cart.account_id) ?? null);
 	const accountLocations = $derived(
 		cart.account_id ? allLocations.filter((l) => l.account_id === cart.account_id) : []
@@ -203,12 +242,12 @@
 		if (needsAccountDetailsStep) s.push('Details');
 		s.push('Items', 'Delivery');
 		if (needsLocationStep) s.push('Location');
-		s.push('Review');
+		s.push('Finalize');
 		return s;
 	});
 
 	let currentStep = $state(0);
-	const stepName = $derived(stepsAll[currentStep] ?? 'Review');
+	const stepName = $derived(stepsAll[currentStep] ?? 'Finalize');
 
 	// Clamp currentStep when stepsAll shrinks (e.g., user picks a single-location account, Location step drops)
 	$effect(() => {
@@ -244,6 +283,150 @@
 		};
 		return `Custom — ${fmtShort(choice.start_ship_date)} → ${fmtShort(choice.expected_ship_date)}`;
 	}
+	// Group-level season sort_order helper (null sort_orders sort last).
+	function seasonSort(id: string): number {
+		return seasons.find((s) => s.id === id)?.sort_order ?? 9999;
+	}
+
+	// A delivery-pool entry describes a preset available for a group:
+	// its source season (may differ from group's own season) + year applied.
+	type DeliveryEntry = {
+		row: SeasonDeliveryRow;
+		display_year: number;
+		season_id: string;
+		// True when this delivery belongs to the group's own (season_id, year).
+		own: boolean;
+	};
+
+	// Build the pool of preset delivery windows a group can choose from.
+	// Includes the group's own season for the group's year, all later seasons
+	// (within the group's year), and every season in the next year.
+	function availableDeliveries(
+		group_season_id: string,
+		group_year: number | null
+	): DeliveryEntry[] {
+		const srcSort = seasonSort(group_season_id);
+		const year = group_year ?? cart.order_year;
+		const entries: DeliveryEntry[] = [];
+
+		for (const s of seasons) {
+			const inSameYearLater = s.sort_order != null && s.sort_order >= srcSort;
+			const sDeliveries = deliveries.filter((d) => d.season_id === s.id);
+			if (inSameYearLater) {
+				for (const d of sDeliveries) {
+					entries.push({
+						row: d,
+						display_year: year,
+						season_id: s.id,
+						own: s.id === group_season_id
+					});
+				}
+			}
+			// Next year: include every season.
+			for (const d of sDeliveries) {
+				entries.push({
+					row: d,
+					display_year: year + 1,
+					season_id: s.id,
+					own: false
+				});
+			}
+		}
+		return entries;
+	}
+
+	function deliveryEntryLabel(e: DeliveryEntry): string {
+		const date = deliveryLabelFor(e.row);
+		if (e.own) return date;
+		const seasonTag =
+			e.display_year === (cart.order_year ?? new Date().getFullYear())
+				? seasonName(e.season_id)
+				: `${seasonName(e.season_id)} ${e.display_year}`;
+		return `${seasonTag} · ${date}`;
+	}
+
+	function deliveryEntryKey(e: DeliveryEntry): string {
+		return `${e.row.id}__${e.display_year}`;
+	}
+
+	// Valid forward-only destinations for a group (same brand, same order year).
+	// Groups are keyed by (brand, season), so year stays constant for now.
+	function moveTargetsFor(source_season_id: string) {
+		const srcSort = seasonSort(source_season_id);
+		return seasons
+			.filter((s) => s.sort_order != null && s.sort_order > srcSort)
+			.map((s) => ({ season_id: s.id, label: s.name }));
+	}
+
+	// Move every item in (brand, season) source to the destination season.
+	// Existing items at the destination merge naturally (groups re-derive).
+	function moveGroup(
+		source_brand_id: string,
+		source_season_id: string,
+		dest_season_id: string
+	) {
+		for (const it of cart.items) {
+			if (it.brand_id === source_brand_id && it.season_id === source_season_id) {
+				it.season_id = dest_season_id;
+			}
+		}
+	}
+
+	// Move a single item to a destination season.
+	function moveItem(product_id: string, dest_season_id: string) {
+		const it = cart.items.find((i) => i.product_id === product_id);
+		if (!it) return;
+		it.season_id = dest_season_id;
+	}
+
+	// Remove every item in a group.
+	function removeGroup(brand_id: string, season_id: string) {
+		cart.items = cart.items.filter(
+			(it) => !(it.brand_id === brand_id && it.season_id === season_id)
+		);
+	}
+
+	// Apply a preset delivery entry to a group. If the entry is in the group's
+	// order_year, store as a `delivery` reference; otherwise (next year) resolve
+	// to a custom date range so the existing schema stores the full ISO dates.
+	function applyDeliveryEntry(group_brand_id: string, group_season_id: string, e: DeliveryEntry) {
+		if (e.display_year === cart.order_year) {
+			setMeta(group_brand_id, group_season_id, {
+				delivery: { kind: 'delivery', delivery_id: e.row.id }
+			});
+			return;
+		}
+		const mm = String(e.row.delivery_month).padStart(2, '0');
+		const dd = String(e.row.delivery_day).padStart(2, '0');
+		const start = `${e.display_year}-${mm}-01`;
+		const end = `${e.display_year}-${mm}-${dd}`;
+		setMeta(group_brand_id, group_season_id, {
+			delivery: { kind: 'custom', start_ship_date: start, expected_ship_date: end }
+		});
+	}
+
+	// Check if a group's current delivery selection matches a preset entry.
+	function deliveryEntrySelected(
+		meta: { delivery: DeliveryChoice | null },
+		e: DeliveryEntry
+	): boolean {
+		if (!meta.delivery) return false;
+		if (e.display_year === cart.order_year) {
+			return (
+				meta.delivery.kind === 'delivery' && meta.delivery.delivery_id === e.row.id
+			);
+		}
+		const mm = String(e.row.delivery_month).padStart(2, '0');
+		const dd = String(e.row.delivery_day).padStart(2, '0');
+		const expectedStart = `${e.display_year}-${mm}-01`;
+		const expectedEnd = `${e.display_year}-${mm}-${dd}`;
+		return (
+			meta.delivery.kind === 'custom' &&
+			meta.delivery.start_ship_date === expectedStart &&
+			meta.delivery.expected_ship_date === expectedEnd
+		);
+	}
+
 	const EMPTY_META: { delivery: DeliveryChoice | null; location_id: string | null } = {
 		delivery: null,
 		location_id: null
@@ -284,7 +467,7 @@
 				return groups.every((g) => getMeta(g.brand_id, g.season_id).location_id !== null);
 			case 'Details':
 				return true;
-			case 'Review':
+			case 'Finalize':
 				return true;
 		}
 		return true;
@@ -746,120 +929,201 @@
 		<div>
 			<p class="mb-4 text-sm text-muted-foreground">
 				{groups.length === 1
-					? 'Pick the ship window for this order.'
-					: `${groups.length} orders will be created — one per brand + season. Pick a ship window for each.`}
+					? 'Review items and pick a ship window.'
+					: `${groups.length} orders will be created — one per brand + season. Drag items or whole orders forward in time.`}
 			</p>
 			<div class="space-y-4">
-				{#each groups as g (groupKey(g.brand_id, g.season_id))}
+				{#each groupDndItems as g (g.id)}
 					{@const meta = getMeta(g.brand_id, g.season_id)}
-					{@const seasonDeliveries = deliveries.filter((d) => d.season_id === g.season_id)}
-					<div class="rounded-lg border p-4">
-						<div class="mb-3 flex items-center justify-between">
-							<div class="font-semibold">
-								{brandName(g.brand_id)}
-								<span class="text-muted-foreground"> · {seasonLabel(g.season_id, g.product_year)}</span>
+					{@const entries = availableDeliveries(g.season_id, g.product_year)}
+					{@const moveTargets = moveTargetsFor(g.season_id)}
+					{@const customDates =
+						meta.delivery?.kind === 'custom'
+							? meta.delivery
+							: { start_ship_date: '', expected_ship_date: '' }}
+					<div class="rounded-lg border bg-background p-4">
+						<!-- Header: brand · season · (Move menu) | units/total · delete -->
+						<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+							<div class="flex items-center gap-2">
+								<button
+									type="button"
+									class="cursor-grab text-muted-foreground hover:text-foreground"
+									aria-label="Drag to reorder"
+									title="Drag to move to a later season"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+										<circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
+										<circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+										<circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
+									</svg>
+								</button>
+								<span class="font-semibold">{brandName(g.brand_id)}</span>
+								<span class="text-sm text-muted-foreground">·</span>
+								<span class="text-sm text-muted-foreground">{seasonLabel(g.season_id, g.product_year)}</span>
+								{#if moveTargets.length > 0}
+									<select
+										class="ml-2 h-7 cursor-pointer rounded border bg-background px-2 text-sm hover:border-foreground"
+										value=""
+										onchange={(e) => {
+											const target = (e.target as HTMLSelectElement).value;
+											if (target) moveGroup(g.brand_id, g.season_id, target);
+											(e.target as HTMLSelectElement).value = '';
+										}}
+										aria-label="Move this order to a later season"
+									>
+										<option value="" disabled>Move →</option>
+										{#each moveTargets as t (t.season_id)}
+											<option value={t.season_id}>{t.label}</option>
+										{/each}
+									</select>
+								{/if}
 							</div>
-							<div class="text-sm text-muted-foreground">
-								{g.units} unit{g.units === 1 ? '' : 's'} · {fmt.format(g.total)}
+							<div class="flex items-center gap-3">
+								<div class="text-sm text-muted-foreground">
+									{g.units} unit{g.units === 1 ? '' : 's'} · {fmt.format(g.total)}
+								</div>
+								<button
+									type="button"
+									class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+									aria-label="Delete order"
+									onclick={() => removeGroup(g.brand_id, g.season_id)}
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								</button>
 							</div>
 						</div>
 
-						{#if meta.delivery?.kind === 'custom'}
-							<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-								<div>
-									<Label for={`start-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
-										Start Ship
-									</Label>
-									<Input
-										id={`start-${groupKey(g.brand_id, g.season_id)}`}
-										type="date"
-										class="mt-1"
-										value={meta.delivery.start_ship_date}
-										oninput={(e) => {
-											const v = (e.target as HTMLInputElement).value;
-											const current = meta.delivery as Extract<typeof meta.delivery, { kind: 'custom' }>;
-											setMeta(g.brand_id, g.season_id, {
-												delivery: {
-													kind: 'custom',
-													start_ship_date: v,
-													expected_ship_date: current.expected_ship_date
-												}
-											});
-										}}
-									/>
-								</div>
-								<div>
-									<Label for={`end-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
-										Complete Ship
-									</Label>
-									<Input
-										id={`end-${groupKey(g.brand_id, g.season_id)}`}
-										type="date"
-										class="mt-1"
-										value={meta.delivery.expected_ship_date}
-										oninput={(e) => {
-											const v = (e.target as HTMLInputElement).value;
-											const current = meta.delivery as Extract<typeof meta.delivery, { kind: 'custom' }>;
-											setMeta(g.brand_id, g.season_id, {
-												delivery: {
-													kind: 'custom',
-													start_ship_date: current.start_ship_date,
-													expected_ship_date: v
-												}
-											});
-										}}
-									/>
-								</div>
-							</div>
-							<button
-								type="button"
-								class="mt-3 text-sm underline hover:no-underline"
-								onclick={() => setMeta(g.brand_id, g.season_id, { delivery: null })}
-							>
-								Use preset options
-							</button>
-						{:else if seasonDeliveries.length > 0}
-							<div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-								{#each seasonDeliveries as d (d.id)}
+						<!-- Items list (drop target for individual item moves) -->
+						<div
+							class="mb-4 space-y-2 rounded-md border border-dashed p-2"
+							use:dndzone={{
+								items: g.items,
+								type: 'item',
+								flipDurationMs: 150,
+								dropTargetClasses: ['bg-muted/40'],
+								morphDisabled: true
+							}}
+							onconsider={(e) => handleItemsConsider(g, e)}
+							onfinalize={(e) => handleItemsFinalize(g, e)}
+						>
+							{#each g.items as it (it.id)}
+								<div class="flex items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 cursor-grab text-muted-foreground" viewBox="0 0 24 24" fill="currentColor">
+										<circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
+										<circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+										<circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
+									</svg>
+									{#if it.image_id}
+										<img
+											src={`/api/products/${it.product_id}/images/${it.image_id}`}
+											alt=""
+											class="h-8 w-8 shrink-0 rounded object-cover"
+										/>
+									{/if}
+									<div class="min-w-0 flex-1">
+										<div class="truncate font-medium">{it.name}</div>
+										<div class="text-muted-foreground">
+											{it.style_number} · {it.selected_color || '—'} · {itemUnits(it)} unit{itemUnits(it) === 1 ? '' : 's'}
+										</div>
+									</div>
 									<button
 										type="button"
-										class="rounded border p-3 text-left text-sm transition {meta.delivery?.kind ===
-											'delivery' && meta.delivery.delivery_id === d.id
-											? 'border-foreground bg-muted/30'
-											: 'hover:border-foreground'}"
-										onclick={() => setMeta(g.brand_id, g.season_id, { delivery: { kind: 'delivery', delivery_id: d.id } })}
+										class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+										aria-label="Remove item"
+										onclick={() => removeProduct(it.product_id)}
 									>
-										{deliveryLabelFor(d)}
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+										</svg>
 									</button>
-								{/each}
+								</div>
+							{/each}
+						</div>
+
+						<!-- Delivery selection: custom date inputs always visible -->
+						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+							<div>
+								<Label for={`start-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
+									Start Ship
+								</Label>
+								<Input
+									id={`start-${groupKey(g.brand_id, g.season_id)}`}
+									type="date"
+									class="mt-1"
+									value={customDates.start_ship_date}
+									oninput={(e) => {
+										const v = (e.target as HTMLInputElement).value;
+										setMeta(g.brand_id, g.season_id, {
+											delivery: {
+												kind: 'custom',
+												start_ship_date: v,
+												expected_ship_date: customDates.expected_ship_date
+											}
+										});
+									}}
+								/>
 							</div>
-							<button
-								type="button"
-								class="inline-flex items-center gap-1 text-sm underline hover:no-underline"
-								onclick={() =>
-									setMeta(g.brand_id, g.season_id, {
-										delivery: { kind: 'custom', start_ship_date: '', expected_ship_date: '' }
-									})}
-							>
-								<span aria-hidden="true">+</span> Add Custom Dates
-							</button>
-						{:else}
-							<p class="mb-3 text-sm text-muted-foreground">
-								No delivery slots configured for this season.
-							</p>
-							<button
-								type="button"
-								class="inline-flex items-center gap-1 text-sm underline hover:no-underline"
-								onclick={() =>
-									setMeta(g.brand_id, g.season_id, {
-										delivery: { kind: 'custom', start_ship_date: '', expected_ship_date: '' }
-									})}
-							>
-								<span aria-hidden="true">+</span> Add Custom Dates
-							</button>
+							<div>
+								<Label for={`end-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
+									Complete Ship
+								</Label>
+								<Input
+									id={`end-${groupKey(g.brand_id, g.season_id)}`}
+									type="date"
+									class="mt-1"
+									value={customDates.expected_ship_date}
+									oninput={(e) => {
+										const v = (e.target as HTMLInputElement).value;
+										setMeta(g.brand_id, g.season_id, {
+											delivery: {
+												kind: 'custom',
+												start_ship_date: customDates.start_ship_date,
+												expected_ship_date: v
+											}
+										});
+									}}
+								/>
+							</div>
+						</div>
+
+						{#if entries.length > 0}
+							<details class="mt-3 text-sm">
+								<summary class="cursor-pointer text-muted-foreground hover:text-foreground">
+									Use preset ship window
+								</summary>
+								<div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+									{#each entries as e (deliveryEntryKey(e))}
+										<button
+											type="button"
+											class="rounded border p-2 text-left text-sm transition {deliveryEntrySelected(meta, e)
+												? 'border-foreground bg-muted/30'
+												: 'hover:border-foreground'}"
+											onclick={() => applyDeliveryEntry(g.brand_id, g.season_id, e)}
+										>
+											{deliveryEntryLabel(e)}
+										</button>
+									{/each}
+								</div>
+							</details>
 						{/if}
 					</div>
 				{/each}
+
+				{#if groups.length === 0}
+					<div class="rounded-lg border border-dashed p-12 text-center">
+						<div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-6 w-6 text-muted-foreground">
+								<path d="M3 3h18v4H3zM3 10h18v11H3z" />
+							</svg>
+						</div>
+						<div class="text-base font-semibold">No orders</div>
+						<p class="mt-1 text-sm text-muted-foreground">
+							Go back to Items to add products.
+						</p>
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -1004,8 +1268,8 @@
 		</div>
 	{/if}
 
-	<!-- ── Review step ────────────────────────────────────────────────── -->
-	{#if stepName === 'Review'}
+	<!-- ── Finalize step ──────────────────────────────────────────────── -->
+	{#if stepName === 'Finalize'}
 		<div class="space-y-4">
 			<div class="rounded-lg border p-4">
 				<div class="text-sm text-muted-foreground">Account</div>
@@ -1077,7 +1341,7 @@
 							submitStatus = 'submitted';
 						}}
 					>
-						{groups.length > 1 ? 'Save as Notes' : 'Save as Note'}
+						{groups.length > 1 ? 'Save Notes' : 'Save Note'}
 					</Button>
 					<Button
 						type="submit"
@@ -1095,7 +1359,7 @@
 	{/if}
 
 	<!-- Bottom nav: Next only (Back moved to top). -->
-	{#if stepName !== 'Review'}
+	{#if stepName !== 'Finalize'}
 		<div class="mt-8 flex items-center justify-end gap-4">
 			{#if stepName === 'Details'}
 				<button
