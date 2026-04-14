@@ -115,12 +115,11 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div>
-			<h1 class="text-2xl font-bold">Reps</h1>
-			<p class="mt-1 text-sm text-muted-foreground">
+			<h1 class="text-3xl">Reps</h1>
+			<p class="mt-1 font-mono text-sm text-muted-foreground">
 				{reps.length} team member{reps.length !== 1 ? 's' : ''}{pendingInvites.length > 0
 					? ` · ${pendingInvites.length} pending`
-					: ''} &middot; {totalOrders} orders &middot;
-				{fmt.format(totalRevenue)} revenue
+					: ''} · {totalOrders} orders · {fmt.format(totalRevenue)} revenue
 			</p>
 		</div>
 		<Button onclick={() => (inviteOpen = !inviteOpen)}>
