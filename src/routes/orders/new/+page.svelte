@@ -1017,37 +1017,34 @@
 						<!-- Header: brand · season · (Move menu) | units/total · delete -->
 						<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
 							<div class="flex items-center gap-2">
-								<button
-									type="button"
-									class="cursor-grab text-muted-foreground hover:text-foreground"
-									aria-label="Drag to reorder"
-									title="Drag to move to a later season"
-								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-										<circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
-										<circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
-										<circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
-									</svg>
-								</button>
 								<span class="font-semibold">{brandName(g.brand_id)}</span>
 								<span class="text-sm text-muted-foreground">·</span>
 								<span class="text-sm text-muted-foreground">{seasonLabel(g.season_id, g.product_year)}</span>
 								{#if moveTargets.length > 0}
-									<select
-										class="ml-1 cursor-pointer appearance-none rounded bg-transparent py-0 pr-3 pl-0 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none"
-										value=""
-										onchange={(e) => {
-											const target = (e.target as HTMLSelectElement).value;
-											if (target) moveGroup(g.brand_id, g.season_id, target);
-											(e.target as HTMLSelectElement).value = '';
-										}}
-										aria-label="Move this order to a later season"
-									>
-										<option value="" disabled>Move →</option>
-										{#each moveTargets as t (t.season_id)}
-											<option value={t.season_id}>{t.label}</option>
-										{/each}
-									</select>
+									<details class="relative ml-1 marker:hidden [&>summary::-webkit-details-marker]:hidden">
+										<summary
+											class="cursor-pointer list-none text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+											aria-label="Move this order to a later season"
+										>
+											Move →
+										</summary>
+										<div class="absolute top-full left-0 z-20 mt-1 min-w-[140px] rounded-md border bg-background py-1 shadow-lg">
+											{#each moveTargets as t (t.season_id)}
+												<button
+													type="button"
+													class="block w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
+													onclick={(e) => {
+														moveGroup(g.brand_id, g.season_id, t.season_id);
+														(e.currentTarget as HTMLElement)
+															.closest('details')
+															?.removeAttribute('open');
+													}}
+												>
+													{t.label}
+												</button>
+											{/each}
+										</div>
+									</details>
 								{/if}
 							</div>
 							<div class="flex items-center gap-3">
