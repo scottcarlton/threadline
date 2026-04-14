@@ -992,7 +992,6 @@
 			<div class="space-y-4">
 				{#each groups as g (groupKey(g.brand_id, g.season_id))}
 					{@const meta = getMeta(g.brand_id, g.season_id)}
-					{@const entries = availableDeliveries(g.season_id, g.product_year)}
 					{@const moveTargets = moveTargetsFor(g.season_id)}
 					{@const customDates =
 						meta.delivery?.kind === 'custom'
@@ -1154,26 +1153,6 @@
 							</div>
 						</div>
 
-						{#if entries.length > 0}
-							<details class="mt-3 text-sm">
-								<summary class="cursor-pointer text-muted-foreground hover:text-foreground">
-									Use preset ship window
-								</summary>
-								<div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-									{#each entries as e (deliveryEntryKey(e))}
-										<button
-											type="button"
-											class="rounded border p-2 text-left text-sm transition {deliveryEntrySelected(meta, e)
-												? 'border-foreground bg-muted/30'
-												: 'hover:border-foreground'}"
-											onclick={() => applyDeliveryEntry(g.brand_id, g.season_id, e)}
-										>
-											{deliveryEntryLabel(e)}
-										</button>
-									{/each}
-								</div>
-							</details>
-						{/if}
 					</div>
 				{/each}
 
