@@ -262,6 +262,10 @@
 							>Submitted By</th
 						>
 						<th
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
+							>Approved</th
+						>
+						<th
 							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Amount</th
 						>
@@ -303,6 +307,26 @@
 										year: 'numeric'
 									})}
 								</p>
+							</td>
+							<td class="hidden px-4 py-3 lg:table-cell">
+								{#if expense.status === 'approved' || expense.status === 'rejected'}
+									{@const reviewer =
+										(expense as { reviewer?: { display_name: string | null } | null }).reviewer}
+									{@const when =
+										expense.status === 'approved' ? expense.approved_at : expense.rejected_at}
+									<span class="text-sm">{reviewer?.display_name ?? '—'}</span>
+									{#if when}
+										<p class="font-mono text-xs text-muted-foreground">
+											{new Date(when).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric',
+												year: 'numeric'
+											})}
+										</p>
+									{/if}
+								{:else}
+									<span class="text-sm text-muted-foreground/50">—</span>
+								{/if}
 							</td>
 							<td class="px-4 py-3 text-right font-mono">
 								<span class="text-sm">{fmt.format(Number(expense.amount))}</span>
