@@ -357,20 +357,24 @@
 				{/each}
 			</select>
 		{/if}
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('show', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Shows</option>
-			{#each showDates as sd}
-				{@const shows = sd.shows as { name?: string } | { name?: string }[] | null}
-				{@const showName = Array.isArray(shows) ? (shows[0]?.name ?? 'Show') : (shows?.name ?? 'Show')}
-				<option value={sd.id}
-					>{showName} — {monthNames[(sd.month ?? 1) - 1]}
-					{sd.year}{sd.city ? `, ${sd.city}` : ''}</option
-				>
-			{/each}
-		</select>
+		{#if showDates.length > 0}
+			<select
+				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+				onchange={(e) => setFilter('show', (e.target as HTMLSelectElement).value)}
+			>
+				<option value="">All Shows</option>
+				{#each showDates as sd}
+					{@const shows = sd.shows as { name?: string } | { name?: string }[] | null}
+					{@const showName = Array.isArray(shows)
+						? (shows[0]?.name ?? 'Show')
+						: (shows?.name ?? 'Show')}
+					<option value={sd.id}
+						>{showName} — {monthNames[(sd.month ?? 1) - 1]}
+						{sd.year}{sd.city ? `, ${sd.city}` : ''}</option
+					>
+				{/each}
+			</select>
+		{/if}
 	</div>
 
 	{#if filtered.length === 0}
@@ -474,7 +478,9 @@
 						]}
 						{@const shipWindowStart = delivery?.delivery_month
 							? `${monthNames[delivery.delivery_month - 1]} 1`
-							: null}
+							: (order as { start_ship_date?: string | null }).start_ship_date
+								? `${monthNames[new Date((order as { start_ship_date: string }).start_ship_date + 'T00:00:00').getMonth()]} ${new Date((order as { start_ship_date: string }).start_ship_date + 'T00:00:00').getDate()}`
+								: null}
 						{@const shipWindowEnd = order.expected_ship_date
 							? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 							: null}
