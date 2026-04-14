@@ -13,6 +13,8 @@
 	const seasons = $derived(data.seasons as Season[]);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
 	const showDates = $derived(data.showDates ?? []);
+	const reps = $derived((data.reps as { id: string; name: string }[] | undefined) ?? []);
+	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
 	const canCreate = $derived(data.membership?.role !== 'guest');
 	const monthNames = [
 		'Jan',
@@ -342,6 +344,17 @@
 				<option value={brand.id}>{brand.name}</option>
 			{/each}
 		</select>
+		{#if isBrandOrg && reps.length > 0}
+			<select
+				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+				onchange={(e) => setFilter('rep', (e.target as HTMLSelectElement).value)}
+			>
+				<option value="">All Reps</option>
+				{#each reps as r (r.id)}
+					<option value={r.id}>{r.name}</option>
+				{/each}
+			</select>
+		{/if}
 		<select
 			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
 			onchange={(e) => setFilter('show', (e.target as HTMLSelectElement).value)}
@@ -412,7 +425,7 @@
 						>
 						<th
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
-							>Source</th
+							>{isBrandOrg ? 'Rep' : 'Source'}</th
 						>
 						<th
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
@@ -498,10 +511,17 @@
 								<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
 							</td>
 							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm {sourceName ? '' : 'text-muted-foreground/50'}"
-									>{sourceName ?? '—'}</span
-								>
-								{#if showDate}
+								{#if isBrandOrg}
+									{@const repOrgName = (order as any).source_org?.name ?? '—'}
+									<span class="text-sm {repOrgName === '—' ? 'text-muted-foreground/50' : ''}"
+										>{repOrgName}</span
+									>
+								{:else}
+									<span class="text-sm {sourceName ? '' : 'text-muted-foreground/50'}"
+										>{sourceName ?? '—'}</span
+									>
+								{/if}
+								{#if showDate && !isBrandOrg}
 									<p class="mt-0.5 text-xs text-muted-foreground">
 										<span
 											class="mr-1 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-medium"

@@ -1,8 +1,9 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { supabase } = locals;
+	const { supabase, organization, orgType } = locals;
 
 	const [orderResult, linesResult] = await Promise.all([
 		supabase
@@ -39,7 +40,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.single(),
 		supabase
 			.from('order_comments')
-			.select('*, profiles:author_id(display_name)')
+			.select(
+				'*, profiles:author_id(display_name), source_org:source_org_id(id, name)'
+			)
 			.eq('order_id', params.id)
 			.order('created_at', { ascending: true })
 	]);
@@ -58,6 +61,38 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		}
 	}
 
+	// Federation context: is this a federated order viewed from the brand side?
+	let federation: {
+		isFederatedView: boolean;
+		sourceOrg: { id: string; name: string } | null;
+		repDisplayName: string | null;
+	} = { isFederatedView: false, sourceOrg: null, repDisplayName: null };
+
+	if (orgType === 'brand' && organization && orderResult.data.organization_id !== organization.id) {
+		// Admin client so we can read the rep org + rep user across org boundaries.
+		const { data: link } = await supabaseAdmin
+			.from('federated_order_links')
+			.select('source_org_id, source_org:source_org_id(id, name)')
+			.eq('order_id', params.id)
+			.eq('target_org_id', organization.id)
+			.eq('status', 'active')
+			.maybeSingle();
+		if (link) {
+			// Supabase sometimes types foreign-key joins as an array; normalize.
+			const rawSourceOrg = (link as unknown as { source_org: unknown }).source_org;
+			const sourceOrg = Array.isArray(rawSourceOrg)
+				? ((rawSourceOrg[0] ?? null) as { id: string; name: string } | null)
+				: ((rawSourceOrg ?? null) as { id: string; name: string } | null);
+			federation = {
+				isFederatedView: true,
+				sourceOrg,
+				repDisplayName:
+					(orderResult.data as { profiles?: { display_name?: string | null } | null }).profiles
+						?.display_name ?? null
+			};
+		}
+	}
+
 	return {
 		order: orderResult.data,
 		lines: linesResult.data ?? [],
@@ -65,6 +100,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		commissionOverride: overrideRes.data?.rate ?? null,
 		repCommissionRate,
 		repName: (repRes.data?.profiles as any)?.display_name ?? null,
-		comments: commentsRes.data ?? []
+		comments: commentsRes.data ?? [],
+		federation
 	};
 };

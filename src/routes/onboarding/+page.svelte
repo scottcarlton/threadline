@@ -294,8 +294,9 @@
 					{ number: 1, label: 'Your Name' },
 					{ number: 2, label: 'Your Business' },
 					{ number: 3, label: 'Business Type' },
-					{ number: 4, label: 'Invite Members' },
-					{ number: 5, label: 'Get Started' }
+					{ number: 4, label: 'Catalog' },
+					{ number: 5, label: 'Invite Members' },
+					{ number: 6, label: 'Get Started' }
 				]
 			: [
 					{ number: 1, label: 'Your Name' },
@@ -439,8 +440,9 @@
 			}
 		}
 
-		// Brand orgs skip the "first brand" step (self-brand auto-created by trigger)
-		step = effectiveOrgType === 'brand' ? 5 : 4;
+		// Brand orgs go to Catalog (self-brand is auto-created by trigger).
+		// Rep orgs go to their First Brand step.
+		step = effectiveOrgType === 'brand' ? catalogStep : 4;
 	}
 
 	async function saveBrand() {
@@ -470,9 +472,90 @@
 		step = 5;
 	}
 
+	// Catalog step is brand-only, sits between Business Type and Invite Members
+	const catalogStep = 4;
 	// Invite step number depends on org type
-	const inviteStep = $derived(effectiveOrgType === 'brand' ? 4 : 5);
-	const welcomeStep = $derived(effectiveOrgType === 'brand' ? 5 : 6);
+	const inviteStep = $derived(effectiveOrgType === 'brand' ? 5 : 5);
+	const welcomeStep = $derived(effectiveOrgType === 'brand' ? 6 : 6);
+
+	// ── Catalog step (brand onboarding v1 — SCO-125) ───────────────────────
+	type ParsedProduct = {
+		style_number?: string;
+		name: string;
+		wholesale_price?: number;
+		retail_price?: number;
+		category?: string;
+		description?: string;
+		sizes?: string[];
+		colors?: string[];
+	};
+	let catalogFile = $state<File | null>(null);
+	let catalogParsing = $state(false);
+	let catalogSaving = $state(false);
+	let catalogParsed = $state<ParsedProduct[]>([]);
+	let catalogError = $state('');
+
+	async function parseCatalogFile() {
+		if (!catalogFile) return;
+		catalogParsing = true;
+		catalogError = '';
+		try {
+			const form = new FormData();
+			form.append('file', catalogFile);
+			const res = await fetch('/api/products/parse-linesheet', { method: 'POST', body: form });
+			const body = await res.json();
+			if (!res.ok) {
+				catalogError = body.error ?? 'Parse failed';
+				return;
+			}
+			catalogParsed = (body.products ?? []) as ParsedProduct[];
+			if (catalogParsed.length === 0) catalogError = 'No products detected. Try a clearer linesheet.';
+		} catch (e) {
+			catalogError = (e as Error).message;
+		} finally {
+			catalogParsing = false;
+		}
+	}
+
+	async function saveCatalogProducts() {
+		if (catalogParsed.length === 0 || !data.organization) return;
+		catalogSaving = true;
+		catalogError = '';
+		// Find the org's self-brand (auto-created on brand org setup).
+		const { data: selfBrand } = await supabase
+			.from('brands')
+			.select('id')
+			.eq('organization_id', data.organization.id)
+			.eq('is_self_brand', true)
+			.maybeSingle();
+		if (!selfBrand) {
+			catalogError = 'Self-brand not found yet. Try refreshing.';
+			catalogSaving = false;
+			return;
+		}
+		const rows = catalogParsed.map((p) => ({
+			organization_id: data.organization!.id,
+			brand_id: selfBrand.id,
+			style_number: p.style_number ?? '',
+			name: p.name,
+			description: p.description ?? null,
+			wholesale_price: p.wholesale_price ?? 0,
+			retail_price: p.retail_price ?? null,
+			category: p.category ?? null,
+			product_year: new Date().getFullYear()
+		}));
+		const { error: err } = await supabase.from('products').insert(rows);
+		catalogSaving = false;
+		if (err) {
+			catalogError = err.message;
+			return;
+		}
+		step = inviteStep;
+	}
+
+	function skipCatalog() {
+		step = inviteStep;
+	}
 
 	async function sendInvite() {
 		if (!inviteEmail.trim()) {
@@ -503,12 +586,7 @@
 
 	function goBack() {
 		if (step === 1) return;
-		// Skip from invite step back over brand step for brand orgs
-		if (step === inviteStep && effectiveOrgType === 'brand') {
-			step = 3;
-		} else {
-			step = step - 1;
-		}
+		step = step - 1;
 	}
 
 	function finish() {
@@ -731,6 +809,143 @@
 							</div>
 						</button>
 					</div>
+				</div>
+			{:else if step === catalogStep && effectiveOrgType === 'brand'}
+				<div class="space-y-5">
+					<button
+						class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+						onclick={goBack}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+						</svg>
+						Back
+					</button>
+					<div>
+						<h1 class="text-3xl font-semibold tracking-tight">Upload your linesheet</h1>
+						<p class="mt-2 text-sm text-muted-foreground">
+							Drop a PDF or image and we'll extract your products automatically. You can edit or add
+							more later.
+						</p>
+					</div>
+
+					{#if catalogParsed.length === 0}
+						<label
+							class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-10 text-center hover:border-foreground/40"
+						>
+							<input
+								type="file"
+								accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+								class="hidden"
+								onchange={(e) => {
+									const f = (e.target as HTMLInputElement).files?.[0];
+									catalogFile = f ?? null;
+								}}
+							/>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+								class="h-8 w-8 text-muted-foreground"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M7 16a4 4 0 01-.88-7.9 5 5 0 019.77-2.1A4.5 4.5 0 1117 16H7zm5-4v-6m-3 3l3-3 3 3"
+								/>
+							</svg>
+							<div class="text-sm font-medium">
+								{catalogFile ? catalogFile.name : 'Click to choose a linesheet'}
+							</div>
+							<div class="text-sm text-muted-foreground">PDF, PNG, or JPG — up to 20 MB</div>
+						</label>
+
+						{#if catalogError}
+							<p class="text-sm text-red-600">{catalogError}</p>
+						{/if}
+
+						<div class="flex items-center justify-between">
+							<button
+								type="button"
+								class="text-sm text-muted-foreground underline hover:text-foreground"
+								onclick={skipCatalog}
+							>
+								I'll do this later
+							</button>
+							<button
+								type="button"
+								class="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+								disabled={!catalogFile || catalogParsing}
+								onclick={parseCatalogFile}
+							>
+								{catalogParsing ? 'Parsing…' : 'Parse linesheet'}
+							</button>
+						</div>
+					{:else}
+						<div class="rounded-lg border">
+							<div class="flex items-center justify-between border-b p-3">
+								<div class="text-sm font-medium">
+									{catalogParsed.length} product{catalogParsed.length === 1 ? '' : 's'} detected
+								</div>
+								<button
+									type="button"
+									class="text-sm text-muted-foreground underline hover:text-foreground"
+									onclick={() => {
+										catalogParsed = [];
+										catalogFile = null;
+									}}
+								>
+									Start over
+								</button>
+							</div>
+							<ul class="max-h-80 divide-y overflow-auto">
+								{#each catalogParsed as p, i (i)}
+									<li class="flex items-center justify-between p-3 text-sm">
+										<div>
+											<div class="font-medium">{p.name}</div>
+											<div class="text-muted-foreground">
+												{p.style_number ? `#${p.style_number} · ` : ''}{p.category ?? 'Uncategorized'}
+											</div>
+										</div>
+										<div class="font-mono">
+											{p.wholesale_price ? `$${p.wholesale_price}` : '—'}
+										</div>
+									</li>
+								{/each}
+							</ul>
+						</div>
+
+						{#if catalogError}
+							<p class="text-sm text-red-600">{catalogError}</p>
+						{/if}
+
+						<div class="flex items-center justify-between">
+							<button
+								type="button"
+								class="text-sm text-muted-foreground underline hover:text-foreground"
+								onclick={skipCatalog}
+							>
+								Skip — don't save these
+							</button>
+							<button
+								type="button"
+								class="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+								disabled={catalogSaving}
+								onclick={saveCatalogProducts}
+							>
+								{catalogSaving ? 'Saving…' : `Save ${catalogParsed.length} products`}
+							</button>
+						</div>
+					{/if}
 				</div>
 			{:else if step === 4 && effectiveOrgType === 'rep'}
 				<div class="space-y-5">

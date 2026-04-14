@@ -1,9 +1,21 @@
 import type { PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { refreshInsights } from '$lib/server/insights-engine.js';
+import { supabaseAdmin } from '$lib/server/supabase.js';
+import { listConnectedReps, listFederatedOrders } from '$lib/server/federation.js';
+
+type BrandIncoming = { count: number; revenue: number };
+type BrandTopAccount = {
+	account_id: string;
+	business_name: string;
+	city: string | null;
+	state: string | null;
+	revenue: number;
+	order_count: number;
+};
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const { supabase, organization } = locals;
+	const { supabase, organization, orgType } = locals;
 
 	if (!organization) {
 		return {
@@ -29,6 +41,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const orgId = organization.id;
+
+	// ── Brand org branch ────────────────────────────────────────────────
+	if (orgType === 'brand') {
+		return await loadBrandInsight(supabaseAdmin, orgId);
+	}
 
 	// ── Setup checklist (onboarding state) ──────────────────────────────
 	const [brandCountCheck, productCountCheck, accountCountCheck, orderCountCheck] =
@@ -597,3 +614,163 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		velocityWindow
 	};
 };
+
+// ───────────────────────────────────────────────────────────────────────────
+// Brand-org Insight loader
+// ───────────────────────────────────────────────────────────────────────────
+
+async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string) {
+	const now = new Date();
+	const iso = (d: Date) => d.toISOString();
+	const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+	const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+	const d90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+	const [connectedReps, federatedOrders] = await Promise.all([
+		listConnectedReps(admin, brandOrgId),
+		listFederatedOrders(admin, brandOrgId)
+	]);
+
+	// Rep activity summary
+	const activeReps = connectedReps.filter((r) => r.status === 'active');
+	const repsActive30d = activeReps.filter(
+		(r) => r.last_order_at && new Date(r.last_order_at) >= d30
+	);
+	const repsQuiet30d = activeReps.filter(
+		(r) => !r.last_order_at || new Date(r.last_order_at) < d30
+	);
+
+	// Incoming orders (federated)
+	const incoming7: BrandIncoming = { count: 0, revenue: 0 };
+	const incoming30: BrandIncoming = { count: 0, revenue: 0 };
+	const pipelineStatuses = new Set(['draft', 'submitted', 'confirmed']);
+	let pipelineValue = 0;
+	for (const o of federatedOrders) {
+		const created = new Date(o.created_at);
+		if (created >= d7) {
+			incoming7.count++;
+			incoming7.revenue += o.total_amount;
+		}
+		if (created >= d30) {
+			incoming30.count++;
+			incoming30.revenue += o.total_amount;
+		}
+		if (pipelineStatuses.has(o.status)) pipelineValue += o.total_amount;
+	}
+
+	// Top accounts by revenue (last 90d) across federated orders
+	const accountAgg = new Map<string, { revenue: number; order_count: number }>();
+	for (const o of federatedOrders) {
+		if (new Date(o.created_at) < d90) continue;
+		if (!o.account_id) continue;
+		const e = accountAgg.get(o.account_id) ?? { revenue: 0, order_count: 0 };
+		e.revenue += o.total_amount;
+		e.order_count += 1;
+		accountAgg.set(o.account_id, e);
+	}
+	const accountIds = [...accountAgg.keys()];
+	let topAccounts: BrandTopAccount[] = [];
+	if (accountIds.length > 0) {
+		const { data: accounts } = await admin
+			.from('accounts')
+			.select('id, business_name, city, state, territory_id')
+			.in('id', accountIds);
+		const accountMap = new Map(
+			((accounts ?? []) as Array<{
+				id: string;
+				business_name: string;
+				city: string | null;
+				state: string | null;
+				territory_id: string | null;
+			}>).map((a) => [a.id, a])
+		);
+		topAccounts = accountIds
+			.map((id) => {
+				const a = accountMap.get(id);
+				const agg = accountAgg.get(id)!;
+				return {
+					account_id: id,
+					business_name: a?.business_name ?? 'Unknown',
+					city: a?.city ?? null,
+					state: a?.state ?? null,
+					revenue: agg.revenue,
+					order_count: agg.order_count
+				};
+			})
+			.sort((a, b) => b.revenue - a.revenue)
+			.slice(0, 5);
+	}
+
+	// Territory coverage gaps: distinct territories across connected rep accounts
+	// that have zero active accounts in the last 90d.
+	// Lightweight version: count distinct territories vs. those with recent activity.
+	let territoryGaps: Array<{ name: string }> = [];
+	if (accountIds.length > 0) {
+		const { data: allAccounts } = await admin
+			.from('accounts')
+			.select('id, territory_id, territories!accounts_territory_id_fkey(id, name)')
+			.in('id', accountIds);
+		const rows = (allAccounts ?? []) as unknown as Array<{
+			id: string;
+			territory_id: string | null;
+			territories: { id: string; name: string } | null;
+		}>;
+		const activeAccountIdsSet = new Set(
+			federatedOrders
+				.filter((o) => new Date(o.created_at) >= d90 && o.account_id)
+				.map((o) => o.account_id as string)
+		);
+		const territoryMap = new Map<string, { name: string; hasActive: boolean }>();
+		for (const row of rows) {
+			if (!row.territories) continue;
+			const existing = territoryMap.get(row.territories.id) ?? {
+				name: row.territories.name,
+				hasActive: false
+			};
+			if (activeAccountIdsSet.has(row.id)) existing.hasActive = true;
+			territoryMap.set(row.territories.id, existing);
+		}
+		territoryGaps = [...territoryMap.values()].filter((t) => !t.hasActive).map((t) => ({ name: t.name }));
+	}
+
+	const brandInsight = {
+		connectedReps,
+		repsActive30d,
+		repsQuiet30d,
+		incoming7,
+		incoming30,
+		pipelineValue,
+		topAccounts,
+		territoryGaps,
+		totalOrders: federatedOrders.length,
+		totalRevenue: federatedOrders.reduce((s, o) => s + o.total_amount, 0)
+	};
+
+	// Return shape — most rep-centric fields are empty; the page reads `isBrandOrg`
+	// and renders a dedicated brand layout.
+	return {
+		isBrandOrg: true,
+		setupComplete: true,
+		brandInsight,
+		insightActions: [],
+		scoreboard: [],
+		seasonSummary: [],
+		yearlySummary: [],
+		selectedYear: null,
+		availableYears: [],
+		deliveries: [],
+		gridAccounts: [],
+		gridData: [],
+		showDates: [],
+		selectedShowDateId: null,
+		showVisits: [],
+		showOrders: [],
+		showDeliveries: [],
+		showSummary: [],
+		showAppointments: [],
+		styleVelocity: [],
+		velocityWindow: 14,
+		// Suppress iso usage warning
+		_now: iso(now).slice(0, 10)
+	};
+}
