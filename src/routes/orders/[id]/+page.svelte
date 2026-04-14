@@ -13,6 +13,12 @@
 	let { data } = $props();
 	const order = $derived(data.order as Order);
 
+	// Action: focus the element once when mounted. Avoids the bare `autofocus`
+	// attribute (which screen readers handle inconsistently).
+	function autofocusOnMount(node: HTMLElement) {
+		node.focus();
+	}
+
 	$effect(() => {
 		const o = order;
 		const brandName = (o as any).brands?.name ?? 'Unknown brand';
@@ -1026,7 +1032,7 @@
 												onblur={() => saveInlineEdit(line)}
 												onkeydown={(e) => handleInlineKeydown(e, line)}
 												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-right text-sm"
-												autofocus
+												use:autofocusOnMount
 											/>
 										{:else}
 											{#if line.original_qty && line.original_qty !== line.qty}
@@ -1250,6 +1256,8 @@
 								>
 								{#if comment.author_id === data.user?.id}
 									<button
+										type="button"
+										aria-label="Delete comment"
 										class="text-sm text-muted-foreground hover:text-destructive"
 										onclick={() => deleteComment(comment.id)}
 									>
