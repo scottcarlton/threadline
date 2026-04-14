@@ -22,7 +22,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const isAdmin = ['admin', 'owner'].includes(membership.role);
 
 	if (orgType === 'brand') {
-		const connectedReps = await listConnectedReps(supabase, orgId);
+		// Admin client: federation joins touch rep-org tables whose RLS excludes the brand.
+		// Security guarantee is preserved by the brand_org_id filter inside the helper.
+		const connectedReps = await listConnectedReps(supabaseAdmin, orgId);
 
 		let invites: Array<{
 			id: string;

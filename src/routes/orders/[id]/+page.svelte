@@ -64,7 +64,29 @@
 		cancelled: []
 	};
 
-	const nextStatuses = $derived(statusFlow[order.status] ?? []);
+	const federation = $derived(
+		data.federation as
+			| {
+					isFederatedView: boolean;
+					sourceOrg: { id: string; name: string } | null;
+					repDisplayName: string | null;
+			  }
+			| undefined
+	);
+	const isFederatedView = $derived(federation?.isFederatedView === true);
+
+	// Brand-side federated view only supports confirming a submitted order; cancel/cancel-rep-only
+	// transitions stay with the rep side. Ship/deliver are also brand-side actions though.
+	const brandAllowedNext: Record<string, OrderStatus[]> = {
+		submitted: ['confirmed'],
+		confirmed: ['shipped'],
+		shipped: ['delivered']
+	};
+	const nextStatuses = $derived(
+		isFederatedView
+			? (brandAllowedNext[order.status] ?? [])
+			: (statusFlow[order.status] ?? [])
+	);
 
 	function seasonLabel(): string {
 		const name = order.seasons?.name;
@@ -373,6 +395,7 @@
 		body: string;
 		created_at: string;
 		profiles?: { display_name: string } | null;
+		source_org?: { id: string; name: string } | null;
 	};
 	const comments = $derived((data.comments ?? []) as Comment[]);
 	let commentBody = $state('');
@@ -384,7 +407,8 @@
 		await supabase.from('order_comments').insert({
 			order_id: order.id,
 			author_id: data.user?.id,
-			body: commentBody.trim()
+			body: commentBody.trim(),
+			source_org_id: data.organization?.id ?? null
 		});
 		commentBody = '';
 		postingComment = false;
@@ -589,6 +613,44 @@
 			{/if}
 		</div>
 	</div>
+
+	<!-- Rep info banner (brand-side federated view) -->
+	{#if isFederatedView}
+		<div class="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+			<div class="flex items-center gap-3">
+				<div
+					class="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						class="h-5 w-5"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+						/>
+					</svg>
+				</div>
+				<div>
+					<div class="text-sm text-muted-foreground">From rep</div>
+					<div class="font-semibold">
+						{federation?.sourceOrg?.name ?? 'Rep org'}
+						{#if federation?.repDisplayName}
+							<span class="ml-1 font-normal text-muted-foreground">
+								· {federation.repDisplayName}
+							</span>
+						{/if}
+					</div>
+				</div>
+			</div>
+			<div class="text-sm text-muted-foreground">Federated order</div>
+		</div>
+	{/if}
 
 	<!-- Status timeline -->
 	{#if order.order_type !== 'note' && order.status !== 'cancelled'}
@@ -1172,6 +1234,12 @@
 								<span class="text-sm font-medium"
 									>{comment.profiles?.display_name ?? 'Unknown'}</span
 								>
+								{#if comment.source_org?.name}
+									<span
+										class="inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
+										>{comment.source_org.name}</span
+									>
+								{/if}
 								<span class="text-sm text-muted-foreground"
 									>{new Date(comment.created_at).toLocaleDateString('en-US', {
 										month: 'short',
