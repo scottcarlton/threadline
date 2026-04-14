@@ -603,6 +603,25 @@
 			size_qtys
 		});
 	}
+	// Auto-size: take the first non-zero size qty and apply it to every other size.
+	function autoSize(idx: number) {
+		const it = cart.items[idx];
+		const sizes = it.available_sizes;
+		if (sizes.length === 0) return;
+		let template = 0;
+		for (const s of sizes) {
+			const q = it.size_qtys[s] ?? 0;
+			if (q > 0) {
+				template = q;
+				break;
+			}
+		}
+		if (template === 0) return;
+		for (const s of sizes) {
+			cart.items[idx].size_qtys[s] = template;
+		}
+	}
+
 	function removeProduct(product_id: string) {
 		const i = cart.items.findIndex((it) => it.product_id === product_id);
 		if (i >= 0) cart.items.splice(i, 1);
@@ -901,6 +920,15 @@
 											/>
 										</div>
 									{/each}
+									<button
+										type="button"
+										class="ml-auto h-9 text-sm underline hover:no-underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+										disabled={itemUnits(it) === 0}
+										onclick={() => autoSize(idx)}
+										title="Apply the first non-zero size quantity to every size"
+									>
+										Auto size
+									</button>
 								</div>
 							{:else}
 								<div class="mt-3 flex items-center gap-2">
