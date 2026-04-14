@@ -12,6 +12,16 @@
 
 	let { data } = $props();
 	const order = $derived(data.order as Order);
+	const orderLocation = $derived(
+		((order as unknown as { account_locations: {
+			label: string;
+			address_line1: string | null;
+			address_line2: string | null;
+			city: string | null;
+			state: string | null;
+			zip: string | null;
+		} | null }).account_locations) ?? null
+	);
 
 	// Action: focus the element once when mounted. Avoids the bare `autofocus`
 	// attribute (which screen readers handle inconsistently).
@@ -725,6 +735,26 @@
 							>
 						</dd>
 					</div>
+					{#if orderLocation}
+						<div>
+							<dt class="text-xs text-muted-foreground">Ship To</dt>
+							<dd class="mt-0.5">
+								<div class="font-medium">{orderLocation.label}</div>
+								{#if orderLocation.address_line1}
+									<div class="text-muted-foreground">
+										{orderLocation.address_line1}
+										{#if orderLocation.address_line2} · {orderLocation.address_line2}{/if}
+									</div>
+								{/if}
+								{#if orderLocation.city || orderLocation.state || orderLocation.zip}
+									<div class="text-muted-foreground">
+										{[orderLocation.city, orderLocation.state].filter(Boolean).join(', ')}
+										{orderLocation.zip ?? ''}
+									</div>
+								{/if}
+							</dd>
+						</div>
+					{/if}
 					<div>
 						<dt class="text-xs text-muted-foreground">Brand</dt>
 						<dd class="mt-0.5">

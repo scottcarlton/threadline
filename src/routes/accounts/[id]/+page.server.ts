@@ -1,43 +1,56 @@
-import { error, redirect } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+import { error, fail, redirect } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { supabase, organization } = locals;
 
-	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes] = await Promise.all(
-		[
-			supabase.from('accounts').select('*').eq('id', params.id).single(),
-			supabase
-				.from('orders')
-				.select('brand_id, total_amount, status, order_year, brands(id, name)')
-				.eq('account_id', params.id),
-			supabase
-				.from('orders')
-				.select(
-					'id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)'
-				)
-				.eq('account_id', params.id)
-				.order('created_at', { ascending: false })
-				.limit(20),
-			supabase
-				.from('appointments')
-				.select(
-					'id, appointment_type, scheduled_date, scheduled_time, status, notes, created_at, show_dates(id, year, month, city, state, shows(name))'
-				)
-				.eq('account_id', params.id)
-				.order('created_at', { ascending: false })
-				.limit(20),
-			supabase
-				.from('email_logs')
-				.select('id, to_email, subject, created_at, sent_by, profiles:sent_by(display_name)')
-				.eq('related_type', 'account')
-				.eq('related_id', params.id)
-				.order('created_at', { ascending: false })
-				.limit(20)
-		]
-	);
+	const [
+		accountRes,
+		ordersRes,
+		recentOrdersRes,
+		appointmentsRes,
+		emailLogsRes,
+		locationsRes
+	] = await Promise.all([
+		supabase.from('accounts').select('*').eq('id', params.id).single(),
+		supabase
+			.from('orders')
+			.select('brand_id, total_amount, status, order_year, brands(id, name)')
+			.eq('account_id', params.id),
+		supabase
+			.from('orders')
+			.select(
+				'id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)'
+			)
+			.eq('account_id', params.id)
+			.order('created_at', { ascending: false })
+			.limit(20),
+		supabase
+			.from('appointments')
+			.select(
+				'id, appointment_type, scheduled_date, scheduled_time, status, notes, created_at, show_dates(id, year, month, city, state, shows(name))'
+			)
+			.eq('account_id', params.id)
+			.order('created_at', { ascending: false })
+			.limit(20),
+		supabase
+			.from('email_logs')
+			.select('id, to_email, subject, created_at, sent_by, profiles:sent_by(display_name)')
+			.eq('related_type', 'account')
+			.eq('related_id', params.id)
+			.order('created_at', { ascending: false })
+			.limit(20),
+		supabase
+			.from('account_locations')
+			.select(
+				'id, account_id, label, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country, notes, is_default, sort_order'
+			)
+			.eq('account_id', params.id)
+			.order('is_default', { ascending: false })
+			.order('sort_order', { ascending: true })
+	]);
 
 	if (accountRes.error || !accountRes.data) {
 		throw error(404, 'Account not found');
@@ -186,6 +199,163 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		allBrands: allBrands ?? [],
 		activity: activity.slice(0, 30),
 		tagAssignments: tagAssignmentsRes.data ?? [],
-		availableTags: availableTagsRes.data ?? []
+		availableTags: availableTagsRes.data ?? [],
+		locations: locationsRes.data ?? []
 	};
+};
+
+type LocationPatch = {
+	label: string;
+	contact_first_name: string | null;
+	contact_last_name: string | null;
+	contact_email: string | null;
+	phone: string | null;
+	address_line1: string | null;
+	address_line2: string | null;
+	city: string | null;
+	state: string | null;
+	zip: string | null;
+	country: string;
+	notes: string | null;
+};
+
+function pickLocationFields(fd: FormData): LocationPatch | { error: string } {
+	const label = (fd.get('label') ?? '').toString().trim();
+	if (!label) return { error: 'Label is required' };
+	const s = (k: string) => {
+		const v = (fd.get(k) ?? '').toString().trim();
+		return v.length > 0 ? v : null;
+	};
+	return {
+		label,
+		contact_first_name: s('contact_first_name'),
+		contact_last_name: s('contact_last_name'),
+		contact_email: s('contact_email'),
+		phone: s('phone'),
+		address_line1: s('address_line1'),
+		address_line2: s('address_line2'),
+		city: s('city'),
+		state: s('state'),
+		zip: s('zip'),
+		country: s('country') ?? 'US',
+		notes: s('notes')
+	};
+}
+
+export const actions: Actions = {
+	addLocation: async ({ request, locals, params }) => {
+		const { supabase, organization } = locals;
+		if (!organization) return fail(401, { message: 'Not authenticated' });
+		const fd = await request.formData();
+		const patch = pickLocationFields(fd);
+		if ('error' in patch) return fail(400, { message: patch.error });
+
+		// First location becomes default automatically.
+		const { count } = await supabase
+			.from('account_locations')
+			.select('id', { count: 'exact', head: true })
+			.eq('account_id', params.id);
+		const is_default = (count ?? 0) === 0;
+
+		// Next sort_order = max + 1
+		const { data: maxRow } = await supabase
+			.from('account_locations')
+			.select('sort_order')
+			.eq('account_id', params.id)
+			.order('sort_order', { ascending: false })
+			.limit(1)
+			.maybeSingle();
+		const sort_order = ((maxRow?.sort_order as number | null) ?? -1) + 1;
+
+		const { error: insertErr } = await supabase.from('account_locations').insert({
+			...patch,
+			account_id: params.id,
+			organization_id: organization.id,
+			is_default,
+			sort_order
+		});
+		if (insertErr) return fail(500, { message: insertErr.message });
+		return { ok: true };
+	},
+
+	updateLocation: async ({ request, locals, params }) => {
+		const { supabase } = locals;
+		const fd = await request.formData();
+		const id = (fd.get('id') ?? '').toString();
+		if (!id) return fail(400, { message: 'Missing id' });
+		const patch = pickLocationFields(fd);
+		if ('error' in patch) return fail(400, { message: patch.error });
+		const { error: updErr } = await supabase
+			.from('account_locations')
+			.update({ ...patch, updated_at: new Date().toISOString() })
+			.eq('id', id)
+			.eq('account_id', params.id);
+		if (updErr) return fail(500, { message: updErr.message });
+		return { ok: true };
+	},
+
+	deleteLocation: async ({ request, locals, params }) => {
+		const { supabase } = locals;
+		const fd = await request.formData();
+		const id = (fd.get('id') ?? '').toString();
+		if (!id) return fail(400, { message: 'Missing id' });
+
+		// Look up whether this was the default.
+		const { data: target } = await supabase
+			.from('account_locations')
+			.select('is_default')
+			.eq('id', id)
+			.eq('account_id', params.id)
+			.maybeSingle();
+		const wasDefault = target?.is_default === true;
+
+		const { error: delErr } = await supabase
+			.from('account_locations')
+			.delete()
+			.eq('id', id)
+			.eq('account_id', params.id);
+		if (delErr) return fail(500, { message: delErr.message });
+
+		if (wasDefault) {
+			// Promote the next location (by sort_order) to default, if any.
+			const { data: next } = await supabase
+				.from('account_locations')
+				.select('id')
+				.eq('account_id', params.id)
+				.order('sort_order', { ascending: true })
+				.limit(1)
+				.maybeSingle();
+			if (next?.id) {
+				await supabase
+					.from('account_locations')
+					.update({ is_default: true })
+					.eq('id', next.id);
+			}
+		}
+		return { ok: true };
+	},
+
+	setDefault: async ({ request, locals, params }) => {
+		const { supabase } = locals;
+		const fd = await request.formData();
+		const id = (fd.get('id') ?? '').toString();
+		if (!id) return fail(400, { message: 'Missing id' });
+
+		// Atomicity: unset existing default first, then set the new one. The
+		// unique partial index prevents two defaults, so order matters.
+		const { error: unsetErr } = await supabase
+			.from('account_locations')
+			.update({ is_default: false })
+			.eq('account_id', params.id)
+			.eq('is_default', true);
+		if (unsetErr) return fail(500, { message: unsetErr.message });
+
+		const { error: setErr } = await supabase
+			.from('account_locations')
+			.update({ is_default: true })
+			.eq('id', id)
+			.eq('account_id', params.id);
+		if (setErr) return fail(500, { message: setErr.message });
+		return { ok: true };
+	}
 };
