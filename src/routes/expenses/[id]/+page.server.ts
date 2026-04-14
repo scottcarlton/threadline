@@ -32,11 +32,19 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		reviewerName = reviewer?.display_name ?? null;
 	}
 
-	// Check if user is a brand member scoped to this expense's brand
-	const isBrandReviewer =
+	// Who can approve / reject a brand expense:
+	//   - Admin/owner of the owning org (scope = the whole org, incl. all brands)
+	//   - Scoped member or guest whose brandScope includes this expense's brand
+	// Sales role is excluded — submitters, not reviewers.
+	const role = locals.membership?.role;
+	const ownsOrg =
+		locals.organization?.id === expenseResult.data.organization_id &&
+		(role === 'admin' || role === 'owner');
+	const scopedToBrand =
 		locals.brandScope !== null &&
 		locals.brandScope.includes(expenseResult.data.brand_id) &&
-		(locals.membership?.role === 'member' || locals.membership?.role === 'sales');
+		(role === 'member' || role === 'guest');
+	const isBrandReviewer = ownsOrg || scopedToBrand;
 
 	return {
 		expense: expenseResult.data,
