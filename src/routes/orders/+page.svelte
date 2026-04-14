@@ -16,6 +16,8 @@
 	const reps = $derived((data.reps as { id: string; name: string }[] | undefined) ?? []);
 	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
 	const canCreate = $derived(data.membership?.role !== 'guest');
+	// Brand-level sales reps shouldn't export org-wide data.
+	const canExport = $derived(!(isBrandOrg && data.membership?.role === 'sales'));
 	const monthNames = [
 		'Jan',
 		'Feb',
@@ -199,7 +201,7 @@
 			</p>
 		</div>
 		<div class="flex items-center gap-2">
-			{#if filtered.length > 0}
+			{#if filtered.length > 0 && canExport}
 				<Button variant="outline" size="sm" onclick={exportOrders}>Export CSV</Button>
 			{/if}
 			{#if canCreate}
