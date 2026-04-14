@@ -305,8 +305,9 @@
 
 						<!-- Delivery selection -->
 						<div class="border-b px-5 py-4">
-							<label class="text-sm font-medium text-muted-foreground">Delivery Window</label>
+							<label for={`delivery-${group.brandId}`} class="text-sm font-medium text-muted-foreground">Delivery Window</label>
 							<select
+								id={`delivery-${group.brandId}`}
 								class="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 								value={deliveryByBrand[group.brandId] ?? ''}
 								onchange={(e) => {
