@@ -107,6 +107,7 @@
 		shipped: ['delivered']
 	};
 
+	// Notes aren't part of the order lifecycle — exclude them from bulk status ops.
 	const bulkNextStatuses = $derived(() => {
 		const selected = filtered.filter((o) => selectedIds.has(o.id));
 		if (selected.length === 0) return [];
@@ -480,13 +481,17 @@
 								<p class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</p>
 							</td>
 							<td class="px-4 py-3 text-center">
-								<span
-									class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {statusBadgeColors[
-										order.status
-									] ?? 'bg-zinc-100 text-zinc-500'}"
-								>
-									{statusLabels[order.status] ?? order.status}
-								</span>
+								{#if order.order_type === 'note'}
+									<span class="text-sm text-muted-foreground">—</span>
+								{:else}
+									<span
+										class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {statusBadgeColors[
+											order.status
+										] ?? 'bg-zinc-100 text-zinc-500'}"
+									>
+										{statusLabels[order.status] ?? order.status}
+									</span>
+								{/if}
 							</td>
 							<td class="hidden px-4 py-3 sm:table-cell">
 								<span class="text-sm">{order.brands?.name ?? '—'}</span>
