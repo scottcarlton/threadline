@@ -211,9 +211,13 @@
 <div class="mx-auto max-w-7xl space-y-6">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
-		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"
-			><LongArrow direction="left" /> Products</Button
+		<Button
+			variant="ghost"
+			size="sm"
+			href={data.orgType === 'brand' ? '/products' : `/brands/${brand.id}/products`}
 		>
+			<LongArrow direction="left" /> Products
+		</Button>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				<Button variant="outline" size="sm" onclick={toggleArchive}>

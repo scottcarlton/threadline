@@ -175,7 +175,13 @@
 <div class="mx-auto max-w-5xl space-y-6">
 	<!-- Header -->
 	<div class="flex items-center gap-3">
-		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"><LongArrow direction="left" /> Products</Button>
+		<Button
+			variant="ghost"
+			size="sm"
+			href={data.orgType === 'brand' ? '/products' : `/brands/${brand.id}/products`}
+		>
+			<LongArrow direction="left" /> Products
+		</Button>
 		<h1 class="text-3xl">New Product</h1>
 	</div>
 
