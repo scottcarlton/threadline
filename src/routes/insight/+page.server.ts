@@ -620,9 +620,38 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 // ───────────────────────────────────────────────────────────────────────────
 
 async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string) {
+	// Refresh insight_actions on every visit — cheap, and keeps cards fresh against
+	// newly quiet reps, newly submitted orders, etc.
+	try {
+		await refreshInsights(admin, brandOrgId);
+	} catch {
+		// Best-effort; fall through.
+	}
+
+	const { data: insightRows } = await admin
+		.from('insight_actions')
+		.select('*')
+		.eq('organization_id', brandOrgId)
+		.eq('status', 'active')
+		.order('priority_score', { ascending: false });
+
+	const insightActions = (insightRows ?? []) as Array<{
+		id: string;
+		organization_id: string;
+		user_id: string | null;
+		insight_type: string;
+		entity_type: string | null;
+		entity_id: string | null;
+		priority_score: number;
+		title: string;
+		description: string;
+		metadata: Record<string, unknown>;
+		status: string;
+		created_at: string;
+	}>;
+
 	const now = new Date();
-	const iso = (d: Date) => d.toISOString();
-	const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+	const d14 = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 	const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 	const d90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
@@ -631,7 +660,7 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 		listFederatedOrders(admin, brandOrgId)
 	]);
 
-	// Rep activity summary
+	// Rep activity
 	const activeReps = connectedReps.filter((r) => r.status === 'active');
 	const repsActive30d = activeReps.filter(
 		(r) => r.last_order_at && new Date(r.last_order_at) >= d30
@@ -640,120 +669,196 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 		(r) => !r.last_order_at || new Date(r.last_order_at) < d30
 	);
 
-	// Incoming orders (federated)
-	const incoming7: BrandIncoming = { count: 0, revenue: 0 };
-	const incoming30: BrandIncoming = { count: 0, revenue: 0 };
+	// Aggregates
 	const pipelineStatuses = new Set(['draft', 'submitted', 'confirmed']);
 	let pipelineValue = 0;
+	let incoming30Count = 0;
+	let incoming30Revenue = 0;
+
+	// Account revenue (90d) — used for top-territory + top-accounts list.
+	const accountAgg90d = new Map<string, { revenue: number; order_count: number }>();
 	for (const o of federatedOrders) {
 		const created = new Date(o.created_at);
-		if (created >= d7) {
-			incoming7.count++;
-			incoming7.revenue += o.total_amount;
-		}
 		if (created >= d30) {
-			incoming30.count++;
-			incoming30.revenue += o.total_amount;
+			incoming30Count++;
+			incoming30Revenue += o.total_amount;
 		}
 		if (pipelineStatuses.has(o.status)) pipelineValue += o.total_amount;
-	}
-
-	// Top accounts by revenue (last 90d) across federated orders
-	const accountAgg = new Map<string, { revenue: number; order_count: number }>();
-	for (const o of federatedOrders) {
-		if (new Date(o.created_at) < d90) continue;
-		if (!o.account_id) continue;
-		const e = accountAgg.get(o.account_id) ?? { revenue: 0, order_count: 0 };
-		e.revenue += o.total_amount;
-		e.order_count += 1;
-		accountAgg.set(o.account_id, e);
-	}
-	const accountIds = [...accountAgg.keys()];
-	let topAccounts: BrandTopAccount[] = [];
-	if (accountIds.length > 0) {
-		const { data: accounts } = await admin
-			.from('accounts')
-			.select('id, business_name, city, state, territory_id')
-			.in('id', accountIds);
-		const accountMap = new Map(
-			((accounts ?? []) as Array<{
-				id: string;
-				business_name: string;
-				city: string | null;
-				state: string | null;
-				territory_id: string | null;
-			}>).map((a) => [a.id, a])
-		);
-		topAccounts = accountIds
-			.map((id) => {
-				const a = accountMap.get(id);
-				const agg = accountAgg.get(id)!;
-				return {
-					account_id: id,
-					business_name: a?.business_name ?? 'Unknown',
-					city: a?.city ?? null,
-					state: a?.state ?? null,
-					revenue: agg.revenue,
-					order_count: agg.order_count
-				};
-			})
-			.sort((a, b) => b.revenue - a.revenue)
-			.slice(0, 5);
-	}
-
-	// Territory coverage gaps: distinct territories across connected rep accounts
-	// that have zero active accounts in the last 90d.
-	// Lightweight version: count distinct territories vs. those with recent activity.
-	let territoryGaps: Array<{ name: string }> = [];
-	if (accountIds.length > 0) {
-		const { data: allAccounts } = await admin
-			.from('accounts')
-			.select('id, territory_id, territories!accounts_territory_id_fkey(id, name)')
-			.in('id', accountIds);
-		const rows = (allAccounts ?? []) as unknown as Array<{
-			id: string;
-			territory_id: string | null;
-			territories: { id: string; name: string } | null;
-		}>;
-		const activeAccountIdsSet = new Set(
-			federatedOrders
-				.filter((o) => new Date(o.created_at) >= d90 && o.account_id)
-				.map((o) => o.account_id as string)
-		);
-		const territoryMap = new Map<string, { name: string; hasActive: boolean }>();
-		for (const row of rows) {
-			if (!row.territories) continue;
-			const existing = territoryMap.get(row.territories.id) ?? {
-				name: row.territories.name,
-				hasActive: false
-			};
-			if (activeAccountIdsSet.has(row.id)) existing.hasActive = true;
-			territoryMap.set(row.territories.id, existing);
+		if (created >= d90 && o.account_id) {
+			const e = accountAgg90d.get(o.account_id) ?? { revenue: 0, order_count: 0 };
+			e.revenue += o.total_amount;
+			e.order_count += 1;
+			accountAgg90d.set(o.account_id, e);
 		}
-		territoryGaps = [...territoryMap.values()].filter((t) => !t.hasActive).map((t) => ({ name: t.name }));
 	}
 
-	const brandInsight = {
+	// ── Top accounts + territory list (browse data + scoreboard inputs) ──────
+	const accountIds = [...accountAgg90d.keys()];
+	type AccountRow = {
+		id: string;
+		business_name: string;
+		city: string | null;
+		state: string | null;
+		territory_id: string | null;
+		territories: { id: string; name: string } | null;
+	};
+	let accountRows: AccountRow[] = [];
+	if (accountIds.length > 0) {
+		const { data } = await admin
+			.from('accounts')
+			.select(
+				'id, business_name, city, state, territory_id, territories!accounts_territory_id_fkey(id, name)'
+			)
+			.in('id', accountIds);
+		accountRows = (data ?? []) as unknown as AccountRow[];
+	}
+	const accountMap = new Map(accountRows.map((a) => [a.id, a]));
+
+	const topAccounts: BrandTopAccount[] = accountIds
+		.map((id) => {
+			const a = accountMap.get(id);
+			const agg = accountAgg90d.get(id)!;
+			return {
+				account_id: id,
+				business_name: a?.business_name ?? 'Unknown',
+				city: a?.city ?? null,
+				state: a?.state ?? null,
+				revenue: agg.revenue,
+				order_count: agg.order_count
+			};
+		})
+		.sort((a, b) => b.revenue - a.revenue)
+		.slice(0, 5);
+
+	// Territory rollup (scoreboard leader + gaps list)
+	const territoryRevenue = new Map<string, { name: string; revenue: number; hasActive: boolean }>();
+	for (const row of accountRows) {
+		if (!row.territories) continue;
+		const agg = accountAgg90d.get(row.id);
+		const e = territoryRevenue.get(row.territories.id) ?? {
+			name: row.territories.name,
+			revenue: 0,
+			hasActive: false
+		};
+		if (agg) {
+			e.revenue += agg.revenue;
+			e.hasActive = true;
+		}
+		territoryRevenue.set(row.territories.id, e);
+	}
+	const topTerritory = [...territoryRevenue.values()]
+		.filter((t) => t.hasActive)
+		.sort((a, b) => b.revenue - a.revenue)[0] ?? null;
+	const territoryGaps = [...territoryRevenue.values()]
+		.filter((t) => !t.hasActive)
+		.map((t) => ({ name: t.name }));
+
+	// ── Style Leader (14d top style by units across federated orders) ────────
+	type StyleAgg = { name: string; units: number };
+	const styleAgg = new Map<string, StyleAgg>();
+	const recentOrderIds = federatedOrders
+		.filter((o) => new Date(o.created_at) >= d14)
+		.map((o) => o.id);
+	if (recentOrderIds.length > 0) {
+		const { data: lineRows } = await admin
+			.from('order_lines')
+			.select('style_number, description, qty')
+			.in('order_id', recentOrderIds);
+		type Line = { style_number: string | null; description: string | null; qty: number };
+		for (const l of (lineRows ?? []) as Line[]) {
+			if (!l.style_number) continue;
+			const e = styleAgg.get(l.style_number) ?? {
+				name: l.description ?? l.style_number,
+				units: 0
+			};
+			e.units += l.qty;
+			styleAgg.set(l.style_number, e);
+		}
+	}
+	const styleLeader = [...styleAgg.entries()]
+		.map(([style_number, v]) => ({ style_number, name: v.name, units: v.units }))
+		.sort((a, b) => b.units - a.units)[0] ?? null;
+
+	// ── Scoreboard (5 tiles, matching rep shape) ──────────────────────────────
+	const fmtMoney = (n: number) =>
+		n >= 1000 ? `$${Math.round(n / 1000)}K` : `$${Math.round(n).toLocaleString()}`;
+	const scoreboard = [
+		{
+			label: 'Active Reps (30d)',
+			value: `${repsActive30d.length}/${activeReps.length}`,
+			change: null,
+			detail:
+				repsQuiet30d.length > 0 ? `${repsQuiet30d.length} quiet` : 'All writing this month'
+		},
+		{
+			label: 'Incoming 30d',
+			value: fmtMoney(incoming30Revenue),
+			change: null,
+			detail: `${incoming30Count} order${incoming30Count === 1 ? '' : 's'}`
+		},
+		{
+			label: 'Open Pipeline',
+			value: fmtMoney(pipelineValue),
+			change: null,
+			detail: 'Draft / submitted / confirmed'
+		},
+		{
+			label: 'Top Territory',
+			value: topTerritory?.name ?? '—',
+			change: null,
+			detail: topTerritory ? `${fmtMoney(topTerritory.revenue)} in 90d` : 'No territory data'
+		},
+		{
+			label: 'Style Leader',
+			value: styleLeader?.name ?? '—',
+			change: null,
+			detail: styleLeader ? `${styleLeader.units} units in 14d` : 'No velocity yet'
+		}
+	];
+
+	// ── Onboarding checklist (Phase C) ────────────────────────────────────────
+	const [productCount, teammateCount] = await Promise.all([
+		admin
+			.from('products')
+			.select('id', { count: 'exact', head: true })
+			.eq('organization_id', brandOrgId)
+			.eq('is_active', true),
+		admin
+			.from('organization_members')
+			.select('id', { count: 'exact', head: true })
+			.eq('organization_id', brandOrgId)
+	]);
+	const hasProducts = (productCount.count ?? 0) > 0;
+	const hasConnectedRep = activeReps.length > 0;
+	const hasOrder = federatedOrders.length > 0;
+	const hasTeammates = (teammateCount.count ?? 0) > 1;
+	const checklist = {
+		hasProducts,
+		hasConnectedRep,
+		hasOrder,
+		hasTeammates,
+		complete: hasProducts && hasConnectedRep && hasOrder && hasTeammates
+	};
+
+	// Browse-the-data payload (demoted but preserved)
+	const browse = {
 		connectedReps,
 		repsActive30d,
 		repsQuiet30d,
-		incoming7,
-		incoming30,
-		pipelineValue,
 		topAccounts,
 		territoryGaps,
 		totalOrders: federatedOrders.length,
 		totalRevenue: federatedOrders.reduce((s, o) => s + o.total_amount, 0)
 	};
 
-	// Return shape — most rep-centric fields are empty; the page reads `isBrandOrg`
-	// and renders a dedicated brand layout.
 	return {
 		isBrandOrg: true,
 		setupComplete: true,
-		brandInsight,
-		insightActions: [],
-		scoreboard: [],
+		insightActions,
+		scoreboard,
+		brandBrowse: browse,
+		brandChecklist: checklist,
+		// Rep-centric fields left empty so the shared page's type stays stable.
 		seasonSummary: [],
 		yearlySummary: [],
 		selectedYear: null,
@@ -769,8 +874,6 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 		showSummary: [],
 		showAppointments: [],
 		styleVelocity: [],
-		velocityWindow: 14,
-		// Suppress iso usage warning
-		_now: iso(now).slice(0, 10)
+		velocityWindow: 14
 	};
 }
