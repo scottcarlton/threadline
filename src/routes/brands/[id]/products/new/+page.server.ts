@@ -2,8 +2,11 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { supabase, organization } = locals;
+	const { supabase, organization, membership } = locals;
 	if (!organization) throw error(404, 'Organization not found');
+	if (!['admin', 'owner', 'member'].includes(membership?.role ?? '')) {
+		throw error(403, 'Not allowed');
+	}
 
 	const [brandRes, seasonsRes] = await Promise.all([
 		supabase.from('brands').select('id, name').eq('id', params.id).single(),

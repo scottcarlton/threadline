@@ -44,7 +44,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	// ── Brand org branch ────────────────────────────────────────────────
 	if (orgType === 'brand') {
-		return await loadBrandInsight(supabaseAdmin, orgId);
+		const brandData = await loadBrandInsight(supabaseAdmin, orgId);
+		const isBrandAdmin = ['admin', 'owner'].includes(locals.membership?.role ?? '');
+		if (!isBrandAdmin) {
+			brandData.brandChecklist = null;
+		}
+		return brandData;
 	}
 
 	// ── Setup checklist (onboarding state) ──────────────────────────────
@@ -817,7 +822,7 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 	];
 
 	// ── Onboarding checklist (Phase C) ────────────────────────────────────────
-	const [productCount, teammateCount] = await Promise.all([
+	const [productCount, teammateCount, salesRepCount] = await Promise.all([
 		admin
 			.from('products')
 			.select('id', { count: 'exact', head: true })
@@ -826,10 +831,16 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 		admin
 			.from('organization_members')
 			.select('id', { count: 'exact', head: true })
+			.eq('organization_id', brandOrgId),
+		admin
+			.from('organization_members')
+			.select('id', { count: 'exact', head: true })
 			.eq('organization_id', brandOrgId)
+			.eq('role', 'sales')
 	]);
 	const hasProducts = (productCount.count ?? 0) > 0;
-	const hasConnectedRep = activeReps.length > 0;
+	// "Connected rep" = either a federated rep-agency connection OR an internal sales rep on /reps.
+	const hasConnectedRep = activeReps.length > 0 || (salesRepCount.count ?? 0) > 0;
 	const hasOrder = federatedOrders.length > 0;
 	const hasTeammates = (teammateCount.count ?? 0) > 1;
 	const checklist = {
@@ -857,7 +868,7 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 		insightActions,
 		scoreboard,
 		brandBrowse: browse,
-		brandChecklist: checklist,
+		brandChecklist: checklist as typeof checklist | null,
 		// Rep-centric fields left empty so the shared page's type stays stable.
 		seasonSummary: [],
 		yearlySummary: [],

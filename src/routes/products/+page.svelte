@@ -15,7 +15,7 @@
 		})[]
 	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
-	const canEdit = $derived(data.membership?.role !== 'guest');
+	const canEdit = $derived(['admin', 'owner', 'member'].includes(data.membership?.role ?? ''));
 
 	let search = $state('');
 	let seasonFilter = $state('');

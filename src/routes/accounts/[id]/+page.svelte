@@ -260,14 +260,11 @@
 </script>
 
 <div class="space-y-6">
+	<!-- Action bar -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/accounts"><LongArrow direction="left" /> Back</Button>
-			<h1 class="text-3xl">{account.business_name}</h1>
-			<Badge variant={account.is_active ? 'success' : 'secondary'}>
-				{account.is_active ? 'Active' : 'Inactive'}
-			</Badge>
-		</div>
+		<Button variant="ghost" size="sm" href="/accounts"
+			><LongArrow direction="left" /> Back</Button
+		>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				<Button variant="outline" size="sm" onclick={toggleActive}>
@@ -277,6 +274,23 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Entity header: title + status chip; email subtitle when set -->
+	<header class="space-y-1">
+		<div class="flex items-center gap-2">
+			<h1 class="text-3xl">{account.business_name}</h1>
+			<Badge variant={account.is_active ? 'success' : 'secondary'}>
+				{account.is_active ? 'Active' : 'Inactive'}
+			</Badge>
+		</div>
+		{#if account.contact_email}
+			<p class="text-sm text-muted-foreground">
+				<a href={`mailto:${account.contact_email}`} class="hover:text-foreground"
+					>{account.contact_email}</a
+				>
+			</p>
+		{/if}
+	</header>
 
 	<!-- Tags -->
 	{#if availableTags.length > 0}
