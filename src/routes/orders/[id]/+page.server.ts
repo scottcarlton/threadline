@@ -36,8 +36,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			);
 	}
 
-	// Load brand assets, commission override, rep info, and comments in parallel
-	const [brandAssetsRes, overrideRes, repRes, commentsRes] = await Promise.all([
+	// Load brand assets, commission override, rep info, comments, and audits in parallel
+	const [brandAssetsRes, overrideRes, repRes, commentsRes, auditsRes] = await Promise.all([
 		supabase
 			.from('brand_assets')
 			.select('*')
@@ -60,7 +60,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				'*, profiles:author_id(display_name), source_org:source_org_id(id, name)'
 			)
 			.eq('order_id', params.id)
-			.order('created_at', { ascending: true })
+			.order('created_at', { ascending: true }),
+		supabase
+			.from('order_audits')
+			.select('*, actor:actor_id(display_name)')
+			.eq('order_id', params.id)
+			.order('created_at', { ascending: false })
 	]);
 
 	// Look up per-brand commission for the rep, fall back to their default rate
@@ -117,6 +122,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		repCommissionRate,
 		repName: (repRes.data?.profiles as any)?.display_name ?? null,
 		comments: commentsRes.data ?? [],
+		audits: auditsRes.data ?? [],
 		federation
 	};
 };
