@@ -653,6 +653,8 @@
 				<span class="text-sm text-muted-foreground">No common action available</span>
 			{/if}
 			<button
+				type="button"
+				aria-label="Clear selection"
 				class="ml-1 text-muted-foreground hover:text-foreground"
 				onclick={() => (selectedIds = new Set())}
 			>

@@ -12,7 +12,12 @@
 
 	let { open, ontoggle, entityType, columns, onimport, enableLinesheet = false }: Props = $props();
 
-	let mode = $state<'paste' | 'file' | 'linesheet'>(enableLinesheet ? 'linesheet' : 'paste');
+	// Default mode; reactive effect below syncs when the prop changes or the
+	// modal reopens, instead of capturing `enableLinesheet` at init.
+	let mode = $state<'paste' | 'file' | 'linesheet'>('paste');
+	$effect(() => {
+		if (open) mode = enableLinesheet ? 'linesheet' : 'paste';
+	});
 	let pasteValue = $state('');
 	let parsedRows = $state<Record<string, string>[]>([]);
 	let parseError = $state('');
