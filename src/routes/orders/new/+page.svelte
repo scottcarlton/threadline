@@ -7,7 +7,6 @@
 	import type { OrderType } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
-	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 
 	type Brand = { id: string; name: string };
 	type Season = { id: string; name: string; sort_order: number | null };
@@ -52,6 +51,9 @@
 		product_id: string;
 		brand_id: string;
 		season_id: string;
+		// Product's original season (never mutated). Used to enforce "items can
+		// only move to seasons >= their own product season" during DnD.
+		original_season_id: string;
 		product_year: number | null;
 		style_number: string;
 		name: string;
@@ -186,42 +188,61 @@
 		return [...map.values()];
 	});
 
-	// Groups decorated with stable `id` strings for svelte-dnd-action.
-	// Each item inside also gets an `id` (= product_id) so dnd can track cross-zone moves.
-	const groupDndItems = $derived(
-		groups.map((g) => ({
-			...g,
-			id: groupKey(g.brand_id, g.season_id),
-			items: g.items.map((it) => ({ ...it, id: it.product_id }))
-		}))
-	);
+	// Native HTML5 DnD state for moving items between groups on the Delivery step.
+	let draggingItemId = $state<string | null>(null);
+	let dropTargetKey = $state<string | null>(null);
 
-	function handleItemsConsider(
-		group: { brand_id: string; season_id: string },
-		e: CustomEvent<DndEvent>
-	) {
-		// No-op: we compute the actual mutation in finalize. During consider the
-		// library animates the dragged item between zones; we don't need to mutate
-		// cart.items mid-drag because the source of truth is derived on finalize.
-		void group;
-		void e;
+	// True when the given item is allowed to drop into the target (brand,season).
+	// Rules: same brand, and target season sort_order >= item's ORIGINAL product
+	// season sort_order (so a Spring item moved to Fall can come back to Spring,
+	// but a Fall item can't go to Spring).
+	function canDropItem(
+		item_product_id: string,
+		target_brand_id: string,
+		target_season_id: string
+	): boolean {
+		const it = cart.items.find((ci) => ci.product_id === item_product_id);
+		if (!it) return false;
+		if (it.brand_id !== target_brand_id) return false;
+		if (it.season_id === target_season_id) return false;
+		const originSort = seasonSort(it.original_season_id);
+		const targetSort = seasonSort(target_season_id);
+		return targetSort >= originSort;
 	}
 
-	function handleItemsFinalize(
-		group: { brand_id: string; season_id: string },
-		e: CustomEvent<DndEvent<{ id: string }>>
-	) {
-		const ids = new Set(e.detail.items.map((i) => i.id));
-		const seasonRank = seasonSort(group.season_id);
-		for (const id of ids) {
-			const existing = cart.items.find((ci) => ci.product_id === id);
-			if (!existing) continue;
-			if (existing.brand_id !== group.brand_id) continue; // cross-brand drops ignored
-			if (existing.season_id === group.season_id) continue; // same-group re-drops no-op
-			// Forward-only: destination sort_order must be >= source sort_order.
-			if (seasonSort(existing.season_id) > seasonRank) continue;
-			moveItem(id, group.season_id);
-		}
+	function onItemDragStart(e: DragEvent, product_id: string) {
+		if (!e.dataTransfer) return;
+		draggingItemId = product_id;
+		e.dataTransfer.effectAllowed = 'move';
+		e.dataTransfer.setData('text/plain', product_id);
+	}
+
+	function onItemDragEnd() {
+		draggingItemId = null;
+		dropTargetKey = null;
+	}
+
+	function onGroupDragOver(e: DragEvent, g: { brand_id: string; season_id: string }) {
+		if (!draggingItemId) return;
+		if (!canDropItem(draggingItemId, g.brand_id, g.season_id)) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dropTargetKey = groupKey(g.brand_id, g.season_id);
+	}
+
+	function onGroupDragLeave(g: { brand_id: string; season_id: string }) {
+		const key = groupKey(g.brand_id, g.season_id);
+		if (dropTargetKey === key) dropTargetKey = null;
+	}
+
+	function onGroupDrop(e: DragEvent, g: { brand_id: string; season_id: string }) {
+		e.preventDefault();
+		const id = e.dataTransfer?.getData('text/plain') || draggingItemId;
+		draggingItemId = null;
+		dropTargetKey = null;
+		if (!id) return;
+		if (!canDropItem(id, g.brand_id, g.season_id)) return;
+		moveItem(id, g.season_id);
 	}
 
 	const account = $derived(accounts.find((a) => a.id === cart.account_id) ?? null);
@@ -592,6 +613,7 @@
 			product_id: p.id,
 			brand_id: p.brand_id,
 			season_id: p.season_id,
+			original_season_id: p.season_id,
 			product_year: p.product_year,
 			style_number: p.style_number,
 			name: p.name,
@@ -968,7 +990,7 @@
 					: `${groups.length} orders will be created — one per brand + season. Drag items or whole orders forward in time.`}
 			</p>
 			<div class="space-y-4">
-				{#each groupDndItems as g (g.id)}
+				{#each groups as g (groupKey(g.brand_id, g.season_id))}
 					{@const meta = getMeta(g.brand_id, g.season_id)}
 					{@const entries = availableDeliveries(g.season_id, g.product_year)}
 					{@const moveTargets = moveTargetsFor(g.season_id)}
@@ -976,7 +998,22 @@
 						meta.delivery?.kind === 'custom'
 							? meta.delivery
 							: { start_ship_date: '', expected_ship_date: '' }}
-					<div class="rounded-lg border bg-background p-4">
+					{@const isDropTarget = dropTargetKey === groupKey(g.brand_id, g.season_id)}
+					{@const canAcceptDrop =
+						draggingItemId !== null &&
+						canDropItem(draggingItemId, g.brand_id, g.season_id)}
+					<div
+						class="rounded-lg border bg-background p-4 transition-colors {isDropTarget
+							? 'border-foreground bg-muted/30'
+							: canAcceptDrop
+								? 'border-dashed border-foreground/40'
+								: ''}"
+						ondragover={(e) => onGroupDragOver(e, g)}
+						ondragleave={() => onGroupDragLeave(g)}
+						ondrop={(e) => onGroupDrop(e, g)}
+						role="region"
+						aria-label="Order for {brandName(g.brand_id)} {seasonLabel(g.season_id, g.product_year)}"
+					>
 						<!-- Header: brand · season · (Move menu) | units/total · delete -->
 						<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
 							<div class="flex items-center gap-2">
@@ -1030,22 +1067,19 @@
 							</div>
 						</div>
 
-						<!-- Items list (drop target for individual item moves) -->
-						<div
-							class="mb-4 space-y-2 rounded-md border border-dashed p-2"
-							use:dndzone={{
-								items: g.items,
-								type: 'item',
-								flipDurationMs: 150,
-								dropTargetClasses: ['bg-muted/40'],
-								morphDisabled: true
-							}}
-							onconsider={(e) => handleItemsConsider(g, e)}
-							onfinalize={(e) => handleItemsFinalize(g, e)}
-						>
-							{#each g.items as it (it.id)}
-								<div class="flex items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 cursor-grab text-muted-foreground" viewBox="0 0 24 24" fill="currentColor">
+						<!-- Items list — drag each row to another group card -->
+						<div class="mb-4 space-y-2">
+							{#each g.items as it (it.product_id)}
+								<div
+									class="flex cursor-grab items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm transition-opacity {draggingItemId ===
+									it.product_id
+										? 'opacity-40'
+										: ''}"
+									draggable="true"
+									ondragstart={(e) => onItemDragStart(e, it.product_id)}
+									ondragend={onItemDragEnd}
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-muted-foreground" viewBox="0 0 24 24" fill="currentColor">
 										<circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
 										<circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
 										<circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
