@@ -277,14 +277,11 @@
 </script>
 
 <div class="space-y-6">
+	<!-- Action bar -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/expenses"><LongArrow direction="left" /> Back</Button>
-			<h1 class="font-mono text-3xl">{expense.expense_number}</h1>
-			<Badge variant={statusColors[expense.status] ?? 'secondary'}>
-				{expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
-			</Badge>
-		</div>
+		<Button variant="ghost" size="sm" href="/expenses"
+			><LongArrow direction="left" /> Back</Button
+		>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				{#if canDelete}
@@ -294,6 +291,19 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Entity header: expense_number + status; category subtitle -->
+	<header class="space-y-1">
+		<div class="flex items-center gap-2">
+			<h1 class="font-mono text-3xl">{expense.expense_number}</h1>
+			<Badge variant={statusColors[expense.status] ?? 'secondary'}>
+				{expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
+			</Badge>
+		</div>
+		<p class="text-sm text-muted-foreground">
+			{categoryLabels[expense.category] ?? expense.category}
+		</p>
+	</header>
 
 	<div class="grid gap-6 lg:grid-cols-[1fr_400px]">
 		<!-- Left column: Details -->
