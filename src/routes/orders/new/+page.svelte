@@ -875,13 +875,6 @@
 										{itemUnits(it)} unit{itemUnits(it) === 1 ? '' : 's'}
 									</div>
 									<div class="text-sm text-muted-foreground">{fmt.format(itemTotal(it))}</div>
-									<button
-										type="button"
-										class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-[12px] font-medium text-red-500 transition-colors hover:bg-red-500/10"
-										onclick={() => removeProduct(it.product_id)}
-									>
-										Remove
-									</button>
 								</div>
 							</div>
 
@@ -945,6 +938,16 @@
 									/>
 								</div>
 							{/if}
+
+							<div class="mt-3 flex justify-end">
+								<button
+									type="button"
+									class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
+									onclick={() => removeProduct(it.product_id)}
+								>
+									Remove
+								</button>
+							</div>
 						</div>
 					{/each}
 				</div>
