@@ -54,14 +54,19 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.select('id, commission_rate, profiles!organization_members_profile_id_fkey(display_name)')
 			.eq('profile_id', orderResult.data.created_by)
 			.single(),
-		supabase
+		// Use supabaseAdmin for comments + audits — order visibility is already
+		// enforced by the orders SELECT above (404 if the user can't see it).
+		// RLS on order_comments / order_audits was previously returning empty
+		// for brand admins viewing direct orders because of nested-policy eval
+		// quirks. Admin read is safe here.
+		supabaseAdmin
 			.from('order_comments')
 			.select(
 				'*, profiles:author_id(display_name), source_org:source_org_id(id, name)'
 			)
 			.eq('order_id', params.id)
 			.order('created_at', { ascending: true }),
-		supabase
+		supabaseAdmin
 			.from('order_audits')
 			.select('*, actor:actor_id(display_name)')
 			.eq('order_id', params.id)

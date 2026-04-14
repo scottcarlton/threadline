@@ -42,6 +42,7 @@
 	const activeLines = $derived(allLines.filter((l) => !l.removed_at));
 	const removedLines = $derived(allLines.filter((l) => l.removed_at));
 	const brandAssets = $derived((data.brandAssets ?? []) as BrandAsset[]);
+	const isBrandOrg = $derived(data.orgType === 'brand');
 	const canEdit = $derived(
 		data.isBuyer
 			? order.status === 'draft' && order.created_by === data.user?.id
@@ -808,12 +809,14 @@
 							>
 						</dd>
 					</div>
-					<div>
-						<dt class="text-xs text-muted-foreground">Brand</dt>
-						<dd class="mt-0.5">
-							<a href="/brands/{order.brand_id}" class="hover:underline">{order.brands?.name}</a>
-						</dd>
-					</div>
+					{#if !isBrandOrg}
+						<div>
+							<dt class="text-xs text-muted-foreground">Brand</dt>
+							<dd class="mt-0.5">
+								<a href="/brands/{order.brand_id}" class="hover:underline">{order.brands?.name}</a>
+							</dd>
+						</div>
+					{/if}
 					<div>
 						<dt class="text-xs text-muted-foreground">Season</dt>
 						<dd class="mt-0.5">{seasonLabel()}</dd>
@@ -840,12 +843,26 @@
 								{monthNames[deliveryData.delivery_month - 1]} 1 — {order.expected_ship_date
 									? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 									: '—'}
-							{:else if order.expected_ship_date}
-								{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
-									month: 'short',
-									day: 'numeric',
-									year: 'numeric'
-								})}
+							{:else if order.start_ship_date || order.expected_ship_date}
+								{#if order.start_ship_date}
+									{new Date(order.start_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								{:else}
+									—
+								{/if}
+								<span class="mx-1 text-muted-foreground">→</span>
+								{#if order.expected_ship_date}
+									{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								{:else}
+									—
+								{/if}
 							{:else}
 								<span class="text-muted-foreground/50">—</span>
 							{/if}
