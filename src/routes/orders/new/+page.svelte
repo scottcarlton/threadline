@@ -1034,7 +1034,7 @@
 								<span class="text-sm text-muted-foreground">{seasonLabel(g.season_id, g.product_year)}</span>
 								{#if moveTargets.length > 0}
 									<select
-										class="ml-2 h-7 cursor-pointer rounded border bg-background px-2 text-sm hover:border-foreground"
+										class="ml-1 cursor-pointer appearance-none rounded bg-transparent py-0 pr-3 pl-0 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none"
 										value=""
 										onchange={(e) => {
 											const target = (e.target as HTMLSelectElement).value;
