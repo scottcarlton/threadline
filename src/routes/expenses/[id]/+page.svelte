@@ -541,8 +541,9 @@
 					<CardTitle class="text-base">Receipts</CardTitle>
 				</CardHeader>
 				<CardContent class="space-y-4">
-					<!-- Upload area -->
-					{#if canEdit || (isDraft && isSubmitter) || isAdmin}
+					<!-- Upload area — submitters keep the QR + dropzone available after submit so they
+					     can snap a receipt from their phone at any point. Admins see it always. -->
+					{#if isSubmitter || isAdmin}
 						<div class="space-y-3">
 							{#if uploading}
 								<div
