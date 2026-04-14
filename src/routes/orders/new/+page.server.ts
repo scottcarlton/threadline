@@ -11,7 +11,7 @@ import {
 import type { OrderType, OrderStatus } from '$lib/types/database.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const { supabase, organization } = locals;
+	const { supabase, organization, user } = locals;
 
 	if (!organization) {
 		return {
@@ -20,6 +20,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			brands: [],
 			seasons: [],
 			deliveries: [],
+			reps: [],
+			currentUser: null,
 			isBuyer: locals.isBuyer ?? false
 		};
 	}
@@ -28,41 +30,66 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const buyerAccountIds = isBuyer ? (locals.buyerAccounts?.map((a) => a.account_id) ?? []) : null;
 	const buyerBrandIds = isBuyer ? (locals.buyerBrandIds ?? []) : null;
 
-	const [accountsRes, locationsRes, brandsRes, seasonsRes, deliveriesRes] = await Promise.all([
-		(() => {
-			let q = supabase.from('accounts').select('id, business_name, city, state');
-			if (buyerAccountIds) q = q.in('id', buyerAccountIds.length ? buyerAccountIds : ['__none__']);
-			else
-				q = q
-					.eq('organization_id', organization.id)
-					.eq('is_active', true)
-					.is('archived_at', null);
-			return q.order('business_name');
-		})(),
-		supabase
-			.from('account_locations')
-			.select('id, account_id, label, city, state, is_default, sort_order')
-			.eq('organization_id', organization.id)
-			.order('sort_order'),
-		(() => {
-			let q = supabase.from('brands').select('id, name').eq('is_active', true);
-			if (buyerBrandIds) q = q.in('id', buyerBrandIds.length ? buyerBrandIds : ['__none__']);
-			else q = q.eq('organization_id', organization.id);
-			return q.order('name');
-		})(),
-		supabase
-			.from('seasons')
-			.select('id, name, sort_order')
-			.eq('organization_id', organization.id)
-			.eq('is_active', true)
-			.order('sort_order'),
-		supabase
-			.from('season_deliveries')
-			.select('id, season_id, label, delivery_month, delivery_day, sort_order')
-			.eq('organization_id', organization.id)
-			.order('delivery_month')
-			.order('delivery_day')
-	]);
+	const [accountsRes, locationsRes, brandsRes, seasonsRes, deliveriesRes, membersRes] =
+		await Promise.all([
+			(() => {
+				let q = supabase
+					.from('accounts')
+					.select(
+						'id, business_name, contact_email, address_line1, address_line2, city, state, zip'
+					);
+				if (buyerAccountIds)
+					q = q.in('id', buyerAccountIds.length ? buyerAccountIds : ['__none__']);
+				else
+					q = q
+						.eq('organization_id', organization.id)
+						.eq('is_active', true)
+						.is('archived_at', null);
+				return q.order('business_name');
+			})(),
+			supabase
+				.from('account_locations')
+				.select(
+					'id, account_id, label, contact_email, address_line1, address_line2, city, state, zip, is_default, sort_order'
+				)
+				.eq('organization_id', organization.id)
+				.order('sort_order'),
+			(() => {
+				let q = supabase.from('brands').select('id, name').eq('is_active', true);
+				if (buyerBrandIds) q = q.in('id', buyerBrandIds.length ? buyerBrandIds : ['__none__']);
+				else q = q.eq('organization_id', organization.id);
+				return q.order('name');
+			})(),
+			supabase
+				.from('seasons')
+				.select('id, name, sort_order')
+				.eq('organization_id', organization.id)
+				.eq('is_active', true)
+				.order('sort_order'),
+			supabase
+				.from('season_deliveries')
+				.select('id, season_id, label, delivery_month, delivery_day, sort_order')
+				.eq('organization_id', organization.id)
+				.order('delivery_month')
+				.order('delivery_day'),
+			supabase
+				.from('organization_members')
+				.select(
+					'profile_id, profiles!organization_members_profile_id_fkey(display_name)'
+				)
+				.eq('organization_id', organization.id)
+		]);
+
+	type RawMember = {
+		profile_id: string;
+		profiles: { display_name: string | null } | null;
+	};
+	const reps = ((membersRes.data ?? []) as unknown as RawMember[])
+		.map((m) => ({
+			user_id: m.profile_id,
+			name: m.profiles?.display_name ?? 'Unknown'
+		}))
+		.sort((a, b) => a.name.localeCompare(b.name));
 
 	return {
 		accounts: accountsRes.data ?? [],
@@ -70,6 +97,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		brands: brandsRes.data ?? [],
 		seasons: seasonsRes.data ?? [],
 		deliveries: deliveriesRes.data ?? [],
+		reps,
+		currentUser: user ? { id: user.id } : null,
 		isBuyer
 	};
 };

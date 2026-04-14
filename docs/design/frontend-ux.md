@@ -147,6 +147,17 @@ When planning or reviewing a UI feature, answer these before writing code:
 
 If you can't answer all seven, the design isn't ready.
 
+## Styling — lowest specificity wins
+
+Reach for the lowest CSS specificity that still expresses the intent:
+
+- Prefer Tailwind utilities on the element over ancestor-targeted rules.
+- Don't use `!important` unless overriding a third-party rule — and leave a comment saying why.
+- Avoid `#id` selectors for styling; use classes or data attributes.
+- Don't write `.card .header .title { ... }` when `.title { ... }` works.
+- Components that accept a `class` prop should merge via `cn()` / `clsx` so callers can override with a single utility — don't inline-style the winning variant inside the component.
+- When diagnosing a visual bug, check the CSS token first (e.g. `--border` in `src/app.css`). If light/dark parity is off, fix the token — don't add overrides downstream.
+
 ## Anti-patterns — don't ship these
 
 - "Are you sure?" modals for reversible actions

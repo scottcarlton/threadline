@@ -74,6 +74,25 @@
 		return '—';
 	}
 
+	let converting = $state(false);
+	async function convertNoteToOrder() {
+		if (!confirm('Convert this note to a draft order? You can submit it afterward.')) return;
+		converting = true;
+		try {
+			await supabase
+				.from('orders')
+				.update({
+					order_type: 'order',
+					status: 'draft',
+					updated_at: new Date().toISOString()
+				})
+				.eq('id', order.id);
+			invalidateAll();
+		} finally {
+			converting = false;
+		}
+	}
+
 	async function updateStatus(newStatus: OrderStatus) {
 		const timestampField: Record<string, string> = {
 			submitted: 'submitted_at',
@@ -474,10 +493,11 @@
 			<h1 class="font-mono text-3xl">{order.order_number}</h1>
 			{#if order.order_type === 'note'}
 				<Badge variant="outline">Note</Badge>
+			{:else}
+				<Badge variant={(statusColors[order.status] as any) ?? 'secondary'}
+					>{statusLabels[order.status] ?? order.status}</Badge
+				>
 			{/if}
-			<Badge variant={(statusColors[order.status] as any) ?? 'secondary'}
-				>{statusLabels[order.status] ?? order.status}</Badge
-			>
 		</div>
 		<div class="flex gap-2">
 			<Button variant="outline" size="sm" onclick={handleCloneOrder} disabled={cloning}>
@@ -543,7 +563,12 @@
 				</svg>
 				Send to Account
 			</Button>
-			{#if canEdit && nextStatuses.length > 0}
+			{#if canEdit && order.order_type === 'note'}
+				<Button size="sm" onclick={convertNoteToOrder} disabled={converting}>
+					{converting ? 'Converting…' : 'Convert to Order'}
+				</Button>
+			{/if}
+			{#if canEdit && order.order_type !== 'note' && nextStatuses.length > 0}
 				{#each nextStatuses as nextStatus}
 					{#if nextStatus === 'cancelled'}
 						<Button size="sm" variant="destructive" onclick={() => (cancelOpen = true)}>
@@ -566,7 +591,7 @@
 	</div>
 
 	<!-- Status timeline -->
-	{#if order.status !== 'cancelled'}
+	{#if order.order_type !== 'note' && order.status !== 'cancelled'}
 		<div class="flex items-center gap-1">
 			{#each timeline as step, i}
 				{@const isComplete = step.date !== null}
