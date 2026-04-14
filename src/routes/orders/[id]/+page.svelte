@@ -74,6 +74,25 @@
 		return '—';
 	}
 
+	let converting = $state(false);
+	async function convertNoteToOrder() {
+		if (!confirm('Convert this note to a draft order? You can submit it afterward.')) return;
+		converting = true;
+		try {
+			await supabase
+				.from('orders')
+				.update({
+					order_type: 'order',
+					status: 'draft',
+					updated_at: new Date().toISOString()
+				})
+				.eq('id', order.id);
+			invalidateAll();
+		} finally {
+			converting = false;
+		}
+	}
+
 	async function updateStatus(newStatus: OrderStatus) {
 		const timestampField: Record<string, string> = {
 			submitted: 'submitted_at',
@@ -544,6 +563,11 @@
 				</svg>
 				Send to Account
 			</Button>
+			{#if canEdit && order.order_type === 'note'}
+				<Button size="sm" onclick={convertNoteToOrder} disabled={converting}>
+					{converting ? 'Converting…' : 'Convert to Order'}
+				</Button>
+			{/if}
 			{#if canEdit && order.order_type !== 'note' && nextStatuses.length > 0}
 				{#each nextStatuses as nextStatus}
 					{#if nextStatus === 'cancelled'}
