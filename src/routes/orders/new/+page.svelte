@@ -17,15 +17,29 @@
 		delivery_month: number;
 		delivery_day: number;
 	};
-	type Account = { id: string; business_name: string; city: string | null; state: string | null };
+	type Account = {
+		id: string;
+		business_name: string;
+		contact_email: string | null;
+		address_line1: string | null;
+		address_line2: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
+	};
 	type LocationRow = {
 		id: string;
 		account_id: string;
 		label: string;
+		contact_email: string | null;
+		address_line1: string | null;
+		address_line2: string | null;
 		city: string | null;
 		state: string | null;
+		zip: string | null;
 		is_default: boolean;
 	};
+	type Rep = { user_id: string; name: string };
 	type ProductVariant = {
 		id: string;
 		color: string | null;
@@ -72,6 +86,8 @@
 	const seasons = $derived(data.seasons as Season[]);
 	const deliveries = $derived(data.deliveries as SeasonDeliveryRow[]);
 	const isBuyer = $derived(data.isBuyer === true);
+	const reps = $derived((data.reps ?? []) as Rep[]);
+	const currentUserId = $derived((data.currentUser?.id as string | undefined) ?? null);
 
 	const monthAbbrev = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -85,6 +101,7 @@
 		account_id: string | null;
 		freeform_name: string | null;
 		order_year: number;
+		rep_user_id: string | null;
 		freeformDetails: {
 			business_name: string;
 			contact_first_name: string;
@@ -104,6 +121,7 @@
 		account_id: isBuyer && accounts.length === 1 ? accounts[0].id : null,
 		freeform_name: null,
 		order_year: new Date().getFullYear(),
+		rep_user_id: null,
 		freeformDetails: {
 			business_name: '',
 			contact_first_name: '',
@@ -302,7 +320,7 @@
 			const dt = new Date(s);
 			return `${monthAbbrev[dt.getMonth()]} ${dt.getDate()}`;
 		};
-		return `Custom — ${fmtShort(choice.start_ship_date)} → ${fmtShort(choice.expected_ship_date)}`;
+		return `${fmtShort(choice.start_ship_date)} → ${fmtShort(choice.expected_ship_date)}`;
 	}
 	// Group-level season sort_order helper (null sort_orders sort last).
 	function seasonSort(id: string): number {
@@ -671,6 +689,13 @@
 		}
 		for (const k of Object.keys(cart.groupMeta)) {
 			if (!validKeys.has(k)) delete cart.groupMeta[k];
+		}
+	});
+
+	// Default the rep to the current user on mount.
+	$effect(() => {
+		if (cart.rep_user_id === null && currentUserId) {
+			cart.rep_user_id = currentUserId;
 		}
 	});
 
@@ -1315,18 +1340,92 @@
 
 	<!-- ── Finalize step ──────────────────────────────────────────────── -->
 	{#if stepName === 'Finalize'}
+		{@const defaultLocation =
+			accountLocations.find((l) => l.is_default) ?? accountLocations[0] ?? null}
+		{@const shipFrom = defaultLocation ?? (account
+			? {
+					label: account.business_name,
+					address_line1: account.address_line1,
+					address_line2: account.address_line2,
+					city: account.city,
+					state: account.state,
+					zip: account.zip
+				}
+			: null)}
+		{@const accountEmail =
+			(defaultLocation?.contact_email ?? account?.contact_email) ?? null}
 		<div class="space-y-4">
+			<!-- Account -->
 			<div class="rounded-lg border p-4">
 				<div class="text-sm text-muted-foreground">Account</div>
 				<div class="text-lg font-semibold">
 					{account ? account.business_name : (cart.freeform_name ?? '—')}
 				</div>
+				{#if accountEmail}
+					<div class="text-sm text-muted-foreground">{accountEmail}</div>
+				{/if}
 				{#if isFreeform && !hasFreeformDetails}
 					<div class="mt-1 text-sm text-amber-700">
 						No account details — orders will be saved as drafts.
 					</div>
 				{/if}
 			</div>
+
+			<!-- Ship To / Bill To (defaults to the account's default address) -->
+			{#if shipFrom}
+				<div class="grid gap-4 sm:grid-cols-2">
+					<div class="rounded-lg border p-4">
+						<div class="text-sm text-muted-foreground">Ship To</div>
+						<div class="mt-1 font-semibold">{shipFrom.label ?? account?.business_name ?? '—'}</div>
+						{#if shipFrom.address_line1}
+							<div class="text-sm text-muted-foreground">{shipFrom.address_line1}</div>
+						{/if}
+						{#if shipFrom.address_line2}
+							<div class="text-sm text-muted-foreground">{shipFrom.address_line2}</div>
+						{/if}
+						{#if shipFrom.city || shipFrom.state || shipFrom.zip}
+							<div class="text-sm text-muted-foreground">
+								{[shipFrom.city, shipFrom.state].filter(Boolean).join(', ')}
+								{shipFrom.zip ?? ''}
+							</div>
+						{/if}
+					</div>
+					<div class="rounded-lg border p-4">
+						<div class="text-sm text-muted-foreground">Bill To</div>
+						<div class="mt-1 font-semibold">{shipFrom.label ?? account?.business_name ?? '—'}</div>
+						{#if shipFrom.address_line1}
+							<div class="text-sm text-muted-foreground">{shipFrom.address_line1}</div>
+						{/if}
+						{#if shipFrom.address_line2}
+							<div class="text-sm text-muted-foreground">{shipFrom.address_line2}</div>
+						{/if}
+						{#if shipFrom.city || shipFrom.state || shipFrom.zip}
+							<div class="text-sm text-muted-foreground">
+								{[shipFrom.city, shipFrom.state].filter(Boolean).join(', ')}
+								{shipFrom.zip ?? ''}
+							</div>
+						{/if}
+					</div>
+				</div>
+			{/if}
+
+			<!-- Rep -->
+			{#if reps.length > 0}
+				<div class="rounded-lg border p-4">
+					<Label for="rep-select" class="text-sm text-muted-foreground">Rep</Label>
+					<select
+						id="rep-select"
+						class="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
+						bind:value={cart.rep_user_id}
+					>
+						{#each reps as r (r.user_id)}
+							<option value={r.user_id}>{r.name}</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
+
+			<!-- Orders summary -->
 			<div class="rounded-lg border p-4">
 				<div class="mb-2 text-sm text-muted-foreground">
 					{groups.length} order{groups.length === 1 ? '' : 's'} will be created
@@ -1334,9 +1433,6 @@
 				<ul class="divide-y">
 					{#each groups as g (groupKey(g.brand_id, g.season_id))}
 						{@const meta = getMeta(g.brand_id, g.season_id)}
-						{@const loc = meta.location_id
-							? accountLocations.find((x) => x.id === meta.location_id)
-							: null}
 						<li class="py-3">
 							<div class="flex items-center justify-between">
 								<div class="font-medium">
@@ -1347,7 +1443,7 @@
 								</div>
 							</div>
 							<div class="text-sm text-muted-foreground">
-								Ship: {describeDelivery(meta)}{loc ? ` · ${loc.label}` : ''}
+								Ship: {describeDelivery(meta)}
 							</div>
 						</li>
 					{/each}
