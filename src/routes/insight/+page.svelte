@@ -502,7 +502,180 @@
 	}
 </script>
 
-{#if data.setupComplete === false}
+{#if data.isBrandOrg && data.brandInsight}
+	{@const bi = data.brandInsight}
+	{@const fmtMoney = new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: 'USD',
+		maximumFractionDigits: 0
+	})}
+	<div class="space-y-8 p-6">
+		<header>
+			<h1 class="text-2xl font-semibold">Insight</h1>
+			<p class="text-sm text-muted-foreground">
+				Brand view — activity across your connected rep network.
+			</p>
+		</header>
+
+		<!-- KPI row -->
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<Card>
+				<CardContent class="pt-4 pb-4">
+					<p class="text-sm text-muted-foreground">Active reps (30d)</p>
+					<p class="mt-1 text-2xl font-semibold">
+						{bi.repsActive30d.length}
+						<span class="text-sm font-normal text-muted-foreground">
+							/ {bi.connectedReps.filter((r) => r.status === 'active').length}
+						</span>
+					</p>
+					<p class="mt-0.5 text-sm text-muted-foreground">
+						{bi.repsQuiet30d.length} quiet
+					</p>
+				</CardContent>
+			</Card>
+			<Card>
+				<CardContent class="pt-4 pb-4">
+					<p class="text-sm text-muted-foreground">Incoming orders (7d)</p>
+					<p class="mt-1 text-2xl font-semibold">{bi.incoming7.count}</p>
+					<p class="mt-0.5 text-sm text-muted-foreground">
+						{fmtMoney.format(bi.incoming7.revenue)}
+					</p>
+				</CardContent>
+			</Card>
+			<Card>
+				<CardContent class="pt-4 pb-4">
+					<p class="text-sm text-muted-foreground">Incoming orders (30d)</p>
+					<p class="mt-1 text-2xl font-semibold">{bi.incoming30.count}</p>
+					<p class="mt-0.5 text-sm text-muted-foreground">
+						{fmtMoney.format(bi.incoming30.revenue)}
+					</p>
+				</CardContent>
+			</Card>
+			<Card>
+				<CardContent class="pt-4 pb-4">
+					<p class="text-sm text-muted-foreground">Open pipeline</p>
+					<p class="mt-1 text-2xl font-semibold">{fmtMoney.format(bi.pipelineValue)}</p>
+					<p class="mt-0.5 text-sm text-muted-foreground">
+						Across {bi.connectedReps.filter((r) => r.status === 'active').length} connected rep{bi
+							.connectedReps.filter((r) => r.status === 'active').length === 1
+							? ''
+							: 's'}
+					</p>
+				</CardContent>
+			</Card>
+		</div>
+
+		<div class="grid gap-6 lg:grid-cols-2">
+			<!-- Quiet reps -->
+			<Card>
+				<CardHeader>
+					<CardTitle class="text-base">Quiet reps</CardTitle>
+					<CardDescription>No orders in the last 30 days.</CardDescription>
+				</CardHeader>
+				<CardContent>
+					{#if bi.repsQuiet30d.length === 0}
+						<p class="text-sm text-muted-foreground">Every active rep has written recently.</p>
+					{:else}
+						<ul class="divide-y">
+							{#each bi.repsQuiet30d as r (r.connection_id)}
+								<li class="flex items-center justify-between py-3">
+									<div>
+										<div class="font-medium">{r.rep_org_name}</div>
+										<div class="text-sm text-muted-foreground">
+											{r.last_order_at
+												? `Last order ${new Date(r.last_order_at).toLocaleDateString('en-US', {
+														month: 'short',
+														day: 'numeric',
+														year: 'numeric'
+													})}`
+												: 'No orders yet'}
+										</div>
+									</div>
+									<Button variant="ghost" size="sm" href="/settings/connections">Manage</Button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</CardContent>
+			</Card>
+
+			<!-- Top accounts -->
+			<Card>
+				<CardHeader>
+					<CardTitle class="text-base">Top accounts (90d)</CardTitle>
+					<CardDescription>By revenue across all connected reps.</CardDescription>
+				</CardHeader>
+				<CardContent>
+					{#if bi.topAccounts.length === 0}
+						<p class="text-sm text-muted-foreground">No orders in the last 90 days.</p>
+					{:else}
+						<ul class="divide-y">
+							{#each bi.topAccounts as a (a.account_id)}
+								<li class="flex items-center justify-between py-3">
+									<div>
+										<div class="font-medium">{a.business_name}</div>
+										<div class="text-sm text-muted-foreground">
+											{[a.city, a.state].filter(Boolean).join(', ') || '—'} · {a.order_count} order{a.order_count === 1 ? '' : 's'}
+										</div>
+									</div>
+									<div class="font-mono text-sm">{fmtMoney.format(a.revenue)}</div>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</CardContent>
+			</Card>
+
+			<!-- Territory gaps -->
+			<Card>
+				<CardHeader>
+					<CardTitle class="text-base">Territory gaps</CardTitle>
+					<CardDescription>No account activity in the last 90 days.</CardDescription>
+				</CardHeader>
+				<CardContent>
+					{#if bi.territoryGaps.length === 0}
+						<p class="text-sm text-muted-foreground">All territories have recent activity.</p>
+					{:else}
+						<div class="flex flex-wrap gap-2">
+							{#each bi.territoryGaps as t (t.name)}
+								<span class="inline-flex rounded-full bg-muted px-3 py-1 text-sm">{t.name}</span>
+							{/each}
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
+
+			<!-- Recent rep activity -->
+			<Card>
+				<CardHeader>
+					<CardTitle class="text-base">Recent rep activity</CardTitle>
+					<CardDescription>Orders written in the last 30 days.</CardDescription>
+				</CardHeader>
+				<CardContent>
+					{#if bi.repsActive30d.length === 0}
+						<p class="text-sm text-muted-foreground">No rep activity in the last 30 days.</p>
+					{:else}
+						<ul class="divide-y">
+							{#each bi.repsActive30d as r (r.connection_id)}
+								<li class="flex items-center justify-between py-3">
+									<div>
+										<div class="font-medium">{r.rep_org_name}</div>
+										<div class="text-sm text-muted-foreground">
+											{r.order_count} order{r.order_count === 1 ? '' : 's'} · {fmtMoney.format(
+												r.revenue
+											)}
+										</div>
+									</div>
+									<Button variant="ghost" size="sm" href="/orders?rep={r.rep_org_id}">View</Button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</CardContent>
+			</Card>
+		</div>
+	</div>
+{:else if data.setupComplete === false && data.setupChecklist}
 	{@const cl = data.setupChecklist}
 	{@const done = [cl.hasBrands, cl.hasProducts, cl.hasAccounts, cl.hasOrders].filter(
 		Boolean

@@ -510,9 +510,11 @@ export interface OrderComment {
 	order_id: string;
 	author_id: string;
 	body: string;
+	source_org_id: string | null;
 	created_at: string;
 	updated_at: string;
-	profiles?: Profile;
+	profiles?: { display_name: string | null };
+	source_org?: { id: string; name: string } | null;
 }
 
 export interface AccountTag {
