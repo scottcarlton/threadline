@@ -1071,7 +1071,7 @@
 						<div class="mb-4 space-y-2">
 							{#each g.items as it (it.product_id)}
 								<div
-									class="flex cursor-grab items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm transition-opacity {draggingItemId ===
+									class="group/item flex cursor-grab items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm transition-opacity {draggingItemId ===
 									it.product_id
 										? 'opacity-40'
 										: ''}"
@@ -1099,7 +1099,7 @@
 									</div>
 									<button
 										type="button"
-										class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+										class="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover/item:opacity-100 focus-visible:opacity-100 hover:bg-destructive/10 hover:text-destructive"
 										aria-label="Remove item"
 										onclick={() => removeProduct(it.product_id)}
 									>
