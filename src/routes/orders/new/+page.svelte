@@ -720,15 +720,17 @@
 		for (const g of groups) {
 			const meta = getMeta(g.brand_id, g.season_id);
 			if (meta.delivery) continue;
-			const firstPreset = deliveries
+			// Seed with the LATEST preset of the season (latest month/day) so
+			// buyers land on the last valid ship window instead of the first.
+			const lastPreset = deliveries
 				.filter((d) => d.season_id === g.season_id)
 				.sort(
-					(a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.delivery_month - b.delivery_month
+					(a, b) => b.delivery_month - a.delivery_month || b.delivery_day - a.delivery_day
 				)[0];
-			if (!firstPreset) continue;
+			if (!lastPreset) continue;
 			const yyyy = String(cart.order_year);
-			const mm = String(firstPreset.delivery_month).padStart(2, '0');
-			const dd = String(firstPreset.delivery_day).padStart(2, '0');
+			const mm = String(lastPreset.delivery_month).padStart(2, '0');
+			const dd = String(lastPreset.delivery_day).padStart(2, '0');
 			setMeta(g.brand_id, g.season_id, {
 				delivery: {
 					kind: 'custom',
@@ -1100,8 +1102,10 @@
 								{/if}
 							</div>
 							<div class="flex items-center gap-3">
-								<div class="text-sm text-muted-foreground">
-									{g.units} unit{g.units === 1 ? '' : 's'} · {fmt.format(g.total)}
+								<div class="text-sm">
+									<span class="text-muted-foreground"
+										>{g.units} unit{g.units === 1 ? '' : 's'} · </span
+									><span class="font-semibold">{fmt.format(g.total)}</span>
 								</div>
 								<button
 									type="button"
@@ -1128,11 +1132,6 @@
 									ondragstart={(e) => onItemDragStart(e, it.product_id)}
 									ondragend={onItemDragEnd}
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/item:opacity-100" viewBox="0 0 24 24" fill="currentColor">
-										<circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
-										<circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
-										<circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
-									</svg>
 									{#if it.image_id}
 										<img
 											src={`/api/products/${it.product_id}/images/${it.image_id}`}
@@ -1161,7 +1160,7 @@
 						</div>
 
 						<!-- Delivery selection: MM / DD / YYYY dropdowns, always visible -->
-						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+						<div class="flex flex-wrap gap-6">
 							<div>
 								<Label for={`start-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
 									Start Ship
