@@ -8,6 +8,7 @@
 	import type { BrandExpense } from '$lib/types/database.js';
 
 	let { data } = $props();
+	const isBrandOrg = $derived(data.orgType === 'brand');
 	const expenses = $derived(data.expenses as BrandExpense[]);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
 	const canCreate = $derived(
@@ -250,18 +251,12 @@
 							class="px-4 py-2.5 text-center text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Status</th
 						>
-						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
-							>Brand</th
-						>
-						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
-							>Category</th
-						>
-						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
-							>Date</th
-						>
+						{#if !isBrandOrg}
+							<th
+								class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
+								>Brand</th
+							>
+						{/if}
 						<th
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
 							>Submitted By</th
@@ -281,7 +276,9 @@
 									class="font-mono text-base font-medium hover:underline"
 									>{expense.expense_number}</a
 								>
-								<p class="line-clamp-1 text-sm text-muted-foreground">{expense.description}</p>
+								<p class="font-mono text-xs text-muted-foreground">
+									{categoryLabels[expense.category] ?? expense.category}
+								</p>
 							</td>
 							<td class="px-4 py-3 text-center">
 								<span
@@ -292,23 +289,20 @@
 									{statusLabels[expense.status] ?? expense.status}
 								</span>
 							</td>
-							<td class="hidden px-4 py-3 sm:table-cell">
-								<span class="text-sm">{expense.brands?.name ?? '—'}</span>
-							</td>
-							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm">{categoryLabels[expense.category] ?? expense.category}</span>
-							</td>
-							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm"
-									>{new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('en-US', {
+							{#if !isBrandOrg}
+								<td class="hidden px-4 py-3 sm:table-cell">
+									<span class="text-sm">{expense.brands?.name ?? '—'}</span>
+								</td>
+							{/if}
+							<td class="hidden px-4 py-3 lg:table-cell">
+								<span class="text-sm">{expense.profiles?.display_name ?? '—'}</span>
+								<p class="font-mono text-xs text-muted-foreground">
+									{new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('en-US', {
 										month: 'short',
 										day: 'numeric',
 										year: 'numeric'
-									})}</span
-								>
-							</td>
-							<td class="hidden px-4 py-3 lg:table-cell">
-								<span class="text-sm">{expense.profiles?.display_name ?? '—'}</span>
+									})}
+								</p>
 							</td>
 							<td class="px-4 py-3 text-right font-mono">
 								<span class="text-sm">{fmt.format(Number(expense.amount))}</span>
