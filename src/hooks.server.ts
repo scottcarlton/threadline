@@ -20,6 +20,7 @@ const PUBLIC_ROUTES = [
 	'/signup',
 	'/invite',
 	'/buyer-invite',
+	'/connect',
 	'/auth/callback',
 	'/upload',
 	'/features',
