@@ -112,7 +112,7 @@
 	}
 </script>
 
-<div class="mx-auto max-w-5xl space-y-6">
+<div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div>
 			<h1 class="text-2xl font-bold">Reps</h1>

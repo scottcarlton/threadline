@@ -12,7 +12,7 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div>
-			<h2 class="text-lg font-semibold">Agents</h2>
+			<h2 class="text-lg font-semibold">Agents (AI)</h2>
 			<p class="mt-0.5 text-sm text-muted-foreground">
 				Custom AI agents to automate and enhance your workflows
 			</p>

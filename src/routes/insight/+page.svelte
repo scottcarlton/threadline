@@ -511,10 +511,10 @@
 		maximumFractionDigits: 0
 	})}
 	{@const checklistDone = [cl?.hasProducts, cl?.hasConnectedRep, cl?.hasOrder, cl?.hasTeammates].filter(Boolean).length}
-	<div class="space-y-8 p-6">
+	<div class="space-y-8">
 		<header>
-			<h1 class="text-2xl font-semibold">Insight</h1>
-			<p class="text-sm text-muted-foreground">
+			<h1 class="text-3xl">Insight</h1>
+			<p class="mt-1 text-sm text-muted-foreground">
 				What matters today across your connected rep network.
 			</p>
 		</header>
