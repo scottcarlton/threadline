@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { OrderType } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
+	import DateSelect from '$lib/components/ui/date-select.svelte';
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
 
 	type Brand = { id: string; name: string };
@@ -16,6 +17,7 @@
 		label: string;
 		delivery_month: number;
 		delivery_day: number;
+		sort_order: number | null;
 	};
 	type Account = {
 		id: string;
@@ -711,6 +713,32 @@
 		}
 	});
 
+	// Seed each group's Start/Complete Ship dates from the first season delivery
+	// when no delivery choice exists yet. Month/day come from the first preset
+	// (by sort_order); year = cart.order_year.
+	$effect(() => {
+		for (const g of groups) {
+			const meta = getMeta(g.brand_id, g.season_id);
+			if (meta.delivery) continue;
+			const firstPreset = deliveries
+				.filter((d) => d.season_id === g.season_id)
+				.sort(
+					(a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.delivery_month - b.delivery_month
+				)[0];
+			if (!firstPreset) continue;
+			const yyyy = String(cart.order_year);
+			const mm = String(firstPreset.delivery_month).padStart(2, '0');
+			const dd = String(firstPreset.delivery_day).padStart(2, '0');
+			setMeta(g.brand_id, g.season_id, {
+				delivery: {
+					kind: 'custom',
+					start_ship_date: `${yyyy}-${mm}-01`,
+					expected_ship_date: `${yyyy}-${mm}-${dd}`
+				}
+			});
+		}
+	});
+
 	// Auto-assign location when account has exactly one
 	$effect(() => {
 		if (account && accountLocations.length === 1) {
@@ -1132,49 +1160,45 @@
 							{/each}
 						</div>
 
-						<!-- Delivery selection: custom date inputs always visible -->
+						<!-- Delivery selection: MM / DD / YYYY dropdowns, always visible -->
 						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 							<div>
 								<Label for={`start-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
 									Start Ship
 								</Label>
-								<Input
-									id={`start-${groupKey(g.brand_id, g.season_id)}`}
-									type="date"
-									class="mt-1"
-									value={customDates.start_ship_date}
-									oninput={(e) => {
-										const v = (e.target as HTMLInputElement).value;
-										setMeta(g.brand_id, g.season_id, {
-											delivery: {
-												kind: 'custom',
-												start_ship_date: v,
-												expected_ship_date: customDates.expected_ship_date
-											}
-										});
-									}}
-								/>
+								<div class="mt-1">
+									<DateSelect
+										id={`start-${groupKey(g.brand_id, g.season_id)}`}
+										value={customDates.start_ship_date}
+										onchange={(v) =>
+											setMeta(g.brand_id, g.season_id, {
+												delivery: {
+													kind: 'custom',
+													start_ship_date: v,
+													expected_ship_date: customDates.expected_ship_date
+												}
+											})}
+									/>
+								</div>
 							</div>
 							<div>
 								<Label for={`end-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
 									Complete Ship
 								</Label>
-								<Input
-									id={`end-${groupKey(g.brand_id, g.season_id)}`}
-									type="date"
-									class="mt-1"
-									value={customDates.expected_ship_date}
-									oninput={(e) => {
-										const v = (e.target as HTMLInputElement).value;
-										setMeta(g.brand_id, g.season_id, {
-											delivery: {
-												kind: 'custom',
-												start_ship_date: customDates.start_ship_date,
-												expected_ship_date: v
-											}
-										});
-									}}
-								/>
+								<div class="mt-1">
+									<DateSelect
+										id={`end-${groupKey(g.brand_id, g.season_id)}`}
+										value={customDates.expected_ship_date}
+										onchange={(v) =>
+											setMeta(g.brand_id, g.season_id, {
+												delivery: {
+													kind: 'custom',
+													start_ship_date: customDates.start_ship_date,
+													expected_ship_date: v
+												}
+											})}
+									/>
+								</div>
 							</div>
 						</div>
 
