@@ -922,6 +922,13 @@
 									>
 										Auto size
 									</button>
+									<button
+										type="button"
+										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
+										onclick={() => removeProduct(it.product_id)}
+									>
+										Remove
+									</button>
 								</div>
 							{:else}
 								<div class="mt-3 flex items-center gap-2">
@@ -936,18 +943,15 @@
 											cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
 										}}
 									/>
+									<button
+										type="button"
+										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
+										onclick={() => removeProduct(it.product_id)}
+									>
+										Remove
+									</button>
 								</div>
 							{/if}
-
-							<div class="mt-3 flex justify-end">
-								<button
-									type="button"
-									class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
-									onclick={() => removeProduct(it.product_id)}
-								>
-									Remove
-								</button>
-							</div>
 						</div>
 					{/each}
 				</div>
