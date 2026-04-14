@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { OrderType } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
+	import DateSelect from '$lib/components/ui/date-select.svelte';
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
 
 	type Brand = { id: string; name: string };
@@ -16,16 +17,31 @@
 		label: string;
 		delivery_month: number;
 		delivery_day: number;
+		sort_order: number | null;
 	};
-	type Account = { id: string; business_name: string; city: string | null; state: string | null };
+	type Account = {
+		id: string;
+		business_name: string;
+		contact_email: string | null;
+		address_line1: string | null;
+		address_line2: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
+	};
 	type LocationRow = {
 		id: string;
 		account_id: string;
 		label: string;
+		contact_email: string | null;
+		address_line1: string | null;
+		address_line2: string | null;
 		city: string | null;
 		state: string | null;
+		zip: string | null;
 		is_default: boolean;
 	};
+	type Rep = { user_id: string; name: string };
 	type ProductVariant = {
 		id: string;
 		color: string | null;
@@ -51,6 +67,9 @@
 		product_id: string;
 		brand_id: string;
 		season_id: string;
+		// Product's original season (never mutated). Used to enforce "items can
+		// only move to seasons >= their own product season" during DnD.
+		original_season_id: string;
 		product_year: number | null;
 		style_number: string;
 		name: string;
@@ -69,6 +88,8 @@
 	const seasons = $derived(data.seasons as Season[]);
 	const deliveries = $derived(data.deliveries as SeasonDeliveryRow[]);
 	const isBuyer = $derived(data.isBuyer === true);
+	const reps = $derived((data.reps ?? []) as Rep[]);
+	const currentUserId = $derived((data.currentUser?.id as string | undefined) ?? null);
 
 	const monthAbbrev = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -82,6 +103,7 @@
 		account_id: string | null;
 		freeform_name: string | null;
 		order_year: number;
+		rep_user_id: string | null;
 		freeformDetails: {
 			business_name: string;
 			contact_first_name: string;
@@ -101,6 +123,7 @@
 		account_id: isBuyer && accounts.length === 1 ? accounts[0].id : null,
 		freeform_name: null,
 		order_year: new Date().getFullYear(),
+		rep_user_id: null,
 		freeformDetails: {
 			business_name: '',
 			contact_first_name: '',
@@ -147,7 +170,7 @@
 		return itemUnits(it) > 0;
 	}
 
-	// Groups — derived from sized cart items; these are what the Delivery/Review steps show.
+	// Groups — derived from sized cart items; these are what the Delivery/Finalize steps show.
 	function groupKey(brand_id: string, season_id: string): string {
 		return `${brand_id}::${season_id}`;
 	}
@@ -185,6 +208,63 @@
 		return [...map.values()];
 	});
 
+	// Native HTML5 DnD state for moving items between groups on the Delivery step.
+	let draggingItemId = $state<string | null>(null);
+	let dropTargetKey = $state<string | null>(null);
+
+	// True when the given item is allowed to drop into the target (brand,season).
+	// Rules: same brand, and target season sort_order >= item's ORIGINAL product
+	// season sort_order (so a Spring item moved to Fall can come back to Spring,
+	// but a Fall item can't go to Spring).
+	function canDropItem(
+		item_product_id: string,
+		target_brand_id: string,
+		target_season_id: string
+	): boolean {
+		const it = cart.items.find((ci) => ci.product_id === item_product_id);
+		if (!it) return false;
+		if (it.brand_id !== target_brand_id) return false;
+		if (it.season_id === target_season_id) return false;
+		const originSort = seasonSort(it.original_season_id);
+		const targetSort = seasonSort(target_season_id);
+		return targetSort >= originSort;
+	}
+
+	function onItemDragStart(e: DragEvent, product_id: string) {
+		if (!e.dataTransfer) return;
+		draggingItemId = product_id;
+		e.dataTransfer.effectAllowed = 'move';
+		e.dataTransfer.setData('text/plain', product_id);
+	}
+
+	function onItemDragEnd() {
+		draggingItemId = null;
+		dropTargetKey = null;
+	}
+
+	function onGroupDragOver(e: DragEvent, g: { brand_id: string; season_id: string }) {
+		if (!draggingItemId) return;
+		if (!canDropItem(draggingItemId, g.brand_id, g.season_id)) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dropTargetKey = groupKey(g.brand_id, g.season_id);
+	}
+
+	function onGroupDragLeave(g: { brand_id: string; season_id: string }) {
+		const key = groupKey(g.brand_id, g.season_id);
+		if (dropTargetKey === key) dropTargetKey = null;
+	}
+
+	function onGroupDrop(e: DragEvent, g: { brand_id: string; season_id: string }) {
+		e.preventDefault();
+		const id = e.dataTransfer?.getData('text/plain') || draggingItemId;
+		draggingItemId = null;
+		dropTargetKey = null;
+		if (!id) return;
+		if (!canDropItem(id, g.brand_id, g.season_id)) return;
+		moveItem(id, g.season_id);
+	}
+
 	const account = $derived(accounts.find((a) => a.id === cart.account_id) ?? null);
 	const accountLocations = $derived(
 		cart.account_id ? allLocations.filter((l) => l.account_id === cart.account_id) : []
@@ -193,18 +273,22 @@
 	const hasAccountChoice = $derived(cart.account_id !== null || isFreeform);
 	const needsLocationStep = $derived(account !== null && accountLocations.length >= 2);
 	const needsAccountDetailsStep = $derived(isFreeform);
+	const hasFreeformDetails = $derived(
+		(cart.freeformDetails.business_name?.trim().length ?? 0) > 0
+	);
 
 	// ── Steps ───────────────────────────────────────────────────────────────
 	const stepsAll = $derived.by(() => {
-		const s = ['Type', 'Brand', 'Items', 'Delivery', 'Account'];
-		if (needsLocationStep) s.push('Location');
+		const s = ['Brand', 'Account'];
 		if (needsAccountDetailsStep) s.push('Details');
-		s.push('Review');
+		s.push('Items', 'Delivery');
+		if (needsLocationStep) s.push('Location');
+		s.push('Finalize');
 		return s;
 	});
 
 	let currentStep = $state(0);
-	const stepName = $derived(stepsAll[currentStep] ?? 'Review');
+	const stepName = $derived(stepsAll[currentStep] ?? 'Finalize');
 
 	// Clamp currentStep when stepsAll shrinks (e.g., user picks a single-location account, Location step drops)
 	$effect(() => {
@@ -238,8 +322,152 @@
 			const dt = new Date(s);
 			return `${monthAbbrev[dt.getMonth()]} ${dt.getDate()}`;
 		};
-		return `Custom — ${fmtShort(choice.start_ship_date)} → ${fmtShort(choice.expected_ship_date)}`;
+		return `${fmtShort(choice.start_ship_date)} → ${fmtShort(choice.expected_ship_date)}`;
 	}
+	// Group-level season sort_order helper (null sort_orders sort last).
+	function seasonSort(id: string): number {
+		return seasons.find((s) => s.id === id)?.sort_order ?? 9999;
+	}
+
+	// A delivery-pool entry describes a preset available for a group:
+	// its source season (may differ from group's own season) + year applied.
+	type DeliveryEntry = {
+		row: SeasonDeliveryRow;
+		display_year: number;
+		season_id: string;
+		// True when this delivery belongs to the group's own (season_id, year).
+		own: boolean;
+	};
+
+	// Build the pool of preset delivery windows a group can choose from.
+	// Includes the group's own season for the group's year, all later seasons
+	// (within the group's year), and every season in the next year.
+	function availableDeliveries(
+		group_season_id: string,
+		group_year: number | null
+	): DeliveryEntry[] {
+		const srcSort = seasonSort(group_season_id);
+		const year = group_year ?? cart.order_year;
+		const entries: DeliveryEntry[] = [];
+
+		for (const s of seasons) {
+			const inSameYearLater = s.sort_order != null && s.sort_order >= srcSort;
+			const sDeliveries = deliveries.filter((d) => d.season_id === s.id);
+			if (inSameYearLater) {
+				for (const d of sDeliveries) {
+					entries.push({
+						row: d,
+						display_year: year,
+						season_id: s.id,
+						own: s.id === group_season_id
+					});
+				}
+			}
+			// Next year: include every season.
+			for (const d of sDeliveries) {
+				entries.push({
+					row: d,
+					display_year: year + 1,
+					season_id: s.id,
+					own: false
+				});
+			}
+		}
+		return entries;
+	}
+
+	function deliveryEntryLabel(e: DeliveryEntry): string {
+		const date = deliveryLabelFor(e.row);
+		if (e.own) return date;
+		const seasonTag =
+			e.display_year === (cart.order_year ?? new Date().getFullYear())
+				? seasonName(e.season_id)
+				: `${seasonName(e.season_id)} ${e.display_year}`;
+		return `${seasonTag} · ${date}`;
+	}
+
+	function deliveryEntryKey(e: DeliveryEntry): string {
+		return `${e.row.id}__${e.display_year}`;
+	}
+
+	// Valid forward-only destinations for a group (same brand, same order year).
+	// Groups are keyed by (brand, season), so year stays constant for now.
+	function moveTargetsFor(source_season_id: string) {
+		const srcSort = seasonSort(source_season_id);
+		return seasons
+			.filter((s) => s.sort_order != null && s.sort_order > srcSort)
+			.map((s) => ({ season_id: s.id, label: s.name }));
+	}
+
+	// Move every item in (brand, season) source to the destination season.
+	// Existing items at the destination merge naturally (groups re-derive).
+	function moveGroup(
+		source_brand_id: string,
+		source_season_id: string,
+		dest_season_id: string
+	) {
+		for (const it of cart.items) {
+			if (it.brand_id === source_brand_id && it.season_id === source_season_id) {
+				it.season_id = dest_season_id;
+			}
+		}
+	}
+
+	// Move a single item to a destination season.
+	function moveItem(product_id: string, dest_season_id: string) {
+		const it = cart.items.find((i) => i.product_id === product_id);
+		if (!it) return;
+		it.season_id = dest_season_id;
+	}
+
+	// Remove every item in a group.
+	function removeGroup(brand_id: string, season_id: string) {
+		cart.items = cart.items.filter(
+			(it) => !(it.brand_id === brand_id && it.season_id === season_id)
+		);
+	}
+
+	// Apply a preset delivery entry to a group. If the entry is in the group's
+	// order_year, store as a `delivery` reference; otherwise (next year) resolve
+	// to a custom date range so the existing schema stores the full ISO dates.
+	function applyDeliveryEntry(group_brand_id: string, group_season_id: string, e: DeliveryEntry) {
+		if (e.display_year === cart.order_year) {
+			setMeta(group_brand_id, group_season_id, {
+				delivery: { kind: 'delivery', delivery_id: e.row.id }
+			});
+			return;
+		}
+		const mm = String(e.row.delivery_month).padStart(2, '0');
+		const dd = String(e.row.delivery_day).padStart(2, '0');
+		const start = `${e.display_year}-${mm}-01`;
+		const end = `${e.display_year}-${mm}-${dd}`;
+		setMeta(group_brand_id, group_season_id, {
+			delivery: { kind: 'custom', start_ship_date: start, expected_ship_date: end }
+		});
+	}
+
+	// Check if a group's current delivery selection matches a preset entry.
+	function deliveryEntrySelected(
+		meta: { delivery: DeliveryChoice | null },
+		e: DeliveryEntry
+	): boolean {
+		if (!meta.delivery) return false;
+		if (e.display_year === cart.order_year) {
+			return (
+				meta.delivery.kind === 'delivery' && meta.delivery.delivery_id === e.row.id
+			);
+		}
+		const mm = String(e.row.delivery_month).padStart(2, '0');
+		const dd = String(e.row.delivery_day).padStart(2, '0');
+		const expectedStart = `${e.display_year}-${mm}-01`;
+		const expectedEnd = `${e.display_year}-${mm}-${dd}`;
+		return (
+			meta.delivery.kind === 'custom' &&
+			meta.delivery.start_ship_date === expectedStart &&
+			meta.delivery.expected_ship_date === expectedEnd
+		);
+	}
+
 	const EMPTY_META: { delivery: DeliveryChoice | null; location_id: string | null } = {
 		delivery: null,
 		location_id: null
@@ -260,8 +488,6 @@
 
 	function canAdvance(): boolean {
 		switch (stepName) {
-			case 'Type':
-				return cart.type !== null;
 			case 'Brand':
 				return cart.brandFilter === 'all' || (cart.brandFilter as string[]).length > 0;
 			case 'Items':
@@ -282,7 +508,7 @@
 				return groups.every((g) => getMeta(g.brand_id, g.season_id).location_id !== null);
 			case 'Details':
 				return true;
-			case 'Review':
+			case 'Finalize':
 				return true;
 		}
 		return true;
@@ -297,11 +523,6 @@
 
 	function handleCancel() {
 		goto('/orders');
-	}
-
-	function pickType(t: OrderType) {
-		cart.type = t;
-		nextStep();
 	}
 
 	// Brand filter ↔ combobox
@@ -412,6 +633,7 @@
 			product_id: p.id,
 			brand_id: p.brand_id,
 			season_id: p.season_id,
+			original_season_id: p.season_id,
 			product_year: p.product_year,
 			style_number: p.style_number,
 			name: p.name,
@@ -423,6 +645,25 @@
 			size_qtys
 		});
 	}
+	// Auto-size: take the first non-zero size qty and apply it to every other size.
+	function autoSize(idx: number) {
+		const it = cart.items[idx];
+		const sizes = it.available_sizes;
+		if (sizes.length === 0) return;
+		let template = 0;
+		for (const s of sizes) {
+			const q = it.size_qtys[s] ?? 0;
+			if (q > 0) {
+				template = q;
+				break;
+			}
+		}
+		if (template === 0) return;
+		for (const s of sizes) {
+			cart.items[idx].size_qtys[s] = template;
+		}
+	}
+
 	function removeProduct(product_id: string) {
 		const i = cart.items.findIndex((it) => it.product_id === product_id);
 		if (i >= 0) cart.items.splice(i, 1);
@@ -450,6 +691,53 @@
 		}
 		for (const k of Object.keys(cart.groupMeta)) {
 			if (!validKeys.has(k)) delete cart.groupMeta[k];
+		}
+	});
+
+	// Default the rep to the current user on mount.
+	$effect(() => {
+		if (cart.rep_user_id === null && currentUserId) {
+			cart.rep_user_id = currentUserId;
+		}
+	});
+
+	// Seed freeform business_name from the typed-in freeform_name on entry to Details
+	// step. This lets the value render at full contrast instead of a dim placeholder.
+	$effect(() => {
+		if (
+			stepName === 'Details' &&
+			cart.freeform_name &&
+			!(cart.freeformDetails.business_name?.trim().length ?? 0)
+		) {
+			cart.freeformDetails.business_name = cart.freeform_name;
+		}
+	});
+
+	// Seed each group's Start/Complete Ship dates from the first season delivery
+	// when no delivery choice exists yet. Month/day come from the first preset
+	// (by sort_order); year = cart.order_year.
+	$effect(() => {
+		for (const g of groups) {
+			const meta = getMeta(g.brand_id, g.season_id);
+			if (meta.delivery) continue;
+			// Seed with the LATEST preset of the season (latest month/day) so
+			// buyers land on the last valid ship window instead of the first.
+			const lastPreset = deliveries
+				.filter((d) => d.season_id === g.season_id)
+				.sort(
+					(a, b) => b.delivery_month - a.delivery_month || b.delivery_day - a.delivery_day
+				)[0];
+			if (!lastPreset) continue;
+			const yyyy = String(cart.order_year);
+			const mm = String(lastPreset.delivery_month).padStart(2, '0');
+			const dd = String(lastPreset.delivery_day).padStart(2, '0');
+			setMeta(g.brand_id, g.season_id, {
+				delivery: {
+					kind: 'custom',
+					start_ship_date: `${yyyy}-${mm}-01`,
+					expected_ship_date: `${yyyy}-${mm}-${dd}`
+				}
+			});
 		}
 	});
 
@@ -500,11 +788,13 @@
 		cart.freeform_name = null;
 		accountQuery = a.business_name;
 		accountFocus = false;
+		nextStep();
 	}
 	function useFreeform() {
 		cart.account_id = null;
 		cart.freeform_name = accountQuery.trim() || null;
 		accountFocus = false;
+		nextStep();
 	}
 	function clearAccount() {
 		cart.account_id = null;
@@ -533,7 +823,7 @@
 	});
 </script>
 
-<svelte:head><title>New {cart.type === 'note' ? 'Note' : 'Order'} — Threadline</title></svelte:head>
+<svelte:head><title>New Order — Threadline</title></svelte:head>
 
 <div class="w-full p-6">
 	<!-- Top nav: Back (left) + Cancel (right) -->
@@ -548,7 +838,7 @@
 
 	<!-- Header / progress -->
 	<div class="mb-4">
-		<h1 class="text-2xl font-semibold">New {cart.type === 'note' ? 'Note' : 'Order'}</h1>
+		<h1 class="text-2xl font-semibold">New Order</h1>
 		<p class="text-sm text-muted-foreground">
 			Step {currentStep + 1} of {stepsAll.length} — {stepName}
 		</p>
@@ -563,32 +853,6 @@
 		{/each}
 	</div>
 
-	<!-- ── Type step ──────────────────────────────────────────────────── -->
-	{#if stepName === 'Type'}
-		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-			<button
-				type="button"
-				class="rounded-lg border p-6 text-left transition hover:border-foreground"
-				onclick={() => pickType('order')}
-			>
-				<div class="text-lg font-semibold">Order</div>
-				<p class="mt-2 text-sm text-muted-foreground">
-					Standard wholesale order with full lifecycle (draft → submitted → confirmed → shipped).
-				</p>
-			</button>
-			<button
-				type="button"
-				class="rounded-lg border p-6 text-left transition hover:border-foreground"
-				onclick={() => pickType('note')}
-			>
-				<div class="text-lg font-semibold">Note</div>
-				<p class="mt-2 text-sm text-muted-foreground">
-					Quick capture for shows or the road. At least one item required; account can be added later.
-				</p>
-			</button>
-		</div>
-	{/if}
-
 	<!-- ── Brand step ─────────────────────────────────────────────────── -->
 	{#if stepName === 'Brand'}
 		<div>
@@ -599,21 +863,6 @@
 				placeholder="Search brands…"
 				bind:value={brandQuery}
 			/>
-
-			{#if cart.brandFilter !== 'all' && (cart.brandFilter as string[]).length > 0}
-				<div class="mt-3 flex flex-wrap gap-2">
-					{#each cart.brandFilter as string[] as id (id)}
-						<button
-							type="button"
-							class="flex items-center gap-1 rounded-full border border-foreground bg-foreground px-3 py-1 text-sm text-background"
-							onclick={() => toggleBrand(id)}
-						>
-							{brandName(id)}
-							<span aria-hidden="true">×</span>
-						</button>
-					{/each}
-				</div>
-			{/if}
 
 			<div class="mt-3 max-h-80 overflow-auto rounded-lg border">
 				<ul class="divide-y">
@@ -680,7 +929,7 @@
 			{:else}
 				<div class="space-y-3">
 					{#each cart.items as it, idx (it.product_id)}
-						<div class="rounded-lg border p-4">
+						<div class="group/item rounded-lg border p-4">
 							<div class="flex items-start gap-3">
 								<div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
 									{#if it.image_id}
@@ -703,13 +952,6 @@
 										{itemUnits(it)} unit{itemUnits(it) === 1 ? '' : 's'}
 									</div>
 									<div class="text-sm text-muted-foreground">{fmt.format(itemTotal(it))}</div>
-									<button
-										type="button"
-										class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-[12px] font-medium text-red-500 transition-colors hover:bg-red-500/10"
-										onclick={() => removeProduct(it.product_id)}
-									>
-										Remove
-									</button>
 								</div>
 							</div>
 
@@ -748,6 +990,22 @@
 											/>
 										</div>
 									{/each}
+									<button
+										type="button"
+										class="h-9 pl-2 text-sm underline hover:no-underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+										disabled={itemUnits(it) === 0}
+										onclick={() => autoSize(idx)}
+										title="Apply the first non-zero size quantity to every size"
+									>
+										Auto size
+									</button>
+									<button
+										type="button"
+										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 focus-visible:opacity-100 hover:bg-red-500/10"
+										onclick={() => removeProduct(it.product_id)}
+									>
+										Remove
+									</button>
 								</div>
 							{:else}
 								<div class="mt-3 flex items-center gap-2">
@@ -762,6 +1020,13 @@
 											cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
 										}}
 									/>
+									<button
+										type="button"
+										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 focus-visible:opacity-100 hover:bg-red-500/10"
+										onclick={() => removeProduct(it.product_id)}
+									>
+										Remove
+									</button>
 								</div>
 							{/if}
 						</div>
@@ -776,120 +1041,182 @@
 		<div>
 			<p class="mb-4 text-sm text-muted-foreground">
 				{groups.length === 1
-					? 'Pick the ship window for this order.'
-					: `${groups.length} orders will be created — one per brand + season. Pick a ship window for each.`}
+					? 'Review items and pick a ship window.'
+					: `${groups.length} orders will be created — one per brand + season. Drag items or whole orders forward in time.`}
 			</p>
 			<div class="space-y-4">
 				{#each groups as g (groupKey(g.brand_id, g.season_id))}
 					{@const meta = getMeta(g.brand_id, g.season_id)}
-					{@const seasonDeliveries = deliveries.filter((d) => d.season_id === g.season_id)}
-					<div class="rounded-lg border p-4">
-						<div class="mb-3 flex items-center justify-between">
-							<div class="font-semibold">
-								{brandName(g.brand_id)}
-								<span class="text-muted-foreground"> · {seasonLabel(g.season_id, g.product_year)}</span>
+					{@const moveTargets = moveTargetsFor(g.season_id)}
+					{@const customDates =
+						meta.delivery?.kind === 'custom'
+							? meta.delivery
+							: { start_ship_date: '', expected_ship_date: '' }}
+					{@const isDropTarget = dropTargetKey === groupKey(g.brand_id, g.season_id)}
+					{@const canAcceptDrop =
+						draggingItemId !== null &&
+						canDropItem(draggingItemId, g.brand_id, g.season_id)}
+					<div
+						class="rounded-lg border bg-background p-4 transition-colors {isDropTarget
+							? 'border-foreground bg-muted/30'
+							: canAcceptDrop
+								? 'border-dashed border-foreground/40'
+								: ''}"
+						ondragover={(e) => onGroupDragOver(e, g)}
+						ondragleave={() => onGroupDragLeave(g)}
+						ondrop={(e) => onGroupDrop(e, g)}
+						role="region"
+						aria-label="Order for {brandName(g.brand_id)} {seasonLabel(g.season_id, g.product_year)}"
+					>
+						<!-- Header: brand · season · (Move menu) | units/total · delete -->
+						<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+							<div class="flex items-center gap-2">
+								<span class="font-semibold">{brandName(g.brand_id)}</span>
+								<span class="text-sm text-muted-foreground">·</span>
+								<span class="text-sm text-muted-foreground">{seasonLabel(g.season_id, g.product_year)}</span>
+								{#if moveTargets.length > 0}
+									<details class="relative ml-1 marker:hidden [&>summary::-webkit-details-marker]:hidden">
+										<summary
+											class="cursor-pointer list-none text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+											aria-label="Move this order to a later season"
+										>
+											Move →
+										</summary>
+										<div class="absolute top-full left-0 z-20 mt-1 min-w-[140px] rounded-md border bg-background py-1 shadow-lg">
+											{#each moveTargets as t (t.season_id)}
+												<button
+													type="button"
+													class="block w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
+													onclick={(e) => {
+														moveGroup(g.brand_id, g.season_id, t.season_id);
+														(e.currentTarget as HTMLElement)
+															.closest('details')
+															?.removeAttribute('open');
+													}}
+												>
+													{t.label}
+												</button>
+											{/each}
+										</div>
+									</details>
+								{/if}
 							</div>
-							<div class="text-sm text-muted-foreground">
-								{g.units} unit{g.units === 1 ? '' : 's'} · {fmt.format(g.total)}
+							<div class="flex items-center gap-3">
+								<div class="text-sm">
+									<span class="text-muted-foreground"
+										>{g.units} unit{g.units === 1 ? '' : 's'} · </span
+									><span class="font-semibold">{fmt.format(g.total)}</span>
+								</div>
+								<button
+									type="button"
+									class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+									aria-label="Delete order"
+									onclick={() => removeGroup(g.brand_id, g.season_id)}
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								</button>
 							</div>
 						</div>
 
-						{#if meta.delivery?.kind === 'custom'}
-							<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-								<div>
-									<Label for={`start-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
-										Start Ship
-									</Label>
-									<Input
+						<!-- Items list — drag each row to another group card -->
+						<div class="mb-4 space-y-2">
+							{#each g.items as it (it.product_id)}
+								<div
+									class="group/item flex cursor-grab items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm transition-opacity {draggingItemId ===
+									it.product_id
+										? 'opacity-40'
+										: ''}"
+									draggable="true"
+									ondragstart={(e) => onItemDragStart(e, it.product_id)}
+									ondragend={onItemDragEnd}
+								>
+									{#if it.image_id}
+										<img
+											src={`/api/products/${it.product_id}/images/${it.image_id}`}
+											alt=""
+											class="h-8 w-8 shrink-0 rounded object-cover"
+										/>
+									{/if}
+									<div class="min-w-0 flex-1">
+										<div class="truncate font-medium">{it.name}</div>
+										<div class="text-muted-foreground">
+											{it.style_number} · {it.selected_color || '—'} · {itemUnits(it)} unit{itemUnits(it) === 1 ? '' : 's'}
+										</div>
+									</div>
+									<button
+										type="button"
+										class="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover/item:opacity-100 focus-visible:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+										aria-label="Remove item"
+										onclick={() => removeProduct(it.product_id)}
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								</div>
+							{/each}
+						</div>
+
+						<!-- Delivery selection: MM / DD / YYYY dropdowns, always visible -->
+						<div class="flex flex-wrap gap-6">
+							<div>
+								<Label for={`start-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
+									Start Ship
+								</Label>
+								<div class="mt-1">
+									<DateSelect
 										id={`start-${groupKey(g.brand_id, g.season_id)}`}
-										type="date"
-										class="mt-1"
-										value={meta.delivery.start_ship_date}
-										oninput={(e) => {
-											const v = (e.target as HTMLInputElement).value;
-											const current = meta.delivery as Extract<typeof meta.delivery, { kind: 'custom' }>;
+										value={customDates.start_ship_date}
+										onchange={(v) =>
 											setMeta(g.brand_id, g.season_id, {
 												delivery: {
 													kind: 'custom',
 													start_ship_date: v,
-													expected_ship_date: current.expected_ship_date
+													expected_ship_date: customDates.expected_ship_date
 												}
-											});
-										}}
+											})}
 									/>
 								</div>
-								<div>
-									<Label for={`end-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
-										Complete Ship
-									</Label>
-									<Input
+							</div>
+							<div>
+								<Label for={`end-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
+									Complete Ship
+								</Label>
+								<div class="mt-1">
+									<DateSelect
 										id={`end-${groupKey(g.brand_id, g.season_id)}`}
-										type="date"
-										class="mt-1"
-										value={meta.delivery.expected_ship_date}
-										oninput={(e) => {
-											const v = (e.target as HTMLInputElement).value;
-											const current = meta.delivery as Extract<typeof meta.delivery, { kind: 'custom' }>;
+										value={customDates.expected_ship_date}
+										onchange={(v) =>
 											setMeta(g.brand_id, g.season_id, {
 												delivery: {
 													kind: 'custom',
-													start_ship_date: current.start_ship_date,
+													start_ship_date: customDates.start_ship_date,
 													expected_ship_date: v
 												}
-											});
-										}}
+											})}
 									/>
 								</div>
 							</div>
-							<button
-								type="button"
-								class="mt-3 text-sm underline hover:no-underline"
-								onclick={() => setMeta(g.brand_id, g.season_id, { delivery: null })}
-							>
-								Use preset options
-							</button>
-						{:else if seasonDeliveries.length > 0}
-							<div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-								{#each seasonDeliveries as d (d.id)}
-									<button
-										type="button"
-										class="rounded border p-3 text-left text-sm transition {meta.delivery?.kind ===
-											'delivery' && meta.delivery.delivery_id === d.id
-											? 'border-foreground bg-muted/30'
-											: 'hover:border-foreground'}"
-										onclick={() => setMeta(g.brand_id, g.season_id, { delivery: { kind: 'delivery', delivery_id: d.id } })}
-									>
-										{deliveryLabelFor(d)}
-									</button>
-								{/each}
-							</div>
-							<button
-								type="button"
-								class="inline-flex items-center gap-1 text-sm underline hover:no-underline"
-								onclick={() =>
-									setMeta(g.brand_id, g.season_id, {
-										delivery: { kind: 'custom', start_ship_date: '', expected_ship_date: '' }
-									})}
-							>
-								<span aria-hidden="true">+</span> Add Custom Dates
-							</button>
-						{:else}
-							<p class="mb-3 text-sm text-muted-foreground">
-								No delivery slots configured for this season.
-							</p>
-							<button
-								type="button"
-								class="inline-flex items-center gap-1 text-sm underline hover:no-underline"
-								onclick={() =>
-									setMeta(g.brand_id, g.season_id, {
-										delivery: { kind: 'custom', start_ship_date: '', expected_ship_date: '' }
-									})}
-							>
-								<span aria-hidden="true">+</span> Add Custom Dates
-							</button>
-						{/if}
+						</div>
+
 					</div>
 				{/each}
+
+				{#if groups.length === 0}
+					<div class="rounded-lg border border-dashed p-12 text-center">
+						<div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-6 w-6 text-muted-foreground">
+								<path d="M3 3h18v4H3zM3 10h18v11H3z" />
+							</svg>
+						</div>
+						<div class="text-base font-semibold">No orders</div>
+						<p class="mt-1 text-sm text-muted-foreground">
+							Go back to Items to add products.
+						</p>
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -901,7 +1228,7 @@
 			<div class="relative mt-1">
 				<Input
 					id="account-input"
-					placeholder="Type to search (e.g. “ml leddys”) or enter a new name"
+					placeholder={'Type to search (e.g. "Elm & Ivory") or enter a new account name'}
 					value={accountQuery}
 					oninput={(e) => {
 						accountQuery = (e.target as HTMLInputElement).value;
@@ -947,21 +1274,6 @@
 				{/if}
 			</div>
 
-			{#if cart.account_id}
-				<div class="mt-3 flex items-center gap-2 rounded border border-foreground/30 bg-muted/30 px-3 py-2 text-sm">
-					<span class="font-semibold">{account?.business_name}</span>
-					<span class="text-muted-foreground">
-						{account ? [account.city, account.state].filter(Boolean).join(', ') : ''}
-					</span>
-					<button type="button" class="ml-auto underline" onclick={clearAccount}>Change</button>
-				</div>
-			{:else if isFreeform}
-				<div class="mt-3 flex items-center gap-2 rounded border border-amber-500/50 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-					<span class="font-semibold">{cart.freeform_name}</span>
-					<span>— freeform (will save as draft)</span>
-					<button type="button" class="ml-auto underline" onclick={clearAccount}>Change</button>
-				</div>
-			{/if}
 		</div>
 	{/if}
 
@@ -1011,12 +1323,7 @@
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div class="sm:col-span-2">
 					<Label for="biz">Business name</Label>
-					<Input
-						id="biz"
-						bind:value={cart.freeformDetails.business_name}
-						class="mt-1"
-						placeholder={cart.freeform_name ?? ''}
-					/>
+					<Input id="biz" bind:value={cart.freeformDetails.business_name} class="mt-1" />
 				</div>
 				<div>
 					<Label for="fn">Contact first name</Label>
@@ -1054,22 +1361,94 @@
 		</div>
 	{/if}
 
-	<!-- ── Review step ────────────────────────────────────────────────── -->
-	{#if stepName === 'Review'}
+	<!-- ── Finalize step ──────────────────────────────────────────────── -->
+	{#if stepName === 'Finalize'}
+		{@const defaultLocation =
+			accountLocations.find((l) => l.is_default) ?? accountLocations[0] ?? null}
+		{@const shipFrom = defaultLocation ?? (account
+			? {
+					label: account.business_name,
+					address_line1: account.address_line1,
+					address_line2: account.address_line2,
+					city: account.city,
+					state: account.state,
+					zip: account.zip
+				}
+			: null)}
+		{@const accountEmail =
+			(defaultLocation?.contact_email ?? account?.contact_email) ?? null}
 		<div class="space-y-4">
-			<div class="rounded-lg border p-4">
-				<div class="text-sm text-muted-foreground">Type</div>
-				<div class="text-lg font-semibold capitalize">{cart.type}</div>
-			</div>
+			<!-- Account -->
 			<div class="rounded-lg border p-4">
 				<div class="text-sm text-muted-foreground">Account</div>
 				<div class="text-lg font-semibold">
 					{account ? account.business_name : (cart.freeform_name ?? '—')}
 				</div>
-				{#if isFreeform}
-					<div class="mt-1 text-sm text-amber-700">Freeform — orders will be saved as drafts.</div>
+				{#if accountEmail}
+					<div class="text-sm text-muted-foreground">{accountEmail}</div>
+				{/if}
+				{#if isFreeform && !hasFreeformDetails}
+					<div class="mt-1 text-sm text-amber-700">
+						No account details — orders will be saved as drafts.
+					</div>
 				{/if}
 			</div>
+
+			<!-- Ship To / Bill To (defaults to the account's default address) -->
+			{#if shipFrom}
+				<div class="grid gap-4 sm:grid-cols-2">
+					<div class="rounded-lg border p-4">
+						<div class="text-sm text-muted-foreground">Ship To</div>
+						<div class="mt-1 font-semibold">{shipFrom.label ?? account?.business_name ?? '—'}</div>
+						{#if shipFrom.address_line1}
+							<div class="text-sm text-muted-foreground">{shipFrom.address_line1}</div>
+						{/if}
+						{#if shipFrom.address_line2}
+							<div class="text-sm text-muted-foreground">{shipFrom.address_line2}</div>
+						{/if}
+						{#if shipFrom.city || shipFrom.state || shipFrom.zip}
+							<div class="text-sm text-muted-foreground">
+								{[shipFrom.city, shipFrom.state].filter(Boolean).join(', ')}
+								{shipFrom.zip ?? ''}
+							</div>
+						{/if}
+					</div>
+					<div class="rounded-lg border p-4">
+						<div class="text-sm text-muted-foreground">Bill To</div>
+						<div class="mt-1 font-semibold">{shipFrom.label ?? account?.business_name ?? '—'}</div>
+						{#if shipFrom.address_line1}
+							<div class="text-sm text-muted-foreground">{shipFrom.address_line1}</div>
+						{/if}
+						{#if shipFrom.address_line2}
+							<div class="text-sm text-muted-foreground">{shipFrom.address_line2}</div>
+						{/if}
+						{#if shipFrom.city || shipFrom.state || shipFrom.zip}
+							<div class="text-sm text-muted-foreground">
+								{[shipFrom.city, shipFrom.state].filter(Boolean).join(', ')}
+								{shipFrom.zip ?? ''}
+							</div>
+						{/if}
+					</div>
+				</div>
+			{/if}
+
+			<!-- Rep -->
+			{#if reps.length > 0}
+				<div class="rounded-lg border p-4">
+					<Label for="rep-select" class="text-sm text-muted-foreground">Rep</Label>
+					<select
+						id="rep-select"
+						class="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
+						bind:value={cart.rep_user_id}
+					>
+						{#each reps as r (r.user_id)}
+							<option value={r.user_id}>{r.name}</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
+
+			<!-- Orders summary -->
 			<div class="rounded-lg border p-4">
 				<div class="mb-2 text-sm text-muted-foreground">
 					{groups.length} order{groups.length === 1 ? '' : 's'} will be created
@@ -1077,9 +1456,6 @@
 				<ul class="divide-y">
 					{#each groups as g (groupKey(g.brand_id, g.season_id))}
 						{@const meta = getMeta(g.brand_id, g.season_id)}
-						{@const loc = meta.location_id
-							? accountLocations.find((x) => x.id === meta.location_id)
-							: null}
 						<li class="py-3">
 							<div class="flex items-center justify-between">
 								<div class="font-medium">
@@ -1090,7 +1466,7 @@
 								</div>
 							</div>
 							<div class="text-sm text-muted-foreground">
-								Ship: {describeDelivery(meta)}{loc ? ` · ${loc.label}` : ''}
+								Ship: {describeDelivery(meta)}
 							</div>
 						</li>
 					{/each}
@@ -1124,25 +1500,40 @@
 						type="submit"
 						variant="outline"
 						disabled={submitting}
-						onclick={() => (submitStatus = 'draft')}
+						onclick={() => {
+							cart.type = 'note';
+							submitStatus = 'submitted';
+						}}
 					>
-						Save as Draft
+						{groups.length > 1 ? 'Save Notes' : 'Save Note'}
 					</Button>
 					<Button
 						type="submit"
-						disabled={submitting || isFreeform}
-						onclick={() => (submitStatus = 'submitted')}
+						disabled={submitting || (isFreeform && !hasFreeformDetails)}
+						onclick={() => {
+							cart.type = 'order';
+							submitStatus = 'submitted';
+						}}
 					>
-						{cart.type === 'note' ? 'Save Note' : 'Submit Order'}
+						{groups.length > 1 ? 'Submit Orders' : 'Submit Order'}
 					</Button>
 				</div>
 			</form>
 		</div>
 	{/if}
 
-	<!-- Bottom nav: Next only (Back moved to top). Type step has no Next (click advances). -->
-	{#if stepName !== 'Review' && stepName !== 'Type'}
-		<div class="mt-8 flex justify-end">
+	<!-- Bottom nav: Next only (Back moved to top). -->
+	{#if stepName !== 'Finalize'}
+		<div class="mt-8 flex items-center justify-end gap-4">
+			{#if stepName === 'Details'}
+				<button
+					type="button"
+					class="text-sm underline hover:no-underline"
+					onclick={nextStep}
+				>
+					Skip
+				</button>
+			{/if}
 			<Button onclick={nextStep} disabled={!canAdvance()}>Next</Button>
 		</div>
 	{/if}
