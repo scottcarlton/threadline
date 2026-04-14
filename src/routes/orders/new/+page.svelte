@@ -874,7 +874,7 @@
 			{:else}
 				<div class="space-y-3">
 					{#each cart.items as it, idx (it.product_id)}
-						<div class="rounded-lg border p-4">
+						<div class="group/item rounded-lg border p-4">
 							<div class="flex items-start gap-3">
 								<div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
 									{#if it.image_id}
@@ -946,7 +946,7 @@
 									</button>
 									<button
 										type="button"
-										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
+										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 focus-visible:opacity-100 hover:bg-red-500/10"
 										onclick={() => removeProduct(it.product_id)}
 									>
 										Remove
@@ -967,7 +967,7 @@
 									/>
 									<button
 										type="button"
-										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
+										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 focus-visible:opacity-100 hover:bg-red-500/10"
 										onclick={() => removeProduct(it.product_id)}
 									>
 										Remove
