@@ -335,15 +335,17 @@
 				<option value={season.id}>{season.name}</option>
 			{/each}
 		</select>
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Brands</option>
-			{#each brands as brand}
-				<option value={brand.id}>{brand.name}</option>
-			{/each}
-		</select>
+		{#if !isBrandOrg}
+			<select
+				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+				onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
+			>
+				<option value="">All Brands</option>
+				{#each brands as brand}
+					<option value={brand.id}>{brand.name}</option>
+				{/each}
+			</select>
+		{/if}
 		{#if isBrandOrg && reps.length > 0}
 			<select
 				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
