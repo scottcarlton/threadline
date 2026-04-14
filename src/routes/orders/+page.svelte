@@ -15,7 +15,7 @@
 	const showDates = $derived(data.showDates ?? []);
 	const reps = $derived((data.reps as { id: string; name: string }[] | undefined) ?? []);
 	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
-	const canCreate = $derived(!isBrandOrg && data.membership?.role !== 'guest');
+	const canCreate = $derived(data.membership?.role !== 'guest');
 	const monthNames = [
 		'Jan',
 		'Feb',
