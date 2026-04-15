@@ -64,17 +64,12 @@ async function handle(request: Request) {
 	const { data, error } = await supabaseAdmin.auth.admin.generateLink({
 		type: linkType,
 		email,
-		...(linkType === 'signup'
-			? { password: `dev-${crypto.randomUUID()}` }
-			: {})
+		...(linkType === 'signup' ? { password: `dev-${crypto.randomUUID()}` } : {})
 	} as Parameters<typeof supabaseAdmin.auth.admin.generateLink>[0]);
 
 	if (error || !data?.properties?.email_otp) {
 		console.error('[dev-otp] generateLink failed:', error, data);
-		return json(
-			{ error: error?.message ?? 'generateLink returned no email_otp' },
-			{ status: 500 }
-		);
+		return json({ error: error?.message ?? 'generateLink returned no email_otp' }, { status: 500 });
 	}
 
 	return json({ otp: data.properties.email_otp });

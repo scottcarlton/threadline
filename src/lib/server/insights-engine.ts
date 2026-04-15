@@ -480,9 +480,7 @@ function brandExpiry(): string {
 // ── Rep going quiet ────────────────────────────────────────────────────────
 // Active connection whose last order (via federation) is older than 30 days.
 
-export async function computeBrandRepQuiet(
-	brandOrgId: string
-): Promise<InsightAction[]> {
+export async function computeBrandRepQuiet(brandOrgId: string): Promise<InsightAction[]> {
 	const reps = await listConnectedReps(supabaseAdmin, brandOrgId);
 	const now = Date.now();
 	const out: InsightAction[] = [];
@@ -557,9 +555,7 @@ export async function computeBrandOrderAwaitingConfirm(
 // style_number. Surface styles with >=50% jump and >=5 units in the latest
 // window.
 
-export async function computeBrandStyleAccelerating(
-	brandOrgId: string
-): Promise<InsightAction[]> {
+export async function computeBrandStyleAccelerating(brandOrgId: string): Promise<InsightAction[]> {
 	const now = new Date();
 	const t14 = new Date(now.getTime() - 14 * 86400000);
 	const t28 = new Date(now.getTime() - 28 * 86400000);
@@ -667,10 +663,7 @@ export async function computeBrandTerritoryOrTopLapsed(
 	});
 
 	const { data: accountRows } = lapsedTop.length
-		? await supabaseAdmin
-				.from('accounts')
-				.select('id, business_name')
-				.in('id', lapsedTop)
+		? await supabaseAdmin.from('accounts').select('id, business_name').in('id', lapsedTop)
 		: { data: [] };
 	const accountNames = new Map(
 		((accountRows ?? []) as Array<{ id: string; business_name: string }>).map((a) => [

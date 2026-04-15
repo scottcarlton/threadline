@@ -31,7 +31,6 @@
 		}
 	}
 
-
 	function getInitials(name: string): string {
 		return name
 			.split(' ')
@@ -241,7 +240,9 @@
 			</div>
 			<p class="mt-2 text-sm text-muted-foreground">
 				Invites from this page join as sales reps. To invite an admin or member, use
-				<a href="/organization/members" class="underline hover:text-foreground">Organization › Members</a>.
+				<a href="/organization/members" class="underline hover:text-foreground"
+					>Organization › Members</a
+				>.
 			</p>
 			{#if inviteError}
 				<p class="mt-3 text-sm text-red-600">{inviteError}</p>
@@ -260,13 +261,18 @@
 					</div>
 					{#if inviteLink}
 						<div class="flex items-center gap-2">
-							<Input readonly value={inviteLink} onclick={(e: Event) => (e.currentTarget as HTMLInputElement).select()} />
+							<Input
+								readonly
+								value={inviteLink}
+								onclick={(e: Event) => (e.currentTarget as HTMLInputElement).select()}
+							/>
 							<Button variant="outline" onclick={copyInviteLink}>
 								{linkCopied ? 'Copied' : 'Copy link'}
 							</Button>
 						</div>
 						<p class="text-sm text-muted-foreground">
-							Link expires in 7 days. Email delivery is coming soon — share this link manually for now.
+							Link expires in 7 days. Email delivery is coming soon — share this link manually for
+							now.
 						</p>
 					{/if}
 				</div>
@@ -288,12 +294,16 @@
 						<div>
 							<p class="text-sm font-medium">{inv.email}</p>
 							<p class="text-sm text-muted-foreground">
-								{roleLabel(inv.role)} &middot; Invited {new Date(inv.created_at).toLocaleDateString()}
+								{roleLabel(inv.role)} &middot; Invited {new Date(
+									inv.created_at
+								).toLocaleDateString()}
 							</p>
 						</div>
 					</div>
 					<div class="flex items-center gap-2">
-						<span class="rounded-full border px-2 py-0.5 text-sm text-muted-foreground">Pending</span>
+						<span class="rounded-full border px-2 py-0.5 text-sm text-muted-foreground"
+							>Pending</span
+						>
 						<Button
 							variant="outline"
 							size="sm"

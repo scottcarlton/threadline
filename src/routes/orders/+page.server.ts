@@ -142,7 +142,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 		// Combine, dedupe by id (a federated order already owned by this org would duplicate),
 		// and re-sort newest first.
-		const orderMap = new Map<string, typeof directOrders[number] | (typeof federatedReshaped)[number]>();
+		const orderMap = new Map<
+			string,
+			(typeof directOrders)[number] | (typeof federatedReshaped)[number]
+		>();
 		for (const o of federatedReshaped) orderMap.set(o.id as string, o);
 		for (const o of directOrders) orderMap.set(o.id as string, o); // direct wins if dup
 		const orders = [...orderMap.values()].sort((a, b) =>

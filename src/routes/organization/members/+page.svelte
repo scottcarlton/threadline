@@ -120,8 +120,7 @@
 	// brand scope is tautological — hide for brand orgs entirely.
 	const isBrandOrg = $derived(data.orgType === 'brand');
 	const showBrandScope = $derived(
-		!isBrandOrg &&
-			(inviteRole === 'member' || inviteRole === 'sales' || inviteRole === 'guest')
+		!isBrandOrg && (inviteRole === 'member' || inviteRole === 'sales' || inviteRole === 'guest')
 	);
 
 	function toggleBrand(brandId: string) {
