@@ -74,9 +74,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				.order('delivery_day'),
 			supabase
 				.from('organization_members')
-				.select(
-					'profile_id, profiles!organization_members_profile_id_fkey(display_name)'
-				)
+				.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
 				.eq('organization_id', organization.id)
 		]);
 
@@ -140,7 +138,9 @@ export const actions: Actions = {
 
 		// Apply group metadata (delivery + location) by (brand_id, season_id) key.
 		for (const g of groups) {
-			const meta = payload.groups.find((m) => m.brand_id === g.brand_id && m.season_id === g.season_id);
+			const meta = payload.groups.find(
+				(m) => m.brand_id === g.brand_id && m.season_id === g.season_id
+			);
 			if (meta) {
 				g.delivery = meta.delivery;
 				g.location_id = meta.location_id;

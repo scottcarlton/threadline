@@ -29,10 +29,7 @@ export async function fetchNotifications() {
 }
 
 export async function markAsRead(id: string) {
-	await supabase
-		.from('notifications')
-		.update({ read_at: new Date().toISOString() })
-		.eq('id', id);
+	await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id);
 	fetchNotifications();
 }
 

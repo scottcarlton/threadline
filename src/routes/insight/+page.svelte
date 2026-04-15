@@ -557,8 +557,9 @@
 					<p class="text-sm text-muted-foreground">Open pipeline</p>
 					<p class="mt-1 text-2xl font-semibold">{fmtMoney.format(bi.pipelineValue)}</p>
 					<p class="mt-0.5 text-sm text-muted-foreground">
-						Across {bi.connectedReps.filter((r) => r.status === 'active').length} connected rep{bi
-							.connectedReps.filter((r) => r.status === 'active').length === 1
+						Across {bi.connectedReps.filter((r) => r.status === 'active').length} connected rep{bi.connectedReps.filter(
+							(r) => r.status === 'active'
+						).length === 1
 							? ''
 							: 's'}
 					</p>
@@ -616,7 +617,10 @@
 									<div>
 										<div class="font-medium">{a.business_name}</div>
 										<div class="text-sm text-muted-foreground">
-											{[a.city, a.state].filter(Boolean).join(', ') || '—'} · {a.order_count} order{a.order_count === 1 ? '' : 's'}
+											{[a.city, a.state].filter(Boolean).join(', ') || '—'} · {a.order_count} order{a.order_count ===
+											1
+												? ''
+												: 's'}
 										</div>
 									</div>
 									<div class="font-mono text-sm">{fmtMoney.format(a.revenue)}</div>
