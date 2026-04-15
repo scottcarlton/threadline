@@ -39,6 +39,7 @@
 	async function sendOtp() {
 		error = '';
 		loading = true;
+
 		const { error: err } = await supabase.auth.signInWithOtp({
 			email: invitation.email,
 			options: { shouldCreateUser: true }
@@ -46,9 +47,9 @@
 		loading = false;
 		if (err) {
 			error = err.message;
-		} else {
-			mode = 'otp-verify';
+			return;
 		}
+		mode = 'otp-verify';
 	}
 
 	async function verifyAndAccept() {
@@ -179,7 +180,7 @@
 					/>
 				</div>
 				<Button size="lg" type="submit" class="w-full" disabled={loading || !otpCode}>
-					{loading ? 'Joining...' : 'Verify & Join'}
+					{loading ? 'Joining...' : 'Verify'}
 				</Button>
 				<div class="flex justify-center gap-4 text-sm">
 					<button

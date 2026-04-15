@@ -102,7 +102,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// Auto-link: suggest accounts by matching email domain
 	const domain = discovered.email.split('@')[1]?.toLowerCase();
 	let suggestedAccounts: { id: string; business_name: string; contact_email: string | null }[] = [];
-	if (domain && !['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com'].includes(domain)) {
+	if (
+		domain &&
+		!['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com'].includes(
+			domain
+		)
+	) {
 		const { data: matches } = await supabase
 			.from('accounts')
 			.select('id, business_name, contact_email')

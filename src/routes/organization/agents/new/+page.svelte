@@ -79,7 +79,9 @@
 
 <div class="max-w-2xl space-y-6">
 	<div class="flex items-center gap-3">
-		<Button variant="ghost" size="sm" href="/organization/agents"><LongArrow direction="left" /> Back</Button>
+		<Button variant="ghost" size="sm" href="/organization/agents"
+			><LongArrow direction="left" /> Back</Button
+		>
 		<h2 class="text-lg font-semibold">New Agent</h2>
 	</div>
 

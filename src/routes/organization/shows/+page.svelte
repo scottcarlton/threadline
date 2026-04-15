@@ -419,9 +419,18 @@
 							<span class="text-muted-foreground">{expandedIds.has(show.id) ? '▾' : '▸'}</span>
 							<span
 								class="cursor-pointer text-base hover:underline"
+								role="button"
+								tabindex="0"
 								onclick={(e) => {
 									e.stopPropagation();
 									openDrawer(show.id);
+								}}
+								onkeydown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										e.stopPropagation();
+										openDrawer(show.id);
+									}
 								}}>{show.name}</span
 							>
 							<span class="font-mono text-sm font-normal text-muted-foreground"

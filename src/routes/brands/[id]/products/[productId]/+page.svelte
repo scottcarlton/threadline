@@ -211,9 +211,13 @@
 <div class="mx-auto max-w-7xl space-y-6">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
-		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"
-			><LongArrow direction="left" /> Products</Button
+		<Button
+			variant="ghost"
+			size="sm"
+			href={data.orgType === 'brand' ? '/products' : `/brands/${brand.id}/products`}
 		>
+			<LongArrow direction="left" /> Products
+		</Button>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				<Button variant="outline" size="sm" onclick={toggleArchive}>
@@ -226,7 +230,9 @@
 
 	<div class="grid gap-6 lg:grid-cols-[420px_1fr]">
 		<!-- Left: primary image -->
-		<div class="aspect-square w-full overflow-hidden rounded-lg border bg-muted lg:sticky lg:top-6 lg:self-start">
+		<div
+			class="aspect-square w-full overflow-hidden rounded-lg border bg-muted lg:sticky lg:top-6 lg:self-start"
+		>
 			{#if primaryImage}
 				<img
 					src={`/api/products/${product.id}/images/${primaryImage.id}`}
@@ -252,416 +258,421 @@
 		</div>
 
 		<!-- Right: details column -->
-		<div class="space-y-6 min-w-0">
-
-	<!-- Name + price banner -->
-	<div class="flex items-center justify-between gap-4">
-		<div>
-			<div class="mb-1 flex items-center gap-2">
-				<span class="font-mono text-sm text-muted-foreground">{product.style_number}</span>
-				<Badge variant={product.archived_at ? 'destructive' : 'success'}>
-					{product.archived_at ? 'Archived' : 'Active'}
-				</Badge>
-			</div>
-			<h2 class="text-xl font-semibold">{product.name}</h2>
-			{#if product.season_id || product.product_year || product.category}
-				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-				{@const seasonYear = [seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
-				<div class="mt-1 flex items-center gap-2">
-					{#if seasonYear}
-						<span class="text-sm text-muted-foreground">{seasonYear}</span>
-					{/if}
-					{#if product.category}
-						<Badge variant="secondary"
-							>{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}</Badge
-						>
-					{/if}
-				</div>
-			{/if}
-		</div>
-		<div class="text-xl font-semibold">{fmt.format(Number(product.wholesale_price))}</div>
-	</div>
-
-	<!-- Style Velocity -->
-	{#if velocity && (velocity.units30d > 0 || velocity.units90d > 0)}
-		<div class="grid gap-4 sm:grid-cols-3">
-			<Card>
-				<CardContent class="pt-4 pb-4">
-					<p class="text-sm font-medium text-muted-foreground">Last 30 Days</p>
-					<p class="mt-1 text-2xl font-semibold">
-						{velocity.units30d} <span class="text-sm font-normal text-muted-foreground">units</span>
-					</p>
-					<p class="mt-0.5 text-sm text-muted-foreground">
-						{velocity.orders30d} account{velocity.orders30d !== 1 ? 's' : ''} · {fmtShort.format(
-							velocity.revenue30d
-						)}
-					</p>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent class="pt-4 pb-4">
-					<p class="text-sm font-medium text-muted-foreground">Last 90 Days</p>
-					<p class="mt-1 text-2xl font-semibold">
-						{velocity.units90d} <span class="text-sm font-normal text-muted-foreground">units</span>
-					</p>
-					<p class="mt-0.5 text-sm text-muted-foreground">
-						{velocity.orders90d} account{velocity.orders90d !== 1 ? 's' : ''} · {fmtShort.format(
-							velocity.revenue90d
-						)}
-					</p>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent class="pt-4 pb-4">
-					<p class="text-sm font-medium text-muted-foreground">Velocity</p>
-					{@const trend =
-						velocity.units30d > 0 && velocity.units90d > 0
-							? velocity.units30d / (velocity.units90d / 3)
-							: 0}
-					<p
-						class="mt-1 text-2xl font-semibold {trend >= 1.2
-							? 'text-emerald-600'
-							: trend <= 0.8
-								? 'text-red-600'
-								: ''}"
-					>
-						{trend > 0 ? `${Math.round(trend * 100)}%` : '—'}
-					</p>
-					<p class="mt-0.5 text-sm text-muted-foreground">
-						{trend >= 1.2
-							? 'Accelerating'
-							: trend <= 0.8
-								? 'Slowing'
-								: trend > 0
-									? 'Steady'
-									: 'No data'}
-					</p>
-				</CardContent>
-			</Card>
-		</div>
-	{/if}
-
-	<!-- Product Details -->
-	{#if editing || product.retail_price || product.description}
-	<Card>
-		<CardContent class="pt-6">
-			{#if saveError}
-				<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-					{saveError}
-				</div>
-			{/if}
-
-			{#if editing}
-				<form
-					id="edit-form"
-					onsubmit={(e) => {
-						e.preventDefault();
-						handleSave();
-					}}
-					class="space-y-4"
-				>
-					<div class="grid gap-4 sm:grid-cols-3">
-						<div class="space-y-2">
-							<Label for="style">Style Number *</Label>
-							<Input id="style" bind:value={editStyle} required />
-						</div>
-						<div class="space-y-2 sm:col-span-2">
-							<Label for="name">Name *</Label>
-							<Input id="name" bind:value={editName} required />
-						</div>
+		<div class="min-w-0 space-y-6">
+			<!-- Name + price banner -->
+			<div class="flex items-center justify-between gap-4">
+				<div>
+					<div class="mb-1 flex items-center gap-2">
+						<span class="font-mono text-sm text-muted-foreground">{product.style_number}</span>
+						<Badge variant={product.archived_at ? 'destructive' : 'success'}>
+							{product.archived_at ? 'Archived' : 'Active'}
+						</Badge>
 					</div>
-					<div class="grid gap-4 sm:grid-cols-3">
-						<div class="space-y-2">
-							<Label for="wholesale">Wholesale</Label>
-							<Input id="wholesale" type="number" step="0.01" bind:value={editWholesale} />
-						</div>
-						<div class="space-y-2">
-							<Label for="retail">Retail</Label>
-							<Input id="retail" type="number" step="0.01" bind:value={editRetail} />
-						</div>
-						<div class="space-y-2">
-							<Label for="category">Category</Label>
-							<Input id="category" bind:value={editCategory} />
-						</div>
-						<div class="space-y-2 sm:col-span-2">
-							<Label for="season">Season</Label>
-							<select
-								id="season"
-								bind:value={editSeasonId}
-								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-							>
-								<option value="">None</option>
-								{#each seasons as season}
-									<option value={season.id}>{season.name}</option>
-								{/each}
-							</select>
-						</div>
-						<div class="space-y-2">
-							<Label for="productYear">Year</Label>
-							<Input
-								id="productYear"
-								type="number"
-								min="2000"
-								max="2100"
-								bind:value={editProductYear}
-							/>
-						</div>
-					</div>
-					<div class="space-y-2">
-						<Label for="desc">Description</Label>
-						<textarea
-							id="desc"
-							bind:value={editDescription}
-							rows="3"
-							class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-						></textarea>
-					</div>
-				</form>
-			{:else}
-				<dl class="space-y-3 text-sm">
-					{#if product.retail_price}
-						<div class="flex justify-between">
-							<dt class="text-muted-foreground">Retail</dt>
-							<dd>{fmt.format(Number(product.retail_price))}</dd>
-						</div>
-					{/if}
-					{#if product.description}
-						<div>
-							<dt class="text-muted-foreground">Description</dt>
-							<dd class="mt-1 whitespace-pre-wrap">{product.description}</dd>
-						</div>
-					{/if}
-				</dl>
-			{/if}
-		</CardContent>
-		{#if editing}
-			<CardFooter class="justify-between">
-				<Button variant="outline" onclick={() => (editing = false)}>Cancel</Button>
-				<Button type="submit" form="edit-form" disabled={saving}
-					>{saving ? 'Saving...' : 'Save'}</Button
-				>
-			</CardFooter>
-		{/if}
-	</Card>
-	{/if}
-
-	<!-- Variants -->
-	<Card>
-		<CardHeader>
-			<div class="flex items-center justify-between">
-				<CardTitle class="text-base">Variants ({product.product_variants?.length ?? 0})</CardTitle>
-				{#if canEdit && !addingVariants}
-					<Button variant="outline" size="sm" onclick={() => (addingVariants = true)}
-						>Add Variants</Button
-					>
-				{/if}
-			</div>
-		</CardHeader>
-		<CardContent>
-			{#if addingVariants}
-				<div class="mb-4 space-y-4 rounded-none border border-dashed p-4">
-					<!-- Color / Print -->
-					<div class="space-y-2">
-						<p class="text-sm font-medium">Color or Print</p>
-						<p class="text-sm text-muted-foreground">
-							Solid colors, prints, or patterns (e.g. Navy, Leopard, Floral Stripe)
-						</p>
-						<div class="flex items-center gap-3">
-							<input
-								type="color"
-								bind:value={newColorHex}
-								class="h-9 w-9 shrink-0 cursor-pointer rounded border-0 p-0"
-								title="Pick a swatch color (optional)"
-							/>
-							<Input
-								bind:value={newColor}
-								placeholder="e.g. Navy, Leopard Print, Floral"
-								class="flex-1"
-							/>
-						</div>
-					</div>
-
-					<!-- Sizes -->
-					<div class="space-y-2">
-						<p class="text-sm font-medium">Sizes</p>
-						<div class="mb-2 flex w-fit gap-1 rounded-lg bg-muted p-1">
-							<button
-								class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode ===
-								'letter'
-									? 'bg-background text-foreground shadow-sm'
-									: 'text-muted-foreground'}"
-								onclick={() => (sizeMode = 'letter')}>Letter</button
-							>
-							<button
-								class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode ===
-								'number'
-									? 'bg-background text-foreground shadow-sm'
-									: 'text-muted-foreground'}"
-								onclick={() => (sizeMode = 'number')}>Numeric</button
-							>
-						</div>
-						<div class="flex flex-wrap gap-2">
-							{#each sizeMode === 'letter' ? commonSizes : numberedSizes as size}
-								<button
-									class="flex h-9 w-11 items-center justify-center rounded-lg border-2 text-sm font-medium transition-all {selectedNewSizes.has(
-										size
-									)
-										? 'border-primary bg-primary/10 text-primary'
-										: 'border-muted text-muted-foreground hover:border-foreground/20'}"
-									onclick={() => toggleNewSize(size)}
-								>
-									{size}
-								</button>
-							{/each}
-							<div class="flex items-center gap-1">
-								<input
-									type="text"
-									bind:value={customSize}
-									placeholder="Custom"
-									class="h-9 w-20 rounded-lg border-2 border-dashed border-muted bg-background px-2 text-center text-sm focus:border-primary focus:outline-none"
-									onkeydown={(e) => {
-										if (e.key === 'Enter') addCustomSize();
-									}}
-								/>
-								{#if customSize.trim()}
-									<button class="text-xs text-primary" onclick={addCustomSize}>Add</button>
-								{/if}
-							</div>
-						</div>
-					</div>
-
-					{#if newColor.trim() && selectedNewSizes.size > 0}
-						<p class="text-sm text-muted-foreground">
-							This will create <span class="font-medium text-foreground"
-								>{selectedNewSizes.size}</span
-							>
-							variant{selectedNewSizes.size > 1 ? 's' : ''} for {newColor.trim()}
-						</p>
-					{/if}
-
-					<div class="flex gap-2">
-						<Button
-							size="sm"
-							onclick={addSizeRun}
-							disabled={savingVariants || (!newColor.trim() && selectedNewSizes.size === 0)}
-						>
-							{savingVariants ? 'Adding...' : 'Add Variants'}
-						</Button>
-						<Button variant="outline" size="sm" onclick={() => (addingVariants = false)}
-							>Cancel</Button
-						>
-					</div>
-				</div>
-			{/if}
-
-			{#if (product.product_variants?.length ?? 0) === 0 && !addingVariants}
-				<p class="text-sm text-muted-foreground">No variants. Add color/size combinations.</p>
-			{:else}
-				<div class="space-y-2">
-					{#each product.product_variants ?? [] as variant}
-						<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
-							<div class="flex items-center gap-4 text-sm">
-								{#if variant.color}
-									<span class="font-medium">{variant.color}</span>
-								{/if}
-								{#if variant.size}
-									<span class="rounded border px-2 py-0.5 text-xs font-medium">{variant.size}</span>
-								{/if}
-								{#if !variant.color && !variant.size}
-									<span class="text-muted-foreground">Default</span>
-								{/if}
-								{#if variant.sku}
-									<span class="text-xs text-muted-foreground">SKU: {variant.sku}</span>
-								{/if}
-								{#if variant.price_override}
-									<span class="text-xs text-muted-foreground"
-										>{fmt.format(Number(variant.price_override))}</span
-									>
-								{/if}
-							</div>
-							{#if canEdit}
-								<button
-									class="text-xs text-muted-foreground transition-colors hover:text-destructive"
-									onclick={() => removeVariant(variant.id)}>Remove</button
+					<h2 class="text-xl font-semibold">{product.name}</h2>
+					{#if product.season_id || product.product_year || product.category}
+						{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+						{@const seasonYear = [seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+						<div class="mt-1 flex items-center gap-2">
+							{#if seasonYear}
+								<span class="text-sm text-muted-foreground">{seasonYear}</span>
+							{/if}
+							{#if product.category}
+								<Badge variant="secondary"
+									>{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}</Badge
 								>
 							{/if}
 						</div>
-					{/each}
+					{/if}
+				</div>
+				<div class="text-xl font-semibold">{fmt.format(Number(product.wholesale_price))}</div>
+			</div>
+
+			<!-- Style Velocity -->
+			{#if velocity && (velocity.units30d > 0 || velocity.units90d > 0)}
+				<div class="grid gap-4 sm:grid-cols-3">
+					<Card>
+						<CardContent class="pt-4 pb-4">
+							<p class="text-sm font-medium text-muted-foreground">Last 30 Days</p>
+							<p class="mt-1 text-2xl font-semibold">
+								{velocity.units30d}
+								<span class="text-sm font-normal text-muted-foreground">units</span>
+							</p>
+							<p class="mt-0.5 text-sm text-muted-foreground">
+								{velocity.orders30d} account{velocity.orders30d !== 1 ? 's' : ''} · {fmtShort.format(
+									velocity.revenue30d
+								)}
+							</p>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent class="pt-4 pb-4">
+							<p class="text-sm font-medium text-muted-foreground">Last 90 Days</p>
+							<p class="mt-1 text-2xl font-semibold">
+								{velocity.units90d}
+								<span class="text-sm font-normal text-muted-foreground">units</span>
+							</p>
+							<p class="mt-0.5 text-sm text-muted-foreground">
+								{velocity.orders90d} account{velocity.orders90d !== 1 ? 's' : ''} · {fmtShort.format(
+									velocity.revenue90d
+								)}
+							</p>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent class="pt-4 pb-4">
+							<p class="text-sm font-medium text-muted-foreground">Velocity</p>
+							{@const trend =
+								velocity.units30d > 0 && velocity.units90d > 0
+									? velocity.units30d / (velocity.units90d / 3)
+									: 0}
+							<p
+								class="mt-1 text-2xl font-semibold {trend >= 1.2
+									? 'text-emerald-600'
+									: trend <= 0.8
+										? 'text-red-600'
+										: ''}"
+							>
+								{trend > 0 ? `${Math.round(trend * 100)}%` : '—'}
+							</p>
+							<p class="mt-0.5 text-sm text-muted-foreground">
+								{trend >= 1.2
+									? 'Accelerating'
+									: trend <= 0.8
+										? 'Slowing'
+										: trend > 0
+											? 'Steady'
+											: 'No data'}
+							</p>
+						</CardContent>
+					</Card>
 				</div>
 			{/if}
-		</CardContent>
-	</Card>
 
-	<!-- Images -->
-	<Card>
-		<CardHeader>
-			<div class="flex items-center justify-between">
-				<CardTitle class="text-base">Images ({product.product_images?.length ?? 0})</CardTitle>
-				{#if canEdit}
-					<div>
-						<input
-							type="file"
-							accept="image/*"
-							bind:this={fileInput}
-							onchange={handleImageUpload}
-							class="hidden"
-						/>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={() => fileInput?.click()}
-							disabled={uploading}
-						>
-							{uploading ? 'Uploading...' : 'Upload Image'}
-						</Button>
-					</div>
-				{/if}
-			</div>
-		</CardHeader>
-		<CardContent>
-			{#if (product.product_images?.length ?? 0) === 0}
-				<p class="text-sm text-muted-foreground">No images yet.</p>
-			{:else}
-				<div class="grid grid-cols-3 gap-3">
-					{#each (product.product_images ?? []).sort((a, b) => a.sort_order - b.sort_order) as image}
-						<div
-							class="group relative aspect-square overflow-hidden rounded-lg border {image.is_primary
-								? 'ring-2 ring-primary'
-								: ''}"
-						>
-							<img
-								src="/api/products/{product.id}/images/{image.id}"
-								alt="Product"
-								class="h-full w-full object-cover"
-							/>
-							{#if image.is_primary}
-								<span
-									class="absolute top-2 left-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground"
-									>Primary</span
-								>
-							{/if}
-							{#if canEdit}
-								<div
-									class="absolute inset-0 flex items-end justify-center gap-2 bg-black/0 pb-2 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100"
-								>
-									{#if !image.is_primary}
-										<button
-											class="rounded bg-white/90 px-2 py-1 text-[11px] font-medium text-zinc-900"
-											onclick={() => setPrimaryImage(image.id)}>Set Primary</button
+			<!-- Product Details -->
+			{#if editing || product.retail_price || product.description}
+				<Card>
+					<CardContent class="pt-6">
+						{#if saveError}
+							<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+								{saveError}
+							</div>
+						{/if}
+
+						{#if editing}
+							<form
+								id="edit-form"
+								onsubmit={(e) => {
+									e.preventDefault();
+									handleSave();
+								}}
+								class="space-y-4"
+							>
+								<div class="grid gap-4 sm:grid-cols-3">
+									<div class="space-y-2">
+										<Label for="style">Style Number *</Label>
+										<Input id="style" bind:value={editStyle} required />
+									</div>
+									<div class="space-y-2 sm:col-span-2">
+										<Label for="name">Name *</Label>
+										<Input id="name" bind:value={editName} required />
+									</div>
+								</div>
+								<div class="grid gap-4 sm:grid-cols-3">
+									<div class="space-y-2">
+										<Label for="wholesale">Wholesale</Label>
+										<Input id="wholesale" type="number" step="0.01" bind:value={editWholesale} />
+									</div>
+									<div class="space-y-2">
+										<Label for="retail">Retail</Label>
+										<Input id="retail" type="number" step="0.01" bind:value={editRetail} />
+									</div>
+									<div class="space-y-2">
+										<Label for="category">Category</Label>
+										<Input id="category" bind:value={editCategory} />
+									</div>
+									<div class="space-y-2 sm:col-span-2">
+										<Label for="season">Season</Label>
+										<select
+											id="season"
+											bind:value={editSeasonId}
+											class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 										>
-									{/if}
+											<option value="">None</option>
+											{#each seasons as season}
+												<option value={season.id}>{season.name}</option>
+											{/each}
+										</select>
+									</div>
+									<div class="space-y-2">
+										<Label for="productYear">Year</Label>
+										<Input
+											id="productYear"
+											type="number"
+											min="2000"
+											max="2100"
+											bind:value={editProductYear}
+										/>
+									</div>
+								</div>
+								<div class="space-y-2">
+									<Label for="desc">Description</Label>
+									<textarea
+										id="desc"
+										bind:value={editDescription}
+										rows="3"
+										class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+									></textarea>
+								</div>
+							</form>
+						{:else}
+							<dl class="space-y-3 text-sm">
+								{#if product.retail_price}
+									<div class="flex justify-between">
+										<dt class="text-muted-foreground">Retail</dt>
+										<dd>{fmt.format(Number(product.retail_price))}</dd>
+									</div>
+								{/if}
+								{#if product.description}
+									<div>
+										<dt class="text-muted-foreground">Description</dt>
+										<dd class="mt-1 whitespace-pre-wrap">{product.description}</dd>
+									</div>
+								{/if}
+							</dl>
+						{/if}
+					</CardContent>
+					{#if editing}
+						<CardFooter class="justify-between">
+							<Button variant="outline" onclick={() => (editing = false)}>Cancel</Button>
+							<Button type="submit" form="edit-form" disabled={saving}
+								>{saving ? 'Saving...' : 'Save'}</Button
+							>
+						</CardFooter>
+					{/if}
+				</Card>
+			{/if}
+
+			<!-- Variants -->
+			<Card>
+				<CardHeader>
+					<div class="flex items-center justify-between">
+						<CardTitle class="text-base"
+							>Variants ({product.product_variants?.length ?? 0})</CardTitle
+						>
+						{#if canEdit && !addingVariants}
+							<Button variant="outline" size="sm" onclick={() => (addingVariants = true)}
+								>Add Variants</Button
+							>
+						{/if}
+					</div>
+				</CardHeader>
+				<CardContent>
+					{#if addingVariants}
+						<div class="mb-4 space-y-4 rounded-none border border-dashed p-4">
+							<!-- Color / Print -->
+							<div class="space-y-2">
+								<p class="text-sm font-medium">Color or Print</p>
+								<p class="text-sm text-muted-foreground">
+									Solid colors, prints, or patterns (e.g. Navy, Leopard, Floral Stripe)
+								</p>
+								<div class="flex items-center gap-3">
+									<input
+										type="color"
+										bind:value={newColorHex}
+										class="h-9 w-9 shrink-0 cursor-pointer rounded border-0 p-0"
+										title="Pick a swatch color (optional)"
+									/>
+									<Input
+										bind:value={newColor}
+										placeholder="e.g. Navy, Leopard Print, Floral"
+										class="flex-1"
+									/>
+								</div>
+							</div>
+
+							<!-- Sizes -->
+							<div class="space-y-2">
+								<p class="text-sm font-medium">Sizes</p>
+								<div class="mb-2 flex w-fit gap-1 rounded-lg bg-muted p-1">
 									<button
-										class="rounded bg-red-500/90 px-2 py-1 text-[11px] font-medium text-white"
-										onclick={() => deleteImage(image.id)}>Delete</button
+										class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode ===
+										'letter'
+											? 'bg-background text-foreground shadow-sm'
+											: 'text-muted-foreground'}"
+										onclick={() => (sizeMode = 'letter')}>Letter</button
+									>
+									<button
+										class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode ===
+										'number'
+											? 'bg-background text-foreground shadow-sm'
+											: 'text-muted-foreground'}"
+										onclick={() => (sizeMode = 'number')}>Numeric</button
 									>
 								</div>
+								<div class="flex flex-wrap gap-2">
+									{#each sizeMode === 'letter' ? commonSizes : numberedSizes as size}
+										<button
+											class="flex h-9 w-11 items-center justify-center rounded-lg border-2 text-sm font-medium transition-all {selectedNewSizes.has(
+												size
+											)
+												? 'border-primary bg-primary/10 text-primary'
+												: 'border-muted text-muted-foreground hover:border-foreground/20'}"
+											onclick={() => toggleNewSize(size)}
+										>
+											{size}
+										</button>
+									{/each}
+									<div class="flex items-center gap-1">
+										<input
+											type="text"
+											bind:value={customSize}
+											placeholder="Custom"
+											class="h-9 w-20 rounded-lg border-2 border-dashed border-muted bg-background px-2 text-center text-sm focus:border-primary focus:outline-none"
+											onkeydown={(e) => {
+												if (e.key === 'Enter') addCustomSize();
+											}}
+										/>
+										{#if customSize.trim()}
+											<button class="text-xs text-primary" onclick={addCustomSize}>Add</button>
+										{/if}
+									</div>
+								</div>
+							</div>
+
+							{#if newColor.trim() && selectedNewSizes.size > 0}
+								<p class="text-sm text-muted-foreground">
+									This will create <span class="font-medium text-foreground"
+										>{selectedNewSizes.size}</span
+									>
+									variant{selectedNewSizes.size > 1 ? 's' : ''} for {newColor.trim()}
+								</p>
 							{/if}
+
+							<div class="flex gap-2">
+								<Button
+									size="sm"
+									onclick={addSizeRun}
+									disabled={savingVariants || (!newColor.trim() && selectedNewSizes.size === 0)}
+								>
+									{savingVariants ? 'Adding...' : 'Add Variants'}
+								</Button>
+								<Button variant="outline" size="sm" onclick={() => (addingVariants = false)}
+									>Cancel</Button
+								>
+							</div>
 						</div>
-					{/each}
-				</div>
-			{/if}
-		</CardContent>
-	</Card>
+					{/if}
+
+					{#if (product.product_variants?.length ?? 0) === 0 && !addingVariants}
+						<p class="text-sm text-muted-foreground">No variants. Add color/size combinations.</p>
+					{:else}
+						<div class="space-y-2">
+							{#each product.product_variants ?? [] as variant}
+								<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
+									<div class="flex items-center gap-4 text-sm">
+										{#if variant.color}
+											<span class="font-medium">{variant.color}</span>
+										{/if}
+										{#if variant.size}
+											<span class="rounded border px-2 py-0.5 text-xs font-medium"
+												>{variant.size}</span
+											>
+										{/if}
+										{#if !variant.color && !variant.size}
+											<span class="text-muted-foreground">Default</span>
+										{/if}
+										{#if variant.sku}
+											<span class="text-xs text-muted-foreground">SKU: {variant.sku}</span>
+										{/if}
+										{#if variant.price_override}
+											<span class="text-xs text-muted-foreground"
+												>{fmt.format(Number(variant.price_override))}</span
+											>
+										{/if}
+									</div>
+									{#if canEdit}
+										<button
+											class="text-xs text-muted-foreground transition-colors hover:text-destructive"
+											onclick={() => removeVariant(variant.id)}>Remove</button
+										>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
+
+			<!-- Images -->
+			<Card>
+				<CardHeader>
+					<div class="flex items-center justify-between">
+						<CardTitle class="text-base">Images ({product.product_images?.length ?? 0})</CardTitle>
+						{#if canEdit}
+							<div>
+								<input
+									type="file"
+									accept="image/*"
+									bind:this={fileInput}
+									onchange={handleImageUpload}
+									class="hidden"
+								/>
+								<Button
+									variant="outline"
+									size="sm"
+									onclick={() => fileInput?.click()}
+									disabled={uploading}
+								>
+									{uploading ? 'Uploading...' : 'Upload Image'}
+								</Button>
+							</div>
+						{/if}
+					</div>
+				</CardHeader>
+				<CardContent>
+					{#if (product.product_images?.length ?? 0) === 0}
+						<p class="text-sm text-muted-foreground">No images yet.</p>
+					{:else}
+						<div class="grid grid-cols-3 gap-3">
+							{#each (product.product_images ?? []).sort((a, b) => a.sort_order - b.sort_order) as image}
+								<div
+									class="group relative aspect-square overflow-hidden rounded-lg border {image.is_primary
+										? 'ring-2 ring-primary'
+										: ''}"
+								>
+									<img
+										src="/api/products/{product.id}/images/{image.id}"
+										alt="Product"
+										class="h-full w-full object-cover"
+									/>
+									{#if image.is_primary}
+										<span
+											class="absolute top-2 left-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground"
+											>Primary</span
+										>
+									{/if}
+									{#if canEdit}
+										<div
+											class="absolute inset-0 flex items-end justify-center gap-2 bg-black/0 pb-2 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100"
+										>
+											{#if !image.is_primary}
+												<button
+													class="rounded bg-white/90 px-2 py-1 text-[11px] font-medium text-zinc-900"
+													onclick={() => setPrimaryImage(image.id)}>Set Primary</button
+												>
+											{/if}
+											<button
+												class="rounded bg-red-500/90 px-2 py-1 text-[11px] font-medium text-white"
+												onclick={() => deleteImage(image.id)}>Delete</button
+											>
+										</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
 		</div>
 	</div>
 </div>

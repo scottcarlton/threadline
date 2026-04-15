@@ -65,6 +65,8 @@
 		(data.accountTags ?? {}) as Record<string, { id: string; name: string; color: string }[]>
 	);
 	const canEdit = $derived(data.membership?.role !== 'guest');
+	// Brand-level sales reps shouldn't export org-wide data.
+	const canExport = $derived(!(data.orgType === 'brand' && data.membership?.role === 'sales'));
 
 	const tagColorMap: Record<string, string> = {
 		amber: 'bg-amber-50 text-amber-700',
@@ -146,7 +148,7 @@
 			<p class="mt-1 font-mono text-sm text-muted-foreground">Manage buyer accounts</p>
 		</div>
 		<div class="flex items-center gap-2">
-			{#if filtered.length > 0}
+			{#if filtered.length > 0 && canExport}
 				<Button variant="outline" size="sm" onclick={exportAccounts}>Export</Button>
 			{/if}
 			{#if canEdit}

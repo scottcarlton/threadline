@@ -28,6 +28,7 @@
 	async function sendOtp() {
 		error = '';
 		loading = true;
+
 		const { error: err } = await supabase.auth.signInWithOtp({
 			email,
 			options: { shouldCreateUser: true }
