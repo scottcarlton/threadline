@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 
 	const isAuthenticated = $derived(!!$page.data.session);
@@ -21,26 +22,28 @@
 				? 'w-[calc(100vw-96px)] px-6 shadow-sm'
 				: 'w-[calc(100vw-96px)] px-0'}"
 		>
-			<a class="text-2xl font-semibold tracking-tight text-foreground" href="/">/Threadline</a>
+			<a class="text-2xl font-semibold tracking-tight text-foreground" href={resolve('/')}
+				>/Threadline</a
+			>
 
 			<div class="flex items-center justify-center gap-8 font-mono">
 				<a
-					href="/features"
+					href={resolve('/features')}
 					class="px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
 					>Features</a
 				>
 				<a
-					href="/intelligence"
+					href={resolve('/intelligence')}
 					class="px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
 					>Intelligence</a
 				>
 				<a
-					href="/solutions"
+					href={resolve('/solutions')}
 					class="px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
 					>Solutions</a
 				>
 				<a
-					href="/pricing"
+					href={resolve('/pricing')}
 					class="px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
 					>Pricing</a
 				>
@@ -50,14 +53,16 @@
 				{#if isAuthenticated}
 					<a
 						class="bg-foreground px-5 py-2.5 text-sm font-medium text-primary-foreground"
-						href="/insight">Insight</a
+						href={resolve('/insight')}>Insight</a
 					>
 				{:else}
-					<a href="/login" class="hidden text-sm transition-colors hover:text-foreground sm:block"
-						>Log In</a
+					<a
+						href={resolve('/login')}
+						class="hidden text-sm transition-colors hover:text-foreground sm:block">Log In</a
 					>
-					<a class="bg-foreground px-5 py-2.5 text-sm text-primary-foreground" href="/signup"
-						>Early Access</a
+					<a
+						class="bg-foreground px-5 py-2.5 text-sm text-primary-foreground"
+						href={resolve('/signup')}>Early Access</a
 					>
 				{/if}
 			</div>

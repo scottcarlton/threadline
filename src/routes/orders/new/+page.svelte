@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -443,7 +444,7 @@
 	}
 
 	function handleCancel() {
-		goto('/orders');
+		goto(resolve('/orders'));
 	}
 
 	// Brand filter ↔ combobox

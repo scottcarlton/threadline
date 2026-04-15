@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -95,7 +96,7 @@
 				});
 			}
 			loading = false;
-			goto(`/expenses/${expense.id}`);
+			goto(resolve(`/expenses/${expense.id}`));
 		}
 	}
 </script>

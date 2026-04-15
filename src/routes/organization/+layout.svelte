@@ -1,27 +1,36 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
 	import { cn } from '$lib/utils.js';
 
 	let { children, data } = $props();
 	const navItems = $derived([
-		{ label: 'Profile', href: '/organization' },
-		{ label: 'Members', href: '/organization/members', badge: (data.teamCount as number) ?? 0 },
+		{ label: 'Profile', href: '/organization' as const },
+		{
+			label: 'Members',
+			href: '/organization/members' as const,
+			badge: (data.teamCount as number) ?? 0
+		},
 		{
 			label: 'Contacts',
-			href: '/organization/contacts',
+			href: '/organization/contacts' as const,
 			badge: (data.contactsCount as number) ?? 0
 		},
-		{ label: 'Shows', href: '/organization/shows', badge: (data.showsCount as number) ?? 0 },
-		{ label: 'Seasons', href: '/organization/seasons' },
+		{
+			label: 'Shows',
+			href: '/organization/shows' as const,
+			badge: (data.showsCount as number) ?? 0
+		},
+		{ label: 'Seasons', href: '/organization/seasons' as const },
 		{
 			label: 'Territories',
-			href: '/organization/territories',
+			href: '/organization/territories' as const,
 			badge: (data.territoriesCount as number) ?? 0
 		},
-		{ label: 'Billing', href: '/organization/billing' },
-		{ label: 'Agents (AI)', href: '/organization/agents' },
-		{ label: 'Integrations', href: '/organization/integrations' },
-		{ label: 'Security', href: '/organization/security' }
+		{ label: 'Billing', href: '/organization/billing' as const },
+		{ label: 'Agents (AI)', href: '/organization/agents' as const },
+		{ label: 'Integrations', href: '/organization/integrations' as const },
+		{ label: 'Security', href: '/organization/security' as const }
 	]);
 
 	function isActive(href: string): boolean {
@@ -62,7 +71,7 @@
 					{#each navItems as item (item.href)}
 						<li>
 							<a
-								href={item.href}
+								href={resolve(item.href)}
 								class={cn(
 									'flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors',
 									isActive(item.href)

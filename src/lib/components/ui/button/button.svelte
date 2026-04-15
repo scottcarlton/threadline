@@ -29,6 +29,7 @@
 </script>
 
 {#if href}
+	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- generic Button accepts any href; callers resolve() their own paths -->
 	<a {href} class={cn(buttonVariants({ variant, size }), className)} {...restProps}>
 		{@render children?.()}
 	</a>

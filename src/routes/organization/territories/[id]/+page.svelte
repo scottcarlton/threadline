@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -101,7 +102,7 @@
 			.update({ territory_id: null, updated_at: new Date().toISOString() })
 			.eq('territory_id', territory.id);
 		await supabase.from('territories').delete().eq('id', territory.id);
-		goto('/organization/territories');
+		goto(resolve('/organization/territories'));
 	}
 </script>
 
@@ -166,8 +167,9 @@
 						<dt class="text-muted-foreground">Assigned Rep</dt>
 						<dd class="font-medium">
 							{#if assignedMember}
-								<a href="/organization/members?member={assignedMember.id}" class="hover:underline"
-									>{assignedMember.profiles?.display_name ?? 'Unknown'}</a
+								<a
+									href={resolve(`/organization/members?member=${assignedMember.id}`)}
+									class="hover:underline">{assignedMember.profiles?.display_name ?? 'Unknown'}</a
 								>
 							{:else}
 								<span class="text-muted-foreground">Unassigned</span>
@@ -229,8 +231,9 @@
 					{#each accounts as account (account.id)}
 						<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
 							<div>
-								<a href="/accounts/{account.id}" class="text-sm font-medium hover:underline"
-									>{account.business_name}</a
+								<a
+									href={resolve(`/accounts/${account.id}`)}
+									class="text-sm font-medium hover:underline">{account.business_name}</a
 								>
 								{#if account.city || account.state}
 									<p class="text-sm text-muted-foreground">

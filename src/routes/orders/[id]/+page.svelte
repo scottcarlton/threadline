@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -537,7 +538,7 @@
 			const res = await fetch(`/api/orders/${order.id}/clone`, { method: 'POST' });
 			if (res.ok) {
 				const { id } = await res.json();
-				goto(`/orders/${id}`);
+				goto(resolve(`/orders/${id}`));
 			}
 		} finally {
 			cloning = false;
@@ -822,7 +823,7 @@
 					<div>
 						<dt class="text-xs text-muted-foreground">Account</dt>
 						<dd class="mt-0.5">
-							<a href="/accounts/{order.account_id}" class="hover:underline"
+							<a href={resolve(`/accounts/${order.account_id}`)} class="hover:underline"
 								>{order.accounts?.business_name}</a
 							>
 						</dd>
@@ -852,7 +853,9 @@
 						<div>
 							<dt class="text-xs text-muted-foreground">Brand</dt>
 							<dd class="mt-0.5">
-								<a href="/brands/{order.brand_id}" class="hover:underline">{order.brands?.name}</a>
+								<a href={resolve(`/brands/${order.brand_id}`)} class="hover:underline"
+									>{order.brands?.name}</a
+								>
 							</dd>
 						</div>
 					{/if}
@@ -1138,7 +1141,6 @@
 									</td>
 									<td class="px-3 py-2 text-sm">{line.color ?? '—'}</td>
 									<td class="px-3 py-2 text-sm">{line.size ?? '—'}</td>
-									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 									<td
 										class="px-3 py-2 text-right text-sm {!editMode &&
 										canEdit &&

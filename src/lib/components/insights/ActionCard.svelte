@@ -2,6 +2,7 @@
 	import { Card } from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	type Action = {
 		label: string;
@@ -143,7 +144,7 @@
 		if (action.onclick) {
 			action.onclick();
 		} else if (action.href) {
-			goto(action.href);
+			goto(resolve(action.href as '/orders'));
 		} else if (action.prompt) {
 			// Open AI assistant with the prompt
 			const event = new CustomEvent('assistant-prompt', { detail: action.prompt, bubbles: true });

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -96,7 +97,7 @@
 
 	async function handleDelete() {
 		await supabase.from('org_agents').delete().eq('id', agent.id);
-		goto('/organization/agents');
+		goto(resolve('/organization/agents'));
 	}
 
 	async function handleAddTrigger() {

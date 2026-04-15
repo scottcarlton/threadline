@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { fetchUpcomingCount } from '$lib/stores/appointments.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -141,7 +142,8 @@
 		} else {
 			url.searchParams.delete('show_date');
 		}
-		goto(url.toString(), { replaceState: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic same-page URL rebuild
+		goto(`${resolve('/appointments')}${url.search}`, { replaceState: true });
 	}
 
 	function resetForm() {

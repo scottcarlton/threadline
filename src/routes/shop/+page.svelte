@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
@@ -26,7 +27,12 @@
 		} else {
 			url.searchParams.delete('brand');
 		}
-		goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic same-page URL rebuild
+		goto(`${resolve('/shop')}${url.search}`, {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	const filtered = $derived(
@@ -152,7 +158,7 @@
 					<div
 						class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md"
 					>
-						<a href="/shop/{product.id}" class="block">
+						<a href={resolve(`/shop/${product.id}`)} class="block">
 							<div class="aspect-[4/3] overflow-hidden rounded-t-xl bg-muted">
 								{#if primaryImage}
 									<img

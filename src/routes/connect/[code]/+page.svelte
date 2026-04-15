@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 
@@ -76,7 +77,7 @@
 						{data.brand?.name ?? 'The brand'} will review and approve your connection. You'll be notified
 						when it goes live.
 					</p>
-					<Button class="mt-4" onclick={() => goto('/settings/connections')}
+					<Button class="mt-4" onclick={() => goto(resolve('/settings/connections'))}
 						>Go to Connections</Button
 					>
 				</div>

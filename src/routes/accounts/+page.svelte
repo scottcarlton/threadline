@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -230,7 +231,7 @@
 							class="transition-colors hover:bg-muted/30 {account.archived_at ? 'opacity-50' : ''}"
 						>
 							<td class="px-4 py-3">
-								<a href="/accounts/{account.id}" class="text-base hover:underline"
+								<a href={resolve(`/accounts/${account.id}`)} class="text-base hover:underline"
 									>{account.business_name}</a
 								>
 								<div class="mt-0.5 flex items-center gap-1.5">

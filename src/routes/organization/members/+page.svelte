@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll, goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { supabase } from '$lib/supabase.js';
 	import { cn } from '$lib/utils.js';
@@ -235,7 +236,12 @@
 		const url = new URL($page.url);
 		if (url.searchParams.has('member')) {
 			url.searchParams.delete('member');
-			goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic same-page URL rebuild
+			goto(`${resolve('/organization/members')}${url.search}`, {
+				replaceState: true,
+				keepFocus: true,
+				noScroll: true
+			});
 		}
 		// Reset flag after a tick so the effect doesn't reopen
 		setTimeout(() => {
@@ -254,7 +260,12 @@
 
 		const url = new URL($page.url);
 		url.searchParams.set('member', memberId);
-		goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic same-page URL rebuild
+		goto(`${resolve('/organization/members')}${url.search}`, {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 
 		const [memberRes, commissionsRes, brandAccessRes, territoriesRes] = await Promise.all([
 			supabase
@@ -687,7 +698,7 @@
 							{#each drawerTerritories as territory (territory.id)}
 								<div class="flex items-center rounded-lg border px-3 py-2">
 									<a
-										href="/organization/territories/{territory.id}"
+										href={resolve(`/organization/territories/${territory.id}`)}
 										class="text-sm font-medium hover:underline">{territory.name}</a
 									>
 								</div>

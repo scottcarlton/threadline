@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
 </script>
@@ -36,7 +37,7 @@
 								<p class="text-foreground/60">For individual reps getting started.</p>
 							</div>
 							<a
-								href="/signup"
+								href={resolve('/signup')}
 								class="inline-flex justify-center bg-white px-5 py-3 text-sm font-medium text-primary"
 								>Get Started</a
 							>
@@ -58,7 +59,7 @@
 								<p class="text-primary-foreground/60">For serious reps who want the edge.</p>
 							</div>
 							<a
-								href="/signup"
+								href={resolve('/signup')}
 								class="inline-flex justify-center bg-white px-5 py-3 text-sm font-medium text-primary"
 								>Start Free Trial</a
 							>
@@ -83,7 +84,7 @@
 								<p class="text-foreground/60">For showrooms and sales agencies.</p>
 							</div>
 							<a
-								href="/signup"
+								href={resolve('/signup')}
 								class="inline-flex justify-center bg-primary px-5 py-3 text-sm font-medium text-primary-foreground"
 								>Contact Sales</a
 							>

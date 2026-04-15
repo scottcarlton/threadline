@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { conversation } from '$lib/stores/conversation.js';
 
 	type SearchResult = {
@@ -59,7 +60,7 @@
 			keys: ['⌘', 'O'],
 			action: () => {
 				closeDialog();
-				goto('/orders/new');
+				goto(resolve('/orders/new'));
 			}
 		},
 		{
@@ -69,7 +70,7 @@
 			keys: ['⌘', 'A'],
 			action: () => {
 				closeDialog();
-				goto('/accounts/new');
+				goto(resolve('/accounts/new'));
 			}
 		},
 		{
@@ -79,7 +80,7 @@
 			keys: ['⌘', 'B'],
 			action: () => {
 				closeDialog();
-				goto('/brands/new');
+				goto(resolve('/brands/new'));
 			}
 		},
 		{
@@ -89,7 +90,7 @@
 			keys: ['Shift', '⌘', 'A'],
 			action: () => {
 				closeDialog();
-				goto('/appointments?new=true');
+				goto(resolve('/appointments?new=true'));
 			}
 		}
 	];
@@ -102,7 +103,7 @@
 			keys: ['O'],
 			action: () => {
 				closeDialog();
-				goto('/orders');
+				goto(resolve('/orders'));
 			}
 		},
 		{
@@ -112,7 +113,7 @@
 			keys: ['A'],
 			action: () => {
 				closeDialog();
-				goto('/accounts');
+				goto(resolve('/accounts'));
 			}
 		},
 		{
@@ -122,7 +123,7 @@
 			keys: ['B'],
 			action: () => {
 				closeDialog();
-				goto('/brands');
+				goto(resolve('/brands'));
 			}
 		},
 		{
@@ -132,7 +133,7 @@
 			keys: ['Shift', 'I'],
 			action: () => {
 				closeDialog();
-				goto('/inbox');
+				goto(resolve('/inbox'));
 			}
 		},
 		{
@@ -142,7 +143,7 @@
 			keys: ['Shift', 'A'],
 			action: () => {
 				closeDialog();
-				goto('/appointments');
+				goto(resolve('/appointments'));
 			}
 		},
 		{
@@ -152,7 +153,7 @@
 			keys: ['R'],
 			action: () => {
 				closeDialog();
-				goto('/reports');
+				goto(resolve('/reports'));
 			}
 		},
 		{
@@ -161,7 +162,7 @@
 			icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
 			action: () => {
 				closeDialog();
-				goto('/settings');
+				goto(resolve('/settings'));
 			}
 		}
 	];
@@ -215,7 +216,7 @@
 				icon: 'plus',
 				action: () => {
 					closeDialog();
-					goto(`/orders?brand=${brandId}`);
+					goto(resolve(`/orders?brand=${brandId}` as '/orders'));
 				}
 			});
 		}
@@ -304,9 +305,13 @@
 		closeDialog();
 		if (result.type === 'contact') {
 			if (result.parentType) {
-				goto(`/organization/contacts/${result.parentType}-${result.id}`);
+				goto(
+					resolve(
+						`/organization/contacts/${result.parentType}-${result.id}` as '/organization/contacts'
+					)
+				);
 			} else {
-				goto(`/organization/contacts/${result.id}`);
+				goto(resolve(`/organization/contacts/${result.id}` as '/organization/contacts'));
 			}
 		} else {
 			const paths: Record<string, string> = {
@@ -314,7 +319,7 @@
 				account: `/accounts/${result.id}`,
 				order: `/orders/${result.id}`
 			};
-			goto(paths[result.type]);
+			goto(resolve(paths[result.type] as '/orders'));
 		}
 	}
 

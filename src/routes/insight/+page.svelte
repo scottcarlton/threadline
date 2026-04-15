@@ -15,6 +15,7 @@
 	} from '$lib/components/ui/tooltip/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { conversation } from '$lib/stores/conversation.js';
 	import ActionFeed from '$lib/components/insights/ActionFeed.svelte';
@@ -41,7 +42,8 @@
 			if (res.ok) {
 				// Reload page data
 				const url = new URL($page.url);
-				goto(url.toString(), { invalidateAll: true });
+				// eslint-disable-next-line svelte/no-navigation-without-resolve
+				goto(`${resolve('/insight')}${url.search}`, { invalidateAll: true });
 			}
 		} finally {
 			isRefreshing = false;
@@ -211,7 +213,8 @@
 		} else {
 			url.searchParams.delete('show_date');
 		}
-		goto(url.toString(), { replaceState: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 	}
 
 	// ── Delivery tab (existing) ─────────────────────────────────────────
@@ -350,7 +353,8 @@
 		} else {
 			url.searchParams.delete('year');
 		}
-		goto(url.toString(), { replaceState: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 	}
 
 	function deliveryLabel(month: number, day: number): string {
@@ -442,7 +446,8 @@
 		} else {
 			url.searchParams.delete(param);
 		}
-		goto(url.toString(), { replaceState: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 	}
 
 	function exportCommissionCSV() {
@@ -908,7 +913,7 @@
 						</div>
 						{#if !cl.hasBrands}
 							<a
-								href="/brands/new"
+								href={resolve('/brands/new')}
 								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 								>Add</a
 							>
@@ -947,7 +952,7 @@
 						</div>
 						{#if !cl.hasProducts && cl.hasBrands && cl.firstBrandId}
 							<a
-								href="/brands/{cl.firstBrandId}/products/new"
+								href={resolve(`/brands/${cl.firstBrandId}/products/new`)}
 								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 								>Add</a
 							>
@@ -990,7 +995,7 @@
 						</div>
 						{#if !cl.hasAccounts}
 							<a
-								href="/accounts/new"
+								href={resolve('/accounts/new')}
 								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 								>Add</a
 							>
@@ -1027,7 +1032,7 @@
 						</div>
 						{#if !cl.hasOrders && cl.hasBrands && cl.hasAccounts}
 							<a
-								href="/orders/new"
+								href={resolve('/orders/new')}
 								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 								>Create</a
 							>
@@ -1114,7 +1119,8 @@
 								onclick={() => {
 									const url = new URL($page.url);
 									url.searchParams.set('velocity_window', String(days));
-									goto(url.toString(), { replaceState: true });
+									// eslint-disable-next-line svelte/no-navigation-without-resolve
+									goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 								}}
 							>
 								{days}d
@@ -1270,7 +1276,8 @@
 											onclick={() => {
 												const url = new URL($page.url);
 												url.searchParams.set('show_date', sd.id);
-												goto(url.toString(), { replaceState: true });
+												// eslint-disable-next-line svelte/no-navigation-without-resolve
+												goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 											}}
 										>
 											<td class="px-4 py-3">

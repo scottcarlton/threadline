@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -248,7 +249,7 @@
 			}
 
 			cart.clearCart();
-			goto('/orders');
+			goto(resolve('/orders'));
 		} catch {
 			error = 'Something went wrong. Please try again.';
 			submitting = false;
@@ -258,7 +259,7 @@
 
 <div class="mx-auto max-w-6xl space-y-6">
 	<a
-		href="/shop/cart"
+		href={resolve('/shop/cart')}
 		class="inline-flex items-center gap-1.5 text-base text-muted-foreground transition-colors hover:text-foreground"
 	>
 		<svg

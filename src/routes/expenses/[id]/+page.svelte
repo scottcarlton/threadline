@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -188,7 +189,7 @@
 		}
 
 		await supabase.from('brand_expenses').delete().eq('id', expense.id);
-		goto('/expenses');
+		goto(resolve('/expenses'));
 	}
 
 	async function handleFiles(files: File[]) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -250,7 +251,7 @@
 			Back
 		</button>
 	{/if}
-	<a href="/signup" class="text-muted-foreground hover:text-foreground">
+	<a href={resolve('/signup')} class="text-muted-foreground hover:text-foreground">
 		Don't have an account? Sign up
 	</a>
 </div>

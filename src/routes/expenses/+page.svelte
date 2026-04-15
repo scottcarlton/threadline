@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -97,7 +98,7 @@
 		} else {
 			params.set(key, value);
 		}
-		goto(`/expenses?${params.toString()}`, { replaceState: true });
+		goto(resolve(`/expenses?${params.toString()}`), { replaceState: true });
 	}
 </script>
 
@@ -276,7 +277,7 @@
 						<tr class="transition-colors hover:bg-muted/30">
 							<td class="w-48 px-4 py-3 whitespace-nowrap">
 								<a
-									href="/expenses/{expense.id}"
+									href={resolve(`/expenses/${expense.id}`)}
 									class="font-mono text-base font-medium hover:underline"
 									>{expense.expense_number}</a
 								>

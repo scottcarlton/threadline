@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -252,7 +253,7 @@
 			<a
 				href={brand.website}
 				target="_blank"
-				rel="noopener noreferrer"
+				rel="external noopener noreferrer"
 				class="text-sm text-muted-foreground hover:text-foreground hover:underline"
 			>
 				{brand.website}
@@ -319,7 +320,7 @@
 					<div class="space-y-2">
 						{#each performance.topAccounts as acct, i (acct.id)}
 							<a
-								href="/accounts/{acct.id}"
+								href={resolve(`/accounts/${acct.id}`)}
 								class="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-muted/50"
 							>
 								<div class="flex items-center gap-3">
@@ -465,7 +466,10 @@
 			<!-- Products -->
 			<Card>
 				<CardContent class="pt-5 pb-5">
-					<a href="/brands/{brand.id}/products" class="group flex items-center justify-between">
+					<a
+						href={resolve(`/brands/${brand.id}/products`)}
+						class="group flex items-center justify-between"
+					>
 						<div class="flex items-center gap-3">
 							<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
 								<svg
@@ -509,7 +513,10 @@
 			<!-- Expenses -->
 			<Card>
 				<CardContent class="pt-5 pb-5">
-					<a href="/expenses?brand={brand.id}" class="group flex items-center justify-between">
+					<a
+						href={resolve(`/expenses?brand=${brand.id}`)}
+						class="group flex items-center justify-between"
+					>
 						<div class="flex items-center gap-3">
 							<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
 								<svg

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+
 	const reports = [
 		{
 			id: 'sales-by-brand',
@@ -54,7 +56,7 @@
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 		{#each reports as report (report.id)}
 			<a
-				href="/reports/{report.id}"
+				href={resolve(`/reports/${report.id}`)}
 				class="group flex items-start gap-4 rounded-none border bg-card p-5 transition-all duration-200 hover:border-foreground/20 hover:shadow-md"
 			>
 				<div

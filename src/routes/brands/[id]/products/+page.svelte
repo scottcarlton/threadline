@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -402,7 +403,7 @@
 				{@const primaryImage =
 					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 				<a
-					href="/brands/{brand.id}/products/{product.id}"
+					href={resolve(`/brands/${brand.id}/products/${product.id}`)}
 					class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md {product.archived_at
 						? 'opacity-50'
 						: ''}"
