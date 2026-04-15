@@ -142,9 +142,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const yearRowList = (yearRows ?? []) as Array<{ order_year: number | null }>;
 	const availableYears: number[] = [
 		...new Set(
-			yearRowList
-				.map((r) => r.order_year)
-				.filter((y: number | null): y is number => y !== null)
+			yearRowList.map((r) => r.order_year).filter((y: number | null): y is number => y !== null)
 		)
 	];
 
@@ -751,9 +749,10 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 		}
 		territoryRevenue.set(row.territories.id, e);
 	}
-	const topTerritory = [...territoryRevenue.values()]
-		.filter((t) => t.hasActive)
-		.sort((a, b) => b.revenue - a.revenue)[0] ?? null;
+	const topTerritory =
+		[...territoryRevenue.values()]
+			.filter((t) => t.hasActive)
+			.sort((a, b) => b.revenue - a.revenue)[0] ?? null;
 	const territoryGaps = [...territoryRevenue.values()]
 		.filter((t) => !t.hasActive)
 		.map((t) => ({ name: t.name }));
@@ -780,9 +779,10 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 			styleAgg.set(l.style_number, e);
 		}
 	}
-	const styleLeader = [...styleAgg.entries()]
-		.map(([style_number, v]) => ({ style_number, name: v.name, units: v.units }))
-		.sort((a, b) => b.units - a.units)[0] ?? null;
+	const styleLeader =
+		[...styleAgg.entries()]
+			.map(([style_number, v]) => ({ style_number, name: v.name, units: v.units }))
+			.sort((a, b) => b.units - a.units)[0] ?? null;
 
 	// ── Scoreboard (5 tiles, matching rep shape) ──────────────────────────────
 	const fmtMoney = (n: number) =>
@@ -792,8 +792,7 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 			label: 'Active Reps (30d)',
 			value: `${repsActive30d.length}/${activeReps.length}`,
 			change: null,
-			detail:
-				repsQuiet30d.length > 0 ? `${repsQuiet30d.length} quiet` : 'All writing this month'
+			detail: repsQuiet30d.length > 0 ? `${repsQuiet30d.length} quiet` : 'All writing this month'
 		},
 		{
 			label: 'Incoming 30d',

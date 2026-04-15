@@ -29,22 +29,21 @@
 		if (reduced) return;
 
 		document.querySelectorAll<HTMLElement>('.h-reveal').forEach((el, i) => {
-			animate(
-				el,
-				{ opacity: [0, 1], y: [60, 0] } as Parameters<typeof animate>[1],
-				{ duration: 0.9, delay: 0.1 + i * 0.12, ease }
-			);
+			animate(el, { opacity: [0, 1], y: [60, 0] } as Parameters<typeof animate>[1], {
+				duration: 0.9,
+				delay: 0.1 + i * 0.12,
+				ease
+			});
 		});
 
 		document.querySelectorAll<HTMLElement>('.reveal').forEach((el) => {
 			inView(
 				el,
 				() => {
-					animate(
-						el,
-						{ opacity: [0, 1], y: [40, 0] } as Parameters<typeof animate>[1],
-						{ duration: 0.8, ease }
-					);
+					animate(el, { opacity: [0, 1], y: [40, 0] } as Parameters<typeof animate>[1], {
+						duration: 0.8,
+						ease
+					});
 				},
 				{ amount: 0.15 }
 			);
@@ -55,11 +54,11 @@
 				p,
 				() => {
 					p.querySelectorAll<HTMLElement>('[data-s]').forEach((c, i) => {
-						animate(
-							c,
-							{ opacity: [0, 1], y: [30, 0] } as Parameters<typeof animate>[1],
-							{ duration: 0.6, delay: i * 0.08, ease }
-						);
+						animate(c, { opacity: [0, 1], y: [30, 0] } as Parameters<typeof animate>[1], {
+							duration: 0.6,
+							delay: i * 0.08,
+							ease
+						});
 					});
 				},
 				{ amount: 0.1 }

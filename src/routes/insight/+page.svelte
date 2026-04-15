@@ -511,7 +511,12 @@
 		currency: 'USD',
 		maximumFractionDigits: 0
 	})}
-	{@const checklistDone = [cl?.hasProducts, cl?.hasConnectedRep, cl?.hasOrder, cl?.hasTeammates].filter(Boolean).length}
+	{@const checklistDone = [
+		cl?.hasProducts,
+		cl?.hasConnectedRep,
+		cl?.hasOrder,
+		cl?.hasTeammates
+	].filter(Boolean).length}
 	<div class="space-y-8">
 		<header>
 			<h1 class="text-3xl">Insight</h1>
@@ -688,9 +693,7 @@
 							</CardHeader>
 							<CardContent>
 								{#if bb.territoryGaps.length === 0}
-									<p class="text-sm text-muted-foreground">
-										All territories have recent activity.
-									</p>
+									<p class="text-sm text-muted-foreground">All territories have recent activity.</p>
 								{:else}
 									<div class="flex flex-wrap gap-2">
 										{#each bb.territoryGaps as t (t.name)}
@@ -710,9 +713,7 @@
 							</CardHeader>
 							<CardContent>
 								{#if bb.repsActive30d.length === 0}
-									<p class="text-sm text-muted-foreground">
-										No rep activity in the last 30 days.
-									</p>
+									<p class="text-sm text-muted-foreground">No rep activity in the last 30 days.</p>
 								{:else}
 									<ul class="divide-y">
 										{#each bb.repsActive30d as r (r.connection_id)}

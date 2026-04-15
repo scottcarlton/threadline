@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		supabase
 			.from('orders')
 			.select(
-				'*, brands(name, commission_rate), accounts(business_name, contact_email), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name))'
+				'*, brands(name, commission_rate), accounts(business_name, contact_email), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name)), account_locations!location_id(label, address_line1, address_line2, city, state, zip)'
 			)
 			.eq('id', params.id)
 			.single(),
@@ -61,9 +61,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		// quirks. Admin read is safe here.
 		supabaseAdmin
 			.from('order_comments')
-			.select(
-				'*, profiles:author_id(display_name), source_org:source_org_id(id, name)'
-			)
+			.select('*, profiles:author_id(display_name), source_org:source_org_id(id, name)')
 			.eq('order_id', params.id)
 			.order('created_at', { ascending: true }),
 		supabaseAdmin

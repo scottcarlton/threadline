@@ -21,14 +21,17 @@
 **Layout:** Full-bleed hero with background image/visual. Two-column: headline left (1.5fr), CTA + subtext right (1fr).
 
 **Headline:**
+
 > Turn every signal into a sale.
 
 **CTA Button:** `Early Access →` (links to `/early-access`)
 
 **Supporting text:**
+
 > Most wholesale platforms digitize the old way of working. Threadline replaces it — with intelligence that sees what your reps miss, and agents that act before you ask.
 
 **Alt headline options (for A/B or discussion):**
+
 - "Your reps are missing signals. Threadline isn't."
 - "The wholesale platform that works while you sleep."
 - "Intelligence that arrives before your first coffee."
@@ -42,18 +45,19 @@
 **Mono label:** `About Threadline`
 
 **Positioning statement:**
+
 > An agentic-first systems company helping multi-brand sales representatives and brands find gaps and turn signals into sales.
 
 **Stats row (4 columns):**
 
-| Label | Value |
-|---|---|
-| Increase in sales productivity with agentic AI automation | 40% |
-| Boost in sales ROI for companies using AI-driven tools | 10-20% |
-| Reduction in manual workloads through agentic task automation | 60% |
-| Average revenue increase reported by companies adopting agentic AI | 6-10% |
+| Label                                                              | Value  |
+| ------------------------------------------------------------------ | ------ |
+| Increase in sales productivity with agentic AI automation          | 40%    |
+| Boost in sales ROI for companies using AI-driven tools             | 10-20% |
+| Reduction in manual workloads through agentic task automation      | 60%    |
+| Average revenue increase reported by companies adopting agentic AI | 6-10%  |
 
-*Sources: McKinsey; industry survey data on agentic AI adoption, 2025*
+_Sources: McKinsey; industry survey data on agentic AI adoption, 2025_
 
 > **Note:** These are industry-sourced figures.
 
@@ -66,23 +70,28 @@
 **Mono label:** `What We Feature`
 
 **Section headline:**
+
 > The intelligence layer wholesale has been missing.
 
 **Product image area:** Replace placeholder with hero dashboard screenshot showing real data (orders, insights, account health). This is the single most important visual on the site.
 
 **Card 1 — Cross-brand intelligence**
+
 > **See what no single platform can.**
 > Stitches surfaces patterns across your entire brand portfolio — buyer behavior, territory gaps, and revenue signals that only emerge when you connect the dots between brands.
 
 **Card 2 — Decisions, not dashboards**
+
 > **Know what to do next.**
 > Other tools show what happened. Threadline tells you what's missing — under-penetrated accounts, overdue reorders, and brands that should be selling together but aren't.
 
 **Card 3 — Real-time signals**
+
 > **Act before the window closes.**
 > Reorder recommendations, churn risk alerts, and buyer engagement signals arrive as they happen — not in a report you'll read next week.
 
 **Card 4 — Autonomous agents**
+
 > **Work that happens without you.**
 > Built-in agents handle commission tracking, order follow-ups, and buyer alerts. Custom agents let you automate the signals only you would think to watch for.
 
@@ -95,18 +104,23 @@
 **Mono label:** `How We Work`
 
 **Section headline:**
+
 > Four layers that turn data into decisions.
 
 **Card 1 — Gaps**
+
 > Every portfolio has blind spots — accounts going quiet, brands underperforming in a territory, reorders that should have happened weeks ago. Threadline finds these gaps before they cost you.
 
 **Card 2 — Stitches**
+
 > Our AI engine connects signals across brands, accounts, and territories into a living picture of your business. Insights arrive in plain English, before you think to ask.
 
 **Card 3 — Workers**
+
 > Agents that handle the work you shouldn't be doing manually — commission reconciliation, order status updates, buyer follow-ups. Custom Workers let you build automations around the patterns only you care about.
 
 **Card 4 — Orchestration**
+
 > Stop reacting. Start directing. Threadline coordinates across your entire book of business so you focus on relationships and strategy — not spreadsheets and status checks.
 
 **Center image:** Product screenshot or branded illustration showing the Connect → Learn → Act flow.
@@ -120,6 +134,7 @@
 **Mono label:** `Early Access`
 
 **Section headline:**
+
 > Trusted by independent reps and agencies managing $10M+ in wholesale volume.
 
 **Content options (use whichever is available first):**
@@ -127,10 +142,12 @@
 **Option A — Logo wall:** Display founding user org logos (once available). Even 4-6 logos adds credibility.
 
 **Option B — Pull quote:**
+
 > "We were using three different platforms and a spreadsheet to track commissions. Threadline replaced all of it in a week."
-> — *[Name], [Title], [Agency]*
+> — _[Name], [Title], [Agency]_
 
 **Option C — Metrics (if no testimonials yet):**
+
 - X brands connected in Early Access
 - X orders processed
 - X insights generated
@@ -178,12 +195,15 @@ A: Never. Brand data is completely siloed. Stitches generates cross-brand insigh
 **Layout:** Centered text block with image grid below (keep existing bento grid of screenshots).
 
 **Headline:**
+
 > Start selling smarter today.
 
 **Supporting text:**
+
 > Threadline is building the intelligence layer wholesale has been missing. Join Early Access and be the first to see what AI-powered wholesale looks like.
 
 **CTA buttons:**
+
 - Primary: `Join Early Access` → `/early-access`
 - Secondary: `View Pricing` → `/pricing`
 
@@ -192,16 +212,17 @@ A: Never. Brand data is completely siloed. Stitches generates cross-brand insigh
 ## FOOTER
 
 **Mission statement (replaces current placeholder):**
+
 > Building intelligent systems for the people who move goods.
 
 **Footer links:**
 
-| Column 1: Product | Column 2: Solutions | Column 3: Resources | Column 4: Legal |
-|---|---|---|---|
-| Features | Independent Reps | Blog (Coming Soon) | Terms of Service |
-| Intelligence | Showroom Owners | Help Center (Coming Soon) | Privacy Policy |
-| Pricing | Sales Agencies | Contact | Security |
-| | Brands | | |
+| Column 1: Product | Column 2: Solutions | Column 3: Resources       | Column 4: Legal  |
+| ----------------- | ------------------- | ------------------------- | ---------------- |
+| Features          | Independent Reps    | Blog (Coming Soon)        | Terms of Service |
+| Intelligence      | Showroom Owners     | Help Center (Coming Soon) | Privacy Policy   |
+| Pricing           | Sales Agencies      | Contact                   | Security         |
+|                   | Brands              |                           |                  |
 
 **Social links:** LinkedIn, Twitter/X, Instagram (add once profiles are created)
 
@@ -215,38 +236,47 @@ A: Never. Brand data is completely siloed. Stitches generates cross-brand insigh
 
 ```html
 <title>Threadline — AI-Powered Wholesale Intelligence Platform</title>
-<meta name="description" content="Turn every signal into a sale. Threadline is the AI-powered wholesale platform that finds the gaps your reps miss — with cross-brand intelligence, autonomous agents, and commission automation built for multi-brand sales teams.">
+<meta
+	name="description"
+	content="Turn every signal into a sale. Threadline is the AI-powered wholesale platform that finds the gaps your reps miss — with cross-brand intelligence, autonomous agents, and commission automation built for multi-brand sales teams."
+/>
 
 <!-- Open Graph -->
-<meta property="og:title" content="Threadline — Turn Every Signal Into a Sale">
-<meta property="og:description" content="AI-powered wholesale intelligence for multi-brand sales reps, showroom owners, and agencies. Cross-brand insights, autonomous agents, and commission automation.">
-<meta property="og:image" content="https://threadline.systems/og-home.png">
-<meta property="og:url" content="https://threadline.systems">
-<meta property="og:type" content="website">
+<meta property="og:title" content="Threadline — Turn Every Signal Into a Sale" />
+<meta
+	property="og:description"
+	content="AI-powered wholesale intelligence for multi-brand sales reps, showroom owners, and agencies. Cross-brand insights, autonomous agents, and commission automation."
+/>
+<meta property="og:image" content="https://threadline.systems/og-home.png" />
+<meta property="og:url" content="https://threadline.systems" />
+<meta property="og:type" content="website" />
 
 <!-- Twitter Card -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Threadline — Turn Every Signal Into a Sale">
-<meta name="twitter:description" content="The wholesale intelligence platform that sees what your reps miss.">
-<meta name="twitter:image" content="https://threadline.systems/og-home.png">
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Threadline — Turn Every Signal Into a Sale" />
+<meta
+	name="twitter:description"
+	content="The wholesale intelligence platform that sees what your reps miss."
+/>
+<meta name="twitter:image" content="https://threadline.systems/og-home.png" />
 ```
 
 ---
 
 ## Changes from Current Homepage
 
-| Section | Current | Proposed | Rationale |
-|---|---|---|---|
-| Hero headline | "START WORKING IN THE AGE OF AI" | "Turn every signal into a sale." | More specific to wholesale. Current headline is generic/could be any AI company. |
-| Hero subtext | "Most wholesale tools aren't truly smart..." | "Most wholesale platforms digitize the old way..." | Minor — changed "tools" → "platforms" for consistency |
-| Stats | Generic percentages (40%, 20%, 60%, 10%) | Threadline-specific metrics (3x, $42K, 80%, <1hr) | Specific > generic. Unattributed round percentages undermine credibility. |
-| Feature section headline | "Reliable Ways to Move Goods Using Modern Infrastructure And Intelligent Systems" | "The intelligence layer wholesale has been missing." | Shorter, punchier, more memorable. Current reads like a mission statement, not a headline. |
-| Feature cards | Good copy, keep spirit | Refined — more specific outcomes per card | Tighten language, lead with "what you get" not "what it is" |
-| Social proof | None | New section with logos/testimonials/metrics | Critical for conversion. Add once available, omit until then. |
-| Footer mission | "Our mission is to protect service members and civilians with intelligent systems." | "Building intelligent systems for the people who move goods." | Current text is from a different product/template. Must be replaced. |
-| CTA language | "Early Access" | "Join Early Access" | More action-oriented |
-| SEO | No meta tags | Full OG, Twitter, meta description | Required for any marketing site |
+| Section                  | Current                                                                             | Proposed                                                      | Rationale                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Hero headline            | "START WORKING IN THE AGE OF AI"                                                    | "Turn every signal into a sale."                              | More specific to wholesale. Current headline is generic/could be any AI company.           |
+| Hero subtext             | "Most wholesale tools aren't truly smart..."                                        | "Most wholesale platforms digitize the old way..."            | Minor — changed "tools" → "platforms" for consistency                                      |
+| Stats                    | Generic percentages (40%, 20%, 60%, 10%)                                            | Threadline-specific metrics (3x, $42K, 80%, <1hr)             | Specific > generic. Unattributed round percentages undermine credibility.                  |
+| Feature section headline | "Reliable Ways to Move Goods Using Modern Infrastructure And Intelligent Systems"   | "The intelligence layer wholesale has been missing."          | Shorter, punchier, more memorable. Current reads like a mission statement, not a headline. |
+| Feature cards            | Good copy, keep spirit                                                              | Refined — more specific outcomes per card                     | Tighten language, lead with "what you get" not "what it is"                                |
+| Social proof             | None                                                                                | New section with logos/testimonials/metrics                   | Critical for conversion. Add once available, omit until then.                              |
+| Footer mission           | "Our mission is to protect service members and civilians with intelligent systems." | "Building intelligent systems for the people who move goods." | Current text is from a different product/template. Must be replaced.                       |
+| CTA language             | "Early Access"                                                                      | "Join Early Access"                                           | More action-oriented                                                                       |
+| SEO                      | No meta tags                                                                        | Full OG, Twitter, meta description                            | Required for any marketing site                                                            |
 
 ---
 
-*This is a content draft for review. Once approved, implement in the existing SvelteKit page structure preserving the current design system (corner brackets, mono labels, Motion animations).*
+_This is a content draft for review. Once approved, implement in the existing SvelteKit page structure preserving the current design system (corner brackets, mono labels, Motion animations)._

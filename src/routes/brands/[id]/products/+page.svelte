@@ -198,7 +198,9 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/brands/{brand.id}"><LongArrow direction="left" /> {brand.name}</Button>
+			<Button variant="ghost" size="sm" href="/brands/{brand.id}"
+				><LongArrow direction="left" /> {brand.name}</Button
+			>
 			<h1 class="text-3xl">Products</h1>
 			<span class="text-sm text-muted-foreground"
 				>{filtered.length} product{filtered.length !== 1 ? 's' : ''}</span

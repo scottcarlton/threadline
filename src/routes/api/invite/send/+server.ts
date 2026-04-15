@@ -1,9 +1,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { sendEmail } from '$lib/server/email.js';
+import { invite as inviteTemplate } from '$lib/server/email-templates.js';
 import crypto from 'crypto';
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, url }) => {
 	const { membership, organization } = locals;
 
 	if (!membership || !['admin', 'owner'].includes(membership.role)) {
@@ -88,19 +90,56 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const expiresAt = new Date();
 	expiresAt.setDate(expiresAt.getDate() + 7);
 
-	const { error: insertError } = await supabaseAdmin.from('invitations').insert({
-		organization_id: organization.id,
-		email,
-		role,
-		brand_ids: scopedBrandIds,
-		token,
-		invited_by: membership.profile_id,
-		expires_at: expiresAt.toISOString()
-	});
+	const { data: inserted, error: insertError } = await supabaseAdmin
+		.from('invitations')
+		.insert({
+			organization_id: organization.id,
+			email,
+			role,
+			brand_ids: scopedBrandIds,
+			token,
+			invited_by: membership.profile_id,
+			expires_at: expiresAt.toISOString()
+		})
+		.select('id')
+		.single();
 
 	if (insertError) {
 		return json({ error: insertError.message }, { status: 500 });
 	}
 
-	return json({ success: true, token, inviteUrl: `/invite/${token}` });
+	const { data: inviter } = await supabaseAdmin
+		.from('profiles')
+		.select('display_name')
+		.eq('id', membership.profile_id)
+		.single();
+
+	const { data: inviterAuth } = await supabaseAdmin.auth.admin.getUserById(membership.profile_id);
+	const inviterEmail = inviterAuth?.user?.email;
+	const inviterName = inviter?.display_name || inviterEmail || 'A teammate';
+	const acceptUrl = `${url.origin}/invite/${token}`;
+
+	const tpl = inviteTemplate({
+		inviterName,
+		organizationName: organization.name,
+		acceptUrl
+	});
+
+	const emailResult = await sendEmail({
+		to: email,
+		...tpl,
+		replyTo: inviterEmail,
+		template: 'invite',
+		relatedType: 'invitation',
+		relatedId: inserted?.id,
+		profileId: membership.profile_id,
+		organizationId: organization.id
+	});
+
+	return json({
+		success: true,
+		token,
+		inviteUrl: `/invite/${token}`,
+		emailSent: emailResult.ok
+	});
 };

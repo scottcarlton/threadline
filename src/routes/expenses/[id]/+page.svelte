@@ -280,9 +280,7 @@
 <div class="space-y-6">
 	<!-- Action bar -->
 	<div class="flex items-center justify-between">
-		<Button variant="ghost" size="sm" href="/expenses"
-			><LongArrow direction="left" /> Back</Button
-		>
+		<Button variant="ghost" size="sm" href="/expenses"><LongArrow direction="left" /> Back</Button>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				{#if canDelete}

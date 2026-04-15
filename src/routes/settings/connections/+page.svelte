@@ -91,7 +91,9 @@
 		}
 	}
 	async function suspend(connectionId: string) {
-		if (!confirm('Suspend this connection? The rep will stop sharing new orders until reactivated.'))
+		if (
+			!confirm('Suspend this connection? The rep will stop sharing new orders until reactivated.')
+		)
 			return;
 		working = connectionId;
 		errorMsg = null;
@@ -161,7 +163,8 @@
 		}
 	}
 	async function revokeInvite(id: string) {
-		if (!confirm('Revoke this invite link? Anyone who already has the URL will get an error.')) return;
+		if (!confirm('Revoke this invite link? Anyone who already has the URL will get an error.'))
+			return;
 		working = id;
 		errorMsg = null;
 		try {
@@ -409,9 +412,7 @@
 
 								{#if data.isAdmin && conn.status === 'active'}
 									<div class="flex items-center gap-2 text-sm">
-										<Label for={`comm-${conn.connection_id}`} class="text-sm"
-											>Commission %</Label
-										>
+										<Label for={`comm-${conn.connection_id}`} class="text-sm">Commission %</Label>
 										<input
 											id={`comm-${conn.connection_id}`}
 											type="number"
@@ -421,8 +422,7 @@
 											class="h-9 w-24 rounded border bg-background px-2 text-right text-sm"
 											value={conn.commission_rate ?? ''}
 											disabled={working === conn.connection_id}
-											onblur={(e) =>
-												saveCommission(conn, (e.target as HTMLInputElement).value)}
+											onblur={(e) => saveCommission(conn, (e.target as HTMLInputElement).value)}
 										/>
 										<Button
 											variant="ghost"
@@ -529,9 +529,7 @@
 						</svg>
 					</div>
 					<div class="text-base font-semibold">No brand connections yet</div>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Join a brand with an invite code above.
-					</p>
+					<p class="mt-1 text-sm text-muted-foreground">Join a brand with an invite code above.</p>
 				</div>
 			{:else}
 				<ul class="divide-y">

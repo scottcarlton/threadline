@@ -506,15 +506,13 @@
 									</p>
 									<a
 										href="/orders/{order.id}"
-										class="font-mono text-base font-medium hover:underline"
-										>{order.order_number}</a
+										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 									>
 									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
 								{:else}
 									<a
 										href="/orders/{order.id}"
-										class="font-mono text-base font-medium hover:underline"
-										>{order.order_number}</a
+										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 									>
 									<p class="text-sm text-muted-foreground">
 										{order.accounts?.business_name ?? '—'}
@@ -543,9 +541,7 @@
 							<td class="hidden px-4 py-3 md:table-cell">
 								{#if isBrandOrg}
 									{@const repOrgName =
-										(order as any).source_org?.name ??
-										(order as any).profiles?.display_name ??
-										'—'}
+										(order as any).source_org?.name ?? (order as any).profiles?.display_name ?? '—'}
 									<span class="text-sm {repOrgName === '—' ? 'text-muted-foreground/50' : ''}"
 										>{repOrgName}</span
 									>

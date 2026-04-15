@@ -17,8 +17,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	else if (invite.max_uses > 0 && invite.use_count >= invite.max_uses) status = 'maxed';
 
 	// Brand info is safe to show even for expired codes — helps the visitor identify who invited them.
-	const brand = (invite as { organizations?: { id: string; name: string; slug: string | null } } | null)
-		?.organizations ?? null;
+	const brand =
+		(invite as { organizations?: { id: string; name: string; slug: string | null } } | null)
+			?.organizations ?? null;
 
 	// If the visitor is logged in as a rep admin, give them the brand list they can map to.
 	let repBrands: Array<{ id: string; name: string }> = [];

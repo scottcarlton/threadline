@@ -17,9 +17,7 @@
 	// $derived so changes to the yearRange prop propagate; a top-level const
 	// would freeze at the initial prop value (state_referenced_locally).
 	const years = $derived(
-		Array.from({ length: yearRange.to - yearRange.from + 1 }, (_, i) =>
-			String(yearRange.from + i)
-		)
+		Array.from({ length: yearRange.to - yearRange.from + 1 }, (_, i) => String(yearRange.from + i))
 	);
 
 	const yyyy = $derived(/^\d{4}-/.test(value) ? value.slice(0, 4) : '');
