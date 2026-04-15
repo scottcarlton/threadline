@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { supabase } from '$lib/supabase.js';
-	import { dev } from '$app/environment';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -11,7 +10,6 @@
 	let error = $state('');
 	let loading = $state(false);
 	let mode = $state<'choose' | 'otp-email' | 'otp-verify' | 'sso-email' | 'sso-redirect'>('choose');
-	let devOtp = $state<string | null>(null);
 
 	import { page } from '$app/stores';
 	import { get } from 'svelte/store';
@@ -39,40 +37,7 @@
 
 	async function sendOtp() {
 		error = '';
-		devOtp = null;
 		loading = true;
-
-		if (dev) {
-			try {
-				const res = await fetch('/api/dev/signup-otp', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ email })
-				});
-				const raw = await res.text();
-				let body: { otp?: string; error?: string } = {};
-				try {
-					body = JSON.parse(raw);
-				} catch {
-					/* keep raw */
-				}
-				if (!res.ok || !body.otp) {
-					loading = false;
-					error =
-						body.error ??
-						`Dev OTP failed (${res.status}): ${raw.slice(0, 300) || '<empty response>'}`;
-					return;
-				}
-				devOtp = body.otp;
-				mode = 'otp-verify';
-				loading = false;
-				return;
-			} catch (e) {
-				loading = false;
-				error = e instanceof Error ? e.message : 'Failed to generate dev OTP';
-				return;
-			}
-		}
 
 		const { error: err } = await supabase.auth.signInWithOtp({
 			email,
@@ -212,24 +177,6 @@
 			}}
 			class="space-y-4"
 		>
-			{#if dev && devOtp}
-				<div class="rounded-md border border-dashed border-amber-400 bg-amber-50 p-3 text-sm">
-					<p class="font-semibold text-amber-900">Dev mode</p>
-					<p class="text-amber-900">
-						Email isn't wired up yet. Your code is
-						<button
-							type="button"
-							class="font-mono underline"
-							onclick={() => {
-								otpCode = devOtp ?? '';
-							}}
-						>
-							{devOtp}
-						</button>
-						&nbsp;(click to fill).
-					</p>
-				</div>
-			{/if}
 			<div class="space-y-2">
 				<Label for="otp">Verification code</Label>
 				<Input
