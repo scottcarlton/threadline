@@ -201,9 +201,7 @@
 		sort_order: number | null;
 	};
 	const locations = $derived((data.locations ?? []) as AccountLocation[]);
-	const defaultLocation = $derived(
-		locations.find((l) => l.is_default) ?? locations[0] ?? null
-	);
+	const defaultLocation = $derived(locations.find((l) => l.is_default) ?? locations[0] ?? null);
 
 	// Shape of the form fields for add/edit. `editingLocationId === null`
 	// means we're creating a new location; non-null = editing that one.
@@ -352,7 +350,8 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/accounts"><LongArrow direction="left" /> Back</Button>
+			<Button variant="ghost" size="sm" href="/accounts"><LongArrow direction="left" /> Back</Button
+			>
 			<h1 class="text-3xl">{account.business_name}</h1>
 			<Badge variant={account.is_active ? 'success' : 'secondary'}>
 				{account.is_active ? 'Active' : 'Inactive'}
@@ -482,8 +481,10 @@
 							<div>
 								<dt class="text-sm font-medium text-muted-foreground">
 									Address
-									{#if defaultLocation}<span class="ml-2 text-sm text-muted-foreground">·
-									{defaultLocation.label}</span>{/if}
+									{#if defaultLocation}<span class="ml-2 text-sm text-muted-foreground"
+											>·
+											{defaultLocation.label}</span
+										>{/if}
 								</dt>
 								<dd class="mt-1">
 									{#if defaultLocation?.address_line1}
@@ -601,19 +602,11 @@
 								</div>
 								<div class="space-y-1.5 sm:col-span-2">
 									<Label for="loc-addr1">Address line 1</Label>
-									<Input
-										id="loc-addr1"
-										name="address_line1"
-										bind:value={locFields.address_line1}
-									/>
+									<Input id="loc-addr1" name="address_line1" bind:value={locFields.address_line1} />
 								</div>
 								<div class="space-y-1.5 sm:col-span-2">
 									<Label for="loc-addr2">Address line 2</Label>
-									<Input
-										id="loc-addr2"
-										name="address_line2"
-										bind:value={locFields.address_line2}
-									/>
+									<Input id="loc-addr2" name="address_line2" bind:value={locFields.address_line2} />
 								</div>
 								<div class="space-y-1.5">
 									<Label for="loc-city">City</Label>
@@ -643,9 +636,7 @@
 								</div>
 							</div>
 							<div class="flex justify-end gap-2">
-								<Button variant="outline" type="button" onclick={cancelLocationForm}
-									>Cancel</Button
-								>
+								<Button variant="outline" type="button" onclick={cancelLocationForm}>Cancel</Button>
 								<Button type="submit">{editingLocationId ? 'Save changes' : 'Add location'}</Button>
 							</div>
 						</form>
@@ -708,8 +699,11 @@
 										{#if loc.address_line1 || loc.city || loc.state || loc.zip}
 											<div class="mt-0.5 text-sm text-muted-foreground">
 												{#if loc.address_line1}{loc.address_line1}{/if}
-												{#if loc.address_line2} · {loc.address_line2}{/if}
-												{#if loc.address_line1 && (loc.city || loc.state || loc.zip)} · {/if}
+												{#if loc.address_line2}
+													· {loc.address_line2}{/if}
+												{#if loc.address_line1 && (loc.city || loc.state || loc.zip)}
+													·
+												{/if}
 												{[loc.city, loc.state].filter(Boolean).join(', ')}
 												{loc.zip ?? ''}
 											</div>
@@ -721,16 +715,9 @@
 									{#if canEdit}
 										<div class="flex shrink-0 items-center gap-2">
 											{#if !loc.is_default}
-												<form
-													method="POST"
-													action="?/setDefault"
-													use:enhance
-													class="inline"
-												>
+												<form method="POST" action="?/setDefault" use:enhance class="inline">
 													<input type="hidden" name="id" value={loc.id} />
-													<Button type="submit" variant="outline" size="sm">
-														Set default
-													</Button>
+													<Button type="submit" variant="outline" size="sm">Set default</Button>
 												</form>
 											{/if}
 											<Button

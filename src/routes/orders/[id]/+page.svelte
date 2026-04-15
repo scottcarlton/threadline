@@ -13,14 +13,18 @@
 	let { data } = $props();
 	const order = $derived(data.order as Order);
 	const orderLocation = $derived(
-		((order as unknown as { account_locations: {
-			label: string;
-			address_line1: string | null;
-			address_line2: string | null;
-			city: string | null;
-			state: string | null;
-			zip: string | null;
-		} | null }).account_locations) ?? null
+		(
+			order as unknown as {
+				account_locations: {
+					label: string;
+					address_line1: string | null;
+					address_line2: string | null;
+					city: string | null;
+					state: string | null;
+					zip: string | null;
+				} | null;
+			}
+		).account_locations ?? null
 	);
 
 	// Action: focus the element once when mounted. Avoids the bare `autofocus`
@@ -99,9 +103,7 @@
 		shipped: ['delivered']
 	};
 	const nextStatuses = $derived(
-		isFederatedView
-			? (brandAllowedNext[order.status] ?? [])
-			: (statusFlow[order.status] ?? [])
+		isFederatedView ? (brandAllowedNext[order.status] ?? []) : (statusFlow[order.status] ?? [])
 	);
 
 	function seasonLabel(): string {
@@ -743,7 +745,8 @@
 								{#if orderLocation.address_line1}
 									<div class="text-muted-foreground">
 										{orderLocation.address_line1}
-										{#if orderLocation.address_line2} · {orderLocation.address_line2}{/if}
+										{#if orderLocation.address_line2}
+											· {orderLocation.address_line2}{/if}
 									</div>
 								{/if}
 								{#if orderLocation.city || orderLocation.state || orderLocation.zip}

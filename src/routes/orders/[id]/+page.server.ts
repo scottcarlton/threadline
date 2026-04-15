@@ -40,9 +40,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.single(),
 		supabase
 			.from('order_comments')
-			.select(
-				'*, profiles:author_id(display_name), source_org:source_org_id(id, name)'
-			)
+			.select('*, profiles:author_id(display_name), source_org:source_org_id(id, name)')
 			.eq('order_id', params.id)
 			.order('created_at', { ascending: true })
 	]);

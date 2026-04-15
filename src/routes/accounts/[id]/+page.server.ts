@@ -6,51 +6,45 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { supabase, organization } = locals;
 
-	const [
-		accountRes,
-		ordersRes,
-		recentOrdersRes,
-		appointmentsRes,
-		emailLogsRes,
-		locationsRes
-	] = await Promise.all([
-		supabase.from('accounts').select('*').eq('id', params.id).single(),
-		supabase
-			.from('orders')
-			.select('brand_id, total_amount, status, order_year, brands(id, name)')
-			.eq('account_id', params.id),
-		supabase
-			.from('orders')
-			.select(
-				'id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)'
-			)
-			.eq('account_id', params.id)
-			.order('created_at', { ascending: false })
-			.limit(20),
-		supabase
-			.from('appointments')
-			.select(
-				'id, appointment_type, scheduled_date, scheduled_time, status, notes, created_at, show_dates(id, year, month, city, state, shows(name))'
-			)
-			.eq('account_id', params.id)
-			.order('created_at', { ascending: false })
-			.limit(20),
-		supabase
-			.from('email_logs')
-			.select('id, to_email, subject, created_at, sent_by, profiles:sent_by(display_name)')
-			.eq('related_type', 'account')
-			.eq('related_id', params.id)
-			.order('created_at', { ascending: false })
-			.limit(20),
-		supabase
-			.from('account_locations')
-			.select(
-				'id, account_id, label, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country, notes, is_default, sort_order'
-			)
-			.eq('account_id', params.id)
-			.order('is_default', { ascending: false })
-			.order('sort_order', { ascending: true })
-	]);
+	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes, locationsRes] =
+		await Promise.all([
+			supabase.from('accounts').select('*').eq('id', params.id).single(),
+			supabase
+				.from('orders')
+				.select('brand_id, total_amount, status, order_year, brands(id, name)')
+				.eq('account_id', params.id),
+			supabase
+				.from('orders')
+				.select(
+					'id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)'
+				)
+				.eq('account_id', params.id)
+				.order('created_at', { ascending: false })
+				.limit(20),
+			supabase
+				.from('appointments')
+				.select(
+					'id, appointment_type, scheduled_date, scheduled_time, status, notes, created_at, show_dates(id, year, month, city, state, shows(name))'
+				)
+				.eq('account_id', params.id)
+				.order('created_at', { ascending: false })
+				.limit(20),
+			supabase
+				.from('email_logs')
+				.select('id, to_email, subject, created_at, sent_by, profiles:sent_by(display_name)')
+				.eq('related_type', 'account')
+				.eq('related_id', params.id)
+				.order('created_at', { ascending: false })
+				.limit(20),
+			supabase
+				.from('account_locations')
+				.select(
+					'id, account_id, label, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country, notes, is_default, sort_order'
+				)
+				.eq('account_id', params.id)
+				.order('is_default', { ascending: false })
+				.order('sort_order', { ascending: true })
+		]);
 
 	if (accountRes.error || !accountRes.data) {
 		throw error(404, 'Account not found');
@@ -326,10 +320,7 @@ export const actions: Actions = {
 				.limit(1)
 				.maybeSingle();
 			if (next?.id) {
-				await supabase
-					.from('account_locations')
-					.update({ is_default: true })
-					.eq('id', next.id);
+				await supabase.from('account_locations').update({ is_default: true }).eq('id', next.id);
 			}
 		}
 		return { ok: true };
