@@ -312,7 +312,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// All-shows summary data (when no show selected)
 	let showSummary: { showDateId: string; appointments: number; orders: number; revenue: number }[] =
 		[];
-	let showAppointments: any[] = [];
+	let showAppointments: Array<Record<string, unknown>> = [];
 
 	if (selectedShowDateId) {
 		const [visitsResult, ordersResult, deliveriesResult, appointmentsResult] = await Promise.all([
@@ -352,7 +352,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		showVisits = (visitsResult.data ?? []) as unknown as typeof showVisits;
 		showOrders = (ordersResult.data ?? []) as typeof showOrders;
 		showDeliveries = (deliveriesResult.data ?? []) as typeof showDeliveries;
-		showAppointments = appointmentsResult.data ?? [];
+		showAppointments = (appointmentsResult.data ?? []) as Array<Record<string, unknown>>;
 	} else if (showDates.length > 0) {
 		// Load summary stats for all shows
 		const showDateIds = showDates.map((sd) => sd.id);
@@ -374,17 +374,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			)
 		]);
 
-		const allAppts = allApptsResult.data ?? [];
-		const allOrders = allOrdersResult.data ?? [];
+		const allAppts = (allApptsResult.data ?? []) as Array<{ id: string; show_date_id: string }>;
+		const allOrders = (allOrdersResult.data ?? []) as Array<{
+			id: string;
+			show_date_id: string;
+			total_amount: number;
+		}>;
 
 		showSummary = showDates.map((sd) => {
-			const appts = allAppts.filter((a: any) => a.show_date_id === sd.id);
-			const orders = allOrders.filter((o: any) => o.show_date_id === sd.id);
+			const appts = allAppts.filter((a) => a.show_date_id === sd.id);
+			const orders = allOrders.filter((o) => o.show_date_id === sd.id);
 			return {
 				showDateId: sd.id,
 				appointments: appts.length,
 				orders: orders.length,
-				revenue: orders.reduce((sum: number, o: any) => sum + Number(o.total_amount), 0)
+				revenue: orders.reduce((sum, o) => sum + Number(o.total_amount), 0)
 			};
 		});
 	}
@@ -545,13 +549,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const currentYear = new Date().getFullYear();
 	const ytdRevRow = yearlySummary.find((y: { year: number }) => y.year === currentYear);
 	const priorRevRow = yearlySummary.find((y: { year: number }) => y.year === currentYear - 1);
-	const ytdRevenue = (ytdRevRow as any)?.revenue ?? 0;
-	const priorRevenue = (priorRevRow as any)?.revenue ?? 0;
+	const ytdRevenue = (ytdRevRow as { revenue?: number } | undefined)?.revenue ?? 0;
+	const priorRevenue = (priorRevRow as { revenue?: number } | undefined)?.revenue ?? 0;
 	const revenueChange =
 		priorRevenue > 0 ? ((ytdRevenue - priorRevenue) / priorRevenue) * 100 : null;
 
-	const ytdOrderCount = (ytdRevRow as any)?.order_count ?? 0;
-	const priorOrderCount = (priorRevRow as any)?.order_count ?? 0;
+	const ytdOrderCount = (ytdRevRow as { order_count?: number } | undefined)?.order_count ?? 0;
+	const priorOrderCount = (priorRevRow as { order_count?: number } | undefined)?.order_count ?? 0;
 	const orderChange =
 		priorOrderCount > 0 ? ((ytdOrderCount - priorOrderCount) / priorOrderCount) * 100 : null;
 

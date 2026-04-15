@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { google, type gmail_v1 } from 'googleapis';
 import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } from '$env/static/private';
 import { supabaseAdmin } from './supabase.js';
 
@@ -80,20 +80,20 @@ function decodeBase64Url(str: string): string {
 	return Buffer.from(base64, 'base64').toString('utf-8');
 }
 
-function getHeader(headers: { name: string; value: string }[], name: string): string {
-	return headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
+function getHeader(headers: gmail_v1.Schema$MessagePartHeader[], name: string): string {
+	return headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? '';
 }
 
-function getBodyText(payload: any): string {
+function getBodyText(payload: gmail_v1.Schema$MessagePart): string {
 	if (payload.body?.data) {
 		return decodeBase64Url(payload.body.data);
 	}
 	if (payload.parts) {
 		// Prefer text/plain, fallback to text/html
-		const textPart = payload.parts.find((p: any) => p.mimeType === 'text/plain');
+		const textPart = payload.parts.find((p) => p.mimeType === 'text/plain');
 		if (textPart?.body?.data) return decodeBase64Url(textPart.body.data);
 
-		const htmlPart = payload.parts.find((p: any) => p.mimeType === 'text/html');
+		const htmlPart = payload.parts.find((p) => p.mimeType === 'text/html');
 		if (htmlPart?.body?.data) return decodeBase64Url(htmlPart.body.data);
 
 		// Recurse into multipart
@@ -105,20 +105,20 @@ function getBodyText(payload: any): string {
 	return '';
 }
 
-export function parseMessage(msg: any): GmailMessage {
+export function parseMessage(msg: gmail_v1.Schema$Message): GmailMessage {
 	const headers = msg.payload?.headers ?? [];
 	const labels: string[] = msg.labelIds ?? [];
 
 	return {
-		id: msg.id,
-		threadId: msg.threadId,
+		id: msg.id ?? '',
+		threadId: msg.threadId ?? '',
 		from: getHeader(headers, 'From'),
 		to: getHeader(headers, 'To'),
 		subject: getHeader(headers, 'Subject'),
 		snippet: msg.snippet ?? '',
 		date: getHeader(headers, 'Date'),
 		isUnread: labels.includes('UNREAD'),
-		body: getBodyText(msg.payload)
+		body: getBodyText(msg.payload as gmail_v1.Schema$MessagePart)
 	};
 }
 

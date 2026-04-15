@@ -63,5 +63,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.update({ use_count: invite.use_count + 1 })
 		.eq('id', invite.id);
 
-	return json({ connection, brandName: (invite as any).organizations?.name });
+	const inviteOrgs = (invite as { organizations?: { name?: string } | { name?: string }[] | null })
+		.organizations;
+	const brandOrg = Array.isArray(inviteOrgs) ? inviteOrgs[0] : inviteOrgs;
+	return json({ connection, brandName: brandOrg?.name });
 };

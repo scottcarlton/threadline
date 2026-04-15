@@ -77,7 +77,7 @@
 	};
 
 	function exportExpenses() {
-		const rows = filtered.map((e: any) => ({
+		const rows = filtered.map((e) => ({
 			expense_number: e.expense_number,
 			brand: e.brands?.name ?? '',
 			category: categoryLabels[e.category] ?? e.category,

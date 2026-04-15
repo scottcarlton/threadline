@@ -49,8 +49,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Map to Notion properties
-	const rows = data.map((row: any) => ({
-		externalId: row.id,
+	const rows = (data as unknown as Array<Record<string, unknown>>).map((row) => ({
+		externalId: row.id as string,
 		properties: mapToNotionProperties(dataType, row)
 	}));
 

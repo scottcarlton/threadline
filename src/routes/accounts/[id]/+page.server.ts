@@ -137,7 +137,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const activity: ActivityItem[] = [];
 
 	for (const o of recentOrdersRes.data ?? []) {
-		const brandName = (o.brands as any)?.name ?? '';
+		const brandsJoin = o.brands as { name?: string } | { name?: string }[] | null;
+		const brandName = (Array.isArray(brandsJoin) ? brandsJoin[0]?.name : brandsJoin?.name) ?? '';
 		const latestDate =
 			o.cancelled_at ??
 			o.delivered_at ??
@@ -158,8 +159,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	}
 
 	for (const a of appointmentsRes.data ?? []) {
-		const showData = a.show_dates as any;
-		const showName = showData?.shows?.name ?? '';
+		const showData = a.show_dates as
+			| { shows?: { name?: string } | { name?: string }[] | null }
+			| { shows?: { name?: string } | { name?: string }[] | null }[]
+			| null;
+		const sd = Array.isArray(showData) ? showData[0] : showData;
+		const showsJoin = sd?.shows;
+		const showName = (Array.isArray(showsJoin) ? showsJoin[0]?.name : showsJoin?.name) ?? '';
 		activity.push({
 			type: 'appointment',
 			id: a.id,
@@ -171,7 +177,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	}
 
 	for (const e of emailLogsRes.data ?? []) {
-		const senderName = (e as any).profiles?.display_name ?? '';
+		const profilesJoin = (
+			e as { profiles?: { display_name?: string } | { display_name?: string }[] | null }
+		).profiles;
+		const senderName =
+			(Array.isArray(profilesJoin) ? profilesJoin[0]?.display_name : profilesJoin?.display_name) ??
+			'';
 		activity.push({
 			type: 'email',
 			id: e.id,

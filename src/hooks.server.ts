@@ -8,7 +8,20 @@ import {
 	PUBLIC_SENTRY_DSN
 } from '$env/static/public';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-import type { OrgType } from '$lib/types/database.js';
+import type {
+	OrgType,
+	OrganizationMember,
+	Organization,
+	AccountUser
+} from '$lib/types/database.js';
+
+type MembershipWithOrg = OrganizationMember & { organizations: Organization };
+type BrandAccessRow = { brand_id: string; brands?: { name?: string } | { name?: string }[] | null };
+type BuyerAccountRow = AccountUser & {
+	account_id: string;
+	accounts?: { organization_id?: string } | null;
+};
+type SsoIdentity = { provider?: string };
 
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
@@ -94,13 +107,14 @@ const authHandle: Handle = async ({ event, resolve }) => {
 		]);
 
 		if (allMemberships?.length) {
-			event.locals.allMemberships = allMemberships as any;
+			const typedMemberships = allMemberships as MembershipWithOrg[];
+			event.locals.allMemberships = typedMemberships;
 
 			// Determine active org from cookie, fallback to first membership
 			const activeOrgId = event.cookies.get('active_org_id');
 			const membership = activeOrgId
-				? (allMemberships.find((m: any) => m.organization_id === activeOrgId) ?? allMemberships[0])
-				: allMemberships[0];
+				? (typedMemberships.find((m) => m.organization_id === activeOrgId) ?? typedMemberships[0])
+				: typedMemberships[0];
 
 			// Org member path
 			let brandScope: string[] | null = null;
@@ -111,8 +125,16 @@ const authHandle: Handle = async ({ event, resolve }) => {
 					.select('brand_id, brands(name)')
 					.eq('member_id', membership.id);
 				if (brandAccess?.length) {
-					brandScope = brandAccess.map((b: any) => b.brand_id);
-					scopedBrandNames = brandAccess.map((b: any) => b.brands?.name).filter(Boolean);
+					const rows = brandAccess as BrandAccessRow[];
+					brandScope = rows.map((b) => b.brand_id);
+					scopedBrandNames = rows
+						.map((b) => {
+							const brand = b.brands;
+							if (!brand) return undefined;
+							if (Array.isArray(brand)) return brand[0]?.name;
+							return brand.name;
+						})
+						.filter((n): n is string => Boolean(n));
 				}
 			}
 
@@ -139,7 +161,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 					if (ssoProvider) {
 						const isSsoSession =
 							user.app_metadata?.provider === 'sso' ||
-							user.identities?.some((i: any) => i.provider === 'sso');
+							user.identities?.some((i: SsoIdentity) => i.provider === 'sso');
 						if (!isSsoSession) {
 							await supabase.auth.signOut();
 							throw redirect(303, '/login?error=sso_required');
@@ -155,20 +177,22 @@ const authHandle: Handle = async ({ event, resolve }) => {
 				.eq('profile_id', user.id);
 
 			if (buyerAccess?.length) {
+				const typedBuyerAccess = buyerAccess as BuyerAccountRow[];
 				event.locals.user = profile;
 				event.locals.isBuyer = true;
-				event.locals.buyerAccounts = buyerAccess;
+				event.locals.buyerAccounts = typedBuyerAccess;
 
 				// Load accessible brand IDs (use admin client to bypass RLS)
-				const accountIds = buyerAccess.map((a: any) => a.account_id);
+				const accountIds = typedBuyerAccess.map((a) => a.account_id);
 				const { data: brandAccess } = await supabaseAdmin
 					.from('account_brand_access')
 					.select('brand_id')
 					.in('account_id', accountIds);
-				event.locals.buyerBrandIds = brandAccess?.map((b: any) => b.brand_id) ?? null;
+				event.locals.buyerBrandIds =
+					(brandAccess as Array<{ brand_id: string }> | null)?.map((b) => b.brand_id) ?? null;
 
 				// Set organization from the account's org (use admin to bypass RLS)
-				const orgId = buyerAccess[0]?.accounts?.organization_id;
+				const orgId = typedBuyerAccess[0]?.accounts?.organization_id;
 				if (orgId) {
 					const { data: org } = await supabaseAdmin
 						.from('organizations')

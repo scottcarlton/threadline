@@ -121,7 +121,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		brandAssets: brandAssetsRes.data ?? [],
 		commissionOverride: overrideRes.data?.rate ?? null,
 		repCommissionRate,
-		repName: (repRes.data?.profiles as any)?.display_name ?? null,
+		repName: (() => {
+			const profilesJoin = repRes.data?.profiles as
+				| { display_name?: string }
+				| { display_name?: string }[]
+				| null
+				| undefined;
+			if (!profilesJoin) return null;
+			return (
+				(Array.isArray(profilesJoin) ? profilesJoin[0]?.display_name : profilesJoin.display_name) ??
+				null
+			);
+		})(),
 		comments: commentsRes.data ?? [],
 		audits: auditsRes.data ?? [],
 		federation

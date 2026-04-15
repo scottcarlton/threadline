@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	);
 
 	// Fetch emails from auth.users
-	const profileIds = (members ?? []).map((m: any) => m.profile_id);
+	const profileIds = (members ?? []).map((m: { profile_id: string }) => m.profile_id);
 	const emailMap: Record<string, string> = {};
 	if (profileIds.length > 0) {
 		const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();

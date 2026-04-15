@@ -26,10 +26,21 @@
 
 	// Action feed data. Initialize empty and let the effect seed from data
 	// so `data` isn't captured at module scope (state_referenced_locally).
-	let insightActions = $state<any[]>([]);
+	type InsightAction = {
+		id: string;
+		insight_type: string;
+		priority_score: number;
+		title: string;
+		description: string;
+		metadata: Record<string, unknown>;
+		entity_type: string | null;
+		entity_id: string | null;
+		status: string;
+	};
+	let insightActions = $state<InsightAction[]>([]);
 
 	$effect(() => {
-		insightActions = data.insightActions ?? [];
+		insightActions = (data.insightActions ?? []) as InsightAction[];
 	});
 	const scoreboard = $derived(data.scoreboard ?? []);
 	let isRefreshing = $state(false);
@@ -88,7 +99,16 @@
 		orders: number;
 		revenue: number;
 	}[];
-	const showAppointments = $derived(data.showAppointments ?? []) as any[];
+	type ShowAppointment = {
+		id: string;
+		account_id: string | null;
+		freeform_account_name: string | null;
+		freeform_contact_name: string | null;
+		status: string;
+		notes: string | null;
+		profiles?: { display_name?: string | null } | null;
+	};
+	const showAppointments = $derived(data.showAppointments ?? []) as ShowAppointment[];
 
 	// Commission tab data
 	const commissionOrders = $derived(data.commissionOrders ?? []);
@@ -400,7 +420,8 @@
 
 	const totalShipped = $derived(
 		commissionRows.reduce(
-			(sum: number, r: any) => sum + (r.shipped_amount ?? r.total_amount ?? 0),
+			(sum: number, r: { shipped_amount?: number | null; total_amount?: number | null }) =>
+				sum + (r.shipped_amount ?? r.total_amount ?? 0),
 			0
 		)
 	);
@@ -1351,7 +1372,9 @@
 								<tbody>
 									{#each showVisits as visit (visit.id)}
 										{@const account = visit.accounts}
-										{@const repName = (visit as any).profiles?.display_name ?? null}
+										{@const repName =
+											(visit as { profiles?: { display_name?: string | null } | null }).profiles
+												?.display_name ?? null}
 										<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 											<!-- Account -->
 											<td class="sticky left-0 z-10 min-w-[200px] bg-background px-4 py-3">

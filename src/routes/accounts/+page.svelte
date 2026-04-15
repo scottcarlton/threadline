@@ -261,7 +261,8 @@
 							</td>
 							<td class="px-4 py-3">
 								<span class="text-sm text-muted-foreground"
-									>{(account as any).territories?.name ?? '—'}</span
+									>{(account as Account & { territories?: { name?: string } | null }).territories
+										?.name ?? '—'}</span
 								>
 							</td>
 							<td class="px-4 py-3">
