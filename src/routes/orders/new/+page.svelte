@@ -307,8 +307,7 @@
 	$effect(() => {
 		if (isBrandOrg && selfBrandId) {
 			const current = cart.brandFilter;
-			const alreadyPinned =
-				current !== 'all' && current.length === 1 && current[0] === selfBrandId;
+			const alreadyPinned = current !== 'all' && current.length === 1 && current[0] === selfBrandId;
 			if (!alreadyPinned) cart.brandFilter = [selfBrandId];
 		}
 	});

@@ -53,7 +53,8 @@
 		sending = false;
 		if (!res.ok) {
 			inviteError =
-				((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Failed to send invite';
+				((await res.json().catch(() => ({}))) as { error?: string }).error ??
+				'Failed to send invite';
 			return;
 		}
 		inviteSuccess = `Invite sent to ${inviteEmail.trim()}.`;
