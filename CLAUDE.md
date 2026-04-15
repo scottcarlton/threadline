@@ -117,6 +117,7 @@ Consult these before working in the relevant area. Do **not** inline their conte
 
 ### Brand
 
+- `docs/brand/philosophy.md` — founding philosophy (process problem thesis). Read before product, marketing, or positioning decisions.
 - `docs/brand/guidelines.md` — voice, colors, typography, tone. Read before UI or marketing work.
 - `docs/brand/visual-guide.html` — rendered visual reference.
 

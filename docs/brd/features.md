@@ -12,6 +12,8 @@
 
 Threadline is a multi-tenant B2B wholesale order management platform for the fashion and apparel industry. It connects three user types — sales rep organizations, brand organizations, and buyers — enabling order management, product cataloging, commission tracking, and cross-organization collaboration. The platform is built on SvelteKit with Supabase (PostgreSQL, Auth, Storage) and deployed on Vercel.
 
+**Founding principle:** Software doesn't fix broken process. Intelligence replaces the need for perfect process. When evaluating features, ask: does this require the user to bring their own process, or does the system provide it? See [brand/philosophy.md](../brand/philosophy.md).
+
 ### 1.1 Organization Types
 
 **Rep Org (default)** — Sales representative agencies that connect to multiple brands, manage buyer accounts, create orders, and track commissions.
