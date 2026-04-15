@@ -303,9 +303,9 @@
 									</td>
 									<td class="px-3 py-2 text-sm text-muted-foreground">
 										{#if contact.source === 'brand'}
-											{(order.accounts as any)?.business_name ?? '—'}
+											{(order.accounts as { business_name?: string } | null)?.business_name ?? '—'}
 										{:else}
-											{(order.brands as any)?.name ?? '—'}
+											{(order.brands as { name?: string } | null)?.name ?? '—'}
 										{/if}
 									</td>
 									<td class="px-3 py-2 text-right text-sm"

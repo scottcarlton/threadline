@@ -8,10 +8,19 @@
 
 	let { data } = $props();
 
-	const reps = $derived(data.reps ?? []);
+	type RepRow = {
+		id: string;
+		name: string;
+		email?: string | null;
+		role: string;
+		orderCount: number;
+		revenue: number;
+		avatarUrl?: string | null;
+	};
+	const reps = $derived((data.reps ?? []) as RepRow[]);
 	const pendingInvites = $derived(data.pendingInvites ?? []);
-	const totalRevenue = $derived(reps.reduce((sum: number, r: any) => sum + r.revenue, 0));
-	const totalOrders = $derived(reps.reduce((sum: number, r: any) => sum + r.orderCount, 0));
+	const totalRevenue = $derived(reps.reduce((sum, r) => sum + r.revenue, 0));
+	const totalOrders = $derived(reps.reduce((sum, r) => sum + r.orderCount, 0));
 	const canManage = $derived(
 		data.membership?.role === 'admin' || data.membership?.role === 'owner'
 	);
@@ -62,7 +71,7 @@
 
 	function handleExport() {
 		const header = ['name', 'role', 'orders', 'revenue'];
-		const rows = reps.map((r: any) =>
+		const rows = reps.map((r) =>
 			[r.name, r.role, r.orderCount, r.revenue].map(csvEscape).join(',')
 		);
 		const csv = [header.join(','), ...rows].join('\n');

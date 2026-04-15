@@ -90,7 +90,16 @@
 			const res = await fetch(`/api/email/inbox?${params.toString()}`);
 			if (res.ok) {
 				const json = await res.json();
-				emails = (json.messages ?? []).map((m: any) => {
+				type InboxMsg = {
+					id: string;
+					threadId: string;
+					from?: string;
+					subject?: string;
+					snippet?: string;
+					date?: string;
+					isUnread?: boolean;
+				};
+				emails = (json.messages ?? []).map((m: InboxMsg) => {
 					const parsed = parseFromHeader(m.from ?? '');
 					return {
 						id: m.id,
@@ -121,7 +130,8 @@
 			const res = await fetch(`/api/email/thread/${threadId}`);
 			if (res.ok) {
 				const json = await res.json();
-				threadMessages = (json.messages ?? []).map((m: any) => {
+				type ThreadMsg = { id: string; from?: string; date?: string; body?: string };
+				threadMessages = (json.messages ?? []).map((m: ThreadMsg) => {
 					const parsed = parseFromHeader(m.from ?? '');
 					return {
 						id: m.id,

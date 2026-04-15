@@ -141,11 +141,11 @@ export async function getGraphToken(organizationId: string): Promise<string | nu
 }
 
 // Generic Graph API helper
-export async function graphFetch(
+export async function graphFetch<T = unknown>(
 	organizationId: string,
 	path: string,
 	options?: RequestInit
-): Promise<any> {
+): Promise<T | null> {
 	const token = await getGraphToken(organizationId);
 	if (!token) return null;
 

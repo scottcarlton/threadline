@@ -53,8 +53,18 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 
 	const lines = linesResult.data ?? [];
 	if (lines.length > 0) {
+		type OrderLine = {
+			product_id: string | null;
+			variant_id: string | null;
+			style_number: string | null;
+			description: string | null;
+			color: string | null;
+			size: string | null;
+			qty: number | null;
+			unit_price: number | null;
+		};
 		const { error: lineErr } = await supabaseAdmin.from('order_lines').insert(
-			lines.map((l: any, i: number) => ({
+			(lines as OrderLine[]).map((l, i: number) => ({
 				order_id: newOrder.id,
 				product_id: l.product_id,
 				variant_id: l.variant_id,

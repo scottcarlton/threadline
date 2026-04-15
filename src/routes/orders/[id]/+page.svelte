@@ -20,7 +20,19 @@
 	});
 
 	let { data } = $props();
-	const order = $derived(data.order as Order);
+	type OrderDetail = Order & {
+		show_dates?: {
+			city?: string | null;
+			state?: string | null;
+			month?: number | null;
+			year?: number | null;
+			shows?: { name?: string } | null;
+		} | null;
+		source_types?: { name?: string } | null;
+		season_deliveries?: { delivery_month?: number | null } | null;
+		profiles?: { display_name?: string | null } | null;
+	};
+	const order = $derived(data.order as OrderDetail);
 	const orderLocation = $derived(
 		(
 			order as unknown as {
@@ -44,8 +56,8 @@
 
 	$effect(() => {
 		const o = order;
-		const brandName = (o as any).brands?.name ?? 'Unknown brand';
-		const accountName = (o as any).accounts?.business_name ?? 'Unknown account';
+		const brandName = o.brands?.name ?? 'Unknown brand';
+		const accountName = o.accounts?.business_name ?? 'Unknown account';
 		entityContext.set({
 			type: 'order',
 			id: o.id,
@@ -75,7 +87,10 @@
 		cancelled: 'Cancelled'
 	};
 
-	const statusColors: Record<string, string> = {
+	const statusColors: Record<
+		string,
+		'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'
+	> = {
 		draft: 'secondary',
 		submitted: 'warning',
 		confirmed: 'default',
@@ -556,7 +571,7 @@
 	let selectedAssetIds = $state<string[]>([]);
 
 	function openSendDialog() {
-		sendTo = (order.accounts as any)?.contact_email ?? '';
+		sendTo = (order.accounts as { contact_email?: string } | null | undefined)?.contact_email ?? '';
 		sendSubject = `Order ${order.order_number} from ${order.brands?.name ?? 'brand'}`;
 		sendBody = `Hi,\n\nPlease find attached order ${order.order_number}.\n\nThank you.`;
 		sendError = '';
@@ -627,7 +642,7 @@
 			{#if order.order_type === 'note'}
 				<Badge variant="outline">Note</Badge>
 			{:else}
-				<Badge variant={(statusColors[order.status] as any) ?? 'secondary'}
+				<Badge variant={statusColors[order.status] ?? 'secondary'}
 					>{statusLabels[order.status] ?? order.status}</Badge
 				>
 			{/if}
@@ -811,14 +826,13 @@
 					'Nov',
 					'Dec'
 				]}
-				{@const showDateData = (order as any).show_dates}
-				{@const sourceDisplay =
-					showDateData?.shows?.name ?? (order as any).source_types?.name ?? null}
+				{@const showDateData = order.show_dates}
+				{@const sourceDisplay = showDateData?.shows?.name ?? order.source_types?.name ?? null}
 				{@const sourceLocation = showDateData
 					? [showDateData.city, showDateData.state].filter(Boolean).join(', ')
 					: null}
-				{@const deliveryData = (order as any).season_deliveries}
-				{@const createdByName = (order as any).profiles?.display_name ?? null}
+				{@const deliveryData = order.season_deliveries}
+				{@const createdByName = order.profiles?.display_name ?? null}
 				<dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
 					<div>
 						<dt class="text-xs text-muted-foreground">Account</dt>
@@ -870,7 +884,7 @@
 								<span>{sourceDisplay}</span>
 								{#if showDateData}
 									<p class="font-mono text-xs text-muted-foreground">
-										{monthNames[showDateData.month - 1]} · {sourceLocation}
+										{monthNames[(showDateData.month ?? 1) - 1]} · {sourceLocation}
 									</p>
 								{/if}
 							{:else}

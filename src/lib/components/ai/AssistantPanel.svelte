@@ -27,8 +27,18 @@
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let attachedFiles = $state<{ file: File; preview?: string }[]>([]);
 	let voiceState = $state<'idle' | 'listening' | 'speaking'>('idle');
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let recognition = $state<any>(null);
+
+	type SpeechRecognitionLike = {
+		continuous: boolean;
+		interimResults: boolean;
+		lang: string;
+		onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+		onend: (() => void) | null;
+		onerror: (() => void) | null;
+		start(): void;
+		stop(): void;
+	};
+	let recognition = $state<SpeechRecognitionLike | null>(null);
 	let currentAudio = $state<HTMLAudioElement | null>(null);
 
 	const hasText = $derived(inputValue.trim().length > 0);
@@ -194,8 +204,11 @@
 	}
 
 	function startListening() {
-		const SpeechRecognition =
-			(window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+		const w = window as unknown as {
+			SpeechRecognition?: new () => SpeechRecognitionLike;
+			webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+		};
+		const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
 		if (!SpeechRecognition) {
 			inputValue = '(Voice input not supported in this browser)';
 			return;
@@ -205,7 +218,7 @@
 		recognition.interimResults = true;
 		recognition.lang = 'en-US';
 
-		recognition.onresult = (event: any) => {
+		recognition.onresult = (event) => {
 			let transcript = '';
 			for (let i = 0; i < event.results.length; i++) {
 				transcript += event.results[i][0].transcript;

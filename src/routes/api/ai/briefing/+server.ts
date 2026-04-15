@@ -96,10 +96,45 @@ export const POST: RequestHandler = async ({ locals }) => {
 ${pipeline.length > 0 ? pipeline.map((p: { status: string; count: number; total_amount: number }) => `- ${p.status}: ${p.count} orders ($${Number(p.total_amount).toLocaleString()})`).join('\n') : 'No orders yet.'}
 
 ### Recent Orders (last 10)
-${recentOrders.length > 0 ? recentOrders.map((o: any) => `- ${o.order_number} | ${o.brands?.name ?? 'Unknown'} for ${o.accounts?.business_name ?? 'Unknown'} | ${o.status} | $${Number(o.total_amount).toLocaleString()} | ${new Date(o.created_at).toLocaleDateString()}`).join('\n') : 'No orders yet.'}
+${
+	recentOrders.length > 0
+		? (
+				recentOrders as Array<{
+					order_number: string;
+					status: string;
+					total_amount: number;
+					created_at: string;
+					brands?: { name?: string } | { name?: string }[] | null;
+					accounts?: { business_name?: string } | { business_name?: string }[] | null;
+				}>
+			)
+				.map((o) => {
+					const brand = Array.isArray(o.brands) ? o.brands[0] : o.brands;
+					const account = Array.isArray(o.accounts) ? o.accounts[0] : o.accounts;
+					return `- ${o.order_number} | ${brand?.name ?? 'Unknown'} for ${account?.business_name ?? 'Unknown'} | ${o.status} | $${Number(o.total_amount).toLocaleString()} | ${new Date(o.created_at).toLocaleDateString()}`;
+				})
+				.join('\n')
+		: 'No orders yet.'
+}
 
 ### Stale Draft Orders (14+ days)
-${staleOrders.length > 0 ? `${staleOrders.length} stale drafts worth $${staleDraftTotal.toLocaleString()} total:\n${staleOrders.map((o: any) => `- ${o.order_number} for ${o.accounts?.business_name ?? 'Unknown'} — $${Number(o.total_amount).toLocaleString()} (created ${new Date(o.created_at).toLocaleDateString()})`).join('\n')}` : 'No stale drafts.'}
+${
+	staleOrders.length > 0
+		? `${staleOrders.length} stale drafts worth $${staleDraftTotal.toLocaleString()} total:\n${(
+				staleOrders as Array<{
+					order_number: string;
+					total_amount: number;
+					created_at: string;
+					accounts?: { business_name?: string } | { business_name?: string }[] | null;
+				}>
+			)
+				.map((o) => {
+					const account = Array.isArray(o.accounts) ? o.accounts[0] : o.accounts;
+					return `- ${o.order_number} for ${account?.business_name ?? 'Unknown'} — $${Number(o.total_amount).toLocaleString()} (created ${new Date(o.created_at).toLocaleDateString()})`;
+				})
+				.join('\n')}`
+		: 'No stale drafts.'
+}
 
 ### Account Health
 - At Risk: ${atRiskAccounts.length} accounts${atRiskNames.length > 0 ? ` (${atRiskNames.join(', ')})` : ''}
@@ -107,12 +142,47 @@ ${staleOrders.length > 0 ? `${staleOrders.length} stale drafts worth $${staleDra
 - Inactive: ${healthAccounts.filter((a) => a.label === 'inactive').length} accounts
 
 ### Upcoming Appointments (next 7 days)
-${appointments.length > 0 ? appointments.map((a: any) => `- ${a.accounts?.business_name ?? 'Unknown'} | ${a.scheduled_date} ${a.scheduled_time ?? ''} | ${a.location_type}`).join('\n') : 'No upcoming appointments.'}
+${
+	appointments.length > 0
+		? (
+				appointments as Array<{
+					scheduled_date: string;
+					scheduled_time?: string | null;
+					location_type?: string;
+					accounts?: { business_name?: string } | { business_name?: string }[] | null;
+				}>
+			)
+				.map((a) => {
+					const account = Array.isArray(a.accounts) ? a.accounts[0] : a.accounts;
+					return `- ${account?.business_name ?? 'Unknown'} | ${a.scheduled_date} ${a.scheduled_time ?? ''} | ${a.location_type}`;
+				})
+				.join('\n')
+		: 'No upcoming appointments.'
+}
 
 ### Upcoming Shows (next 5)
-${upcomingShows.length > 0 ? upcomingShows.map((s: any) => `- ${s.name}${s.seasons?.name ? ` (${s.seasons.name} ${s.year ?? ''})` : ''} | ${[s.city, s.state].filter(Boolean).join(', ')} | ${s.start_date} to ${s.end_date}`).join('\n') : 'No upcoming shows.'}
+${
+	upcomingShows.length > 0
+		? (
+				upcomingShows as Array<{
+					name: string;
+					start_date: string;
+					end_date: string;
+					city?: string | null;
+					state?: string | null;
+					year?: number | null;
+					seasons?: { name?: string } | { name?: string }[] | null;
+				}>
+			)
+				.map((s) => {
+					const season = Array.isArray(s.seasons) ? s.seasons[0] : s.seasons;
+					return `- ${s.name}${season?.name ? ` (${season.name} ${s.year ?? ''})` : ''} | ${[s.city, s.state].filter(Boolean).join(', ')} | ${s.start_date} to ${s.end_date}`;
+				})
+				.join('\n')
+		: 'No upcoming shows.'
+}
 
-### Active Brands: ${brands.length} (${brands.map((b: any) => b.name).join(', ') || 'none'})
+### Active Brands: ${brands.length} (${(brands as Array<{ name: string }>).map((b) => b.name).join(', ') || 'none'})
 ### Active Accounts: ${accounts.length}
 ### User: ${user.display_name} (${membership.role})
 ### Today: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
