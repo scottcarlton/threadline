@@ -19,7 +19,7 @@
 			badge: (data.territoriesCount as number) ?? 0
 		},
 		{ label: 'Billing', href: '/organization/billing' },
-		{ label: 'Agents', href: '/organization/agents' },
+		{ label: 'Agents (AI)', href: '/organization/agents' },
 		{ label: 'Integrations', href: '/organization/integrations' },
 		{ label: 'Security', href: '/organization/security' }
 	]);

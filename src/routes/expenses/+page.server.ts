@@ -26,7 +26,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	let query = supabase
 		.from('brand_expenses')
-		.select('*, brands(name), profiles!brand_expenses_submitted_by_fkey(display_name)')
+		.select(
+			'*, brands(name), profiles!brand_expenses_submitted_by_fkey(display_name), reviewer:profiles!brand_expenses_reviewed_by_fkey(display_name)'
+		)
 		.eq('organization_id', organization.id)
 		.order('created_at', { ascending: false });
 

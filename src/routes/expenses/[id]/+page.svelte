@@ -23,6 +23,7 @@
 	const reviewerName = $derived(data.reviewerName as string | null);
 
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
+	const isBrandOrg = $derived(data.orgType === 'brand');
 	const isSubmitter = $derived(expense.submitted_by === data.user?.id);
 	const isBrandReviewer = $derived(data.isBrandReviewer as boolean);
 	const isDraft = $derived(expense.status === 'draft');
@@ -277,15 +278,9 @@
 </script>
 
 <div class="space-y-6">
+	<!-- Action bar -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/expenses"><LongArrow direction="left" /> Back</Button
-			>
-			<h1 class="font-mono text-3xl">{expense.expense_number}</h1>
-			<Badge variant={statusColors[expense.status] ?? 'secondary'}>
-				{expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
-			</Badge>
-		</div>
+		<Button variant="ghost" size="sm" href="/expenses"><LongArrow direction="left" /> Back</Button>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				{#if canDelete}
@@ -295,6 +290,19 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Entity header: expense_number + status; category subtitle -->
+	<header class="space-y-1">
+		<div class="flex items-center gap-2">
+			<h1 class="font-mono text-3xl">{expense.expense_number}</h1>
+			<Badge variant={statusColors[expense.status] ?? 'secondary'}>
+				{expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
+			</Badge>
+		</div>
+		<p class="text-sm text-muted-foreground">
+			{categoryLabels[expense.category] ?? expense.category}
+		</p>
+	</header>
 
 	<div class="grid gap-6 lg:grid-cols-[1fr_400px]">
 		<!-- Left column: Details -->
@@ -355,14 +363,12 @@
 					{:else}
 						<dl class="space-y-4">
 							<div class="grid gap-4 sm:grid-cols-2">
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Brand</dt>
-									<dd class="mt-1">{expense.brands?.name ?? '—'}</dd>
-								</div>
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Category</dt>
-									<dd class="mt-1">{categoryLabels[expense.category] ?? expense.category}</dd>
-								</div>
+								{#if !isBrandOrg}
+									<div>
+										<dt class="text-sm font-medium text-muted-foreground">Brand</dt>
+										<dd class="mt-1">{expense.brands?.name ?? '—'}</dd>
+									</div>
+								{/if}
 							</div>
 							<div class="grid gap-4 sm:grid-cols-2">
 								<div>
@@ -390,21 +396,16 @@
 									<dd class="mt-1 whitespace-pre-wrap">{expense.notes}</dd>
 								</div>
 							{/if}
-							<div class="grid gap-4 sm:grid-cols-2">
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Submitted By</dt>
-									<dd class="mt-1">{expense.profiles?.display_name ?? '—'}</dd>
-								</div>
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Created</dt>
-									<dd class="mt-1">
-										{new Date(expense.created_at).toLocaleDateString('en-US', {
-											month: 'short',
-											day: 'numeric',
-											year: 'numeric'
-										})}
-									</dd>
-								</div>
+							<div>
+								<dt class="text-sm font-medium text-muted-foreground">Submitted By</dt>
+								<dd class="mt-1">{expense.profiles?.display_name ?? '—'}</dd>
+								<dd class="mt-0.5 font-mono text-xs text-muted-foreground">
+									{new Date(expense.created_at).toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								</dd>
 							</div>
 						</dl>
 					{/if}
@@ -542,8 +543,9 @@
 					<CardTitle class="text-base">Receipts</CardTitle>
 				</CardHeader>
 				<CardContent class="space-y-4">
-					<!-- Upload area -->
-					{#if canEdit || (isDraft && isSubmitter) || isAdmin}
+					<!-- Upload area — submitters keep the QR + dropzone available after submit so they
+					     can snap a receipt from their phone at any point. Admins see it always. -->
+					{#if isSubmitter || isAdmin}
 						<div class="space-y-3">
 							{#if uploading}
 								<div

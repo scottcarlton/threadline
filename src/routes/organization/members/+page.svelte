@@ -116,8 +116,12 @@
 		}, 2000);
 	}
 
+	// Brand orgs only ever have one brand (their self-brand), so per-member
+	// brand scope is tautological — hide for brand orgs entirely.
+	const isBrandOrg = $derived(data.orgType === 'brand');
 	const showBrandScope = $derived(
-		inviteRole === 'member' || inviteRole === 'sales' || inviteRole === 'guest'
+		!isBrandOrg &&
+			(inviteRole === 'member' || inviteRole === 'sales' || inviteRole === 'guest')
 	);
 
 	function toggleBrand(brandId: string) {
@@ -757,8 +761,8 @@
 					</div>
 				{/if}
 
-				<!-- Brand Access -->
-				{#if drawerMember.role === 'member' || drawerMember.role === 'guest'}
+				<!-- Brand Access — rep orgs only (brand orgs are single-brand) -->
+				{#if !isBrandOrg && (drawerMember.role === 'member' || drawerMember.role === 'guest')}
 					<div class="h-px bg-border"></div>
 					<div class="space-y-3">
 						<h3 class="text-sm font-semibold">Brand Access</h3>

@@ -8,6 +8,7 @@
 	import type { BrandExpense } from '$lib/types/database.js';
 
 	let { data } = $props();
+	const isBrandOrg = $derived(data.orgType === 'brand');
 	const expenses = $derived(data.expenses as BrandExpense[]);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
 	const canCreate = $derived(
@@ -243,28 +244,26 @@
 				<thead>
 					<tr class="border-b bg-muted/40">
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="w-48 px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Expense</th
 						>
 						<th
 							class="px-4 py-2.5 text-center text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Status</th
 						>
-						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
-							>Brand</th
-						>
-						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
-							>Category</th
-						>
-						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
-							>Date</th
-						>
+						{#if !isBrandOrg}
+							<th
+								class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
+								>Brand</th
+							>
+						{/if}
 						<th
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
 							>Submitted By</th
+						>
+						<th
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
+							>Approved</th
 						>
 						<th
 							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
@@ -275,13 +274,15 @@
 				<tbody class="divide-y">
 					{#each filtered as expense}
 						<tr class="transition-colors hover:bg-muted/30">
-							<td class="px-4 py-3">
+							<td class="w-48 px-4 py-3 whitespace-nowrap">
 								<a
 									href="/expenses/{expense.id}"
 									class="font-mono text-base font-medium hover:underline"
 									>{expense.expense_number}</a
 								>
-								<p class="line-clamp-1 text-sm text-muted-foreground">{expense.description}</p>
+								<p class="font-mono text-xs text-muted-foreground">
+									{categoryLabels[expense.category] ?? expense.category}
+								</p>
 							</td>
 							<td class="px-4 py-3 text-center">
 								<span
@@ -292,23 +293,40 @@
 									{statusLabels[expense.status] ?? expense.status}
 								</span>
 							</td>
-							<td class="hidden px-4 py-3 sm:table-cell">
-								<span class="text-sm">{expense.brands?.name ?? '—'}</span>
-							</td>
-							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm">{categoryLabels[expense.category] ?? expense.category}</span>
-							</td>
-							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm"
-									>{new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('en-US', {
+							{#if !isBrandOrg}
+								<td class="hidden px-4 py-3 sm:table-cell">
+									<span class="text-sm">{expense.brands?.name ?? '—'}</span>
+								</td>
+							{/if}
+							<td class="hidden px-4 py-3 lg:table-cell">
+								<span class="text-sm">{expense.profiles?.display_name ?? '—'}</span>
+								<p class="font-mono text-xs text-muted-foreground">
+									{new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('en-US', {
 										month: 'short',
 										day: 'numeric',
 										year: 'numeric'
-									})}</span
-								>
+									})}
+								</p>
 							</td>
 							<td class="hidden px-4 py-3 lg:table-cell">
-								<span class="text-sm">{expense.profiles?.display_name ?? '—'}</span>
+								{#if expense.status === 'approved' || expense.status === 'rejected'}
+									{@const reviewer =
+										(expense as { reviewer?: { display_name: string | null } | null }).reviewer}
+									{@const when =
+										expense.status === 'approved' ? expense.approved_at : expense.rejected_at}
+									<span class="text-sm">{reviewer?.display_name ?? '—'}</span>
+									{#if when}
+										<p class="font-mono text-xs text-muted-foreground">
+											{new Date(when).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric',
+												year: 'numeric'
+											})}
+										</p>
+									{/if}
+								{:else}
+									<span class="text-sm text-muted-foreground/50">—</span>
+								{/if}
 							</td>
 							<td class="px-4 py-3 text-right font-mono">
 								<span class="text-sm">{fmt.format(Number(expense.amount))}</span>
