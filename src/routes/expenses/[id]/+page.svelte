@@ -279,7 +279,8 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/expenses"><LongArrow direction="left" /> Back</Button>
+			<Button variant="ghost" size="sm" href="/expenses"><LongArrow direction="left" /> Back</Button
+			>
 			<h1 class="font-mono text-3xl">{expense.expense_number}</h1>
 			<Badge variant={statusColors[expense.status] ?? 'secondary'}>
 				{expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
