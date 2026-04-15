@@ -509,7 +509,8 @@
 				return;
 			}
 			catalogParsed = (body.products ?? []) as ParsedProduct[];
-			if (catalogParsed.length === 0) catalogError = 'No products detected. Try a clearer linesheet.';
+			if (catalogParsed.length === 0)
+				catalogError = 'No products detected. Try a clearer linesheet.';
 		} catch (e) {
 			catalogError = (e as Error).message;
 		} finally {
@@ -913,7 +914,8 @@
 										<div>
 											<div class="font-medium">{p.name}</div>
 											<div class="text-muted-foreground">
-												{p.style_number ? `#${p.style_number} · ` : ''}{p.category ?? 'Uncategorized'}
+												{p.style_number ? `#${p.style_number} · ` : ''}{p.category ??
+													'Uncategorized'}
 											</div>
 										</div>
 										<div class="font-mono">

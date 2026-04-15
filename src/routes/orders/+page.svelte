@@ -471,7 +471,9 @@
 			<option value="">All Shows</option>
 			{#each showDates as sd}
 				{@const shows = sd.shows as { name?: string } | { name?: string }[] | null}
-				{@const showName = Array.isArray(shows) ? (shows[0]?.name ?? 'Show') : (shows?.name ?? 'Show')}
+				{@const showName = Array.isArray(shows)
+					? (shows[0]?.name ?? 'Show')
+					: (shows?.name ?? 'Show')}
 				<option value={sd.id}
 					>{showName} — {monthNames[(sd.month ?? 1) - 1]}
 					{sd.year}{sd.city ? `, ${sd.city}` : ''}</option

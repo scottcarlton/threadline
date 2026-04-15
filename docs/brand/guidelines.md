@@ -21,6 +21,7 @@ Building intelligent systems for the people who move goods.
 Threadline is precise, intelligent, and quietly confident. We don't shout — we surface what others miss. The brand feels like a well-engineered tool: clean lines, clear hierarchy, zero decoration for its own sake. Every element earns its place.
 
 **Brand attributes:**
+
 - **Precise** — Technical without being cold. We speak in specifics, not generalities.
 - **Intelligent** — We show the thinking, not just the output. Insights, not dashboards.
 - **Quiet confidence** — No exclamation marks. No superlatives. The product speaks.
@@ -32,6 +33,7 @@ Threadline is precise, intelligent, and quietly confident. We don't shout — we
 **Tone:** Direct, clear, grounded. Write like you're explaining something important to a smart colleague — not pitching, not dumbing down.
 
 **Do:**
+
 - Lead with the outcome, not the feature
 - Use specifics ("surfaces reorder gaps across 12 brands") over vague claims ("improves productivity")
 - Write in short, declarative sentences
@@ -39,6 +41,7 @@ Threadline is precise, intelligent, and quietly confident. We don't shout — we
 - Let the product do the convincing
 
 **Don't:**
+
 - Use superlatives (best, revolutionary, game-changing)
 - Write in ALL CAPS for emphasis (the hero headline is the one exception)
 - Use emojis in product or marketing copy
@@ -54,32 +57,34 @@ Threadline is precise, intelligent, and quietly confident. We don't shout — we
 The Threadline wordmark is `/Threadline` — the forward slash is an integral part of the brand identity and must never be removed.
 
 **Construction:**
+
 - The `/` (forward slash) precedes "Threadline" with no space
 - Set in **IBM Plex Sans** at **Medium (500) weight**
 - The slash uses the same weight and size as the text — it is not a decorative element, it is part of the name
 
 **The forward slash represents:**
+
 - A path — navigating systems, finding direction
 - A delimiter — separating signal from noise
 - A command — invoking action, like a terminal prompt
 
 ### 2.2 Wordmark Variations
 
-| Variation | Usage | Specification |
-|---|---|---|
-| **Primary** | Marketing site, documents, presentations | Foreground on Background (`hsl(216, 5%, 17%)` on `hsl(0, 0%, 98.5%)`) |
-| **Reversed** | Dark backgrounds, sidebar, footer | Background on Foreground (`hsl(0, 0%, 98.5%)` on `hsl(216, 5%, 17%)`) |
-| **Monochrome dark** | Print, single-color applications | `#000000` on white |
-| **Monochrome light** | Dark print, merchandise | `#FFFFFF` on black |
+| Variation            | Usage                                    | Specification                                                         |
+| -------------------- | ---------------------------------------- | --------------------------------------------------------------------- |
+| **Primary**          | Marketing site, documents, presentations | Foreground on Background (`hsl(216, 5%, 17%)` on `hsl(0, 0%, 98.5%)`) |
+| **Reversed**         | Dark backgrounds, sidebar, footer        | Background on Foreground (`hsl(0, 0%, 98.5%)` on `hsl(216, 5%, 17%)`) |
+| **Monochrome dark**  | Print, single-color applications         | `#000000` on white                                                    |
+| **Monochrome light** | Dark print, merchandise                  | `#FFFFFF` on black                                                    |
 
 ### 2.3 Wordmark Sizing
 
-| Context | Minimum size | Recommended |
-|---|---|---|
-| Navigation | 16px | 18–20px |
-| Footer (oversized) | n/a | `clamp(1rem, 17.5dvw, 60dvw)` — the large footer treatment is a signature brand moment |
-| Print | 12pt minimum | 14–18pt |
-| Favicon | 16×16px — use `/T` or just `/` as the icon mark | |
+| Context            | Minimum size                                    | Recommended                                                                            |
+| ------------------ | ----------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Navigation         | 16px                                            | 18–20px                                                                                |
+| Footer (oversized) | n/a                                             | `clamp(1rem, 17.5dvw, 60dvw)` — the large footer treatment is a signature brand moment |
+| Print              | 12pt minimum                                    | 14–18pt                                                                                |
+| Favicon            | 16×16px — use `/T` or just `/` as the icon mark |                                                                                        |
 
 ### 2.4 Clear Space
 
@@ -104,6 +109,7 @@ Maintain a minimum clear space around the wordmark equal to the height of the ca
 The Threadline color system is intentionally restrained. Two colors do the heavy lifting. Everything else is functional.
 
 **Background**
+
 - HSL: `0 0% 98.5%`
 - HEX: `#FCFCFC`
 - RGB: `252, 252, 252`
@@ -111,6 +117,7 @@ The Threadline color system is intentionally restrained. Two colors do the heavy
 - Notes: A warm off-white. Not pure white (`#FFF`) — the 1.5% offset avoids the clinical harshness of true white and is easier on the eyes for extended use.
 
 **Foreground**
+
 - HSL: `216 5% 17%`
 - HEX: `#292B30`
 - RGB: `41, 43, 48`
@@ -121,29 +128,29 @@ The Threadline color system is intentionally restrained. Two colors do the heavy
 
 These are functional colors derived from the core palette. They exist to serve the UI, not to express the brand.
 
-| Token | Light Mode HSL | Dark Mode HSL | Usage |
-|---|---|---|---|
-| `--primary` | `240 5.9% 10%` | `0 0% 98%` | Primary actions, buttons, links |
-| `--primary-foreground` | `0 0% 98%` | `240 5.9% 10%` | Text on primary |
-| `--secondary` | `240 4.8% 95.9%` | `240 3.7% 15.9%` | Secondary surfaces, hover states |
-| `--secondary-foreground` | `240 5.9% 10%` | `0 0% 98%` | Text on secondary |
-| `--muted` | `240 4.8% 95.9%` | `240 3.7% 15.9%` | Disabled states, subtle backgrounds |
-| `--muted-foreground` | `240 3.8% 46.1%` | `240 5% 64.9%` | Secondary text, captions, timestamps |
-| `--destructive` | `0 84.2% 60.2%` | `0 62.8% 30.6%` | Delete, error, danger states |
-| `--border` | `216 5% 17%` | `240 3.7% 15.9%` | Borders, dividers, corner brackets |
-| `--ring` | `240 5.9% 10%` | `240 4.9% 83.9%` | Focus rings for accessibility |
+| Token                    | Light Mode HSL   | Dark Mode HSL    | Usage                                |
+| ------------------------ | ---------------- | ---------------- | ------------------------------------ |
+| `--primary`              | `240 5.9% 10%`   | `0 0% 98%`       | Primary actions, buttons, links      |
+| `--primary-foreground`   | `0 0% 98%`       | `240 5.9% 10%`   | Text on primary                      |
+| `--secondary`            | `240 4.8% 95.9%` | `240 3.7% 15.9%` | Secondary surfaces, hover states     |
+| `--secondary-foreground` | `240 5.9% 10%`   | `0 0% 98%`       | Text on secondary                    |
+| `--muted`                | `240 4.8% 95.9%` | `240 3.7% 15.9%` | Disabled states, subtle backgrounds  |
+| `--muted-foreground`     | `240 3.8% 46.1%` | `240 5% 64.9%`   | Secondary text, captions, timestamps |
+| `--destructive`          | `0 84.2% 60.2%`  | `0 62.8% 30.6%`  | Delete, error, danger states         |
+| `--border`               | `216 5% 17%`     | `240 3.7% 15.9%` | Borders, dividers, corner brackets   |
+| `--ring`                 | `240 5.9% 10%`   | `240 4.9% 83.9%` | Focus rings for accessibility        |
 
 ### 3.3 Sidebar Colors
 
 The sidebar uses a dark treatment regardless of light/dark mode, creating a strong visual anchor on the left edge of the application.
 
-| Token | Value | Usage |
-|---|---|---|
-| `--sidebar` | `240 5.9% 10%` | Sidebar background |
-| `--sidebar-foreground` | `240 4.8% 95.9%` | Sidebar text |
-| `--sidebar-primary` | `0 0% 98%` | Active item |
-| `--sidebar-accent` | `240 3.7% 15.9%` | Hover/accent |
-| `--sidebar-ring` | `217.2 91.2% 59.8%` | Focus state — the one pop of blue in the system |
+| Token                  | Value               | Usage                                           |
+| ---------------------- | ------------------- | ----------------------------------------------- |
+| `--sidebar`            | `240 5.9% 10%`      | Sidebar background                              |
+| `--sidebar-foreground` | `240 4.8% 95.9%`    | Sidebar text                                    |
+| `--sidebar-primary`    | `0 0% 98%`          | Active item                                     |
+| `--sidebar-accent`     | `240 3.7% 15.9%`    | Hover/accent                                    |
+| `--sidebar-ring`       | `217.2 91.2% 59.8%` | Focus state — the one pop of blue in the system |
 
 ### 3.4 Color Principles
 
@@ -162,6 +169,7 @@ The sidebar uses a dark treatment regardless of light/dark mode, creating a stro
 Threadline uses three typefaces, each with a distinct role:
 
 **IBM Plex Sans** — Primary typeface
+
 - Usage: Body text, headings, buttons, navigation, UI elements
 - Weights: Light (300), Regular (400), Medium (500), SemiBold (600), Bold (700)
 - Italics: Available for all weights
@@ -169,6 +177,7 @@ Threadline uses three typefaces, each with a distinct role:
 - Why: IBM Plex is open-source, highly legible, and has a technical character without feeling robotic. The slightly squared letterforms echo the systematic nature of the brand.
 
 **IBM Plex Mono** — System/technical typeface
+
 - Usage: Section labels, metadata, tags, code, data values, timestamps
 - Weights: Regular (400), Medium (500), SemiBold (600)
 - CSS: `font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace`
@@ -176,6 +185,7 @@ Threadline uses three typefaces, each with a distinct role:
 - Why: The mono typeface signals "system" and "data." It's used for labels on the marketing site (`font-mono`) and for all technical/data contexts in the app.
 
 **Instrument Serif** — Accent typeface
+
 - Usage: Pull quotes, editorial moments, contrast headlines (sparingly)
 - Weights: Regular, Italic
 - CSS: `font-family: "Instrument Serif", Georgia, "Times New Roman", serif`
@@ -183,17 +193,17 @@ Threadline uses three typefaces, each with a distinct role:
 
 ### 4.2 Type Scale
 
-| Element | Size | Weight | Font | Usage |
-|---|---|---|---|---|
-| Display / Hero | `text-6xl` (60px) | Medium (500) | Plex Sans | Hero headlines on marketing pages |
-| H1 | `text-4xl` (36px) | Medium (500) | Plex Sans | Page titles, section headlines |
-| H2 | `text-2xl` (24px) | Medium (500) | Plex Sans | Card titles, subsection heads |
-| H3 | `text-xl` (20px) | Medium (500) | Plex Sans | Feature names, FAQ questions |
-| Body Large | `text-lg` (18px) | Regular (400) | Plex Sans | Marketing body text, descriptions |
-| Body | `text-base` (16px) | Regular (400) | Plex Sans | App body text, paragraphs |
-| Small | `text-sm` (14px) | Regular (400) | Plex Sans | Secondary text, captions |
-| Mono Label | `text-base` (16px) | Regular (400) | Plex Mono | Section labels, tags, metadata |
-| Data Value | `text-4xl` (36px) | Medium (500) | Plex Sans | Stats, counters, metrics |
+| Element        | Size               | Weight        | Font      | Usage                             |
+| -------------- | ------------------ | ------------- | --------- | --------------------------------- |
+| Display / Hero | `text-6xl` (60px)  | Medium (500)  | Plex Sans | Hero headlines on marketing pages |
+| H1             | `text-4xl` (36px)  | Medium (500)  | Plex Sans | Page titles, section headlines    |
+| H2             | `text-2xl` (24px)  | Medium (500)  | Plex Sans | Card titles, subsection heads     |
+| H3             | `text-xl` (20px)   | Medium (500)  | Plex Sans | Feature names, FAQ questions      |
+| Body Large     | `text-lg` (18px)   | Regular (400) | Plex Sans | Marketing body text, descriptions |
+| Body           | `text-base` (16px) | Regular (400) | Plex Sans | App body text, paragraphs         |
+| Small          | `text-sm` (14px)   | Regular (400) | Plex Sans | Secondary text, captions          |
+| Mono Label     | `text-base` (16px) | Regular (400) | Plex Mono | Section labels, tags, metadata    |
+| Data Value     | `text-4xl` (36px)  | Medium (500)  | Plex Sans | Stats, counters, metrics          |
 
 ### 4.3 Typography Rules
 
@@ -211,12 +221,12 @@ Threadline uses three typefaces, each with a distinct role:
 
 Threadline uses **sharp corners by default** (`--radius: 0`). This is a defining characteristic of the brand's visual identity.
 
-| Token | Value | Usage |
-|---|---|---|
-| `--radius` | `0px` | Default — sharp corners everywhere |
-| `--radius-xl` | `4px` | Minimal rounding — used sparingly for softer contexts |
-| `rounded-2xl` | `16px` | Marketing cards (dark bento cards in "How We Work") |
-| `rounded-4xl` | `32px` | Hero images, large feature images on marketing pages |
+| Token         | Value  | Usage                                                 |
+| ------------- | ------ | ----------------------------------------------------- |
+| `--radius`    | `0px`  | Default — sharp corners everywhere                    |
+| `--radius-xl` | `4px`  | Minimal rounding — used sparingly for softer contexts |
+| `rounded-2xl` | `16px` | Marketing cards (dark bento cards in "How We Work")   |
+| `rounded-4xl` | `32px` | Hero images, large feature images on marketing pages  |
 
 **The rule:** UI components (buttons, inputs, cards) use sharp corners. Marketing hero images and large visual containers use generous rounding (2xl–4xl) for contrast. This creates a tension between the precise UI and the expansive imagery that defines the Threadline look.
 
@@ -243,6 +253,7 @@ Threadline uses **sharp corners by default** (`--radius: 0`). This is a defining
 The signature visual element of Threadline's marketing design. Feature cards are bordered by corner brackets rather than full borders, creating an open, technical aesthetic.
 
 **Construction:**
+
 ```
 ┌─────────────────────────┐
 │                         │  ← Top: 16px corner pieces with border-t + border-l/r
@@ -268,17 +279,20 @@ The corners are `16px × 16px` divs with partial borders. The sides are `1px` ve
 ### 6.3 Photography & Imagery
 
 **Marketing hero images:**
+
 - Full-bleed or contained in `rounded-4xl` containers
 - High-contrast, desaturated editorial photography
 - Subjects: Fashion/apparel industry, wholesale environments, professional settings
 - Avoid: Stock photography that feels generic. If a photo could be on any SaaS site, don't use it.
 
 **Product screenshots:**
+
 - Wrap in browser mockup frames or show clean, uncropped UI
 - Populate with realistic (not lorem ipsum) data
 - Dark sidebar on left should always be visible — it's a distinctive element
 
 **Placeholder treatment:**
+
 - Empty image areas use `bg-neutral-300` (light) or `bg-neutral-900` (dark)
 - Marketing pages use `bg-black rounded-4xl` for screenshot placeholder areas
 
@@ -287,6 +301,7 @@ The corners are `16px × 16px` divs with partial borders. The sides are `1px` ve
 Threadline uses the **Motion** library (formerly Framer Motion) for scroll-triggered animations on marketing pages.
 
 **Principles:**
+
 - Animations reveal, they don't perform. Content slides up and fades in — nothing bounces, spins, or overshoots.
 - Easing: `[0.16, 1, 0.3, 1]` — a custom ease-out curve with a fast start and gentle settle.
 - Duration: `0.6–0.9s` for reveals, `2s` for counter animations.
@@ -294,6 +309,7 @@ Threadline uses the **Motion** library (formerly Framer Motion) for scroll-trigg
 - Respect `prefers-reduced-motion` — animations are disabled entirely when the user has this preference set.
 
 **Animation types:**
+
 - `.h-reveal` — Hero elements: `opacity [0→1], y [60→0]`, staggered by 0.12s
 - `.reveal` — Scroll-triggered: `opacity [0→1], y [40→0]`, triggered at 15% viewport intersection
 - `[data-stagger]` — Parent container triggers children: `opacity [0→1], y [30→0]`, children staggered by 0.08s
@@ -302,6 +318,7 @@ Threadline uses the **Motion** library (formerly Framer Motion) for scroll-trigg
 ### 6.5 Texture & Grain
 
 A subtle grain overlay is available via the `.grain` class:
+
 - SVG noise pattern using `feTurbulence` (fractal noise)
 - `18% opacity`, `overlay` blend mode
 - Fixed positioning (doesn't scroll with content)
@@ -313,16 +330,16 @@ A subtle grain overlay is available via the `.grain` class:
 
 Threadline has two distinct visual contexts that share the same color system and typography but differ in layout and ornamentation.
 
-| Aspect | Application (Portal) | Marketing (Public Site) |
-|---|---|---|
-| Border radius | Sharp (`0px`) everywhere | Sharp for UI, `rounded-2xl`–`4xl` for hero images |
-| Animations | Minimal — functional transitions only | Rich scroll reveals, staggered cascades, counter animations |
-| Corner brackets | Never | Signature feature card element |
-| Mono labels | Used for metadata/tags | Used for section identifiers |
-| Photography | Product screenshots only | Editorial photography, lifestyle imagery |
-| Grid density | Dense, data-oriented | Spacious, generous whitespace |
-| Footer | Minimal app footer | Oversized `/Threadline` brand moment |
-| Grain overlay | Never | Sparingly on dark sections |
+| Aspect          | Application (Portal)                  | Marketing (Public Site)                                     |
+| --------------- | ------------------------------------- | ----------------------------------------------------------- |
+| Border radius   | Sharp (`0px`) everywhere              | Sharp for UI, `rounded-2xl`–`4xl` for hero images           |
+| Animations      | Minimal — functional transitions only | Rich scroll reveals, staggered cascades, counter animations |
+| Corner brackets | Never                                 | Signature feature card element                              |
+| Mono labels     | Used for metadata/tags                | Used for section identifiers                                |
+| Photography     | Product screenshots only              | Editorial photography, lifestyle imagery                    |
+| Grid density    | Dense, data-oriented                  | Spacious, generous whitespace                               |
+| Footer          | Minimal app footer                    | Oversized `/Threadline` brand moment                        |
+| Grain overlay   | Never                                 | Sparingly on dark sections                                  |
 
 ---
 
@@ -330,29 +347,29 @@ Threadline has two distinct visual contexts that share the same color system and
 
 ### 8.1 Required Logo Files
 
-| File | Format | Usage |
-|---|---|---|
-| `threadline-wordmark-dark.svg` | SVG | Primary wordmark (dark on light) |
-| `threadline-wordmark-light.svg` | SVG | Reversed wordmark (light on dark) |
-| `threadline-wordmark-black.svg` | SVG | Pure black monochrome |
-| `threadline-wordmark-white.svg` | SVG | Pure white monochrome |
-| `threadline-icon.svg` | SVG | `/T` or `/` icon mark for favicon, app icons |
-| `threadline-og.png` | PNG 1200×630 | Default Open Graph share image |
-| `favicon.ico` | ICO 16×16, 32×32 | Browser favicon |
-| `apple-touch-icon.png` | PNG 180×180 | iOS home screen icon |
+| File                            | Format           | Usage                                        |
+| ------------------------------- | ---------------- | -------------------------------------------- |
+| `threadline-wordmark-dark.svg`  | SVG              | Primary wordmark (dark on light)             |
+| `threadline-wordmark-light.svg` | SVG              | Reversed wordmark (light on dark)            |
+| `threadline-wordmark-black.svg` | SVG              | Pure black monochrome                        |
+| `threadline-wordmark-white.svg` | SVG              | Pure white monochrome                        |
+| `threadline-icon.svg`           | SVG              | `/T` or `/` icon mark for favicon, app icons |
+| `threadline-og.png`             | PNG 1200×630     | Default Open Graph share image               |
+| `favicon.ico`                   | ICO 16×16, 32×32 | Browser favicon                              |
+| `apple-touch-icon.png`          | PNG 180×180      | iOS home screen icon                         |
 
 ### 8.2 Color Format Reference
 
 Always specify colors in HSL as the source of truth. Convert as needed:
 
-| Name | HSL | HEX | RGB |
-|---|---|---|---|
-| Background | `0 0% 98.5%` | `#FCFCFC` | `252, 252, 252` |
-| Foreground | `216 5% 17%` | `#292B30` | `41, 43, 48` |
-| Primary | `240 5.9% 10%` | `#181820` | `24, 24, 32` |
-| Muted Text | `240 3.8% 46.1%` | `#717179` | `113, 113, 121` |
-| Destructive | `0 84.2% 60.2%` | `#EF4444` | `239, 68, 68` |
-| Sidebar Accent Blue | `217.2 91.2% 59.8%` | `#3B82F6` | `59, 130, 246` |
+| Name                | HSL                 | HEX       | RGB             |
+| ------------------- | ------------------- | --------- | --------------- |
+| Background          | `0 0% 98.5%`        | `#FCFCFC` | `252, 252, 252` |
+| Foreground          | `216 5% 17%`        | `#292B30` | `41, 43, 48`    |
+| Primary             | `240 5.9% 10%`      | `#181820` | `24, 24, 32`    |
+| Muted Text          | `240 3.8% 46.1%`    | `#717179` | `113, 113, 121` |
+| Destructive         | `0 84.2% 60.2%`     | `#EF4444` | `239, 68, 68`   |
+| Sidebar Accent Blue | `217.2 91.2% 59.8%` | `#3B82F6` | `59, 130, 246`  |
 
 ---
 
@@ -369,11 +386,11 @@ Supporting text     ← text-lg, text-foreground/60
 
 ### 9.2 Button Styles
 
-| Type | Style | Usage |
-|---|---|---|
-| Primary CTA | `bg-foreground text-primary-foreground px-8 py-3` | Main actions: "Join Early Access", "Get Started" |
-| Secondary CTA | `border border-foreground px-8 py-3` | Supporting actions: "View Pricing", "See All Features" |
-| Ghost | No background, no border, text only | Navigation links, inline actions |
+| Type          | Style                                             | Usage                                                  |
+| ------------- | ------------------------------------------------- | ------------------------------------------------------ |
+| Primary CTA   | `bg-foreground text-primary-foreground px-8 py-3` | Main actions: "Join Early Access", "Get Started"       |
+| Secondary CTA | `border border-foreground px-8 py-3`              | Supporting actions: "View Pricing", "See All Features" |
+| Ghost         | No background, no border, text only               | Navigation links, inline actions                       |
 
 Buttons use **sharp corners** (no border-radius), **no text transform**, and **font-medium** weight.
 
@@ -414,4 +431,4 @@ Used in the "How We Work" section. Interior cards with white text on near-black 
 
 ---
 
-*This is a living document. Update as the brand evolves, new assets are created, or design patterns change.*
+_This is a living document. Update as the brand evolves, new assets are created, or design patterns change._

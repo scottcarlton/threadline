@@ -3,7 +3,12 @@
 	import { supabase } from '$lib/supabase.js';
 	import { Avatar, AvatarFallback } from '$lib/components/ui/avatar/index.js';
 	import { cart } from '$lib/stores/cart.js';
-	import { notifications, unreadNotificationCount, markAsRead, markAllAsRead } from '$lib/stores/notifications.js';
+	import {
+		notifications,
+		unreadNotificationCount,
+		markAsRead,
+		markAllAsRead
+	} from '$lib/stores/notifications.js';
 	import type { Profile, Organization, UserRole } from '$lib/types/database.js';
 
 	type Props = {
@@ -123,11 +128,25 @@
 				class="relative flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95"
 				aria-label="Notifications"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
+					/>
 				</svg>
 				{#if notifCount > 0}
-					<span class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{notifCount > 99 ? '99+' : notifCount}</span>
+					<span
+						class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
+						>{notifCount > 99 ? '99+' : notifCount}</span
+					>
 				{/if}
 			</button>
 
@@ -136,7 +155,7 @@
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div class="fixed inset-0 z-40" onclick={() => (showNotifications = false)}></div>
 				<div class="absolute right-0 z-50 mt-1 w-80 rounded-lg border bg-popover shadow-lg">
-					<div class="flex items-center justify-between px-4 py-3 border-b">
+					<div class="flex items-center justify-between border-b px-4 py-3">
 						<span class="text-sm font-semibold">Notifications</span>
 						{#if notifCount > 0}
 							<button
@@ -156,8 +175,13 @@
 							{#each notifItems as notif}
 								<a
 									href={notif.link ?? '#'}
-									class="flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 {notif.read_at ? 'opacity-60' : ''}"
-									onclick={() => { markAsRead(notif.id); showNotifications = false; }}
+									class="flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 {notif.read_at
+										? 'opacity-60'
+										: ''}"
+									onclick={() => {
+										markAsRead(notif.id);
+										showNotifications = false;
+									}}
 								>
 									{#if !notif.read_at}
 										<div class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary"></div>
@@ -167,9 +191,16 @@
 									<div class="min-w-0 flex-1">
 										<p class="text-sm font-medium">{notif.title}</p>
 										{#if notif.body}
-											<p class="text-sm text-muted-foreground truncate">{notif.body}</p>
+											<p class="truncate text-sm text-muted-foreground">{notif.body}</p>
 										{/if}
-										<p class="mt-0.5 text-sm text-muted-foreground">{new Date(notif.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
+										<p class="mt-0.5 text-sm text-muted-foreground">
+											{new Date(notif.created_at).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric',
+												hour: 'numeric',
+												minute: '2-digit'
+											})}
+										</p>
 									</div>
 								</a>
 							{/each}

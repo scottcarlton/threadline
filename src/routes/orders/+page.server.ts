@@ -115,7 +115,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const seasonMap = new Map<string, { id: string; name: string }>();
 		const repMap = new Map<string, { id: string; name: string }>();
 		for (const o of federatedOrders) {
-			if (o.brand_id && o.brand_name) brandMap.set(o.brand_id, { id: o.brand_id, name: o.brand_name });
+			if (o.brand_id && o.brand_name)
+				brandMap.set(o.brand_id, { id: o.brand_id, name: o.brand_name });
 			if (o.season_id && o.season_name)
 				seasonMap.set(o.season_id, { id: o.season_id, name: o.season_name });
 			repMap.set(o.rep_org_id, { id: o.rep_org_id, name: o.rep_org_name });

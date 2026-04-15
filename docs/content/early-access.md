@@ -24,12 +24,15 @@
 **Mono label:** `Early Access — April 2026`
 
 **Headline:**
+
 > Be first to see what AI-powered wholesale looks like.
 
 **Supporting text:**
+
 > Threadline is opening Early Access to a small group of multi-brand reps, showroom owners, and agencies. Get in early, shape the product, and lock in founding member pricing.
 
 **Signup form (right column):**
+
 - Email input field (placeholder: "you@youragency.com")
 - Role select: `Independent Rep` | `Showroom Owner` | `Sales Agency` | `Brand`
 - Number of brands managed: `1-3` | `4-10` | `11-25` | `25+`
@@ -47,15 +50,19 @@
 **Mono label:** `Founding Member Benefits`
 
 **Section headline:**
+
 > Early access isn't just early — it's different.
 
 **Card 1 — Shape the product**
+
 > Your feedback goes directly into the roadmap. Early Access members get a direct line to the team and priority on feature requests. This isn't a beta test — it's a partnership.
 
 **Card 2 — Founding member pricing**
+
 > Lock in Early Access pricing for life. When we raise prices at general availability, your rate stays the same. No tricks, no expiration.
 
 **Card 3 — Priority onboarding**
+
 > White-glove setup with the founding team. We'll help you import accounts, configure commissions, connect your brands, and get Stitches learning your portfolio — all in under an hour.
 
 ---
@@ -67,30 +74,37 @@
 **Mono label:** `The Platform`
 
 **Section headline:**
+
 > Everything you need to manage, sell, and grow your wholesale business.
 
 **Feature row 1 (left + right):**
 
 **AI-Powered Insights**
+
 > Stitches watches your entire book of business and tells you what to do next. Revenue gaps, reorder signals, and buyer predictions — in plain English, every morning.
 
 **Autonomous Agents**
+
 > Workers handle commission tracking, order follow-ups, and buyer alerts in the background. Custom agents let you automate the signals only you would think to look for.
 
 **Feature row 2 (left + right):**
 
 **Full Order Pipeline**
+
 > Draft to delivery in one place. Line items, status tracking, PDF generation, email sending, and commission calculations — all connected.
 
 **Multi-Brand Intelligence**
+
 > See patterns that no single-brand platform can. Which accounts are under-penetrated, which brands pair well together, and where your territory has room to grow.
 
 **Feature row 3 (left + right):**
 
 **Commission Automation**
+
 > Set rates per brand, define splits for sub-reps and showrooms, add account-level overrides. Threadline calculates everything. No spreadsheets.
 
 **Buyer Portal**
+
 > Give your buyers a branded portal to browse products, place orders, and track deliveries. Orders flow directly into your pipeline.
 
 **Link:** `See all features →` (links to `/features`)
@@ -104,15 +118,19 @@
 **Mono label:** `Getting Started`
 
 **Section headline:**
+
 > Live in under an hour.
 
 **Step 01 — Connect**
+
 > Import your accounts from CSV or start fresh. Add your brands, set commission rates, and connect your email. Threadline adapts to your existing workflow.
 
 **Step 02 — Learn**
+
 > Stitches maps your portfolio — buyer patterns, brand performance, territory gaps, order history. Intelligence starts arriving immediately.
 
 **Step 03 — Sell**
+
 > Daily briefings tell you who to call, what to pitch, and what's at risk. Agents handle the follow-ups. You focus on closing.
 
 ---
@@ -124,15 +142,19 @@
 **Mono label:** `Built For`
 
 **Section headline:**
+
 > Designed for the people who actually move goods.
 
 **Persona 1 — Independent Reps**
+
 > You carry 5+ brands, cover a territory, and live in your car half the month. Threadline keeps your entire book of business organized and tells you what to focus on today — not just what happened last quarter.
 
 **Persona 2 — Showroom Owners**
+
 > You manage a team of reps, dozens of brands, and hundreds of accounts. Threadline gives you visibility across every rep's book, automates commission splits, and surfaces the insights your team is too busy to find.
 
 **Persona 3 — Sales Agencies**
+
 > You run a business, not just a line. Threadline gives you the operational infrastructure — team management, brand connections, reporting, and AI automation — to scale without adding headcount.
 
 ---
@@ -169,9 +191,11 @@ A: Yes. Every organization's data is completely isolated using row-level securit
 **Layout:** Centered with the same signup form from the hero, repeated.
 
 **Headline:**
+
 > Join the founding group.
 
 **Supporting text:**
+
 > 50 spots. Free for 30 days. Founding pricing locked in for life.
 
 **[Repeat signup form from Section 1]**
@@ -182,20 +206,29 @@ A: Yes. Every organization's data is completely isolated using row-level securit
 
 ```html
 <title>Early Access — Threadline | AI-Powered Wholesale Platform</title>
-<meta name="description" content="Join Threadline Early Access — the AI-powered wholesale intelligence platform for multi-brand sales reps, showroom owners, and agencies. 50 spots available. Free for 30 days. Founding pricing locked in for life.">
+<meta
+	name="description"
+	content="Join Threadline Early Access — the AI-powered wholesale intelligence platform for multi-brand sales reps, showroom owners, and agencies. 50 spots available. Free for 30 days. Founding pricing locked in for life."
+/>
 
 <!-- Open Graph -->
-<meta property="og:title" content="Threadline Early Access — Be First">
-<meta property="og:description" content="50 spots for founding members. AI-powered wholesale intelligence with cross-brand insights, autonomous agents, and commission automation. Free for 30 days.">
-<meta property="og:image" content="https://threadline.systems/og-early-access.png">
-<meta property="og:url" content="https://threadline.systems/early-access">
-<meta property="og:type" content="website">
+<meta property="og:title" content="Threadline Early Access — Be First" />
+<meta
+	property="og:description"
+	content="50 spots for founding members. AI-powered wholesale intelligence with cross-brand insights, autonomous agents, and commission automation. Free for 30 days."
+/>
+<meta property="og:image" content="https://threadline.systems/og-early-access.png" />
+<meta property="og:url" content="https://threadline.systems/early-access" />
+<meta property="og:type" content="website" />
 
 <!-- Twitter Card -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Threadline Early Access — 50 Founding Member Spots">
-<meta name="twitter:description" content="AI-powered wholesale intelligence. Free for 30 days. Founding pricing for life.">
-<meta name="twitter:image" content="https://threadline.systems/og-early-access.png">
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Threadline Early Access — 50 Founding Member Spots" />
+<meta
+	name="twitter:description"
+	content="AI-powered wholesale intelligence. Free for 30 days. Founding pricing for life."
+/>
+<meta name="twitter:image" content="https://threadline.systems/og-early-access.png" />
 ```
 
 ---
@@ -205,6 +238,7 @@ A: Yes. Every organization's data is completely isolated using row-level securit
 **Primary metric:** Email signups (waitlist captures)
 
 **Form handling options:**
+
 1. **Supabase-native** — Store signups in a `waitlist` table. Simple, no third-party dependency. Can trigger a Supabase Edge Function to send confirmation email via Resend.
 2. **Loops.so** — Dedicated waitlist tool with built-in email sequences. More polished but adds a dependency.
 3. **ConvertKit** — If you choose ConvertKit as email platform (per Marketing BRD), use their embedded form for direct list integration.
@@ -212,6 +246,7 @@ A: Yes. Every organization's data is completely isolated using row-level securit
 **Recommendation:** Start with Supabase + Resend for Early Access. Migrate to a proper email platform for Beta when the nurture sequences get more complex.
 
 **Post-signup flow:**
+
 1. User submits form → row created in `waitlist` table
 2. Confirmation email sent immediately (Resend): "You're on the list. Here's what happens next."
 3. 3-day drip email: "What Threadline can do for [their role]" (personalized by role selection)
@@ -220,4 +255,4 @@ A: Yes. Every organization's data is completely isolated using row-level securit
 
 ---
 
-*This is a content draft for review. Once approved, implement as a new SvelteKit route at `/early-access` using the existing design system.*
+_This is a content draft for review. Once approved, implement as a new SvelteKit route at `/early-access` using the existing design system._

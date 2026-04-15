@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { enhance } from '$app/forms';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -180,6 +181,93 @@
 		invalidateAll();
 	}
 
+	// Locations
+	type AccountLocation = {
+		id: string;
+		account_id: string;
+		label: string;
+		contact_first_name: string | null;
+		contact_last_name: string | null;
+		contact_email: string | null;
+		phone: string | null;
+		address_line1: string | null;
+		address_line2: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
+		country: string | null;
+		notes: string | null;
+		is_default: boolean;
+		sort_order: number | null;
+	};
+	const locations = $derived((data.locations ?? []) as AccountLocation[]);
+	const defaultLocation = $derived(locations.find((l) => l.is_default) ?? locations[0] ?? null);
+
+	// Shape of the form fields for add/edit. `editingLocationId === null`
+	// means we're creating a new location; non-null = editing that one.
+	let locationFormOpen = $state(false);
+	let editingLocationId = $state<string | null>(null);
+	let locFields = $state({
+		label: '',
+		contact_first_name: '',
+		contact_last_name: '',
+		contact_email: '',
+		phone: '',
+		address_line1: '',
+		address_line2: '',
+		city: '',
+		state: '',
+		zip: '',
+		country: 'US',
+		notes: ''
+	});
+	let locationError = $state('');
+
+	function openAddLocation() {
+		editingLocationId = null;
+		locFields = {
+			label: '',
+			contact_first_name: '',
+			contact_last_name: '',
+			contact_email: '',
+			phone: '',
+			address_line1: '',
+			address_line2: '',
+			city: '',
+			state: '',
+			zip: '',
+			country: 'US',
+			notes: ''
+		};
+		locationError = '';
+		locationFormOpen = true;
+	}
+
+	function openEditLocation(loc: AccountLocation) {
+		editingLocationId = loc.id;
+		locFields = {
+			label: loc.label ?? '',
+			contact_first_name: loc.contact_first_name ?? '',
+			contact_last_name: loc.contact_last_name ?? '',
+			contact_email: loc.contact_email ?? '',
+			phone: loc.phone ?? '',
+			address_line1: loc.address_line1 ?? '',
+			address_line2: loc.address_line2 ?? '',
+			city: loc.city ?? '',
+			state: loc.state ?? '',
+			zip: loc.zip ?? '',
+			country: loc.country ?? 'US',
+			notes: loc.notes ?? ''
+		};
+		locationError = '';
+		locationFormOpen = true;
+	}
+
+	function cancelLocationForm() {
+		locationFormOpen = false;
+		editingLocationId = null;
+	}
+
 	let editing = $state(false);
 	let businessName = $state('');
 	let contactFirstName = $state('');
@@ -262,7 +350,8 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/accounts"><LongArrow direction="left" /> Back</Button>
+			<Button variant="ghost" size="sm" href="/accounts"><LongArrow direction="left" /> Back</Button
+			>
 			<h1 class="text-3xl">{account.business_name}</h1>
 			<Badge variant={account.is_active ? 'success' : 'secondary'}>
 				{account.is_active ? 'Active' : 'Inactive'}
@@ -390,9 +479,21 @@
 								<dd class="mt-1">{account.phone ?? '—'}</dd>
 							</div>
 							<div>
-								<dt class="text-sm font-medium text-muted-foreground">Address</dt>
+								<dt class="text-sm font-medium text-muted-foreground">
+									Address
+									{#if defaultLocation}<span class="ml-2 text-sm text-muted-foreground"
+											>·
+											{defaultLocation.label}</span
+										>{/if}
+								</dt>
 								<dd class="mt-1">
-									{#if account.address_line1}
+									{#if defaultLocation?.address_line1}
+										{defaultLocation.address_line1}<br />
+										{#if defaultLocation.address_line2}{defaultLocation.address_line2}<br />{/if}
+										{[defaultLocation.city, defaultLocation.state].filter(Boolean).join(', ')}
+										{#if defaultLocation.zip}
+											{defaultLocation.zip}{/if}
+									{:else if account.address_line1}
 										{account.address_line1}<br />
 										{#if account.address_line2}{account.address_line2}<br />{/if}
 										{[account.city, account.state].filter(Boolean).join(', ')}
@@ -420,6 +521,239 @@
 						</Button>
 					</CardFooter>
 				{/if}
+			</Card>
+
+			<!-- Locations -->
+			<Card>
+				<CardHeader>
+					<div class="flex items-center justify-between">
+						<CardTitle class="text-base">Locations</CardTitle>
+						{#if canEdit && !locationFormOpen}
+							<Button size="sm" onclick={openAddLocation}>Add Location</Button>
+						{/if}
+					</div>
+				</CardHeader>
+				<CardContent>
+					{#if locationError}
+						<div class="mb-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+							{locationError}
+						</div>
+					{/if}
+
+					{#if locationFormOpen}
+						<form
+							method="POST"
+							action={editingLocationId ? '?/updateLocation' : '?/addLocation'}
+							use:enhance={() => {
+								return async ({ result, update }) => {
+									if (result.type === 'failure') {
+										locationError = (result.data as { message?: string })?.message ?? 'Save failed';
+									} else {
+										locationFormOpen = false;
+										editingLocationId = null;
+									}
+									await update({ reset: false });
+								};
+							}}
+							class="mb-6 space-y-3 rounded-lg border bg-muted/30 p-4"
+						>
+							{#if editingLocationId}
+								<input type="hidden" name="id" value={editingLocationId} />
+							{/if}
+							<div class="grid gap-3 sm:grid-cols-2">
+								<div class="space-y-1.5 sm:col-span-2">
+									<Label for="loc-label">Label *</Label>
+									<Input
+										id="loc-label"
+										name="label"
+										required
+										placeholder="Primary, Warehouse, Showroom…"
+										bind:value={locFields.label}
+									/>
+								</div>
+								<div class="space-y-1.5">
+									<Label for="loc-first">Contact first name</Label>
+									<Input
+										id="loc-first"
+										name="contact_first_name"
+										bind:value={locFields.contact_first_name}
+									/>
+								</div>
+								<div class="space-y-1.5">
+									<Label for="loc-last">Contact last name</Label>
+									<Input
+										id="loc-last"
+										name="contact_last_name"
+										bind:value={locFields.contact_last_name}
+									/>
+								</div>
+								<div class="space-y-1.5">
+									<Label for="loc-email">Email</Label>
+									<Input
+										id="loc-email"
+										type="email"
+										name="contact_email"
+										bind:value={locFields.contact_email}
+									/>
+								</div>
+								<div class="space-y-1.5">
+									<Label for="loc-phone">Phone</Label>
+									<Input id="loc-phone" name="phone" bind:value={locFields.phone} />
+								</div>
+								<div class="space-y-1.5 sm:col-span-2">
+									<Label for="loc-addr1">Address line 1</Label>
+									<Input id="loc-addr1" name="address_line1" bind:value={locFields.address_line1} />
+								</div>
+								<div class="space-y-1.5 sm:col-span-2">
+									<Label for="loc-addr2">Address line 2</Label>
+									<Input id="loc-addr2" name="address_line2" bind:value={locFields.address_line2} />
+								</div>
+								<div class="space-y-1.5">
+									<Label for="loc-city">City</Label>
+									<Input id="loc-city" name="city" bind:value={locFields.city} />
+								</div>
+								<div class="space-y-1.5">
+									<Label for="loc-state">State</Label>
+									<Input id="loc-state" name="state" bind:value={locFields.state} />
+								</div>
+								<div class="space-y-1.5">
+									<Label for="loc-zip">Zip</Label>
+									<Input id="loc-zip" name="zip" bind:value={locFields.zip} />
+								</div>
+								<div class="space-y-1.5">
+									<Label for="loc-country">Country</Label>
+									<Input id="loc-country" name="country" bind:value={locFields.country} />
+								</div>
+								<div class="space-y-1.5 sm:col-span-2">
+									<Label for="loc-notes">Notes</Label>
+									<textarea
+										id="loc-notes"
+										name="notes"
+										rows="2"
+										class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+										bind:value={locFields.notes}
+									></textarea>
+								</div>
+							</div>
+							<div class="flex justify-end gap-2">
+								<Button variant="outline" type="button" onclick={cancelLocationForm}>Cancel</Button>
+								<Button type="submit">{editingLocationId ? 'Save changes' : 'Add location'}</Button>
+							</div>
+						</form>
+					{/if}
+
+					{#if locations.length === 0 && !locationFormOpen}
+						<div class="rounded-lg bg-muted/30 p-6 text-center">
+							<div
+								class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5 text-muted-foreground"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="1.5"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"
+									/>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
+									/>
+								</svg>
+							</div>
+							<div class="text-base font-semibold">No locations yet</div>
+							<p class="mt-1 text-sm text-muted-foreground">
+								Add a ship-to or billing address to use on orders.
+							</p>
+						</div>
+					{:else if locations.length > 0}
+						<ul class="divide-y">
+							{#each locations as loc (loc.id)}
+								<li class="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+									<div class="min-w-0 flex-1">
+										<div class="flex items-center gap-2">
+											<span class="font-semibold">{loc.label}</span>
+											{#if loc.is_default}
+												<Badge variant="secondary">Default</Badge>
+											{/if}
+										</div>
+										{#if loc.contact_first_name || loc.contact_last_name || loc.contact_email || loc.phone}
+											<div class="mt-0.5 text-sm text-muted-foreground">
+												{[loc.contact_first_name, loc.contact_last_name]
+													.filter(Boolean)
+													.join(' ') || ''}
+												{#if (loc.contact_first_name || loc.contact_last_name) && (loc.contact_email || loc.phone)}
+													·
+												{/if}
+												{loc.contact_email ?? ''}
+												{#if loc.contact_email && loc.phone}·{/if}
+												{loc.phone ?? ''}
+											</div>
+										{/if}
+										{#if loc.address_line1 || loc.city || loc.state || loc.zip}
+											<div class="mt-0.5 text-sm text-muted-foreground">
+												{#if loc.address_line1}{loc.address_line1}{/if}
+												{#if loc.address_line2}
+													· {loc.address_line2}{/if}
+												{#if loc.address_line1 && (loc.city || loc.state || loc.zip)}
+													·
+												{/if}
+												{[loc.city, loc.state].filter(Boolean).join(', ')}
+												{loc.zip ?? ''}
+											</div>
+										{/if}
+										{#if loc.notes}
+											<div class="mt-1 text-sm whitespace-pre-wrap">{loc.notes}</div>
+										{/if}
+									</div>
+									{#if canEdit}
+										<div class="flex shrink-0 items-center gap-2">
+											{#if !loc.is_default}
+												<form method="POST" action="?/setDefault" use:enhance class="inline">
+													<input type="hidden" name="id" value={loc.id} />
+													<Button type="submit" variant="outline" size="sm">Set default</Button>
+												</form>
+											{/if}
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												onclick={() => openEditLocation(loc)}
+											>
+												Edit
+											</Button>
+											<form
+												method="POST"
+												action="?/deleteLocation"
+												use:enhance={() =>
+													async ({ result, update }) => {
+														if (result.type === 'failure') {
+															locationError =
+																(result.data as { message?: string })?.message ?? 'Delete failed';
+														}
+														await update({ reset: false });
+													}}
+												onsubmit={(e) => {
+													if (!confirm(`Delete location "${loc.label}"?`)) e.preventDefault();
+												}}
+												class="inline"
+											>
+												<input type="hidden" name="id" value={loc.id} />
+												<Button type="submit" variant="outline" size="sm">Delete</Button>
+											</form>
+										</div>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</CardContent>
 			</Card>
 
 			<!-- Buyer Portal Access -->

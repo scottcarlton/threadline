@@ -39,24 +39,26 @@
 		{#if data.status === 'not_found'}
 			<h1 class="text-2xl font-semibold">Invite not found</h1>
 			<p class="mt-2 text-sm text-muted-foreground">
-				The link you followed doesn't match any active invite. Double-check with the brand you're trying
-				to connect with.
+				The link you followed doesn't match any active invite. Double-check with the brand you're
+				trying to connect with.
 			</p>
 		{:else if data.status === 'expired'}
 			<h1 class="text-2xl font-semibold">Invite expired</h1>
 			<p class="mt-2 text-sm text-muted-foreground">
-				{data.brand
-					? `${data.brand.name}'s invite has expired.`
-					: 'This invite has expired.'} Ask the brand to generate a new one.
+				{data.brand ? `${data.brand.name}'s invite has expired.` : 'This invite has expired.'} Ask the
+				brand to generate a new one.
 			</p>
 		{:else if data.status === 'maxed'}
 			<h1 class="text-2xl font-semibold">Invite at max uses</h1>
 			<p class="mt-2 text-sm text-muted-foreground">
-				This invite has already been claimed the maximum number of times. Ask the brand for a new link.
+				This invite has already been claimed the maximum number of times. Ask the brand for a new
+				link.
 			</p>
 		{:else if success}
 			<div class="flex items-start gap-3">
-				<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+				<div
+					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						viewBox="0 0 24 24"
@@ -74,15 +76,17 @@
 						{data.brand?.name ?? 'The brand'} will review and approve your connection. You'll be notified
 						when it goes live.
 					</p>
-					<Button class="mt-4" onclick={() => goto('/settings/connections')}>Go to Connections</Button>
+					<Button class="mt-4" onclick={() => goto('/settings/connections')}
+						>Go to Connections</Button
+					>
 				</div>
 			</div>
 		{:else}
 			<div class="mb-4 text-sm text-muted-foreground">You're being invited to connect with</div>
 			<h1 class="text-2xl font-semibold">{data.brand?.name ?? 'a brand'}</h1>
 			<p class="mt-2 text-sm text-muted-foreground">
-				Once you confirm and the brand approves the request, their orders and accounts you place will
-				automatically be shared with them.
+				Once you confirm and the brand approves the request, their orders and accounts you place
+				will automatically be shared with them.
 			</p>
 
 			{#if !data.isLoggedIn}
@@ -118,7 +122,9 @@
 					</p>
 
 					{#if error}
-						<div class="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-900 dark:bg-red-950/30 dark:text-red-200">
+						<div
+							class="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-900 dark:bg-red-950/30 dark:text-red-200"
+						>
 							{error}
 						</div>
 					{/if}
