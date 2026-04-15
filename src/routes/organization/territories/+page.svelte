@@ -4,13 +4,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import {
-		Card,
-		CardHeader,
-		CardTitle,
-		CardDescription,
-		CardContent
-	} from '$lib/components/ui/card/index.js';
+	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 
 	let { data } = $props();

@@ -76,7 +76,7 @@ export async function computeAccountHealth(
 	}
 
 	for (const [accountId, metrics] of accountMetrics) {
-		const { orders: acctOrders, createdAt, isActive, archivedAt } = metrics;
+		const { orders: acctOrders, createdAt, archivedAt } = metrics;
 
 		// Skip archived
 		if (archivedAt) continue;

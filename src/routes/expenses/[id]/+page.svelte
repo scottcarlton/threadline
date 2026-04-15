@@ -88,8 +88,6 @@
 
 	// QR code state
 	let qrDataUrl = $state('');
-	let qrUploadUrl = $state('');
-	let qrExpiresAt = $state('');
 	let generatingQr = $state(false);
 
 	// Auto-generate QR code on load
@@ -229,8 +227,6 @@
 				uploadError = json.error || 'Failed to generate upload link';
 				return;
 			}
-			qrUploadUrl = json.url;
-			qrExpiresAt = json.expiresAt;
 			qrDataUrl = await QRCode.toDataURL(json.url, { width: 200, margin: 2 });
 		} catch {
 			uploadError = 'Failed to generate QR code';

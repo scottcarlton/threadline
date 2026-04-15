@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Card } from '$lib/components/ui/card/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { goto } from '$app/navigation';
 
@@ -33,7 +32,6 @@
 		title,
 		description,
 		metadata = {},
-		entityType = null,
 		entityId = null,
 		actions = [],
 		onDismiss,

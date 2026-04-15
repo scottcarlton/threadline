@@ -317,8 +317,6 @@
 
 	<!-- Microsoft 365 config -->
 	{#if provider === 'microsoft'}
-		{@const config = connection.config as Record<string, unknown>}
-
 		<!-- Services overview -->
 		<Card>
 			<CardContent class="pt-5 pb-5">

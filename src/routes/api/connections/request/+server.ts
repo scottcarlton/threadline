@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const { session, supabase, organization, orgType, membership } = locals;
+	const { session, organization, orgType, membership } = locals;
 	if (!session || !organization) return json({ error: 'Unauthorized' }, { status: 401 });
 	if (orgType !== 'rep')
 		return json({ error: 'Only rep orgs can request connections' }, { status: 403 });

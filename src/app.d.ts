@@ -3,7 +3,6 @@ import type {
 	Profile,
 	Organization,
 	OrganizationMember,
-	UserRole,
 	OrgType,
 	AccountUser
 } from '$lib/types/database';

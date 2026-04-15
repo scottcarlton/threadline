@@ -66,8 +66,6 @@
 		});
 	}
 
-	const seasonSummary = $derived(data.seasonSummary ?? []);
-	const yearlySummary = $derived(data.yearlySummary ?? []);
 	const selectedYear = $derived(data.selectedYear);
 	const availableYears = $derived(data.availableYears ?? []);
 
@@ -217,26 +215,6 @@
 	}
 
 	// ── Delivery tab (existing) ─────────────────────────────────────────
-
-	const maxSeasonRevenue = $derived(
-		seasonSummary.length > 0
-			? Math.max(...seasonSummary.map((s: { revenue: number }) => s.revenue))
-			: 1
-	);
-
-	const maxYearlyRevenue = $derived(
-		yearlySummary.length > 0
-			? Math.max(...yearlySummary.map((y: { revenue: number }) => y.revenue))
-			: 1
-	);
-
-	const totalSeasonRevenue = $derived(
-		seasonSummary.reduce((sum: number, s: { revenue: number }) => sum + s.revenue, 0)
-	);
-
-	const totalSeasonOrders = $derived(
-		seasonSummary.reduce((sum: number, s: { order_count: number }) => sum + s.order_count, 0)
-	);
 
 	// Build a lookup map for grid data: "accountId|deliveryId|year" -> total
 	const gridLookup = $derived.by(() => {
@@ -481,15 +459,6 @@
 		const yearSuffix = commYearParam ?? 'all';
 		downloadCSV(rows, `commissions-${yearSuffix}.csv`);
 	}
-
-	const seasonBarColors = [
-		'bg-emerald-500',
-		'bg-amber-500',
-		'bg-orange-500',
-		'bg-red-500',
-		'bg-sky-500',
-		'bg-violet-500'
-	];
 
 	// Setup checklist
 	const firstName = $derived(data.user?.display_name?.split(' ')[0] ?? 'there');
