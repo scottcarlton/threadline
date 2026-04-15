@@ -185,6 +185,61 @@
 		return { success, errors };
 	}
 
+	function csvEscape(value: unknown): string {
+		if (value === null || value === undefined) return '';
+		const s = String(value);
+		if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+			return `"${s.replace(/"/g, '""')}"`;
+		}
+		return s;
+	}
+
+	function handleExport() {
+		const seasonName = new Map(seasons.map((s) => [s.id, s.name] as const));
+		const header = [
+			'style_number',
+			'name',
+			'wholesale_price',
+			'retail_price',
+			'category',
+			'season',
+			'sizes',
+			'colors',
+			'description',
+			'archived'
+		];
+		const rows = filtered.map((p) => {
+			const sizes = [
+				...new Set((p.product_variants ?? []).map((v) => v.size).filter(Boolean))
+			].join('|');
+			const colors = [
+				...new Set((p.product_variants ?? []).map((v) => v.color).filter(Boolean))
+			].join('|');
+			return [
+				p.style_number,
+				p.name,
+				p.wholesale_price,
+				p.retail_price ?? '',
+				p.category ?? '',
+				p.season_id ? (seasonName.get(p.season_id) ?? '') : '',
+				sizes,
+				colors,
+				p.description ?? '',
+				p.archived_at ? 'true' : 'false'
+			]
+				.map(csvEscape)
+				.join(',');
+		});
+		const csv = [header.join(','), ...rows].join('\n');
+		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `${brand.name}-products-${new Date().toISOString().slice(0, 10)}.csv`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 	function getVariantSummary(variants: { color: string | null; size: string | null }[]): string {
 		const colors = new Set(variants.map((v) => v.color).filter(Boolean));
 		const sizes = new Set(variants.map((v) => v.size).filter(Boolean));
@@ -208,6 +263,9 @@
 		</div>
 		{#if canEdit}
 			<div class="flex items-center gap-2">
+				<Button variant="outline" size="sm" onclick={handleExport} disabled={filtered.length === 0}
+					>Export</Button
+				>
 				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
 				<Button size="sm" href="/brands/{brand.id}/products/new">Add Product</Button>
 			</div>

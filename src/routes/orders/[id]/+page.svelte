@@ -503,23 +503,35 @@
 	let commentBody = $state('');
 	let postingComment = $state(false);
 
+	let commentError = $state<string | null>(null);
+
 	async function postComment() {
 		if (!commentBody.trim()) return;
 		postingComment = true;
-		await supabase.from('order_comments').insert({
+		commentError = null;
+		const { error: insertErr } = await supabase.from('order_comments').insert({
 			order_id: order.id,
 			author_id: data.user?.id,
 			body: commentBody.trim(),
 			source_org_id: data.organization?.id ?? null
 		});
-		commentBody = '';
 		postingComment = false;
-		invalidateAll();
+		if (insertErr) {
+			commentError = insertErr.message;
+			return;
+		}
+		commentBody = '';
+		await invalidateAll();
 	}
 
 	async function deleteComment(id: string) {
-		await supabase.from('order_comments').delete().eq('id', id);
-		invalidateAll();
+		commentError = null;
+		const { error: delErr } = await supabase.from('order_comments').delete().eq('id', id);
+		if (delErr) {
+			commentError = delErr.message;
+			return;
+		}
+		await invalidateAll();
 	}
 
 	// Clone order
@@ -1435,6 +1447,9 @@
 					{postingComment ? 'Posting...' : 'Post'}
 				</Button>
 			</div>
+			{#if commentError}
+				<p class="mt-2 text-sm text-destructive">{commentError}</p>
+			{/if}
 		{/if}
 	</CardContent>
 </Card>
