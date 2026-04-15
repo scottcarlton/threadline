@@ -264,7 +264,7 @@
 				<p class="text-sm font-medium">Color mode</p>
 				<p class="text-[13px] text-muted-foreground">Choose your preferred theme</p>
 				<div class="mt-3 inline-flex rounded-lg border p-1">
-					{#each appearanceOptions as opt}
+					{#each appearanceOptions as opt (opt.value)}
 						<button
 							class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors {$preferences.appearance ===
 							opt.value
@@ -282,7 +282,7 @@
 			<div>
 				<p class="text-sm font-medium">Chat font</p>
 				<div class="mt-3 grid max-w-md grid-cols-3 gap-3">
-					{#each chatFontOptions as opt}
+					{#each chatFontOptions as opt (opt.value)}
 						{@const fontStyle =
 							opt.value === 'sans'
 								? 'font-family: Georgia, serif'
@@ -314,7 +314,7 @@
 			<div>
 				<p class="text-sm font-medium">Animations</p>
 				<div class="mt-3 grid max-w-md grid-cols-3 gap-3">
-					{#each animationsOptions as opt}
+					{#each animationsOptions as opt (opt.value)}
 						<button
 							class="group flex flex-col items-center gap-2"
 							onclick={() => preferences.setAnimations(opt.value)}
@@ -392,7 +392,7 @@
 		<p class="mt-1 text-[13px] text-muted-foreground">Choose the AI assistant's voice</p>
 
 		<div class="mt-4 grid max-w-md grid-cols-2 gap-3 sm:grid-cols-3">
-			{#each voiceOptions as voice}
+			{#each voiceOptions as voice (voice.id)}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div

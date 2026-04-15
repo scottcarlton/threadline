@@ -1,13 +1,8 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { fetchUpcomingCount } from '$lib/stores/appointments.js';
-	import {
-		Tooltip,
-		TooltipTrigger,
-		TooltipContent,
-		TooltipProvider
-	} from '$lib/components/ui/tooltip/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 
 	let { data } = $props();
@@ -147,7 +142,8 @@
 		} else {
 			url.searchParams.delete('show_date');
 		}
-		goto(url.toString(), { replaceState: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic same-page URL rebuild
+		goto(`${resolve('/appointments')}${url.search}`, { replaceState: true });
 	}
 
 	function resetForm() {
@@ -359,7 +355,7 @@
 				onchange={handleShowDateChange}
 			>
 				<option value="">All shows</option>
-				{#each showDates as sd}
+				{#each showDates as sd (sd.id)}
 					<option value={sd.id}>{showDateLabel(sd)}</option>
 				{/each}
 			</select>
@@ -457,7 +453,7 @@
 							bind:value={formShowDateId}
 						>
 							<option value="">Select show...</option>
-							{#each showDates as sd}
+							{#each showDates as sd (sd.id)}
 								<option value={sd.id}>
 									{(sd as any).shows?.name ?? 'Show'} — {monthNames[(sd.month ?? 1) - 1]}
 									{sd.year}{sd.city ? `, ${sd.city}` : ''}{sd.state ? ` ${sd.state}` : ''}
@@ -536,7 +532,7 @@
 							<div
 								class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-none border bg-card shadow-lg"
 							>
-								{#each filteredAccounts as account}
+								{#each filteredAccounts as account (account.id)}
 									<button
 										type="button"
 										class="flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-muted/50 {formAccountId ===
@@ -620,7 +616,7 @@
 				<div class="space-y-1.5" role="group" aria-label="Duration">
 					<span class="text-sm font-medium text-muted-foreground">Duration</span>
 					<div class="flex w-fit gap-1 rounded-lg bg-muted p-1">
-						{#each [15, 30, 45, 60] as dur}
+						{#each [15, 30, 45, 60] as dur (dur)}
 							<button
 								type="button"
 								class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors {formDuration ===
@@ -690,7 +686,7 @@
 		</div>
 	{:else if filteredAppointments.length > 0}
 		<div class="space-y-2">
-			{#each filteredAppointments as appt}
+			{#each filteredAppointments as appt (appt.id)}
 				{@const isMine = appt.created_by === data.user?.id}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Card } from '$lib/components/ui/card/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	type Action = {
 		label: string;
@@ -33,7 +33,6 @@
 		title,
 		description,
 		metadata = {},
-		entityType = null,
 		entityId = null,
 		actions = [],
 		onDismiss,
@@ -145,7 +144,7 @@
 		if (action.onclick) {
 			action.onclick();
 		} else if (action.href) {
-			goto(action.href);
+			goto(resolve(action.href as '/orders'));
 		} else if (action.prompt) {
 			// Open AI assistant with the prompt
 			const event = new CustomEvent('assistant-prompt', { detail: action.prompt, bubbles: true });
@@ -260,7 +259,7 @@
 		<!-- Actions -->
 		{#if allActions.length > 0}
 			<div class="flex flex-wrap gap-2">
-				{#each allActions as action}
+				{#each allActions as action, i (i)}
 					<Button
 						variant={action.variant ?? 'outline'}
 						size="sm"

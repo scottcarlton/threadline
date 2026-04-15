@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	// Load documents for all show dates
 	const dateIds = (show.show_dates ?? []).map((d: { id: string }) => d.id);
-	let documents: Record<string, any[]> = {};
+	const documents: Record<string, any[]> = {};
 	if (dateIds.length > 0) {
 		const { data: docs } = await supabase
 			.from('show_date_documents')

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
@@ -171,7 +172,7 @@
 <div class="space-y-6">
 	<div class="flex items-center gap-3">
 		<a
-			href="/organization/integrations"
+			href={resolve('/organization/integrations')}
 			class="text-sm text-muted-foreground hover:text-foreground"
 		>
 			<svg
@@ -229,7 +230,7 @@
 							bind:value={selectedDataType}
 							class="rounded-md border bg-background px-3 py-2 text-sm"
 						>
-							{#each dataTypes as dt}
+							{#each dataTypes as dt (dt.value)}
 								<option value={dt.value}>{dt.label}</option>
 							{/each}
 						</select>
@@ -297,7 +298,7 @@
 							<a
 								href={exportResult.url}
 								target="_blank"
-								rel="noopener"
+								rel="external noopener"
 								class="font-medium underline">Open spreadsheet</a
 							>
 						</p>
@@ -317,8 +318,6 @@
 
 	<!-- Microsoft 365 config -->
 	{#if provider === 'microsoft'}
-		{@const config = connection.config as Record<string, unknown>}
-
 		<!-- Services overview -->
 		<Card>
 			<CardContent class="pt-5 pb-5">
@@ -405,7 +404,7 @@
 							bind:value={msDataType}
 							class="rounded-md border bg-background px-3 py-2 text-sm"
 						>
-							{#each dataTypes as dt}
+							{#each dataTypes as dt (dt.value)}
 								<option value={dt.value}>{dt.label}</option>
 							{/each}
 						</select>
@@ -459,7 +458,7 @@
 							<a
 								href={msExportResult.url}
 								target="_blank"
-								rel="noopener"
+								rel="external noopener"
 								class="font-medium underline">Open in OneDrive</a
 							>
 						</p>
@@ -518,7 +517,7 @@
 								bind:value={selectedNotionDb}
 								class="rounded-md border bg-background px-3 py-2 text-sm"
 							>
-								{#each notionDatabases as db}
+								{#each notionDatabases as db (db.id)}
 									<option value={db.id}>{db.title}</option>
 								{/each}
 							</select>
@@ -601,7 +600,7 @@
 					<h3 class="text-sm font-medium">Notifications</h3>
 					<p class="mt-1 text-sm text-muted-foreground">Events that trigger a Slack message</p>
 					<div class="mt-3 space-y-2">
-						{#each [{ key: 'order_submitted', label: 'Order submitted' }, { key: 'order_confirmed', label: 'Order confirmed' }, { key: 'order_shipped', label: 'Order shipped' }, { key: 'order_cancelled', label: 'Order cancelled' }, { key: 'new_account', label: 'New account created' }] as event}
+						{#each [{ key: 'order_submitted', label: 'Order submitted' }, { key: 'order_confirmed', label: 'Order confirmed' }, { key: 'order_shipped', label: 'Order shipped' }, { key: 'order_cancelled', label: 'Order cancelled' }, { key: 'new_account', label: 'New account created' }] as event (event.key)}
 							{@const notifyOn = (config.notify_on ?? []) as string[]}
 							<label class="flex items-center gap-2.5">
 								<input
@@ -637,7 +636,7 @@
 			<CardContent class="pt-5 pb-5">
 				<h3 class="text-sm font-medium">Sync History</h3>
 				<div class="mt-3 divide-y">
-					{#each syncLogs as log}
+					{#each syncLogs as log (log.id)}
 						<div class="flex items-center justify-between py-3 first:pt-0 last:pb-0">
 							<div>
 								<p class="text-sm font-medium">{formatAction(log.action)}</p>
@@ -663,7 +662,7 @@
 										<a
 											href={details.spreadsheet_url as string}
 											target="_blank"
-											rel="noopener"
+											rel="external noopener"
 											class="text-xs font-medium text-primary hover:underline"
 										>
 											Open

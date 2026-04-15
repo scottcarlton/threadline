@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -62,7 +63,6 @@
 			? order.status === 'draft' && order.created_by === data.user?.id
 			: data.membership?.role !== 'guest'
 	);
-	const commissionOverride = $derived(data.commissionOverride as number | null);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
 	const repName = $derived(data.repName as string | null);
 
@@ -179,11 +179,6 @@
 	let savingShipped = $state(false);
 
 	const isShippedOrDelivered = $derived(order.status === 'shipped' || order.status === 'delivered');
-	const commissionRate = $derived(commissionOverride ?? order.brands?.commission_rate ?? 0);
-	const brandCommissionOnTotal = $derived((Number(order.total_amount) * commissionRate) / 100);
-	const brandCommissionOnShipped = $derived(
-		order.shipped_amount != null ? (Number(order.shipped_amount) * commissionRate) / 100 : null
-	);
 	const repCommissionOnTotal = $derived((Number(order.total_amount) * repCommissionRate) / 100);
 	const repCommissionOnShipped = $derived(
 		order.shipped_amount != null ? (Number(order.shipped_amount) * repCommissionRate) / 100 : null
@@ -543,7 +538,7 @@
 			const res = await fetch(`/api/orders/${order.id}/clone`, { method: 'POST' });
 			if (res.ok) {
 				const { id } = await res.json();
-				goto(`/orders/${id}`);
+				goto(resolve(`/orders/${id}`));
 			}
 		} finally {
 			cloning = false;
@@ -707,7 +702,7 @@
 				</Button>
 			{/if}
 			{#if canEdit && order.order_type !== 'note' && nextStatuses.length > 0}
-				{#each nextStatuses as nextStatus}
+				{#each nextStatuses as nextStatus (nextStatus)}
 					{#if nextStatus === 'cancelled'}
 						<Button size="sm" variant="destructive" onclick={() => (cancelOpen = true)}>
 							Cancel
@@ -769,7 +764,7 @@
 	<!-- Status timeline -->
 	{#if order.order_type !== 'note' && order.status !== 'cancelled'}
 		<div class="flex items-center gap-1">
-			{#each timeline as step, i}
+			{#each timeline as step, i (step.status)}
 				{@const isComplete = step.date !== null}
 				{@const isCurrent = step.status === order.status}
 				<div class="flex items-center gap-1">
@@ -828,7 +823,7 @@
 					<div>
 						<dt class="text-xs text-muted-foreground">Account</dt>
 						<dd class="mt-0.5">
-							<a href="/accounts/{order.account_id}" class="hover:underline"
+							<a href={resolve(`/accounts/${order.account_id}`)} class="hover:underline"
 								>{order.accounts?.business_name}</a
 							>
 						</dd>
@@ -858,7 +853,9 @@
 						<div>
 							<dt class="text-xs text-muted-foreground">Brand</dt>
 							<dd class="mt-0.5">
-								<a href="/brands/{order.brand_id}" class="hover:underline">{order.brands?.name}</a>
+								<a href={resolve(`/brands/${order.brand_id}`)} class="hover:underline"
+									>{order.brands?.name}</a
+								>
 							</dd>
 						</div>
 					{/if}
@@ -1134,7 +1131,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each activeLines as line}
+							{#each activeLines as line (line.id)}
 								<tr class="group border-b">
 									<td class="px-3 py-2">
 										<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
@@ -1144,7 +1141,6 @@
 									</td>
 									<td class="px-3 py-2 text-sm">{line.color ?? '—'}</td>
 									<td class="px-3 py-2 text-sm">{line.size ?? '—'}</td>
-									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 									<td
 										class="px-3 py-2 text-right text-sm {!editMode &&
 										canEdit &&
@@ -1302,7 +1298,7 @@
 					<div class="rounded-md border border-dashed">
 						<table class="w-full">
 							<tbody>
-								{#each removedLines as line}
+								{#each removedLines as line (line.id)}
 									<tr class="border-b opacity-60 last:border-0">
 										<td class="px-3 py-2 line-through">
 											<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
@@ -1373,7 +1369,7 @@
 	<CardContent>
 		{#if comments.length > 0}
 			<div class="mb-4 space-y-3">
-				{#each comments as comment}
+				{#each comments as comment (comment.id)}
 					<div class="flex items-start gap-3">
 						<div
 							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
@@ -1639,7 +1635,7 @@
 						<div class="space-y-2">
 							<Label>Attach brand resources</Label>
 							<div class="max-h-40 space-y-1.5 overflow-y-auto rounded-none border p-3">
-								{#each brandAssets as asset}
+								{#each brandAssets as asset (asset.id)}
 									<label class="flex cursor-pointer items-center gap-2 text-sm">
 										<input
 											type="checkbox"

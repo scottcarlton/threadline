@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -356,67 +357,6 @@
 		return seasons.find((s) => s.id === id)?.sort_order ?? 9999;
 	}
 
-	// A delivery-pool entry describes a preset available for a group:
-	// its source season (may differ from group's own season) + year applied.
-	type DeliveryEntry = {
-		row: SeasonDeliveryRow;
-		display_year: number;
-		season_id: string;
-		// True when this delivery belongs to the group's own (season_id, year).
-		own: boolean;
-	};
-
-	// Build the pool of preset delivery windows a group can choose from.
-	// Includes the group's own season for the group's year, all later seasons
-	// (within the group's year), and every season in the next year.
-	function availableDeliveries(
-		group_season_id: string,
-		group_year: number | null
-	): DeliveryEntry[] {
-		const srcSort = seasonSort(group_season_id);
-		const year = group_year ?? cart.order_year;
-		const entries: DeliveryEntry[] = [];
-
-		for (const s of seasons) {
-			const inSameYearLater = s.sort_order != null && s.sort_order >= srcSort;
-			const sDeliveries = deliveries.filter((d) => d.season_id === s.id);
-			if (inSameYearLater) {
-				for (const d of sDeliveries) {
-					entries.push({
-						row: d,
-						display_year: year,
-						season_id: s.id,
-						own: s.id === group_season_id
-					});
-				}
-			}
-			// Next year: include every season.
-			for (const d of sDeliveries) {
-				entries.push({
-					row: d,
-					display_year: year + 1,
-					season_id: s.id,
-					own: false
-				});
-			}
-		}
-		return entries;
-	}
-
-	function deliveryEntryLabel(e: DeliveryEntry): string {
-		const date = deliveryLabelFor(e.row);
-		if (e.own) return date;
-		const seasonTag =
-			e.display_year === (cart.order_year ?? new Date().getFullYear())
-				? seasonName(e.season_id)
-				: `${seasonName(e.season_id)} ${e.display_year}`;
-		return `${seasonTag} · ${date}`;
-	}
-
-	function deliveryEntryKey(e: DeliveryEntry): string {
-		return `${e.row.id}__${e.display_year}`;
-	}
-
 	// Valid forward-only destinations for a group (same brand, same order year).
 	// Groups are keyed by (brand, season), so year stays constant for now.
 	function moveTargetsFor(source_season_id: string) {
@@ -447,45 +387,6 @@
 	function removeGroup(brand_id: string, season_id: string) {
 		cart.items = cart.items.filter(
 			(it) => !(it.brand_id === brand_id && it.season_id === season_id)
-		);
-	}
-
-	// Apply a preset delivery entry to a group. If the entry is in the group's
-	// order_year, store as a `delivery` reference; otherwise (next year) resolve
-	// to a custom date range so the existing schema stores the full ISO dates.
-	function applyDeliveryEntry(group_brand_id: string, group_season_id: string, e: DeliveryEntry) {
-		if (e.display_year === cart.order_year) {
-			setMeta(group_brand_id, group_season_id, {
-				delivery: { kind: 'delivery', delivery_id: e.row.id }
-			});
-			return;
-		}
-		const mm = String(e.row.delivery_month).padStart(2, '0');
-		const dd = String(e.row.delivery_day).padStart(2, '0');
-		const start = `${e.display_year}-${mm}-01`;
-		const end = `${e.display_year}-${mm}-${dd}`;
-		setMeta(group_brand_id, group_season_id, {
-			delivery: { kind: 'custom', start_ship_date: start, expected_ship_date: end }
-		});
-	}
-
-	// Check if a group's current delivery selection matches a preset entry.
-	function deliveryEntrySelected(
-		meta: { delivery: DeliveryChoice | null },
-		e: DeliveryEntry
-	): boolean {
-		if (!meta.delivery) return false;
-		if (e.display_year === cart.order_year) {
-			return meta.delivery.kind === 'delivery' && meta.delivery.delivery_id === e.row.id;
-		}
-		const mm = String(e.row.delivery_month).padStart(2, '0');
-		const dd = String(e.row.delivery_day).padStart(2, '0');
-		const expectedStart = `${e.display_year}-${mm}-01`;
-		const expectedEnd = `${e.display_year}-${mm}-${dd}`;
-		return (
-			meta.delivery.kind === 'custom' &&
-			meta.delivery.start_ship_date === expectedStart &&
-			meta.delivery.expected_ship_date === expectedEnd
 		);
 	}
 
@@ -543,7 +444,7 @@
 	}
 
 	function handleCancel() {
-		goto('/orders');
+		goto(resolve('/orders'));
 	}
 
 	// Brand filter ↔ combobox
@@ -805,10 +706,6 @@
 		if (city.includes(q) || state.includes(q)) return 20;
 		return 0;
 	}
-	function accountLabel(a: Account): string {
-		const loc = [a.city, a.state].filter(Boolean).join(', ');
-		return loc ? `${a.business_name} — ${loc}` : a.business_name;
-	}
 	function pickAccount(a: Account) {
 		cart.account_id = a.id;
 		cart.freeform_name = null;
@@ -822,12 +719,6 @@
 		accountFocus = false;
 		nextStep();
 	}
-	function clearAccount() {
-		cart.account_id = null;
-		cart.freeform_name = null;
-		accountQuery = '';
-	}
-
 	// ── Submit ──────────────────────────────────────────────────────────────
 	let submitting = $state(false);
 	let submitError = $state<string | null>(null);
@@ -1301,7 +1192,7 @@
 			<div class="relative mt-1">
 				<Input
 					id="account-input"
-					placeholder={'Type to search (e.g. "Elm & Ivory") or enter a new account name'}
+					placeholder="Type to search (e.g. &quot;Elm & Ivory&quot;) or enter a new account name"
 					value={accountQuery}
 					oninput={(e) => {
 						accountQuery = (e.target as HTMLInputElement).value;

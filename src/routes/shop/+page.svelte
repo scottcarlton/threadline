@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
@@ -26,7 +27,12 @@
 		} else {
 			url.searchParams.delete('brand');
 		}
-		goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic same-page URL rebuild
+		goto(`${resolve('/shop')}${url.search}`, {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	const filtered = $derived(
@@ -103,7 +109,7 @@
 				>
 					All Brands
 				</button>
-				{#each brands as brand}
+				{#each brands as brand (brand.id)}
 					<button
 						class="rounded-lg border px-3 py-1.5 text-sm transition-colors {brandFilter === brand.id
 							? 'border-primary bg-primary text-primary-foreground'
@@ -145,14 +151,14 @@
 			</div>
 		{:else}
 			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-				{#each filtered as product}
+				{#each filtered as product (product.id)}
 					{@const primaryImage =
 						product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 					{@const inCart = $cart.some((i) => i.productId === product.id)}
 					<div
 						class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md"
 					>
-						<a href="/shop/{product.id}" class="block">
+						<a href={resolve(`/shop/${product.id}`)} class="block">
 							<div class="aspect-[4/3] overflow-hidden rounded-t-xl bg-muted">
 								{#if primaryImage}
 									<img

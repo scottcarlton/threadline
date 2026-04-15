@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -95,7 +96,7 @@
 				});
 			}
 			loading = false;
-			goto(`/expenses/${expense.id}`);
+			goto(resolve(`/expenses/${expense.id}`));
 		}
 	}
 </script>
@@ -124,7 +125,7 @@
 						class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 					>
 						<option value="">Select a brand</option>
-						{#each brands as brand}
+						{#each brands as brand (brand.id)}
 							<option value={brand.id}>{brand.name}</option>
 						{/each}
 					</select>
@@ -139,7 +140,7 @@
 						bind:value={category}
 						class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 					>
-						{#each categoryOptions as opt}
+						{#each categoryOptions as opt (opt.value)}
 							<option value={opt.value}>{opt.label}</option>
 						{/each}
 					</select>
@@ -183,7 +184,7 @@
 				<ReceiptDropZone onfiles={addReceipts} compact />
 				{#if pendingReceipts.length > 0}
 					<div class="space-y-1.5">
-						{#each pendingReceipts as file, i}
+						{#each pendingReceipts as file, i (i)}
 							<div class="flex items-center justify-between border px-3 py-2 text-sm">
 								<span class="truncate">{file.name}</span>
 								<button

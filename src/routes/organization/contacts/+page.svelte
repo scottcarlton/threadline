@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { cn } from '$lib/utils.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -351,7 +352,7 @@
 				</p>
 			</div>
 			<div class="mt-2 space-y-1.5">
-				{#each duplicates.slice(0, 3) as dup}
+				{#each duplicates.slice(0, 3) as dup (dup.email)}
 					<div class="flex items-center gap-2 text-sm text-amber-700">
 						<span class="font-mono">{dup.email}</span>
 						<span class="text-amber-600"
@@ -415,7 +416,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y">
-						{#each filteredKnown as contact}
+						{#each filteredKnown as contact (`${contact.source}-${contact.sourceId}`)}
 							<tr
 								class="cursor-pointer transition-colors hover:bg-muted/30 {drawerContactId ===
 								`${contact.source}-${contact.sourceId}`
@@ -502,7 +503,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y">
-						{#each filteredDiscovered as contact}
+						{#each filteredDiscovered as contact (contact.id)}
 							<tr
 								class="cursor-pointer transition-colors hover:bg-muted/30 {drawerContactId ===
 								contact.id
@@ -538,8 +539,6 @@
 										>{formatDate(contact.last_seen_at)}</span
 									>
 								</td>
-								<!-- svelte-ignore a11y_click_events_have_key_events -->
-								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<td class="px-4 py-3 text-right" onclick={(e) => e.stopPropagation()}>
 									<div class="flex items-center justify-end gap-1">
 										{#if contact.status === 'new'}
@@ -669,7 +668,7 @@
 									<a
 										href={drawerContact.website}
 										target="_blank"
-										rel="noopener noreferrer"
+										rel="external noopener noreferrer"
 										class="text-primary hover:underline"
 										>{drawerContact.website.replace(/^https?:\/\//, '')}</a
 									>
@@ -680,6 +679,7 @@
 							<div class="flex justify-between border-t pt-2.5">
 								<dt class="text-muted-foreground">{drawerSourceLabel}</dt>
 								<dd>
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic href computed from contact source -->
 									<a href={drawerSourceHref} class="font-medium hover:underline"
 										>{drawerContact.sourceName}</a
 									>
@@ -715,9 +715,9 @@
 					<div class="space-y-3">
 						<h3 class="text-sm font-semibold">Recent Orders</h3>
 						<div class="space-y-1.5">
-							{#each drawerOrders as order}
+							{#each drawerOrders as order (order.id)}
 								<a
-									href="/orders/{order.id}"
+									href={resolve(`/orders/${order.id}`)}
 									class="flex items-center justify-between rounded-lg border px-3 py-2 transition-colors hover:bg-muted/30"
 								>
 									<div>

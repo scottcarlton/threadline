@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
 	import { cn } from '$lib/utils.js';
 	import type { Organization, OrganizationMember, OrgType } from '$lib/types/database.js';
 
@@ -72,7 +71,7 @@
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="fixed inset-0 z-40" onclick={() => (open = false)}></div>
 			<div class="absolute right-5 left-5 z-50 mt-1 rounded-lg border bg-popover p-1 shadow-lg">
-				{#each allMemberships as m}
+				{#each allMemberships as m (m.organizations.id)}
 					<button
 						onclick={() => switchOrg(m.organizations.id)}
 						class={cn(

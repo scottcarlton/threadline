@@ -15,6 +15,7 @@
 	} from '$lib/components/ui/tooltip/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { conversation } from '$lib/stores/conversation.js';
 	import ActionFeed from '$lib/components/insights/ActionFeed.svelte';
@@ -41,7 +42,8 @@
 			if (res.ok) {
 				// Reload page data
 				const url = new URL($page.url);
-				goto(url.toString(), { invalidateAll: true });
+				// eslint-disable-next-line svelte/no-navigation-without-resolve
+				goto(`${resolve('/insight')}${url.search}`, { invalidateAll: true });
 			}
 		} finally {
 			isRefreshing = false;
@@ -66,8 +68,6 @@
 		});
 	}
 
-	const seasonSummary = $derived(data.seasonSummary ?? []);
-	const yearlySummary = $derived(data.yearlySummary ?? []);
 	const selectedYear = $derived(data.selectedYear);
 	const availableYears = $derived(data.availableYears ?? []);
 
@@ -213,30 +213,11 @@
 		} else {
 			url.searchParams.delete('show_date');
 		}
-		goto(url.toString(), { replaceState: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 	}
 
 	// ── Delivery tab (existing) ─────────────────────────────────────────
-
-	const maxSeasonRevenue = $derived(
-		seasonSummary.length > 0
-			? Math.max(...seasonSummary.map((s: { revenue: number }) => s.revenue))
-			: 1
-	);
-
-	const maxYearlyRevenue = $derived(
-		yearlySummary.length > 0
-			? Math.max(...yearlySummary.map((y: { revenue: number }) => y.revenue))
-			: 1
-	);
-
-	const totalSeasonRevenue = $derived(
-		seasonSummary.reduce((sum: number, s: { revenue: number }) => sum + s.revenue, 0)
-	);
-
-	const totalSeasonOrders = $derived(
-		seasonSummary.reduce((sum: number, s: { order_count: number }) => sum + s.order_count, 0)
-	);
 
 	// Build a lookup map for grid data: "accountId|deliveryId|year" -> total
 	const gridLookup = $derived.by(() => {
@@ -372,7 +353,8 @@
 		} else {
 			url.searchParams.delete('year');
 		}
-		goto(url.toString(), { replaceState: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 	}
 
 	function deliveryLabel(month: number, day: number): string {
@@ -464,7 +446,8 @@
 		} else {
 			url.searchParams.delete(param);
 		}
-		goto(url.toString(), { replaceState: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 	}
 
 	function exportCommissionCSV() {
@@ -481,15 +464,6 @@
 		const yearSuffix = commYearParam ?? 'all';
 		downloadCSV(rows, `commissions-${yearSuffix}.csv`);
 	}
-
-	const seasonBarColors = [
-		'bg-emerald-500',
-		'bg-amber-500',
-		'bg-orange-500',
-		'bg-red-500',
-		'bg-sky-500',
-		'bg-violet-500'
-	];
 
 	// Setup checklist
 	const firstName = $derived(data.user?.display_name?.split(' ')[0] ?? 'there');
@@ -537,7 +511,7 @@
 							</CardDescription>
 						</div>
 						<div class="flex gap-1">
-							{#each [0, 1, 2, 3] as i}
+							{#each [0, 1, 2, 3] as i (i)}
 								<div
 									class="h-1.5 w-8 rounded-full {i < checklistDone ? 'bg-foreground' : 'bg-border'}"
 								></div>
@@ -939,7 +913,7 @@
 						</div>
 						{#if !cl.hasBrands}
 							<a
-								href="/brands/new"
+								href={resolve('/brands/new')}
 								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 								>Add</a
 							>
@@ -978,7 +952,7 @@
 						</div>
 						{#if !cl.hasProducts && cl.hasBrands && cl.firstBrandId}
 							<a
-								href="/brands/{cl.firstBrandId}/products/new"
+								href={resolve(`/brands/${cl.firstBrandId}/products/new`)}
 								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 								>Add</a
 							>
@@ -1021,7 +995,7 @@
 						</div>
 						{#if !cl.hasAccounts}
 							<a
-								href="/accounts/new"
+								href={resolve('/accounts/new')}
 								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 								>Add</a
 							>
@@ -1058,7 +1032,7 @@
 						</div>
 						{#if !cl.hasOrders && cl.hasBrands && cl.hasAccounts}
 							<a
-								href="/orders/new"
+								href={resolve('/orders/new')}
 								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 								>Create</a
 							>
@@ -1128,7 +1102,7 @@
 							value={selectedYear ?? ''}
 							onchange={handleYearChange}
 						>
-							{#each availableYears as year}
+							{#each availableYears as year (year)}
 								<option value={year}>{year}</option>
 							{/each}
 						</select>
@@ -1136,7 +1110,7 @@
 				{/if}
 				{#if activeTab === 'velocity'}
 					<div class="flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
-						{#each [7, 14, 30] as days}
+						{#each [7, 14, 30] as days (days)}
 							<button
 								class="cursor-pointer rounded-md px-3 py-1 text-sm font-medium transition-colors {velocityWindow ===
 								days
@@ -1145,7 +1119,8 @@
 								onclick={() => {
 									const url = new URL($page.url);
 									url.searchParams.set('velocity_window', String(days));
-									goto(url.toString(), { replaceState: true });
+									// eslint-disable-next-line svelte/no-navigation-without-resolve
+									goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 								}}
 							>
 								{days}d
@@ -1162,7 +1137,7 @@
 								handleCommFilterChange('comm_year', (e.target as HTMLSelectElement).value)}
 						>
 							<option value="">All Years</option>
-							{#each commAvailableYears as year}
+							{#each commAvailableYears as year (year)}
 								<option value={year}>{year}</option>
 							{/each}
 						</select>
@@ -1173,7 +1148,7 @@
 								handleCommFilterChange('comm_brand', (e.target as HTMLSelectElement).value)}
 						>
 							<option value="">All Brands</option>
-							{#each commissionBrands as brand}
+							{#each commissionBrands as brand (brand.id)}
 								<option value={brand.id}>{brand.name}</option>
 							{/each}
 						</select>
@@ -1184,7 +1159,7 @@
 								handleCommFilterChange('comm_month', (e.target as HTMLSelectElement).value)}
 						>
 							<option value="">All Months</option>
-							{#each monthNames as name, i}
+							{#each monthNames as name, i (name)}
 								<option value={i + 1}>{name}</option>
 							{/each}
 						</select>
@@ -1241,7 +1216,7 @@
 						onchange={handleShowDateChange}
 					>
 						<option value="">All Shows</option>
-						{#each showDates as sd}
+						{#each showDates as sd (sd.id)}
 							<option value={sd.id}>{showDateLabel(sd)}</option>
 						{/each}
 					</select>
@@ -1294,14 +1269,15 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each showDates as sd}
+									{#each showDates as sd (sd.id)}
 										{@const summary = showSummary.find((s) => s.showDateId === sd.id)}
 										<tr
 											class="cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/20"
 											onclick={() => {
 												const url = new URL($page.url);
 												url.searchParams.set('show_date', sd.id);
-												goto(url.toString(), { replaceState: true });
+												// eslint-disable-next-line svelte/no-navigation-without-resolve
+												goto(`${resolve('/insight')}${url.search}`, { replaceState: true });
 											}}
 										>
 											<td class="px-4 py-3">
@@ -1358,7 +1334,7 @@
 										>
 											Status
 										</th>
-										{#each activeDeliveryColumns as col}
+										{#each activeDeliveryColumns as col (col.id)}
 											<th
 												class="border-l border-border/50 px-3 py-2 text-right text-[12px] font-medium tracking-wider whitespace-nowrap text-muted-foreground uppercase"
 											>
@@ -1373,7 +1349,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each showVisits as visit}
+									{#each showVisits as visit (visit.id)}
 										{@const account = visit.accounts}
 										{@const repName = (visit as any).profiles?.display_name ?? null}
 										<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
@@ -1442,7 +1418,7 @@
 											</td>
 
 											<!-- Delivery columns -->
-											{#each activeDeliveryColumns as col}
+											{#each activeDeliveryColumns as col (col.id)}
 												{@const val = getShowOrderValue(visit.account_id, col.id)}
 												<td
 													class="border-l border-border/50 px-3 py-3 text-right whitespace-nowrap"
@@ -1500,7 +1476,7 @@
 										</tr>
 									{/each}
 									<!-- Freeform appointments (no linked account) -->
-									{#each freeformAppts as appt}
+									{#each freeformAppts as appt (appt.id)}
 										{@const freeRepName = appt.profiles?.display_name ?? null}
 										<tr
 											class="border-b bg-muted/5 transition-colors last:border-b-0 hover:bg-muted/20"
@@ -1548,7 +1524,7 @@
 													{statusLabel(appt.status)}
 												</span>
 											</td>
-											{#each activeDeliveryColumns as _col}
+											{#each activeDeliveryColumns as _col (_col.id)}
 												<td class="border-l border-border/50 px-3 py-3 text-right">
 													<div class="text-sm text-muted-foreground/40">&mdash;</div>
 												</td>
@@ -1675,7 +1651,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each commissionRows as row}
+								{#each commissionRows as row (row.id)}
 									<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 										<td class="px-4 py-3 text-sm font-medium">{row.order_number}</td>
 										<td class="px-3 py-3 text-sm">{row.accounts?.business_name ?? '—'}</td>
@@ -1720,7 +1696,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each commissionMonthly as row}
+									{#each commissionMonthly as row (row.sortKey)}
 										<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 											<td class="px-4 py-3 text-sm font-medium">{row.month}</td>
 											<td class="px-3 py-3 text-right font-mono text-sm"
@@ -1784,7 +1760,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each styleVelocity as style}
+								{#each styleVelocity as style (`${style.brand_name}::${style.style_number}`)}
 									<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 										<td class="px-4 py-3">
 											{#if style.product_name && style.product_name !== style.style_number}
@@ -1825,7 +1801,7 @@
 										>
 										<td class="px-3 py-3">
 											<div class="flex flex-wrap gap-1">
-												{#each style.top_colors as color}
+												{#each style.top_colors as color (color)}
 													<span
 														class="inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
 														>{color}</span
@@ -1879,7 +1855,7 @@
 							class="h-9 cursor-pointer rounded-lg border border-input bg-background px-3 text-sm text-foreground shadow-sm"
 						>
 							<option value="">All states</option>
-							{#each availableStates as stateVal}
+							{#each availableStates as stateVal (stateVal)}
 								<option value={stateVal}>{stateVal}</option>
 							{/each}
 						</select>
@@ -1906,7 +1882,7 @@
 									>
 										Account
 									</th>
-									{#each columnGroups as group}
+									{#each columnGroups as group (group.label)}
 										<th
 											class="border-l border-border/50 px-2 py-2 text-center text-[12px] font-medium tracking-wider text-muted-foreground uppercase"
 											colspan={group.colspan}
@@ -1917,7 +1893,7 @@
 								</tr>
 								<!-- Individual delivery date header row -->
 								<tr class="border-b bg-muted/40">
-									{#each deliveries as delivery}
+									{#each deliveries as delivery (delivery.id)}
 										<th
 											class="border-l border-border/50 px-3 py-2 text-right text-[12px] font-medium whitespace-nowrap text-muted-foreground"
 										>
@@ -1927,7 +1903,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each activeGridAccounts as account}
+								{#each activeGridAccounts as account (account.id)}
 									<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 										<td class="sticky left-0 z-10 min-w-[200px] bg-background px-4 py-3">
 											<div class="flex items-center gap-2">
@@ -1979,7 +1955,7 @@
 												{/if}
 											</div>
 										</td>
-										{#each deliveries as delivery}
+										{#each deliveries as delivery (delivery.id)}
 											{@const current = getCellValue(account.id, delivery.id, selectedYear ?? 0)}
 											{@const prior = getCellValue(
 												account.id,

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
 </script>
@@ -273,12 +274,13 @@
 						</p>
 						<div class="flex justify-center gap-4">
 							<a
-								href="/signup"
+								href={resolve('/signup')}
 								class="bg-foreground px-8 py-3 text-base font-medium text-primary-foreground"
 								>Get Early Access</a
 							>
-							<a href="/pricing" class="border border-foreground px-8 py-3 text-base font-medium"
-								>View Pricing</a
+							<a
+								href={resolve('/pricing')}
+								class="border border-foreground px-8 py-3 text-base font-medium">View Pricing</a
 							>
 						</div>
 					</div>

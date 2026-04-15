@@ -17,7 +17,7 @@
 
 <div class="space-y-3">
 	<h3 class="text-sm font-semibold tracking-wider text-muted-foreground uppercase">Scoreboard</h3>
-	{#each kpis as kpi}
+	{#each kpis as kpi (kpi.label)}
 		<Card class="p-3">
 			<div class="mb-1 font-mono text-sm text-muted-foreground">{kpi.label}</div>
 			<div class="flex items-end justify-between gap-2">

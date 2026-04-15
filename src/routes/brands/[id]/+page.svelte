@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
+	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -211,14 +212,6 @@
 		}
 	}
 
-	async function toggleActive() {
-		await supabase
-			.from('brands')
-			.update({ is_active: !brand.is_active, updated_at: new Date().toISOString() })
-			.eq('id', brand.id);
-		invalidateAll();
-	}
-
 	async function toggleArchive() {
 		await supabase
 			.from('brands')
@@ -260,7 +253,7 @@
 			<a
 				href={brand.website}
 				target="_blank"
-				rel="noopener noreferrer"
+				rel="external noopener noreferrer"
 				class="text-sm text-muted-foreground hover:text-foreground hover:underline"
 			>
 				{brand.website}
@@ -325,9 +318,9 @@
 				</CardHeader>
 				<CardContent>
 					<div class="space-y-2">
-						{#each performance.topAccounts as acct, i}
+						{#each performance.topAccounts as acct, i (acct.id)}
 							<a
-								href="/accounts/{acct.id}"
+								href={resolve(`/accounts/${acct.id}`)}
 								class="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-muted/50"
 							>
 								<div class="flex items-center gap-3">
@@ -473,7 +466,10 @@
 			<!-- Products -->
 			<Card>
 				<CardContent class="pt-5 pb-5">
-					<a href="/brands/{brand.id}/products" class="group flex items-center justify-between">
+					<a
+						href={resolve(`/brands/${brand.id}/products`)}
+						class="group flex items-center justify-between"
+					>
 						<div class="flex items-center gap-3">
 							<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
 								<svg
@@ -517,7 +513,10 @@
 			<!-- Expenses -->
 			<Card>
 				<CardContent class="pt-5 pb-5">
-					<a href="/expenses?brand={brand.id}" class="group flex items-center justify-between">
+					<a
+						href={resolve(`/expenses?brand=${brand.id}`)}
+						class="group flex items-center justify-between"
+					>
 						<div class="flex items-center gap-3">
 							<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
 								<svg
@@ -580,7 +579,7 @@
 									bind:value={uploadCategory}
 									class="h-9 cursor-pointer rounded-none border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
 								>
-									{#each categories as cat}
+									{#each categories as cat (cat)}
 										<option value={cat}>{cat}</option>
 									{/each}
 								</select>
@@ -627,7 +626,7 @@
 						<p class="text-sm text-muted-foreground">No resources uploaded yet.</p>
 					{:else}
 						<div class="divide-y rounded-none border">
-							{#each brandAssets as asset}
+							{#each brandAssets as asset (asset.id)}
 								<div class="flex items-center gap-3 px-4 py-3">
 									<!-- File icon -->
 									<div

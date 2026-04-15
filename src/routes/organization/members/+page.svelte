@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll, goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { supabase } from '$lib/supabase.js';
 	import { cn } from '$lib/utils.js';
@@ -7,7 +8,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
-	import type { UserRole, MemberBrandCommission } from '$lib/types/database.js';
+	import type { UserRole } from '$lib/types/database.js';
 
 	let { data } = $props();
 	let showImport = $state(false);
@@ -80,23 +81,8 @@
 		}>
 	);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
-	const memberBrandCommissions = $derived(data.memberBrandCommissions as MemberBrandCommission[]);
-	const scopedMemberIds = $derived(new Set(data.scopedMemberIds as string[]));
 	const memberEmails = $derived(data.memberEmails as Record<string, string>);
 	const currentUserId = $derived(data.user?.id);
-
-	// Build a lookup: memberId-brandId -> rate
-	const commissionLookup = $derived(() => {
-		const map = new Map<string, number>();
-		for (const c of memberBrandCommissions) {
-			map.set(`${c.member_id}-${c.brand_id}`, c.rate);
-		}
-		return map;
-	});
-
-	function getBrandRate(memberId: string, brandId: string): number {
-		return commissionLookup().get(`${memberId}-${brandId}`) ?? 0;
-	}
 
 	let showInviteForm = $state(false);
 	let inviteEmail = $state('');
@@ -202,22 +188,6 @@
 		updatingId = '';
 	}
 
-	let updatingCommission = $state('');
-
-	async function handleBrandCommissionChange(memberId: string, brandId: string, value: string) {
-		const rate = parseFloat(value);
-		if (isNaN(rate) || rate < 0 || rate > 100) return;
-		const key = `${memberId}-${brandId}`;
-		updatingCommission = key;
-		const res = await fetch('/api/team/update-commission', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ memberId, brandId, rate })
-		});
-		if (res.ok) await invalidateAll();
-		updatingCommission = '';
-	}
-
 	async function handleRemove(memberId: string) {
 		if (!confirm('Are you sure you want to remove this team member?')) return;
 		updatingId = memberId;
@@ -266,7 +236,12 @@
 		const url = new URL($page.url);
 		if (url.searchParams.has('member')) {
 			url.searchParams.delete('member');
-			goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic same-page URL rebuild
+			goto(`${resolve('/organization/members')}${url.search}`, {
+				replaceState: true,
+				keepFocus: true,
+				noScroll: true
+			});
 		}
 		// Reset flag after a tick so the effect doesn't reopen
 		setTimeout(() => {
@@ -285,7 +260,12 @@
 
 		const url = new URL($page.url);
 		url.searchParams.set('member', memberId);
-		goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic same-page URL rebuild
+		goto(`${resolve('/organization/members')}${url.search}`, {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 
 		const [memberRes, commissionsRes, brandAccessRes, territoriesRes] = await Promise.all([
 			supabase
@@ -453,7 +433,7 @@
 							Brand Access <span class="font-normal">(optional — leave empty for all)</span>
 						</p>
 						<div class="flex flex-wrap gap-2">
-							{#each brands as brand}
+							{#each brands as brand (brand.id)}
 								<button
 									type="button"
 									class="rounded-lg border px-2.5 py-1 text-sm transition-all {selectedBrandIds.includes(
@@ -479,7 +459,7 @@
 		{#if invitations.length > 0}
 			<div class="space-y-2">
 				<p class="text-sm font-medium text-muted-foreground">Pending Invitations</p>
-				{#each invitations as invitation}
+				{#each invitations as invitation (invitation.id)}
 					<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
 						<div class="flex items-center gap-3">
 							<span class="font-mono text-sm">{invitation.email}</span>
@@ -520,7 +500,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each members as member}
+						{#each members as member (member.id)}
 							{@const isCurrentUser = member.profile_id === currentUserId}
 							{@const isOwner = member.role === 'owner'}
 							<tr
@@ -715,10 +695,10 @@
 					<div class="space-y-3">
 						<h3 class="text-sm font-semibold">Territories</h3>
 						<div class="space-y-1.5">
-							{#each drawerTerritories as territory}
+							{#each drawerTerritories as territory (territory.id)}
 								<div class="flex items-center rounded-lg border px-3 py-2">
 									<a
-										href="/organization/territories/{territory.id}"
+										href={resolve(`/organization/territories/${territory.id}`)}
 										class="text-sm font-medium hover:underline">{territory.name}</a
 									>
 								</div>
@@ -736,7 +716,7 @@
 							<p class="text-sm text-muted-foreground">No brands available.</p>
 						{:else}
 							<div class="space-y-1.5">
-								{#each brands as brand}
+								{#each brands as brand (brand.id)}
 									<div class="flex items-center justify-between rounded-lg border px-3 py-2">
 										<span class="text-sm font-medium">{brand.name}</span>
 										<div class="flex items-center gap-1.5">
@@ -772,7 +752,7 @@
 						</p>
 						{#if drawerBrandAccess.length > 0}
 							<div class="flex flex-wrap gap-1.5">
-								{#each drawerBrandAccess as ba}
+								{#each drawerBrandAccess as ba (ba.id)}
 									<div class="flex items-center gap-1 rounded-lg border px-2.5 py-1">
 										<span class="text-sm">{ba.brands?.name ?? 'Unknown'}</span>
 										<button
@@ -811,7 +791,7 @@
 								}}
 							>
 								<option value="">Add brand access...</option>
-								{#each brands.filter((b) => !drawerAccessBrandIds.has(b.id)) as brand}
+								{#each brands.filter((b) => !drawerAccessBrandIds.has(b.id)) as brand (brand.id)}
 									<option value={brand.id}>{brand.name}</option>
 								{/each}
 							</select>

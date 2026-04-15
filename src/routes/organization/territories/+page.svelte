@@ -1,16 +1,11 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import {
-		Card,
-		CardHeader,
-		CardTitle,
-		CardDescription,
-		CardContent
-	} from '$lib/components/ui/card/index.js';
+	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 
 	let { data } = $props();
@@ -149,7 +144,7 @@
 								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 							>
 								<option value="">Unassigned</option>
-								{#each members as member}
+								{#each members as member (member.id)}
 									<option value={member.id}>{member.profiles?.display_name ?? 'Unknown'}</option>
 								{/each}
 							</select>
@@ -217,11 +212,11 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each territories as territory}
+					{#each territories as territory (territory.id)}
 						<tr class="transition-colors hover:bg-muted/30">
 							<td class="px-4 py-3">
 								<a
-									href="/organization/territories/{territory.id}"
+									href={resolve(`/organization/territories/${territory.id}`)}
 									class="text-sm font-medium hover:underline">{territory.name}</a
 								>
 								{#if territory.notes}

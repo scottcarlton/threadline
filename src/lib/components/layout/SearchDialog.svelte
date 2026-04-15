@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { conversation } from '$lib/stores/conversation.js';
 
 	type SearchResult = {
@@ -59,7 +60,7 @@
 			keys: ['⌘', 'O'],
 			action: () => {
 				closeDialog();
-				goto('/orders/new');
+				goto(resolve('/orders/new'));
 			}
 		},
 		{
@@ -69,7 +70,7 @@
 			keys: ['⌘', 'A'],
 			action: () => {
 				closeDialog();
-				goto('/accounts/new');
+				goto(resolve('/accounts/new'));
 			}
 		},
 		{
@@ -79,7 +80,7 @@
 			keys: ['⌘', 'B'],
 			action: () => {
 				closeDialog();
-				goto('/brands/new');
+				goto(resolve('/brands/new'));
 			}
 		},
 		{
@@ -89,7 +90,7 @@
 			keys: ['Shift', '⌘', 'A'],
 			action: () => {
 				closeDialog();
-				goto('/appointments?new=true');
+				goto(resolve('/appointments?new=true'));
 			}
 		}
 	];
@@ -102,7 +103,7 @@
 			keys: ['O'],
 			action: () => {
 				closeDialog();
-				goto('/orders');
+				goto(resolve('/orders'));
 			}
 		},
 		{
@@ -112,7 +113,7 @@
 			keys: ['A'],
 			action: () => {
 				closeDialog();
-				goto('/accounts');
+				goto(resolve('/accounts'));
 			}
 		},
 		{
@@ -122,7 +123,7 @@
 			keys: ['B'],
 			action: () => {
 				closeDialog();
-				goto('/brands');
+				goto(resolve('/brands'));
 			}
 		},
 		{
@@ -132,7 +133,7 @@
 			keys: ['Shift', 'I'],
 			action: () => {
 				closeDialog();
-				goto('/inbox');
+				goto(resolve('/inbox'));
 			}
 		},
 		{
@@ -142,7 +143,7 @@
 			keys: ['Shift', 'A'],
 			action: () => {
 				closeDialog();
-				goto('/appointments');
+				goto(resolve('/appointments'));
 			}
 		},
 		{
@@ -152,7 +153,7 @@
 			keys: ['R'],
 			action: () => {
 				closeDialog();
-				goto('/reports');
+				goto(resolve('/reports'));
 			}
 		},
 		{
@@ -161,7 +162,7 @@
 			icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
 			action: () => {
 				closeDialog();
-				goto('/settings');
+				goto(resolve('/settings'));
 			}
 		}
 	];
@@ -215,7 +216,7 @@
 				icon: 'plus',
 				action: () => {
 					closeDialog();
-					goto(`/orders?brand=${brandId}`);
+					goto(resolve(`/orders?brand=${brandId}` as '/orders'));
 				}
 			});
 		}
@@ -304,9 +305,13 @@
 		closeDialog();
 		if (result.type === 'contact') {
 			if (result.parentType) {
-				goto(`/organization/contacts/${result.parentType}-${result.id}`);
+				goto(
+					resolve(
+						`/organization/contacts/${result.parentType}-${result.id}` as '/organization/contacts'
+					)
+				);
 			} else {
-				goto(`/organization/contacts/${result.id}`);
+				goto(resolve(`/organization/contacts/${result.id}` as '/organization/contacts'));
 			}
 		} else {
 			const paths: Record<string, string> = {
@@ -314,7 +319,7 @@
 				account: `/accounts/${result.id}`,
 				order: `/orders/${result.id}`
 			};
-			goto(paths[result.type]);
+			goto(resolve(paths[result.type] as '/orders'));
 		}
 	}
 
@@ -441,7 +446,7 @@
 					<div class="px-5 pt-3 pb-1">
 						<span class="text-xs font-semibold tracking-wider text-white/40 uppercase">Create</span>
 					</div>
-					{#each createItems as item, i}
+					{#each createItems as item, i (item.label)}
 						<button
 							class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {i ===
 							selectedIndex
@@ -463,7 +468,7 @@
 							<span class="flex-1 text-sm text-zinc-300">{item.label}</span>
 							{#if item.keys}
 								<div class="flex shrink-0 items-center gap-0.5">
-									{#each item.keys as key}
+									{#each item.keys as key (key)}
 										<kbd
 											class="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-zinc-500"
 											>{key}</kbd
@@ -479,7 +484,7 @@
 							>Navigation</span
 						>
 					</div>
-					{#each navigateItems as item, i}
+					{#each navigateItems as item, i (item.label)}
 						{@const idx = createItems.length + i}
 						<button
 							class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
@@ -502,7 +507,7 @@
 							<span class="flex-1 text-sm text-zinc-300">{item.label}</span>
 							{#if item.keys}
 								<div class="flex shrink-0 items-center gap-0.5">
-									{#each item.keys as key}
+									{#each item.keys as key (key)}
 										<kbd
 											class="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-zinc-500"
 											>{key}</kbd
@@ -524,7 +529,7 @@
 								>Contacts</span
 							>
 						</div>
-						{#each contactResults as result, i}
+						{#each contactResults as result, i (result.id)}
 							<div
 								class="flex w-full items-center gap-3 px-5 py-2.5 transition-colors {getItemIndex(
 									contactOffset,
@@ -588,7 +593,7 @@
 								>Brands</span
 							>
 						</div>
-						{#each brandResults as result, i}
+						{#each brandResults as result, i (result.id)}
 							<button
 								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {getItemIndex(
 									brandOffset,
@@ -631,7 +636,7 @@
 								>Accounts</span
 							>
 						</div>
-						{#each accountResults as result, i}
+						{#each accountResults as result, i (result.id)}
 							<button
 								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {getItemIndex(
 									accountOffset,
@@ -674,7 +679,7 @@
 								>Orders</span
 							>
 						</div>
-						{#each orderResults as result, i}
+						{#each orderResults as result, i (result.id)}
 							<button
 								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {getItemIndex(
 									orderOffset,
@@ -725,7 +730,7 @@
 								>Actions</span
 							>
 						</div>
-						{#each actions as actionItem, i}
+						{#each actions as actionItem, i (actionItem.label)}
 							<button
 								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {getItemIndex(
 									actionOffset,
@@ -778,7 +783,7 @@
 								>Create</span
 							>
 						</div>
-						{#each matchingCreateItems as item, i}
+						{#each matchingCreateItems as item, i (item.label)}
 							{@const idx = defaultMatchOffset + i}
 							<button
 								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
@@ -809,7 +814,7 @@
 								>Navigation</span
 							>
 						</div>
-						{#each matchingNavigateItems as item, i}
+						{#each matchingNavigateItems as item, i (item.label)}
 							{@const idx = defaultMatchOffset + matchingCreateItems.length + i}
 							<button
 								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===

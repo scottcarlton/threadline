@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Avatar, AvatarFallback } from '$lib/components/ui/avatar/index.js';
 	import { cart } from '$lib/stores/cart.js';
@@ -24,7 +25,6 @@
 
 	let {
 		user,
-		organization,
 		orgDisplayName,
 		sidebarOpen,
 		showTeam = true,
@@ -53,7 +53,7 @@
 
 	async function signOut() {
 		await supabase.auth.signOut();
-		goto('/login');
+		goto(resolve('/login'));
 	}
 </script>
 
@@ -172,9 +172,9 @@
 								<p class="text-sm text-muted-foreground">No notifications yet</p>
 							</div>
 						{:else}
-							{#each notifItems as notif}
+							{#each notifItems as notif (notif.id)}
 								<a
-									href={notif.link ?? '#'}
+									href={notif.link ? resolve(notif.link as '/login') : '#'}
 									class="flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 {notif.read_at
 										? 'opacity-60'
 										: ''}"
@@ -212,7 +212,7 @@
 
 		{#if isBuyer}
 			<a
-				href="/shop/cart"
+				href={resolve('/shop/cart')}
 				class="relative flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95"
 				aria-label="Cart"
 			>
@@ -277,7 +277,7 @@
 					class="animate-in absolute right-0 z-50 mt-1 w-64 rounded-none border bg-popover p-1.5 shadow-lg"
 				>
 					<a
-						href="/settings"
+						href={resolve('/settings')}
 						class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-accent"
 						onclick={() => (showUserMenu = false)}
 					>
@@ -302,7 +302,7 @@
 					</a>
 					{#if showTeam}
 						<a
-							href="/organization/members"
+							href={resolve('/organization/members')}
 							class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-accent"
 							onclick={() => (showUserMenu = false)}
 						>

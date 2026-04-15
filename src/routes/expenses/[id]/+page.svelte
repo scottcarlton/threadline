@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -88,8 +89,6 @@
 
 	// QR code state
 	let qrDataUrl = $state('');
-	let qrUploadUrl = $state('');
-	let qrExpiresAt = $state('');
 	let generatingQr = $state(false);
 
 	// Auto-generate QR code on load
@@ -190,7 +189,7 @@
 		}
 
 		await supabase.from('brand_expenses').delete().eq('id', expense.id);
-		goto('/expenses');
+		goto(resolve('/expenses'));
 	}
 
 	async function handleFiles(files: File[]) {
@@ -229,8 +228,6 @@
 				uploadError = json.error || 'Failed to generate upload link';
 				return;
 			}
-			qrUploadUrl = json.url;
-			qrExpiresAt = json.expiresAt;
 			qrDataUrl = await QRCode.toDataURL(json.url, { width: 200, margin: 2 });
 		} catch {
 			uploadError = 'Failed to generate QR code';
@@ -332,7 +329,7 @@
 										bind:value={editCategory}
 										class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 									>
-										{#each categoryOptions as opt}
+										{#each categoryOptions as opt (opt.value)}
 											<option value={opt.value}>{opt.label}</option>
 										{/each}
 									</select>
@@ -584,7 +581,7 @@
 						<p class="text-sm text-muted-foreground">No receipts attached yet.</p>
 					{:else}
 						<div class="divide-y rounded-none border">
-							{#each receipts as receipt}
+							{#each receipts as receipt (receipt.id)}
 								<div class="flex items-center gap-3 px-4 py-3">
 									<div
 										class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted"

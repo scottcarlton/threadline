@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { navigating } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import Sidebar from '$lib/components/layout/sidebar.svelte';
@@ -15,7 +16,6 @@
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
-	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { preferences } from '$lib/stores/preferences.js';
 
 	const { messages, loading } = conversation;
@@ -292,7 +292,7 @@
 		if (cmd && e.shiftKey) {
 			if (e.code === 'KeyA') {
 				e.preventDefault();
-				goto('/appointments?new=true');
+				goto(resolve('/appointments?new=true'));
 				return;
 			}
 		}
@@ -301,17 +301,17 @@
 		if (cmd && !e.shiftKey) {
 			if (e.key === 'o') {
 				e.preventDefault();
-				goto('/orders/new');
+				goto(resolve('/orders/new'));
 				return;
 			}
 			if (e.key === 'a') {
 				e.preventDefault();
-				goto('/accounts/new');
+				goto(resolve('/accounts/new'));
 				return;
 			}
 			if (e.key === 'b') {
 				e.preventDefault();
-				goto('/brands/new');
+				goto(resolve('/brands/new'));
 				return;
 			}
 		}
@@ -320,17 +320,17 @@
 		if (e.shiftKey && !cmd) {
 			if (e.key === 'I') {
 				e.preventDefault();
-				goto('/inbox');
+				goto(resolve('/inbox'));
 				return;
 			}
 			if (e.key === 'A') {
 				e.preventDefault();
-				goto('/appointments');
+				goto(resolve('/appointments'));
 				return;
 			}
 			if (e.key === 'O') {
 				e.preventDefault();
-				goto('/organization');
+				goto(resolve('/organization'));
 				return;
 			}
 			if (e.key === 'H') {
@@ -351,7 +351,7 @@
 				i: '/insight'
 			};
 			if (singleKeys[e.key] && now - lastNonShortcutKey > KEY_CHORD_WINDOW) {
-				goto(singleKeys[e.key]);
+				goto(resolve(singleKeys[e.key] as '/orders'));
 				return;
 			}
 			// Track non-shortcut keypresses to prevent chords like "/a" from triggering
@@ -737,7 +737,7 @@
 								class="max-h-[50vh] space-y-3 overflow-y-auto px-5 pb-5"
 								style={chatFontStyle}
 							>
-								{#each $messages as msg, i}
+								{#each $messages as msg, i (i)}
 									<div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
 										<div
 											class="max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed {msg.role === 'user'
@@ -754,7 +754,7 @@
 									</div>
 									{#if msg.role === 'assistant' && i === $messages.length - 1 && msg.suggestions?.length && !$loading}
 										<div class="flex flex-wrap gap-2 pl-1">
-											{#each msg.suggestions as suggestion}
+											{#each msg.suggestions as suggestion (suggestion)}
 												<button
 													onclick={() => sendAiMessage(suggestion)}
 													class="rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
@@ -869,7 +869,7 @@
 							<!-- Attached files -->
 							{#if hasAttachments}
 								<div class="mt-3 ml-10 flex flex-wrap gap-2">
-									{#each attachedFiles as { file, preview }, i}
+									{#each attachedFiles as { file, preview }, i (i)}
 										<div
 											class="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-2 py-1 ring-1 ring-white/5"
 										>
@@ -987,7 +987,7 @@
 													>
 														<span class="text-sm">Default Assistant</span>
 													</button>
-													{#each availableAgents as agent}
+													{#each availableAgents as agent (agent.id)}
 														<button
 															class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {$activeAgent?.id ===
 															agent.id

@@ -429,7 +429,7 @@
 									<p class="px-4 py-3 text-sm text-muted-foreground">No templates yet</p>
 								{:else}
 									<div class="max-h-48 overflow-y-auto py-1">
-										{#each templates as t}
+										{#each templates as t (t.id)}
 											<button
 												type="button"
 												class="flex w-full flex-col px-4 py-2 text-left transition-colors hover:bg-muted/50"
@@ -509,7 +509,7 @@
 									(document.getElementById('compose-to-input') as HTMLElement)?.focus();
 							}}
 						>
-							{#each toEmails as email}
+							{#each toEmails as email (email)}
 								<span
 									class="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-sm"
 								>
@@ -555,7 +555,7 @@
 							<div
 								class="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-none border bg-card shadow-lg"
 							>
-								{#each filteredContacts as contact}
+								{#each filteredContacts as contact (contact.email)}
 									<button
 										type="button"
 										class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted/50"
@@ -706,7 +706,7 @@
 								onchange={(e) => loadBrandAssets((e.target as HTMLSelectElement).value)}
 							>
 								<option value="">Select a brand...</option>
-								{#each resourceBrands as brand}
+								{#each resourceBrands as brand (brand.id)}
 									<option value={brand.id}>{brand.name}</option>
 								{/each}
 							</select>
@@ -716,7 +716,7 @@
 								<p class="text-sm text-muted-foreground">No resources for this brand.</p>
 							{:else if brandAssets.length > 0}
 								<div class="max-h-40 space-y-1 overflow-y-auto">
-									{#each brandAssets as asset}
+									{#each brandAssets as asset (asset.id)}
 										<button
 											type="button"
 											class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
@@ -747,7 +747,7 @@
 					<!-- Attached items -->
 					{#if attachments.length > 0}
 						<div class="flex flex-wrap gap-2">
-							{#each attachments as att, i}
+							{#each attachments as att, i (i)}
 								<span
 									class="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-sm"
 								>

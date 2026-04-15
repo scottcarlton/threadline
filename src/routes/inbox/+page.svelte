@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { cn } from '$lib/utils.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -179,7 +180,7 @@
 	$effect(() => {
 		if (data.connected) {
 			// Access filter to create dependency
-			const _filter = filter;
+			void filter;
 			fetchEmails();
 		}
 	});
@@ -245,7 +246,7 @@
 
 			<!-- Filter tabs -->
 			<div class="flex gap-1 border-b px-4 py-2">
-				{#each ['all', 'accounts', 'brands'] as tab}
+				{#each ['all', 'accounts', 'brands'] as tab (tab)}
 					<button
 						class={cn(
 							'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
@@ -273,7 +274,7 @@
 			<div class="flex-1 overflow-y-auto">
 				{#if loading}
 					<div class="space-y-1 p-2">
-						{#each Array(8) as _}
+						{#each Array.from({ length: 8 }).map((_, i) => i) as i (i)}
 							<div class="animate-pulse rounded-lg p-3">
 								<div class="flex items-center gap-3">
 									<div class="h-2 w-2 rounded-full bg-muted"></div>
@@ -291,7 +292,7 @@
 					</div>
 				{:else}
 					<div class="space-y-0.5 p-1">
-						{#each emails as email}
+						{#each emails as email (email.id)}
 							<button
 								class={cn(
 									'flex w-full flex-col gap-1 rounded-lg px-3 py-3 text-left transition-colors',
@@ -377,7 +378,7 @@
 				{#if matchedAccount()}
 					{@const acct = matchedAccount()}
 					<a
-						href="/accounts/{acct?.accountId}"
+						href={resolve(`/accounts/${acct?.accountId}`)}
 						class="flex items-center gap-2 border-b bg-blue-50 px-6 py-2 text-sm text-blue-700 transition-colors hover:bg-blue-100"
 					>
 						<svg
@@ -402,7 +403,7 @@
 				<div class="flex-1 overflow-y-auto p-6">
 					{#if threadLoading}
 						<div class="space-y-4">
-							{#each Array(3) as _}
+							{#each Array.from({ length: 3 }).map((_, i) => i) as i (i)}
 								<div class="animate-pulse rounded-none border p-4">
 									<div class="flex items-center gap-3">
 										<div class="h-4 w-28 rounded bg-muted"></div>
@@ -417,7 +418,7 @@
 						</div>
 					{:else}
 						<div class="space-y-4">
-							{#each threadMessages as message}
+							{#each threadMessages as message (message.id)}
 								<div class="rounded-none border bg-background p-4">
 									<div class="flex items-center justify-between">
 										<span class="text-sm font-medium">{message.from}</span>

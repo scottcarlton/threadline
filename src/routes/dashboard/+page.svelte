@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+
 	let { data } = $props();
 
 	const buyerData = $derived(data.buyerData as { recentOrders: any[]; brands: any[] } | undefined);
@@ -30,7 +32,7 @@
 	<!-- Quick actions -->
 	<div class="flex gap-3">
 		<a
-			href="/shop"
+			href={resolve('/shop')}
 			class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
 		>
 			<svg
@@ -50,7 +52,7 @@
 			Shop Now
 		</a>
 		<a
-			href="/orders/new"
+			href={resolve('/orders/new')}
 			class="inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
 		>
 			<svg
@@ -72,12 +74,14 @@
 		<div>
 			<div class="flex items-center justify-between">
 				<h2 class="text-lg font-semibold">Recent Orders</h2>
-				<a href="/orders" class="text-sm text-muted-foreground hover:text-foreground">View all</a>
+				<a href={resolve('/orders')} class="text-sm text-muted-foreground hover:text-foreground"
+					>View all</a
+				>
 			</div>
 			<div class="mt-4 space-y-2">
-				{#each buyerData.recentOrders as order}
+				{#each buyerData.recentOrders as order (order.id)}
 					<a
-						href="/orders/{order.id}"
+						href={resolve(`/orders/${order.id}`)}
 						class="flex items-center justify-between rounded-none border bg-card px-5 py-4 transition-colors hover:bg-accent/50"
 					>
 						<div>
@@ -110,12 +114,14 @@
 		<div>
 			<div class="flex items-center justify-between">
 				<h2 class="text-lg font-semibold">Your Brands</h2>
-				<a href="/shop" class="text-sm text-muted-foreground hover:text-foreground">View all</a>
+				<a href={resolve('/shop')} class="text-sm text-muted-foreground hover:text-foreground"
+					>View all</a
+				>
 			</div>
 			<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{#each buyerData.brands as brand}
+				{#each buyerData.brands as brand (brand.id)}
 					<a
-						href="/shop?brand={brand.id}"
+						href={resolve(`/shop?brand=${brand.id}`)}
 						class="flex items-center gap-3 rounded-none border bg-card px-5 py-4 transition-colors hover:bg-accent/50"
 					>
 						{#if brand.logo_url}

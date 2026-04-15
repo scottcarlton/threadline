@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -294,7 +295,7 @@
 		} else {
 			params.set(key, value);
 		}
-		goto(`/orders?${params.toString()}`, { replaceState: true });
+		goto(resolve(`/orders?${params.toString()}`), { replaceState: true });
 	}
 </script>
 
@@ -332,7 +333,7 @@
 
 	<!-- Type filter -->
 	<div class="flex flex-wrap items-center gap-2">
-		{#each ['all', 'order', 'note'] as t}
+		{#each ['all', 'order', 'note'] as t (t)}
 			<button
 				class="rounded-full border px-3 py-1 text-sm transition {activeType === t
 					? 'border-foreground bg-foreground text-background'
@@ -346,7 +347,7 @@
 
 	<!-- Status tabs -->
 	<div class="flex gap-1 border-b">
-		{#each statusTabs as tab}
+		{#each statusTabs as tab (tab)}
 			<button
 				class="-mb-px px-4 py-2 text-[13px] font-medium whitespace-nowrap transition-colors {activeStatus ===
 				tab
@@ -442,7 +443,7 @@
 			onchange={(e) => setFilter('season', (e.target as HTMLSelectElement).value)}
 		>
 			<option value="">All Seasons</option>
-			{#each seasons as season}
+			{#each seasons as season (season.id)}
 				<option value={season.id}>{season.name}</option>
 			{/each}
 		</select>
@@ -452,7 +453,7 @@
 				onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
 			>
 				<option value="">All Brands</option>
-				{#each brands as brand}
+				{#each brands as brand (brand.id)}
 					<option value={brand.id}>{brand.name}</option>
 				{/each}
 			</select>
@@ -474,7 +475,7 @@
 				onchange={(e) => setFilter('show', (e.target as HTMLSelectElement).value)}
 			>
 				<option value="">All Shows</option>
-				{#each showDates as sd}
+				{#each showDates as sd (sd.id)}
 					{@const shows = sd.shows as { name?: string } | { name?: string }[] | null}
 					{@const showName = Array.isArray(shows)
 						? (shows[0]?.name ?? 'Show')
@@ -565,7 +566,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each filtered as order}
+					{#each filtered as order (order.id)}
 						{@const repName = (order as any).profiles?.display_name ?? '—'}
 						{@const showDate = (order as any).show_dates}
 						{@const sourceName = showDate?.shows?.name ?? (order as any).source_types?.name ?? null}
@@ -614,13 +615,13 @@
 										{order.accounts?.business_name ?? '—'}
 									</p>
 									<a
-										href="/orders/{order.id}"
+										href={resolve(`/orders/${order.id}`)}
 										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 									>
 									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
 								{:else}
 									<a
-										href="/orders/{order.id}"
+										href={resolve(`/orders/${order.id}`)}
 										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 									>
 									<p class="text-sm text-muted-foreground">
@@ -743,7 +744,7 @@
 			<span class="text-sm font-medium">{selectedIds.size} selected</span>
 			<div class="h-5 w-px bg-border"></div>
 			{#if nextStatuses.length > 0}
-				{#each nextStatuses as status}
+				{#each nextStatuses as status (status)}
 					<Button size="sm" onclick={() => bulkUpdateStatus(status)} disabled={bulkUpdating}>
 						{status === 'submitted'
 							? 'Submit'

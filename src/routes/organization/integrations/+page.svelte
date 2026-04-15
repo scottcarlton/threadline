@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import type { IntegrationConnection, IntegrationProvider } from '$lib/types/database.js';
 
@@ -165,7 +164,7 @@
 	{/if}
 
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-		{#each filtered.filter((i) => !i.comingSoon) as integration}
+		{#each filtered.filter((i) => !i.comingSoon) as integration (integration.provider)}
 			{@const conn = getConnection(integration.provider)}
 			<div class="relative space-y-3 rounded-lg border p-5">
 				<div class="flex items-start justify-between">
@@ -297,7 +296,7 @@
 			</div>
 		{/each}
 
-		{#each filtered.filter((i) => i.comingSoon) as integration}
+		{#each filtered.filter((i) => i.comingSoon) as integration (integration.provider)}
 			<div class="space-y-3 rounded-lg border p-5 opacity-50">
 				<div class="flex h-10 w-10 items-center justify-center">
 					<svg

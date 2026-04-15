@@ -1,11 +1,9 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
+	import { resolve } from '$app/paths';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
 
-	const isAuthenticated = $derived(!!$page.data.session);
-	let navScrolled = $state(false);
 	let faqOpen = $state<number | null>(null);
 
 	function toggleFaq(index: number) {
@@ -17,14 +15,6 @@
 		const { animate, inView } = await import('motion');
 
 		const ease = [0.16, 1, 0.3, 1] as const;
-
-		window.addEventListener(
-			'scroll',
-			() => {
-				navScrolled = window.scrollY > 40;
-			},
-			{ passive: true }
-		);
 
 		if (reduced) return;
 
@@ -106,7 +96,7 @@
 							<div class="grid gap-4">
 								<a
 									class="h-reveal inline-flex w-fit bg-white px-12 py-2.5 text-base text-primary opacity-0"
-									href="/signup">Early Access</a
+									href={resolve('/signup')}>Early Access</a
 								>
 								<p class="h-reveal opacity-0">
 									Most wholesale tools aren't truly smart. They digitize the old way of working.
@@ -394,7 +384,7 @@
 					</div>
 					<div class="mx-auto grid w-full max-w-280 grid-cols-2 items-start gap-8">
 						<ul class="grid items-start">
-							{#each [{ q: 'What types of reps does Threadline work with?', a: 'Independent multi-brand reps, showroom owners, and sales agencies carrying fashion and apparel lines across any combination of wholesale platforms.' }, { q: 'Do brands need to switch to Threadline?', a: 'No. Threadline layers on top of existing platforms. Brands keep using JOOR, NuORDER, or whatever they prefer. Nothing changes for them.' }, { q: 'What makes Stitches different from analytics?', a: 'Analytics show what happened. Stitches shows what to do next \u2014 cross-brand patterns, buyer predictions, and contextual actions that arrive before you ask.' }, { q: 'How long does setup take?', a: 'Under one hour. Connect your existing platforms, import your buyer contacts, and Stitches starts learning your portfolio immediately.' }] as item, i}
+							{#each [{ q: 'What types of reps does Threadline work with?', a: 'Independent multi-brand reps, showroom owners, and sales agencies carrying fashion and apparel lines across any combination of wholesale platforms.' }, { q: 'Do brands need to switch to Threadline?', a: 'No. Threadline layers on top of existing platforms. Brands keep using JOOR, NuORDER, or whatever they prefer. Nothing changes for them.' }, { q: 'What makes Stitches different from analytics?', a: 'Analytics show what happened. Stitches shows what to do next \u2014 cross-brand patterns, buyer predictions, and contextual actions that arrive before you ask.' }, { q: 'How long does setup take?', a: 'Under one hour. Connect your existing platforms, import your buyer contacts, and Stitches starts learning your portfolio immediately.' }] as item, i (i)}
 								<li class="grid w-full items-start border-t border-foreground p-6">
 									<button
 										class="flex w-full items-center justify-between gap-4 text-left"
@@ -410,7 +400,7 @@
 							{/each}
 						</ul>
 						<ul class="grid items-start">
-							{#each [{ q: 'What are Workers?', a: 'Workers are automated agents that handle repetitive tasks \u2014 commission tracking, reorder alerts, buyer follow-ups. Custom Workers let you build your own for the signals only you care about.' }, { q: 'How does commission automation work?', a: 'Set rate structures per brand, define splits between showroom owners and sub-reps, and Threadline calculates everything automatically \u2014 reconciled in real time, no spreadsheets.' }, { q: 'How does pricing work?', a: 'Free for individual reps to start. Premium tiers unlock Stitches AI, Workers, multi-brand analytics, and commission automation. Transparent pricing \u2014 no annual lock-in.' }, { q: 'Is my data shared between brands?', a: 'Never. Brand data stays siloed. Stitches generates cross-brand insights from your own portfolio data \u2014 no brand sees another brand\u2019s information.' }] as item, i}
+							{#each [{ q: 'What are Workers?', a: 'Workers are automated agents that handle repetitive tasks \u2014 commission tracking, reorder alerts, buyer follow-ups. Custom Workers let you build your own for the signals only you care about.' }, { q: 'How does commission automation work?', a: 'Set rate structures per brand, define splits between showroom owners and sub-reps, and Threadline calculates everything automatically \u2014 reconciled in real time, no spreadsheets.' }, { q: 'How does pricing work?', a: 'Free for individual reps to start. Premium tiers unlock Stitches AI, Workers, multi-brand analytics, and commission automation. Transparent pricing \u2014 no annual lock-in.' }, { q: 'Is my data shared between brands?', a: 'Never. Brand data stays siloed. Stitches generates cross-brand insights from your own portfolio data \u2014 no brand sees another brand\u2019s information.' }] as item, i (i)}
 								<li class="grid w-full items-start border-t border-foreground p-6">
 									<button
 										class="flex w-full items-center justify-between gap-4 text-left"

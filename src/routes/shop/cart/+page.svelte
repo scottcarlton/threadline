@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { cart } from '$lib/stores/cart.js';
 
@@ -45,9 +46,9 @@
 		<div class="grid gap-6 lg:grid-cols-[1fr_320px]">
 			<!-- Items list -->
 			<div class="space-y-3">
-				{#each items as item}
+				{#each items as item (item.productId)}
 					<div class="flex items-center gap-4 rounded-none border bg-card p-4">
-						<a href="/shop/{item.productId}" class="shrink-0">
+						<a href={resolve(`/shop/${item.productId}`)} class="shrink-0">
 							{#if item.imageUrl}
 								<img
 									src={item.imageUrl}
@@ -74,8 +75,9 @@
 							{/if}
 						</a>
 						<div class="min-w-0 flex-1">
-							<a href="/shop/{item.productId}" class="text-base font-normal hover:underline"
-								>{item.productName}</a
+							<a
+								href={resolve(`/shop/${item.productId}`)}
+								class="text-base font-normal hover:underline">{item.productName}</a
 							>
 							<p class="text-base text-muted-foreground">
 								{item.brandName} &middot; {item.styleNumber}

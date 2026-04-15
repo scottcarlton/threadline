@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -113,18 +114,6 @@
 
 	const archivedCount = $derived(accounts.filter((a) => a.archived_at).length);
 
-	async function archiveAccount(account: Account) {
-		await supabase
-			.from('accounts')
-			.update({
-				archived_at: account.archived_at ? null : new Date().toISOString(),
-				is_active: !!account.archived_at,
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', account.id);
-		invalidateAll();
-	}
-
 	function exportAccounts() {
 		const rows = filtered.map((a) => ({
 			business_name: a.business_name,
@@ -237,12 +226,12 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each filtered as account}
+					{#each filtered as account (account.id)}
 						<tr
 							class="transition-colors hover:bg-muted/30 {account.archived_at ? 'opacity-50' : ''}"
 						>
 							<td class="px-4 py-3">
-								<a href="/accounts/{account.id}" class="text-base hover:underline"
+								<a href={resolve(`/accounts/${account.id}`)} class="text-base hover:underline"
 									>{account.business_name}</a
 								>
 								<div class="mt-0.5 flex items-center gap-1.5">
@@ -251,7 +240,7 @@
 											>{[account.city, account.state].filter(Boolean).join(', ')}</span
 										>
 									{/if}
-									{#each accountTags[account.id] ?? [] as tag}
+									{#each accountTags[account.id] ?? [] as tag (tag.name)}
 										<span
 											class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium {tagColorMap[
 												tag.color
