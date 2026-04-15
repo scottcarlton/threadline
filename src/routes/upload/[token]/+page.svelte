@@ -147,7 +147,7 @@
 				<p class="text-sm font-medium">
 					{uploaded.length} receipt{uploaded.length !== 1 ? 's' : ''} uploaded
 				</p>
-				{#each uploaded as name}
+				{#each uploaded as name, i (i)}
 					<div class="flex items-center gap-2 text-sm text-muted-foreground">
 						<svg
 							xmlns="http://www.w3.org/2000/svg"

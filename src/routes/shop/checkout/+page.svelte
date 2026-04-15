@@ -290,7 +290,7 @@
 		<div class="grid gap-6 lg:grid-cols-[1fr_320px]">
 			<!-- Brand groups -->
 			<div class="space-y-6">
-				{#each brandGroups as group}
+				{#each brandGroups as group (group.brandId)}
 					{@const bt = brandTotals.get(group.brandId)}
 					<div class="rounded-none border bg-card">
 						<!-- Brand header -->
@@ -321,9 +321,9 @@
 								}}
 							>
 								<option value="">Select delivery...</option>
-								{#each deliveriesBySeason as seasonGroup}
+								{#each deliveriesBySeason as seasonGroup (seasonGroup.seasonName)}
 									<optgroup label={seasonGroup.seasonName}>
-										{#each seasonGroup.deliveries as d}
+										{#each seasonGroup.deliveries as d (d.id)}
 											<option value={d.id}>{d.label}</option>
 										{/each}
 									</optgroup>
@@ -333,7 +333,7 @@
 
 						<!-- Items -->
 						<div class="divide-y">
-							{#each group.items as item}
+							{#each group.items as item (item.productId)}
 								{@const colors = item.colors ?? []}
 								{@const sizes = item.sizes ?? []}
 								{@const color =
@@ -363,7 +363,7 @@
 									<!-- Color selector -->
 									{#if colors.length > 1}
 										<div class="flex flex-wrap gap-1.5">
-											{#each colors as c}
+											{#each colors as c (c)}
 												<button
 													class="rounded-full border px-3 py-1 text-sm transition-colors {c ===
 													color
@@ -382,7 +382,7 @@
 									<!-- Size grid -->
 									{#if sizes.length > 0}
 										<div class="flex flex-wrap gap-2">
-											{#each sizes as size}
+											{#each sizes as size (size)}
 												<div class="flex flex-col items-center gap-1">
 													<span class="text-xs text-muted-foreground">{size}</span>
 													<Input
@@ -419,7 +419,7 @@
 					<h2 class="text-base font-semibold">Order Summary</h2>
 
 					<dl class="space-y-3 text-base">
-						{#each brandGroups as group}
+						{#each brandGroups as group (group.brandId)}
 							{@const bt = brandTotals.get(group.brandId)}
 							<div>
 								<dt class="font-medium">{group.brandName}</dt>

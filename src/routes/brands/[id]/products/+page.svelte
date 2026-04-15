@@ -282,7 +282,7 @@
 			bind:value={seasonFilter}
 		>
 			<option value="">All Seasons</option>
-			{#each seasons as season}
+			{#each seasons as season (season.id)}
 				<option value={season.id}>{season.name}</option>
 			{/each}
 		</select>
@@ -292,7 +292,7 @@
 				bind:value={categoryFilter}
 			>
 				<option value="">All Categories</option>
-				{#each categories as cat}
+				{#each categories as cat (cat)}
 					<option value={cat}>{cat}</option>
 				{/each}
 			</select>
@@ -363,7 +363,7 @@
 							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 						>
 							<option value="">None</option>
-							{#each seasons as season}
+							{#each seasons as season (season.id)}
 								<option value={season.id}>{season.name}</option>
 							{/each}
 						</select>
@@ -398,7 +398,7 @@
 		</div>
 	{:else}
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-			{#each filtered as product}
+			{#each filtered as product (product.id)}
 				{@const primaryImage =
 					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 				<a

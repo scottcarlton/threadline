@@ -120,7 +120,7 @@
 				<!-- Thumbnails -->
 				{#if images.length > 1}
 					<div class="flex gap-2 overflow-x-auto">
-						{#each images as img, i}
+						{#each images as img, i (img.id)}
 							<button
 								class="h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-colors {i ===
 								selectedImageIndex
@@ -187,7 +187,7 @@
 				<div>
 					<p class="mb-2 text-base font-medium">Colors</p>
 					<div class="flex flex-wrap gap-1.5">
-						{#each colors as color}
+						{#each colors as color (color)}
 							<span class="rounded-full border px-3 py-1 text-base">{color}</span>
 						{/each}
 					</div>
@@ -198,7 +198,7 @@
 				<div>
 					<p class="mb-2 text-base font-medium">Sizes</p>
 					<div class="flex flex-wrap gap-1.5">
-						{#each sizes as size}
+						{#each sizes as size (size)}
 							<span class="rounded-lg border px-2.5 py-1 text-base">{size}</span>
 						{/each}
 					</div>

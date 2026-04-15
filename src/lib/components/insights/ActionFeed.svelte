@@ -64,7 +64,7 @@
 			>
 				All ({insights.length})
 			</button>
-			{#each insightTypes as [type, count]}
+			{#each insightTypes as [type, count] (type)}
 				<button
 					class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors {activeFilter ===
 					type

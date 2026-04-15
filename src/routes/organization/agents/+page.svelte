@@ -57,7 +57,7 @@
 		</div>
 	{:else}
 		<div class="grid gap-4 sm:grid-cols-2">
-			{#each agents as agent}
+			{#each agents as agent (agent.id)}
 				<a href="/organization/agents/{agent.id}" class="block">
 					<Card class="transition-colors hover:bg-muted/30">
 						<CardContent class="pt-5 pb-5">

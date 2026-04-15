@@ -325,7 +325,7 @@
 				</CardHeader>
 				<CardContent>
 					<div class="space-y-2">
-						{#each performance.topAccounts as acct, i}
+						{#each performance.topAccounts as acct, i (acct.id)}
 							<a
 								href="/accounts/{acct.id}"
 								class="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-muted/50"
@@ -580,7 +580,7 @@
 									bind:value={uploadCategory}
 									class="h-9 cursor-pointer rounded-none border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
 								>
-									{#each categories as cat}
+									{#each categories as cat (cat)}
 										<option value={cat}>{cat}</option>
 									{/each}
 								</select>
@@ -627,7 +627,7 @@
 						<p class="text-sm text-muted-foreground">No resources uploaded yet.</p>
 					{:else}
 						<div class="divide-y rounded-none border">
-							{#each brandAssets as asset}
+							{#each brandAssets as asset (asset.id)}
 								<div class="flex items-center gap-3 px-4 py-3">
 									<!-- File icon -->
 									<div

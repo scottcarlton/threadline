@@ -75,7 +75,7 @@
 				<a href="/orders" class="text-sm text-muted-foreground hover:text-foreground">View all</a>
 			</div>
 			<div class="mt-4 space-y-2">
-				{#each buyerData.recentOrders as order}
+				{#each buyerData.recentOrders as order (order.id)}
 					<a
 						href="/orders/{order.id}"
 						class="flex items-center justify-between rounded-none border bg-card px-5 py-4 transition-colors hover:bg-accent/50"
@@ -113,7 +113,7 @@
 				<a href="/shop" class="text-sm text-muted-foreground hover:text-foreground">View all</a>
 			</div>
 			<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{#each buyerData.brands as brand}
+				{#each buyerData.brands as brand (brand.id)}
 					<a
 						href="/shop?brand={brand.id}"
 						class="flex items-center gap-3 rounded-none border bg-card px-5 py-4 transition-colors hover:bg-accent/50"

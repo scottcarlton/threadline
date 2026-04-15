@@ -42,7 +42,7 @@
 					value={year}
 					onchange={(e) => changeYear(parseInt((e.target as HTMLSelectElement).value))}
 				>
-					{#each [2024, 2025, 2026, 2027] as y}
+					{#each [2024, 2025, 2026, 2027] as y (y)}
 						<option value={y}>{y}</option>
 					{/each}
 				</select>
@@ -92,7 +92,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each rows as row}
+					{#each rows as row (row.name)}
 						<tr class="hover:bg-muted/30">
 							<td class="px-4 py-3 text-sm font-medium">{row.name}</td>
 							<td class="px-4 py-3 text-right text-sm">{row.orders}</td>
@@ -129,7 +129,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each rows as row}
+					{#each rows as row (row.name)}
 						<tr class="hover:bg-muted/30">
 							<td class="px-4 py-3 text-sm font-medium">{row.name}</td>
 							<td class="px-4 py-3 text-right text-sm">{row.accountCount}</td>
@@ -156,7 +156,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each rows as row}
+					{#each rows as row, i (i)}
 						<tr class="hover:bg-muted/30">
 							<td class="px-4 py-3 text-sm">{row.brand}</td>
 							<td class="px-4 py-3 text-sm">{row.account}</td>
@@ -202,7 +202,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each rows as row}
+					{#each rows as row (row.status)}
 						<tr class="hover:bg-muted/30">
 							<td class="px-4 py-3 text-sm font-medium capitalize">{row.status}</td>
 							<td class="px-4 py-3 text-right text-sm">{row.count}</td>
@@ -226,7 +226,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each rows as row}
+					{#each rows as row (row.name)}
 						<tr class="hover:bg-muted/30">
 							<td class="px-4 py-3 text-sm font-medium">{row.name}</td>
 							<td class="px-4 py-3 text-right text-sm">{row.orders}</td>
@@ -253,7 +253,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each rows as row}
+					{#each rows as row (row.show)}
 						<tr class="hover:bg-muted/30">
 							<td class="px-4 py-3">
 								<span class="text-sm font-medium">{row.show}</span>

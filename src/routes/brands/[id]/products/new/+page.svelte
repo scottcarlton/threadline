@@ -191,7 +191,7 @@
 
 	<!-- Step indicator -->
 	<div class="flex items-center gap-2">
-		{#each steps as s, i}
+		{#each steps as s, i (s)}
 			<button
 				class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors {i +
 					1 ===
@@ -286,7 +286,7 @@
 					<!-- Thumbnails -->
 					{#if imagePreviews.length > 0}
 						<div class="grid grid-cols-4 gap-3">
-							{#each imagePreviews as preview, i}
+							{#each imagePreviews as preview, i (i)}
 								<div
 									class="group relative aspect-square overflow-hidden rounded-lg border {i ===
 									primaryImageIndex
@@ -366,7 +366,7 @@
 									class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 								>
 									<option value="">None</option>
-									{#each seasons as season}
+									{#each seasons as season (season.id)}
 										<option value={season.id}>{season.name}</option>
 									{/each}
 								</select>
@@ -434,7 +434,7 @@
 
 					<!-- Size pills -->
 					<div class="flex flex-wrap gap-2">
-						{#each sizeMode === 'letter' ? commonSizes : numberedSizes as size}
+						{#each sizeMode === 'letter' ? commonSizes : numberedSizes as size (size)}
 							<button
 								class="flex h-10 w-12 items-center justify-center rounded-lg border-2 text-sm font-medium transition-all {selectedSizes.has(
 									size
@@ -474,7 +474,7 @@
 
 						{#if colors.length > 0}
 							<div class="space-y-2">
-								{#each colors as color, i}
+								{#each colors as color, i (color.name)}
 									<div class="flex items-center gap-3 rounded-lg border px-4 py-2.5">
 										<div
 											class="h-6 w-6 rounded-full border"
@@ -633,7 +633,7 @@
 						<!-- Color swatches -->
 						{#if colors.length > 0}
 							<div class="flex items-center gap-2">
-								{#each colors as color}
+								{#each colors as color (color.name)}
 									<div
 										class="h-6 w-6 rounded-full border border-muted"
 										style="background-color: {color.hex}"
@@ -646,7 +646,7 @@
 						<!-- Sizes -->
 						{#if previewSizes.length > 0}
 							<div class="flex items-center gap-1.5">
-								{#each previewSizes as size}
+								{#each previewSizes as size (size)}
 									<span class="rounded border px-2 py-0.5 text-xs font-medium">{size}</span>
 								{/each}
 							</div>

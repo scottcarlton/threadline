@@ -332,7 +332,7 @@
 										bind:value={editCategory}
 										class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 									>
-										{#each categoryOptions as opt}
+										{#each categoryOptions as opt (opt.value)}
 											<option value={opt.value}>{opt.label}</option>
 										{/each}
 									</select>
@@ -584,7 +584,7 @@
 						<p class="text-sm text-muted-foreground">No receipts attached yet.</p>
 					{:else}
 						<div class="divide-y rounded-none border">
-							{#each receipts as receipt}
+							{#each receipts as receipt (receipt.id)}
 								<div class="flex items-center gap-3 px-4 py-3">
 									<div
 										class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted"

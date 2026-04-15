@@ -1062,7 +1062,7 @@
 												</tr>
 											</thead>
 											<tbody>
-												{#each parsedBrands as brand, i}
+												{#each parsedBrands as brand, i (i)}
 													<tr class="border-t">
 														<td class="px-3 py-2">{brand.name}</td>
 														<td class="px-3 py-2 text-muted-foreground">{brand.email || '—'}</td>
@@ -1238,7 +1238,7 @@
 												</tr>
 											</thead>
 											<tbody>
-												{#each parsedMembers as member, i}
+												{#each parsedMembers as member, i (i)}
 													<tr class="border-t">
 														<td class="px-3 py-2">{member.email}</td>
 														<td class="px-3 py-2 text-muted-foreground capitalize">{member.role}</td
@@ -1304,7 +1304,7 @@
 							class="flex transition-transform duration-300 ease-in-out"
 							style="transform: translateX(-{carouselIndex * 100}%)"
 						>
-							{#each slides as slide}
+							{#each slides as slide (slide.title)}
 								<div class="w-full shrink-0 px-4">
 									<div class="mx-auto max-w-md space-y-4 py-6">
 										<div
@@ -1330,7 +1330,7 @@
 
 						<!-- Dots -->
 						<div class="mt-4 flex items-center justify-center gap-2">
-							{#each slides as _, i}
+							{#each slides as _, i (i)}
 								<button
 									class="h-2 rounded-full transition-all {carouselIndex === i
 										? 'w-6 bg-foreground'
@@ -1357,7 +1357,7 @@
 			{@const progressSteps = stepLabels.filter((s) => s.number < welcomeStep)}
 			<div class="mt-10 flex flex-col items-center gap-4">
 				<div class="flex items-center gap-2">
-					{#each progressSteps as s, i}
+					{#each progressSteps as s, i (s.number)}
 						<button
 							class="h-2 rounded-full transition-all {step === s.number
 								? 'w-8 bg-foreground'

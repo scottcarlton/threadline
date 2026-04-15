@@ -407,7 +407,7 @@
 		</div>
 	{:else}
 		<div class="space-y-2">
-			{#each filtered as show}
+			{#each filtered as show (show.id)}
 				<div class="overflow-hidden rounded-none border">
 					<!-- Series header -->
 					<div class="flex items-center justify-between bg-muted/30 px-4 py-3">
@@ -453,7 +453,7 @@
 					<!-- Expanded dates -->
 					{#if expandedIds.has(show.id)}
 						<div class="divide-y">
-							{#each show.show_dates ?? [] as date}
+							{#each show.show_dates ?? [] as date (date.id)}
 								<div class="flex items-center gap-6 px-6 py-2.5 text-sm">
 									<span class="font-medium">{monthLabel(date.month)} {date.year}</span>
 									<span class="font-mono text-muted-foreground"
@@ -488,7 +488,7 @@
 												bind:value={newDateMonth}
 												class="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 											>
-												{#each monthNames as m, i}
+												{#each monthNames as m, i (m)}
 													<option value={i + 1}>{m}</option>
 												{/each}
 											</select>
@@ -683,7 +683,7 @@
 						<p class="text-sm text-muted-foreground">No dates yet.</p>
 					{/if}
 
-					{#each drawerShow.show_dates ?? [] as date}
+					{#each drawerShow.show_dates ?? [] as date (date.id)}
 						<div class="space-y-2 rounded-lg border px-3 py-2.5">
 							<div class="flex items-center justify-between">
 								<div class="text-sm">
@@ -715,7 +715,7 @@
 							<!-- Documents -->
 							{#if (drawerDocuments[date.id] ?? []).length > 0 || canEdit}
 								<div class="space-y-1 border-t pt-2">
-									{#each drawerDocuments[date.id] ?? [] as doc}
+									{#each drawerDocuments[date.id] ?? [] as doc (doc.id)}
 										<div class="flex items-center justify-between text-xs">
 											<span class="text-muted-foreground"
 												>{doc.name} {doc.file_size ? formatFileSize(doc.file_size) : ''}</span
@@ -777,7 +777,7 @@
 										class="flex h-9 w-20 rounded-md border border-input bg-background px-2 text-sm"
 										data-size="sm"
 									>
-										{#each monthNames as m, i}
+										{#each monthNames as m, i (m)}
 											<option value={i + 1}>{m}</option>
 										{/each}
 									</select>

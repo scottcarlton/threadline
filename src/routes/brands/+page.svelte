@@ -196,7 +196,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each filtered as brand}
+					{#each filtered as brand (brand.id)}
 						<tr class="transition-colors hover:bg-muted/30 {brand.archived_at ? 'opacity-50' : ''}">
 							<td class="px-4 py-3">
 								<a href="/brands/{brand.id}" class="text-base hover:underline">{brand.name}</a>

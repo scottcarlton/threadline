@@ -44,7 +44,7 @@
 				<p class="text-[13px] text-muted-foreground">Ask anything about your business</p>
 				{#if suggestedPrompts.length > 0}
 					<div class="mt-4 flex flex-wrap justify-center gap-2">
-						{#each suggestedPrompts as prompt}
+						{#each suggestedPrompts as prompt (prompt)}
 							<button
 								class="rounded-lg border px-3 py-1.5 text-[12px] text-muted-foreground transition-all hover:border-foreground/20 hover:text-foreground"
 								onclick={() => handleSend(prompt)}
@@ -57,7 +57,7 @@
 			</div>
 		{:else}
 			<div class="space-y-3">
-				{#each $messages as msg}
+				{#each $messages as msg, i (i)}
 					<div class={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
 						<div
 							class={cn(

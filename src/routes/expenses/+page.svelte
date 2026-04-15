@@ -132,7 +132,7 @@
 
 	<!-- Status tabs -->
 	<div class="flex gap-1 border-b">
-		{#each statusTabs as tab}
+		{#each statusTabs as tab (tab)}
 			<button
 				class="-mb-px px-4 py-2 text-[13px] font-medium whitespace-nowrap transition-colors {activeStatus ===
 				tab
@@ -197,7 +197,7 @@
 			onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
 		>
 			<option value="">All Brands</option>
-			{#each brands as brand}
+			{#each brands as brand (brand.id)}
 				<option value={brand.id} selected={$page.url.searchParams.get('brand') === brand.id}
 					>{brand.name}</option
 				>
@@ -208,7 +208,7 @@
 			onchange={(e) => setFilter('category', (e.target as HTMLSelectElement).value)}
 		>
 			<option value="">All Categories</option>
-			{#each Object.entries(categoryLabels) as [value, label]}
+			{#each Object.entries(categoryLabels) as [value, label] (value)}
 				<option {value}>{label}</option>
 			{/each}
 		</select>
@@ -272,7 +272,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each filtered as expense}
+					{#each filtered as expense (expense.id)}
 						<tr class="transition-colors hover:bg-muted/30">
 							<td class="w-48 px-4 py-3 whitespace-nowrap">
 								<a

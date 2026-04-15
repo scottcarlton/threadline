@@ -537,7 +537,7 @@
 							</CardDescription>
 						</div>
 						<div class="flex gap-1">
-							{#each [0, 1, 2, 3] as i}
+							{#each [0, 1, 2, 3] as i (i)}
 								<div
 									class="h-1.5 w-8 rounded-full {i < checklistDone ? 'bg-foreground' : 'bg-border'}"
 								></div>
@@ -1128,7 +1128,7 @@
 							value={selectedYear ?? ''}
 							onchange={handleYearChange}
 						>
-							{#each availableYears as year}
+							{#each availableYears as year (year)}
 								<option value={year}>{year}</option>
 							{/each}
 						</select>
@@ -1136,7 +1136,7 @@
 				{/if}
 				{#if activeTab === 'velocity'}
 					<div class="flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
-						{#each [7, 14, 30] as days}
+						{#each [7, 14, 30] as days (days)}
 							<button
 								class="cursor-pointer rounded-md px-3 py-1 text-sm font-medium transition-colors {velocityWindow ===
 								days
@@ -1162,7 +1162,7 @@
 								handleCommFilterChange('comm_year', (e.target as HTMLSelectElement).value)}
 						>
 							<option value="">All Years</option>
-							{#each commAvailableYears as year}
+							{#each commAvailableYears as year (year)}
 								<option value={year}>{year}</option>
 							{/each}
 						</select>
@@ -1173,7 +1173,7 @@
 								handleCommFilterChange('comm_brand', (e.target as HTMLSelectElement).value)}
 						>
 							<option value="">All Brands</option>
-							{#each commissionBrands as brand}
+							{#each commissionBrands as brand (brand.id)}
 								<option value={brand.id}>{brand.name}</option>
 							{/each}
 						</select>
@@ -1184,7 +1184,7 @@
 								handleCommFilterChange('comm_month', (e.target as HTMLSelectElement).value)}
 						>
 							<option value="">All Months</option>
-							{#each monthNames as name, i}
+							{#each monthNames as name, i (name)}
 								<option value={i + 1}>{name}</option>
 							{/each}
 						</select>
@@ -1241,7 +1241,7 @@
 						onchange={handleShowDateChange}
 					>
 						<option value="">All Shows</option>
-						{#each showDates as sd}
+						{#each showDates as sd (sd.id)}
 							<option value={sd.id}>{showDateLabel(sd)}</option>
 						{/each}
 					</select>
@@ -1294,7 +1294,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each showDates as sd}
+									{#each showDates as sd (sd.id)}
 										{@const summary = showSummary.find((s) => s.showDateId === sd.id)}
 										<tr
 											class="cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/20"
@@ -1358,7 +1358,7 @@
 										>
 											Status
 										</th>
-										{#each activeDeliveryColumns as col}
+										{#each activeDeliveryColumns as col (col.id)}
 											<th
 												class="border-l border-border/50 px-3 py-2 text-right text-[12px] font-medium tracking-wider whitespace-nowrap text-muted-foreground uppercase"
 											>
@@ -1373,7 +1373,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each showVisits as visit}
+									{#each showVisits as visit (visit.id)}
 										{@const account = visit.accounts}
 										{@const repName = (visit as any).profiles?.display_name ?? null}
 										<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
@@ -1442,7 +1442,7 @@
 											</td>
 
 											<!-- Delivery columns -->
-											{#each activeDeliveryColumns as col}
+											{#each activeDeliveryColumns as col (col.id)}
 												{@const val = getShowOrderValue(visit.account_id, col.id)}
 												<td
 													class="border-l border-border/50 px-3 py-3 text-right whitespace-nowrap"
@@ -1500,7 +1500,7 @@
 										</tr>
 									{/each}
 									<!-- Freeform appointments (no linked account) -->
-									{#each freeformAppts as appt}
+									{#each freeformAppts as appt (appt.id)}
 										{@const freeRepName = appt.profiles?.display_name ?? null}
 										<tr
 											class="border-b bg-muted/5 transition-colors last:border-b-0 hover:bg-muted/20"
@@ -1548,7 +1548,7 @@
 													{statusLabel(appt.status)}
 												</span>
 											</td>
-											{#each activeDeliveryColumns as _col}
+											{#each activeDeliveryColumns as _col (_col.id)}
 												<td class="border-l border-border/50 px-3 py-3 text-right">
 													<div class="text-sm text-muted-foreground/40">&mdash;</div>
 												</td>
@@ -1675,7 +1675,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each commissionRows as row}
+								{#each commissionRows as row (row.id)}
 									<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 										<td class="px-4 py-3 text-sm font-medium">{row.order_number}</td>
 										<td class="px-3 py-3 text-sm">{row.accounts?.business_name ?? '—'}</td>
@@ -1720,7 +1720,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each commissionMonthly as row}
+									{#each commissionMonthly as row (row.sortKey)}
 										<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 											<td class="px-4 py-3 text-sm font-medium">{row.month}</td>
 											<td class="px-3 py-3 text-right font-mono text-sm"
@@ -1784,7 +1784,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each styleVelocity as style}
+								{#each styleVelocity as style (`${style.brand_name}::${style.style_number}`)}
 									<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 										<td class="px-4 py-3">
 											{#if style.product_name && style.product_name !== style.style_number}
@@ -1825,7 +1825,7 @@
 										>
 										<td class="px-3 py-3">
 											<div class="flex flex-wrap gap-1">
-												{#each style.top_colors as color}
+												{#each style.top_colors as color (color)}
 													<span
 														class="inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
 														>{color}</span
@@ -1879,7 +1879,7 @@
 							class="h-9 cursor-pointer rounded-lg border border-input bg-background px-3 text-sm text-foreground shadow-sm"
 						>
 							<option value="">All states</option>
-							{#each availableStates as stateVal}
+							{#each availableStates as stateVal (stateVal)}
 								<option value={stateVal}>{stateVal}</option>
 							{/each}
 						</select>
@@ -1906,7 +1906,7 @@
 									>
 										Account
 									</th>
-									{#each columnGroups as group}
+									{#each columnGroups as group (group.label)}
 										<th
 											class="border-l border-border/50 px-2 py-2 text-center text-[12px] font-medium tracking-wider text-muted-foreground uppercase"
 											colspan={group.colspan}
@@ -1917,7 +1917,7 @@
 								</tr>
 								<!-- Individual delivery date header row -->
 								<tr class="border-b bg-muted/40">
-									{#each deliveries as delivery}
+									{#each deliveries as delivery (delivery.id)}
 										<th
 											class="border-l border-border/50 px-3 py-2 text-right text-[12px] font-medium whitespace-nowrap text-muted-foreground"
 										>
@@ -1927,7 +1927,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each activeGridAccounts as account}
+								{#each activeGridAccounts as account (account.id)}
 									<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 										<td class="sticky left-0 z-10 min-w-[200px] bg-background px-4 py-3">
 											<div class="flex items-center gap-2">
@@ -1979,7 +1979,7 @@
 												{/if}
 											</div>
 										</td>
-										{#each deliveries as delivery}
+										{#each deliveries as delivery (delivery.id)}
 											{@const current = getCellValue(account.id, delivery.id, selectedYear ?? 0)}
 											{@const prior = getCellValue(
 												account.id,

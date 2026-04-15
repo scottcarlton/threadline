@@ -398,7 +398,7 @@
 											class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 										>
 											<option value="">None</option>
-											{#each seasons as season}
+											{#each seasons as season (season.id)}
 												<option value={season.id}>{season.name}</option>
 											{/each}
 										</select>
@@ -510,7 +510,7 @@
 									>
 								</div>
 								<div class="flex flex-wrap gap-2">
-									{#each sizeMode === 'letter' ? commonSizes : numberedSizes as size}
+									{#each sizeMode === 'letter' ? commonSizes : numberedSizes as size (size)}
 										<button
 											class="flex h-9 w-11 items-center justify-center rounded-lg border-2 text-sm font-medium transition-all {selectedNewSizes.has(
 												size
@@ -567,7 +567,7 @@
 						<p class="text-sm text-muted-foreground">No variants. Add color/size combinations.</p>
 					{:else}
 						<div class="space-y-2">
-							{#each product.product_variants ?? [] as variant}
+							{#each product.product_variants ?? [] as variant (variant.id)}
 								<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
 									<div class="flex items-center gap-4 text-sm">
 										{#if variant.color}
@@ -634,7 +634,7 @@
 						<p class="text-sm text-muted-foreground">No images yet.</p>
 					{:else}
 						<div class="grid grid-cols-3 gap-3">
-							{#each (product.product_images ?? []).sort((a, b) => a.sort_order - b.sort_order) as image}
+							{#each (product.product_images ?? []).sort((a, b) => a.sort_order - b.sort_order) as image (image.id)}
 								<div
 									class="group relative aspect-square overflow-hidden rounded-lg border {image.is_primary
 										? 'ring-2 ring-primary'

@@ -279,7 +279,7 @@
 							<div class="rounded-none border border-destructive/30 bg-destructive/5 p-4">
 								<p class="text-sm font-medium text-destructive">{result.errors.length} errors</p>
 								<ul class="mt-2 space-y-1 text-sm text-muted-foreground">
-									{#each result.errors.slice(0, 5) as err}
+									{#each result.errors.slice(0, 5) as err, i (i)}
 										<li>{err}</li>
 									{/each}
 									{#if result.errors.length > 5}
@@ -315,7 +315,7 @@
 							<table class="w-full">
 								<thead>
 									<tr class="border-b bg-muted/40">
-										{#each columns as col}
+										{#each columns as col (col.key)}
 											<th
 												class="px-3 py-2 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
 											>
@@ -325,9 +325,9 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y">
-									{#each parsedRows.slice(0, 10) as row}
+									{#each parsedRows.slice(0, 10) as row, i (i)}
 										<tr>
-											{#each columns as col}
+											{#each columns as col (col.key)}
 												<td class="px-3 py-2 text-sm">{row[col.key] || '—'}</td>
 											{/each}
 										</tr>

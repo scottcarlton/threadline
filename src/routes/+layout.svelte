@@ -737,7 +737,7 @@
 								class="max-h-[50vh] space-y-3 overflow-y-auto px-5 pb-5"
 								style={chatFontStyle}
 							>
-								{#each $messages as msg, i}
+								{#each $messages as msg, i (i)}
 									<div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
 										<div
 											class="max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed {msg.role === 'user'
@@ -754,7 +754,7 @@
 									</div>
 									{#if msg.role === 'assistant' && i === $messages.length - 1 && msg.suggestions?.length && !$loading}
 										<div class="flex flex-wrap gap-2 pl-1">
-											{#each msg.suggestions as suggestion}
+											{#each msg.suggestions as suggestion (suggestion)}
 												<button
 													onclick={() => sendAiMessage(suggestion)}
 													class="rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
@@ -869,7 +869,7 @@
 							<!-- Attached files -->
 							{#if hasAttachments}
 								<div class="mt-3 ml-10 flex flex-wrap gap-2">
-									{#each attachedFiles as { file, preview }, i}
+									{#each attachedFiles as { file, preview }, i (i)}
 										<div
 											class="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-2 py-1 ring-1 ring-white/5"
 										>
@@ -987,7 +987,7 @@
 													>
 														<span class="text-sm">Default Assistant</span>
 													</button>
-													{#each availableAgents as agent}
+													{#each availableAgents as agent (agent.id)}
 														<button
 															class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {$activeAgent?.id ===
 															agent.id

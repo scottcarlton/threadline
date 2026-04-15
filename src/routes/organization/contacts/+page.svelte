@@ -351,7 +351,7 @@
 				</p>
 			</div>
 			<div class="mt-2 space-y-1.5">
-				{#each duplicates.slice(0, 3) as dup}
+				{#each duplicates.slice(0, 3) as dup (dup.email)}
 					<div class="flex items-center gap-2 text-sm text-amber-700">
 						<span class="font-mono">{dup.email}</span>
 						<span class="text-amber-600"
@@ -415,7 +415,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y">
-						{#each filteredKnown as contact}
+						{#each filteredKnown as contact (`${contact.source}-${contact.sourceId}`)}
 							<tr
 								class="cursor-pointer transition-colors hover:bg-muted/30 {drawerContactId ===
 								`${contact.source}-${contact.sourceId}`
@@ -502,7 +502,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y">
-						{#each filteredDiscovered as contact}
+						{#each filteredDiscovered as contact (contact.id)}
 							<tr
 								class="cursor-pointer transition-colors hover:bg-muted/30 {drawerContactId ===
 								contact.id
@@ -715,7 +715,7 @@
 					<div class="space-y-3">
 						<h3 class="text-sm font-semibold">Recent Orders</h3>
 						<div class="space-y-1.5">
-							{#each drawerOrders as order}
+							{#each drawerOrders as order (order.id)}
 								<a
 									href="/orders/{order.id}"
 									class="flex items-center justify-between rounded-lg border px-3 py-2 transition-colors hover:bg-muted/30"

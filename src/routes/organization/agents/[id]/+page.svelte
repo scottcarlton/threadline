@@ -301,7 +301,7 @@
 								bind:value={triggerEvent}
 								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 							>
-								{#each eventOptions as opt}
+								{#each eventOptions as opt (opt.value)}
 									<option value={opt.value}>{opt.label}</option>
 								{/each}
 							</select>
@@ -314,7 +314,7 @@
 								bind:value={triggerCron}
 								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 							>
-								{#each cronPresets as preset}
+								{#each cronPresets as preset (preset.value)}
 									<option value={preset.value}>{preset.label}</option>
 								{/each}
 							</select>
@@ -358,7 +358,7 @@
 				</p>
 			{:else}
 				<div class="divide-y">
-					{#each triggers as trigger}
+					{#each triggers as trigger (trigger.id)}
 						<div class="flex items-center justify-between py-3">
 							<div>
 								<div class="flex items-center gap-2">
@@ -451,7 +451,7 @@
 				</p>
 			{:else}
 				<div class="divide-y">
-					{#each runs as run}
+					{#each runs as run (run.id)}
 						<button
 							class="flex w-full items-center justify-between py-3 text-left transition-colors hover:bg-muted/30"
 							onclick={() => (expandedRun = expandedRun === run.id ? null : run.id)}
@@ -486,7 +486,7 @@
 								{/if}
 								{#if run.tools_used?.length}
 									<div class="mt-2 flex flex-wrap gap-1">
-										{#each run.tools_used as tool}
+										{#each run.tools_used as tool (tool)}
 											<span
 												class="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
 												>{tool}</span

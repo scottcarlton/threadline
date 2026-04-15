@@ -321,7 +321,7 @@
 					</p>
 				</div>
 				<div class="mt-2 flex w-full flex-col gap-1.5">
-					{#each currentPrompts as prompt}
+					{#each currentPrompts as prompt (prompt)}
 						<button
 							class="rounded-lg border px-3 py-2 text-left text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 							onclick={() => handleSend(prompt)}
@@ -332,7 +332,7 @@
 				</div>
 			</div>
 		{:else}
-			{#each $messages as msg}
+			{#each $messages as msg, i (i)}
 				<div class={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
 					<div
 						class={cn(
@@ -344,7 +344,7 @@
 					>
 						{#if msg.attachments && msg.attachments.length > 0}
 							<div class="mb-2 flex flex-wrap gap-1.5">
-								{#each msg.attachments as attachment}
+								{#each msg.attachments as attachment, ai (ai)}
 									<span
 										class="inline-flex items-center gap-1 rounded bg-black/10 px-1.5 py-0.5 text-[11px]"
 									>
@@ -409,7 +409,7 @@
 			<!-- Attached files -->
 			{#if hasAttachments}
 				<div class="flex flex-wrap gap-2 px-3 pb-1">
-					{#each attachedFiles as { file, preview }, i}
+					{#each attachedFiles as { file, preview }, i (i)}
 						<div
 							class="group relative flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2 py-1"
 						>

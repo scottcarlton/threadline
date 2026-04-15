@@ -342,7 +342,7 @@
 		</div>
 	{:else}
 		<div class="space-y-2">
-			{#each reps as rep}
+			{#each reps as rep (rep.id)}
 				<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
 					<div class="flex items-center gap-3">
 						<div

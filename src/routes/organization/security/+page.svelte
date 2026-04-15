@@ -176,7 +176,7 @@
 			</Card>
 		{/if}
 
-		{#each providers as provider}
+		{#each providers as provider (provider.id)}
 			<Card class="mb-4">
 				<CardContent class="pt-5 pb-5">
 					{#if editingId === provider.id}

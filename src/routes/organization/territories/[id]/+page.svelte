@@ -150,7 +150,7 @@
 							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 						>
 							<option value="">Unassigned</option>
-							{#each members as member}
+							{#each members as member (member.id)}
 								<option value={member.id}>{member.profiles?.display_name ?? 'Unknown'}</option>
 							{/each}
 						</select>
@@ -210,7 +210,7 @@
 						}}
 					>
 						<option value="">Add account...</option>
-						{#each availableAccounts as account}
+						{#each availableAccounts as account (account.id)}
 							<option value={account.id}
 								>{account.business_name}{account.city
 									? ` — ${account.city}, ${account.state}`
@@ -226,7 +226,7 @@
 				<p class="text-sm text-muted-foreground">No accounts in this territory yet.</p>
 			{:else}
 				<div class="space-y-2">
-					{#each accounts as account}
+					{#each accounts as account (account.id)}
 						<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
 							<div>
 								<a href="/accounts/{account.id}" class="text-sm font-medium hover:underline"
