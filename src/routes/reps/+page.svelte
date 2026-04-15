@@ -1,4 +1,9 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+
 	let { data } = $props();
 
 	const reps = $derived(data.reps ?? []);
@@ -23,6 +28,45 @@
 		currency: 'USD',
 		maximumFractionDigits: 0
 	});
+
+	// ── Invite form ────────────────────────────────────────────────────────
+	let inviteOpen = $state(false);
+	let inviteEmail = $state('');
+	let inviteRole = $state<'sales' | 'member' | 'admin'>('sales');
+	let sending = $state(false);
+	let inviteError = $state('');
+	let inviteSuccess = $state('');
+
+	async function sendInvite() {
+		if (!inviteEmail.trim()) {
+			inviteError = 'Enter an email address.';
+			return;
+		}
+		sending = true;
+		inviteError = '';
+		inviteSuccess = '';
+		const res = await fetch('/api/invite/send', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole, brandIds: [] })
+		});
+		sending = false;
+		if (!res.ok) {
+			inviteError =
+				((await res.json().catch(() => ({}))) as { error?: string }).error ??
+				'Failed to send invite';
+			return;
+		}
+		inviteSuccess = `Invite sent to ${inviteEmail.trim()}.`;
+		inviteEmail = '';
+		invalidateAll();
+	}
+
+	function closeInvite() {
+		inviteOpen = false;
+		inviteError = '';
+		inviteSuccess = '';
+	}
 </script>
 
 <div class="mx-auto max-w-5xl space-y-6">
@@ -34,10 +78,7 @@
 				{fmt.format(totalRevenue)} revenue
 			</p>
 		</div>
-		<a
-			href="/organization/members"
-			class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
-		>
+		<Button onclick={() => (inviteOpen = !inviteOpen)}>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				class="h-4 w-4"
@@ -48,9 +89,61 @@
 			>
 				<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 			</svg>
-			Invite
-		</a>
+			{inviteOpen ? 'Close' : 'Invite'}
+		</Button>
 	</div>
+
+	{#if inviteOpen}
+		<div class="rounded-lg border p-5">
+			<h2 class="text-lg font-semibold">Invite a rep</h2>
+			<p class="text-sm text-muted-foreground">
+				Send an invite to join your org. They'll get an email with a signup link.
+			</p>
+			<div class="mt-4 grid gap-4 sm:grid-cols-[1fr_160px_auto]">
+				<div>
+					<Label for="invite-email">Email</Label>
+					<Input
+						id="invite-email"
+						type="email"
+						placeholder="name@example.com"
+						bind:value={inviteEmail}
+					/>
+				</div>
+				<div>
+					<Label for="invite-role">Role</Label>
+					<select
+						id="invite-role"
+						class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+						bind:value={inviteRole}
+					>
+						<option value="sales">Sales</option>
+						<option value="member">Member</option>
+						<option value="admin">Admin</option>
+					</select>
+				</div>
+				<div class="flex items-end">
+					<Button disabled={sending || !inviteEmail.trim()} onclick={sendInvite}>
+						{sending ? 'Sending…' : 'Send invite'}
+					</Button>
+				</div>
+			</div>
+			{#if inviteError}
+				<p class="mt-3 text-sm text-red-600">{inviteError}</p>
+			{/if}
+			{#if inviteSuccess}
+				<div class="mt-3 flex items-center justify-between text-sm text-emerald-600">
+					<span>{inviteSuccess}</span>
+					<button
+						type="button"
+						class="text-sm text-muted-foreground underline hover:text-foreground"
+						onclick={closeInvite}
+					>
+						Done
+					</button>
+				</div>
+			{/if}
+		</div>
+	{/if}
 
 	{#if reps.length === 0}
 		<div class="flex flex-col items-center justify-center py-16">

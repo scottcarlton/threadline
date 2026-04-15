@@ -88,6 +88,8 @@
 	const seasons = $derived(data.seasons as Season[]);
 	const deliveries = $derived(data.deliveries as SeasonDeliveryRow[]);
 	const isBuyer = $derived(data.isBuyer === true);
+	const isBrandOrg = $derived(data.isBrandOrg === true);
+	const selfBrandId = $derived(data.selfBrandId ?? null);
 	const reps = $derived((data.reps ?? []) as Rep[]);
 	const currentUserId = $derived((data.currentUser?.id as string | undefined) ?? null);
 
@@ -291,13 +293,23 @@
 	const hasFreeformDetails = $derived((cart.freeformDetails.business_name?.trim().length ?? 0) > 0);
 
 	// ── Steps ───────────────────────────────────────────────────────────────
+	// Brand orgs skip the 'Brand' step — their self-brand is auto-selected.
 	const stepsAll = $derived.by(() => {
-		const s = ['Brand', 'Account'];
+		const s = isBrandOrg ? ['Account'] : ['Brand', 'Account'];
 		if (needsAccountDetailsStep) s.push('Details');
 		s.push('Items', 'Delivery');
 		if (needsLocationStep) s.push('Location');
 		s.push('Finalize');
 		return s;
+	});
+
+	// Auto-pin brandFilter to the self-brand for brand orgs.
+	$effect(() => {
+		if (isBrandOrg && selfBrandId) {
+			const current = cart.brandFilter;
+			const alreadyPinned = current !== 'all' && current.length === 1 && current[0] === selfBrandId;
+			if (!alreadyPinned) cart.brandFilter = [selfBrandId];
+		}
 	});
 
 	let currentStep = $state(0);

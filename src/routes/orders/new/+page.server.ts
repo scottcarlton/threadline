@@ -22,7 +22,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			deliveries: [],
 			reps: [],
 			currentUser: null,
-			isBuyer: locals.isBuyer ?? false
+			isBuyer: locals.isBuyer ?? false,
+			isBrandOrg: false,
+			selfBrandId: null as string | null
 		};
 	}
 
@@ -55,7 +57,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				.eq('organization_id', organization.id)
 				.order('sort_order'),
 			(() => {
-				let q = supabase.from('brands').select('id, name').eq('is_active', true);
+				let q = supabase.from('brands').select('id, name, is_self_brand').eq('is_active', true);
 				if (buyerBrandIds) q = q.in('id', buyerBrandIds.length ? buyerBrandIds : ['__none__']);
 				else q = q.eq('organization_id', organization.id);
 				return q.order('name');
@@ -89,15 +91,23 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
 
+	const brands = brandsRes.data ?? [];
+	const isBrandOrg = locals.orgType === 'brand';
+	const selfBrandId = isBrandOrg
+		? (brands.find((b) => (b as { is_self_brand?: boolean }).is_self_brand)?.id ?? null)
+		: null;
+
 	return {
 		accounts: accountsRes.data ?? [],
 		locations: locationsRes.data ?? [],
-		brands: brandsRes.data ?? [],
+		brands,
 		seasons: seasonsRes.data ?? [],
 		deliveries: deliveriesRes.data ?? [],
 		reps,
 		currentUser: user ? { id: user.id } : null,
-		isBuyer
+		isBuyer,
+		isBrandOrg,
+		selfBrandId
 	};
 };
 
