@@ -60,7 +60,9 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/organization/contacts"><LongArrow direction="left" /> Back</Button>
+			<Button variant="ghost" size="sm" href="/organization/contacts"
+				><LongArrow direction="left" /> Back</Button
+			>
 			<div
 				class="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-semibold"
 			>
@@ -186,7 +188,9 @@
 				<CardTitle class="text-base">Suggested Accounts</CardTitle>
 			</CardHeader>
 			<CardContent>
-				<p class="mb-3 text-sm text-muted-foreground">These accounts may be related based on email domain matching.</p>
+				<p class="mb-3 text-sm text-muted-foreground">
+					These accounts may be related based on email domain matching.
+				</p>
 				<div class="space-y-2">
 					{#each suggestedAccounts as acct}
 						<a
@@ -199,8 +203,19 @@
 									<p class="text-sm text-muted-foreground">{acct.contact_email}</p>
 								{/if}
 							</div>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4 text-muted-foreground"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
+								/>
 							</svg>
 						</a>
 					{/each}
@@ -219,9 +234,22 @@
 				<div class="space-y-1">
 					{#each emailActivity as email}
 						<div class="flex items-start gap-3 rounded-lg px-3 py-2.5">
-							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+							<div
+								class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+									/>
 								</svg>
 							</div>
 							<div class="min-w-0 flex-1">
@@ -230,7 +258,12 @@
 									<p class="text-sm text-muted-foreground">Sent by {email.senderName}</p>
 								{/if}
 							</div>
-							<span class="shrink-0 text-sm text-muted-foreground">{new Date(email.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+							<span class="shrink-0 text-sm text-muted-foreground"
+								>{new Date(email.date).toLocaleDateString('en-US', {
+									month: 'short',
+									day: 'numeric'
+								})}</span
+							>
 						</div>
 					{/each}
 				</div>

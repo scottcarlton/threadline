@@ -93,7 +93,20 @@
 	const reps = $derived((data.reps ?? []) as Rep[]);
 	const currentUserId = $derived((data.currentUser?.id as string | undefined) ?? null);
 
-	const monthAbbrev = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	const monthAbbrev = [
+		'Jan',
+		'Feb',
+		'Mar',
+		'Apr',
+		'May',
+		'Jun',
+		'Jul',
+		'Aug',
+		'Sep',
+		'Oct',
+		'Nov',
+		'Dec'
+	];
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 	// ── Cart state ──────────────────────────────────────────────────────────
@@ -271,13 +284,13 @@
 	const accountLocations = $derived(
 		cart.account_id ? allLocations.filter((l) => l.account_id === cart.account_id) : []
 	);
-	const isFreeform = $derived(cart.account_id === null && (cart.freeform_name?.trim().length ?? 0) > 0);
+	const isFreeform = $derived(
+		cart.account_id === null && (cart.freeform_name?.trim().length ?? 0) > 0
+	);
 	const hasAccountChoice = $derived(cart.account_id !== null || isFreeform);
 	const needsLocationStep = $derived(account !== null && accountLocations.length >= 2);
 	const needsAccountDetailsStep = $derived(isFreeform);
-	const hasFreeformDetails = $derived(
-		(cart.freeformDetails.business_name?.trim().length ?? 0) > 0
-	);
+	const hasFreeformDetails = $derived((cart.freeformDetails.business_name?.trim().length ?? 0) > 0);
 
 	// ── Steps ───────────────────────────────────────────────────────────────
 	// Brand orgs skip the 'Brand' step — their self-brand is auto-selected.
@@ -414,11 +427,7 @@
 
 	// Move every item in (brand, season) source to the destination season.
 	// Existing items at the destination merge naturally (groups re-derive).
-	function moveGroup(
-		source_brand_id: string,
-		source_season_id: string,
-		dest_season_id: string
-	) {
+	function moveGroup(source_brand_id: string, source_season_id: string, dest_season_id: string) {
 		for (const it of cart.items) {
 			if (it.brand_id === source_brand_id && it.season_id === source_season_id) {
 				it.season_id = dest_season_id;
@@ -466,9 +475,7 @@
 	): boolean {
 		if (!meta.delivery) return false;
 		if (e.display_year === cart.order_year) {
-			return (
-				meta.delivery.kind === 'delivery' && meta.delivery.delivery_id === e.row.id
-			);
+			return meta.delivery.kind === 'delivery' && meta.delivery.delivery_id === e.row.id;
 		}
 		const mm = String(e.row.delivery_month).padStart(2, '0');
 		const dd = String(e.row.delivery_day).padStart(2, '0');
@@ -542,9 +549,7 @@
 	let brandQuery = $state('');
 	const brandMatches = $derived(
 		brandQuery.trim()
-			? brands.filter((b) =>
-					normalize(b.name).includes(normalize(brandQuery))
-				)
+			? brands.filter((b) => normalize(b.name).includes(normalize(brandQuery)))
 			: brands
 	);
 	function normalize(s: string): string {
@@ -746,9 +751,7 @@
 			// buyers land on the last valid ship window instead of the first.
 			const lastPreset = deliveries
 				.filter((d) => d.season_id === g.season_id)
-				.sort(
-					(a, b) => b.delivery_month - a.delivery_month || b.delivery_day - a.delivery_day
-				)[0];
+				.sort((a, b) => b.delivery_month - a.delivery_month || b.delivery_day - a.delivery_day)[0];
 			if (!lastPreset) continue;
 			const yyyy = String(cart.order_year);
 			const mm = String(lastPreset.delivery_month).padStart(2, '0');
@@ -851,7 +854,9 @@
 	<!-- Top nav: Back (left) + Cancel (right) -->
 	<div class="mb-4 flex items-center justify-between">
 		{#if currentStep > 0}
-			<Button variant="ghost" size="sm" onclick={prevStep}><LongArrow direction="left" /> Back</Button>
+			<Button variant="ghost" size="sm" onclick={prevStep}
+				><LongArrow direction="left" /> Back</Button
+			>
 		{:else}
 			<span></span>
 		{/if}
@@ -879,12 +884,7 @@
 	{#if stepName === 'Brand'}
 		<div>
 			<Label for="brand-search">Brands</Label>
-			<Input
-				id="brand-search"
-				class="mt-1"
-				placeholder="Search brands…"
-				bind:value={brandQuery}
-			/>
+			<Input id="brand-search" class="mt-1" placeholder="Search brands…" bind:value={brandQuery} />
 
 			<div class="mt-3 max-h-80 overflow-auto rounded-lg border">
 				<ul class="divide-y">
@@ -938,8 +938,17 @@
 
 			{#if cart.items.length === 0}
 				<div class="rounded-lg border border-dashed p-12 text-center">
-					<div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-6 w-6 text-muted-foreground">
+					<div
+						class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							class="h-6 w-6 text-muted-foreground"
+						>
 							<circle cx="9" cy="21" r="1" />
 							<circle cx="20" cy="21" r="1" />
 							<path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
@@ -966,7 +975,10 @@
 									<div class="text-sm text-muted-foreground">{it.style_number}</div>
 									<div class="truncate text-base font-semibold">{it.name}</div>
 									<div class="text-sm text-muted-foreground">
-										{fmt.format(it.unit_price)} · {brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
+										{fmt.format(it.unit_price)} · {brandName(it.brand_id)} · {seasonLabel(
+											it.season_id,
+											it.product_year
+										)}
 									</div>
 								</div>
 								<div class="shrink-0 text-right">
@@ -1023,7 +1035,7 @@
 									</button>
 									<button
 										type="button"
-										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 focus-visible:opacity-100 hover:bg-red-500/10"
+										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 hover:bg-red-500/10 focus-visible:opacity-100"
 										onclick={() => removeProduct(it.product_id)}
 									>
 										Remove
@@ -1044,7 +1056,7 @@
 									/>
 									<button
 										type="button"
-										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 focus-visible:opacity-100 hover:bg-red-500/10"
+										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 hover:bg-red-500/10 focus-visible:opacity-100"
 										onclick={() => removeProduct(it.product_id)}
 									>
 										Remove
@@ -1076,8 +1088,7 @@
 							: { start_ship_date: '', expected_ship_date: '' }}
 					{@const isDropTarget = dropTargetKey === groupKey(g.brand_id, g.season_id)}
 					{@const canAcceptDrop =
-						draggingItemId !== null &&
-						canDropItem(draggingItemId, g.brand_id, g.season_id)}
+						draggingItemId !== null && canDropItem(draggingItemId, g.brand_id, g.season_id)}
 					<div
 						class="rounded-lg border bg-background p-4 transition-colors {isDropTarget
 							? 'border-foreground bg-muted/30'
@@ -1088,23 +1099,32 @@
 						ondragleave={() => onGroupDragLeave(g)}
 						ondrop={(e) => onGroupDrop(e, g)}
 						role="region"
-						aria-label="Order for {brandName(g.brand_id)} {seasonLabel(g.season_id, g.product_year)}"
+						aria-label="Order for {brandName(g.brand_id)} {seasonLabel(
+							g.season_id,
+							g.product_year
+						)}"
 					>
 						<!-- Header: brand · season · (Move menu) | units/total · delete -->
 						<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
 							<div class="flex items-center gap-2">
 								<span class="font-semibold">{brandName(g.brand_id)}</span>
 								<span class="text-sm text-muted-foreground">·</span>
-								<span class="text-sm text-muted-foreground">{seasonLabel(g.season_id, g.product_year)}</span>
+								<span class="text-sm text-muted-foreground"
+									>{seasonLabel(g.season_id, g.product_year)}</span
+								>
 								{#if moveTargets.length > 0}
-									<details class="relative ml-1 marker:hidden [&>summary::-webkit-details-marker]:hidden">
+									<details
+										class="relative ml-1 marker:hidden [&>summary::-webkit-details-marker]:hidden"
+									>
 										<summary
 											class="cursor-pointer list-none text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
 											aria-label="Move this order to a later season"
 										>
 											Move →
 										</summary>
-										<div class="absolute top-full left-0 z-20 mt-1 min-w-[140px] rounded-md border bg-background py-1 shadow-lg">
+										<div
+											class="absolute top-full left-0 z-20 mt-1 min-w-[140px] rounded-md border bg-background py-1 shadow-lg"
+										>
 											{#each moveTargets as t (t.season_id)}
 												<button
 													type="button"
@@ -1126,8 +1146,8 @@
 							<div class="flex items-center gap-3">
 								<div class="text-sm">
 									<span class="text-muted-foreground"
-										>{g.units} unit{g.units === 1 ? '' : 's'} · </span
-									><span class="font-semibold">{fmt.format(g.total)}</span>
+										>{g.units} unit{g.units === 1 ? '' : 's'} ·
+									</span><span class="font-semibold">{fmt.format(g.total)}</span>
 								</div>
 								<button
 									type="button"
@@ -1135,7 +1155,14 @@
 									aria-label="Delete order"
 									onclick={() => removeGroup(g.brand_id, g.season_id)}
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									>
 										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 									</svg>
 								</button>
@@ -1166,17 +1193,32 @@
 									<div class="min-w-0 flex-1">
 										<div class="truncate font-medium">{it.name}</div>
 										<div class="text-muted-foreground">
-											{it.style_number} · {it.selected_color || '—'} · {itemUnits(it)} unit{itemUnits(it) === 1 ? '' : 's'}
+											{it.style_number} · {it.selected_color || '—'} · {itemUnits(it)} unit{itemUnits(
+												it
+											) === 1
+												? ''
+												: 's'}
 										</div>
 									</div>
 									<button
 										type="button"
-										class="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover/item:opacity-100 focus-visible:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+										class="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100"
 										aria-label="Remove item"
 										onclick={() => removeProduct(it.product_id)}
 									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M6 18L18 6M6 6l12 12"
+											/>
 										</svg>
 									</button>
 								</div>
@@ -1224,21 +1266,27 @@
 								</div>
 							</div>
 						</div>
-
 					</div>
 				{/each}
 
 				{#if groups.length === 0}
 					<div class="rounded-lg border border-dashed p-12 text-center">
-						<div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-6 w-6 text-muted-foreground">
+						<div
+							class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								class="h-6 w-6 text-muted-foreground"
+							>
 								<path d="M3 3h18v4H3zM3 10h18v11H3z" />
 							</svg>
 						</div>
 						<div class="text-base font-semibold">No orders</div>
-						<p class="mt-1 text-sm text-muted-foreground">
-							Go back to Items to add products.
-						</p>
+						<p class="mt-1 text-sm text-muted-foreground">Go back to Items to add products.</p>
 					</div>
 				{/if}
 			</div>
@@ -1264,7 +1312,9 @@
 					onfocus={() => (accountFocus = true)}
 				/>
 				{#if accountFocus && accountQuery.trim()}
-					<div class="absolute left-0 right-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-lg border bg-background shadow-lg">
+					<div
+						class="absolute top-full right-0 left-0 z-10 mt-1 max-h-72 overflow-auto rounded-lg border bg-background shadow-lg"
+					>
 						<ul class="divide-y">
 							{#each accountMatches as a (a.id)}
 								<li>
@@ -1297,7 +1347,6 @@
 					</div>
 				{/if}
 			</div>
-
 		</div>
 	{/if}
 
@@ -1341,8 +1390,8 @@
 	{#if stepName === 'Details'}
 		<div>
 			<p class="mb-4 text-sm text-muted-foreground">
-				These details save as a new account. You can skip and come back later — orders stay as drafts
-				until this is complete.
+				These details save as a new account. You can skip and come back later — orders stay as
+				drafts until this is complete.
 			</p>
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div class="sm:col-span-2">
@@ -1359,7 +1408,12 @@
 				</div>
 				<div>
 					<Label for="em">Email</Label>
-					<Input id="em" type="email" bind:value={cart.freeformDetails.contact_email} class="mt-1" />
+					<Input
+						id="em"
+						type="email"
+						bind:value={cart.freeformDetails.contact_email}
+						class="mt-1"
+					/>
 				</div>
 				<div>
 					<Label for="ph">Phone</Label>
@@ -1389,18 +1443,19 @@
 	{#if stepName === 'Finalize'}
 		{@const defaultLocation =
 			accountLocations.find((l) => l.is_default) ?? accountLocations[0] ?? null}
-		{@const shipFrom = defaultLocation ?? (account
-			? {
-					label: account.business_name,
-					address_line1: account.address_line1,
-					address_line2: account.address_line2,
-					city: account.city,
-					state: account.state,
-					zip: account.zip
-				}
-			: null)}
-		{@const accountEmail =
-			(defaultLocation?.contact_email ?? account?.contact_email) ?? null}
+		{@const shipFrom =
+			defaultLocation ??
+			(account
+				? {
+						label: account.business_name,
+						address_line1: account.address_line1,
+						address_line2: account.address_line2,
+						city: account.city,
+						state: account.state,
+						zip: account.zip
+					}
+				: null)}
+		{@const accountEmail = defaultLocation?.contact_email ?? account?.contact_email ?? null}
 		<div class="space-y-4">
 			<!-- Account -->
 			<div class="rounded-lg border p-4">
@@ -1550,11 +1605,7 @@
 	{#if stepName !== 'Finalize'}
 		<div class="mt-8 flex items-center justify-end gap-4">
 			{#if stepName === 'Details'}
-				<button
-					type="button"
-					class="text-sm underline hover:no-underline"
-					onclick={nextStep}
-				>
+				<button type="button" class="text-sm underline hover:no-underline" onclick={nextStep}>
 					Skip
 				</button>
 			{/if}
@@ -1565,11 +1616,7 @@
 
 <!-- ── Full-screen Add Items modal ─────────────────────────────────────── -->
 {#if modalOpen}
-	<div
-		class="fixed inset-0 z-50 flex flex-col bg-background"
-		role="dialog"
-		aria-modal="true"
-	>
+	<div class="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-modal="true">
 		<!-- Top bar -->
 		<div class="flex items-center justify-between border-b px-5 py-3">
 			<div>
@@ -1614,8 +1661,18 @@
 					{/each}
 				</select>
 			{/if}
-			<Input placeholder="Min $" bind:value={modalMinPrice} oninput={onModalSearchChange} class="w-24" />
-			<Input placeholder="Max $" bind:value={modalMaxPrice} oninput={onModalSearchChange} class="w-24" />
+			<Input
+				placeholder="Min $"
+				bind:value={modalMinPrice}
+				oninput={onModalSearchChange}
+				class="w-24"
+			/>
+			<Input
+				placeholder="Max $"
+				bind:value={modalMaxPrice}
+				oninput={onModalSearchChange}
+				class="w-24"
+			/>
 		</div>
 
 		<!-- Body: grid + optional sidebar -->
@@ -1666,7 +1723,9 @@
 									<div class="text-sm text-muted-foreground">{p.style_number}</div>
 									<div class="line-clamp-2 text-sm font-semibold">{p.name}</div>
 									<div class="text-sm text-muted-foreground">
-										{brandName(p.brand_id)}{p.season_id ? ' · ' + seasonLabel(p.season_id, p.product_year) : ''}
+										{brandName(p.brand_id)}{p.season_id
+											? ' · ' + seasonLabel(p.season_id, p.product_year)
+											: ''}
 									</div>
 									<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
 									<div class="mt-auto grid grid-cols-2 gap-2 pt-3">
@@ -1713,7 +1772,14 @@
 								aria-label="Close sizing"
 								onclick={() => (sizingProductId = null)}
 							>
-								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									class="h-5 w-5"
+								>
 									<path d="M18 6L6 18M6 6l12 12" />
 								</svg>
 							</button>

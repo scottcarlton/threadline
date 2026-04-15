@@ -84,7 +84,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	// Also check for discovered contacts that match known contact emails
-	type DuplicateGroup = { email: string; contacts: { id: string; name: string | null; source: string }[] };
+	type DuplicateGroup = {
+		email: string;
+		contacts: { id: string; name: string | null; source: string }[];
+	};
 	const duplicates: DuplicateGroup[] = [];
 
 	for (const d of discovered) {

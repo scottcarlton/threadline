@@ -137,9 +137,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const yearRowList = (yearRows ?? []) as Array<{ order_year: number | null }>;
 	const availableYears: number[] = [
 		...new Set(
-			yearRowList
-				.map((r) => r.order_year)
-				.filter((y: number | null): y is number => y !== null)
+			yearRowList.map((r) => r.order_year).filter((y: number | null): y is number => y !== null)
 		)
 	];
 
@@ -676,13 +674,15 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 			.select('id, business_name, city, state, territory_id')
 			.in('id', accountIds);
 		const accountMap = new Map(
-			((accounts ?? []) as Array<{
-				id: string;
-				business_name: string;
-				city: string | null;
-				state: string | null;
-				territory_id: string | null;
-			}>).map((a) => [a.id, a])
+			(
+				(accounts ?? []) as Array<{
+					id: string;
+					business_name: string;
+					city: string | null;
+					state: string | null;
+					territory_id: string | null;
+				}>
+			).map((a) => [a.id, a])
 		);
 		topAccounts = accountIds
 			.map((id) => {
@@ -730,7 +730,9 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 			if (activeAccountIdsSet.has(row.id)) existing.hasActive = true;
 			territoryMap.set(row.territories.id, existing);
 		}
-		territoryGaps = [...territoryMap.values()].filter((t) => !t.hasActive).map((t) => ({ name: t.name }));
+		territoryGaps = [...territoryMap.values()]
+			.filter((t) => !t.hasActive)
+			.map((t) => ({ name: t.name }));
 	}
 
 	const brandInsight = {

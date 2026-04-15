@@ -172,7 +172,12 @@ export async function connectionActivityFeed(
 	type AccountLink = {
 		account_id: string;
 		created_at: string;
-		accounts: { id: string; business_name: string | null; city: string | null; state: string | null } | null;
+		accounts: {
+			id: string;
+			business_name: string | null;
+			city: string | null;
+			state: string | null;
+		} | null;
 	};
 
 	const items: ConnectionActivityItem[] = [];
