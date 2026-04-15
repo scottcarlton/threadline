@@ -1,9 +1,18 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
+	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+
 	let { data } = $props();
 
 	const reps = $derived(data.reps ?? []);
 	const totalRevenue = $derived(reps.reduce((sum: number, r: any) => sum + r.revenue, 0));
 	const totalOrders = $derived(reps.reduce((sum: number, r: any) => sum + r.orderCount, 0));
+	const canManage = $derived(
+		data.membership?.role === 'admin' || data.membership?.role === 'owner'
+	);
+
+	let showImport = $state(false);
 
 	function getInitials(name: string): string {
 		return name
@@ -23,6 +32,72 @@
 		currency: 'USD',
 		maximumFractionDigits: 0
 	});
+
+	function csvEscape(value: unknown): string {
+		if (value === null || value === undefined) return '';
+		const s = String(value);
+		if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+			return `"${s.replace(/"/g, '""')}"`;
+		}
+		return s;
+	}
+
+	function handleExport() {
+		const header = ['name', 'role', 'orders', 'revenue'];
+		const rows = reps.map((r: any) =>
+			[r.name, r.role, r.orderCount, r.revenue].map(csvEscape).join(',')
+		);
+		const csv = [header.join(','), ...rows].join('\n');
+		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `reps-${new Date().toISOString().slice(0, 10)}.csv`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
+	const repColumns = [
+		{ key: 'email', label: 'Email', required: true },
+		{ key: 'role', label: 'Role (admin, member, sales, guest)', required: true }
+	];
+
+	async function handleImport(
+		rows: Record<string, string>[]
+	): Promise<{ success: number; errors: string[] }> {
+		let success = 0;
+		const errors: string[] = [];
+		for (let i = 0; i < rows.length; i++) {
+			const row = rows[i];
+			const email = row.email?.trim();
+			const role = row.role?.trim().toLowerCase();
+			if (!email) {
+				errors.push(`Row ${i + 1}: email is required`);
+				continue;
+			}
+			if (!role || !['admin', 'member', 'sales', 'guest'].includes(role)) {
+				errors.push(`Row ${i + 1} (${email}): role must be admin, member, sales, or guest`);
+				continue;
+			}
+			try {
+				const res = await fetch('/api/invite/send', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ email, role, brandIds: [] })
+				});
+				if (!res.ok) {
+					const body = await res.json().catch(() => ({}));
+					errors.push(`Row ${i + 1} (${email}): ${body.error ?? 'Invite failed'}`);
+					continue;
+				}
+				success++;
+			} catch (e) {
+				errors.push(`Row ${i + 1} (${email}): ${e instanceof Error ? e.message : 'Invite failed'}`);
+			}
+		}
+		if (success > 0) invalidateAll();
+		return { success, errors };
+	}
 </script>
 
 <div class="mx-auto max-w-5xl space-y-6">
@@ -34,22 +109,30 @@
 				{fmt.format(totalRevenue)} revenue
 			</p>
 		</div>
-		<a
-			href="/organization/members"
-			class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-4 w-4"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				stroke-width="2"
+		<div class="flex items-center gap-2">
+			{#if canManage}
+				<Button variant="outline" size="sm" onclick={handleExport} disabled={reps.length === 0}
+					>Export</Button
+				>
+				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
+			{/if}
+			<a
+				href="/organization/members"
+				class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
 			>
-				<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-			</svg>
-			Invite
-		</a>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+				</svg>
+				Invite
+			</a>
+		</div>
 	</div>
 
 	{#if reps.length === 0}
@@ -105,3 +188,11 @@
 		</div>
 	{/if}
 </div>
+
+<BulkImportModal
+	open={showImport}
+	ontoggle={() => (showImport = false)}
+	entityType="Reps"
+	columns={repColumns}
+	onimport={handleImport}
+/>
