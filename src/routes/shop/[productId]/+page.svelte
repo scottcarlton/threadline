@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { cart } from '$lib/stores/cart.js';
@@ -83,7 +84,7 @@
 <div class="mx-auto max-w-5xl space-y-6">
 	<!-- Back link -->
 	<a
-		href="/shop"
+		href={resolve('/shop')}
 		class="inline-flex items-center gap-1.5 text-base text-muted-foreground transition-colors hover:text-foreground"
 	>
 		<svg

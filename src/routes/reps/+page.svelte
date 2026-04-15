@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -240,7 +241,7 @@
 			</div>
 			<p class="mt-2 text-sm text-muted-foreground">
 				Invites from this page join as sales reps. To invite an admin or member, use
-				<a href="/organization/members" class="underline hover:text-foreground"
+				<a href={resolve('/organization/members')} class="underline hover:text-foreground"
 					>Organization › Members</a
 				>.
 			</p>

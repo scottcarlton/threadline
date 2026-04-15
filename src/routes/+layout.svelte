@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { navigating } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import Sidebar from '$lib/components/layout/sidebar.svelte';
@@ -291,7 +292,7 @@
 		if (cmd && e.shiftKey) {
 			if (e.code === 'KeyA') {
 				e.preventDefault();
-				goto('/appointments?new=true');
+				goto(resolve('/appointments?new=true'));
 				return;
 			}
 		}
@@ -300,17 +301,17 @@
 		if (cmd && !e.shiftKey) {
 			if (e.key === 'o') {
 				e.preventDefault();
-				goto('/orders/new');
+				goto(resolve('/orders/new'));
 				return;
 			}
 			if (e.key === 'a') {
 				e.preventDefault();
-				goto('/accounts/new');
+				goto(resolve('/accounts/new'));
 				return;
 			}
 			if (e.key === 'b') {
 				e.preventDefault();
-				goto('/brands/new');
+				goto(resolve('/brands/new'));
 				return;
 			}
 		}
@@ -319,17 +320,17 @@
 		if (e.shiftKey && !cmd) {
 			if (e.key === 'I') {
 				e.preventDefault();
-				goto('/inbox');
+				goto(resolve('/inbox'));
 				return;
 			}
 			if (e.key === 'A') {
 				e.preventDefault();
-				goto('/appointments');
+				goto(resolve('/appointments'));
 				return;
 			}
 			if (e.key === 'O') {
 				e.preventDefault();
-				goto('/organization');
+				goto(resolve('/organization'));
 				return;
 			}
 			if (e.key === 'H') {
@@ -350,7 +351,7 @@
 				i: '/insight'
 			};
 			if (singleKeys[e.key] && now - lastNonShortcutKey > KEY_CHORD_WINDOW) {
-				goto(singleKeys[e.key]);
+				goto(resolve(singleKeys[e.key] as '/orders'));
 				return;
 			}
 			// Track non-shortcut keypresses to prevent chords like "/a" from triggering

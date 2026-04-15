@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { cn } from '$lib/utils.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -377,7 +378,7 @@
 				{#if matchedAccount()}
 					{@const acct = matchedAccount()}
 					<a
-						href="/accounts/{acct?.accountId}"
+						href={resolve(`/accounts/${acct?.accountId}`)}
 						class="flex items-center gap-2 border-b bg-blue-50 px-6 py-2 text-sm text-blue-700 transition-colors hover:bg-blue-100"
 					>
 						<svg

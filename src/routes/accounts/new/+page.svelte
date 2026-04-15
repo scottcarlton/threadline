@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -67,7 +68,7 @@
 		}
 
 		loading = false;
-		goto('/accounts');
+		goto(resolve('/accounts'));
 	}
 </script>
 

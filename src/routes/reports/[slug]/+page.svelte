@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
@@ -18,7 +19,7 @@
 	});
 
 	function changeYear(y: number) {
-		goto(`/reports/${report}?year=${y}`, { replaceState: true });
+		goto(resolve(`/reports/${report}?year=${y}`), { replaceState: true });
 	}
 
 	function exportReport() {

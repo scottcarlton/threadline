@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
@@ -980,7 +981,7 @@
 							<div class="space-y-2">
 								{#each brandSummaries as brand (brand.id)}
 									<a
-										href="/brands/{brand.id}"
+										href={resolve(`/brands/${brand.id}`)}
 										class="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-muted/50"
 									>
 										<span class="text-sm font-medium">{brand.name}</span>
@@ -1037,9 +1038,9 @@
 						{@const colorClass = activityColors[item.type] ?? 'bg-muted text-muted-foreground'}
 						<a
 							href={item.type === 'order'
-								? `/orders/${item.id}`
+								? resolve(`/orders/${item.id}`)
 								: item.type === 'appointment'
-									? `/appointments`
+									? resolve(`/appointments`)
 									: '#'}
 							class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
 						>

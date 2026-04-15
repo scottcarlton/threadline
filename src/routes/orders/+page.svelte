@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -294,7 +295,7 @@
 		} else {
 			params.set(key, value);
 		}
-		goto(`/orders?${params.toString()}`, { replaceState: true });
+		goto(resolve(`/orders?${params.toString()}`), { replaceState: true });
 	}
 </script>
 
@@ -614,13 +615,13 @@
 										{order.accounts?.business_name ?? '—'}
 									</p>
 									<a
-										href="/orders/{order.id}"
+										href={resolve(`/orders/${order.id}`)}
 										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 									>
 									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
 								{:else}
 									<a
-										href="/orders/{order.id}"
+										href={resolve(`/orders/${order.id}`)}
 										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 									>
 									<p class="text-sm text-muted-foreground">

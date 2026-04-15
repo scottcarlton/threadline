@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -164,7 +165,7 @@
 		}
 
 		saving = false;
-		goto(`/brands/${brand.id}/products/${product.id}`);
+		goto(resolve(`/brands/${brand.id}/products/${product.id}`));
 	}
 
 	// Derived preview

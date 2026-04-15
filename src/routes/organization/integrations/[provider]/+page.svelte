@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
@@ -171,7 +172,7 @@
 <div class="space-y-6">
 	<div class="flex items-center gap-3">
 		<a
-			href="/organization/integrations"
+			href={resolve('/organization/integrations')}
 			class="text-sm text-muted-foreground hover:text-foreground"
 		>
 			<svg
@@ -297,7 +298,7 @@
 							<a
 								href={exportResult.url}
 								target="_blank"
-								rel="noopener"
+								rel="external noopener"
 								class="font-medium underline">Open spreadsheet</a
 							>
 						</p>
@@ -457,7 +458,7 @@
 							<a
 								href={msExportResult.url}
 								target="_blank"
-								rel="noopener"
+								rel="external noopener"
 								class="font-medium underline">Open in OneDrive</a
 							>
 						</p>
@@ -661,7 +662,7 @@
 										<a
 											href={details.spreadsheet_url as string}
 											target="_blank"
-											rel="noopener"
+											rel="external noopener"
 											class="text-xs font-medium text-primary hover:underline"
 										>
 											Open

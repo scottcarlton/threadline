@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
 	import { cn } from '$lib/utils.js';
 	import { unreadCount } from '$lib/stores/unread.js';
 	import { upcomingAppointmentCount } from '$lib/stores/appointments.js';
@@ -195,7 +196,7 @@
 	<nav class="flex-1 space-y-px px-5 {allMemberships.length > 1 ? 'pt-1' : 'pt-5'}">
 		{#each filteredPrimaryNav as item (item.href)}
 			<a
-				href={item.href}
+				href={resolve(item.href as '/orders')}
 				class={cn(
 					'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 					isActive(item.href)
@@ -231,7 +232,7 @@
 			<div class="mt-6">
 				{#if !isBrandScoped || isSales}
 					<a
-						href={inboxNav.href}
+						href={resolve(inboxNav.href as '/inbox')}
 						class={cn(
 							'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 							isActive(inboxNav.href)
@@ -264,7 +265,7 @@
 				{/if}
 
 				<a
-					href={appointmentsNav.href}
+					href={resolve(appointmentsNav.href as '/appointments')}
 					class={cn(
 						'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 						isActive(appointmentsNav.href)
@@ -295,7 +296,7 @@
 			<!-- Workspace -->
 			<div class="mt-6">
 				<a
-					href="/workspace"
+					href={resolve('/workspace')}
 					class={cn(
 						'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 						isActive('/workspace')
@@ -327,7 +328,7 @@
 	<div class="px-5 pb-5">
 		{#if isBuyer}
 			<a
-				href="/account"
+				href={resolve('/account')}
 				class={cn(
 					'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 					isActive('/account')
@@ -353,7 +354,7 @@
 			</a>
 		{:else if !isSales && (showOrg || isSingleBrandScoped)}
 			<a
-				href={brandLink}
+				href={resolve(brandLink as '/organization')}
 				class={cn(
 					'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 					isActive(brandLink)
@@ -376,7 +377,7 @@
 		{/if}
 
 		<a
-			href={settingsNav.href}
+			href={resolve(settingsNav.href as '/settings')}
 			class={cn(
 				'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 				isActive(settingsNav.href)
@@ -420,7 +421,7 @@
 
 		{#if showOrg}
 			<a
-				href="/organization/billing"
+				href={resolve('/organization/billing')}
 				class="mt-3 flex w-full items-center justify-center rounded-lg bg-foreground px-3 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 			>
 				Upgrade to Pro

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -215,7 +216,7 @@
 						<tr class="transition-colors hover:bg-muted/30">
 							<td class="px-4 py-3">
 								<a
-									href="/organization/territories/{territory.id}"
+									href={resolve(`/organization/territories/${territory.id}`)}
 									class="text-sm font-medium hover:underline">{territory.name}</a
 								>
 								{#if territory.notes}

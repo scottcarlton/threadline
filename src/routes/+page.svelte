@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
+	import { resolve } from '$app/paths';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
 
 	let faqOpen = $state<number | null>(null);
@@ -95,7 +96,7 @@
 							<div class="grid gap-4">
 								<a
 									class="h-reveal inline-flex w-fit bg-white px-12 py-2.5 text-base text-primary opacity-0"
-									href="/signup">Early Access</a
+									href={resolve('/signup')}>Early Access</a
 								>
 								<p class="h-reveal opacity-0">
 									Most wholesale tools aren't truly smart. They digitize the old way of working.

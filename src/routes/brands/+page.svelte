@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -199,12 +200,14 @@
 					{#each filtered as brand (brand.id)}
 						<tr class="transition-colors hover:bg-muted/30 {brand.archived_at ? 'opacity-50' : ''}">
 							<td class="px-4 py-3">
-								<a href="/brands/{brand.id}" class="text-base hover:underline">{brand.name}</a>
+								<a href={resolve(`/brands/${brand.id}`)} class="text-base hover:underline"
+									>{brand.name}</a
+								>
 								{#if brand.website}
 									<a
 										href={brand.website}
 										target="_blank"
-										rel="noopener noreferrer"
+										rel="external noopener noreferrer"
 										class="block font-mono text-sm text-muted-foreground hover:underline"
 										>{brand.website.replace(/^https?:\/\//, '')}</a
 									>
