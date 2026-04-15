@@ -2,8 +2,14 @@ import { Resend } from 'resend';
 import { env } from '$env/dynamic/private';
 import { supabaseAdmin } from './supabase.js';
 
-const resend = new Resend(env.RESEND_API_KEY);
-const DEFAULT_FROM = env.EMAIL_FROM ?? 'Threadline <onboarding@resend.dev>';
+let _resend: Resend | null = null;
+function getResend(): Resend {
+	if (!_resend) {
+		if (!env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not set');
+		_resend = new Resend(env.RESEND_API_KEY);
+	}
+	return _resend;
+}
 
 export type SendEmailArgs = {
 	to: string | string[];
@@ -22,10 +28,10 @@ export type SendEmailArgs = {
 export type SendEmailResult = { ok: true; id: string } | { ok: false; error: string };
 
 export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
-	const from = args.from ?? DEFAULT_FROM;
+	const from = args.from ?? env.EMAIL_FROM ?? 'Threadline <onboarding@resend.dev>';
 	const toList = Array.isArray(args.to) ? args.to : [args.to];
 
-	const { data, error } = await resend.emails.send({
+	const { data, error } = await getResend().emails.send({
 		from,
 		to: toList,
 		subject: args.subject,
