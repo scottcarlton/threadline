@@ -33,6 +33,7 @@
 	});
 	const canEdit = $derived(data.membership?.role !== 'guest');
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
+	const isBrandOrg = $derived(data.orgType === 'brand');
 
 	// Buyer invite dialog state
 	let showInviteDialog = $state(false);
@@ -348,15 +349,11 @@
 </script>
 
 <div class="space-y-6">
+	<!-- Action bar -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/accounts"><LongArrow direction="left" /> Back</Button
-			>
-			<h1 class="text-3xl">{account.business_name}</h1>
-			<Badge variant={account.is_active ? 'success' : 'secondary'}>
-				{account.is_active ? 'Active' : 'Inactive'}
-			</Badge>
-		</div>
+		<Button variant="ghost" size="sm" href="/accounts"
+			><LongArrow direction="left" /> Back</Button
+		>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				<Button variant="outline" size="sm" onclick={toggleActive}>
@@ -366,6 +363,23 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Entity header: title + status chip; email subtitle when set -->
+	<header class="space-y-1">
+		<div class="flex items-center gap-2">
+			<h1 class="text-3xl">{account.business_name}</h1>
+			<Badge variant={account.is_active ? 'success' : 'secondary'}>
+				{account.is_active ? 'Active' : 'Inactive'}
+			</Badge>
+		</div>
+		{#if account.contact_email}
+			<p class="text-sm text-muted-foreground">
+				<a href={`mailto:${account.contact_email}`} class="hover:text-foreground"
+					>{account.contact_email}</a
+				>
+			</p>
+		{/if}
+	</header>
 
 	<!-- Tags -->
 	{#if availableTags.length > 0}
@@ -756,8 +770,8 @@
 				</CardContent>
 			</Card>
 
-			<!-- Buyer Portal Access -->
-			{#if isAdmin}
+			<!-- Buyer Portal Access — any non-guest user (incl. sales reps) can invite / manage buyers. -->
+			{#if canEdit}
 				<Card>
 					<CardHeader>
 						<div class="flex items-center justify-between">
@@ -954,37 +968,39 @@
 				</Card>
 			{/if}
 
-			<!-- Brands -->
-			<Card>
-				<CardHeader>
-					<CardTitle class="text-base">Brands</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{#if brandSummaries.length === 0}
-						<p class="text-sm text-muted-foreground">
-							No orders yet. Brands will appear here once orders are created.
-						</p>
-					{:else}
-						<div class="space-y-2">
-							{#each brandSummaries as brand}
-								<a
-									href="/brands/{brand.id}"
-									class="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-muted/50"
-								>
-									<span class="text-sm font-medium">{brand.name}</span>
-									<div class="text-right">
-										<p class="text-sm font-medium">{fmt(brand.totalSales)}</p>
-										<p class="text-xs text-muted-foreground">
-											{brand.orderCount}
-											{brand.orderCount === 1 ? 'order' : 'orders'}
-										</p>
-									</div>
-								</a>
-							{/each}
-						</div>
-					{/if}
-				</CardContent>
-			</Card>
+			<!-- Brands — rep-org only; for brand orgs every account is implicitly their brand. -->
+			{#if !isBrandOrg}
+				<Card>
+					<CardHeader>
+						<CardTitle class="text-base">Brands</CardTitle>
+					</CardHeader>
+					<CardContent>
+						{#if brandSummaries.length === 0}
+							<p class="text-sm text-muted-foreground">
+								No orders yet. Brands will appear here once orders are created.
+							</p>
+						{:else}
+							<div class="space-y-2">
+								{#each brandSummaries as brand}
+									<a
+										href="/brands/{brand.id}"
+										class="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-muted/50"
+									>
+										<span class="text-sm font-medium">{brand.name}</span>
+										<div class="text-right">
+											<p class="text-sm font-medium">{fmt(brand.totalSales)}</p>
+											<p class="text-xs text-muted-foreground">
+												{brand.orderCount}
+												{brand.orderCount === 1 ? 'order' : 'orders'}
+											</p>
+										</div>
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</CardContent>
+				</Card>
+			{/if}
 		</div>
 	</div>
 

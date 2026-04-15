@@ -503,182 +503,242 @@
 	}
 </script>
 
-{#if data.isBrandOrg && data.brandInsight}
-	{@const bi = data.brandInsight}
+{#if data.isBrandOrg}
+	{@const bb = data.brandBrowse}
+	{@const cl = data.brandChecklist}
 	{@const fmtMoney = new Intl.NumberFormat('en-US', {
 		style: 'currency',
 		currency: 'USD',
 		maximumFractionDigits: 0
 	})}
-	<div class="space-y-8 p-6">
+	{@const checklistDone = [
+		cl?.hasProducts,
+		cl?.hasConnectedRep,
+		cl?.hasOrder,
+		cl?.hasTeammates
+	].filter(Boolean).length}
+	<div class="space-y-8">
 		<header>
-			<h1 class="text-2xl font-semibold">Insight</h1>
-			<p class="text-sm text-muted-foreground">
-				Brand view — activity across your connected rep network.
+			<h1 class="text-3xl">Insight</h1>
+			<p class="mt-1 text-sm text-muted-foreground">
+				What matters today across your connected rep network.
 			</p>
 		</header>
 
-		<!-- KPI row -->
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-			<Card>
-				<CardContent class="pt-4 pb-4">
-					<p class="text-sm text-muted-foreground">Active reps (30d)</p>
-					<p class="mt-1 text-2xl font-semibold">
-						{bi.repsActive30d.length}
-						<span class="text-sm font-normal text-muted-foreground">
-							/ {bi.connectedReps.filter((r) => r.status === 'active').length}
-						</span>
-					</p>
-					<p class="mt-0.5 text-sm text-muted-foreground">
-						{bi.repsQuiet30d.length} quiet
-					</p>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent class="pt-4 pb-4">
-					<p class="text-sm text-muted-foreground">Incoming orders (7d)</p>
-					<p class="mt-1 text-2xl font-semibold">{bi.incoming7.count}</p>
-					<p class="mt-0.5 text-sm text-muted-foreground">
-						{fmtMoney.format(bi.incoming7.revenue)}
-					</p>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent class="pt-4 pb-4">
-					<p class="text-sm text-muted-foreground">Incoming orders (30d)</p>
-					<p class="mt-1 text-2xl font-semibold">{bi.incoming30.count}</p>
-					<p class="mt-0.5 text-sm text-muted-foreground">
-						{fmtMoney.format(bi.incoming30.revenue)}
-					</p>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent class="pt-4 pb-4">
-					<p class="text-sm text-muted-foreground">Open pipeline</p>
-					<p class="mt-1 text-2xl font-semibold">{fmtMoney.format(bi.pipelineValue)}</p>
-					<p class="mt-0.5 text-sm text-muted-foreground">
-						Across {bi.connectedReps.filter((r) => r.status === 'active').length} connected rep{bi.connectedReps.filter(
-							(r) => r.status === 'active'
-						).length === 1
-							? ''
-							: 's'}
-					</p>
-				</CardContent>
-			</Card>
-		</div>
-
-		<div class="grid gap-6 lg:grid-cols-2">
-			<!-- Quiet reps -->
+		<!-- Onboarding checklist (Phase C) — disappears when all 4 are true -->
+		{#if cl && !cl.complete}
 			<Card>
 				<CardHeader>
-					<CardTitle class="text-base">Quiet reps</CardTitle>
-					<CardDescription>No orders in the last 30 days.</CardDescription>
-				</CardHeader>
-				<CardContent>
-					{#if bi.repsQuiet30d.length === 0}
-						<p class="text-sm text-muted-foreground">Every active rep has written recently.</p>
-					{:else}
-						<ul class="divide-y">
-							{#each bi.repsQuiet30d as r (r.connection_id)}
-								<li class="flex items-center justify-between py-3">
-									<div>
-										<div class="font-medium">{r.rep_org_name}</div>
-										<div class="text-sm text-muted-foreground">
-											{r.last_order_at
-												? `Last order ${new Date(r.last_order_at).toLocaleDateString('en-US', {
-														month: 'short',
-														day: 'numeric',
-														year: 'numeric'
-													})}`
-												: 'No orders yet'}
-										</div>
-									</div>
-									<Button variant="ghost" size="sm" href="/settings/connections">Manage</Button>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</CardContent>
-			</Card>
-
-			<!-- Top accounts -->
-			<Card>
-				<CardHeader>
-					<CardTitle class="text-base">Top accounts (90d)</CardTitle>
-					<CardDescription>By revenue across all connected reps.</CardDescription>
-				</CardHeader>
-				<CardContent>
-					{#if bi.topAccounts.length === 0}
-						<p class="text-sm text-muted-foreground">No orders in the last 90 days.</p>
-					{:else}
-						<ul class="divide-y">
-							{#each bi.topAccounts as a (a.account_id)}
-								<li class="flex items-center justify-between py-3">
-									<div>
-										<div class="font-medium">{a.business_name}</div>
-										<div class="text-sm text-muted-foreground">
-											{[a.city, a.state].filter(Boolean).join(', ') || '—'} · {a.order_count} order{a.order_count ===
-											1
-												? ''
-												: 's'}
-										</div>
-									</div>
-									<div class="font-mono text-sm">{fmtMoney.format(a.revenue)}</div>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</CardContent>
-			</Card>
-
-			<!-- Territory gaps -->
-			<Card>
-				<CardHeader>
-					<CardTitle class="text-base">Territory gaps</CardTitle>
-					<CardDescription>No account activity in the last 90 days.</CardDescription>
-				</CardHeader>
-				<CardContent>
-					{#if bi.territoryGaps.length === 0}
-						<p class="text-sm text-muted-foreground">All territories have recent activity.</p>
-					{:else}
-						<div class="flex flex-wrap gap-2">
-							{#each bi.territoryGaps as t (t.name)}
-								<span class="inline-flex rounded-full bg-muted px-3 py-1 text-sm">{t.name}</span>
+					<div class="flex items-center justify-between">
+						<div>
+							<CardTitle class="text-base">Finish setting up your brand portal</CardTitle>
+							<CardDescription>
+								{checklistDone} of 4 done — a few more steps to unlock the full dashboard.
+							</CardDescription>
+						</div>
+						<div class="flex gap-1">
+							{#each [0, 1, 2, 3] as i}
+								<div
+									class="h-1.5 w-8 rounded-full {i < checklistDone ? 'bg-foreground' : 'bg-border'}"
+								></div>
 							{/each}
 						</div>
-					{/if}
-				</CardContent>
-			</Card>
-
-			<!-- Recent rep activity -->
-			<Card>
-				<CardHeader>
-					<CardTitle class="text-base">Recent rep activity</CardTitle>
-					<CardDescription>Orders written in the last 30 days.</CardDescription>
+					</div>
 				</CardHeader>
 				<CardContent>
-					{#if bi.repsActive30d.length === 0}
-						<p class="text-sm text-muted-foreground">No rep activity in the last 30 days.</p>
-					{:else}
-						<ul class="divide-y">
-							{#each bi.repsActive30d as r (r.connection_id)}
-								<li class="flex items-center justify-between py-3">
-									<div>
-										<div class="font-medium">{r.rep_org_name}</div>
-										<div class="text-sm text-muted-foreground">
-											{r.order_count} order{r.order_count === 1 ? '' : 's'} · {fmtMoney.format(
-												r.revenue
-											)}
-										</div>
+					<ul class="divide-y">
+						<li class="flex items-center justify-between py-3">
+							<div class="flex items-center gap-3">
+								<span class="text-lg">{cl.hasProducts ? '✓' : '○'}</span>
+								<div>
+									<div class="font-medium">Upload your catalog</div>
+									<div class="text-sm text-muted-foreground">
+										Add products buyers and reps can actually order.
 									</div>
-									<Button variant="ghost" size="sm" href="/orders?rep={r.rep_org_id}">View</Button>
-								</li>
-							{/each}
-						</ul>
-					{/if}
+								</div>
+							</div>
+							{#if !cl.hasProducts}
+								<Button size="sm" href="/products">Add products</Button>
+							{/if}
+						</li>
+						<li class="flex items-center justify-between py-3">
+							<div class="flex items-center gap-3">
+								<span class="text-lg">{cl.hasConnectedRep ? '✓' : '○'}</span>
+								<div>
+									<div class="font-medium">Connect your first rep</div>
+									<div class="text-sm text-muted-foreground">
+										Generate an invite link and share it with your rep agency.
+									</div>
+								</div>
+							</div>
+							{#if !cl.hasConnectedRep}
+								<Button size="sm" href="/settings/connections">Invite reps</Button>
+							{/if}
+						</li>
+						<li class="flex items-center justify-between py-3">
+							<div class="flex items-center gap-3">
+								<span class="text-lg">{cl.hasOrder ? '✓' : '○'}</span>
+								<div>
+									<div class="font-medium">Receive your first order</div>
+									<div class="text-sm text-muted-foreground">
+										Once a connected rep writes an order, it lands here.
+									</div>
+								</div>
+							</div>
+						</li>
+						<li class="flex items-center justify-between py-3">
+							<div class="flex items-center gap-3">
+								<span class="text-lg">{cl.hasTeammates ? '✓' : '○'}</span>
+								<div>
+									<div class="font-medium">Invite teammates</div>
+									<div class="text-sm text-muted-foreground">
+										Add people from your brand org so you're not working solo.
+									</div>
+								</div>
+							</div>
+							{#if !cl.hasTeammates}
+								<Button size="sm" href="/reps">Invite team</Button>
+							{/if}
+						</li>
+					</ul>
 				</CardContent>
 			</Card>
+		{/if}
+
+		<!-- Scoreboard + ActionFeed: the hero -->
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_240px]">
+			<ActionFeed
+				insights={insightActions}
+				{isRefreshing}
+				onRefresh={handleRefresh}
+				onDismiss={handleDismiss}
+				onAct={handleAct}
+			/>
+			<div class="hidden lg:block">
+				<Scoreboard kpis={scoreboard} />
+			</div>
 		</div>
+
+		<!-- Browse the data — collapsed by default -->
+		{#if bb}
+			<details class="rounded-lg border">
+				<summary class="cursor-pointer list-none px-5 py-3 text-sm font-medium hover:bg-muted/30">
+					Browse the data
+				</summary>
+				<div class="space-y-6 p-5">
+					<div class="grid gap-6 lg:grid-cols-2">
+						<Card>
+							<CardHeader>
+								<CardTitle class="text-base">Quiet reps</CardTitle>
+								<CardDescription>No orders in the last 30 days.</CardDescription>
+							</CardHeader>
+							<CardContent>
+								{#if bb.repsQuiet30d.length === 0}
+									<p class="text-sm text-muted-foreground">
+										Every active rep has written recently.
+									</p>
+								{:else}
+									<ul class="divide-y">
+										{#each bb.repsQuiet30d as r (r.connection_id)}
+											<li class="flex items-center justify-between py-3">
+												<div>
+													<div class="font-medium">{r.rep_org_name}</div>
+													<div class="text-sm text-muted-foreground">
+														{r.last_order_at
+															? `Last order ${new Date(r.last_order_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+															: 'No orders yet'}
+													</div>
+												</div>
+												<Button variant="ghost" size="sm" href="/settings/connections"
+													>Manage</Button
+												>
+											</li>
+										{/each}
+									</ul>
+								{/if}
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader>
+								<CardTitle class="text-base">Top accounts (90d)</CardTitle>
+								<CardDescription>By revenue across all connected reps.</CardDescription>
+							</CardHeader>
+							<CardContent>
+								{#if bb.topAccounts.length === 0}
+									<p class="text-sm text-muted-foreground">No orders in the last 90 days.</p>
+								{:else}
+									<ul class="divide-y">
+										{#each bb.topAccounts as a (a.account_id)}
+											<li class="flex items-center justify-between py-3">
+												<div>
+													<div class="font-medium">{a.business_name}</div>
+													<div class="text-sm text-muted-foreground">
+														{[a.city, a.state].filter(Boolean).join(', ') || '—'} · {a.order_count}
+														order{a.order_count === 1 ? '' : 's'}
+													</div>
+												</div>
+												<div class="font-mono text-sm">{fmtMoney.format(a.revenue)}</div>
+											</li>
+										{/each}
+									</ul>
+								{/if}
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader>
+								<CardTitle class="text-base">Territory gaps</CardTitle>
+								<CardDescription>No account activity in the last 90 days.</CardDescription>
+							</CardHeader>
+							<CardContent>
+								{#if bb.territoryGaps.length === 0}
+									<p class="text-sm text-muted-foreground">All territories have recent activity.</p>
+								{:else}
+									<div class="flex flex-wrap gap-2">
+										{#each bb.territoryGaps as t (t.name)}
+											<span class="inline-flex rounded-full bg-muted px-3 py-1 text-sm"
+												>{t.name}</span
+											>
+										{/each}
+									</div>
+								{/if}
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader>
+								<CardTitle class="text-base">Recent rep activity</CardTitle>
+								<CardDescription>Orders written in the last 30 days.</CardDescription>
+							</CardHeader>
+							<CardContent>
+								{#if bb.repsActive30d.length === 0}
+									<p class="text-sm text-muted-foreground">No rep activity in the last 30 days.</p>
+								{:else}
+									<ul class="divide-y">
+										{#each bb.repsActive30d as r (r.connection_id)}
+											<li class="flex items-center justify-between py-3">
+												<div>
+													<div class="font-medium">{r.rep_org_name}</div>
+													<div class="text-sm text-muted-foreground">
+														{r.order_count} order{r.order_count === 1 ? '' : 's'} · {fmtMoney.format(
+															r.revenue
+														)}
+													</div>
+												</div>
+												<Button variant="ghost" size="sm" href="/orders?rep={r.rep_org_id}"
+													>View</Button
+												>
+											</li>
+										{/each}
+									</ul>
+								{/if}
+							</CardContent>
+						</Card>
+					</div>
+				</div>
+			</details>
+		{/if}
 	</div>
 {:else if data.setupComplete === false && data.setupChecklist}
 	{@const cl = data.setupChecklist}

@@ -344,7 +344,9 @@
 		}
 		const fmtShort = (s: string) => {
 			if (!s) return '—';
-			const dt = new Date(s);
+			// Parse YYYY-MM-DD as a local date — `new Date("2026-03-01")` interprets the string as
+			// UTC midnight, which renders as the prior day in negative-offset timezones.
+			const dt = new Date(`${s}T00:00:00`);
 			return `${monthAbbrev[dt.getMonth()]} ${dt.getDate()}`;
 		};
 		return `${fmtShort(choice.start_ship_date)} → ${fmtShort(choice.expected_ship_date)}`;

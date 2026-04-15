@@ -16,6 +16,8 @@
 	const reps = $derived((data.reps as { id: string; name: string }[] | undefined) ?? []);
 	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
 	const canCreate = $derived(data.membership?.role !== 'guest');
+	// Brand-level sales reps shouldn't export org-wide data.
+	const canExport = $derived(!(isBrandOrg && data.membership?.role === 'sales'));
 	const monthNames = [
 		'Jan',
 		'Feb',
@@ -199,7 +201,7 @@
 			</p>
 		</div>
 		<div class="flex items-center gap-2">
-			{#if filtered.length > 0}
+			{#if filtered.length > 0 && canExport}
 				<Button variant="outline" size="sm" onclick={exportOrders}>Export CSV</Button>
 			{/if}
 			{#if canCreate}
@@ -335,15 +337,17 @@
 				<option value={season.id}>{season.name}</option>
 			{/each}
 		</select>
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Brands</option>
-			{#each brands as brand}
-				<option value={brand.id}>{brand.name}</option>
-			{/each}
-		</select>
+		{#if !isBrandOrg}
+			<select
+				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+				onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
+			>
+				<option value="">All Brands</option>
+				{#each brands as brand}
+					<option value={brand.id}>{brand.name}</option>
+				{/each}
+			</select>
+		{/if}
 		{#if isBrandOrg && reps.length > 0}
 			<select
 				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
@@ -355,22 +359,24 @@
 				{/each}
 			</select>
 		{/if}
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('show', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Shows</option>
-			{#each showDates as sd}
-				{@const shows = sd.shows as { name?: string } | { name?: string }[] | null}
-				{@const showName = Array.isArray(shows)
-					? (shows[0]?.name ?? 'Show')
-					: (shows?.name ?? 'Show')}
-				<option value={sd.id}
-					>{showName} — {monthNames[(sd.month ?? 1) - 1]}
-					{sd.year}{sd.city ? `, ${sd.city}` : ''}</option
-				>
-			{/each}
-		</select>
+		{#if showDates.length > 0}
+			<select
+				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+				onchange={(e) => setFilter('show', (e.target as HTMLSelectElement).value)}
+			>
+				<option value="">All Shows</option>
+				{#each showDates as sd}
+					{@const shows = sd.shows as { name?: string } | { name?: string }[] | null}
+					{@const showName = Array.isArray(shows)
+						? (shows[0]?.name ?? 'Show')
+						: (shows?.name ?? 'Show')}
+					<option value={sd.id}
+						>{showName} — {monthNames[(sd.month ?? 1) - 1]}
+						{sd.year}{sd.city ? `, ${sd.city}` : ''}</option
+					>
+				{/each}
+			</select>
+		{/if}
 	</div>
 
 	{#if filtered.length === 0}
@@ -421,10 +427,12 @@
 							class="px-4 py-2.5 text-center text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Status</th
 						>
-						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
-							>Brand</th
-						>
+						{#if !isBrandOrg}
+							<th
+								class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
+								>Brand</th
+							>
+						{/if}
 						<th
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
 							>{isBrandOrg ? 'Rep' : 'Source'}</th
@@ -472,7 +480,9 @@
 						]}
 						{@const shipWindowStart = delivery?.delivery_month
 							? `${monthNames[delivery.delivery_month - 1]} 1`
-							: null}
+							: (order as { start_ship_date?: string | null }).start_ship_date
+								? `${monthNames[new Date((order as { start_ship_date: string }).start_ship_date + 'T00:00:00').getMonth()]} ${new Date((order as { start_ship_date: string }).start_ship_date + 'T00:00:00').getDate()}`
+								: null}
 						{@const shipWindowEnd = order.expected_ship_date
 							? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 							: null}
@@ -490,10 +500,24 @@
 								/>
 							</td>
 							<td class="px-4 py-3">
-								<a href="/orders/{order.id}" class="font-mono text-base font-medium hover:underline"
-									>{order.order_number}</a
-								>
-								<p class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</p>
+								{#if isBrandOrg}
+									<p class="text-sm text-muted-foreground">
+										{order.accounts?.business_name ?? '—'}
+									</p>
+									<a
+										href="/orders/{order.id}"
+										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
+									>
+									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
+								{:else}
+									<a
+										href="/orders/{order.id}"
+										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
+									>
+									<p class="text-sm text-muted-foreground">
+										{order.accounts?.business_name ?? '—'}
+									</p>
+								{/if}
 							</td>
 							<td class="px-4 py-3 text-center">
 								{#if order.order_type === 'note'}
@@ -508,13 +532,16 @@
 									</span>
 								{/if}
 							</td>
-							<td class="hidden px-4 py-3 sm:table-cell">
-								<span class="text-sm">{order.brands?.name ?? '—'}</span>
-								<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
-							</td>
+							{#if !isBrandOrg}
+								<td class="hidden px-4 py-3 sm:table-cell">
+									<span class="text-sm">{order.brands?.name ?? '—'}</span>
+									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
+								</td>
+							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
 								{#if isBrandOrg}
-									{@const repOrgName = (order as any).source_org?.name ?? '—'}
+									{@const repOrgName =
+										(order as any).source_org?.name ?? (order as any).profiles?.display_name ?? '—'}
 									<span class="text-sm {repOrgName === '—' ? 'text-muted-foreground/50' : ''}"
 										>{repOrgName}</span
 									>

@@ -7,8 +7,24 @@
 	let { data } = $props();
 
 	const reps = $derived(data.reps ?? []);
+	const pendingInvites = $derived(data.pendingInvites ?? []);
 	const totalRevenue = $derived(reps.reduce((sum: number, r: any) => sum + r.revenue, 0));
 	const totalOrders = $derived(reps.reduce((sum: number, r: any) => sum + r.orderCount, 0));
+
+	let copiedInviteId = $state<string | null>(null);
+
+	async function copyPendingInviteLink(token: string, id: string) {
+		try {
+			await navigator.clipboard.writeText(`${window.location.origin}/invite/${token}`);
+			copiedInviteId = id;
+			setTimeout(() => {
+				if (copiedInviteId === id) copiedInviteId = null;
+			}, 2000);
+		} catch {
+			// Ignore — user can fall back to opening the page.
+		}
+	}
+
 
 	function getInitials(name: string): string {
 		return name
@@ -32,50 +48,78 @@
 	// ── Invite form ────────────────────────────────────────────────────────
 	let inviteOpen = $state(false);
 	let inviteEmail = $state('');
-	let inviteRole = $state<'sales' | 'member' | 'admin'>('sales');
 	let sending = $state(false);
 	let inviteError = $state('');
 	let inviteSuccess = $state('');
+	let inviteLink = $state('');
+	let linkCopied = $state(false);
 
 	async function sendInvite() {
-		if (!inviteEmail.trim()) {
+		const email = inviteEmail.trim();
+		if (!email) {
 			inviteError = 'Enter an email address.';
 			return;
 		}
 		sending = true;
 		inviteError = '';
 		inviteSuccess = '';
+		inviteLink = '';
+		linkCopied = false;
 		const res = await fetch('/api/invite/send', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole, brandIds: [] })
+			body: JSON.stringify({ email, role: 'sales', brandIds: [] })
 		});
 		sending = false;
+		const body = (await res.json().catch(() => ({}))) as {
+			error?: string;
+			autoAdded?: boolean;
+			inviteUrl?: string;
+		};
 		if (!res.ok) {
-			inviteError =
-				((await res.json().catch(() => ({}))) as { error?: string }).error ??
-				'Failed to send invite';
+			inviteError = body.error ?? 'Failed to send invite';
 			return;
 		}
-		inviteSuccess = `Invite sent to ${inviteEmail.trim()}.`;
+		if (body.autoAdded) {
+			inviteSuccess = `${email} was added to your organization.`;
+		} else if (body.inviteUrl) {
+			inviteLink = `${window.location.origin}${body.inviteUrl}`;
+			inviteSuccess = `Invite ready for ${email}. Copy the link below and send it to them.`;
+		} else {
+			inviteSuccess = `Invite created for ${email}.`;
+		}
 		inviteEmail = '';
 		invalidateAll();
+	}
+
+	async function copyInviteLink() {
+		if (!inviteLink) return;
+		try {
+			await navigator.clipboard.writeText(inviteLink);
+			linkCopied = true;
+			setTimeout(() => (linkCopied = false), 2000);
+		} catch {
+			// Clipboard API can fail in insecure contexts — fall through silently; the input is selectable.
+		}
 	}
 
 	function closeInvite() {
 		inviteOpen = false;
 		inviteError = '';
 		inviteSuccess = '';
+		inviteLink = '';
+		linkCopied = false;
 	}
 </script>
 
-<div class="mx-auto max-w-5xl space-y-6">
+<div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div>
-			<h1 class="text-2xl font-bold">Reps</h1>
-			<p class="mt-1 text-sm text-muted-foreground">
-				{reps.length} team member{reps.length !== 1 ? 's' : ''} &middot; {totalOrders} orders &middot;
-				{fmt.format(totalRevenue)} revenue
+			<h1 class="text-3xl">Reps</h1>
+			<p class="mt-1 font-mono text-sm text-muted-foreground">
+				{reps.length} team member{reps.length !== 1 ? 's' : ''}{pendingInvites.length > 0
+					? ` · ${pendingInvites.length} pending`
+					: ''} · {totalOrders} orders · {fmt.format(totalRevenue)} revenue
 			</p>
 		</div>
 		<Button onclick={() => (inviteOpen = !inviteOpen)}>
@@ -99,7 +143,7 @@
 			<p class="text-sm text-muted-foreground">
 				Send an invite to join your org. They'll get an email with a signup link.
 			</p>
-			<div class="mt-4 grid gap-4 sm:grid-cols-[1fr_160px_auto]">
+			<div class="mt-4 grid gap-4 sm:grid-cols-[1fr_auto]">
 				<div>
 					<Label for="invite-email">Email</Label>
 					<Input
@@ -109,43 +153,81 @@
 						bind:value={inviteEmail}
 					/>
 				</div>
-				<div>
-					<Label for="invite-role">Role</Label>
-					<select
-						id="invite-role"
-						class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-						bind:value={inviteRole}
-					>
-						<option value="sales">Sales</option>
-						<option value="member">Member</option>
-						<option value="admin">Admin</option>
-					</select>
-				</div>
 				<div class="flex items-end">
 					<Button disabled={sending || !inviteEmail.trim()} onclick={sendInvite}>
 						{sending ? 'Sending…' : 'Send invite'}
 					</Button>
 				</div>
 			</div>
+			<p class="mt-2 text-sm text-muted-foreground">
+				Invites from this page join as sales reps. To invite an admin or member, use
+				<a href="/organization/members" class="underline hover:text-foreground">Organization › Members</a>.
+			</p>
 			{#if inviteError}
 				<p class="mt-3 text-sm text-red-600">{inviteError}</p>
 			{/if}
 			{#if inviteSuccess}
-				<div class="mt-3 flex items-center justify-between text-sm text-emerald-600">
-					<span>{inviteSuccess}</span>
-					<button
-						type="button"
-						class="text-sm text-muted-foreground underline hover:text-foreground"
-						onclick={closeInvite}
-					>
-						Done
-					</button>
+				<div class="mt-3 space-y-3">
+					<div class="flex items-center justify-between text-sm text-emerald-600">
+						<span>{inviteSuccess}</span>
+						<button
+							type="button"
+							class="text-sm text-muted-foreground underline hover:text-foreground"
+							onclick={closeInvite}
+						>
+							Done
+						</button>
+					</div>
+					{#if inviteLink}
+						<div class="flex items-center gap-2">
+							<Input readonly value={inviteLink} onclick={(e: Event) => (e.currentTarget as HTMLInputElement).select()} />
+							<Button variant="outline" onclick={copyInviteLink}>
+								{linkCopied ? 'Copied' : 'Copy link'}
+							</Button>
+						</div>
+						<p class="text-sm text-muted-foreground">
+							Link expires in 7 days. Email delivery is coming soon — share this link manually for now.
+						</p>
+					{/if}
 				</div>
 			{/if}
 		</div>
 	{/if}
 
-	{#if reps.length === 0}
+	{#if pendingInvites.length > 0}
+		<div class="space-y-2">
+			<h2 class="text-sm font-semibold text-muted-foreground">Pending invitations</h2>
+			{#each pendingInvites as inv (inv.id)}
+				<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
+					<div class="flex items-center gap-3">
+						<div
+							class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground"
+						>
+							{inv.email.charAt(0).toUpperCase()}
+						</div>
+						<div>
+							<p class="text-sm font-medium">{inv.email}</p>
+							<p class="text-sm text-muted-foreground">
+								{roleLabel(inv.role)} &middot; Invited {new Date(inv.created_at).toLocaleDateString()}
+							</p>
+						</div>
+					</div>
+					<div class="flex items-center gap-2">
+						<span class="rounded-full border px-2 py-0.5 text-sm text-muted-foreground">Pending</span>
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={() => copyPendingInviteLink(inv.token, inv.id)}
+						>
+							{copiedInviteId === inv.id ? 'Copied' : 'Copy link'}
+						</Button>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	{#if reps.length === 0 && pendingInvites.length === 0}
 		<div class="flex flex-col items-center justify-center py-16">
 			<div class="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
 				<svg

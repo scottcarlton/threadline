@@ -172,9 +172,9 @@
 	const previewPrice = $derived(parseFloat(wholesalePrice) || 0);
 </script>
 
-<div class="mx-auto max-w-5xl space-y-6">
-	<!-- Header -->
-	<div class="flex items-center gap-3">
+<div class="space-y-6">
+	<!-- Action bar -->
+	<div class="flex items-center justify-between">
 		<Button
 			variant="ghost"
 			size="sm"
@@ -182,8 +182,12 @@
 		>
 			<LongArrow direction="left" /> Products
 		</Button>
-		<h1 class="text-3xl">New Product</h1>
 	</div>
+
+	<!-- Entity header -->
+	<header>
+		<h1 class="text-3xl">New Product</h1>
+	</header>
 
 	<!-- Step indicator -->
 	<div class="flex items-center gap-2">

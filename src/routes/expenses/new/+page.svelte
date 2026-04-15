@@ -17,6 +17,7 @@
 
 	let { data } = $props();
 	const brands = $derived(data.brands as { id: string; name: string }[]);
+	const hasSingleBrand = $derived(brands.length === 1);
 
 	const categoryOptions: { value: ExpenseCategory; label: string }[] = [
 		{ value: 'trade_show', label: 'Trade Show' },
@@ -31,6 +32,9 @@
 	];
 
 	let brandId = $state('');
+	$effect(() => {
+		if (hasSingleBrand && !brandId) brandId = brands[0].id;
+	});
 	let category = $state<ExpenseCategory>('other');
 	let description = $state('');
 	let amount = $state('');
@@ -111,19 +115,21 @@
 				<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
 			{/if}
 
-			<div class="space-y-2">
-				<Label for="brand">Brand *</Label>
-				<select
-					id="brand"
-					bind:value={brandId}
-					class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-				>
-					<option value="">Select a brand</option>
-					{#each brands as brand}
-						<option value={brand.id}>{brand.name}</option>
-					{/each}
-				</select>
-			</div>
+			{#if !hasSingleBrand}
+				<div class="space-y-2">
+					<Label for="brand">Brand</Label>
+					<select
+						id="brand"
+						bind:value={brandId}
+						class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+					>
+						<option value="">Select a brand</option>
+						{#each brands as brand}
+							<option value={brand.id}>{brand.name}</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
 
 			<div class="grid gap-4 sm:grid-cols-2">
 				<div class="space-y-2">
@@ -139,7 +145,7 @@
 					</select>
 				</div>
 				<div class="space-y-2">
-					<Label for="amount">Amount *</Label>
+					<Label for="amount">Amount</Label>
 					<Input
 						id="amount"
 						type="number"
@@ -152,7 +158,7 @@
 			</div>
 
 			<div class="space-y-2">
-				<Label for="description">Description *</Label>
+				<Label for="description">Description</Label>
 				<Input id="description" placeholder="What was this expense for?" bind:value={description} />
 			</div>
 
@@ -162,7 +168,7 @@
 			</div>
 
 			<div class="space-y-2">
-				<Label for="notes">Notes</Label>
+				<Label for="notes">Notes (Optional)</Label>
 				<textarea
 					id="notes"
 					bind:value={notes}
@@ -173,7 +179,7 @@
 			</div>
 			<!-- Receipts -->
 			<div class="space-y-2">
-				<Label>Receipts</Label>
+				<Label>Receipts (Optional)</Label>
 				<ReceiptDropZone onfiles={addReceipts} compact />
 				{#if pendingReceipts.length > 0}
 					<div class="space-y-1.5">
