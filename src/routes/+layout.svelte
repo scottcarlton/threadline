@@ -15,7 +15,6 @@
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
-	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { preferences } from '$lib/stores/preferences.js';
 
 	const { messages, loading } = conversation;

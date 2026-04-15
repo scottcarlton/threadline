@@ -179,7 +179,7 @@
 	$effect(() => {
 		if (data.connected) {
 			// Access filter to create dependency
-			const _filter = filter;
+			void filter;
 			fetchEmails();
 		}
 	});
@@ -273,7 +273,7 @@
 			<div class="flex-1 overflow-y-auto">
 				{#if loading}
 					<div class="space-y-1 p-2">
-						{#each Array(8) as _, i (i)}
+						{#each Array.from({ length: 8 }).map((_, i) => i) as i (i)}
 							<div class="animate-pulse rounded-lg p-3">
 								<div class="flex items-center gap-3">
 									<div class="h-2 w-2 rounded-full bg-muted"></div>
@@ -402,7 +402,7 @@
 				<div class="flex-1 overflow-y-auto p-6">
 					{#if threadLoading}
 						<div class="space-y-4">
-							{#each Array(3) as _, i (i)}
+							{#each Array.from({ length: 3 }).map((_, i) => i) as i (i)}
 								<div class="animate-pulse rounded-none border p-4">
 									<div class="flex items-center gap-3">
 										<div class="h-4 w-28 rounded bg-muted"></div>

@@ -113,18 +113,6 @@
 
 	const archivedCount = $derived(accounts.filter((a) => a.archived_at).length);
 
-	async function archiveAccount(account: Account) {
-		await supabase
-			.from('accounts')
-			.update({
-				archived_at: account.archived_at ? null : new Date().toISOString(),
-				is_active: !!account.archived_at,
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', account.id);
-		invalidateAll();
-	}
-
 	function exportAccounts() {
 		const rows = filtered.map((a) => ({
 			business_name: a.business_name,

@@ -4,7 +4,6 @@ import { refreshInsights } from '$lib/server/insights-engine.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listConnectedReps, listFederatedOrders } from '$lib/server/federation.js';
 
-type BrandIncoming = { count: number; revenue: number };
 type BrandTopAccount = {
 	account_id: string;
 	business_name: string;

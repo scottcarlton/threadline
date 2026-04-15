@@ -308,8 +308,6 @@
 				]
 	);
 
-	const totalSteps = $derived(stepLabels.length);
-
 	// Welcome carousel slides
 	const repSlides = [
 		{
@@ -1330,7 +1328,7 @@
 
 						<!-- Dots -->
 						<div class="mt-4 flex items-center justify-center gap-2">
-							{#each slides as _, i (i)}
+							{#each slides.map((_, i) => i) as i (i)}
 								<button
 									class="h-2 rounded-full transition-all {carouselIndex === i
 										? 'w-6 bg-foreground'
@@ -1357,7 +1355,7 @@
 			{@const progressSteps = stepLabels.filter((s) => s.number < welcomeStep)}
 			<div class="mt-10 flex flex-col items-center gap-4">
 				<div class="flex items-center gap-2">
-					{#each progressSteps as s, i (s.number)}
+					{#each progressSteps as s (s.number)}
 						<button
 							class="h-2 rounded-full transition-all {step === s.number
 								? 'w-8 bg-foreground'

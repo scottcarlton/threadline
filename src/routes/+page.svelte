@@ -1,11 +1,8 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
 
-	const isAuthenticated = $derived(!!$page.data.session);
-	let navScrolled = $state(false);
 	let faqOpen = $state<number | null>(null);
 
 	function toggleFaq(index: number) {
@@ -17,14 +14,6 @@
 		const { animate, inView } = await import('motion');
 
 		const ease = [0.16, 1, 0.3, 1] as const;
-
-		window.addEventListener(
-			'scroll',
-			() => {
-				navScrolled = window.scrollY > 40;
-			},
-			{ passive: true }
-		);
 
 		if (reduced) return;
 

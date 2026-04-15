@@ -249,7 +249,7 @@
 
 			cart.clearCart();
 			goto('/orders');
-		} catch (err) {
+		} catch {
 			error = 'Something went wrong. Please try again.';
 			submitting = false;
 		}

@@ -32,7 +32,6 @@
 		return () => entityContext.set({ type: null, id: null, summary: null });
 	});
 	const canEdit = $derived(data.membership?.role !== 'guest');
-	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
 	const isBrandOrg = $derived(data.orgType === 'brand');
 
 	// Buyer invite dialog state

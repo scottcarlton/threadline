@@ -2,12 +2,6 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { fetchUpcomingCount } from '$lib/stores/appointments.js';
-	import {
-		Tooltip,
-		TooltipTrigger,
-		TooltipContent,
-		TooltipProvider
-	} from '$lib/components/ui/tooltip/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 
 	let { data } = $props();

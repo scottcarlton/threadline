@@ -24,7 +24,6 @@
 
 	let {
 		user,
-		organization,
 		orgDisplayName,
 		sidebarOpen,
 		showTeam = true,

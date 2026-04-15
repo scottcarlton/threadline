@@ -7,7 +7,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
-	import type { UserRole, MemberBrandCommission } from '$lib/types/database.js';
+	import type { UserRole } from '$lib/types/database.js';
 
 	let { data } = $props();
 	let showImport = $state(false);
@@ -80,23 +80,8 @@
 		}>
 	);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
-	const memberBrandCommissions = $derived(data.memberBrandCommissions as MemberBrandCommission[]);
-	const scopedMemberIds = $derived(new Set(data.scopedMemberIds as string[]));
 	const memberEmails = $derived(data.memberEmails as Record<string, string>);
 	const currentUserId = $derived(data.user?.id);
-
-	// Build a lookup: memberId-brandId -> rate
-	const commissionLookup = $derived(() => {
-		const map = new Map<string, number>();
-		for (const c of memberBrandCommissions) {
-			map.set(`${c.member_id}-${c.brand_id}`, c.rate);
-		}
-		return map;
-	});
-
-	function getBrandRate(memberId: string, brandId: string): number {
-		return commissionLookup().get(`${memberId}-${brandId}`) ?? 0;
-	}
 
 	let showInviteForm = $state(false);
 	let inviteEmail = $state('');
@@ -200,22 +185,6 @@
 		});
 		if (res.ok) await invalidateAll();
 		updatingId = '';
-	}
-
-	let updatingCommission = $state('');
-
-	async function handleBrandCommissionChange(memberId: string, brandId: string, value: string) {
-		const rate = parseFloat(value);
-		if (isNaN(rate) || rate < 0 || rate > 100) return;
-		const key = `${memberId}-${brandId}`;
-		updatingCommission = key;
-		const res = await fetch('/api/team/update-commission', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ memberId, brandId, rate })
-		});
-		if (res.ok) await invalidateAll();
-		updatingCommission = '';
 	}
 
 	async function handleRemove(memberId: string) {

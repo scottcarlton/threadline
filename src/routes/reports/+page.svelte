@@ -1,6 +1,4 @@
 <script lang="ts">
-	let { data } = $props();
-
 	const reports = [
 		{
 			id: 'sales-by-brand',

@@ -62,7 +62,6 @@
 			? order.status === 'draft' && order.created_by === data.user?.id
 			: data.membership?.role !== 'guest'
 	);
-	const commissionOverride = $derived(data.commissionOverride as number | null);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
 	const repName = $derived(data.repName as string | null);
 
@@ -179,11 +178,6 @@
 	let savingShipped = $state(false);
 
 	const isShippedOrDelivered = $derived(order.status === 'shipped' || order.status === 'delivered');
-	const commissionRate = $derived(commissionOverride ?? order.brands?.commission_rate ?? 0);
-	const brandCommissionOnTotal = $derived((Number(order.total_amount) * commissionRate) / 100);
-	const brandCommissionOnShipped = $derived(
-		order.shipped_amount != null ? (Number(order.shipped_amount) * commissionRate) / 100 : null
-	);
 	const repCommissionOnTotal = $derived((Number(order.total_amount) * repCommissionRate) / 100);
 	const repCommissionOnShipped = $derived(
 		order.shipped_amount != null ? (Number(order.shipped_amount) * repCommissionRate) / 100 : null

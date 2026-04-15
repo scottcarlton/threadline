@@ -1126,7 +1126,6 @@ async function getSalesReport(
 
 	// Resolve rep names if grouping by rep
 	if (groupBy === 'rep') {
-		const repIds = Array.from(groups.keys());
 		const { data: members } = await ctx.supabase
 			.from('organization_members')
 			.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
