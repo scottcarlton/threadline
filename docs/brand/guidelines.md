@@ -16,7 +16,11 @@ An agentic-first systems company helping multi-brand sales representatives and b
 
 Building intelligent systems for the people who move goods.
 
-### 1.3 Brand Personality
+### 1.3 Founding Philosophy
+
+Software doesn't fix broken process. Intelligence replaces the need for perfect process. See [philosophy.md](./philosophy.md) for the full document — it should inform product decisions, marketing copy, and sales conversations.
+
+### 1.4 Brand Personality
 
 Threadline is precise, intelligent, and quietly confident. We don't shout — we surface what others miss. The brand feels like a well-engineered tool: clean lines, clear hierarchy, zero decoration for its own sake. Every element earns its place.
 
@@ -28,7 +32,7 @@ Threadline is precise, intelligent, and quietly confident. We don't shout — we
 - **Systematic** — Patterns, grids, structure. The visual language reflects how we think about data.
 - **Human-first** — Built for people in motion — in cars, at shows, on the floor. Never forget the rep.
 
-### 1.4 Brand Voice
+### 1.5 Brand Voice
 
 **Tone:** Direct, clear, grounded. Write like you're explaining something important to a smart colleague — not pitching, not dumbing down.
 
