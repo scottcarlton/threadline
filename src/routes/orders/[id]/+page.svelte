@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
@@ -9,6 +10,13 @@
 	import type { Order, OrderLine, OrderStatus, BrandAsset } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { entityContext } from '$lib/stores/entityContext.js';
+	import { fetchOrderAttentionCount } from '$lib/stores/orderAttention.js';
+
+	// Refresh the Orders nav badge as soon as this page mounts — the loader
+	// just marked the order viewed; status changes below also call this.
+	onMount(() => {
+		fetchOrderAttentionCount();
+	});
 
 	let { data } = $props();
 	const order = $derived(data.order as Order);
@@ -48,6 +56,7 @@
 	const activeLines = $derived(allLines.filter((l) => !l.removed_at));
 	const removedLines = $derived(allLines.filter((l) => l.removed_at));
 	const brandAssets = $derived((data.brandAssets ?? []) as BrandAsset[]);
+	const isBrandOrg = $derived(data.orgType === 'brand');
 	const canEdit = $derived(
 		data.isBuyer
 			? order.status === 'draft' && order.created_by === data.user?.id
@@ -152,6 +161,7 @@
 
 		await supabase.from('orders').update(updateData).eq('id', order.id);
 		invalidateAll();
+		fetchOrderAttentionCount();
 	}
 
 	const timeline = $derived([
@@ -406,6 +416,80 @@
 		}
 	}
 
+	// ── History / audit trail ────────────────────────────────────────────────
+	type AuditRow = {
+		id: string;
+		order_id: string;
+		actor_id: string | null;
+		event_type:
+			| 'order_created'
+			| 'status_changed'
+			| 'order_cancelled'
+			| 'field_changed'
+			| 'line_added'
+			| 'line_removed'
+			| 'line_changed';
+		field: string | null;
+		before_value: unknown;
+		after_value: unknown;
+		created_at: string;
+		actor?: { display_name: string | null } | null;
+	};
+	const audits = $derived((data.audits ?? []) as AuditRow[]);
+
+	const fieldLabels: Record<string, string> = {
+		status: 'Status',
+		expected_ship_date: 'Complete ship',
+		start_ship_date: 'Start ship',
+		delivery_id: 'Delivery',
+		location_id: 'Location',
+		account_id: 'Account',
+		notes: 'Notes',
+		cancelled_reason: 'Cancel reason'
+	};
+
+	function formatAuditValue(v: unknown): string {
+		if (v === null || v === undefined) return '—';
+		if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+		if (typeof v === 'object') {
+			const o = v as Record<string, unknown>;
+			// Line snapshot
+			if ('style_number' in o || 'qty' in o) {
+				const parts: string[] = [];
+				if (o.style_number) parts.push(String(o.style_number));
+				const variant = [o.color, o.size].filter(Boolean).join(' / ');
+				if (variant) parts.push(variant);
+				if (typeof o.qty === 'number') parts.push(`qty ${o.qty}`);
+				if (typeof o.unit_price === 'number' && o.unit_price > 0)
+					parts.push(`$${Number(o.unit_price).toFixed(2)}`);
+				return parts.join(' · ') || '—';
+			}
+			return JSON.stringify(o);
+		}
+		return '—';
+	}
+
+	function auditTitle(a: AuditRow): string {
+		switch (a.event_type) {
+			case 'order_created':
+				return 'Order created';
+			case 'order_cancelled':
+				return 'Order cancelled';
+			case 'status_changed':
+				return `Status → ${formatAuditValue(a.after_value)}`;
+			case 'field_changed': {
+				const label = a.field ? (fieldLabels[a.field] ?? a.field) : 'Field';
+				return `${label} updated`;
+			}
+			case 'line_added':
+				return 'Line added';
+			case 'line_removed':
+				return 'Line removed';
+			case 'line_changed':
+				return 'Line changed';
+		}
+	}
+
 	// Comments
 	type Comment = {
 		id: string;
@@ -419,23 +503,35 @@
 	let commentBody = $state('');
 	let postingComment = $state(false);
 
+	let commentError = $state<string | null>(null);
+
 	async function postComment() {
 		if (!commentBody.trim()) return;
 		postingComment = true;
-		await supabase.from('order_comments').insert({
+		commentError = null;
+		const { error: insertErr } = await supabase.from('order_comments').insert({
 			order_id: order.id,
 			author_id: data.user?.id,
 			body: commentBody.trim(),
 			source_org_id: data.organization?.id ?? null
 		});
-		commentBody = '';
 		postingComment = false;
-		invalidateAll();
+		if (insertErr) {
+			commentError = insertErr.message;
+			return;
+		}
+		commentBody = '';
+		await invalidateAll();
 	}
 
 	async function deleteComment(id: string) {
-		await supabase.from('order_comments').delete().eq('id', id);
-		invalidateAll();
+		commentError = null;
+		const { error: delErr } = await supabase.from('order_comments').delete().eq('id', id);
+		if (delErr) {
+			commentError = delErr.message;
+			return;
+		}
+		await invalidateAll();
 	}
 
 	// Clone order
@@ -758,12 +854,14 @@
 							</dd>
 						</div>
 					{/if}
-					<div>
-						<dt class="text-xs text-muted-foreground">Brand</dt>
-						<dd class="mt-0.5">
-							<a href="/brands/{order.brand_id}" class="hover:underline">{order.brands?.name}</a>
-						</dd>
-					</div>
+					{#if !isBrandOrg}
+						<div>
+							<dt class="text-xs text-muted-foreground">Brand</dt>
+							<dd class="mt-0.5">
+								<a href="/brands/{order.brand_id}" class="hover:underline">{order.brands?.name}</a>
+							</dd>
+						</div>
+					{/if}
 					<div>
 						<dt class="text-xs text-muted-foreground">Season</dt>
 						<dd class="mt-0.5">{seasonLabel()}</dd>
@@ -790,12 +888,26 @@
 								{monthNames[deliveryData.delivery_month - 1]} 1 — {order.expected_ship_date
 									? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 									: '—'}
-							{:else if order.expected_ship_date}
-								{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
-									month: 'short',
-									day: 'numeric',
-									year: 'numeric'
-								})}
+							{:else if order.start_ship_date || order.expected_ship_date}
+								{#if order.start_ship_date}
+									{new Date(order.start_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								{:else}
+									—
+								{/if}
+								<span class="mx-1 text-muted-foreground">→</span>
+								{#if order.expected_ship_date}
+									{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								{:else}
+									—
+								{/if}
 							{:else}
 								<span class="text-muted-foreground/50">—</span>
 							{/if}
@@ -1335,6 +1447,66 @@
 					{postingComment ? 'Posting...' : 'Post'}
 				</Button>
 			</div>
+			{#if commentError}
+				<p class="mt-2 text-sm text-destructive">{commentError}</p>
+			{/if}
+		{/if}
+	</CardContent>
+</Card>
+
+<!-- History / audit trail -->
+<Card>
+	<CardHeader>
+		<CardTitle class="text-base">History</CardTitle>
+	</CardHeader>
+	<CardContent>
+		{#if audits.length === 0}
+			<p class="text-sm text-muted-foreground">
+				No changes recorded yet. Updates to status, line items, and ship windows show up here.
+			</p>
+		{:else}
+			<ul class="space-y-3">
+				{#each audits as a (a.id)}
+					<li class="flex items-start gap-3">
+						<div
+							class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
+						>
+							{(a.actor?.display_name ?? '?')[0].toUpperCase()}
+						</div>
+						<div class="min-w-0 flex-1">
+							<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+								<span class="text-sm font-medium">{auditTitle(a)}</span>
+								<span class="text-sm text-muted-foreground">
+									{a.actor?.display_name ?? 'Unknown'}
+								</span>
+								<span class="text-sm text-muted-foreground">
+									{new Date(a.created_at).toLocaleString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										hour: 'numeric',
+										minute: '2-digit'
+									})}
+								</span>
+							</div>
+							{#if a.event_type === 'field_changed' || a.event_type === 'line_changed'}
+								<p class="mt-0.5 text-sm text-muted-foreground">
+									<span class="line-through">{formatAuditValue(a.before_value)}</span>
+									<span class="mx-1">→</span>
+									<span>{formatAuditValue(a.after_value)}</span>
+								</p>
+							{:else if a.event_type === 'line_added'}
+								<p class="mt-0.5 text-sm text-muted-foreground">
+									{formatAuditValue(a.after_value)}
+								</p>
+							{:else if a.event_type === 'line_removed'}
+								<p class="mt-0.5 text-sm text-muted-foreground">
+									{formatAuditValue(a.before_value)}
+								</p>
+							{/if}
+						</div>
+					</li>
+				{/each}
+			</ul>
 		{/if}
 	</CardContent>
 </Card>

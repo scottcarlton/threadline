@@ -6,6 +6,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
+	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import type { Order, Season } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -16,6 +17,8 @@
 	const reps = $derived((data.reps as { id: string; name: string }[] | undefined) ?? []);
 	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
 	const canCreate = $derived(data.membership?.role !== 'guest');
+	// Brand-level sales reps shouldn't export org-wide data.
+	const canExport = $derived(!(isBrandOrg && data.membership?.role === 'sales'));
 	const monthNames = [
 		'Jan',
 		'Feb',
@@ -179,6 +182,111 @@
 		downloadCSV(rows, 'orders.csv');
 	}
 
+	let showImport = $state(false);
+
+	const orderImportColumns = [
+		{ key: 'account', label: 'Account (business name)', required: true },
+		{ key: 'style_number', label: 'Style Number', required: true },
+		{ key: 'qty', label: 'Quantity', required: true },
+		{ key: 'unit_price', label: 'Unit Price' },
+		{ key: 'color', label: 'Color' },
+		{ key: 'size', label: 'Size' },
+		{ key: 'expected_ship_date', label: 'Expected Ship Date (YYYY-MM-DD)' },
+		{ key: 'notes', label: 'Notes' }
+	];
+
+	async function handleImportOrders(
+		rows: Record<string, string>[]
+	): Promise<{ success: number; errors: string[] }> {
+		let success = 0;
+		const errors: string[] = [];
+
+		const { data: selfBrand } = await supabase
+			.from('brands')
+			.select('id')
+			.eq('organization_id', data.organization?.id ?? '')
+			.eq('is_self_brand', true)
+			.maybeSingle();
+		if (!selfBrand) {
+			return { success: 0, errors: ['No self-brand found for this organization'] };
+		}
+
+		for (let i = 0; i < rows.length; i++) {
+			const row = rows[i];
+			const accountName = row.account?.trim();
+			const styleNumber = row.style_number?.trim();
+			const qty = parseInt(row.qty);
+			if (!accountName || !styleNumber || !qty || qty <= 0) {
+				errors.push(`Row ${i + 1}: account, style_number, and positive qty required`);
+				continue;
+			}
+
+			const { data: account } = await supabase
+				.from('accounts')
+				.select('id')
+				.eq('organization_id', data.organization?.id ?? '')
+				.ilike('business_name', accountName)
+				.maybeSingle();
+			if (!account) {
+				errors.push(`Row ${i + 1} (${accountName}): account not found`);
+				continue;
+			}
+
+			const { data: product } = await supabase
+				.from('products')
+				.select('id, wholesale_price')
+				.eq('brand_id', selfBrand.id)
+				.eq('style_number', styleNumber)
+				.maybeSingle();
+			if (!product) {
+				errors.push(`Row ${i + 1} (${styleNumber}): product not found in your catalog`);
+				continue;
+			}
+
+			const unitPrice = row.unit_price?.trim()
+				? parseFloat(row.unit_price)
+				: Number(product.wholesale_price);
+
+			const { data: order, error: orderErr } = await supabase
+				.from('orders')
+				.insert({
+					organization_id: data.organization?.id,
+					brand_id: selfBrand.id,
+					account_id: account.id,
+					created_by: data.user?.id,
+					status: 'draft',
+					order_type: 'direct',
+					expected_ship_date: row.expected_ship_date?.trim() || null,
+					notes: row.notes?.trim() || null,
+					total_amount: qty * unitPrice
+				})
+				.select('id')
+				.single();
+
+			if (orderErr || !order) {
+				errors.push(`Row ${i + 1}: ${orderErr?.message ?? 'Failed to create order'}`);
+				continue;
+			}
+
+			const { error: lineErr } = await supabase.from('order_lines').insert({
+				order_id: order.id,
+				product_id: product.id,
+				style_number: styleNumber,
+				qty,
+				unit_price: unitPrice,
+				color: row.color?.trim() || null,
+				size: row.size?.trim() || null
+			});
+			if (lineErr) {
+				errors.push(`Row ${i + 1}: order created but line failed — ${lineErr.message}`);
+				continue;
+			}
+			success++;
+		}
+		if (success > 0) invalidateAll();
+		return { success, errors };
+	}
+
 	function setFilter(key: string, value: string) {
 		const params = new URLSearchParams($page.url.searchParams);
 		if (!value || value === 'all') {
@@ -199,8 +307,11 @@
 			</p>
 		</div>
 		<div class="flex items-center gap-2">
-			{#if filtered.length > 0}
+			{#if filtered.length > 0 && canExport}
 				<Button variant="outline" size="sm" onclick={exportOrders}>Export CSV</Button>
+			{/if}
+			{#if isBrandOrg && canCreate}
+				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
 			{/if}
 			{#if canCreate}
 				<Button href="/orders/new">
@@ -335,15 +446,17 @@
 				<option value={season.id}>{season.name}</option>
 			{/each}
 		</select>
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Brands</option>
-			{#each brands as brand}
-				<option value={brand.id}>{brand.name}</option>
-			{/each}
-		</select>
+		{#if !isBrandOrg}
+			<select
+				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+				onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
+			>
+				<option value="">All Brands</option>
+				{#each brands as brand}
+					<option value={brand.id}>{brand.name}</option>
+				{/each}
+			</select>
+		{/if}
 		{#if isBrandOrg && reps.length > 0}
 			<select
 				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
@@ -355,22 +468,24 @@
 				{/each}
 			</select>
 		{/if}
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('show', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Shows</option>
-			{#each showDates as sd}
-				{@const shows = sd.shows as { name?: string } | { name?: string }[] | null}
-				{@const showName = Array.isArray(shows)
-					? (shows[0]?.name ?? 'Show')
-					: (shows?.name ?? 'Show')}
-				<option value={sd.id}
-					>{showName} — {monthNames[(sd.month ?? 1) - 1]}
-					{sd.year}{sd.city ? `, ${sd.city}` : ''}</option
-				>
-			{/each}
-		</select>
+		{#if showDates.length > 0}
+			<select
+				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+				onchange={(e) => setFilter('show', (e.target as HTMLSelectElement).value)}
+			>
+				<option value="">All Shows</option>
+				{#each showDates as sd}
+					{@const shows = sd.shows as { name?: string } | { name?: string }[] | null}
+					{@const showName = Array.isArray(shows)
+						? (shows[0]?.name ?? 'Show')
+						: (shows?.name ?? 'Show')}
+					<option value={sd.id}
+						>{showName} — {monthNames[(sd.month ?? 1) - 1]}
+						{sd.year}{sd.city ? `, ${sd.city}` : ''}</option
+					>
+				{/each}
+			</select>
+		{/if}
 	</div>
 
 	{#if filtered.length === 0}
@@ -421,10 +536,12 @@
 							class="px-4 py-2.5 text-center text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Status</th
 						>
-						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
-							>Brand</th
-						>
+						{#if !isBrandOrg}
+							<th
+								class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
+								>Brand</th
+							>
+						{/if}
 						<th
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
 							>{isBrandOrg ? 'Rep' : 'Source'}</th
@@ -472,7 +589,9 @@
 						]}
 						{@const shipWindowStart = delivery?.delivery_month
 							? `${monthNames[delivery.delivery_month - 1]} 1`
-							: null}
+							: (order as { start_ship_date?: string | null }).start_ship_date
+								? `${monthNames[new Date((order as { start_ship_date: string }).start_ship_date + 'T00:00:00').getMonth()]} ${new Date((order as { start_ship_date: string }).start_ship_date + 'T00:00:00').getDate()}`
+								: null}
 						{@const shipWindowEnd = order.expected_ship_date
 							? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 							: null}
@@ -490,10 +609,24 @@
 								/>
 							</td>
 							<td class="px-4 py-3">
-								<a href="/orders/{order.id}" class="font-mono text-base font-medium hover:underline"
-									>{order.order_number}</a
-								>
-								<p class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</p>
+								{#if isBrandOrg}
+									<p class="text-sm text-muted-foreground">
+										{order.accounts?.business_name ?? '—'}
+									</p>
+									<a
+										href="/orders/{order.id}"
+										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
+									>
+									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
+								{:else}
+									<a
+										href="/orders/{order.id}"
+										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
+									>
+									<p class="text-sm text-muted-foreground">
+										{order.accounts?.business_name ?? '—'}
+									</p>
+								{/if}
 							</td>
 							<td class="px-4 py-3 text-center">
 								{#if order.order_type === 'note'}
@@ -508,13 +641,16 @@
 									</span>
 								{/if}
 							</td>
-							<td class="hidden px-4 py-3 sm:table-cell">
-								<span class="text-sm">{order.brands?.name ?? '—'}</span>
-								<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
-							</td>
+							{#if !isBrandOrg}
+								<td class="hidden px-4 py-3 sm:table-cell">
+									<span class="text-sm">{order.brands?.name ?? '—'}</span>
+									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
+								</td>
+							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
 								{#if isBrandOrg}
-									{@const repOrgName = (order as any).source_org?.name ?? '—'}
+									{@const repOrgName =
+										(order as any).source_org?.name ?? (order as any).profiles?.display_name ?? '—'}
 									<span class="text-sm {repOrgName === '—' ? 'text-muted-foreground/50' : ''}"
 										>{repOrgName}</span
 									>
@@ -641,3 +777,13 @@
 		</div>
 	{/if}
 </div>
+
+{#if isBrandOrg}
+	<BulkImportModal
+		open={showImport}
+		ontoggle={() => (showImport = false)}
+		entityType="Orders"
+		columns={orderImportColumns}
+		onimport={handleImportOrders}
+	/>
+{/if}

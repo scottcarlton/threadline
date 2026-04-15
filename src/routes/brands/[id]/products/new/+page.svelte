@@ -172,14 +172,22 @@
 	const previewPrice = $derived(parseFloat(wholesalePrice) || 0);
 </script>
 
-<div class="mx-auto max-w-5xl space-y-6">
-	<!-- Header -->
-	<div class="flex items-center gap-3">
-		<Button variant="ghost" size="sm" href="/brands/{brand.id}/products"
-			><LongArrow direction="left" /> Products</Button
+<div class="space-y-6">
+	<!-- Action bar -->
+	<div class="flex items-center justify-between">
+		<Button
+			variant="ghost"
+			size="sm"
+			href={data.orgType === 'brand' ? '/products' : `/brands/${brand.id}/products`}
 		>
-		<h1 class="text-3xl">New Product</h1>
+			<LongArrow direction="left" /> Products
+		</Button>
 	</div>
+
+	<!-- Entity header -->
+	<header>
+		<h1 class="text-3xl">New Product</h1>
+	</header>
 
 	<!-- Step indicator -->
 	<div class="flex items-center gap-2">

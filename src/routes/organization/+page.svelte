@@ -7,12 +7,21 @@
 	let { data } = $props();
 
 	const org = $derived(data.org);
+	const isBrandOrg = $derived(data.orgType === 'brand');
+	const selfBrand = $derived(data.selfBrand);
+
 	let orgName = $state('');
 	let logoUrl = $state('');
+	let website = $state('');
+	let contactEmail = $state('');
+	let contactPhone = $state('');
 
 	$effect(() => {
 		orgName = data.org?.name ?? '';
 		logoUrl = data.org?.logo_url ?? '';
+		website = data.selfBrand?.website ?? '';
+		contactEmail = data.selfBrand?.contact_email ?? '';
+		contactPhone = data.selfBrand?.contact_phone ?? '';
 	});
 	let saving = $state(false);
 	let message = $state('');
@@ -33,9 +42,27 @@
 
 		if (error) {
 			message = 'Failed to save changes.';
-		} else {
-			message = 'Organization updated successfully.';
+			saving = false;
+			return;
 		}
+
+		if (isBrandOrg && selfBrand?.id) {
+			const { error: brandErr } = await supabase
+				.from('brands')
+				.update({
+					website: website || null,
+					contact_email: contactEmail || null,
+					contact_phone: contactPhone || null
+				})
+				.eq('id', selfBrand.id);
+			if (brandErr) {
+				message = 'Org saved, but brand details failed.';
+				saving = false;
+				return;
+			}
+		}
+
+		message = 'Organization updated successfully.';
 		saving = false;
 	}
 </script>
@@ -58,8 +85,28 @@
 			</div>
 			{#if logoUrl}
 				<div class="space-y-2">
-					<p class="mb-2 text-[13px] font-medium text-muted-foreground">Preview</p>
+					<p class="mb-2 text-sm font-medium text-muted-foreground">Preview</p>
 					<img src={logoUrl} alt="Organization logo" class="h-14 w-14 rounded-md object-cover" />
+				</div>
+			{/if}
+
+			{#if isBrandOrg}
+				<div class="space-y-2">
+					<Label for="website">Website</Label>
+					<Input id="website" bind:value={website} placeholder="https://yourbrand.com" />
+				</div>
+				<div class="space-y-2">
+					<Label for="contact-email">Contact email</Label>
+					<Input
+						id="contact-email"
+						type="email"
+						bind:value={contactEmail}
+						placeholder="hello@yourbrand.com"
+					/>
+				</div>
+				<div class="space-y-2">
+					<Label for="contact-phone">Contact phone</Label>
+					<Input id="contact-phone" bind:value={contactPhone} placeholder="(555) 123-4567" />
 				</div>
 			{/if}
 		</div>
@@ -69,7 +116,7 @@
 				{saving ? 'Saving...' : 'Save changes'}
 			</Button>
 			{#if message}
-				<p class="text-[13px] text-muted-foreground">{message}</p>
+				<p class="text-sm text-muted-foreground">{message}</p>
 			{/if}
 		</div>
 	</div>

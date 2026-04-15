@@ -20,8 +20,24 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		throw error(404, 'Order not found');
 	}
 
-	// Load brand assets, commission override, rep info, and comments in parallel
-	const [brandAssetsRes, overrideRes, repRes, commentsRes] = await Promise.all([
+	// Mark this order as viewed by the current user. Drives the Orders nav badge
+	// ('unviewed' drops once the user opens the detail page). Best-effort — don't
+	// fail the page load if the upsert errors.
+	if (locals.user?.id) {
+		await supabaseAdmin
+			.from('order_views')
+			.upsert(
+				{
+					order_id: params.id,
+					profile_id: locals.user.id,
+					viewed_at: new Date().toISOString()
+				},
+				{ onConflict: 'order_id,profile_id' }
+			);
+	}
+
+	// Load brand assets, commission override, rep info, comments, and audits in parallel
+	const [brandAssetsRes, overrideRes, repRes, commentsRes, auditsRes] = await Promise.all([
 		supabase
 			.from('brand_assets')
 			.select('*')
@@ -38,11 +54,21 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.select('id, commission_rate, profiles!organization_members_profile_id_fkey(display_name)')
 			.eq('profile_id', orderResult.data.created_by)
 			.single(),
-		supabase
+		// Use supabaseAdmin for comments + audits — order visibility is already
+		// enforced by the orders SELECT above (404 if the user can't see it).
+		// RLS on order_comments / order_audits was previously returning empty
+		// for brand admins viewing direct orders because of nested-policy eval
+		// quirks. Admin read is safe here.
+		supabaseAdmin
 			.from('order_comments')
 			.select('*, profiles:author_id(display_name), source_org:source_org_id(id, name)')
 			.eq('order_id', params.id)
-			.order('created_at', { ascending: true })
+			.order('created_at', { ascending: true }),
+		supabaseAdmin
+			.from('order_audits')
+			.select('*, actor:actor_id(display_name)')
+			.eq('order_id', params.id)
+			.order('created_at', { ascending: false })
 	]);
 
 	// Look up per-brand commission for the rep, fall back to their default rate
@@ -99,6 +125,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		repCommissionRate,
 		repName: (repRes.data?.profiles as any)?.display_name ?? null,
 		comments: commentsRes.data ?? [],
+		audits: auditsRes.data ?? [],
 		federation
 	};
 };

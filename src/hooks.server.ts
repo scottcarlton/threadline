@@ -23,6 +23,7 @@ const PUBLIC_ROUTES = [
 	'/connect',
 	'/auth/callback',
 	'/upload',
+	'/api/dev',
 	'/features',
 	'/intelligence',
 	'/solutions',
