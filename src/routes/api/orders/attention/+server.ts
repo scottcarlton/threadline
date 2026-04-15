@@ -21,10 +21,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 	// ── (a) Unviewed orders in user's visibility scope, excluding self-created ──
 	// RLS already scopes `orders` to what the user can see (own-org + federated).
-	const { data: visible } = await supabase
-		.from('orders')
-		.select('id')
-		.neq('created_by', userId);
+	const { data: visible } = await supabase.from('orders').select('id').neq('created_by', userId);
 
 	const { data: views } = await supabase
 		.from('order_views')

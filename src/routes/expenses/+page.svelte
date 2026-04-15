@@ -310,8 +310,9 @@
 							</td>
 							<td class="hidden px-4 py-3 lg:table-cell">
 								{#if expense.status === 'approved' || expense.status === 'rejected'}
-									{@const reviewer =
-										(expense as { reviewer?: { display_name: string | null } | null }).reviewer}
+									{@const reviewer = (
+										expense as { reviewer?: { display_name: string | null } | null }
+									).reviewer}
 									{@const when =
 										expense.status === 'approved' ? expense.approved_at : expense.rejected_at}
 									<span class="text-sm">{reviewer?.display_name ?? '—'}</span>

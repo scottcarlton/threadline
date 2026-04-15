@@ -19,7 +19,7 @@ SvelteKit 5 app for fashion reps, brands, and buyers. Deployed to Vercel at `thr
 
 Use `bun` — never `npm` or `yarn`.
 
-- `bun install` — dependencies
+- `bun install` — dependencies (also installs the husky pre-commit hook via `prepare`)
 - `bun run dev` — dev server
 - `bun run build` — production build
 - `bun run check` — svelte-check + TypeScript
@@ -27,6 +27,10 @@ Use `bun` — never `npm` or `yarn`.
 - `bun run test:run` — run vitest once (CI-style)
 - `bun run test` — vitest watch mode
 - `bunx` instead of `npx`
+
+### Pre-commit hook
+
+A husky + lint-staged hook runs `prettier --write` on staged files before every commit. Unformatted code is auto-fixed in place, so CI Lint won't fail on formatting drift. To bypass (rarely — e.g. emergency hot-fix), use `git commit --no-verify`, but investigate the underlying failure first.
 
 ## Testing
 

@@ -24,16 +24,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// ('unviewed' drops once the user opens the detail page). Best-effort — don't
 	// fail the page load if the upsert errors.
 	if (locals.user?.id) {
-		await supabaseAdmin
-			.from('order_views')
-			.upsert(
-				{
-					order_id: params.id,
-					profile_id: locals.user.id,
-					viewed_at: new Date().toISOString()
-				},
-				{ onConflict: 'order_id,profile_id' }
-			);
+		await supabaseAdmin.from('order_views').upsert(
+			{
+				order_id: params.id,
+				profile_id: locals.user.id,
+				viewed_at: new Date().toISOString()
+			},
+			{ onConflict: 'order_id,profile_id' }
+		);
 	}
 
 	// Load brand assets, commission override, rep info, comments, and audits in parallel

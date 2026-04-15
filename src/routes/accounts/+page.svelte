@@ -66,9 +66,7 @@
 	);
 	const canEdit = $derived(data.membership?.role !== 'guest');
 	// Brand-level sales reps shouldn't export org-wide data.
-	const canExport = $derived(
-		!(data.orgType === 'brand' && data.membership?.role === 'sales')
-	);
+	const canExport = $derived(!(data.orgType === 'brand' && data.membership?.role === 'sales'));
 
 	const tagColorMap: Record<string, string> = {
 		amber: 'bg-amber-50 text-amber-700',
