@@ -110,7 +110,7 @@
 			</p>
 		{:else}
 			<div class="space-y-2 text-[13px] leading-relaxed text-foreground/90">
-				{#each briefing.split('\n').filter((l) => l.trim()) as line}
+				{#each briefing.split('\n').filter((l) => l.trim()) as line, i (i)}
 					<p>{@html formatBriefing(line)}</p>
 				{/each}
 			</div>

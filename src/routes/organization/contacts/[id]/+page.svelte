@@ -192,7 +192,7 @@
 					These accounts may be related based on email domain matching.
 				</p>
 				<div class="space-y-2">
-					{#each suggestedAccounts as acct}
+					{#each suggestedAccounts as acct (acct.id)}
 						<a
 							href="/accounts/{acct.id}"
 							class="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-muted/50"
@@ -232,7 +232,7 @@
 			</CardHeader>
 			<CardContent>
 				<div class="space-y-1">
-					{#each emailActivity as email}
+					{#each emailActivity as email (email.id)}
 						<div class="flex items-start gap-3 rounded-lg px-3 py-2.5">
 							<div
 								class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"
@@ -291,7 +291,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each orders as order}
+							{#each orders as order (order.id)}
 								<tr class="border-b last:border-0">
 									<td class="px-3 py-2">
 										<a href="/orders/{order.id}" class="text-sm font-medium hover:underline"

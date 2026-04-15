@@ -45,7 +45,7 @@
 		<div class="grid gap-6 lg:grid-cols-[1fr_320px]">
 			<!-- Items list -->
 			<div class="space-y-3">
-				{#each items as item}
+				{#each items as item (item.productId)}
 					<div class="flex items-center gap-4 rounded-none border bg-card p-4">
 						<a href="/shop/{item.productId}" class="shrink-0">
 							{#if item.imageUrl}

@@ -193,7 +193,7 @@
 
 	<!-- Primary Navigation -->
 	<nav class="flex-1 space-y-px px-5 {allMemberships.length > 1 ? 'pt-1' : 'pt-5'}">
-		{#each filteredPrimaryNav as item}
+		{#each filteredPrimaryNav as item (item.href)}
 			<a
 				href={item.href}
 				class={cn(

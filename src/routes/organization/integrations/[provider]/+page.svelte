@@ -229,7 +229,7 @@
 							bind:value={selectedDataType}
 							class="rounded-md border bg-background px-3 py-2 text-sm"
 						>
-							{#each dataTypes as dt}
+							{#each dataTypes as dt (dt.value)}
 								<option value={dt.value}>{dt.label}</option>
 							{/each}
 						</select>
@@ -405,7 +405,7 @@
 							bind:value={msDataType}
 							class="rounded-md border bg-background px-3 py-2 text-sm"
 						>
-							{#each dataTypes as dt}
+							{#each dataTypes as dt (dt.value)}
 								<option value={dt.value}>{dt.label}</option>
 							{/each}
 						</select>
@@ -518,7 +518,7 @@
 								bind:value={selectedNotionDb}
 								class="rounded-md border bg-background px-3 py-2 text-sm"
 							>
-								{#each notionDatabases as db}
+								{#each notionDatabases as db (db.id)}
 									<option value={db.id}>{db.title}</option>
 								{/each}
 							</select>
@@ -601,7 +601,7 @@
 					<h3 class="text-sm font-medium">Notifications</h3>
 					<p class="mt-1 text-sm text-muted-foreground">Events that trigger a Slack message</p>
 					<div class="mt-3 space-y-2">
-						{#each [{ key: 'order_submitted', label: 'Order submitted' }, { key: 'order_confirmed', label: 'Order confirmed' }, { key: 'order_shipped', label: 'Order shipped' }, { key: 'order_cancelled', label: 'Order cancelled' }, { key: 'new_account', label: 'New account created' }] as event}
+						{#each [{ key: 'order_submitted', label: 'Order submitted' }, { key: 'order_confirmed', label: 'Order confirmed' }, { key: 'order_shipped', label: 'Order shipped' }, { key: 'order_cancelled', label: 'Order cancelled' }, { key: 'new_account', label: 'New account created' }] as event (event.key)}
 							{@const notifyOn = (config.notify_on ?? []) as string[]}
 							<label class="flex items-center gap-2.5">
 								<input
@@ -637,7 +637,7 @@
 			<CardContent class="pt-5 pb-5">
 				<h3 class="text-sm font-medium">Sync History</h3>
 				<div class="mt-3 divide-y">
-					{#each syncLogs as log}
+					{#each syncLogs as log (log.id)}
 						<div class="flex items-center justify-between py-3 first:pt-0 last:pb-0">
 							<div>
 								<p class="text-sm font-medium">{formatAction(log.action)}</p>

@@ -103,7 +103,7 @@
 				>
 					All Brands
 				</button>
-				{#each brands as brand}
+				{#each brands as brand (brand.id)}
 					<button
 						class="rounded-lg border px-3 py-1.5 text-sm transition-colors {brandFilter === brand.id
 							? 'border-primary bg-primary text-primary-foreground'
@@ -145,7 +145,7 @@
 			</div>
 		{:else}
 			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-				{#each filtered as product}
+				{#each filtered as product (product.id)}
 					{@const primaryImage =
 						product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 					{@const inCart = $cart.some((i) => i.productId === product.id)}

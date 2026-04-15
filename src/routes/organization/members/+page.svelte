@@ -453,7 +453,7 @@
 							Brand Access <span class="font-normal">(optional — leave empty for all)</span>
 						</p>
 						<div class="flex flex-wrap gap-2">
-							{#each brands as brand}
+							{#each brands as brand (brand.id)}
 								<button
 									type="button"
 									class="rounded-lg border px-2.5 py-1 text-sm transition-all {selectedBrandIds.includes(
@@ -479,7 +479,7 @@
 		{#if invitations.length > 0}
 			<div class="space-y-2">
 				<p class="text-sm font-medium text-muted-foreground">Pending Invitations</p>
-				{#each invitations as invitation}
+				{#each invitations as invitation (invitation.id)}
 					<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
 						<div class="flex items-center gap-3">
 							<span class="font-mono text-sm">{invitation.email}</span>
@@ -520,7 +520,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each members as member}
+						{#each members as member (member.id)}
 							{@const isCurrentUser = member.profile_id === currentUserId}
 							{@const isOwner = member.role === 'owner'}
 							<tr
@@ -715,7 +715,7 @@
 					<div class="space-y-3">
 						<h3 class="text-sm font-semibold">Territories</h3>
 						<div class="space-y-1.5">
-							{#each drawerTerritories as territory}
+							{#each drawerTerritories as territory (territory.id)}
 								<div class="flex items-center rounded-lg border px-3 py-2">
 									<a
 										href="/organization/territories/{territory.id}"
@@ -736,7 +736,7 @@
 							<p class="text-sm text-muted-foreground">No brands available.</p>
 						{:else}
 							<div class="space-y-1.5">
-								{#each brands as brand}
+								{#each brands as brand (brand.id)}
 									<div class="flex items-center justify-between rounded-lg border px-3 py-2">
 										<span class="text-sm font-medium">{brand.name}</span>
 										<div class="flex items-center gap-1.5">
@@ -772,7 +772,7 @@
 						</p>
 						{#if drawerBrandAccess.length > 0}
 							<div class="flex flex-wrap gap-1.5">
-								{#each drawerBrandAccess as ba}
+								{#each drawerBrandAccess as ba (ba.id)}
 									<div class="flex items-center gap-1 rounded-lg border px-2.5 py-1">
 										<span class="text-sm">{ba.brands?.name ?? 'Unknown'}</span>
 										<button
@@ -811,7 +811,7 @@
 								}}
 							>
 								<option value="">Add brand access...</option>
-								{#each brands.filter((b) => !drawerAccessBrandIds.has(b.id)) as brand}
+								{#each brands.filter((b) => !drawerAccessBrandIds.has(b.id)) as brand (brand.id)}
 									<option value={brand.id}>{brand.name}</option>
 								{/each}
 							</select>

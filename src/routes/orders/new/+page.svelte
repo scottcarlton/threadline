@@ -1301,7 +1301,7 @@
 			<div class="relative mt-1">
 				<Input
 					id="account-input"
-					placeholder={'Type to search (e.g. "Elm & Ivory") or enter a new account name'}
+					placeholder="Type to search (e.g. &quot;Elm & Ivory&quot;) or enter a new account name"
 					value={accountQuery}
 					oninput={(e) => {
 						accountQuery = (e.target as HTMLInputElement).value;

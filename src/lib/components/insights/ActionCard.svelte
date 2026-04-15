@@ -260,7 +260,7 @@
 		<!-- Actions -->
 		{#if allActions.length > 0}
 			<div class="flex flex-wrap gap-2">
-				{#each allActions as action}
+				{#each allActions as action, i (i)}
 					<Button
 						variant={action.variant ?? 'outline'}
 						size="sm"

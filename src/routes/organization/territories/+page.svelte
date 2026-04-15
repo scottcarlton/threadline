@@ -149,7 +149,7 @@
 								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 							>
 								<option value="">Unassigned</option>
-								{#each members as member}
+								{#each members as member (member.id)}
 									<option value={member.id}>{member.profiles?.display_name ?? 'Unknown'}</option>
 								{/each}
 							</select>
@@ -217,7 +217,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each territories as territory}
+					{#each territories as territory (territory.id)}
 						<tr class="transition-colors hover:bg-muted/30">
 							<td class="px-4 py-3">
 								<a

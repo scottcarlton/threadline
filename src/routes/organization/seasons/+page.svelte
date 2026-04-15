@@ -164,7 +164,7 @@
 				</tr>
 			</thead>
 			<tbody class="divide-y">
-				{#each seasons as season}
+				{#each seasons as season (season.id)}
 					<tr class="hover:bg-muted/30">
 						<td class="px-4 py-3">
 							{#if editingId === season.id}
@@ -187,7 +187,7 @@
 						</td>
 						<td class="px-4 py-3">
 							<div class="flex flex-wrap items-center gap-1.5">
-								{#each deliveriesForSeason(season.id) as delivery}
+								{#each deliveriesForSeason(season.id) as delivery (delivery.id)}
 									<span
 										class="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[13px] font-medium"
 									>

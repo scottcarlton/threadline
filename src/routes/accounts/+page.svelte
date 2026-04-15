@@ -237,7 +237,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each filtered as account}
+					{#each filtered as account (account.id)}
 						<tr
 							class="transition-colors hover:bg-muted/30 {account.archived_at ? 'opacity-50' : ''}"
 						>
@@ -251,7 +251,7 @@
 											>{[account.city, account.state].filter(Boolean).join(', ')}</span
 										>
 									{/if}
-									{#each accountTags[account.id] ?? [] as tag}
+									{#each accountTags[account.id] ?? [] as tag (tag.name)}
 										<span
 											class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium {tagColorMap[
 												tag.color

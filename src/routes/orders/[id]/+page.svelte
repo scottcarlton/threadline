@@ -707,7 +707,7 @@
 				</Button>
 			{/if}
 			{#if canEdit && order.order_type !== 'note' && nextStatuses.length > 0}
-				{#each nextStatuses as nextStatus}
+				{#each nextStatuses as nextStatus (nextStatus)}
 					{#if nextStatus === 'cancelled'}
 						<Button size="sm" variant="destructive" onclick={() => (cancelOpen = true)}>
 							Cancel
@@ -769,7 +769,7 @@
 	<!-- Status timeline -->
 	{#if order.order_type !== 'note' && order.status !== 'cancelled'}
 		<div class="flex items-center gap-1">
-			{#each timeline as step, i}
+			{#each timeline as step, i (step.status)}
 				{@const isComplete = step.date !== null}
 				{@const isCurrent = step.status === order.status}
 				<div class="flex items-center gap-1">
@@ -1134,7 +1134,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each activeLines as line}
+							{#each activeLines as line (line.id)}
 								<tr class="group border-b">
 									<td class="px-3 py-2">
 										<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
@@ -1302,7 +1302,7 @@
 					<div class="rounded-md border border-dashed">
 						<table class="w-full">
 							<tbody>
-								{#each removedLines as line}
+								{#each removedLines as line (line.id)}
 									<tr class="border-b opacity-60 last:border-0">
 										<td class="px-3 py-2 line-through">
 											<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
@@ -1373,7 +1373,7 @@
 	<CardContent>
 		{#if comments.length > 0}
 			<div class="mb-4 space-y-3">
-				{#each comments as comment}
+				{#each comments as comment (comment.id)}
 					<div class="flex items-start gap-3">
 						<div
 							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
@@ -1639,7 +1639,7 @@
 						<div class="space-y-2">
 							<Label>Attach brand resources</Label>
 							<div class="max-h-40 space-y-1.5 overflow-y-auto rounded-none border p-3">
-								{#each brandAssets as asset}
+								{#each brandAssets as asset (asset.id)}
 									<label class="flex cursor-pointer items-center gap-2 text-sm">
 										<input
 											type="checkbox"

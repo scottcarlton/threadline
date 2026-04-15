@@ -382,7 +382,7 @@
 	<!-- Tags -->
 	{#if availableTags.length > 0}
 		<div class="flex flex-wrap items-center gap-2">
-			{#each availableTags as tag}
+			{#each availableTags as tag (tag.id)}
 				{@const isAssigned = assignedTagIds.has(tag.id)}
 				<button
 					onclick={() => toggleTag(tag.id)}
@@ -805,7 +805,7 @@
 									<div class="space-y-1.5">
 										<Label>Brand Access</Label>
 										<div class="flex flex-wrap gap-1.5">
-											{#each data.allBrands as brand}
+											{#each data.allBrands as brand (brand.id)}
 												<button
 													class="rounded-full border px-2.5 py-1 text-xs transition-colors {inviteBrandIds.includes(
 														brand.id
@@ -832,7 +832,7 @@
 
 						{#if data.buyerUsers.length > 0}
 							<div class="space-y-2">
-								{#each data.buyerUsers as bu}
+								{#each data.buyerUsers as bu (bu.id)}
 									<div class="flex items-center justify-between rounded-lg border px-3 py-2.5">
 										<div>
 											<p class="text-sm font-medium">{bu.profiles?.display_name ?? 'Unknown'}</p>
@@ -870,7 +870,7 @@
 						{#if data.buyerInvitations.length > 0}
 							<div class="mt-3 space-y-1.5">
 								<p class="text-xs font-medium text-muted-foreground">Pending Invitations</p>
-								{#each data.buyerInvitations as inv}
+								{#each data.buyerInvitations as inv (inv.id)}
 									<div
 										class="flex items-center justify-between rounded-lg border border-dashed px-3 py-2"
 									>
@@ -893,7 +893,7 @@
 							<div class="mt-3 space-y-1.5">
 								<p class="text-xs font-medium text-muted-foreground">Brand Access</p>
 								<div class="flex flex-wrap gap-1.5">
-									{#each data.buyerBrandAccess as ba}
+									{#each data.buyerBrandAccess as ba (ba.id)}
 										<Badge>{ba.brands?.name ?? 'Unknown'}</Badge>
 									{/each}
 								</div>
@@ -955,7 +955,7 @@
 						{/if}
 						{#if health.signals.length > 0}
 							<div class="mt-3 flex flex-wrap gap-2">
-								{#each health.signals as signal}
+								{#each health.signals as signal (signal)}
 									<span class="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
 										>{signal}</span
 									>
@@ -979,7 +979,7 @@
 							</p>
 						{:else}
 							<div class="space-y-2">
-								{#each brandSummaries as brand}
+								{#each brandSummaries as brand (brand.id)}
 									<a
 										href="/brands/{brand.id}"
 										class="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-muted/50"
@@ -1033,7 +1033,7 @@
 				</div>
 			{:else}
 				<div class="space-y-1">
-					{#each activity as item}
+					{#each activity as item (`${item.type}-${item.id}`)}
 						{@const iconPath = activityIcons[item.type] ?? activityIcons.order}
 						{@const colorClass = activityColors[item.type] ?? 'bg-muted text-muted-foreground'}
 						<a

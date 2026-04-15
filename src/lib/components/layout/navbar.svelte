@@ -172,7 +172,7 @@
 								<p class="text-sm text-muted-foreground">No notifications yet</p>
 							</div>
 						{:else}
-							{#each notifItems as notif}
+							{#each notifItems as notif (notif.id)}
 								<a
 									href={notif.link ?? '#'}
 									class="flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 {notif.read_at

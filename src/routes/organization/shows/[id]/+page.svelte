@@ -332,7 +332,7 @@
 			</div>
 		{/if}
 
-		{#each show.show_dates ?? [] as date}
+		{#each show.show_dates ?? [] as date (date.id)}
 			<Card>
 				<CardContent class="pt-4 pb-4">
 					{#if editingDateId === date.id}
@@ -356,7 +356,7 @@
 										bind:value={editMonth}
 										class="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 									>
-										{#each monthNames as m, i}
+										{#each monthNames as m, i (m)}
 											<option value={i + 1}>{m}</option>
 										{/each}
 									</select>
@@ -488,7 +488,7 @@
 								<div class="border-t pt-2">
 									{#if (documents[date.id] ?? []).length > 0}
 										<div class="space-y-1">
-											{#each documents[date.id] ?? [] as doc}
+											{#each documents[date.id] ?? [] as doc (doc.id)}
 												<div class="flex items-center justify-between text-sm">
 													<div class="flex items-center gap-2">
 														<svg
@@ -590,7 +590,7 @@
 									bind:value={newMonth}
 									class="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 								>
-									{#each monthNames as m, i}
+									{#each monthNames as m, i (m)}
 										<option value={i + 1}>{m}</option>
 									{/each}
 								</select>
