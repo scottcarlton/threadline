@@ -120,7 +120,7 @@
 		brandFilter: 'all',
 		items: [],
 		groupMeta: {},
-		account_id: isBuyer && accounts.length === 1 ? accounts[0].id : null,
+		account_id: null,
 		freeform_name: null,
 		order_year: new Date().getFullYear(),
 		rep_user_id: null,
@@ -701,6 +701,15 @@
 		}
 	});
 
+	// Seed the account for buyers with a single account. Runs inside an effect
+	// (not at cart init) so the reactive `isBuyer` / `accounts` props aren't
+	// captured as frozen snapshots.
+	$effect(() => {
+		if (cart.account_id === null && isBuyer && accounts.length === 1) {
+			cart.account_id = accounts[0].id;
+		}
+	});
+
 	// Seed freeform business_name from the typed-in freeform_name on entry to Details
 	// step. This lets the value render at full contrast instead of a dim placeholder.
 	$effect(() => {
@@ -1129,6 +1138,8 @@
 										? 'opacity-40'
 										: ''}"
 									draggable="true"
+									role="listitem"
+									aria-label="Drag {it.name} to another order"
 									ondragstart={(e) => onItemDragStart(e, it.product_id)}
 									ondragend={onItemDragEnd}
 								>

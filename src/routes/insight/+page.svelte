@@ -23,8 +23,9 @@
 	let { data } = $props();
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
 
-	// Action feed data
-	let insightActions = $state<any[]>(data.insightActions ?? []);
+	// Action feed data. Initialize empty and let the effect seed from data
+	// so `data` isn't captured at module scope (state_referenced_locally).
+	let insightActions = $state<any[]>([]);
 
 	$effect(() => {
 		insightActions = data.insightActions ?? [];
