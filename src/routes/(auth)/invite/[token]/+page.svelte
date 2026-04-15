@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { supabase } from '$lib/supabase.js';
-	import { dev } from '$app/environment';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -21,7 +20,6 @@
 	let error = $state('');
 	let loading = $state(false);
 	let mode = $state<'choose' | 'otp-verify' | 'accepting'>('choose');
-	let devOtp = $state<string | null>(null);
 
 	async function signInWithGoogle() {
 		error = '';
@@ -40,42 +38,7 @@
 
 	async function sendOtp() {
 		error = '';
-		devOtp = null;
 		loading = true;
-
-		if (dev) {
-			// In dev, skip Supabase's email send (rate-limited + requires SMTP) and
-			// generate the OTP via the admin API so we can show it on screen.
-			try {
-				const res = await fetch('/api/dev/invite-otp', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ token: invitation.token })
-				});
-				const raw = await res.text();
-				let body: { otp?: string; error?: string } = {};
-				try {
-					body = JSON.parse(raw);
-				} catch {
-					/* raw will be shown */
-				}
-				if (!res.ok || !body.otp) {
-					loading = false;
-					error =
-						body.error ??
-						`Dev OTP failed (${res.status}): ${raw.slice(0, 300) || '<empty response>'}`;
-					return;
-				}
-				devOtp = body.otp;
-				mode = 'otp-verify';
-				loading = false;
-				return;
-			} catch (e) {
-				loading = false;
-				error = e instanceof Error ? e.message : 'Failed to generate dev OTP';
-				return;
-			}
-		}
 
 		const { error: err } = await supabase.auth.signInWithOtp({
 			email: invitation.email,
@@ -205,24 +168,6 @@
 				class="space-y-4"
 			>
 				<p class="text-sm text-muted-foreground">Enter the code sent to {invitation.email}</p>
-				{#if dev && devOtp}
-					<div class="rounded-md border border-dashed border-amber-400 bg-amber-50 p-3 text-sm">
-						<p class="font-semibold text-amber-900">Dev mode</p>
-						<p class="text-amber-900">
-							Email isn't wired up yet. Your code is
-							<button
-								type="button"
-								class="font-mono underline"
-								onclick={() => {
-									otpCode = devOtp ?? '';
-								}}
-							>
-								{devOtp}
-							</button>
-							&nbsp;(click to fill).
-						</p>
-					</div>
-				{/if}
 				<div class="space-y-2">
 					<Label for="otp">Verification code</Label>
 					<Input
