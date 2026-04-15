@@ -100,7 +100,13 @@
 	}
 
 	// Template picker state
-	type EmailTemplate = { id: string; name: string; subject: string; body: string; category: string };
+	type EmailTemplate = {
+		id: string;
+		name: string;
+		subject: string;
+		body: string;
+		category: string;
+	};
 	let templates = $state<EmailTemplate[]>([]);
 	let templatesLoaded = $state(false);
 	let showTemplatePicker = $state(false);
@@ -110,10 +116,7 @@
 
 	async function loadTemplates() {
 		if (templatesLoaded) return;
-		const { data } = await supabase
-			.from('email_templates')
-			.select('*')
-			.order('name');
+		const { data } = await supabase.from('email_templates').select('*').order('name');
 		templates = (data ?? []) as EmailTemplate[];
 		templatesLoaded = true;
 	}
@@ -402,13 +405,26 @@
 							class="flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 							onclick={() => (showTemplatePicker = !showTemplatePicker)}
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-3.5 w-3.5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+								/>
 							</svg>
 							Templates
 						</button>
 						{#if showTemplatePicker}
-							<div class="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border bg-card shadow-lg">
+							<div
+								class="absolute top-full left-0 z-20 mt-1 w-64 rounded-lg border bg-card shadow-lg"
+							>
 								{#if templates.length === 0}
 									<p class="px-4 py-3 text-sm text-muted-foreground">No templates yet</p>
 								{:else}
@@ -420,7 +436,7 @@
 												onclick={() => applyTemplate(t)}
 											>
 												<span class="text-sm font-medium">{t.name}</span>
-												<span class="text-sm text-muted-foreground truncate">{t.subject}</span>
+												<span class="truncate text-sm text-muted-foreground">{t.subject}</span>
 											</button>
 										{/each}
 									</div>
@@ -433,7 +449,9 @@
 												bind:value={templateName}
 												placeholder="Template name"
 												class="flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none"
-												onkeydown={(e) => { if (e.key === 'Enter') saveAsTemplate(); }}
+												onkeydown={(e) => {
+													if (e.key === 'Enter') saveAsTemplate();
+												}}
 											/>
 											<button
 												type="button"

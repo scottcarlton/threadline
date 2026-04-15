@@ -3,10 +3,7 @@
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
-	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import type { Product } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -18,7 +15,7 @@
 		})[]
 	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
-	const canEdit = $derived(data.membership?.role !== 'guest');
+	const canEdit = $derived(['admin', 'owner', 'member'].includes(data.membership?.role ?? ''));
 
 	let search = $state('');
 	let seasonFilter = $state('');
@@ -51,54 +48,6 @@
 
 	const archivedCount = $derived(products.filter((p) => p.archived_at).length);
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-	// Add product form
-	let adding = $state(false);
-	let newStyleNumber = $state('');
-	let newName = $state('');
-	let newWholesalePrice = $state('');
-	let newRetailPrice = $state('');
-	let newCategory = $state('');
-	let newDescription = $state('');
-	let newSeasonId = $state('');
-	let saving = $state(false);
-	let addError = $state('');
-
-	function resetForm() {
-		newStyleNumber = '';
-		newName = '';
-		newWholesalePrice = '';
-		newRetailPrice = '';
-		newCategory = '';
-		newDescription = '';
-		newSeasonId = '';
-		addError = '';
-		adding = false;
-	}
-
-	async function handleAdd() {
-		if (!newStyleNumber.trim() || !newName.trim()) return;
-		saving = true;
-		addError = '';
-		const { error } = await supabase.from('products').insert({
-			organization_id: data.organization?.id,
-			brand_id: brand.id,
-			style_number: newStyleNumber.trim(),
-			name: newName.trim(),
-			wholesale_price: parseFloat(newWholesalePrice) || 0,
-			retail_price: parseFloat(newRetailPrice) || null,
-			category: newCategory.trim() || null,
-			description: newDescription.trim() || null,
-			season_id: newSeasonId || null
-		});
-		saving = false;
-		if (error) {
-			addError = error.message;
-			return;
-		}
-		resetForm();
-		invalidateAll();
-	}
 
 	// Import
 	const productColumns = [
@@ -142,7 +91,6 @@
 				continue;
 			}
 
-			// Create variants from sizes and colors
 			const sizes =
 				row.sizes
 					?.split(',')
@@ -157,18 +105,12 @@
 
 			if (sizes.length > 0 && colors.length > 0) {
 				for (const color of colors) {
-					for (const size of sizes) {
-						variants.push({ product_id: product.id, color, size });
-					}
+					for (const size of sizes) variants.push({ product_id: product.id, color, size });
 				}
 			} else if (sizes.length > 0) {
-				for (const size of sizes) {
-					variants.push({ product_id: product.id, color: null, size });
-				}
+				for (const size of sizes) variants.push({ product_id: product.id, color: null, size });
 			} else if (colors.length > 0) {
-				for (const color of colors) {
-					variants.push({ product_id: product.id, color: color, size: null });
-				}
+				for (const color of colors) variants.push({ product_id: product.id, color, size: null });
 			}
 
 			if (variants.length > 0) {
@@ -185,61 +127,6 @@
 		return { success, errors };
 	}
 
-	function csvEscape(value: unknown): string {
-		if (value === null || value === undefined) return '';
-		const s = String(value);
-		if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-			return `"${s.replace(/"/g, '""')}"`;
-		}
-		return s;
-	}
-
-	function handleExport() {
-		const seasonName = new Map(seasons.map((s) => [s.id, s.name] as const));
-		const header = [
-			'style_number',
-			'name',
-			'wholesale_price',
-			'retail_price',
-			'category',
-			'season',
-			'sizes',
-			'colors',
-			'description',
-			'archived'
-		];
-		const rows = filtered.map((p) => {
-			const sizes = [
-				...new Set((p.product_variants ?? []).map((v) => v.size).filter(Boolean))
-			].join('|');
-			const colors = [
-				...new Set((p.product_variants ?? []).map((v) => v.color).filter(Boolean))
-			].join('|');
-			return [
-				p.style_number,
-				p.name,
-				p.wholesale_price,
-				p.retail_price ?? '',
-				p.category ?? '',
-				p.season_id ? (seasonName.get(p.season_id) ?? '') : '',
-				sizes,
-				colors,
-				p.description ?? '',
-				p.archived_at ? 'true' : 'false'
-			]
-				.map(csvEscape)
-				.join(',');
-		});
-		const csv = [header.join(','), ...rows].join('\n');
-		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `${brand.name}-products-${new Date().toISOString().slice(0, 10)}.csv`;
-		a.click();
-		URL.revokeObjectURL(url);
-	}
-
 	function getVariantSummary(variants: { color: string | null; size: string | null }[]): string {
 		const colors = new Set(variants.map((v) => v.color).filter(Boolean));
 		const sizes = new Set(variants.map((v) => v.size).filter(Boolean));
@@ -253,9 +140,6 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/brands/{brand.id}"
-				><LongArrow direction="left" /> {brand.name}</Button
-			>
 			<h1 class="text-3xl">Products</h1>
 			<span class="text-sm text-muted-foreground"
 				>{filtered.length} product{filtered.length !== 1 ? 's' : ''}</span
@@ -263,9 +147,6 @@
 		</div>
 		{#if canEdit}
 			<div class="flex items-center gap-2">
-				<Button variant="outline" size="sm" onclick={handleExport} disabled={filtered.length === 0}
-					>Export</Button
-				>
 				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
 				<Button size="sm" href="/brands/{brand.id}/products/new">Add Product</Button>
 			</div>
@@ -312,89 +193,32 @@
 		{/if}
 	</div>
 
-	<!-- Add product form -->
-	{#if adding}
-		<Card>
-			<CardContent class="space-y-4 pt-5 pb-5">
-				<p class="text-sm font-medium">New Product</p>
-				{#if addError}
-					<div class="rounded-md bg-destructive/10 p-2 text-sm text-destructive">{addError}</div>
-				{/if}
-				<div class="grid gap-4 sm:grid-cols-3">
-					<div class="space-y-2">
-						<Label for="style">Style Number *</Label>
-						<Input id="style" bind:value={newStyleNumber} placeholder="e.g. VR-2001" />
-					</div>
-					<div class="space-y-2 sm:col-span-2">
-						<Label for="name">Name *</Label>
-						<Input id="name" bind:value={newName} placeholder="e.g. Silk Button-Down Blouse" />
-					</div>
-				</div>
-				<div class="grid gap-4 sm:grid-cols-4">
-					<div class="space-y-2">
-						<Label for="wholesale">Wholesale Price *</Label>
-						<Input
-							id="wholesale"
-							type="number"
-							step="0.01"
-							bind:value={newWholesalePrice}
-							placeholder="0.00"
-						/>
-					</div>
-					<div class="space-y-2">
-						<Label for="retail">Retail Price</Label>
-						<Input
-							id="retail"
-							type="number"
-							step="0.01"
-							bind:value={newRetailPrice}
-							placeholder="0.00"
-						/>
-					</div>
-					<div class="space-y-2">
-						<Label for="category">Category</Label>
-						<Input id="category" bind:value={newCategory} placeholder="e.g. Tops" />
-					</div>
-					<div class="space-y-2">
-						<Label for="season">Season</Label>
-						<select
-							id="season"
-							bind:value={newSeasonId}
-							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-						>
-							<option value="">None</option>
-							{#each seasons as season}
-								<option value={season.id}>{season.name}</option>
-							{/each}
-						</select>
-					</div>
-				</div>
-				<div class="space-y-2">
-					<Label for="desc">Description</Label>
-					<Input id="desc" bind:value={newDescription} placeholder="Optional product description" />
-				</div>
-				<div class="flex gap-2">
-					<Button
-						size="sm"
-						onclick={handleAdd}
-						disabled={saving || !newStyleNumber.trim() || !newName.trim()}
-					>
-						{saving ? 'Saving...' : 'Add Product'}
-					</Button>
-					<Button variant="outline" size="sm" onclick={resetForm}>Cancel</Button>
-				</div>
-			</CardContent>
-		</Card>
-	{/if}
-
 	<!-- Product grid -->
-	{#if filtered.length === 0 && !adding}
-		<div class="rounded-none border border-dashed p-10 text-center">
-			<p class="text-sm text-muted-foreground">
-				{search || seasonFilter
-					? 'No products match your filters.'
-					: 'No products yet. Add your first product to build the catalog.'}
-			</p>
+	{#if filtered.length === 0}
+		<div class="rounded-none p-12 text-center">
+			{#if search || seasonFilter || categoryFilter}
+				<p class="text-lg font-semibold">No products match your filters</p>
+				<p class="mt-2 text-sm text-muted-foreground">Try adjusting your filters</p>
+			{:else}
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="mx-auto h-16 w-16 text-foreground"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="0.4"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
+					/>
+				</svg>
+				<p class="mt-4 text-lg font-semibold">Your catalog lives here</p>
+				<p class="mt-2 text-sm text-muted-foreground">
+					Add your first product or upload a linesheet to get started.
+				</p>
+			{/if}
 		</div>
 	{:else}
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

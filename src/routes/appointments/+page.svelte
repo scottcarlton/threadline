@@ -494,9 +494,9 @@
 			</div>
 
 			<!-- Account -->
-			<div class="space-y-3">
+			<div class="space-y-3" role="group" aria-label="Account">
 				<div class="flex items-center justify-between">
-					<label class="text-sm font-medium text-muted-foreground">Account</label>
+					<span class="text-sm font-medium text-muted-foreground">Account</span>
 					<div class="flex gap-1 rounded-lg bg-muted p-1">
 						<button
 							type="button"
@@ -617,8 +617,8 @@
 						bind:value={formTime}
 					/>
 				</div>
-				<div class="space-y-1.5">
-					<label class="text-sm font-medium text-muted-foreground">Duration</label>
+				<div class="space-y-1.5" role="group" aria-label="Duration">
+					<span class="text-sm font-medium text-muted-foreground">Duration</span>
 					<div class="flex w-fit gap-1 rounded-lg bg-muted p-1">
 						{#each [15, 30, 45, 60] as dur}
 							<button

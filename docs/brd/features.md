@@ -12,6 +12,8 @@
 
 Threadline is a multi-tenant B2B wholesale order management platform for the fashion and apparel industry. It connects three user types — sales rep organizations, brand organizations, and buyers — enabling order management, product cataloging, commission tracking, and cross-organization collaboration. The platform is built on SvelteKit with Supabase (PostgreSQL, Auth, Storage) and deployed on Vercel.
 
+**Founding principle:** Software doesn't fix broken process. Intelligence replaces the need for perfect process. When evaluating features, ask: does this require the user to bring their own process, or does the system provide it? See [brand/philosophy.md](../brand/philosophy.md).
+
 ### 1.1 Organization Types
 
 **Rep Org (default)** — Sales representative agencies that connect to multiple brands, manage buyer accounts, create orders, and track commissions.
@@ -29,6 +31,7 @@ Threadline is a multi-tenant B2B wholesale order management platform for the fas
 The core business module. Orders flow through a defined status lifecycle and support full line-item management, PDF generation, and email delivery.
 
 **Existing Capabilities:**
+
 - Create, view, edit, and delete orders
 - Status workflow: Draft → Submitted → Confirmed → Shipped → Delivered → Cancelled
 - Line-item editor with style, color, size, quantity, and unit price (auto-calculated totals)
@@ -43,6 +46,7 @@ The core business module. Orders flow through a defined status lifecycle and sup
 - RLS enforcement for multi-tenant data isolation
 
 **Outstanding Features:**
+
 - [ ] **Order vs Note creation flow** — When creating a new entry, the user selects between **Order** or **Note** upfront. This determines the UX flow and required fields:
   - **Order mode:** Full order creation flow as it exists today. Account required, full status lifecycle, all fields available.
   - **Note mode:** Lightweight capture mode for reps who need to record buyer interest quickly (e.g., at a show). Minimal required fields — just a name and line items. Notes cannot progress past Draft status without being promoted to a full Order.
@@ -60,6 +64,7 @@ The core business module. Orders flow through a defined status lifecycle and sup
 - [ ] Drag-and-drop line-item reordering
 
 **Open Questions:**
+
 - Should buyers receive automated email notifications when order status changes (e.g., Confirmed, Shipped)?
 - Is there a need for order approval workflows where certain order values require Admin/Owner sign-off before submission?
 - Should orders support attachments beyond the generated PDF (e.g., spec sheets, custom notes)?
@@ -76,6 +81,7 @@ The core business module. Orders flow through a defined status lifecycle and sup
 Product catalog management with variants, images, pricing, and AI-powered linesheet parsing.
 
 **Existing Capabilities:**
+
 - Full product CRUD with style number, wholesale price, retail price, and category
 - Product variants (color, size, SKU, barcode, price overrides)
 - Image gallery with primary image flag
@@ -85,6 +91,7 @@ Product catalog management with variants, images, pricing, and AI-powered linesh
 - Product import into order line items
 
 **Outstanding Features:**
+
 - [ ] Product search and filtering within catalog (by category, season, price range)
 - [ ] Product availability / inventory tracking (in-stock, low-stock, out-of-stock)
 - [ ] Product tags and custom attributes
@@ -96,6 +103,7 @@ Product catalog management with variants, images, pricing, and AI-powered linesh
 - [ ] Product comparison view for buyers
 
 **Open Questions:**
+
 - Should products support multiple price tiers (e.g., wholesale, key account, closeout)?
 - Is there a need for a product lifecycle status (active, discontinued, pre-order)?
 - Should the linesheet parser support batch processing of multiple files at once?
@@ -109,6 +117,7 @@ Product catalog management with variants, images, pricing, and AI-powered linesh
 Brand entity management with logos, assets, contact information, and commission configuration.
 
 **Existing Capabilities:**
+
 - Create, view, edit, and delete brands
 - Logo upload and management
 - Brand assets storage (marketing materials)
@@ -119,6 +128,7 @@ Brand entity management with logos, assets, contact information, and commission 
 - Brand-scoped visibility across all modules
 
 **Outstanding Features:**
+
 - [ ] Brand profile page (public-facing brand information for connected reps)
 - [ ] Brand-level document library (catalogs, line sheets, terms, policies)
 - [ ] Brand onboarding checklist (guide new brands through setup steps)
@@ -126,6 +136,7 @@ Brand entity management with logos, assets, contact information, and commission 
 - [ ] Brand settings for order requirements (minimum order value, pack sizes, lead times)
 
 **Open Questions:**
+
 - Should brands have configurable order terms (payment terms, cancellation policies) visible on orders?
 - Is there a need for brand-level notifications when new connections or orders come in?
 
@@ -138,6 +149,7 @@ Brand entity management with logos, assets, contact information, and commission 
 Buyer account management with territories, contacts, and health scoring infrastructure.
 
 **Existing Capabilities:**
+
 - Create, edit, and delete accounts
 - Address and contact information (first name, last name, email, phone)
 - Territory assignment
@@ -146,6 +158,7 @@ Buyer account management with territories, contacts, and health scoring infrastr
 - Brand-scoped visibility for Member and Sales roles
 
 **Outstanding Features:**
+
 - [ ] Account health score surfaced in UI (infrastructure exists but not displayed)
 - [ ] Account activity timeline (orders, appointments, emails, notes in one feed)
 - [ ] Account segmentation and tagging (VIP, at-risk, new, etc.)
@@ -156,6 +169,7 @@ Buyer account management with territories, contacts, and health scoring infrastr
 - [ ] Map view of accounts by territory
 
 **Open Questions:**
+
 - Should account health scoring be configurable per org (custom thresholds, weights)?
 - Is there a need for account credit limits or payment terms tracking?
 - Should the system flag potential duplicate accounts during creation?
@@ -169,6 +183,7 @@ Buyer account management with territories, contacts, and health scoring infrastr
 Appointment scheduling for sales meetings with accounts, linked to shows and brands.
 
 **Existing Capabilities:**
+
 - Create, view, edit, and delete appointments
 - Location types: show, road, phone, video, other
 - Appointment types: scheduled, walk-in
@@ -178,6 +193,7 @@ Appointment scheduling for sales meetings with accounts, linked to shows and bra
 - Brand-scoped visibility
 
 **Outstanding Features:**
+
 - [ ] Calendar view (day/week/month visual calendar, not just list)
 - [ ] Calendar sync (Google Calendar, Outlook Calendar — push/pull)
 - [ ] Appointment reminders (email or push notification before meeting)
@@ -188,6 +204,7 @@ Appointment scheduling for sales meetings with accounts, linked to shows and bra
 - [ ] Travel time estimation between in-person appointments
 
 **Open Questions:**
+
 - Should appointments support video conferencing links (Zoom, Teams, Google Meet) auto-generation?
 - Is there a need for appointment check-in tracking at shows (confirm buyer actually attended)?
 - Should reps be able to share availability windows for buyers to self-book?
@@ -201,6 +218,7 @@ Appointment scheduling for sales meetings with accounts, linked to shows and bra
 Brand expense tracking with receipt uploads, approval workflows, and categorization.
 
 **Existing Capabilities:**
+
 - Create, view, edit, and delete expenses
 - Status workflow: Draft → Submitted → Approved → Rejected
 - Categories: trade show, samples, marketing, travel, meals, shipping, photography, office, other
@@ -211,6 +229,7 @@ Brand expense tracking with receipt uploads, approval workflows, and categorizat
 - Brand-scoped visibility
 
 **Outstanding Features:**
+
 - [ ] Expense reporting summaries (totals by category, brand, time period)
 - [ ] Expense budgets per brand (set limits, track spending against budget)
 - [ ] Rejection reason / comments on approval workflow
@@ -220,6 +239,7 @@ Brand expense tracking with receipt uploads, approval workflows, and categorizat
 - [ ] Integration with QuickBooks/Xero for accounting sync
 
 **Open Questions:**
+
 - Should expense approvals support multi-level approval (e.g., Manager → Finance)?
 - Is there a need for expense policies (auto-flag expenses over a threshold)?
 - Should rejected expenses be editable and re-submittable?
@@ -233,6 +253,7 @@ Brand expense tracking with receipt uploads, approval workflows, and categorizat
 Gmail integration with inbox sync, compose, thread view, and contact discovery.
 
 **Existing Capabilities:**
+
 - Gmail OAuth (full read/write access)
 - Inbox sync with pagination
 - Email compose and send via Gmail API
@@ -243,6 +264,7 @@ Gmail integration with inbox sync, compose, thread view, and contact discovery.
 - Unread message count tracking
 
 **Outstanding Features:**
+
 - [ ] Microsoft Outlook full integration (OAuth configured but sync not fully wired)
 - [ ] Email templates (save reusable email templates for common messages)
 - [ ] Email scheduling (send later)
@@ -253,6 +275,7 @@ Gmail integration with inbox sync, compose, thread view, and contact discovery.
 - [ ] Email attachment handling (save attachments to entities)
 
 **Open Questions:**
+
 - Should email integration support shared team inboxes (one inbox visible to multiple members)?
 - Is there a need for email sequences / drip campaigns to buyers?
 - Should the contact discovery feature auto-create account records from discovered contacts?
@@ -266,6 +289,7 @@ Gmail integration with inbox sync, compose, thread view, and contact discovery.
 AI-powered insights engine that surfaces actionable recommendations based on order and account data.
 
 **Existing Capabilities:**
+
 - Revenue leakage detection (accounts that ordered last year but not this year)
 - Order gap detection (accounts with unusually long gaps between orders)
 - Call queue (upcoming appointments needing preparation)
@@ -276,6 +300,7 @@ AI-powered insights engine that surfaces actionable recommendations based on ord
 - Daily AI briefing generation (pipeline, recent orders, upcoming shows, stale drafts, at-risk accounts)
 
 **Outstanding Features:**
+
 - [ ] Style velocity surfaced in insights (function exists: `get_style_velocity`, not in UI)
 - [ ] Trend visualizations (charts showing sales trends, seasonal patterns)
 - [ ] Predictive analytics (forecast next quarter revenue, identify growth opportunities)
@@ -286,6 +311,7 @@ AI-powered insights engine that surfaces actionable recommendations based on ord
 - [ ] Insight history and analytics (track which insights led to action)
 
 **Open Questions:**
+
 - Should insights be scheduled for auto-refresh (daily cron) or remain manual-only?
 - Is there a need for team-level insights (aggregate across all reps)?
 - Should the AI briefing be deliverable via email each morning?
@@ -299,6 +325,7 @@ AI-powered insights engine that surfaces actionable recommendations based on ord
 Trade show management with series templates, date instances, and document storage.
 
 **Existing Capabilities:**
+
 - Show series templates (reusable show definitions)
 - Show dates (specific year/month instances of a show)
 - Show visit tracking (which accounts attended which shows)
@@ -306,6 +333,7 @@ Trade show management with series templates, date instances, and document storag
 - Show-linked orders and appointments
 
 **Outstanding Features:**
+
 - [ ] Show performance dashboard (revenue generated per show, ROI tracking)
 - [ ] Show planning tools (booth assignments, staff scheduling)
 - [ ] Show-specific buyer invitations (invite accounts to upcoming shows)
@@ -314,6 +342,7 @@ Trade show management with series templates, date instances, and document storag
 - [ ] Show attendance analytics (compare attendance and order volume across shows)
 
 **Open Questions:**
+
 - Should shows support public registration pages where buyers can RSVP?
 - Is there a need for show floor maps or booth assignment management?
 - Should show visits automatically create appointment records?
@@ -327,6 +356,7 @@ Trade show management with series templates, date instances, and document storag
 Cross-organization connections enabling rep orgs and brand orgs to collaborate.
 
 **Existing Capabilities:**
+
 - Rep org → Brand org connection request flow (pending → active → suspended → disconnected)
 - Commission rate per connection
 - Brand shareable invite codes (with expiry and max uses)
@@ -336,6 +366,7 @@ Cross-organization connections enabling rep orgs and brand orgs to collaborate.
 - Connected reps can see brand product catalogs
 
 **Outstanding Features:**
+
 - [ ] Full connection management UI (currently basic)
 - [ ] Connection dashboard (view all connected orgs, status, activity summary)
 - [ ] Connection-level permissions (granular control over what data is shared)
@@ -346,6 +377,7 @@ Cross-organization connections enabling rep orgs and brand orgs to collaborate.
 - [ ] Bulk connection management (approve/suspend multiple connections)
 
 **Open Questions:**
+
 - Should brands be able to set product-level visibility per connection (share some products but not others)?
 - Is there a need for connection-level commission overrides separate from brand-level?
 - Should federated order links be real-time or batch-synced?
@@ -359,6 +391,7 @@ Cross-organization connections enabling rep orgs and brand orgs to collaborate.
 Separate buyer-facing experience for browsing products and placing orders.
 
 **Existing Capabilities:**
+
 - Separate buyer login flow (via buyer_invitations, distinct from org invitations)
 - Account-scoped brand browsing (buyer sees only brands their account has access to)
 - Product catalog with detail views
@@ -367,6 +400,7 @@ Separate buyer-facing experience for browsing products and placing orders.
 - Buyer dashboard (recent orders, brand count, active order count)
 
 **Outstanding Features:**
+
 - [ ] Order history with status tracking for buyers
 - [ ] Buyer re-order (copy a previous order to cart)
 - [ ] Buyer wishlist / favorites
@@ -379,6 +413,7 @@ Separate buyer-facing experience for browsing products and placing orders.
 - [ ] Server-side cart persistence (cart currently lost on browser close)
 
 **Open Questions:**
+
 - Should buyers be able to request quotes instead of placing orders directly?
 - Is there a need for buyer-specific pricing (negotiated prices per account)?
 - Should the buyer portal support a "request access to brand" flow for discovering new brands?
@@ -392,6 +427,7 @@ Separate buyer-facing experience for browsing products and placing orders.
 The Brand Org is a first-class organization type in Threadline. While the org_type flag and self-brand record exist, the platform experience is almost entirely designed from the rep perspective. This section covers brand-specific features needed to make Threadline equally valuable for brands.
 
 **Existing Capabilities:**
+
 - Brand org type with self-brand auto-creation on setup
 - Product catalog ownership (brands own products, reps access via connections)
 - Connection request receiving (reps request to connect, brand approves)
@@ -399,6 +435,7 @@ The Brand Org is a first-class organization type in Threadline. While the org_ty
 - Federated order/account visibility (DB infrastructure via federated_order_links, federated_account_links)
 
 **Outstanding Features — Brand Insights:**
+
 - [ ] Brand-specific Insight page tuned to brand mental model (not a copy of rep experience)
 - [ ] Connected rep activity intelligence (which reps are writing, which are quiet)
 - [ ] Pipeline visibility across all connected reps (total value, order count, trend)
@@ -408,6 +445,7 @@ The Brand Org is a first-class organization type in Threadline. While the org_ty
 - [ ] Brand-specific daily AI briefing (new orders, rep activity, pending actions, product performance)
 
 **Outstanding Features — Connection Management:**
+
 - [ ] Full connection management UI (list connected reps, status, activity summary)
 - [ ] Approve/reject connection requests with context (rep org info, territory, other brands they carry)
 - [ ] Per-connection summary: order count, revenue, territory coverage, last activity
@@ -418,6 +456,7 @@ The Brand Org is a first-class organization type in Threadline. While the org_ty
 - [ ] Suspend/disconnect rep with confirmation flow
 
 **Outstanding Features — Brand Order Management:**
+
 - [ ] Active order visibility — view all incoming orders from connected reps
 - [ ] Order confirmation/rejection from brand side (Submitted → Confirmed or Rejected)
 - [ ] Brand-side order notes (delivery updates, substitutions, stock issues)
@@ -428,6 +467,7 @@ The Brand Org is a first-class organization type in Threadline. While the org_ty
 - [ ] Soft/hard enforcement toggle per order rule
 
 **Outstanding Features — Buyer Portal Ownership:**
+
 - [ ] Brand-direct buyer access path (brand invites buyers independent of rep)
 - [ ] Dual-path coexistence (buyer accesses Brand A via rep, Brand B directly)
 - [ ] Brand-side buyer/account management UI (all accounts with brand access, any channel)
@@ -436,6 +476,7 @@ The Brand Org is a first-class organization type in Threadline. While the org_ty
 - [ ] Data model: `source`/`channel` field on account_brand_access to distinguish paths
 
 **Outstanding Features — Brand-to-Rep Communication:**
+
 - [ ] Brand announcements to all connected reps (one-to-many broadcast)
 - [ ] Announcement types: season launch, promotion, deadline, policy update
 - [ ] Announcements appear in rep's Inbox alongside emails
@@ -444,12 +485,14 @@ The Brand Org is a first-class organization type in Threadline. While the org_ty
 - [ ] Threaded conversations, read receipts (Phase 2)
 
 **Outstanding Features — Brand Onboarding:**
+
 - [ ] Dedicated brand onboarding flow (catalog setup → order config → invite reps → buyer portal)
 - [ ] AI linesheet parser prominently featured in catalog setup step
 - [ ] Persistent onboarding checklist (catalog uploaded, first rep connected, first order received)
 - [ ] Checklist visible in sidebar or Insight page until all steps completed
 
 **Outstanding Features — Brand Reports:**
+
 - [ ] Sales by Rep Agency (revenue, order count per connected rep)
 - [ ] Product Performance / Style Velocity (units ordered, revenue, velocity score per style)
 - [ ] Territory Coverage (accounts by territory across all reps, gap identification)
@@ -458,6 +501,7 @@ The Brand Org is a first-class organization type in Threadline. While the org_ty
 - [ ] Order Pipeline (orders by status across all connected reps)
 
 **Open Questions:**
+
 - Should brand roles be renamed/adapted vs. rep roles (e.g., "Sales" → "Product Manager")?
 - How should the sidebar navigation differ for brand orgs vs. rep orgs?
 - Should brands see which other brands a connected rep carries (competitive intelligence)?
@@ -473,6 +517,7 @@ The Brand Org is a first-class organization type in Threadline. While the org_ty
 Pre-built report templates covering sales, commissions, pipeline, and show performance.
 
 **Existing Capabilities:**
+
 - Sales by Brand (revenue + order count)
 - Sales by Account (revenue + order count)
 - Sales by Territory (revenue + order count + account count)
@@ -486,6 +531,7 @@ Pre-built report templates covering sales, commissions, pipeline, and show perfo
 - Brand-scope and sales-rep-scope filtering
 
 **Outstanding Features:**
+
 - [ ] Custom report builder (choose metrics, filters, groupings — UI shows "Coming Soon")
 - [ ] Report scheduling (auto-generate and email reports on a recurring basis)
 - [ ] Report sharing (generate shareable links or PDFs of reports)
@@ -495,6 +541,7 @@ Pre-built report templates covering sales, commissions, pipeline, and show perfo
 - [ ] Comparison reports (compare two time periods, two reps, two territories)
 
 **Open Questions:**
+
 - Should reports support saved views (save a filtered report configuration for quick access)?
 - Is there a need for brand-org-facing reports (brands see aggregated data from connected reps)?
 - Should the custom report builder support calculated fields and formulas?
@@ -508,6 +555,7 @@ Pre-built report templates covering sales, commissions, pipeline, and show perfo
 Third-party service connections for data export, notifications, and sync.
 
 **Implemented Integrations:**
+
 - **Google Sheets** — OAuth, export orders/accounts/brands/expenses to sheets
 - **Slack** — OAuth, notification sending, incoming webhooks
 - **Notion** — OAuth, database listing, two-way sync
@@ -515,12 +563,14 @@ Third-party service connections for data export, notifications, and sync.
 - **Microsoft 365** — OAuth, Excel export, Teams webhook support (Outlook sync partial)
 
 **Planned Integrations (marked "Coming Soon" in UI):**
+
 - [ ] **QuickBooks** — Sync orders and commissions to accounting
 - [ ] **Xero** — Export invoices and track payments
 - [ ] **Shopify** — Import orders and inventory data
 - [ ] **Zapier** — Connect to thousands of apps via automation recipes
 
 **Outstanding Features:**
+
 - [ ] Integration activity dashboard (view sync history, errors, last sync time)
 - [ ] Webhook management (create custom outbound webhooks for events)
 - [ ] Integration-level permissions (control which data each integration can access)
@@ -528,6 +578,7 @@ Third-party service connections for data export, notifications, and sync.
 - [ ] Bi-directional sync for all platforms (currently mostly one-way export)
 
 **Open Questions:**
+
 - Should integrations support field mapping (customize which Threadline fields map to which external fields)?
 - Is there a need for an integration marketplace or app directory?
 - Should integration errors trigger admin notifications?
@@ -541,6 +592,7 @@ Third-party service connections for data export, notifications, and sync.
 Custom AI agents that can be configured per organization with triggers and tool access.
 
 **Existing Capabilities:**
+
 - Agent creation with custom name, slug, system prompt, and icon
 - Agent activation toggle (is_active)
 - Event-based triggers (fire agent on specific platform events)
@@ -550,6 +602,7 @@ Custom AI agents that can be configured per organization with triggers and tool 
 - Anthropic Claude integration for agent reasoning
 
 **Outstanding Features:**
+
 - [ ] Scheduled triggers via cron (UI shows "Coming Soon")
 - [ ] Agent performance analytics (success rate, actions taken, errors)
 - [ ] Agent marketplace / templates (pre-built agent configs for common workflows)
@@ -560,6 +613,7 @@ Custom AI agents that can be configured per organization with triggers and tool 
 - [ ] Natural language agent configuration (describe what you want, AI generates the config)
 
 **Open Questions:**
+
 - Should agents be able to interact with third-party integrations (e.g., post to Slack, create Notion pages)?
 - Is there a need for agent approval workflows (human-in-the-loop before agent takes action)?
 - Should agents have a token/cost budget to prevent runaway execution?
@@ -573,6 +627,7 @@ Custom AI agents that can be configured per organization with triggers and tool 
 AI-powered order placement and management via SMS text messaging, enabling buyers and reps to interact with Threadline through natural language text messages.
 
 **Outstanding Features:**
+
 - [ ] Inbound SMS number per org (e.g., Twilio, Vonage)
 - [ ] AI-powered natural language order parsing ("I need 24 units of Style #4012 in S/M/L")
 - [ ] Order confirmation and status check via text
@@ -586,6 +641,7 @@ AI-powered order placement and management via SMS text messaging, enabling buyer
 - [ ] Fallback to human rep when AI confidence is low
 
 **Open Questions:**
+
 - Should this be a dedicated phone number per org or a shared short code?
 - MMS support for sending line sheets or order confirmations as images/PDFs?
 - Should reps also be able to place orders on behalf of buyers via SMS?
@@ -600,6 +656,7 @@ AI-powered order placement and management via SMS text messaging, enabling buyer
 AI-powered order placement via inbound email, enabling buyers to place and manage orders by emailing free-form requests or PO attachments.
 
 **Outstanding Features:**
+
 - [ ] Dedicated inbound email address per org (e.g., orders@{org}.threadline.systems)
 - [ ] AI-powered email parsing: extract order details from free-form emails, PO attachments, line sheet markups
 - [ ] Automatic order creation from parsed email content
@@ -613,6 +670,7 @@ AI-powered order placement via inbound email, enabling buyers to place and manag
 - [ ] Audit trail of all email-to-order conversions
 
 **Open Questions:**
+
 - Should each org get a custom email subdomain or use a shared domain with routing?
 - How to handle ambiguous orders (partial SKUs, missing sizes)?
 - Should the system auto-create orders or stage them as drafts for rep review?
@@ -627,6 +685,7 @@ AI-powered order placement via inbound email, enabling buyers to place and manag
 Contact management with auto-discovery from email integration.
 
 **Existing Capabilities:**
+
 - Contact list with import/export
 - Contact detail view and editing
 - Auto-discovery from Gmail inbox (extract contacts from email headers)
@@ -634,6 +693,7 @@ Contact management with auto-discovery from email integration.
 - System email filtering (skip noreply, notifications, etc.)
 
 **Outstanding Features:**
+
 - [ ] Contact enrichment (auto-populate company, role, LinkedIn from email address)
 - [ ] Contact activity timeline (emails, orders, appointments involving this contact)
 - [ ] Contact deduplication tool
@@ -641,6 +701,7 @@ Contact management with auto-discovery from email integration.
 - [ ] Contact-to-account auto-linking (match contacts to existing accounts by domain)
 
 **Open Questions:**
+
 - Should contacts support multiple email addresses and phone numbers?
 - Is there a need for contact scoring (engagement level, responsiveness)?
 
@@ -653,11 +714,13 @@ Contact management with auto-discovery from email integration.
 Territory definitions for organizing accounts by geography or segment.
 
 **Existing Capabilities:**
+
 - Create, edit, and delete territories
 - Assign accounts to territories
 - Territory-based report filtering (Sales by Territory report)
 
 **Outstanding Features:**
+
 - [ ] Territory map visualization (geographic boundaries on a map)
 - [ ] Territory assignment rules (auto-assign accounts based on zip code or state)
 - [ ] Territory performance comparison dashboard
@@ -665,6 +728,7 @@ Territory definitions for organizing accounts by geography or segment.
 - [ ] Multi-rep territory sharing (assign multiple reps to one territory)
 
 **Open Questions:**
+
 - Should territories support hierarchical nesting (regions → territories → sub-territories)?
 - Is there a need for territory-level revenue targets and tracking?
 
@@ -677,11 +741,13 @@ Territory definitions for organizing accounts by geography or segment.
 Pricing page and billing UI exist but all payment functionality is disabled.
 
 **Existing Capabilities:**
+
 - Billing page with plan display (pricing tiers visible)
 - Plan comparison UI
 - Invoices section (empty state)
 
 **Outstanding Features:**
+
 - [ ] Payment processor integration (Stripe or equivalent)
 - [ ] Plan upgrade/downgrade flow
 - [ ] Usage-based billing metering
@@ -693,6 +759,7 @@ Pricing page and billing UI exist but all payment functionality is disabled.
 - [ ] Annual vs monthly billing toggle
 
 **Open Questions:**
+
 - Which payment processor will be used (Stripe, Paddle, etc.)?
 - What defines each plan tier — feature gating, usage limits, seat counts, or a combination?
 - Should there be a free tier or only a free trial?
@@ -707,11 +774,13 @@ Pricing page and billing UI exist but all payment functionality is disabled.
 Global search across primary entities.
 
 **Existing Capabilities:**
+
 - Global search (brands, accounts, orders, contacts)
 - ILIKE pattern matching
 - Context-aware results (shows parent type and parent name)
 
 **Outstanding Features:**
+
 - [ ] Full-text search (move beyond ILIKE to Postgres full-text or dedicated search engine)
 - [ ] Search result previews (show snippet of matching data)
 - [ ] Recent searches history
@@ -720,6 +789,7 @@ Global search across primary entities.
 - [ ] Keyboard shortcut for search (Cmd+K / Ctrl+K)
 
 **Open Questions:**
+
 - Is the current ILIKE search performant enough at scale, or is a dedicated search index needed?
 - Should search support advanced syntax (e.g., `brand:Nike status:confirmed`)?
 
@@ -732,10 +802,12 @@ Global search across primary entities.
 Voice input/output capabilities powered by ElevenLabs.
 
 **Existing Capabilities:**
+
 - Text-to-speech (ElevenLabs integration, voice synthesis endpoint)
 - Speech-to-text endpoint exists (implementation incomplete)
 
 **Outstanding Features:**
+
 - [ ] Complete speech-to-text implementation
 - [ ] Voice-powered search (speak a query, get results)
 - [ ] Voice notes on orders, accounts, and appointments
@@ -743,6 +815,7 @@ Voice input/output capabilities powered by ElevenLabs.
 - [ ] Voice commands for hands-free operation
 
 **Open Questions:**
+
 - What is the primary use case for voice — field reps in the car, trade show floor, or something else?
 - Should voice notes be transcribed and searchable?
 
@@ -755,13 +828,16 @@ Voice input/output capabilities powered by ElevenLabs.
 A workspace concept exists in routing but has no functional content.
 
 **Existing Capabilities:**
+
 - Route exists at `/workspace` with a "Coming Soon" label
 
 **Outstanding Features:**
+
 - [ ] Define workspace purpose and requirements
 - [ ] Design and build workspace functionality
 
 **Open Questions:**
+
 - What is the intended purpose of the Workspace page — a customizable home dashboard, a project board, or something else?
 - Should this replace or augment the existing insights dashboard?
 
@@ -774,11 +850,13 @@ A workspace concept exists in routing but has no functional content.
 Initial setup flow for new organizations.
 
 **Existing Capabilities:**
+
 - Organization creation flow
 - Org type selection (rep vs brand)
 - Redirect to app after setup
 
 **Outstanding Features:**
+
 - [ ] Guided onboarding wizard (step-by-step setup: add brands, invite team, connect email)
 - [ ] Onboarding checklist / progress bar
 - [ ] Sample data option (pre-populate with demo data to explore)
@@ -786,6 +864,7 @@ Initial setup flow for new organizations.
 - [ ] Role-specific onboarding (different flows for Admin vs Sales vs Buyer)
 
 **Open Questions:**
+
 - Should onboarding include a "connect your email" step to drive Gmail/Outlook integration adoption?
 - Is there a need for a "getting started" video or walkthrough?
 
@@ -798,12 +877,14 @@ Initial setup flow for new organizations.
 SAML SSO support with org-level enforcement.
 
 **Existing Capabilities:**
+
 - SAML SSO provider configuration per organization
 - SSO enforcement toggle (require SSO for all org members)
 - Domain-based SSO discovery
 - SSO provider management (add, edit, remove providers)
 
 **Outstanding Features:**
+
 - [ ] SCIM provisioning (auto-sync team members from identity provider)
 - [ ] Multi-factor authentication (2FA/MFA beyond SSO)
 - [ ] Audit log (track login events, permission changes, data access)
@@ -812,6 +893,7 @@ SAML SSO support with org-level enforcement.
 - [ ] Data export / right to deletion (GDPR compliance tools)
 
 **Open Questions:**
+
 - Is SCIM provisioning a requirement for enterprise customers?
 - Should the audit log be accessible to Admins, Owners, or both?
 - Is there a compliance requirement for data residency (EU, US, etc.)?
@@ -827,6 +909,7 @@ SAML SSO support with org-level enforcement.
 No centralized notification system exists. Individual features handle their own communication (email sending for orders, Slack for integrations).
 
 **Outstanding Features:**
+
 - [ ] In-app notification center (bell icon with notification feed)
 - [ ] Email notification preferences (per-user, per-event-type opt-in/out)
 - [ ] Push notifications (browser or mobile)
@@ -843,6 +926,7 @@ No centralized notification system exists. Individual features handle their own 
 The application is web-only with no mobile-specific optimization documented.
 
 **Outstanding Features:**
+
 - [ ] Responsive design audit and improvements
 - [ ] Progressive Web App (PWA) support
 - [ ] Mobile-optimized views for key workflows (orders, appointments, expenses)
@@ -858,12 +942,14 @@ The application is web-only with no mobile-specific optimization documented.
 CSV export exists across most modules. Import is limited.
 
 **Existing Capabilities:**
+
 - CSV export for orders, accounts, brands, expenses, reports
 - CSV bulk import for accounts
 - Google Sheets export via integration
 - Excel export via Microsoft 365 integration
 
 **Outstanding Features:**
+
 - [ ] CSV import for orders, products, and contacts
 - [ ] Excel file import (direct .xlsx upload)
 - [ ] Data migration tools (import from competing platforms)
@@ -879,6 +965,7 @@ CSV export exists across most modules. Import is limited.
 Limited real-time features exist (appointment count polling, unread email count).
 
 **Outstanding Features:**
+
 - [ ] Real-time updates via Supabase Realtime (live order status changes, new insights)
 - [ ] Multi-user collaboration indicators (see who else is viewing an order)
 - [ ] Activity feed per entity (real-time log of changes)
@@ -893,6 +980,7 @@ Limited real-time features exist (appointment count polling, unread email count)
 **Existing:** Vitest tests for account health, Gmail parsing, insights engine, cart, preferences, CSV utilities.
 
 **Outstanding:**
+
 - [ ] End-to-end test suite (Playwright or Cypress)
 - [ ] API endpoint integration tests
 - [ ] RLS policy test coverage
@@ -903,6 +991,7 @@ Limited real-time features exist (appointment count polling, unread email count)
 **Existing:** Sentry error tracking.
 
 **Outstanding:**
+
 - [ ] Application performance monitoring (APM)
 - [ ] Custom metrics and dashboards (order volume, API latency, error rates)
 - [ ] Structured logging
@@ -911,6 +1000,7 @@ Limited real-time features exist (appointment count polling, unread email count)
 ### 4.3 Performance
 
 **Outstanding:**
+
 - [ ] Database query optimization audit
 - [ ] Image optimization pipeline (thumbnails, lazy loading, CDN)
 - [ ] API response caching strategy
@@ -920,34 +1010,34 @@ Limited real-time features exist (appointment count polling, unread email count)
 
 ## 5. Feature Readiness Summary
 
-| Feature | Status | Notes |
-|---|---|---|
-| Orders | ✅ Complete | Core workflow fully functional |
-| Products & Catalog | ✅ Complete | Includes AI linesheet parser |
-| Brands | ✅ Complete | Scoping and commission config working |
-| Accounts | ✅ Complete | Health scoring in DB, not yet in UI |
-| Appointments | ✅ Complete | No calendar view yet |
-| Expenses | ✅ Complete | Approval workflow functional |
-| Email Integration | ✅ Complete | Gmail only; Outlook partial |
-| Insights | ✅ Complete | AI briefing and action cards |
-| Shows & Events | ✅ Complete | Document storage and visit tracking |
-| Contacts | ✅ Complete | Gmail auto-discovery working |
-| Territories | ✅ Complete | Basic assignment and reporting |
-| Reports | ✅ Complete | 8 pre-built templates; custom builder planned |
-| Search | ✅ Complete | ILIKE-based global search |
-| Buyer Portal | ✅ Complete | Shopping cart is client-side only |
-| Brand Org Experience | ⚠️ Partial | Org type exists; brand-specific UX largely absent |
-| SMS AI Ordering | 🔴 Not Started | AI-powered order placement via text message |
-| Email AI Ordering | 🔴 Not Started | AI-powered order placement via inbound email |
-| Connections | ⚠️ Partial | DB infrastructure complete; UI minimal |
-| AI Agents | ⚠️ Partial | Event triggers work; scheduled triggers pending |
-| Integrations | ⚠️ Partial | 5 live; 4 planned (QuickBooks, Xero, Shopify, Zapier) |
-| Voice | ⚠️ Partial | TTS works; STT endpoint is a stub |
-| Security & SSO | ✅ Complete | SAML SSO with enforcement |
-| Billing | 🔴 Stub | UI only; no payment processing |
-| Workspace | 🔴 Placeholder | Route exists; no functionality |
-| Notifications | 🔴 Not Started | No centralized system |
-| Mobile | 🔴 Not Started | No mobile optimization |
+| Feature              | Status         | Notes                                                 |
+| -------------------- | -------------- | ----------------------------------------------------- |
+| Orders               | ✅ Complete    | Core workflow fully functional                        |
+| Products & Catalog   | ✅ Complete    | Includes AI linesheet parser                          |
+| Brands               | ✅ Complete    | Scoping and commission config working                 |
+| Accounts             | ✅ Complete    | Health scoring in DB, not yet in UI                   |
+| Appointments         | ✅ Complete    | No calendar view yet                                  |
+| Expenses             | ✅ Complete    | Approval workflow functional                          |
+| Email Integration    | ✅ Complete    | Gmail only; Outlook partial                           |
+| Insights             | ✅ Complete    | AI briefing and action cards                          |
+| Shows & Events       | ✅ Complete    | Document storage and visit tracking                   |
+| Contacts             | ✅ Complete    | Gmail auto-discovery working                          |
+| Territories          | ✅ Complete    | Basic assignment and reporting                        |
+| Reports              | ✅ Complete    | 8 pre-built templates; custom builder planned         |
+| Search               | ✅ Complete    | ILIKE-based global search                             |
+| Buyer Portal         | ✅ Complete    | Shopping cart is client-side only                     |
+| Brand Org Experience | ⚠️ Partial     | Org type exists; brand-specific UX largely absent     |
+| SMS AI Ordering      | 🔴 Not Started | AI-powered order placement via text message           |
+| Email AI Ordering    | 🔴 Not Started | AI-powered order placement via inbound email          |
+| Connections          | ⚠️ Partial     | DB infrastructure complete; UI minimal                |
+| AI Agents            | ⚠️ Partial     | Event triggers work; scheduled triggers pending       |
+| Integrations         | ⚠️ Partial     | 5 live; 4 planned (QuickBooks, Xero, Shopify, Zapier) |
+| Voice                | ⚠️ Partial     | TTS works; STT endpoint is a stub                     |
+| Security & SSO       | ✅ Complete    | SAML SSO with enforcement                             |
+| Billing              | 🔴 Stub        | UI only; no payment processing                        |
+| Workspace            | 🔴 Placeholder | Route exists; no functionality                        |
+| Notifications        | 🔴 Not Started | No centralized system                                 |
+| Mobile               | 🔴 Not Started | No mobile optimization                                |
 
 ---
 
@@ -981,4 +1071,4 @@ Limited real-time features exist (appointment count polling, unread email count)
 
 ---
 
-*This is a living document. Update as features are built, requirements change, or new questions arise.*
+_This is a living document. Update as features are built, requirements change, or new questions arise._

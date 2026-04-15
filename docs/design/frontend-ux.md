@@ -2,7 +2,7 @@
 
 The standard for designing and planning any UI in Threadline. Read before building a new feature, restructuring an existing one, or reviewing a design. Opinionated on purpose.
 
-Companion to `docs/brand/guidelines.md` (visual system) — this doc is about *behavior and interaction*, not pixels.
+Companion to `docs/brand/guidelines.md` (visual system) — this doc is about _behavior and interaction_, not pixels.
 
 ---
 

@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -6,20 +6,41 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	if (!organization) throw redirect(303, '/insight');
 
-	// For brand orgs, /products shows the self-brand's product catalog
+	// Brand orgs: render their self-brand's catalog directly at /products.
 	if (orgType === 'brand') {
 		const { data: selfBrand } = await supabase
 			.from('brands')
-			.select('id')
+			.select('id, name')
 			.eq('organization_id', organization.id)
 			.eq('is_self_brand', true)
 			.single();
 
-		if (selfBrand) {
-			throw redirect(303, `/brands/${selfBrand.id}/products`);
-		}
+		if (!selfBrand) throw error(404, 'Self-brand not found for this organization.');
+
+		const [productsRes, seasonsRes] = await Promise.all([
+			supabase
+				.from('products')
+				.select(
+					'*, product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order)'
+				)
+				.eq('brand_id', selfBrand.id)
+				.eq('organization_id', organization.id)
+				.order('style_number'),
+			supabase
+				.from('seasons')
+				.select('id, name')
+				.eq('organization_id', organization.id)
+				.eq('is_active', true)
+				.order('name')
+		]);
+
+		return {
+			brand: selfBrand,
+			products: productsRes.data ?? [],
+			seasons: seasonsRes.data ?? []
+		};
 	}
 
-	// Rep orgs shouldn't hit this route — redirect to brands
+	// Rep orgs shouldn't hit /products directly — Products lives under each brand.
 	throw redirect(303, '/brands');
 };
