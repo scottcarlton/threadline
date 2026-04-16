@@ -13,6 +13,7 @@ interface AgentExecutionParams {
 	triggeredBy: 'user' | 'event' | 'schedule';
 	triggerId?: string;
 	eventContext?: Record<string, unknown>;
+	toolWhitelist?: string[] | null;
 }
 
 interface AgentExecutionResult {
@@ -68,13 +69,19 @@ You have access to tools to query and modify data. Be thorough but concise in yo
 		// We reuse the same tools but call them with the admin client
 		const { _toolDefinitions } = await import('../../routes/api/ai/+server.js');
 
+		const whitelist = params.toolWhitelist ?? null;
+		const agentTools =
+			whitelist && whitelist.length > 0
+				? _toolDefinitions.filter((t) => whitelist.includes(t.name))
+				: _toolDefinitions;
+
 		const messages: Anthropic.MessageParam[] = [{ role: 'user', content: params.prompt }];
 
 		let response = await anthropic.messages.create({
 			model: 'claude-sonnet-4-20250514',
 			max_tokens: 4096,
 			system: systemBlocks,
-			tools: _toolDefinitions,
+			tools: agentTools,
 			messages
 		});
 
@@ -113,7 +120,7 @@ You have access to tools to query and modify data. Be thorough but concise in yo
 				model: 'claude-sonnet-4-20250514',
 				max_tokens: 4096,
 				system: systemBlocks,
-				tools: _toolDefinitions,
+				tools: agentTools,
 				messages
 			});
 		}
