@@ -61,6 +61,7 @@
 	let expandedIds = $state<Set<string>>(new Set());
 
 	function toggleExpand(id: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const next = new Set(expandedIds);
 		if (next.has(id)) {
 			next.delete(id);

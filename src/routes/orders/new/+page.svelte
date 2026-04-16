@@ -191,6 +191,7 @@
 		return `${brand_id}::${season_id}`;
 	}
 	const groups = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const map = new Map<
 			string,
 			{
@@ -495,6 +496,7 @@
 
 	async function loadModalProducts() {
 		modalLoading = true;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams();
 		if (modalSearch) params.set('q', modalSearch);
 		const brandIds = modalBrand ? [modalBrand] : allowedBrandIds;
@@ -603,6 +605,7 @@
 
 	// Initialize group meta entries when groups change, and prune entries that no longer apply.
 	$effect(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const validKeys = new Set<string>();
 		for (const g of groups) {
 			const key = groupKey(g.brand_id, g.season_id);

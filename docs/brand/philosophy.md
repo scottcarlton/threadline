@@ -80,12 +80,15 @@ Each failure mode maps to a Threadline capability:
 This philosophy should inform three areas:
 
 ### Product Decisions
+
 When evaluating a feature, ask: does this require the user to bring their own process, or does the system provide the process? If we're building a blank form and hoping they fill it out correctly, we're in "traditional software" territory. If we're surfacing intelligence that guides their next action, we're building Threadline.
 
 ### Marketing & Sales
+
 The competitive angle isn't "our software is better than their software." It's "software was never the problem." Every competitor is selling a better tool. We're selling a different premise: that the right intelligence eliminates the need for perfect process. Lead with the process problem in conversations. Most prospects will recognize themselves in at least two of the four failure modes.
 
 ### Brand Voice
+
 We don't talk about features — we talk about what the system does for you without being asked. "Surfaces reorder gaps" not "has a reorder gap report." "Tells you what's missing" not "lets you build custom dashboards." The language should always imply that the system is working on your behalf, not waiting for you to work inside it.
 
 ---
@@ -96,4 +99,4 @@ We don't talk about features — we talk about what the system does for you with
 
 ---
 
-*This is a living document. It should be referenced when making product, marketing, and positioning decisions.*
+_This is a living document. It should be referenced when making product, marketing, and positioning decisions._

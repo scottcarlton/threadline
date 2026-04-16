@@ -35,6 +35,7 @@
 	let sizeMode = $state<'letter' | 'number'>('letter');
 
 	function toggleSize(size: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const next = new Set(selectedSizes);
 		if (next.has(size)) next.delete(size);
 		else next.add(size);

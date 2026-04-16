@@ -162,6 +162,7 @@
 
 	// Build order lookup: "accountId|deliveryId" -> total
 	const showOrderLookup = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const map = new Map<string, number>();
 		for (const o of showOrders) {
 			const key = `${o.account_id}|${o.delivery_id ?? '__immediate__'}`;
@@ -172,6 +173,7 @@
 
 	// Determine which delivery columns to show (only those with at least one order)
 	const activeDeliveryColumns = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const deliveryIdsWithOrders = new Set<string>();
 		for (const o of showOrders) {
 			deliveryIdsWithOrders.add(o.delivery_id ?? '__immediate__');
@@ -241,6 +243,7 @@
 
 	// Build a lookup map for grid data: "accountId|deliveryId|year" -> total
 	const gridLookup = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const map = new Map<string, number>();
 		for (const row of gridData) {
 			map.set(`${row.account_id}|${row.delivery_id}|${row.order_year}`, row.total);
@@ -274,6 +277,7 @@
 
 	// Unique states for filter
 	const availableStates = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const states = new Set<string>();
 		for (const a of gridAccounts) {
 			if (a.state) states.add(a.state);
@@ -389,6 +393,7 @@
 
 	// Build override lookup: "brandId|accountId" -> rate
 	const overrideLookup = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const map = new Map<string, number>();
 		for (const ov of commissionOverrides) {
 			map.set(`${ov.brand_id}|${ov.account_id}`, ov.rate);
@@ -432,6 +437,7 @@
 
 	// Monthly summary grouped by month of shipped_at
 	const commissionMonthly = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const map = new Map<
 			string,
 			{ month: string; sortKey: string; shippedTotal: number; commissionTotal: number }

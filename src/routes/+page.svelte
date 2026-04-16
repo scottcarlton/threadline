@@ -91,7 +91,7 @@
 					>
 						<div class="grid grid-cols-[1.5fr_1fr] gap-12 text-white">
 							<div>
-								<h1 class="h-reveal text-6xl opacity-0">START WORKING IN THE AGE OF AI.</h1>
+								<h1 class="h-reveal text-6xl opacity-0">START WORKING IN THE AGE OF AI.</h1>
 							</div>
 							<div class="grid gap-4">
 								<a

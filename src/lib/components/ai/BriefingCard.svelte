@@ -48,8 +48,18 @@
 		fetchBriefing();
 	}
 
+	function escapeHtml(text: string): string {
+		return text
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+	}
+
 	function formatBriefing(text: string): string {
-		return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+		// Escape first, then re-introduce <strong> for **bold** markers.
+		return escapeHtml(text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 	}
 </script>
 
@@ -111,6 +121,7 @@
 		{:else}
 			<div class="space-y-2 text-[13px] leading-relaxed text-foreground/90">
 				{#each briefing.split('\n').filter((l) => l.trim()) as line, i (i)}
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -- text is HTML-escaped before <strong> tags are inserted in formatBriefing -->
 					<p>{@html formatBriefing(line)}</p>
 				{/each}
 			</div>
