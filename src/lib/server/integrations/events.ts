@@ -95,7 +95,7 @@ async function dispatchAgentTriggers(
 ): Promise<void> {
 	const { data: triggers } = await supabaseAdmin
 		.from('org_agent_triggers')
-		.select('*, org_agents!inner(id, system_prompt, is_active)')
+		.select('*, org_agents!inner(id, system_prompt, is_active, tool_whitelist)')
 		.eq('organization_id', organizationId)
 		.eq('trigger_type', 'event')
 		.eq('event_name', event)
@@ -103,11 +103,31 @@ async function dispatchAgentTriggers(
 
 	if (!triggers || triggers.length === 0) return;
 
-	type JoinedAgent = { id: string; system_prompt: string; is_active: boolean };
+	type JoinedAgent = {
+		id: string;
+		system_prompt: string;
+		is_active: boolean;
+		tool_whitelist: string[] | null;
+	};
+	const RATE_LIMIT_MS = 60_000;
+	const now = Date.now();
+
 	for (const trigger of triggers) {
 		const joined = trigger.org_agents as JoinedAgent | JoinedAgent[] | null;
 		const agent = Array.isArray(joined) ? joined[0] : joined;
 		if (!agent?.is_active) continue;
+
+		// Rate limit: skip if this trigger ran within the last 60 seconds.
+		// Prevents runaway executions during bulk operations.
+		if (trigger.last_run_at) {
+			const lastRun = new Date(trigger.last_run_at).getTime();
+			if (now - lastRun < RATE_LIMIT_MS) {
+				console.log(
+					`Skipping trigger ${trigger.id}: ran ${now - lastRun}ms ago (< ${RATE_LIMIT_MS}ms)`
+				);
+				continue;
+			}
+		}
 
 		try {
 			const result = await executeAgent({
@@ -117,7 +137,8 @@ async function dispatchAgentTriggers(
 				systemPrompt: agent.system_prompt,
 				triggeredBy: 'event',
 				triggerId: trigger.id,
-				eventContext: payload as Record<string, unknown>
+				eventContext: payload as Record<string, unknown>,
+				toolWhitelist: agent.tool_whitelist
 			});
 
 			// Send notification if configured

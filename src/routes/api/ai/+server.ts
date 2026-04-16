@@ -752,10 +752,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	let cleanMessage = message;
 
 	const slugMatch = message.match(/^@([\w-]+)\s*/);
+	let agentToolWhitelist: string[] | null = null;
 	if (slugMatch && !resolvedAgentId) {
 		const { data: agentBySlug } = await locals.supabase
 			.from('org_agents')
-			.select('id, system_prompt')
+			.select('id, system_prompt, tool_whitelist')
 			.eq('organization_id', locals.organization.id)
 			.eq('slug', slugMatch[1])
 			.eq('is_active', true)
@@ -763,6 +764,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		if (agentBySlug) {
 			resolvedAgentId = agentBySlug.id;
 			agentPrompt = agentBySlug.system_prompt;
+			agentToolWhitelist = agentBySlug.tool_whitelist;
 			cleanMessage = message.slice(slugMatch[0].length);
 		}
 	}
@@ -770,12 +772,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (resolvedAgentId && !agentPrompt) {
 		const { data: agentById } = await locals.supabase
 			.from('org_agents')
-			.select('system_prompt')
+			.select('system_prompt, tool_whitelist')
 			.eq('id', resolvedAgentId)
 			.eq('is_active', true)
 			.single();
 		if (agentById) {
 			agentPrompt = agentById.system_prompt;
+			agentToolWhitelist = agentById.tool_whitelist;
 		}
 	}
 
@@ -947,9 +950,15 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		});
 	}
 
+	// Filter tools by agent whitelist (null or empty = all tools)
+	const availableTools =
+		agentToolWhitelist && agentToolWhitelist.length > 0
+			? _toolDefinitions.filter((t) => agentToolWhitelist!.includes(t.name))
+			: _toolDefinitions;
+
 	// Mark the last tool for caching (caches all tools up to this point)
-	const cachedTools = _toolDefinitions.map((tool, i) =>
-		i === _toolDefinitions.length - 1
+	const cachedTools = availableTools.map((tool, i) =>
+		i === availableTools.length - 1
 			? ({ ...tool, cache_control: { type: 'ephemeral' } } as Anthropic.Tool)
 			: tool
 	);
