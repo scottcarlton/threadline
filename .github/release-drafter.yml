@@ -1,0 +1,103 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'Feature'
+      - 'Outstanding Feature'
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'Bug'
+      - 'bug'
+      - 'fix'
+  - title: '🔧 Improvements'
+    labels:
+      - 'Improvement'
+      - 'refactor'
+      - 'perf'
+  - title: '🎨 Brand & Marketing'
+    labels:
+      - 'Marketing'
+      - 'Brand'
+  - title: '🏗 Portal'
+    labels:
+      - 'Portal'
+  - title: '🧰 Tooling & Infrastructure'
+    labels:
+      - 'tooling'
+      - 'ci'
+      - 'chore'
+      - 'dependencies'
+  - title: '📚 Documentation'
+    labels:
+      - 'docs'
+      - 'documentation'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+
+version-resolver:
+  major:
+    labels:
+      - 'breaking'
+      - 'major'
+  minor:
+    labels:
+      - 'Feature'
+      - 'Outstanding Feature'
+      - 'minor'
+  patch:
+    labels:
+      - 'Bug'
+      - 'Improvement'
+      - 'patch'
+      - 'fix'
+      - 'chore'
+  default: patch
+
+# Exclude PRs that don't belong in user-facing release notes
+exclude-labels:
+  - 'skip-changelog'
+  - 'Open Question'
+
+template: |
+  ## Changes in this release
+
+  $CHANGES
+
+  ## Phase / milestone
+
+  Tickets in this release: see linked issues. Phase tagged via release-phase labels (`Early Release`, `Beta`, `Public`).
+
+  ---
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+autolabeler:
+  - label: 'chore'
+    title:
+      - '/^chore(\(.+\))?!?:/i'
+  - label: 'tooling'
+    title:
+      - '/^build(\(.+\))?!?:/i'
+      - '/^ci(\(.+\))?!?:/i'
+  - label: 'docs'
+    title:
+      - '/^docs(\(.+\))?!?:/i'
+  - label: 'fix'
+    title:
+      - '/^fix(\(.+\))?!?:/i'
+  - label: 'enhancement'
+    title:
+      - '/^feat(\(.+\))?!?:/i'
+  - label: 'refactor'
+    title:
+      - '/^refactor(\(.+\))?!?:/i'
+  - label: 'perf'
+    title:
+      - '/^perf(\(.+\))?!?:/i'
+  - label: 'test'
+    title:
+      - '/^test(\(.+\))?!?:/i'
