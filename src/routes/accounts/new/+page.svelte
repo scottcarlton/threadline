@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { toast } from 'svelte-sonner';
@@ -37,7 +38,7 @@
 				if (msg.inviteFailed) {
 					toast.warning("Account saved, but we couldn't send the buyer invite email.");
 				}
-				goto('/accounts');
+				goto(resolve('/accounts'));
 			}
 		},
 		onError: ({ result }) => {
@@ -229,7 +230,8 @@
 						</div>
 					</fieldset>
 
-					{#each $form.business.additionalLocations as _loc, i (i)}
+					<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
+					{#each $form.business.additionalLocations as _, i (i)}
 						<fieldset class="space-y-4 rounded-lg border border-border p-4">
 							<div class="flex items-center justify-between">
 								<legend class="px-2 text-sm font-medium">Additional location {i + 1}</legend>
