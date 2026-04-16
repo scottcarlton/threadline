@@ -86,7 +86,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'create_order',
 		description:
-			'Create a new wholesale order. Uses fuzzy matching to find the account and brand by name.',
+			'Create a new wholesale order. Fuzzy matches account and brand by name. Provide season_name and order_year separately (e.g., season_name="Fall", order_year=2026). Auto-sets the expected ship date from the season delivery schedule when both season_name and order_year are supplied. Returns the new order with joined brand, account, and season names.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -117,7 +117,8 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'add_order_lines',
-		description: 'Add line items to an existing order.',
+		description:
+			'Add line items to an existing order. Each line requires qty and unit_price. style_number is optional but recommended for products matching the brand catalog. description, color, and size are optional. Recalculates the order total automatically.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -189,21 +190,53 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 		}
 	},
 	{
+		name: 'list_brands',
+		description:
+			'List active brands as name+id pairs. Use for quick lookups before creating orders or when the user asks "what brands do we have". Faster and cheaper than query_data for simple list requests.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {},
+			required: []
+		}
+	},
+	{
+		name: 'list_accounts',
+		description:
+			'List active accounts as business_name+id pairs with city/state. Use for quick lookups before creating orders or when the user asks "what accounts do we have". Faster and cheaper than query_data for simple list requests.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {},
+			required: []
+		}
+	},
+	{
 		name: 'query_data',
 		description:
-			'Query and search data. Supports brands, accounts, orders, shows, and seasons with optional filters.',
+			'Search and list entities with optional filters. Supported entity values: brands, accounts, orders, shows, seasons, territories, appointments, contacts, order_lines, show_dates, products. Use filters as a key-value object keyed by column names (e.g., { status: "draft" } for orders, { business_name: "Nordstrom" } for accounts — string values use fuzzy ilike matching). For order_lines, order_id is required. Results are scoped to the current org and limited to 50 rows ordered by created_at desc. Prefer list_brands / list_accounts for simple name+id lookups.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
 				entity: {
 					type: 'string',
-					enum: ['brands', 'accounts', 'orders', 'shows', 'seasons'],
+					enum: [
+						'brands',
+						'accounts',
+						'orders',
+						'shows',
+						'seasons',
+						'territories',
+						'appointments',
+						'contacts',
+						'order_lines',
+						'show_dates',
+						'products'
+					],
 					description: 'Entity type to query (required)'
 				},
 				filters: {
 					type: 'object',
 					description:
-						'Key-value filters. String values use fuzzy matching (ilike). Use field names from the database schema.',
+						'Key-value filters keyed by column name. String values use fuzzy matching (ilike %value%); numbers and booleans match exactly.',
 					additionalProperties: true
 				}
 			},
@@ -230,7 +263,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'draft_email',
 		description:
-			'Draft an email to a contact. Provide the recipient (email address or account/brand name to look up), subject, and body. The draft will be shown to the user for confirmation before sending.',
+			'Draft an email to a contact. Accepts either a direct email address or an account/brand name (fuzzy lookup) for the recipient. Returns a draft preview — this does NOT send the email. Call send_email separately after the user confirms the draft.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -805,6 +838,7 @@ Important rules:
 8. When a tool call fails with "not found" errors, do NOT relay the raw error to the user. Instead: (a) if the error is a fuzzy match failure, ask the user to clarify which entity they meant, or use query_data to search for similar names and suggest matches. (b) if the error is a permission issue, explain what access level is needed. (c) for all other errors, say what you tried and what went wrong in plain language.
 9. Never fabricate entity names, IDs, or data. If you don't know a value, ask the user or look it up with query_data first.
 10. When a user asks about a specific entity (account, brand, order) that you haven't looked up yet, ALWAYS call query_data first before responding. Never assume an entity exists based on the conversation alone.
+11. Before executing send_email, delete_appointment, or archive_entity, describe what you're about to do in one sentence and ask the user to confirm. Only proceed after they confirm. Example: "I'm about to send an email to jane@nordstrom.com with subject 'Fall 2026 Order Follow-up'. Should I go ahead?"
 
 Examples of good tool use:
 
@@ -893,7 +927,7 @@ Assistant calls query_data first with: { entity_type: "accounts", search: "Nords
 - Brand access: ${brandScopeInfo}
 - Current date/time: ${dateStr} at ${timeStr}
 - Currently viewing: ${pageContext}${entityInfo}
-${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, get_dashboard_metrics, get_sales_report, get_commission_report, and get_style_velocity.' : ''}`;
+${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_commission_report, and get_style_velocity.' : ''}`;
 
 	// Use structured system blocks for prompt caching
 	const systemBlocks: Anthropic.TextBlockParam[] = [
