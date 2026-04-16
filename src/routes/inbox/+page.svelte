@@ -83,6 +83,7 @@
 	async function fetchEmails() {
 		loading = true;
 		try {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 			const params = new URLSearchParams();
 			if (filter !== 'all') params.set('filter', filter);
 			if (searchQuery.trim()) params.set('q', searchQuery.trim());

@@ -159,6 +159,7 @@
 	}
 
 	function clearAiInput() {
+		// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable element managed outside Svelte's reactive graph
 		if (aiInputEl) aiInputEl.innerHTML = '';
 		hasAiInput = false;
 	}
@@ -500,7 +501,7 @@
 					}
 				}
 
-				setTimeout(checkAudio, 125);
+				silenceTimer = setTimeout(checkAudio, 125);
 			}
 			checkAudio();
 		} catch (err) {

@@ -28,6 +28,7 @@
 	let activeFilter = $state<string | null>(null);
 
 	const insightTypes = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const types = new Map<string, number>();
 		for (const insight of insights) {
 			types.set(insight.insight_type, (types.get(insight.insight_type) ?? 0) + 1);

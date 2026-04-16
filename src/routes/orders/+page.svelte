@@ -114,6 +114,7 @@
 	}
 
 	function toggleOne(id: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const next = new Set(selectedIds);
 		if (next.has(id)) next.delete(id);
 		else next.add(id);
@@ -303,6 +304,7 @@
 	}
 
 	function setFilter(key: string, value: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams($page.url.searchParams);
 		if (!value || value === 'all') {
 			params.delete(key);

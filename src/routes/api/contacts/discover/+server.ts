@@ -60,7 +60,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 	const ownEmail = emailConn?.email_address?.toLowerCase() ?? '';
 
 	// Fetch recent inbox messages (metadata only)
-	let messageIds: { id?: string | null }[] = [];
+	let messageIds: { id?: string | null }[];
 	try {
 		const listRes = await gmail.users.messages.list({
 			userId: 'me',
