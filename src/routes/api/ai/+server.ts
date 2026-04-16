@@ -801,7 +801,35 @@ Important rules:
 4. Be concise and professional. This is a business tool.
 5. When presenting data, format it clearly with relevant details. Use markdown formatting (bold, lists, tables) for readability.
 6. If asked to do something outside your capabilities, explain what you can and cannot do.
-7. After every response, include 2-3 brief suggested follow-up prompts on the very last line, formatted as: SUGGESTIONS:["prompt 1","prompt 2","prompt 3"]. These should be natural next questions or actions the user might want. Do NOT include this line inside code blocks.`;
+7. After every response, include 2-3 brief suggested follow-up prompts on the very last line, formatted as: SUGGESTIONS:["prompt 1","prompt 2","prompt 3"]. These should be natural next questions or actions the user might want. Do NOT include this line inside code blocks.
+8. When a tool call fails with "not found" errors, do NOT relay the raw error to the user. Instead: (a) if the error is a fuzzy match failure, ask the user to clarify which entity they meant, or use query_data to search for similar names and suggest matches. (b) if the error is a permission issue, explain what access level is needed. (c) for all other errors, say what you tried and what went wrong in plain language.
+9. Never fabricate entity names, IDs, or data. If you don't know a value, ask the user or look it up with query_data first.
+10. When a user asks about a specific entity (account, brand, order) that you haven't looked up yet, ALWAYS call query_data first before responding. Never assume an entity exists based on the conversation alone.
+
+Examples of good tool use:
+
+<example>
+User: "Create an order for Nordstrom, Ulla Johnson, Fall 2026"
+Assistant calls create_order with: { account_name: "Nordstrom", brand_name: "Ulla Johnson", season_name: "Fall", order_year: 2026 }
+Then confirms: "Created draft order ORD-042 for Nordstrom (Ulla Johnson, Fall 2026)."
+</example>
+
+<example>
+User: "Show me all draft orders"
+Assistant calls query_data with: { entity_type: "orders", filters: { status: "draft" } }
+Then formats results as a markdown table with order number, account, brand, total.
+</example>
+
+<example>
+User: "Update the Bergdorf order"
+Tool returns: { success: false, error: "Account not found matching 'Bergdorf'" }
+Assistant does NOT relay the raw error. Instead responds: "I couldn't find an account matching 'Bergdorf'. Did you mean Bergdorf Goodman? Let me know the exact account name or I can list your accounts."
+</example>
+
+<example>
+User: "How's Nordstrom doing?"
+Assistant calls query_data first with: { entity_type: "accounts", search: "Nordstrom" } to verify the account exists and get recent order data, then responds with specifics — never assumes based on conversation alone.
+</example>`;
 
 	// Dynamic per-request context
 	const entityInfo = entityCtx?.summary
@@ -848,12 +876,22 @@ Important rules:
 		}
 	}
 
+	const now = new Date();
+	const dateStr = now.toLocaleDateString('en-US', {
+		weekday: 'long',
+		year: 'numeric',
+		month: 'long',
+		day: 'numeric'
+	});
+	const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
 	const dynamicSystem = `Current user context:
 - Organization: ${locals.organization.name}
 - Org type: ${orgTypeLabel}
 - User: ${locals.user.display_name}
 - Role: ${role}
 - Brand access: ${brandScopeInfo}
+- Current date/time: ${dateStr} at ${timeStr}
 - Currently viewing: ${pageContext}${entityInfo}
 ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, get_dashboard_metrics, get_sales_report, get_commission_report, and get_style_velocity.' : ''}`;
 
@@ -894,16 +932,24 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		let useHaiku = false;
 
 		if (needsClassification) {
+			// Include the last 2 messages of history so follow-ups like "what about
+			// the other ones?" classify correctly against prior tool context.
+			const classifyMessages: Anthropic.MessageParam[] = [];
+			for (const msg of (conversationHistory ?? []).slice(-2)) {
+				classifyMessages.push({ role: msg.role, content: msg.content });
+			}
+			classifyMessages.push({ role: 'user', content: userContent });
+
 			const classifyResponse = await anthropic.messages.create({
 				model: 'claude-haiku-4-5-20251001',
 				max_tokens: 20,
 				system: [
 					{
 						type: 'text',
-						text: 'Classify whether this user message to a business assistant requires looking up or modifying data (tools), or can be answered conversationally (e.g. greetings, thanks, general knowledge, clarifying questions, opinions). Respond with exactly one word: TOOLS or CHAT'
+						text: 'Classify whether this user message to a business assistant requires looking up or modifying data (tools), or can be answered conversationally (e.g. greetings, thanks, general knowledge, clarifying questions, opinions). Use prior messages for context — a follow-up like "what about the others?" after a data query needs TOOLS. Respond with exactly one word: TOOLS or CHAT'
 					}
 				],
-				messages: [{ role: 'user', content: userContent }]
+				messages: classifyMessages
 			});
 			const classification =
 				classifyResponse.content[0]?.type === 'text'
