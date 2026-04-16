@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { Toaster } from 'svelte-sonner';
 	import { page } from '$app/stores';
 	import { navigating } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -615,6 +616,8 @@
 </script>
 
 <svelte:window onkeydown={handleGlobalKeydown} onmousemove={handleMouseMove} />
+
+<Toaster richColors position="top-center" />
 
 {#if $navigating}
 	<div class="fixed inset-x-0 top-0 z-[100] h-0.5">

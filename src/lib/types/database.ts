@@ -90,9 +90,11 @@ export interface Account {
 	id: string;
 	organization_id: string;
 	business_name: string;
+	website: string | null;
 	contact_first_name: string | null;
 	contact_last_name: string | null;
 	contact_email: string | null;
+	contact_phone: string | null;
 	phone: string | null;
 	address_line1: string | null;
 	address_line2: string | null;

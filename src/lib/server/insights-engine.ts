@@ -29,7 +29,9 @@ export async function refreshInsights(
 	const allInsights: InsightAction[] = [];
 
 	// Determine org type — brand orgs get a different set of generators.
-	const { data: org } = await supabaseAdmin
+	// Use the injected client so this function is fully testable; callers
+	// already pass an admin/user client appropriate to their context.
+	const { data: org } = await supabase
 		.from('organizations')
 		.select('org_type')
 		.eq('id', organizationId)

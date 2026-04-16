@@ -2,6 +2,10 @@
 
 SvelteKit 5 app for fashion reps, brands, and buyers. Deployed to Vercel at `threadline.systems`.
 
+## Do not guess, do not assume
+
+Before proposing a form, page, route, component, field, table, column, or API behavior — **verify it exists**. Read the file, grep the code, or ask. Do not infer from a plausible name. A wrong guess wastes the user's time and erodes trust. If you don't know, say "I don't know — let me check" and check.
+
 ## Stack
 
 - **Framework:** SvelteKit 2 + Svelte 5 (runes)
@@ -82,6 +86,19 @@ Run `bun run test:run` before claiming work is complete.
 - Don't let `any` leak from helpers. Wrappers like `scopeByRep(query: any)` return `any`, which poisons `.map`/`.filter` downstream. Annotate the result: `const rows = (result ?? []) as Array<{ field: type }>`.
 - Supabase joined selects (e.g. `.select('id, shows(name)')`) often infer the join as `never`. Cast the joined field: `sd.shows as { name?: string } | { name?: string }[] | null`.
 - Motion v12: use `ease` (not `easing`) in `AnimationOptions`. When `animate(element, keyframes)` picks the wrong overload, cast keyframes: `{...} as Parameters<typeof animate>[1]`. Use `querySelectorAll<HTMLElement>` for typed iteration.
+
+## Forms & Validation
+
+All new forms use **Zod schemas + sveltekit-superforms + svelte-sonner**. Reference implementation: `src/routes/accounts/new/`.
+
+- **Schema:** `src/lib/schemas/<entity>.ts` — single source of truth for shape and rules. Trim, transform empty strings to `undefined`, set max lengths.
+- **Server:** `+page.server.ts` exports `load` (returns `{ form }` from `superValidate(zod4(schema))`) and `actions.default` (validates `request`, returns `fail(400, { form })` on invalid, `fail(500, { form, message })` on server error, `throw redirect(303, ...)` on simple success). For partial-success flows (e.g. account created but a side-effect failed), return `message(form, { ... })` instead of redirect, and let the client navigate after toasting.
+- **Client:** `+page.svelte` calls `superForm(data.form, { validators: zod4Client(schema), validationMethod: 'onblur', dataType: 'json' (for nested), onUpdated, onError })`. Use `<form method="POST" use:enhance>`. Bind inputs with `bind:value={$form.field}`. Render inline errors as `{#if $errors.field}<p class="text-sm text-destructive">{$errors.field[0]}</p>{/if}`. Disable submit with `$submitting`. Use the `zod4` adapter (the project is on Zod v4); `zod`/`zodClient` are for Zod v3.
+- **Feedback split:**
+  - **Inline (red text under field):** validation errors (required, format, length).
+  - **Toast (`svelte-sonner`):** server errors, network failures, success confirmations. `Toaster` is mounted in `src/routes/+layout.svelte`.
+
+Don't roll new ad-hoc `let error = $state('')` patterns. If a form is being touched, migrate it to this pattern.
 
 ## Git Workflow
 
