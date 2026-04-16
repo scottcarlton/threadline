@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
+	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -724,7 +725,6 @@
 	}
 	// ── Submit ──────────────────────────────────────────────────────────────
 	let submitting = $state(false);
-	let submitError = $state<string | null>(null);
 	let submitStatus = $state<'draft' | 'submitted'>('draft');
 
 	const payload = $derived({
@@ -1447,22 +1447,19 @@
 				</ul>
 			</div>
 
-			{#if submitError}
-				<div class="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-900">
-					{submitError}
-				</div>
-			{/if}
-
 			<form
 				method="POST"
 				action="?/submit"
 				use:enhance={() => {
 					submitting = true;
-					submitError = null;
 					return async ({ result, update }) => {
 						submitting = false;
 						if (result.type === 'failure') {
-							submitError = (result.data as { message?: string })?.message ?? 'Submit failed';
+							toast.error((result.data as { message?: string })?.message ?? 'Could not save order');
+						} else if (result.type === 'redirect') {
+							toast.success(submitStatus === 'submitted' ? 'Order submitted' : 'Notes saved');
+						} else if (result.type === 'error') {
+							toast.error(result.error?.message ?? 'Something went wrong. Please try again.');
 						}
 						await update({ reset: false });
 					};
