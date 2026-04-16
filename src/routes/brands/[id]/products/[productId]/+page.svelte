@@ -122,6 +122,7 @@
 	let savingVariants = $state(false);
 
 	function toggleNewSize(size: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const next = new Set(selectedNewSizes);
 		if (next.has(size)) next.delete(size);
 		else next.add(size);

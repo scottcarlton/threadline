@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { marked } from 'marked';
+	import DOMPurify from 'isomorphic-dompurify';
 
 	type Props = {
 		content: string;
@@ -13,10 +14,11 @@
 		gfm: true
 	});
 
-	const html = $derived(marked.parse(content, { async: false }) as string);
+	const html = $derived(DOMPurify.sanitize(marked.parse(content, { async: false }) as string));
 </script>
 
 <div class="markdown">
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- output is sanitized via DOMPurify above -->
 	{@html html}
 </div>
 

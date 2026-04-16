@@ -29,7 +29,9 @@ export async function refreshInsights(
 	const allInsights: InsightAction[] = [];
 
 	// Determine org type — brand orgs get a different set of generators.
-	const { data: org } = await supabaseAdmin
+	// Use the injected client so this function is fully testable; callers
+	// already pass an admin/user client appropriate to their context.
+	const { data: org } = await supabase
 		.from('organizations')
 		.select('org_type')
 		.eq('id', organizationId)
@@ -247,7 +249,13 @@ export async function computeOrderGaps(
 					deliveryId: delivery.id,
 					priorAmount,
 					deliveryLabel: d?.label ?? `${delivery.delivery_month}/${delivery.delivery_day}`,
-					seasonName: (d as any)?.seasons?.name ?? ''
+					seasonName: (() => {
+						const seasons = (d as { seasons?: { name?: string } | { name?: string }[] | null })
+							?.seasons;
+						if (!seasons) return '';
+						if (Array.isArray(seasons)) return seasons[0]?.name ?? '';
+						return seasons.name ?? '';
+					})()
 				});
 			}
 		}
@@ -435,8 +443,17 @@ export async function computeOverdueOrders(
 	return overdueOrders.map((order) => {
 		const shipDate = new Date(order.expected_ship_date);
 		const daysOverdue = Math.floor((Date.now() - shipDate.getTime()) / (1000 * 60 * 60 * 24));
-		const accountName = (order as any).accounts?.business_name ?? 'Unknown';
-		const brandName = (order as any).brands?.name ?? '';
+		const orderJoin = order as {
+			accounts?: { business_name?: string } | { business_name?: string }[] | null;
+			brands?: { name?: string } | { name?: string }[] | null;
+		};
+		const accountsJoin = orderJoin.accounts;
+		const brandsJoin = orderJoin.brands;
+		const accountName =
+			(Array.isArray(accountsJoin)
+				? accountsJoin[0]?.business_name
+				: accountsJoin?.business_name) ?? 'Unknown';
+		const brandName = (Array.isArray(brandsJoin) ? brandsJoin[0]?.name : brandsJoin?.name) ?? '';
 
 		return {
 			organization_id: organizationId,

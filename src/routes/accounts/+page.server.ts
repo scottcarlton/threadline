@@ -38,8 +38,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// Build tag map per account
 	const accountTagMap: Record<string, { id: string; name: string; color: string }[]> = {};
+	type TagJoin = { id: string; name: string; color: string };
 	for (const assignment of tagAssignmentsRes.data ?? []) {
-		const tag = assignment.account_tags as any;
+		const joined = assignment.account_tags as TagJoin | TagJoin[] | null;
+		const tag = Array.isArray(joined) ? joined[0] : joined;
 		if (!tag) continue;
 		if (!accountTagMap[assignment.account_id]) accountTagMap[assignment.account_id] = [];
 		accountTagMap[assignment.account_id].push({ id: tag.id, name: tag.name, color: tag.color });

@@ -7,7 +7,8 @@ import { sendDiscordMessage } from './integrations/discord.js';
 import {
 	exportToSheet,
 	EXPORT_SCHEMAS,
-	type ExportDataType
+	type ExportDataType,
+	type ExportRow
 } from './integrations/google-sheets.js';
 import {
 	listDatabases,
@@ -753,9 +754,16 @@ async function resolveMember(name: string, ctx: ToolContext): Promise<string | n
 		.select('id, profiles!organization_members_profile_id_fkey(display_name)')
 		.eq('organization_id', ctx.organizationId);
 	if (!data) return null;
-	const match = data.find((m: any) =>
-		m.profiles?.display_name?.toLowerCase().includes(name.toLowerCase())
-	);
+	type MemberRow = {
+		id: string;
+		profiles?: { display_name?: string } | { display_name?: string }[] | null;
+	};
+	const rows = data as MemberRow[];
+	const match = rows.find((m) => {
+		const profiles = m.profiles;
+		const name0 = Array.isArray(profiles) ? profiles[0]?.display_name : profiles?.display_name;
+		return name0?.toLowerCase().includes(name.toLowerCase());
+	});
 	return match?.id ?? null;
 }
 
@@ -886,7 +894,11 @@ async function createAppointment(
 			.eq('organization_id', ctx.organizationId)
 			.order('year', { ascending: false })
 			.limit(20);
-		const match = showDates?.find((sd: any) => {
+		type ShowDateRow = {
+			id: string;
+			shows?: { name?: string } | { name?: string }[] | null;
+		};
+		const match = (showDates as ShowDateRow[] | null)?.find((sd) => {
 			const name = Array.isArray(sd.shows) ? sd.shows[0]?.name : sd.shows?.name;
 			return name?.toLowerCase().includes((input.show_name as string).toLowerCase());
 		});
@@ -970,7 +982,13 @@ async function updateOrderLine(
 		.single();
 
 	if (!line) return { success: false, error: 'Order line not found' };
-	if ((line as any).orders?.organization_id !== ctx.organizationId) {
+	const lineOrders = (
+		line as { orders?: { organization_id?: string } | { organization_id?: string }[] | null }
+	).orders;
+	const lineOrgId = Array.isArray(lineOrders)
+		? lineOrders[0]?.organization_id
+		: lineOrders?.organization_id;
+	if (lineOrgId !== ctx.organizationId) {
 		return { success: false, error: 'Access denied' };
 	}
 
@@ -1003,7 +1021,13 @@ async function removeOrderLine(
 		.single();
 
 	if (!line) return { success: false, error: 'Order line not found' };
-	if ((line as any).orders?.organization_id !== ctx.organizationId) {
+	const lineOrders = (
+		line as { orders?: { organization_id?: string } | { organization_id?: string }[] | null }
+	).orders;
+	const lineOrgId = Array.isArray(lineOrders)
+		? lineOrders[0]?.organization_id
+		: lineOrders?.organization_id;
+	if (lineOrgId !== ctx.organizationId) {
 		return { success: false, error: 'Access denied' };
 	}
 
@@ -1100,14 +1124,27 @@ async function getSalesReport(
 		let key = '';
 		let name = '';
 
+		type OrderJoin = {
+			brands?: { name?: string } | { name?: string }[] | null;
+			accounts?:
+				| { business_name?: string; territories?: { name?: string } | null }
+				| { business_name?: string; territories?: { name?: string } | null }[]
+				| null;
+		};
+		const oj = order as OrderJoin;
+		const brands = oj.brands;
+		const accounts = oj.accounts;
 		if (groupBy === 'brand') {
 			key = order.brand_id;
-			name = (order.brands as any)?.name ?? 'Unknown';
+			name = (Array.isArray(brands) ? brands[0]?.name : brands?.name) ?? 'Unknown';
 		} else if (groupBy === 'account') {
 			key = order.account_id;
-			name = (order.accounts as any)?.business_name ?? 'Unknown';
+			name =
+				(Array.isArray(accounts) ? accounts[0]?.business_name : accounts?.business_name) ??
+				'Unknown';
 		} else if (groupBy === 'territory') {
-			const territory = (order.accounts as any)?.territories;
+			const account = Array.isArray(accounts) ? accounts[0] : accounts;
+			const territory = account?.territories;
 			key = territory?.name ?? 'Unassigned';
 			name = key;
 		} else if (groupBy === 'rep') {
@@ -1131,8 +1168,14 @@ async function getSalesReport(
 			.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
 			.eq('organization_id', ctx.organizationId);
 		const nameMap = new Map<string, string>();
-		for (const m of members ?? []) {
-			nameMap.set(m.profile_id, (m.profiles as any)?.display_name ?? 'Unknown');
+		type MemberProfileRow = {
+			profile_id: string;
+			profiles?: { display_name?: string } | { display_name?: string }[] | null;
+		};
+		for (const m of (members ?? []) as MemberProfileRow[]) {
+			const p = m.profiles;
+			const displayName = Array.isArray(p) ? p[0]?.display_name : p?.display_name;
+			nameMap.set(m.profile_id, displayName ?? 'Unknown');
 		}
 		for (const [key, group] of groups) {
 			group.name = nameMap.get(key) ?? 'Unknown';
@@ -1164,11 +1207,12 @@ async function getStyleVelocity(
 
 	if (error) return { success: false, error: error.message };
 
-	let results = (data ?? []) as any[];
+	type VelocityRow = { brand_name?: string; [k: string]: unknown };
+	let results = (data ?? []) as VelocityRow[];
 
 	if (input.brand_name) {
 		const brandFilter = (input.brand_name as string).toLowerCase();
-		results = results.filter((r: any) => r.brand_name?.toLowerCase().includes(brandFilter));
+		results = results.filter((r) => r.brand_name?.toLowerCase().includes(brandFilter));
 	}
 
 	const limit = (input.limit as number) ?? 20;
@@ -1224,9 +1268,16 @@ async function getCommissionReport(
 
 	const profileToMember = new Map<string, string>();
 	const memberToName = new Map<string, string>();
-	for (const m of members ?? []) {
+	type MemberJoin = {
+		id: string;
+		profile_id: string;
+		profiles?: { display_name?: string } | { display_name?: string }[] | null;
+	};
+	for (const m of (members ?? []) as MemberJoin[]) {
 		profileToMember.set(m.profile_id, m.id);
-		memberToName.set(m.id, (m.profiles as any)?.display_name ?? 'Unknown');
+		const p = m.profiles;
+		const displayName = Array.isArray(p) ? p[0]?.display_name : p?.display_name;
+		memberToName.set(m.id, displayName ?? 'Unknown');
 	}
 
 	const commissionMap = new Map<string, number>(); // member_id-brand_id -> rate
@@ -1245,9 +1296,17 @@ async function getCommissionReport(
 		{ name: string; brand: string; rate: number; totalSales: number; commission: number }
 	>();
 
+	type OrderBrandJoin = {
+		brands?:
+			| { name?: string; commission_rate?: number }
+			| { name?: string; commission_rate?: number }[]
+			| null;
+	};
 	for (const order of orders ?? []) {
-		const brandName = (order.brands as any)?.name ?? 'Unknown';
-		const brandRate = (order.brands as any)?.commission_rate ?? 0;
+		const b = (order as OrderBrandJoin).brands;
+		const brandObj = Array.isArray(b) ? b[0] : b;
+		const brandName = brandObj?.name ?? 'Unknown';
+		const brandRate = brandObj?.commission_rate ?? 0;
 		const amount = Number(order.shipped_amount ?? order.total_amount);
 
 		// Brand commission
@@ -1458,7 +1517,7 @@ async function exportGoogleSheet(
 		spreadsheetId: input.spreadsheet_id as string | undefined,
 		title,
 		headers: schema.headers,
-		rows: rows.map(schema.mapRow)
+		rows: (rows as unknown as ExportRow[]).map(schema.mapRow)
 	});
 
 	if (!result)
@@ -1512,10 +1571,12 @@ async function syncNotion(input: Record<string, unknown>, ctx: ToolContext): Pro
 	if (error) return { success: false, error: error.message };
 	if (!rows?.length) return { success: false, error: `No ${dataType} data found to sync.` };
 
-	const notionRows = (rows as Array<Record<string, any>>).map((row) => ({
-		externalId: row.id,
-		properties: mapToNotionProperties(dataType, row)
-	}));
+	const notionRows = (rows as unknown as Array<Record<string, unknown> & { id: string }>).map(
+		(row) => ({
+			externalId: row.id,
+			properties: mapToNotionProperties(dataType, row)
+		})
+	);
 
 	const result = await syncToNotion(ctx.organizationId, databaseId, notionRows);
 	if (result.created === 0 && result.updated === 0)

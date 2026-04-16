@@ -64,7 +64,11 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		.eq('id', imageId)
 		.single();
 
-	if (!image || (image as any).products?.organization_id !== locals.organization.id) {
+	type ProductJoin = { organization_id: string };
+	const productsJoined = (image as { products?: ProductJoin | ProductJoin[] | null } | null)
+		?.products;
+	const productRef = Array.isArray(productsJoined) ? productsJoined[0] : productsJoined;
+	if (!image || productRef?.organization_id !== locals.organization.id) {
 		return json({ error: 'Image not found' }, { status: 404 });
 	}
 

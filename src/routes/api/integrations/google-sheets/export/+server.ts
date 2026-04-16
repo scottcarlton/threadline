@@ -3,7 +3,8 @@ import type { RequestHandler } from './$types';
 import {
 	exportToSheet,
 	EXPORT_SCHEMAS,
-	type ExportDataType
+	type ExportDataType,
+	type ExportRow
 } from '$lib/server/integrations/google-sheets';
 import { supabaseAdmin } from '$lib/server/supabase';
 
@@ -49,7 +50,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		return json({ error: 'No data to export' }, { status: 400 });
 	}
 
-	const rows = data.map(schema.mapRow);
+	const rows = (data as unknown as ExportRow[]).map(schema.mapRow);
 	const title = `${dataType.charAt(0).toUpperCase() + dataType.slice(1)} Export ${new Date().toLocaleDateString()}`;
 
 	const result = await exportToSheet(orgId, url.origin, {

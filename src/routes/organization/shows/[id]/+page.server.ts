@@ -16,14 +16,15 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	// Load documents for all show dates
 	const dateIds = (show.show_dates ?? []).map((d: { id: string }) => d.id);
-	const documents: Record<string, any[]> = {};
+	type ShowDateDocument = { id: string; show_date_id: string; [key: string]: unknown };
+	const documents: Record<string, ShowDateDocument[]> = {};
 	if (dateIds.length > 0) {
 		const { data: docs } = await supabase
 			.from('show_date_documents')
 			.select('*')
 			.in('show_date_id', dateIds)
 			.order('created_at', { ascending: false });
-		for (const doc of docs ?? []) {
+		for (const doc of (docs ?? []) as ShowDateDocument[]) {
 			if (!documents[doc.show_date_id]) documents[doc.show_date_id] = [];
 			documents[doc.show_date_id].push(doc);
 		}

@@ -127,7 +127,15 @@
 	let drawerContactId = $state('');
 	let drawerLoading = $state(false);
 	let drawerContact = $state<DrawerContact | null>(null);
-	let drawerOrders = $state<any[]>([]);
+	type DrawerOrder = {
+		id: string;
+		order_number: string;
+		total_amount: number | string;
+		status: string;
+		accounts?: { business_name?: string } | null;
+		brands?: { name?: string } | null;
+	};
+	let drawerOrders = $state<DrawerOrder[]>([]);
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -179,7 +187,7 @@
 					location: [a.city, a.state].filter(Boolean).join(', ') || null
 				};
 			}
-			drawerOrders = ordersRes.data ?? [];
+			drawerOrders = (ordersRes.data ?? []) as DrawerOrder[];
 		} else if (contactId.startsWith(brandPrefix)) {
 			const brId = contactId.slice(brandPrefix.length);
 			const [brRes, ordersRes] = await Promise.all([
@@ -210,7 +218,7 @@
 					location: null
 				};
 			}
-			drawerOrders = ordersRes.data ?? [];
+			drawerOrders = (ordersRes.data ?? []) as DrawerOrder[];
 		} else {
 			const { data: disc } = await supabase
 				.from('discovered_contacts')
@@ -724,8 +732,8 @@
 										<span class="text-sm font-medium">{order.order_number}</span>
 										<p class="text-xs text-muted-foreground">
 											{drawerContact?.source === 'brand'
-												? ((order.accounts as any)?.business_name ?? '')
-												: ((order.brands as any)?.name ?? '')}
+												? (order.accounts?.business_name ?? '')
+												: (order.brands?.name ?? '')}
 										</p>
 									</div>
 									<div class="text-right">

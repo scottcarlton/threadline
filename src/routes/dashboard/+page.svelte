@@ -3,7 +3,22 @@
 
 	let { data } = $props();
 
-	const buyerData = $derived(data.buyerData as { recentOrders: any[]; brands: any[] } | undefined);
+	type BuyerOrder = {
+		id: string;
+		order_number: string;
+		total_amount: number;
+		status: string;
+		created_at: string;
+		brands?: { name?: string } | null;
+	};
+	type BuyerBrand = {
+		id: string;
+		name: string;
+		logo_url?: string | null;
+	};
+	const buyerData = $derived(
+		data.buyerData as { recentOrders: BuyerOrder[]; brands: BuyerBrand[] } | undefined
+	);
 	const accountName = $derived(data.buyerAccounts?.[0]?.accounts?.business_name ?? 'your account');
 </script>
 

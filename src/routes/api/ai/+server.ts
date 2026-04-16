@@ -859,7 +859,11 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 
 	// Use structured system blocks for prompt caching
 	const systemBlocks: Anthropic.TextBlockParam[] = [
-		{ type: 'text', text: staticSystem, cache_control: { type: 'ephemeral' } } as any,
+		{
+			type: 'text',
+			text: staticSystem,
+			cache_control: { type: 'ephemeral' }
+		} as Anthropic.TextBlockParam,
 		{ type: 'text', text: dynamicSystem }
 	];
 
@@ -874,7 +878,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 	// Mark the last tool for caching (caches all tools up to this point)
 	const cachedTools = _toolDefinitions.map((tool, i) =>
 		i === _toolDefinitions.length - 1
-			? ({ ...tool, cache_control: { type: 'ephemeral' } } as any)
+			? ({ ...tool, cache_control: { type: 'ephemeral' } } as Anthropic.Tool)
 			: tool
 	);
 

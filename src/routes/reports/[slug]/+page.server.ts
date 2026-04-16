@@ -54,7 +54,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 			const brands = new Map<string, { name: string; orders: number; revenue: number }>();
 			for (const o of orders ?? []) {
-				const name = (o.brands as any)?.name ?? 'Unknown';
+				const brandsJoin = o.brands as { name?: string } | { name?: string }[] | null;
+				const name =
+					(Array.isArray(brandsJoin) ? brandsJoin[0]?.name : brandsJoin?.name) ?? 'Unknown';
 				const existing = brands.get(o.brand_id);
 				if (existing) {
 					existing.orders++;
@@ -83,7 +85,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 			const accounts = new Map<string, { name: string; orders: number; revenue: number }>();
 			for (const o of orders ?? []) {
-				const name = (o.accounts as any)?.business_name ?? 'Unknown';
+				const accountsJoin = o.accounts as
+					| { business_name?: string }
+					| { business_name?: string }[]
+					| null;
+				const name =
+					(Array.isArray(accountsJoin)
+						? accountsJoin[0]?.business_name
+						: accountsJoin?.business_name) ?? 'Unknown';
 				const existing = accounts.get(o.account_id);
 				if (existing) {
 					existing.orders++;
@@ -115,7 +124,13 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				{ name: string; orders: number; revenue: number; accounts: Set<string> }
 			>();
 			for (const o of orders ?? []) {
-				const terr = (o.accounts as any)?.territories?.name ?? 'Unassigned';
+				const accountsJoin = o.accounts as
+					| { territories?: { name?: string } | { name?: string }[] | null }
+					| { territories?: { name?: string } | { name?: string }[] | null }[]
+					| null;
+				const acct = Array.isArray(accountsJoin) ? accountsJoin[0] : accountsJoin;
+				const terrJoin = acct?.territories;
+				const terr = (Array.isArray(terrJoin) ? terrJoin[0]?.name : terrJoin?.name) ?? 'Unassigned';
 				const existing = territories.get(terr);
 				if (existing) {
 					existing.orders++;
@@ -161,8 +176,16 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
 				.eq('organization_id', orgId);
 
+			type MemberRow = {
+				profile_id: string;
+				profiles?: { display_name?: string } | { display_name?: string }[] | null;
+			};
+			const pickDisplayName = (
+				profiles: { display_name?: string } | { display_name?: string }[] | null | undefined
+			): string =>
+				(Array.isArray(profiles) ? profiles[0]?.display_name : profiles?.display_name) ?? 'Unknown';
 			const nameMap = new Map(
-				(members ?? []).map((m: any) => [m.profile_id, m.profiles?.display_name ?? 'Unknown'])
+				((members ?? []) as MemberRow[]).map((m) => [m.profile_id, pickDisplayName(m.profiles)])
 			);
 			const reps = new Map<string, { name: string; orders: number; revenue: number }>();
 			for (const o of orders ?? []) {
@@ -205,23 +228,50 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				.select('id, profile_id, profiles!organization_members_profile_id_fkey(display_name)')
 				.eq('organization_id', orgId);
 
-			const profileToMember = new Map((members ?? []).map((m: any) => [m.profile_id, m.id]));
+			type CommMemberRow = {
+				id: string;
+				profile_id: string;
+				profiles?: { display_name?: string } | { display_name?: string }[] | null;
+			};
+			const pickName = (
+				profiles: { display_name?: string } | { display_name?: string }[] | null | undefined
+			): string =>
+				(Array.isArray(profiles) ? profiles[0]?.display_name : profiles?.display_name) ?? 'Unknown';
+			const profileToMember = new Map(
+				((members ?? []) as CommMemberRow[]).map((m) => [m.profile_id, m.id])
+			);
 			const memberToName = new Map(
-				(members ?? []).map((m: any) => [m.id, m.profiles?.display_name ?? 'Unknown'])
+				((members ?? []) as CommMemberRow[]).map((m) => [m.id, pickName(m.profiles)])
 			);
 			const commMap = new Map(
-				(memberCommissions ?? []).map((mc: any) => [`${mc.member_id}-${mc.brand_id}`, mc.rate])
+				(
+					(memberCommissions ?? []) as Array<{ member_id: string; brand_id: string; rate: number }>
+				).map((mc) => [`${mc.member_id}-${mc.brand_id}`, mc.rate])
 			);
 
-			const rows = (orders ?? [])
-				.map((o: any) => {
+			type CommOrderRow = {
+				id: string;
+				total_amount: number;
+				shipped_amount?: number | null;
+				brand_id: string;
+				created_by: string;
+				brands?:
+					| { name?: string; commission_rate?: number }
+					| { name?: string; commission_rate?: number }[]
+					| null;
+				accounts?: { business_name?: string } | { business_name?: string }[] | null;
+			};
+			const rows = ((orders ?? []) as CommOrderRow[])
+				.map((o) => {
 					const amount = Number(o.shipped_amount ?? o.total_amount);
-					const brandRate = o.brands?.commission_rate ?? 0;
+					const brandObj = Array.isArray(o.brands) ? o.brands[0] : o.brands;
+					const acctObj = Array.isArray(o.accounts) ? o.accounts[0] : o.accounts;
+					const brandRate = brandObj?.commission_rate ?? 0;
 					const memberId = profileToMember.get(o.created_by);
 					const repRate = memberId ? (commMap.get(`${memberId}-${o.brand_id}`) ?? 0) : 0;
 					return {
-						brand: o.brands?.name ?? 'Unknown',
-						account: o.accounts?.business_name ?? 'Unknown',
+						brand: brandObj?.name ?? 'Unknown',
+						account: acctObj?.business_name ?? 'Unknown',
 						orderAmount: amount,
 						brandRate,
 						brandCommission: (amount * brandRate) / 100,
@@ -230,7 +280,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 						repCommission: (amount * repRate) / 100
 					};
 				})
-				.sort((a: any, b: any) => b.orderAmount - a.orderAmount);
+				.sort((a, b) => b.orderAmount - a.orderAmount);
 
 			return { report, title: reportTitles[report], year, rows };
 		}
@@ -279,7 +329,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			>();
 			for (const o of orders ?? []) {
 				const key = `${o.season_id}-${o.order_year}`;
-				const name = (o.seasons as any)?.name ?? 'Unknown';
+				const seasonsJoin = o.seasons as { name?: string } | { name?: string }[] | null;
+				const name =
+					(Array.isArray(seasonsJoin) ? seasonsJoin[0]?.name : seasonsJoin?.name) ?? 'Unknown';
 				const existing = seasons.get(key);
 				if (existing) {
 					existing.orders++;
@@ -308,7 +360,16 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				.order('year')
 				.order('month');
 
-			const dateIds = (showDates ?? []).map((sd: any) => sd.id);
+			type ShowDateRow = {
+				id: string;
+				year: number;
+				month: number;
+				city: string | null;
+				state: string | null;
+				shows?: { name?: string } | { name?: string }[] | null;
+			};
+			const showDateRows = (showDates ?? []) as ShowDateRow[];
+			const dateIds = showDateRows.map((sd) => sd.id);
 			if (dateIds.length === 0) return { report, title: reportTitles[report], year, rows: [] };
 
 			const [ordersRes, visitsRes, apptsRes] = await Promise.all([
@@ -343,20 +404,29 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				'Nov',
 				'Dec'
 			];
-			const rows = (showDates ?? []).map((sd: any) => {
+			const ordersData = (ordersRes.data ?? []) as Array<{
+				show_date_id: string;
+				total_amount: number;
+			}>;
+			const visitsData = (visitsRes.data ?? []) as Array<{
+				show_date_id: string;
+				is_new_account?: boolean;
+			}>;
+			const apptsData = (apptsRes.data ?? []) as Array<{ show_date_id: string }>;
+			const rows = showDateRows.map((sd) => {
 				const showName = Array.isArray(sd.shows)
-					? sd.shows[0]?.name
+					? (sd.shows[0]?.name ?? 'Unknown')
 					: (sd.shows?.name ?? 'Unknown');
-				const sdOrders = (ordersRes.data ?? []).filter((o: any) => o.show_date_id === sd.id);
-				const sdVisits = (visitsRes.data ?? []).filter((v: any) => v.show_date_id === sd.id);
-				const sdAppts = (apptsRes.data ?? []).filter((a: any) => a.show_date_id === sd.id);
+				const sdOrders = ordersData.filter((o) => o.show_date_id === sd.id);
+				const sdVisits = visitsData.filter((v) => v.show_date_id === sd.id);
+				const sdAppts = apptsData.filter((a) => a.show_date_id === sd.id);
 				return {
 					show: `${showName} — ${months[sd.month - 1]} ${sd.year}`,
 					location: [sd.city, sd.state].filter(Boolean).join(', '),
 					orders: sdOrders.length,
-					revenue: sdOrders.reduce((sum: number, o: any) => sum + Number(o.total_amount), 0),
+					revenue: sdOrders.reduce((sum, o) => sum + Number(o.total_amount), 0),
 					visits: sdVisits.length,
-					newAccounts: sdVisits.filter((v: any) => v.is_new_account).length,
+					newAccounts: sdVisits.filter((v) => v.is_new_account).length,
 					appointments: sdAppts.length
 				};
 			});
