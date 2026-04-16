@@ -26,23 +26,25 @@ export const actions: Actions = {
 		const { business, contact, notes } = form.data;
 		const orgId = locals.organization.id;
 
+		const nn = (v: string | undefined) => (v && v.length ? v : null);
+
 		const { data: newAccount, error: insertErr } = await locals.supabase
 			.from('accounts')
 			.insert({
 				organization_id: orgId,
 				business_name: business.name,
-				website: business.website ?? null,
-				phone: business.phone ?? null,
-				address_line1: business.address.line1 ?? null,
-				address_line2: business.address.line2 ?? null,
-				city: business.address.city ?? null,
-				state: business.address.state ?? null,
-				zip: business.address.zip ?? null,
+				website: nn(business.website),
+				phone: nn(business.phone),
+				address_line1: nn(business.address.line1),
+				address_line2: nn(business.address.line2),
+				city: nn(business.address.city),
+				state: nn(business.address.state),
+				zip: nn(business.address.zip),
 				contact_first_name: contact.firstName,
 				contact_last_name: contact.lastName,
-				contact_email: contact.email ?? null,
-				contact_phone: contact.phone ?? null,
-				notes: notes ?? null
+				contact_email: nn(contact.email),
+				contact_phone: nn(contact.phone),
+				notes: nn(notes)
 			})
 			.select('id')
 			.single();
@@ -61,15 +63,15 @@ export const actions: Actions = {
 				label: 'Primary',
 				is_default: true,
 				sort_order: 0,
-				address_line1: business.address.line1 ?? null,
-				address_line2: business.address.line2 ?? null,
-				city: business.address.city ?? null,
-				state: business.address.state ?? null,
-				zip: business.address.zip ?? null,
-				phone: business.phone ?? null,
+				address_line1: nn(business.address.line1),
+				address_line2: nn(business.address.line2),
+				city: nn(business.address.city),
+				state: nn(business.address.state),
+				zip: nn(business.address.zip),
+				phone: nn(business.phone),
 				contact_first_name: contact.firstName,
 				contact_last_name: contact.lastName,
-				contact_email: contact.email ?? null
+				contact_email: nn(contact.email)
 			},
 			...business.additionalLocations.map((loc, i) => ({
 				account_id: accountId,
@@ -77,15 +79,15 @@ export const actions: Actions = {
 				label: loc.label,
 				is_default: false,
 				sort_order: i + 1,
-				address_line1: loc.address.line1 ?? null,
-				address_line2: loc.address.line2 ?? null,
-				city: loc.address.city ?? null,
-				state: loc.address.state ?? null,
-				zip: loc.address.zip ?? null,
-				phone: loc.phone ?? null,
-				contact_first_name: loc.contact?.firstName ?? null,
-				contact_last_name: loc.contact?.lastName ?? null,
-				contact_email: loc.contact?.email ?? null
+				address_line1: nn(loc.address.line1),
+				address_line2: nn(loc.address.line2),
+				city: nn(loc.address.city),
+				state: nn(loc.address.state),
+				zip: nn(loc.address.zip),
+				phone: nn(loc.phone),
+				contact_first_name: nn(loc.contact?.firstName),
+				contact_last_name: nn(loc.contact?.lastName),
+				contact_email: nn(loc.contact?.email)
 			}))
 		];
 

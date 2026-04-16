@@ -14,6 +14,7 @@
 		CardFooter
 	} from '$lib/components/ui/card/index.js';
 	import { createAccountSchema } from '$lib/schemas/account';
+	import { formatPhone } from '$lib/utils/phone';
 
 	let { data } = $props();
 
@@ -55,15 +56,9 @@
 	function blankLocation() {
 		return {
 			label: '',
-			phone: undefined,
-			address: {
-				line1: undefined,
-				line2: undefined,
-				city: undefined,
-				state: undefined,
-				zip: undefined
-			},
-			contact: { firstName: undefined, lastName: undefined, email: undefined }
+			phone: '',
+			address: { line1: '', line2: '', city: '', state: '', zip: '' },
+			contact: { firstName: '', lastName: '', email: '' }
 		};
 	}
 
@@ -189,8 +184,14 @@
 							<Input
 								id="business-phone"
 								bind:value={$form.business.phone}
+								oninput={(e) =>
+									($form.business.phone = formatPhone((e.currentTarget as HTMLInputElement).value))}
+								aria-invalid={$errors.business?.phone ? 'true' : undefined}
 								placeholder="(555) 123-4567"
 							/>
+							{#if $errors.business?.phone}
+								<p class="text-sm text-destructive">{$errors.business.phone[0]}</p>
+							{/if}
 						</div>
 					</div>
 
@@ -269,7 +270,20 @@
 									<Input
 										id="loc-phone-{i}"
 										bind:value={$form.business.additionalLocations[i].phone}
+										oninput={(e) =>
+											($form.business.additionalLocations[i].phone = formatPhone(
+												(e.currentTarget as HTMLInputElement).value
+											))}
+										aria-invalid={$errors.business?.additionalLocations?.[i]?.phone
+											? 'true'
+											: undefined}
+										placeholder="(555) 123-4567"
 									/>
+									{#if $errors.business?.additionalLocations?.[i]?.phone}
+										<p class="text-sm text-destructive">
+											{$errors.business.additionalLocations[i].phone?.[0]}
+										</p>
+									{/if}
 								</div>
 							</div>
 							<div class="grid gap-4 sm:grid-cols-3">
@@ -346,8 +360,14 @@
 						<Input
 							id="contact-phone"
 							bind:value={$form.contact.phone}
+							oninput={(e) =>
+								($form.contact.phone = formatPhone((e.currentTarget as HTMLInputElement).value))}
+							aria-invalid={$errors.contact?.phone ? 'true' : undefined}
 							placeholder="(555) 123-4567"
 						/>
+						{#if $errors.contact?.phone}
+							<p class="text-sm text-destructive">{$errors.contact.phone[0]}</p>
+						{/if}
 					</div>
 				{:else}
 					<div class="space-y-2">

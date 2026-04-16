@@ -616,7 +616,7 @@
 
 <svelte:window onkeydown={handleGlobalKeydown} onmousemove={handleMouseMove} />
 
-<Toaster richColors position="top-right" />
+<Toaster richColors position="top-center" />
 
 {#if $navigating}
 	<div class="fixed inset-x-0 top-0 z-[100] h-0.5">
