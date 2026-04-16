@@ -9,6 +9,12 @@
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import type { Order, Season } from '$lib/types/database.js';
+	import {
+		computePreset,
+		matchPreset,
+		DATE_PRESET_LABELS,
+		type DatePresetId
+	} from '$lib/utils/date-presets.js';
 
 	type OrderRow = Order & {
 		profiles?: { display_name?: string | null } | null;
@@ -86,6 +92,9 @@
 	};
 	const activeStatus = $derived($page.url.searchParams.get('status') ?? 'all');
 	const activeType = $derived($page.url.searchParams.get('type') ?? 'all');
+	const activeFrom = $derived($page.url.searchParams.get('from'));
+	const activeTo = $derived($page.url.searchParams.get('to'));
+	const activeDatePreset = $derived<DatePresetId>(matchPreset(activeFrom, activeTo));
 
 	let search = $state('');
 	const filtered = $derived(
@@ -313,6 +322,32 @@
 		}
 		goto(resolve(`/orders?${params.toString()}`), { replaceState: true });
 	}
+
+	function setDateRange(from: string | null, to: string | null) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		if (from) params.set('from', from);
+		else params.delete('from');
+		if (to) params.set('to', to);
+		else params.delete('to');
+		goto(resolve(`/orders?${params.toString()}`), { replaceState: true });
+	}
+
+	function onDatePresetChange(presetId: DatePresetId) {
+		if (presetId === 'all') {
+			setDateRange(null, null);
+			return;
+		}
+		if (presetId === 'custom') {
+			// Pre-fill Custom with today so the two date inputs aren't empty.
+			const today = new Date();
+			const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+			setDateRange(iso, iso);
+			return;
+		}
+		const window = computePreset(presetId);
+		if (window) setDateRange(window.from, window.to);
+	}
 </script>
 
 <div class="space-y-6">
@@ -450,10 +485,40 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="flex flex-wrap gap-3">
+	<div class="flex flex-wrap items-center gap-3">
 		<div class="max-w-xs">
 			<Input placeholder="Search orders..." bind:value={search} />
 		</div>
+		<select
+			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+			value={activeDatePreset}
+			onchange={(e) => onDatePresetChange((e.target as HTMLSelectElement).value as DatePresetId)}
+		>
+			<option value="all">{DATE_PRESET_LABELS.all}</option>
+			<option value="last_7_days">{DATE_PRESET_LABELS.last_7_days}</option>
+			<option value="last_30_days">{DATE_PRESET_LABELS.last_30_days}</option>
+			<option value="last_90_days">{DATE_PRESET_LABELS.last_90_days}</option>
+			<option value="this_month">{DATE_PRESET_LABELS.this_month}</option>
+			<option value="last_month">{DATE_PRESET_LABELS.last_month}</option>
+			<option value="custom">{DATE_PRESET_LABELS.custom}</option>
+		</select>
+		{#if activeDatePreset === 'custom'}
+			<input
+				type="date"
+				aria-label="From date"
+				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+				value={activeFrom ?? ''}
+				onchange={(e) => setDateRange((e.target as HTMLInputElement).value || null, activeTo)}
+			/>
+			<span class="text-sm text-muted-foreground">to</span>
+			<input
+				type="date"
+				aria-label="To date"
+				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
+				value={activeTo ?? ''}
+				onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
+			/>
+		{/if}
 		<select
 			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
 			onchange={(e) => setFilter('season', (e.target as HTMLSelectElement).value)}

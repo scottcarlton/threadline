@@ -1,6 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listFederatedOrders } from '$lib/server/federation.js';
+import { incrementDate } from '$lib/utils/date-presets.js';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const { supabase, organization, orgType } = locals;
@@ -11,6 +12,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const brandId = url.searchParams.get('brand');
 	const showDateId = url.searchParams.get('show');
 	const repOrgId = url.searchParams.get('rep');
+	const from = url.searchParams.get('from');
+	const to = url.searchParams.get('to');
+	// Exclusive upper bound so the `to` day is fully included in the window.
+	const toExclusive = to ? incrementDate(to) : null;
 
 	// Buyer-scoped orders
 	if (locals.isBuyer) {
@@ -26,6 +31,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		if (status) query = query.eq('status', status);
 		if (brandId) query = query.eq('brand_id', brandId);
 		if (seasonId) query = query.eq('season_id', seasonId);
+		if (from) query = query.gte('created_at', from);
+		if (toExclusive) query = query.lt('created_at', toExclusive);
 
 		const [ordersRes, brandsRes] = await Promise.all([
 			query,
@@ -102,6 +109,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		if (year) directQuery = directQuery.eq('order_year', parseInt(year));
 		if (brandId) directQuery = directQuery.eq('brand_id', brandId);
 		if (showDateId) directQuery = directQuery.eq('show_date_id', showDateId);
+		if (from) directQuery = directQuery.gte('created_at', from);
+		if (toExclusive) directQuery = directQuery.lt('created_at', toExclusive);
 		const directRes = await directQuery;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const directOrders = ((directRes.data ?? []) as any[]).map((o) => ({
@@ -119,6 +128,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.rep_org_id === repOrgId);
 		if (seasonId) federatedOrders = federatedOrders.filter((o) => o.season_id === seasonId);
 		if (brandId) federatedOrders = federatedOrders.filter((o) => o.brand_id === brandId);
+		if (from) federatedOrders = federatedOrders.filter((o) => o.created_at >= from);
+		if (toExclusive) federatedOrders = federatedOrders.filter((o) => o.created_at < toExclusive);
 
 		// Reshape federated to match the direct row structure.
 		const federatedReshaped = federatedOrders.map((o) => ({
@@ -254,6 +265,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (year) query = query.eq('order_year', parseInt(year));
 	if (brandId) query = query.eq('brand_id', brandId);
 	if (showDateId) query = query.eq('show_date_id', showDateId);
+	if (from) query = query.gte('created_at', from);
+	if (toExclusive) query = query.lt('created_at', toExclusive);
 
 	const [ordersResult, seasonsResult, brandsResult, showDatesResult] = await Promise.all([
 		query,
