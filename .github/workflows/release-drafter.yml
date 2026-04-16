@@ -1,0 +1,25 @@
+name: Release Drafter
+
+# Only runs on push to main. release-drafter requires its config to
+# live on the default branch, so PR-time runs would always fail until
+# this PR merges. Post-merge, every push to main updates the draft
+# release at /releases.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  update_release_draft:
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        with:
+          config-name: release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
