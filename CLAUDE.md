@@ -106,6 +106,7 @@ Don't roll new ad-hoc `let error = $state('')` patterns. If a form is being touc
 - `dev` — integration branch; PR to `main` for release
 - Feature branches: PR into `dev` first, test, then `dev` → `main`
 - Use worktrees under `.worktrees/<branch-name>` for isolated feature work
+- **Releases:** when `dev` → `main` lands, the auto-drafted release at `/releases` is ready to publish. See `docs/release-process.md`. Use conventional-commit prefixes in PR titles (`feat:`, `fix:`, `chore:`, etc.) so they're auto-categorized in release notes.
 
 ## Project Management
 
@@ -141,6 +142,10 @@ Consult these before working in the relevant area. Do **not** inline their conte
 ### Design
 
 - `docs/design/frontend-ux.md` — UX principles (mental models, cognitive load, progressive disclosure, friction asymmetry, empty states, keyboard-first, status visibility). Read before designing or reviewing any UI. Skills: `.claude/skills/frontend-ux` (design-time), `.claude/skills/ux-review` (audit existing UI), `.claude/skills/brand-review` (audit against brand guidelines), `.claude/skills/spec` (turn an idea into a BRD-shaped spec).
+
+### Release
+
+- `docs/release-process.md` — how `dev` → `main` becomes a tagged GitHub Release. release-drafter auto-curates notes from PR labels.
 
 ### Marketing copy
 
