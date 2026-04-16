@@ -2,6 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
+import { LINESHEET_PROMPT } from '$lib/server/ai-prompts.js';
+import { logUsage } from '$lib/server/ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -15,18 +17,7 @@ const ALLOWED_TYPES = new Set([
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
-const SYSTEM_PROMPT = `You are a product data extraction assistant for a wholesale fashion business.
-Analyze the linesheet and extract ALL products by calling the parse_products tool.
-
-Rules:
-- Extract every product visible in the document
-- If a price has a currency symbol like $, remove it and return just the number
-- If you cannot determine wholesale vs retail price, assume the lower price is wholesale
-- If only one price is shown, treat it as the wholesale price
-- If no price is visible for a product, use 0 for wholesale_price
-- Extract sizes and colors whenever visible — they may be listed per product, in a size run, or in a shared header/footer for all products
-- Do NOT put sizes or colors in the description field — use the sizes and colors arrays
-- You MUST call the parse_products tool with your results`;
+const SYSTEM_PROMPT = LINESHEET_PROMPT;
 
 // Define a tool so Claude returns structured JSON via tool_use (guaranteed valid)
 const extractionTool: Anthropic.Tool = {
@@ -133,6 +124,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			tools: [extractionTool],
 			tool_choice: { type: 'tool', name: 'parse_products' },
 			messages: [{ role: 'user', content }]
+		});
+		logUsage({
+			endpoint: 'linesheet',
+			purpose: 'parse_products',
+			model: 'claude-sonnet-4-20250514',
+			organizationId: locals.organization?.id ?? null,
+			userId: locals.user?.id ?? null,
+			response
 		});
 
 		// Find the tool_use block — guaranteed to be valid structured JSON

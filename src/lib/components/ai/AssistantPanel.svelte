@@ -27,6 +27,29 @@
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let attachedFiles = $state<{ file: File; preview?: string }[]>([]);
 	let voiceState = $state<'idle' | 'listening' | 'speaking'>('idle');
+	// Per-message feedback state, keyed by message index. -1 / 1 after rating.
+	let feedbackRatings = $state<Record<number, -1 | 1>>({});
+
+	async function submitFeedback(index: number, rating: -1 | 1) {
+		if (feedbackRatings[index]) return;
+		feedbackRatings = { ...feedbackRatings, [index]: rating };
+		const msgs = $messages;
+		const userMessage = msgs[index - 1]?.role === 'user' ? msgs[index - 1].content : '';
+		const responseContent = msgs[index]?.content ?? '';
+		try {
+			await fetch('/api/ai/feedback', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					messageContent: userMessage,
+					responseContent,
+					rating
+				})
+			});
+		} catch {
+			/* swallow — feedback is best-effort */
+		}
+	}
 
 	type SpeechRecognitionLike = {
 		continuous: boolean;
@@ -386,6 +409,32 @@
 								{#each msg.toolProgress as step, j (j)}
 									<div>{step}</div>
 								{/each}
+							</div>
+						{/if}
+						{#if msg.role === 'assistant' && !msg.streaming && msg.content}
+							<div class="mt-2 flex items-center gap-2 text-muted-foreground">
+								{#if feedbackRatings[i]}
+									<span class="text-sm">
+										{feedbackRatings[i] === 1 ? 'Thanks for the 👍' : 'Thanks — noted.'}
+									</span>
+								{:else}
+									<button
+										type="button"
+										class="rounded px-1.5 py-0.5 text-sm hover:bg-black/10"
+										aria-label="Rate helpful"
+										onclick={() => submitFeedback(i, 1)}
+									>
+										👍
+									</button>
+									<button
+										type="button"
+										class="rounded px-1.5 py-0.5 text-sm hover:bg-black/10"
+										aria-label="Rate not helpful"
+										onclick={() => submitFeedback(i, -1)}
+									>
+										👎
+									</button>
+								{/if}
 							</div>
 						{/if}
 					</div>

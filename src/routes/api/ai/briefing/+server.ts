@@ -3,6 +3,8 @@ import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { computeAccountHealth } from '$lib/server/account-health.js';
+import { BRIEFING_PROMPT } from '$lib/server/ai-prompts.js';
+import { logUsage } from '$lib/server/ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -286,25 +288,21 @@ ${
 		const response = await anthropic.messages.create({
 			model: 'claude-haiku-4-5-20251001',
 			max_tokens: 600,
-			system: `You are a concise business assistant for a wholesale fashion company. Generate a brief morning briefing based on the data provided.
-
-Rules:
-- Write 4-6 short bullet points, each starting with a bold category label
-- PRIORITIZE in this order: (1) at-risk accounts and stale orders, (2) upcoming appointments, (3) pipeline status, (4) shows, (5) opportunities
-- If accounts are at risk (ordered before but not recently), name them and suggest action
-- If there are stale draft orders (14+ days), flag the dollar amount at risk
-- If appointments are coming up this week, mention them
-- If week-over-week data shows a meaningful change, mention the trend (up/down/flat) with percentages
-- If there's no data for something, skip it — don't mention empty categories
-- Be direct and actionable, not generic. Use specific numbers and names.
-- Keep the total response under 200 words
-- Do NOT use markdown headers. Use bullet points with **bold labels** only.`,
+			system: BRIEFING_PROMPT,
 			messages: [
 				{
 					role: 'user',
 					content: `Generate a briefing based on this data:\n${contextData}`
 				}
 			]
+		});
+		logUsage({
+			endpoint: 'briefing',
+			purpose: 'briefing',
+			model: 'claude-haiku-4-5-20251001',
+			organizationId: orgId,
+			userId: user.id,
+			response
 		});
 
 		const briefing = response.content[0].type === 'text' ? response.content[0].text : '';
