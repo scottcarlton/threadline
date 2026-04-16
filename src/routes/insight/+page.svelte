@@ -26,10 +26,21 @@
 
 	// Action feed data. Initialize empty and let the effect seed from data
 	// so `data` isn't captured at module scope (state_referenced_locally).
-	let insightActions = $state<any[]>([]);
+	type InsightAction = {
+		id: string;
+		insight_type: string;
+		priority_score: number;
+		title: string;
+		description: string;
+		metadata: Record<string, unknown>;
+		entity_type: string | null;
+		entity_id: string | null;
+		status: string;
+	};
+	let insightActions = $state<InsightAction[]>([]);
 
 	$effect(() => {
-		insightActions = data.insightActions ?? [];
+		insightActions = (data.insightActions ?? []) as InsightAction[];
 	});
 	const scoreboard = $derived(data.scoreboard ?? []);
 	let isRefreshing = $state(false);
@@ -88,7 +99,16 @@
 		orders: number;
 		revenue: number;
 	}[];
-	const showAppointments = $derived(data.showAppointments ?? []) as any[];
+	type ShowAppointment = {
+		id: string;
+		account_id: string | null;
+		freeform_account_name: string | null;
+		freeform_contact_name: string | null;
+		status: string;
+		notes: string | null;
+		profiles?: { display_name?: string | null } | null;
+	};
+	const showAppointments = $derived(data.showAppointments ?? []) as ShowAppointment[];
 
 	// Commission tab data
 	const commissionOrders = $derived(data.commissionOrders ?? []);
@@ -142,6 +162,7 @@
 
 	// Build order lookup: "accountId|deliveryId" -> total
 	const showOrderLookup = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const map = new Map<string, number>();
 		for (const o of showOrders) {
 			const key = `${o.account_id}|${o.delivery_id ?? '__immediate__'}`;
@@ -152,6 +173,7 @@
 
 	// Determine which delivery columns to show (only those with at least one order)
 	const activeDeliveryColumns = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const deliveryIdsWithOrders = new Set<string>();
 		for (const o of showOrders) {
 			deliveryIdsWithOrders.add(o.delivery_id ?? '__immediate__');
@@ -221,6 +243,7 @@
 
 	// Build a lookup map for grid data: "accountId|deliveryId|year" -> total
 	const gridLookup = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const map = new Map<string, number>();
 		for (const row of gridData) {
 			map.set(`${row.account_id}|${row.delivery_id}|${row.order_year}`, row.total);
@@ -254,6 +277,7 @@
 
 	// Unique states for filter
 	const availableStates = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const states = new Set<string>();
 		for (const a of gridAccounts) {
 			if (a.state) states.add(a.state);
@@ -369,6 +393,7 @@
 
 	// Build override lookup: "brandId|accountId" -> rate
 	const overrideLookup = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const map = new Map<string, number>();
 		for (const ov of commissionOverrides) {
 			map.set(`${ov.brand_id}|${ov.account_id}`, ov.rate);
@@ -400,7 +425,8 @@
 
 	const totalShipped = $derived(
 		commissionRows.reduce(
-			(sum: number, r: any) => sum + (r.shipped_amount ?? r.total_amount ?? 0),
+			(sum: number, r: { shipped_amount?: number | null; total_amount?: number | null }) =>
+				sum + (r.shipped_amount ?? r.total_amount ?? 0),
 			0
 		)
 	);
@@ -411,6 +437,7 @@
 
 	// Monthly summary grouped by month of shipped_at
 	const commissionMonthly = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const map = new Map<
 			string,
 			{ month: string; sortKey: string; shippedTotal: number; commissionTotal: number }
@@ -1351,7 +1378,9 @@
 								<tbody>
 									{#each showVisits as visit (visit.id)}
 										{@const account = visit.accounts}
-										{@const repName = (visit as any).profiles?.display_name ?? null}
+										{@const repName =
+											(visit as { profiles?: { display_name?: string | null } | null }).profiles
+												?.display_name ?? null}
 										<tr class="border-b transition-colors last:border-b-0 hover:bg-muted/20">
 											<!-- Account -->
 											<td class="sticky left-0 z-10 min-w-[200px] bg-background px-4 py-3">

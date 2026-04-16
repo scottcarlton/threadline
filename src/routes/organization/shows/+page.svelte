@@ -61,6 +61,7 @@
 	let expandedIds = $state<Set<string>>(new Set());
 
 	function toggleExpand(id: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const next = new Set(expandedIds);
 		if (next.has(id)) {
 			next.delete(id);
@@ -215,7 +216,7 @@
 
 		drawerShow = show as DrawerShow;
 
-		const dateIds = (show?.show_dates ?? []).map((d: any) => d.id);
+		const dateIds = (show?.show_dates ?? []).map((d: { id: string }) => d.id);
 		drawerDocuments = {};
 		if (dateIds.length > 0) {
 			const { data: docs } = await supabase

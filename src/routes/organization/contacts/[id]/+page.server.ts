@@ -148,11 +148,17 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		},
 		orders: [],
 		suggestedAccounts,
-		emailActivity: (emailActivity ?? []).map((e: any) => ({
-			id: e.id,
-			subject: e.subject,
-			senderName: e.profiles?.display_name ?? null,
-			date: e.created_at
-		}))
+		emailActivity: (emailActivity ?? []).map((e) => {
+			const profiles = (
+				e as { profiles?: { display_name?: string } | { display_name?: string }[] | null }
+			).profiles;
+			const profile = Array.isArray(profiles) ? profiles[0] : profiles;
+			return {
+				id: e.id,
+				subject: e.subject,
+				senderName: profile?.display_name ?? null,
+				date: e.created_at
+			};
+		})
 	};
 };

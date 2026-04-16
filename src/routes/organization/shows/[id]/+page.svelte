@@ -12,7 +12,7 @@
 
 	let { data } = $props();
 	const show = $derived(data.show as ShowWithDates);
-	const documents = $derived(data.documents as Record<string, ShowDateDocument[]>);
+	const documents = $derived(data.documents as unknown as Record<string, ShowDateDocument[]>);
 	const canEdit = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
 
 	// Edit series name/notes

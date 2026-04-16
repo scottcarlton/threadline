@@ -9,7 +9,18 @@
 	const report = $derived(data.report as string);
 	const title = $derived(data.title as string);
 	const year = $derived(data.year as number);
-	const rows = $derived(data.rows as any[]);
+	type ReportRow = {
+		name: string;
+		orders: number;
+		revenue: number;
+		status: string;
+		show: string;
+		orderAmount: number;
+		brandCommission: number;
+		repCommission: number;
+		[k: string]: unknown;
+	};
+	const rows = $derived(data.rows as ReportRow[]);
 
 	const fmt = new Intl.NumberFormat('en-US', {
 		style: 'currency',

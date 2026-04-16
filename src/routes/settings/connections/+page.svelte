@@ -148,6 +148,7 @@
 		try {
 			const body: { expires_at?: string; max_uses?: number } = {};
 			if (inviteExpiresDays && inviteExpiresDays > 0) {
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 				const d = new Date();
 				d.setDate(d.getDate() + Number(inviteExpiresDays));
 				body.expires_at = d.toISOString();

@@ -25,32 +25,34 @@ type EventPayload = {
 	new_account: { accountName: string; city?: string; state?: string; url: string };
 };
 
-const EVENT_FORMATTERS: Record<IntegrationEvent, (payload: any) => SlackMessage> = {
-	order_submitted: (p: EventPayload['order_submitted']) => ({
+const EVENT_FORMATTERS: {
+	[E in IntegrationEvent]: (payload: EventPayload[E]) => SlackMessage;
+} = {
+	order_submitted: (p) => ({
 		title: 'New Order Submitted',
 		text: `*${p.orderNumber}* for ${p.accountName} (${p.brandName}) — $${p.total.toLocaleString()}`,
 		url: p.url,
 		color: '#16a34a'
 	}),
-	order_confirmed: (p: EventPayload['order_confirmed']) => ({
+	order_confirmed: (p) => ({
 		title: 'Order Confirmed',
 		text: `*${p.orderNumber}* for ${p.accountName} has been confirmed`,
 		url: p.url,
 		color: '#2563eb'
 	}),
-	order_shipped: (p: EventPayload['order_shipped']) => ({
+	order_shipped: (p) => ({
 		title: 'Order Shipped',
 		text: `*${p.orderNumber}* for ${p.accountName} has shipped`,
 		url: p.url,
 		color: '#7c3aed'
 	}),
-	order_cancelled: (p: EventPayload['order_cancelled']) => ({
+	order_cancelled: (p) => ({
 		title: 'Order Cancelled',
 		text: `*${p.orderNumber}* for ${p.accountName} was cancelled${p.reason ? `: ${p.reason}` : ''}`,
 		url: p.url,
 		color: '#dc2626'
 	}),
-	new_account: (p: EventPayload['new_account']) => ({
+	new_account: (p) => ({
 		title: 'New Account Created',
 		text: `*${p.accountName}*${p.city ? ` — ${p.city}, ${p.state}` : ''}`,
 		url: p.url,
@@ -101,8 +103,10 @@ async function dispatchAgentTriggers(
 
 	if (!triggers || triggers.length === 0) return;
 
+	type JoinedAgent = { id: string; system_prompt: string; is_active: boolean };
 	for (const trigger of triggers) {
-		const agent = trigger.org_agents as any;
+		const joined = trigger.org_agents as JoinedAgent | JoinedAgent[] | null;
+		const agent = Array.isArray(joined) ? joined[0] : joined;
 		if (!agent?.is_active) continue;
 
 		try {

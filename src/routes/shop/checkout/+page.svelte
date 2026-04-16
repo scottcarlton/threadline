@@ -33,6 +33,7 @@
 	let error = $state('');
 
 	const brandGroups = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const groups = new Map<string, BrandGroup>();
 		for (const item of items) {
 			const brandId = item.brandId ?? 'unknown';
@@ -105,6 +106,7 @@
 	}
 
 	const brandTotals = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const totals = new Map<string, { qty: number; amount: number }>();
 		for (const group of brandGroups) {
 			let qty = 0;
@@ -137,6 +139,7 @@
 
 	// Group deliveries by season for the dropdown
 	const deliveriesBySeason = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const groups = new Map<string, { seasonName: string; deliveries: typeof deliveries }>();
 		for (const d of deliveries) {
 			const seasonName = d.seasons?.name ?? 'Other';

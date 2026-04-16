@@ -206,11 +206,21 @@
 	}
 
 	// ── Drawer state ──
+	type DrawerMember = {
+		id: string;
+		role: UserRole;
+		profile_id: string;
+		created_at: string;
+		profiles?: { display_name?: string | null; email?: string | null } | null;
+	};
+	type DrawerCommission = { brand_id: string; rate: number; brands?: { name?: string } | null };
+	type DrawerBrandAccess = { id: string; brand_id: string; brands?: { name?: string } | null };
+	type DrawerTerritory = { id: string; name: string };
 	type DrawerData = {
-		member: any;
-		commissions: any[];
-		brandAccess: any[];
-		territories: any[];
+		member: DrawerMember | null;
+		commissions: DrawerCommission[];
+		brandAccess: DrawerBrandAccess[];
+		territories: DrawerTerritory[];
 	};
 
 	let drawerOpen = $state(false);
@@ -279,10 +289,10 @@
 		]);
 
 		drawerData = {
-			member: memberRes.data,
-			commissions: commissionsRes.data ?? [],
-			brandAccess: brandAccessRes.data ?? [],
-			territories: territoriesRes.data ?? []
+			member: memberRes.data as DrawerMember | null,
+			commissions: (commissionsRes.data ?? []) as DrawerCommission[],
+			brandAccess: (brandAccessRes.data ?? []) as DrawerBrandAccess[],
+			territories: (territoriesRes.data ?? []) as DrawerTerritory[]
 		};
 		drawerLoading = false;
 	}
@@ -292,10 +302,8 @@
 	const drawerCommissions = $derived(drawerData?.commissions ?? []);
 	const drawerBrandAccess = $derived(drawerData?.brandAccess ?? []);
 	const drawerTerritories = $derived(drawerData?.territories ?? []);
-	const drawerCommissionMap = $derived(
-		new Map(drawerCommissions.map((c: any) => [c.brand_id, c.rate]))
-	);
-	const drawerAccessBrandIds = $derived(new Set(drawerBrandAccess.map((ba: any) => ba.brand_id)));
+	const drawerCommissionMap = $derived(new Map(drawerCommissions.map((c) => [c.brand_id, c.rate])));
+	const drawerAccessBrandIds = $derived(new Set(drawerBrandAccess.map((ba) => ba.brand_id)));
 	const drawerIsCurrentUser = $derived(drawerMember?.profile_id === currentUserId);
 	const drawerIsOwner = $derived(drawerMember?.role === 'owner');
 	const drawerCanEdit = $derived(!drawerIsCurrentUser && !drawerIsOwner);

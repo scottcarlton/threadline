@@ -10,8 +10,22 @@
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import type { Order, Season } from '$lib/types/database.js';
 
+	type OrderRow = Order & {
+		profiles?: { display_name?: string | null } | null;
+		show_dates?: {
+			city?: string | null;
+			state?: string | null;
+			month?: number | null;
+			year?: number | null;
+			shows?: { name?: string } | null;
+		} | null;
+		source_types?: { name?: string } | null;
+		season_deliveries?: { delivery_month?: number | null } | null;
+		source_org?: { name?: string | null } | null;
+	};
+
 	let { data } = $props();
-	const orders = $derived(data.orders as Order[]);
+	const orders = $derived(data.orders as OrderRow[]);
 	const seasons = $derived(data.seasons as Season[]);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
 	const showDates = $derived(data.showDates ?? []);
@@ -100,6 +114,7 @@
 	}
 
 	function toggleOne(id: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const next = new Set(selectedIds);
 		if (next.has(id)) next.delete(id);
 		else next.add(id);
@@ -162,7 +177,7 @@
 	}
 
 	function exportOrders() {
-		const rows = filtered.map((o: any) => ({
+		const rows = filtered.map((o) => ({
 			order_number: o.order_number,
 			account: o.accounts?.business_name ?? '',
 			brand: o.brands?.name ?? '',
@@ -289,6 +304,7 @@
 	}
 
 	function setFilter(key: string, value: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams($page.url.searchParams);
 		if (!value || value === 'all') {
 			params.delete(key);
@@ -567,13 +583,13 @@
 				</thead>
 				<tbody class="divide-y">
 					{#each filtered as order (order.id)}
-						{@const repName = (order as any).profiles?.display_name ?? '—'}
-						{@const showDate = (order as any).show_dates}
-						{@const sourceName = showDate?.shows?.name ?? (order as any).source_types?.name ?? null}
+						{@const repName = order.profiles?.display_name ?? '—'}
+						{@const showDate = order.show_dates}
+						{@const sourceName = showDate?.shows?.name ?? order.source_types?.name ?? null}
 						{@const sourceLocation = showDate
 							? [showDate.city, showDate.state].filter(Boolean).join(', ')
 							: null}
-						{@const delivery = (order as any).season_deliveries}
+						{@const delivery = order.season_deliveries}
 						{@const monthNames = [
 							'Jan',
 							'Feb',
@@ -651,7 +667,7 @@
 							<td class="hidden px-4 py-3 md:table-cell">
 								{#if isBrandOrg}
 									{@const repOrgName =
-										(order as any).source_org?.name ?? (order as any).profiles?.display_name ?? '—'}
+										order.source_org?.name ?? order.profiles?.display_name ?? '—'}
 									<span class="text-sm {repOrgName === '—' ? 'text-muted-foreground/50' : ''}"
 										>{repOrgName}</span
 									>
@@ -677,7 +693,7 @@
 												'Oct',
 												'Nov',
 												'Dec'
-											][showDate.month - 1]}</span
+											][(showDate.month ?? 1) - 1]}</span
 										><span class="font-mono">{sourceLocation}</span>
 									</p>
 								{/if}

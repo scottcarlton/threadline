@@ -7,6 +7,42 @@
 
 	let { data } = $props();
 
+	type ShowRef = { name?: string };
+	type ShowDateRow = {
+		id: string;
+		city?: string | null;
+		state?: string | null;
+		month?: number | null;
+		year?: number | null;
+		shows?: ShowRef | ShowRef[] | null;
+	};
+	type Appointment = {
+		id: string;
+		scheduled_date: string | null;
+		scheduled_time?: string | null;
+		duration_minutes?: number | null;
+		appointment_type: 'scheduled' | 'walkin';
+		status: 'scheduled' | 'completed' | 'cancelled' | string;
+		notes?: string | null;
+		location_type?: string | null;
+		location_detail?: string | null;
+		created_by: string;
+		freeform_account_name?: string | null;
+		freeform_contact_name?: string | null;
+		freeform_contact_email?: string | null;
+		freeform_contact_phone?: string | null;
+		accounts?: {
+			business_name?: string;
+			contact_first_name?: string | null;
+			contact_last_name?: string | null;
+			contact_email?: string | null;
+			city?: string | null;
+			state?: string | null;
+		} | null;
+		profiles?: { display_name?: string | null } | null;
+		show_dates?: ShowDateRow | null;
+	};
+
 	$effect(() => {
 		if ($page.url.searchParams.get('new') === 'true') {
 			showAddForm = true;
@@ -15,9 +51,9 @@
 			history.replaceState({}, '', url.pathname + url.search);
 		}
 	});
-	const showDates = $derived(data.showDates ?? []);
+	const showDates = $derived((data.showDates ?? []) as ShowDateRow[]);
 	const selectedShowDateId = $derived(data.selectedShowDateId ?? null);
-	const appointments = $derived(data.appointments ?? []);
+	const appointments = $derived((data.appointments ?? []) as Appointment[]);
 	const accounts = $derived(data.accounts ?? []);
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
 
@@ -57,7 +93,7 @@
 	let accountDropdownOpen = $state(false);
 	let filterTab = $state<'all' | 'today' | 'upcoming' | 'completed'>('all');
 	let ownerFilter = $state<'everyone' | 'mine' | 'others'>('everyone');
-	let selectedAppointment = $state<any>(null);
+	let selectedAppointment = $state<Appointment | null>(null);
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && selectedAppointment) {
@@ -84,27 +120,25 @@
 		let list = appointments;
 		switch (filterTab) {
 			case 'today':
-				list = list.filter((a: any) => a.scheduled_date === todayStr);
+				list = list.filter((a) => a.scheduled_date === todayStr);
 				break;
 			case 'upcoming':
-				list = list.filter((a: any) => a.scheduled_date >= todayStr && a.status === 'scheduled');
+				list = list.filter((a) => (a.scheduled_date ?? '') >= todayStr && a.status === 'scheduled');
 				break;
 			case 'completed':
-				list = list.filter((a: any) => a.status === 'completed');
+				list = list.filter((a) => a.status === 'completed');
 				break;
 		}
 		if (isAdmin && ownerFilter === 'mine') {
-			list = list.filter((a: any) => a.created_by === data.user?.id);
+			list = list.filter((a) => a.created_by === data.user?.id);
 		} else if (isAdmin && ownerFilter === 'others') {
-			list = list.filter((a: any) => a.created_by !== data.user?.id);
+			list = list.filter((a) => a.created_by !== data.user?.id);
 		}
 		return list;
 	});
 
-	const myCount = $derived(appointments.filter((a: any) => a.created_by === data.user?.id).length);
-	const othersCount = $derived(
-		appointments.filter((a: any) => a.created_by !== data.user?.id).length
-	);
+	const myCount = $derived(appointments.filter((a) => a.created_by === data.user?.id).length);
+	const othersCount = $derived(appointments.filter((a) => a.created_by !== data.user?.id).length);
 
 	function parseMonth(dateStr: string | null): string {
 		if (!dateStr) return '--';
@@ -117,20 +151,14 @@
 		return String(parseInt(dateStr.split('-')[2], 10));
 	}
 
-	function showDateLabel(sd: {
-		year: number;
-		month: number;
-		city: string | null;
-		state: string | null;
-		shows: { name: string } | { name: string }[] | null;
-	}): string {
+	function showDateLabel(sd: ShowDateRow): string {
 		const shows = sd.shows;
 		const showName = Array.isArray(shows)
 			? (shows[0]?.name ?? 'Unknown Show')
 			: (shows?.name ?? 'Unknown Show');
-		const mon = monthNames[sd.month - 1] ?? '';
+		const mon = monthNames[(sd.month ?? 1) - 1] ?? '';
 		const loc = [sd.city, sd.state].filter(Boolean).join(' ');
-		return `${showName} — ${mon} ${sd.year}${loc ? ', ' + loc : ''}`;
+		return `${showName} — ${mon} ${sd.year ?? ''}${loc ? ', ' + loc : ''}`;
 	}
 
 	function handleShowDateChange(event: Event) {
@@ -270,7 +298,7 @@
 		return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 	}
 
-	function formatTime(timeStr: string | null): string {
+	function formatTime(timeStr: string | null | undefined): string {
 		if (!timeStr) return '--';
 		const [h, m] = timeStr.split(':').map(Number);
 		const ampm = h >= 12 ? 'PM' : 'AM';
@@ -455,7 +483,9 @@
 							<option value="">Select show...</option>
 							{#each showDates as sd (sd.id)}
 								<option value={sd.id}>
-									{(sd as any).shows?.name ?? 'Show'} — {monthNames[(sd.month ?? 1) - 1]}
+									{(Array.isArray(sd.shows) ? sd.shows[0]?.name : sd.shows?.name) ?? 'Show'} — {monthNames[
+										(sd.month ?? 1) - 1
+									]}
 									{sd.year}{sd.city ? `, ${sd.city}` : ''}{sd.state ? ` ${sd.state}` : ''}
 								</option>
 							{/each}
@@ -730,9 +760,9 @@
 								{#if appt.show_dates}
 									<span
 										class="inline-flex rounded-sm bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-										>{Array.isArray((appt.show_dates as any).shows)
-											? (appt.show_dates as any).shows[0]?.name
-											: ((appt.show_dates as any).shows?.name ?? '')}</span
+										>{Array.isArray(appt.show_dates.shows)
+											? appt.show_dates.shows[0]?.name
+											: (appt.show_dates.shows?.name ?? '')}</span
 									>
 								{/if}
 								{#if appt.profiles?.display_name}
@@ -743,9 +773,9 @@
 							<div class="mt-1">
 								<span
 									class="inline-flex rounded-sm bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-									>{Array.isArray((appt.show_dates as any).shows)
-										? (appt.show_dates as any).shows[0]?.name
-										: ((appt.show_dates as any).shows?.name ?? '')}</span
+									>{Array.isArray(appt.show_dates.shows)
+										? appt.show_dates.shows[0]?.name
+										: (appt.show_dates.shows?.name ?? '')}</span
 								>
 							</div>
 						{/if}
@@ -857,7 +887,7 @@
 			<div>
 				<p class="mb-1 text-sm font-medium text-muted-foreground">Location</p>
 				{#if appt.location_type === 'show' && appt.show_dates}
-					{@const sd = appt.show_dates as any}
+					{@const sd = appt.show_dates}
 					<p class="text-sm">
 						{Array.isArray(sd.shows) ? sd.shows[0]?.name : (sd.shows?.name ?? 'Show')}
 					</p>

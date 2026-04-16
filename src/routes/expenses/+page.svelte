@@ -77,7 +77,7 @@
 	};
 
 	function exportExpenses() {
-		const rows = filtered.map((e: any) => ({
+		const rows = filtered.map((e) => ({
 			expense_number: e.expense_number,
 			brand: e.brands?.name ?? '',
 			category: categoryLabels[e.category] ?? e.category,
@@ -92,6 +92,7 @@
 	}
 
 	function setFilter(key: string, value: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams($page.url.searchParams);
 		if (!value || value === 'all') {
 			params.delete(key);

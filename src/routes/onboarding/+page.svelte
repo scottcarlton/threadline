@@ -8,14 +8,14 @@
 	const existingOrg = $derived(data.organization);
 
 	// For Google OAuth users, pre-fill name from auth metadata
-	let authUserMeta: Record<string, any> = {};
+	let authUserMeta: Record<string, unknown> = {};
 
 	async function loadAuthMeta() {
 		const { data: authData } = await supabase.auth.getUser();
 		if (authData?.user?.user_metadata) {
 			authUserMeta = authData.user.user_metadata;
 			if (!nameInitialized) {
-				const fullName = authUserMeta.full_name ?? authUserMeta.name ?? '';
+				const fullName = String(authUserMeta.full_name ?? authUserMeta.name ?? '');
 				if (fullName) {
 					const parts = fullName.split(' ');
 					firstName = parts[0] ?? '';

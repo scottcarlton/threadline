@@ -26,11 +26,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	// Sort images: primary first, then by sort_order
 	if (product.product_images) {
-		product.product_images.sort((a: any, b: any) => {
-			if (a.is_primary && !b.is_primary) return -1;
-			if (!a.is_primary && b.is_primary) return 1;
-			return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-		});
+		product.product_images.sort(
+			(
+				a: { is_primary?: boolean; sort_order?: number },
+				b: { is_primary?: boolean; sort_order?: number }
+			) => {
+				if (a.is_primary && !b.is_primary) return -1;
+				if (!a.is_primary && b.is_primary) return 1;
+				return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+			}
+		);
 	}
 
 	return { product };

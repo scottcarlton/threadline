@@ -242,12 +242,16 @@
 												: null,
 											colors: [
 												...new Set(
-													(product.product_variants ?? []).map((v: any) => v.color).filter(Boolean)
+													(product.product_variants ?? [])
+														.map((v) => v.color)
+														.filter((c): c is string => Boolean(c))
 												)
 											],
 											sizes: [
 												...new Set(
-													(product.product_variants ?? []).map((v: any) => v.size).filter(Boolean)
+													(product.product_variants ?? [])
+														.map((v) => v.size)
+														.filter((s): s is string => Boolean(s))
 												)
 											],
 											addedAt: new Date().toISOString()
