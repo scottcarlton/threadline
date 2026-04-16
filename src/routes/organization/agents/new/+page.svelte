@@ -13,6 +13,12 @@
 		CardContent,
 		CardFooter
 	} from '$lib/components/ui/card/index.js';
+	import {
+		AGENT_TEMPLATES,
+		getTemplate,
+		TOOL_CATALOG,
+		ALL_TOOL_NAMES
+	} from '$lib/agent-templates.js';
 
 	let { data } = $props();
 
@@ -20,6 +26,9 @@
 	let slug = $state('');
 	let description = $state('');
 	let systemPrompt = $state('');
+	let selectedTemplate = $state('');
+	let restrictTools = $state(false);
+	let allowedTools = $state<string[]>([...ALL_TOOL_NAMES]);
 	let error = $state('');
 	let loading = $state(false);
 	let slugEdited = $state(false);
@@ -39,6 +48,27 @@
 
 	function handleSlugInput() {
 		slugEdited = true;
+	}
+
+	function applyTemplate() {
+		if (!selectedTemplate) return;
+		const template = getTemplate(selectedTemplate);
+		if (!template) return;
+		name = template.name;
+		slug = template.slug;
+		slugEdited = true;
+		description = template.description;
+		systemPrompt = template.system_prompt;
+		restrictTools = template.suggested_tools.length > 0;
+		allowedTools = restrictTools ? [...template.suggested_tools] : [...ALL_TOOL_NAMES];
+	}
+
+	function toggleTool(toolName: string, checked: boolean) {
+		if (checked) {
+			if (!allowedTools.includes(toolName)) allowedTools = [...allowedTools, toolName];
+		} else {
+			allowedTools = allowedTools.filter((t) => t !== toolName);
+		}
 	}
 
 	async function handleCreate() {
@@ -61,6 +91,7 @@
 				slug,
 				description: description || null,
 				system_prompt: systemPrompt,
+				tool_whitelist: restrictTools ? allowedTools : null,
 				created_by: data.user?.id
 			})
 			.select()
@@ -85,6 +116,37 @@
 		>
 		<h2 class="text-lg font-semibold">New Agent</h2>
 	</div>
+
+	<Card>
+		<CardHeader>
+			<CardTitle>Start from template</CardTitle>
+		</CardHeader>
+		<CardContent class="space-y-3">
+			<p class="text-sm text-muted-foreground">
+				Pick a template to pre-fill the form below, or start from scratch.
+			</p>
+			<div class="flex items-center gap-2">
+				<select
+					bind:value={selectedTemplate}
+					class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+				>
+					<option value="">— none (start from scratch) —</option>
+					{#each AGENT_TEMPLATES as template (template.slug)}
+						<option value={template.slug}>{template.name}</option>
+					{/each}
+				</select>
+				<Button variant="outline" onclick={applyTemplate} disabled={!selectedTemplate}>
+					Apply
+				</Button>
+			</div>
+			{#if selectedTemplate}
+				{@const template = getTemplate(selectedTemplate)}
+				{#if template}
+					<p class="text-sm text-muted-foreground">{template.description}</p>
+				{/if}
+			{/if}
+		</CardContent>
+	</Card>
 
 	<Card>
 		<CardHeader>
@@ -131,9 +193,52 @@
 					class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 				></textarea>
 				<p class="text-sm text-muted-foreground">
-					This prompt is injected as additional context when the agent runs. It has access to all
-					standard AI tools.
+					This prompt is injected as additional context when the agent runs.
 				</p>
+			</div>
+
+			<div class="space-y-3 border-t pt-4">
+				<div class="flex items-center gap-2">
+					<input
+						id="restrict-tools"
+						type="checkbox"
+						bind:checked={restrictTools}
+						class="h-4 w-4 rounded border-input"
+					/>
+					<Label for="restrict-tools" class="cursor-pointer">
+						Restrict which tools this agent can use
+					</Label>
+				</div>
+				<p class="text-sm text-muted-foreground">
+					By default an agent has access to every AI tool. Restricting tools narrows its focus and
+					limits blast radius — e.g. a reporting agent doesn't need create_brand or send_email.
+				</p>
+				{#if restrictTools}
+					<div class="space-y-4 rounded-md border p-3">
+						{#each TOOL_CATALOG as group (group.group)}
+							<div class="space-y-2">
+								<div class="text-sm font-semibold">{group.group}</div>
+								<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+									{#each group.tools as tool (tool.name)}
+										<label
+											class="flex cursor-pointer items-center gap-2 text-sm"
+											for="tool-{tool.name}"
+										>
+											<input
+												id="tool-{tool.name}"
+												type="checkbox"
+												checked={allowedTools.includes(tool.name)}
+												onchange={(e) => toggleTool(tool.name, e.currentTarget.checked)}
+												class="h-4 w-4 rounded border-input"
+											/>
+											<span>{tool.label}</span>
+										</label>
+									{/each}
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		</CardContent>
 		<CardFooter class="justify-between">

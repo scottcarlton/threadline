@@ -3,6 +3,8 @@ import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
+import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT } from '$lib/server/ai-prompts.js';
+import { logUsage } from '$lib/server/ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -86,7 +88,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'create_order',
 		description:
-			'Create a new wholesale order. Uses fuzzy matching to find the account and brand by name.',
+			'Create a new wholesale order. Fuzzy matches account and brand by name. Provide season_name and order_year separately (e.g., season_name="Fall", order_year=2026). Auto-sets the expected ship date from the season delivery schedule when both season_name and order_year are supplied. Returns the new order with joined brand, account, and season names.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -117,7 +119,8 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'add_order_lines',
-		description: 'Add line items to an existing order.',
+		description:
+			'Add line items to an existing order. Each line requires qty and unit_price. style_number is optional but recommended for products matching the brand catalog. description, color, and size are optional. Recalculates the order total automatically.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -189,21 +192,53 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 		}
 	},
 	{
+		name: 'list_brands',
+		description:
+			'List active brands as name+id pairs. Use for quick lookups before creating orders or when the user asks "what brands do we have". Faster and cheaper than query_data for simple list requests.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {},
+			required: []
+		}
+	},
+	{
+		name: 'list_accounts',
+		description:
+			'List active accounts as business_name+id pairs with city/state. Use for quick lookups before creating orders or when the user asks "what accounts do we have". Faster and cheaper than query_data for simple list requests.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {},
+			required: []
+		}
+	},
+	{
 		name: 'query_data',
 		description:
-			'Query and search data. Supports brands, accounts, orders, shows, and seasons with optional filters.',
+			'Search and list entities with optional filters. Supported entity values: brands, accounts, orders, shows, seasons, territories, appointments, contacts, order_lines, show_dates, products. Use filters as a key-value object keyed by column names (e.g., { status: "draft" } for orders, { business_name: "Nordstrom" } for accounts — string values use fuzzy ilike matching). For order_lines, order_id is required. Results are scoped to the current org and limited to 50 rows ordered by created_at desc. Prefer list_brands / list_accounts for simple name+id lookups.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
 				entity: {
 					type: 'string',
-					enum: ['brands', 'accounts', 'orders', 'shows', 'seasons'],
+					enum: [
+						'brands',
+						'accounts',
+						'orders',
+						'shows',
+						'seasons',
+						'territories',
+						'appointments',
+						'contacts',
+						'order_lines',
+						'show_dates',
+						'products'
+					],
 					description: 'Entity type to query (required)'
 				},
 				filters: {
 					type: 'object',
 					description:
-						'Key-value filters. String values use fuzzy matching (ilike). Use field names from the database schema.',
+						'Key-value filters keyed by column name. String values use fuzzy matching (ilike %value%); numbers and booleans match exactly.',
 					additionalProperties: true
 				}
 			},
@@ -230,7 +265,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'draft_email',
 		description:
-			'Draft an email to a contact. Provide the recipient (email address or account/brand name to look up), subject, and body. The draft will be shown to the user for confirmation before sending.',
+			'Draft an email to a contact. Accepts either a direct email address or an account/brand name (fuzzy lookup) for the recipient. Returns a draft preview — this does NOT send the email. Call send_email separately after the user confirms the draft.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -704,7 +739,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		conversationHistory,
 		currentPage,
 		entityContext: entityCtx,
-		agentId
+		agentId,
+		stream
 	} = await request.json();
 	const origin = request.headers.get('origin') || new URL(request.url).origin;
 	const requestStartTime = Date.now();
@@ -719,10 +755,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	let cleanMessage = message;
 
 	const slugMatch = message.match(/^@([\w-]+)\s*/);
+	let agentToolWhitelist: string[] | null = null;
 	if (slugMatch && !resolvedAgentId) {
 		const { data: agentBySlug } = await locals.supabase
 			.from('org_agents')
-			.select('id, system_prompt')
+			.select('id, system_prompt, tool_whitelist')
 			.eq('organization_id', locals.organization.id)
 			.eq('slug', slugMatch[1])
 			.eq('is_active', true)
@@ -730,6 +767,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		if (agentBySlug) {
 			resolvedAgentId = agentBySlug.id;
 			agentPrompt = agentBySlug.system_prompt;
+			agentToolWhitelist = agentBySlug.tool_whitelist;
 			cleanMessage = message.slice(slugMatch[0].length);
 		}
 	}
@@ -737,12 +775,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (resolvedAgentId && !agentPrompt) {
 		const { data: agentById } = await locals.supabase
 			.from('org_agents')
-			.select('system_prompt')
+			.select('system_prompt, tool_whitelist')
 			.eq('id', resolvedAgentId)
 			.eq('is_active', true)
 			.single();
 		if (agentById) {
 			agentPrompt = agentById.system_prompt;
+			agentToolWhitelist = agentById.tool_whitelist;
 		}
 	}
 
@@ -780,28 +819,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const pageContext = describeCurrentPage(currentPage ?? '/');
 
-	// Static system instructions (cacheable — same for all users/requests)
-	const staticSystem = `You are the AI assistant for Threadline, a multi-brand women's wholesale contractor portal. You help manage brands, accounts, orders, shows, seasons, territories, and appointments.
-
-Your capabilities:
-- Brands & Accounts: create, update, archive/unarchive, assign territories
-- Orders: create, add/edit/remove line items, update status, set ship dates, add notes
-- Shows & Seasons: create shows and seasons
-- Territories: create, update, assign accounts to territories
-- Appointments: schedule (show/road/phone/video), reschedule, complete, cancel, delete
-- Email: draft, send (via Gmail), search inbox
-- Analytics: sales reports (by brand/account/territory/rep), commission reports, dashboard metrics
-- Data queries: search across brands, accounts, orders, shows, seasons, territories, appointments, contacts, order lines, show dates
-- Integrations: send Slack/Discord messages, export data to Google Sheets, sync/pull data with Notion
-
-Important rules:
-1. Season + year model: "Fall 2026" means season="Fall" and order_year=2026. Always split these when creating or querying orders.
-2. When referencing accounts, brands, territories, or shows by name, use fuzzy matching — users may not type exact names.
-3. Always confirm what you did after performing an action.
-4. Be concise and professional. This is a business tool.
-5. When presenting data, format it clearly with relevant details. Use markdown formatting (bold, lists, tables) for readability.
-6. If asked to do something outside your capabilities, explain what you can and cannot do.
-7. After every response, include 2-3 brief suggested follow-up prompts on the very last line, formatted as: SUGGESTIONS:["prompt 1","prompt 2","prompt 3"]. These should be natural next questions or actions the user might want. Do NOT include this line inside code blocks.`;
+	// Static system instructions (cacheable — same for all users/requests).
+	// Sourced from $lib/server/ai-prompts so we can version it and share
+	// the constant with observability tooling.
+	const staticSystem = MAIN_STATIC_PROMPT;
 
 	// Dynamic per-request context
 	const entityInfo = entityCtx?.summary
@@ -848,14 +869,24 @@ Important rules:
 		}
 	}
 
+	const now = new Date();
+	const dateStr = now.toLocaleDateString('en-US', {
+		weekday: 'long',
+		year: 'numeric',
+		month: 'long',
+		day: 'numeric'
+	});
+	const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
 	const dynamicSystem = `Current user context:
 - Organization: ${locals.organization.name}
 - Org type: ${orgTypeLabel}
 - User: ${locals.user.display_name}
 - Role: ${role}
 - Brand access: ${brandScopeInfo}
+- Current date/time: ${dateStr} at ${timeStr}
 - Currently viewing: ${pageContext}${entityInfo}
-${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, get_dashboard_metrics, get_sales_report, get_commission_report, and get_style_velocity.' : ''}`;
+${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_commission_report, and get_style_velocity.' : ''}`;
 
 	// Use structured system blocks for prompt caching
 	const systemBlocks: Anthropic.TextBlockParam[] = [
@@ -875,9 +906,15 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		});
 	}
 
+	// Filter tools by agent whitelist (null or empty = all tools)
+	const availableTools =
+		agentToolWhitelist && agentToolWhitelist.length > 0
+			? _toolDefinitions.filter((t) => agentToolWhitelist!.includes(t.name))
+			: _toolDefinitions;
+
 	// Mark the last tool for caching (caches all tools up to this point)
-	const cachedTools = _toolDefinitions.map((tool, i) =>
-		i === _toolDefinitions.length - 1
+	const cachedTools = availableTools.map((tool, i) =>
+		i === availableTools.length - 1
 			? ({ ...tool, cache_control: { type: 'ephemeral' } } as Anthropic.Tool)
 			: tool
 	);
@@ -894,16 +931,27 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		let useHaiku = false;
 
 		if (needsClassification) {
+			// Include the last 2 messages of history so follow-ups like "what about
+			// the other ones?" classify correctly against prior tool context.
+			const classifyMessages: Anthropic.MessageParam[] = [];
+			for (const msg of (conversationHistory ?? []).slice(-2)) {
+				classifyMessages.push({ role: msg.role, content: msg.content });
+			}
+			classifyMessages.push({ role: 'user', content: userContent });
+
 			const classifyResponse = await anthropic.messages.create({
 				model: 'claude-haiku-4-5-20251001',
 				max_tokens: 20,
-				system: [
-					{
-						type: 'text',
-						text: 'Classify whether this user message to a business assistant requires looking up or modifying data (tools), or can be answered conversationally (e.g. greetings, thanks, general knowledge, clarifying questions, opinions). Respond with exactly one word: TOOLS or CHAT'
-					}
-				],
-				messages: [{ role: 'user', content: userContent }]
+				system: [{ type: 'text', text: CLASSIFIER_PROMPT }],
+				messages: classifyMessages
+			});
+			logUsage({
+				endpoint: 'chat',
+				purpose: 'classifier',
+				model: 'claude-haiku-4-5-20251001',
+				organizationId: locals.organization!.id,
+				userId: locals.user!.id,
+				response: classifyResponse
 			});
 			const classification =
 				classifyResponse.content[0]?.type === 'text'
@@ -919,6 +967,14 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 				max_tokens: 1024,
 				system: systemBlocks,
 				messages
+			});
+			logUsage({
+				endpoint: 'chat',
+				purpose: 'chat',
+				model: 'claude-haiku-4-5-20251001',
+				organizationId: locals.organization!.id,
+				userId: locals.user!.id,
+				response: haikuResponse
 			});
 			const textBlocks = haikuResponse.content.filter(
 				(block): block is Anthropic.TextBlock => block.type === 'text'
@@ -940,12 +996,38 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			return json({ response: responseText, suggestions });
 		}
 
+		// Streaming branch: return Server-Sent Events so the client can render
+		// text deltas and tool progress as they arrive instead of waiting for
+		// the full multi-iteration tool loop to finish.
+		if (stream === true) {
+			return streamResponse({
+				anthropic,
+				systemBlocks,
+				cachedTools,
+				messages,
+				locals,
+				role,
+				origin,
+				resolvedAgentId,
+				cleanMessage,
+				requestStartTime
+			});
+		}
+
 		let response = await anthropic.messages.create({
 			model: 'claude-sonnet-4-20250514',
 			max_tokens: 4096,
 			system: systemBlocks,
 			tools: cachedTools,
 			messages
+		});
+		logUsage({
+			endpoint: 'chat',
+			purpose: 'tools',
+			model: 'claude-sonnet-4-20250514',
+			organizationId: locals.organization!.id,
+			userId: locals.user!.id,
+			response
 		});
 
 		const actions: Array<{ tool: string; input: Record<string, unknown>; result: unknown }> = [];
@@ -1023,6 +1105,14 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 				tools: cachedTools,
 				messages
 			});
+			logUsage({
+				endpoint: 'chat',
+				purpose: 'tools',
+				model: 'claude-sonnet-4-20250514',
+				organizationId: locals.organization!.id,
+				userId: locals.user!.id,
+				response
+			});
 		}
 
 		// Extract final text response
@@ -1071,3 +1161,183 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		return json({ error: errorMessage }, { status: 500 });
 	}
 };
+
+type StreamResponseParams = {
+	anthropic: Anthropic;
+	systemBlocks: Anthropic.TextBlockParam[];
+	cachedTools: Anthropic.Tool[];
+	messages: Anthropic.MessageParam[];
+	locals: App.Locals;
+	role: string;
+	origin: string;
+	resolvedAgentId: string | null;
+	cleanMessage: string;
+	requestStartTime: number;
+};
+
+function streamResponse(params: StreamResponseParams): Response {
+	const encoder = new TextEncoder();
+	const send = (controller: ReadableStreamDefaultController, payload: unknown) => {
+		controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+	};
+
+	const stream = new ReadableStream({
+		async start(controller) {
+			const actions: Array<{ tool: string; input: Record<string, unknown>; result: unknown }> = [];
+			const MAX_TOOL_ITERATIONS = 10;
+			let accumulatedText = '';
+			const messages = params.messages;
+
+			try {
+				let iteration = 0;
+				let stopReason: string | null = null;
+
+				while (iteration++ < MAX_TOOL_ITERATIONS) {
+					const modelStream = params.anthropic.messages.stream({
+						model: 'claude-sonnet-4-20250514',
+						max_tokens: 4096,
+						system: params.systemBlocks,
+						tools: params.cachedTools,
+						messages
+					});
+
+					modelStream.on('text', (delta: string) => {
+						accumulatedText += delta;
+						send(controller, { type: 'text', delta });
+					});
+
+					const finalMessage = await modelStream.finalMessage();
+					stopReason = finalMessage.stop_reason ?? null;
+					logUsage({
+						endpoint: 'chat',
+						purpose: 'tools',
+						model: 'claude-sonnet-4-20250514',
+						organizationId: params.locals.organization!.id,
+						userId: params.locals.user!.id,
+						response: finalMessage
+					});
+
+					if (stopReason !== 'tool_use') {
+						messages.push({ role: 'assistant', content: finalMessage.content });
+						break;
+					}
+
+					// Execute tool calls, streaming progress events
+					const toolResults: Anthropic.ToolResultBlockParam[] = [];
+					for (const block of finalMessage.content) {
+						if (block.type !== 'tool_use') continue;
+						send(controller, { type: 'tool_start', name: block.name });
+
+						if (WRITE_TOOLS.has(block.name) && params.role === 'guest') {
+							const denied = {
+								success: false,
+								error: 'Permission denied. Guest users have read-only access.'
+							};
+							toolResults.push({
+								type: 'tool_result',
+								tool_use_id: block.id,
+								content: JSON.stringify(denied)
+							});
+							send(controller, { type: 'tool_result', name: block.name, ok: false });
+							continue;
+						}
+
+						const toolInput = block.input as Record<string, unknown>;
+						if (
+							params.locals.brandScope &&
+							['update_brand'].includes(block.name) &&
+							toolInput.brand_id &&
+							!params.locals.brandScope.includes(toolInput.brand_id as string)
+						) {
+							const denied = {
+								success: false,
+								error: 'Access denied. This brand is outside your scope.'
+							};
+							toolResults.push({
+								type: 'tool_result',
+								tool_use_id: block.id,
+								content: JSON.stringify(denied)
+							});
+							send(controller, { type: 'tool_result', name: block.name, ok: false });
+							continue;
+						}
+
+						const result = await executeToolCall(block.name, toolInput, {
+							supabase: params.locals.supabase,
+							organizationId: params.locals.organization!.id,
+							userId: params.locals.user!.id,
+							brandScope: params.locals.brandScope,
+							orgType: params.locals.orgType,
+							origin: params.origin
+						});
+
+						actions.push({ tool: block.name, input: toolInput, result });
+						toolResults.push({
+							type: 'tool_result',
+							tool_use_id: block.id,
+							content: JSON.stringify(result)
+						});
+						send(controller, {
+							type: 'tool_result',
+							name: block.name,
+							ok: (result as { success?: boolean }).success !== false
+						});
+					}
+
+					messages.push({ role: 'assistant', content: finalMessage.content });
+					messages.push({ role: 'user', content: toolResults });
+				}
+
+				// Parse suggestions out of the last line before finalizing
+				let responseText = accumulatedText;
+				let suggestions: string[] | undefined;
+				const lines = responseText.trimEnd().split('\n');
+				const lastLine = lines[lines.length - 1];
+				if (lastLine?.startsWith('SUGGESTIONS:')) {
+					try {
+						suggestions = JSON.parse(lastLine.slice('SUGGESTIONS:'.length));
+						responseText = lines.slice(0, -1).join('\n').trimEnd();
+					} catch {
+						/* leave as-is */
+					}
+				}
+
+				if (params.resolvedAgentId) {
+					const toolNames = actions.map((a) => a.tool);
+					await params.locals.supabase.from('org_agent_runs').insert({
+						agent_id: params.resolvedAgentId,
+						organization_id: params.locals.organization!.id,
+						triggered_by: 'user',
+						input_prompt: params.cleanMessage,
+						output_text: responseText,
+						tools_used: toolNames.length > 0 ? toolNames : null,
+						status: 'completed',
+						completed_at: new Date().toISOString(),
+						duration_ms: Date.now() - params.requestStartTime
+					});
+				}
+
+				send(controller, {
+					type: 'done',
+					response: responseText,
+					actions: actions.length > 0 ? actions : undefined,
+					suggestions
+				});
+			} catch (err) {
+				console.error('AI stream error:', err);
+				const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+				send(controller, { type: 'error', error: errorMessage });
+			} finally {
+				controller.close();
+			}
+		}
+	});
+
+	return new Response(stream, {
+		headers: {
+			'Content-Type': 'text/event-stream',
+			'Cache-Control': 'no-cache, no-transform',
+			Connection: 'keep-alive'
+		}
+	});
+}

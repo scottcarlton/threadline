@@ -33,6 +33,26 @@ type ToolResult = {
 	error?: string;
 };
 
+// Strip or keep a subset of fields from a Supabase row so we don't send
+// organization_id, timestamps, and other noise back to Claude in every result.
+function formatToolResult(
+	data: Record<string, unknown>,
+	opts: { keep?: string[]; omit?: string[] }
+): Record<string, unknown> {
+	if (opts.keep) {
+		const result: Record<string, unknown> = {};
+		for (const key of opts.keep) {
+			if (data[key] !== undefined && data[key] !== null) result[key] = data[key];
+		}
+		return result;
+	}
+	const result: Record<string, unknown> = { ...data };
+	for (const key of opts.omit ?? []) delete result[key];
+	return result;
+}
+
+const QUERY_OMIT_FIELDS = ['organization_id', 'updated_at'];
+
 export async function executeToolCall(
 	toolName: string,
 	toolInput: Record<string, unknown>,
@@ -59,6 +79,10 @@ export async function executeToolCall(
 			return createShow(toolInput, ctx);
 		case 'query_data':
 			return queryData(toolInput, ctx);
+		case 'list_brands':
+			return listBrands(ctx);
+		case 'list_accounts':
+			return listAccounts(ctx);
 		case 'get_dashboard_metrics':
 			return getDashboardMetrics(toolInput, ctx);
 		case 'draft_email':
@@ -293,11 +317,27 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 			notes: (input.notes as string) ?? null,
 			created_by: ctx.userId
 		})
-		.select('*, brands(name), accounts(business_name), seasons(name)')
+		.select(
+			'id, order_number, status, total_amount, order_year, expected_ship_date, brands(name), accounts(business_name), seasons(name)'
+		)
 		.single();
 
 	if (error) return { success: false, error: error.message };
-	return { success: true, data };
+	const row = (data ?? {}) as Record<string, unknown>;
+	const trimmed = formatToolResult(row, {
+		keep: [
+			'id',
+			'order_number',
+			'status',
+			'total_amount',
+			'order_year',
+			'expected_ship_date',
+			'brands',
+			'accounts',
+			'seasons'
+		]
+	});
+	return { success: true, data: trimmed };
 }
 
 async function addOrderLines(
@@ -505,6 +545,31 @@ async function queryData(input: Record<string, unknown>, ctx: ToolContext): Prom
 
 	const { data, error } = await query.order('created_at', { ascending: false }).limit(50);
 
+	if (error) return { success: false, error: error.message };
+	const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+	const stripped = rows.map((row) => formatToolResult(row, { omit: QUERY_OMIT_FIELDS }));
+	return { success: true, data: stripped };
+}
+
+async function listBrands(ctx: ToolContext): Promise<ToolResult> {
+	let query = ctx.supabase
+		.from('brands')
+		.select('id, name')
+		.eq('organization_id', ctx.organizationId)
+		.eq('is_active', true);
+	if (ctx.brandScope) query = query.in('id', ctx.brandScope);
+	const { data, error } = await query.order('name');
+	if (error) return { success: false, error: error.message };
+	return { success: true, data };
+}
+
+async function listAccounts(ctx: ToolContext): Promise<ToolResult> {
+	const { data, error } = await ctx.supabase
+		.from('accounts')
+		.select('id, business_name, city, state')
+		.eq('organization_id', ctx.organizationId)
+		.eq('is_active', true)
+		.order('business_name');
 	if (error) return { success: false, error: error.message };
 	return { success: true, data };
 }
