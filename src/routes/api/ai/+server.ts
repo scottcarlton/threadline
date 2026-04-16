@@ -3,6 +3,8 @@ import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
+import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT } from '$lib/server/ai-prompts.js';
+import { logUsage } from '$lib/server/ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -817,57 +819,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const pageContext = describeCurrentPage(currentPage ?? '/');
 
-	// Static system instructions (cacheable — same for all users/requests)
-	const staticSystem = `You are the AI assistant for Threadline, a multi-brand women's wholesale contractor portal. You help manage brands, accounts, orders, shows, seasons, territories, and appointments.
-
-Your capabilities:
-- Brands & Accounts: create, update, archive/unarchive, assign territories
-- Orders: create, add/edit/remove line items, update status, set ship dates, add notes
-- Shows & Seasons: create shows and seasons
-- Territories: create, update, assign accounts to territories
-- Appointments: schedule (show/road/phone/video), reschedule, complete, cancel, delete
-- Email: draft, send (via Gmail), search inbox
-- Analytics: sales reports (by brand/account/territory/rep), commission reports, dashboard metrics
-- Data queries: search across brands, accounts, orders, shows, seasons, territories, appointments, contacts, order lines, show dates
-- Integrations: send Slack/Discord messages, export data to Google Sheets, sync/pull data with Notion
-
-Important rules:
-1. Season + year model: "Fall 2026" means season="Fall" and order_year=2026. Always split these when creating or querying orders.
-2. When referencing accounts, brands, territories, or shows by name, use fuzzy matching — users may not type exact names.
-3. Always confirm what you did after performing an action.
-4. Be concise and professional. This is a business tool.
-5. When presenting data, format it clearly with relevant details. Use markdown formatting (bold, lists, tables) for readability.
-6. If asked to do something outside your capabilities, explain what you can and cannot do.
-7. After every response, include 2-3 brief suggested follow-up prompts on the very last line, formatted as: SUGGESTIONS:["prompt 1","prompt 2","prompt 3"]. These should be natural next questions or actions the user might want. Do NOT include this line inside code blocks.
-8. When a tool call fails with "not found" errors, do NOT relay the raw error to the user. Instead: (a) if the error is a fuzzy match failure, ask the user to clarify which entity they meant, or use query_data to search for similar names and suggest matches. (b) if the error is a permission issue, explain what access level is needed. (c) for all other errors, say what you tried and what went wrong in plain language.
-9. Never fabricate entity names, IDs, or data. If you don't know a value, ask the user or look it up with query_data first.
-10. When a user asks about a specific entity (account, brand, order) that you haven't looked up yet, ALWAYS call query_data first before responding. Never assume an entity exists based on the conversation alone.
-11. Before executing send_email, delete_appointment, or archive_entity, describe what you're about to do in one sentence and ask the user to confirm. Only proceed after they confirm. Example: "I'm about to send an email to jane@nordstrom.com with subject 'Fall 2026 Order Follow-up'. Should I go ahead?"
-
-Examples of good tool use:
-
-<example>
-User: "Create an order for Nordstrom, Ulla Johnson, Fall 2026"
-Assistant calls create_order with: { account_name: "Nordstrom", brand_name: "Ulla Johnson", season_name: "Fall", order_year: 2026 }
-Then confirms: "Created draft order ORD-042 for Nordstrom (Ulla Johnson, Fall 2026)."
-</example>
-
-<example>
-User: "Show me all draft orders"
-Assistant calls query_data with: { entity_type: "orders", filters: { status: "draft" } }
-Then formats results as a markdown table with order number, account, brand, total.
-</example>
-
-<example>
-User: "Update the Bergdorf order"
-Tool returns: { success: false, error: "Account not found matching 'Bergdorf'" }
-Assistant does NOT relay the raw error. Instead responds: "I couldn't find an account matching 'Bergdorf'. Did you mean Bergdorf Goodman? Let me know the exact account name or I can list your accounts."
-</example>
-
-<example>
-User: "How's Nordstrom doing?"
-Assistant calls query_data first with: { entity_type: "accounts", search: "Nordstrom" } to verify the account exists and get recent order data, then responds with specifics — never assumes based on conversation alone.
-</example>`;
+	// Static system instructions (cacheable — same for all users/requests).
+	// Sourced from $lib/server/ai-prompts so we can version it and share
+	// the constant with observability tooling.
+	const staticSystem = MAIN_STATIC_PROMPT;
 
 	// Dynamic per-request context
 	const entityInfo = entityCtx?.summary
@@ -987,13 +942,16 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			const classifyResponse = await anthropic.messages.create({
 				model: 'claude-haiku-4-5-20251001',
 				max_tokens: 20,
-				system: [
-					{
-						type: 'text',
-						text: 'Classify whether this user message to a business assistant requires looking up or modifying data (tools), or can be answered conversationally (e.g. greetings, thanks, general knowledge, clarifying questions, opinions). Use prior messages for context — a follow-up like "what about the others?" after a data query needs TOOLS. Respond with exactly one word: TOOLS or CHAT'
-					}
-				],
+				system: [{ type: 'text', text: CLASSIFIER_PROMPT }],
 				messages: classifyMessages
+			});
+			logUsage({
+				endpoint: 'chat',
+				purpose: 'classifier',
+				model: 'claude-haiku-4-5-20251001',
+				organizationId: locals.organization!.id,
+				userId: locals.user!.id,
+				response: classifyResponse
 			});
 			const classification =
 				classifyResponse.content[0]?.type === 'text'
@@ -1009,6 +967,14 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 				max_tokens: 1024,
 				system: systemBlocks,
 				messages
+			});
+			logUsage({
+				endpoint: 'chat',
+				purpose: 'chat',
+				model: 'claude-haiku-4-5-20251001',
+				organizationId: locals.organization!.id,
+				userId: locals.user!.id,
+				response: haikuResponse
 			});
 			const textBlocks = haikuResponse.content.filter(
 				(block): block is Anthropic.TextBlock => block.type === 'text'
@@ -1054,6 +1020,14 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			system: systemBlocks,
 			tools: cachedTools,
 			messages
+		});
+		logUsage({
+			endpoint: 'chat',
+			purpose: 'tools',
+			model: 'claude-sonnet-4-20250514',
+			organizationId: locals.organization!.id,
+			userId: locals.user!.id,
+			response
 		});
 
 		const actions: Array<{ tool: string; input: Record<string, unknown>; result: unknown }> = [];
@@ -1130,6 +1104,14 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 				system: systemBlocks,
 				tools: cachedTools,
 				messages
+			});
+			logUsage({
+				endpoint: 'chat',
+				purpose: 'tools',
+				model: 'claude-sonnet-4-20250514',
+				organizationId: locals.organization!.id,
+				userId: locals.user!.id,
+				response
 			});
 		}
 
@@ -1226,6 +1208,14 @@ function streamResponse(params: StreamResponseParams): Response {
 
 					const finalMessage = await modelStream.finalMessage();
 					stopReason = finalMessage.stop_reason ?? null;
+					logUsage({
+						endpoint: 'chat',
+						purpose: 'tools',
+						model: 'claude-sonnet-4-20250514',
+						organizationId: params.locals.organization!.id,
+						userId: params.locals.user!.id,
+						response: finalMessage
+					});
 
 					if (stopReason !== 'tool_use') {
 						messages.push({ role: 'assistant', content: finalMessage.content });
