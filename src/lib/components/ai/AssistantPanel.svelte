@@ -381,11 +381,18 @@
 							</div>
 						{/if}
 						<p class="whitespace-pre-wrap">{msg.content}</p>
+						{#if msg.toolProgress && msg.toolProgress.length > 0}
+							<div class="mt-2 space-y-0.5 text-sm text-muted-foreground">
+								{#each msg.toolProgress as step, j (j)}
+									<div>{step}</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				</div>
 			{/each}
 
-			{#if $loading}
+			{#if $loading && ($messages.length === 0 || $messages[$messages.length - 1].role === 'user')}
 				<div class="flex justify-start">
 					<div class="flex items-center gap-1.5 rounded-none bg-muted px-3.5 py-2.5">
 						<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40"></div>

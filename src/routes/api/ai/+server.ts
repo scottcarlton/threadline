@@ -737,7 +737,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		conversationHistory,
 		currentPage,
 		entityContext: entityCtx,
-		agentId
+		agentId,
+		stream
 	} = await request.json();
 	const origin = request.headers.get('origin') || new URL(request.url).origin;
 	const requestStartTime = Date.now();
@@ -1029,6 +1030,24 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			return json({ response: responseText, suggestions });
 		}
 
+		// Streaming branch: return Server-Sent Events so the client can render
+		// text deltas and tool progress as they arrive instead of waiting for
+		// the full multi-iteration tool loop to finish.
+		if (stream === true) {
+			return streamResponse({
+				anthropic,
+				systemBlocks,
+				cachedTools,
+				messages,
+				locals,
+				role,
+				origin,
+				resolvedAgentId,
+				cleanMessage,
+				requestStartTime
+			});
+		}
+
 		let response = await anthropic.messages.create({
 			model: 'claude-sonnet-4-20250514',
 			max_tokens: 4096,
@@ -1160,3 +1179,175 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		return json({ error: errorMessage }, { status: 500 });
 	}
 };
+
+type StreamResponseParams = {
+	anthropic: Anthropic;
+	systemBlocks: Anthropic.TextBlockParam[];
+	cachedTools: Anthropic.Tool[];
+	messages: Anthropic.MessageParam[];
+	locals: App.Locals;
+	role: string;
+	origin: string;
+	resolvedAgentId: string | null;
+	cleanMessage: string;
+	requestStartTime: number;
+};
+
+function streamResponse(params: StreamResponseParams): Response {
+	const encoder = new TextEncoder();
+	const send = (controller: ReadableStreamDefaultController, payload: unknown) => {
+		controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+	};
+
+	const stream = new ReadableStream({
+		async start(controller) {
+			const actions: Array<{ tool: string; input: Record<string, unknown>; result: unknown }> = [];
+			const MAX_TOOL_ITERATIONS = 10;
+			let accumulatedText = '';
+			const messages = params.messages;
+
+			try {
+				let iteration = 0;
+				let stopReason: string | null = null;
+
+				while (iteration++ < MAX_TOOL_ITERATIONS) {
+					const modelStream = params.anthropic.messages.stream({
+						model: 'claude-sonnet-4-20250514',
+						max_tokens: 4096,
+						system: params.systemBlocks,
+						tools: params.cachedTools,
+						messages
+					});
+
+					modelStream.on('text', (delta: string) => {
+						accumulatedText += delta;
+						send(controller, { type: 'text', delta });
+					});
+
+					const finalMessage = await modelStream.finalMessage();
+					stopReason = finalMessage.stop_reason ?? null;
+
+					if (stopReason !== 'tool_use') {
+						messages.push({ role: 'assistant', content: finalMessage.content });
+						break;
+					}
+
+					// Execute tool calls, streaming progress events
+					const toolResults: Anthropic.ToolResultBlockParam[] = [];
+					for (const block of finalMessage.content) {
+						if (block.type !== 'tool_use') continue;
+						send(controller, { type: 'tool_start', name: block.name });
+
+						if (WRITE_TOOLS.has(block.name) && params.role === 'guest') {
+							const denied = {
+								success: false,
+								error: 'Permission denied. Guest users have read-only access.'
+							};
+							toolResults.push({
+								type: 'tool_result',
+								tool_use_id: block.id,
+								content: JSON.stringify(denied)
+							});
+							send(controller, { type: 'tool_result', name: block.name, ok: false });
+							continue;
+						}
+
+						const toolInput = block.input as Record<string, unknown>;
+						if (
+							params.locals.brandScope &&
+							['update_brand'].includes(block.name) &&
+							toolInput.brand_id &&
+							!params.locals.brandScope.includes(toolInput.brand_id as string)
+						) {
+							const denied = {
+								success: false,
+								error: 'Access denied. This brand is outside your scope.'
+							};
+							toolResults.push({
+								type: 'tool_result',
+								tool_use_id: block.id,
+								content: JSON.stringify(denied)
+							});
+							send(controller, { type: 'tool_result', name: block.name, ok: false });
+							continue;
+						}
+
+						const result = await executeToolCall(block.name, toolInput, {
+							supabase: params.locals.supabase,
+							organizationId: params.locals.organization!.id,
+							userId: params.locals.user!.id,
+							brandScope: params.locals.brandScope,
+							orgType: params.locals.orgType,
+							origin: params.origin
+						});
+
+						actions.push({ tool: block.name, input: toolInput, result });
+						toolResults.push({
+							type: 'tool_result',
+							tool_use_id: block.id,
+							content: JSON.stringify(result)
+						});
+						send(controller, {
+							type: 'tool_result',
+							name: block.name,
+							ok: (result as { success?: boolean }).success !== false
+						});
+					}
+
+					messages.push({ role: 'assistant', content: finalMessage.content });
+					messages.push({ role: 'user', content: toolResults });
+				}
+
+				// Parse suggestions out of the last line before finalizing
+				let responseText = accumulatedText;
+				let suggestions: string[] | undefined;
+				const lines = responseText.trimEnd().split('\n');
+				const lastLine = lines[lines.length - 1];
+				if (lastLine?.startsWith('SUGGESTIONS:')) {
+					try {
+						suggestions = JSON.parse(lastLine.slice('SUGGESTIONS:'.length));
+						responseText = lines.slice(0, -1).join('\n').trimEnd();
+					} catch {
+						/* leave as-is */
+					}
+				}
+
+				if (params.resolvedAgentId) {
+					const toolNames = actions.map((a) => a.tool);
+					await params.locals.supabase.from('org_agent_runs').insert({
+						agent_id: params.resolvedAgentId,
+						organization_id: params.locals.organization!.id,
+						triggered_by: 'user',
+						input_prompt: params.cleanMessage,
+						output_text: responseText,
+						tools_used: toolNames.length > 0 ? toolNames : null,
+						status: 'completed',
+						completed_at: new Date().toISOString(),
+						duration_ms: Date.now() - params.requestStartTime
+					});
+				}
+
+				send(controller, {
+					type: 'done',
+					response: responseText,
+					actions: actions.length > 0 ? actions : undefined,
+					suggestions
+				});
+			} catch (err) {
+				console.error('AI stream error:', err);
+				const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+				send(controller, { type: 'error', error: errorMessage });
+			} finally {
+				controller.close();
+			}
+		}
+	});
+
+	return new Response(stream, {
+		headers: {
+			'Content-Type': 'text/event-stream',
+			'Cache-Control': 'no-cache, no-transform',
+			Connection: 'keep-alive'
+		}
+	});
+}
