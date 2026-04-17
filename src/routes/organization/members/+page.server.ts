@@ -45,12 +45,36 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
+	// Connection invites (shareable links for external rep agencies) — brand orgs only
+	const isBrandOrg = locals.orgType === 'brand';
+	const isAdmin = ['admin', 'owner'].includes(locals.membership?.role ?? '');
+	let connectionInvites: Array<{
+		id: string;
+		code: string;
+		expires_at: string;
+		max_uses: number;
+		use_count: number;
+		auto_approve: boolean;
+		created_at: string;
+	}> = [];
+	if (isBrandOrg && isAdmin) {
+		const { data: connInvData } = await supabase
+			.from('connection_invites')
+			.select('id, code, expires_at, max_uses, use_count, auto_approve, created_at')
+			.eq('brand_org_id', organization.id)
+			.order('created_at', { ascending: false });
+		connectionInvites = connInvData ?? [];
+	}
+
 	return {
 		members: members ?? [],
 		invitations: invResult.data ?? [],
 		brands: brandsResult.data ?? [],
 		memberBrandCommissions: commissionsResult.data ?? [],
 		scopedMemberIds: Array.from(scopedMemberIds),
-		memberEmails: emailMap
+		memberEmails: emailMap,
+		connectionInvites,
+		isBrandOrg,
+		isAdmin
 	};
 };

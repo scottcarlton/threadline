@@ -10,6 +10,7 @@
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 	let success = $state(false);
+	let autoApproved = $state(false);
 
 	async function submit() {
 		if (!selectedBrandId) {
@@ -23,20 +24,24 @@
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ code: data.code, repBrandId: selectedBrandId })
 		});
-		const json = await res.json().catch(() => ({}));
+		const json = (await res.json().catch(() => ({}))) as {
+			error?: string;
+			autoApproved?: boolean;
+		};
 		submitting = false;
 		if (!res.ok) {
-			error = (json as { error?: string }).error ?? 'Request failed';
+			error = json.error ?? 'Request failed';
 			return;
 		}
+		autoApproved = Boolean(json.autoApproved);
 		success = true;
 	}
 </script>
 
 <svelte:head><title>Connect — Threadline</title></svelte:head>
 
-<div class="mx-auto max-w-xl p-6">
-	<div class="rounded-lg border p-6">
+<div class="flex min-h-[calc(100vh-4rem)] items-center justify-center p-6">
+	<div class="w-full max-w-xl rounded-lg border p-6">
 		{#if data.status === 'not_found'}
 			<h1 class="text-2xl font-semibold">Invite not found</h1>
 			<p class="mt-2 text-sm text-muted-foreground">
@@ -72,22 +77,42 @@
 					</svg>
 				</div>
 				<div>
-					<h1 class="text-2xl font-semibold">Request sent</h1>
-					<p class="mt-2 text-sm text-muted-foreground">
-						{data.brand?.name ?? 'The brand'} will review and approve your connection. You'll be notified
-						when it goes live.
-					</p>
+					{#if autoApproved}
+						<h1 class="text-2xl font-semibold">You're connected!</h1>
+						<p class="mt-2 text-sm text-muted-foreground">
+							Your connection with {data.brand?.name ?? 'the brand'} is now active. Orders you write against
+							this brand will automatically be shared.
+						</p>
+					{:else}
+						<h1 class="text-2xl font-semibold">Request sent</h1>
+						<p class="mt-2 text-sm text-muted-foreground">
+							{data.brand?.name ?? 'The brand'} will review and approve your connection. You'll be notified
+							when it goes live.
+						</p>
+					{/if}
 					<Button class="mt-4" onclick={() => goto(resolve('/settings/connections'))}
 						>Go to Connections</Button
 					>
 				</div>
 			</div>
 		{:else}
+			{#if data.brand?.logo_url}
+				<img
+					src={data.brand.logo_url}
+					alt={data.brand.name}
+					class="mb-4 h-16 w-16 rounded-lg object-cover"
+				/>
+			{/if}
 			<div class="mb-4 text-sm text-muted-foreground">You're being invited to connect with</div>
 			<h1 class="text-2xl font-semibold">{data.brand?.name ?? 'a brand'}</h1>
 			<p class="mt-2 text-sm text-muted-foreground">
-				Once you confirm and the brand approves the request, their orders and accounts you place
-				will automatically be shared with them.
+				{#if data.autoApprove}
+					Confirm below and you'll be connected immediately. Orders you write against this brand
+					will automatically be shared.
+				{:else}
+					Once you confirm and the brand approves the request, orders and accounts you place will
+					automatically be shared with them.
+				{/if}
 			</p>
 
 			{#if !data.isLoggedIn}
@@ -131,7 +156,13 @@
 					{/if}
 
 					<Button disabled={submitting || !selectedBrandId} onclick={submit}>
-						{submitting ? 'Requesting…' : 'Request Connection'}
+						{#if submitting}
+							Connecting…
+						{:else if data.autoApprove}
+							Connect
+						{:else}
+							Request Connection
+						{/if}
 					</Button>
 				</div>
 			{/if}
