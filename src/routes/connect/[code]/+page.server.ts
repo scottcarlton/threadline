@@ -33,24 +33,40 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	const autoApprove = Boolean(invite?.auto_approve);
 
-	// If the visitor is logged in as a rep admin, give them the brand list they can map to.
+	// /connect is a public route — hooks.server.ts skips loading membership/org data.
+	// Query the user's membership directly when they have a session.
 	let repBrands: Array<{ id: string; name: string }> = [];
 	let canConnect = false;
-	if (
-		locals.session &&
-		locals.organization &&
-		locals.orgType === 'rep' &&
-		locals.membership &&
-		['admin', 'owner'].includes(locals.membership.role)
-	) {
-		canConnect = true;
-		const { data: brands } = await locals.supabase
-			.from('brands')
-			.select('id, name')
-			.eq('organization_id', locals.organization.id)
-			.eq('is_active', true)
-			.order('name');
-		repBrands = brands ?? [];
+	let orgType: string | null = null;
+	const session = locals.session;
+
+	if (session) {
+		const { data: membership } = await supabaseAdmin
+			.from('organization_members')
+			.select('id, role, organization_id, organizations(id, org_type)')
+			.eq('profile_id', session.user.id)
+			.limit(1)
+			.single();
+
+		if (membership) {
+			const org = membership.organizations as
+				| { id: string; org_type: string }
+				| { id: string; org_type: string }[]
+				| null;
+			const orgData = Array.isArray(org) ? org[0] : org;
+			orgType = orgData?.org_type ?? null;
+
+			if (orgType === 'rep' && ['admin', 'owner'].includes(membership.role as string)) {
+				canConnect = true;
+				const { data: brands } = await supabaseAdmin
+					.from('brands')
+					.select('id, name')
+					.eq('organization_id', membership.organization_id)
+					.eq('is_active', true)
+					.order('name');
+				repBrands = brands ?? [];
+			}
+		}
 	}
 
 	return {
@@ -59,8 +75,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		brand,
 		autoApprove,
 		canConnect,
-		isLoggedIn: Boolean(locals.session),
-		orgType: locals.orgType ?? null,
+		isLoggedIn: Boolean(session),
+		orgType,
 		repBrands
 	};
 };
