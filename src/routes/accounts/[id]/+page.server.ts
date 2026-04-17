@@ -7,18 +7,40 @@ import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { supabase, organization } = locals;
+	if (!organization) throw error(404, 'Organization not found');
 
-	// Try own-org account first, then check federated
-	let accountQuery = supabase.from('accounts').select('*').eq('id', params.id).single();
+	// Determine if this is a federated account — check own org first, then connected orgs
+	let isFederated = false;
+	const ownAccount = (
+		await supabase.from('accounts').select('id').eq('id', params.id).maybeSingle()
+	).data;
+
+	if (!ownAccount && locals.orgType === 'rep') {
+		const connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
+		if (connectedOrgIds.length > 0) {
+			const { data: fedCheck } = await supabaseAdmin
+				.from('accounts')
+				.select('id')
+				.eq('id', params.id)
+				.in('organization_id', connectedOrgIds)
+				.maybeSingle();
+			if (fedCheck) isFederated = true;
+		}
+	}
+
+	if (!ownAccount && !isFederated) throw error(404, 'Account not found');
+
+	// Use admin client for federated accounts so all cross-org data is visible
+	const db = isFederated ? supabaseAdmin : supabase;
 
 	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes, locationsRes] =
 		await Promise.all([
-			accountQuery,
-			supabase
+			db.from('accounts').select('*').eq('id', params.id).single(),
+			db
 				.from('orders')
 				.select('brand_id, total_amount, status, order_year, brands(id, name)')
 				.eq('account_id', params.id),
-			supabase
+			db
 				.from('orders')
 				.select(
 					'id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)'
@@ -26,7 +48,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				.eq('account_id', params.id)
 				.order('created_at', { ascending: false })
 				.limit(20),
-			supabase
+			db
 				.from('appointments')
 				.select(
 					'id, appointment_type, scheduled_date, scheduled_time, status, notes, created_at, show_dates(id, year, month, city, state, shows(name))'
@@ -34,14 +56,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				.eq('account_id', params.id)
 				.order('created_at', { ascending: false })
 				.limit(20),
-			supabase
+			db
 				.from('email_logs')
 				.select('id, to_email, subject, created_at, sent_by, profiles:sent_by(display_name)')
 				.eq('related_type', 'account')
 				.eq('related_id', params.id)
 				.order('created_at', { ascending: false })
 				.limit(20),
-			supabase
+			db
 				.from('account_locations')
 				.select(
 					'id, account_id, label, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country, notes, is_default, sort_order'
@@ -51,22 +73,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				.order('sort_order', { ascending: true })
 		]);
 
-	let account = accountRes.data;
-	if (!account && organization && locals.orgType === 'rep') {
-		const connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
-		if (connectedOrgIds.length > 0) {
-			const { data: fedAccount } = await supabaseAdmin
-				.from('accounts')
-				.select('*')
-				.eq('id', params.id)
-				.in('organization_id', connectedOrgIds)
-				.single();
-			account = fedAccount;
-		}
-	}
-	if (!account) {
-		throw error(404, 'Account not found');
-	}
+	const account = accountRes.data;
+	if (!account) throw error(404, 'Account not found');
 
 	// Aggregate brand stats from orders
 	type BrandSummary = { id: string; name: string; orderCount: number; totalSales: number };
@@ -92,56 +100,47 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const brandSummaries = Array.from(brandMap.values()).sort((a, b) => b.totalSales - a.totalSales);
 
-	// Get health score for this account
-	let health = null;
-	if (organization) {
-		const healthMap = await computeAccountHealth(supabase, organization.id);
-		health = healthMap.get(params.id) ?? null;
-	}
+	// Get health score — use the account's own org for health computation
+	const healthOrgId = isFederated ? (account.organization_id as string) : organization.id;
+	const healthMap = await computeAccountHealth(isFederated ? supabaseAdmin : supabase, healthOrgId);
+	const health = healthMap.get(params.id) ?? null;
 
 	// Load tags for this account and available tags
 	const [tagAssignmentsRes, availableTagsRes] = await Promise.all([
-		supabase
-			.from('account_tag_assignments')
-			.select('*, account_tags(*)')
-			.eq('account_id', params.id),
-		organization
-			? supabase
-					.from('account_tags')
-					.select('*')
-					.eq('organization_id', organization.id)
-					.order('sort_order')
-			: Promise.resolve({ data: [] })
+		db.from('account_tag_assignments').select('*, account_tags(*)').eq('account_id', params.id),
+		db
+			.from('account_tags')
+			.select('*')
+			.eq('organization_id', account.organization_id)
+			.order('sort_order')
 	]);
 
 	// Load buyer users for this account
-	const { data: buyerUsers } = await supabase
+	const { data: buyerUsers } = await db
 		.from('account_users')
 		.select('*, profiles(display_name)')
 		.eq('account_id', params.id);
 
 	// Load buyer brand access
-	const { data: buyerBrandAccess } = await supabase
+	const { data: buyerBrandAccess } = await db
 		.from('account_brand_access')
 		.select('*, brands(name)')
 		.eq('account_id', params.id);
 
 	// Load pending buyer invitations
-	const { data: buyerInvitations } = await supabase
+	const { data: buyerInvitations } = await db
 		.from('buyer_invitations')
 		.select('*')
 		.eq('account_id', params.id)
 		.is('accepted_at', null);
 
 	// Load all brands for the invite dialog
-	const { data: allBrands } = organization
-		? await supabase
-				.from('brands')
-				.select('id, name')
-				.eq('organization_id', organization.id)
-				.eq('is_active', true)
-				.order('name')
-		: { data: [] };
+	const { data: allBrands } = await db
+		.from('brands')
+		.select('id, name')
+		.eq('organization_id', account.organization_id)
+		.eq('is_active', true)
+		.order('name');
 
 	// Build activity timeline
 	type ActivityItem = {
@@ -340,7 +339,6 @@ export const actions: Actions = {
 		if (delErr) return fail(500, { message: delErr.message });
 
 		if (wasDefault) {
-			// Promote the next location (by sort_order) to default, if any.
 			const { data: next } = await supabase
 				.from('account_locations')
 				.select('id')
@@ -361,8 +359,6 @@ export const actions: Actions = {
 		const id = (fd.get('id') ?? '').toString();
 		if (!id) return fail(400, { message: 'Missing id' });
 
-		// Atomicity: unset existing default first, then set the new one. The
-		// unique partial index prevents two defaults, so order matters.
 		const { error: unsetErr } = await supabase
 			.from('account_locations')
 			.update({ is_default: false })
