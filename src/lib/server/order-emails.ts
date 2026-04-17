@@ -123,7 +123,13 @@ export async function sendOrderEmail(
 			{ recipients: () => Promise<Recipient[]>; subject: string; body: string }
 		> = {
 			submitted: {
-				recipients: () => resolveBrandAdminRecipients(order.brand_id),
+				recipients: async () => {
+					const admins = await resolveBrandAdminRecipients(order.brand_id);
+					const buyerEmail = await resolveBuyerEmail(order.account_id);
+					return buyerEmail
+						? [...admins, { email: buyerEmail, profileId: null, orgId: null }]
+						: admins;
+				},
 				subject: `New order submitted: ${order.order_number}`,
 				body: `A new order has been submitted for <strong>${accountName}</strong> (${brandName}).<br>Total: ${total}`
 			},
