@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { supabase } from '$lib/supabase.js';
+	import { formatPhone } from '$lib/utils/phone';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -422,6 +423,8 @@
 										bind:value={editContactPhone}
 										placeholder="(555) 123-4567"
 										class="w-36"
+										oninput={(e) =>
+											(editContactPhone = formatPhone((e.currentTarget as HTMLInputElement).value))}
 									/>
 								</div>
 							</div>
@@ -661,6 +664,8 @@
 									bind:value={newContactPhone}
 									placeholder="(555) 123-4567"
 									class="w-36"
+									oninput={(e) =>
+										(newContactPhone = formatPhone((e.currentTarget as HTMLInputElement).value))}
 								/>
 							</div>
 						</div>

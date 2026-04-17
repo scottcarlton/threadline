@@ -67,6 +67,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 		revenue: memberStats.get(m.profile_id)?.revenue ?? 0
 	}));
 
+	const { data: selfBrandRow } = await supabase
+		.from('brands')
+		.select('id')
+		.eq('organization_id', orgId)
+		.eq('is_self_brand', true)
+		.maybeSingle();
+	const selfBrandId = selfBrandRow?.id ?? null;
+
 	const { data: invitationsRaw } = await supabase
 		.from('invitations')
 		.select('id, email, role, token, created_at, expires_at')
@@ -77,5 +85,5 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const pendingInvites = (invitationsRaw ?? []) as InvitationRow[];
 
-	return { reps, pendingInvites };
+	return { reps, pendingInvites, selfBrandId };
 };

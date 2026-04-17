@@ -55,6 +55,7 @@
 	let editSubcategory = $state('');
 	let editSeasonId = $state('');
 	let editProductYear = $state<number>(new Date().getFullYear());
+	let editAts = $state(false);
 	let saveError = $state('');
 	let saving = $state(false);
 
@@ -68,6 +69,7 @@
 		editSubcategory = product.subcategory ?? '';
 		editSeasonId = product.season_id ?? '';
 		editProductYear = product.product_year ?? new Date().getFullYear();
+		editAts = product.ats ?? false;
 		editing = true;
 	}
 
@@ -86,6 +88,7 @@
 				subcategory: editSubcategory || null,
 				season_id: editSeasonId || null,
 				product_year: editProductYear || null,
+				ats: editAts,
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', product.id);
@@ -413,6 +416,23 @@
 											max="2100"
 											bind:value={editProductYear}
 										/>
+									</div>
+									<div class="space-y-2 sm:col-span-2">
+										<label class="flex items-start gap-3">
+											<input
+												type="checkbox"
+												bind:checked={editAts}
+												class="mt-0.5 h-4 w-4 rounded border-input"
+											/>
+											<span class="space-y-1">
+												<span class="block text-sm leading-none font-medium"
+													>Available to Ship (ATS)</span
+												>
+												<span class="block text-sm text-muted-foreground"
+													>In stock and shippable now. Leave off for futures / pre-orders.</span
+												>
+											</span>
+										</label>
 									</div>
 								</div>
 								<div class="space-y-2">

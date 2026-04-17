@@ -121,6 +121,8 @@ export async function executeToolCall(
 			return getAccountHealth(toolInput, ctx);
 		case 'add_product':
 			return addProduct(toolInput, ctx);
+		case 'update_products':
+			return updateProducts(toolInput, ctx);
 		case 'send_slack_message':
 			return sendSlack(toolInput, ctx);
 		case 'send_discord_message':
@@ -1517,6 +1519,63 @@ async function addProduct(input: Record<string, unknown>, ctx: ToolContext): Pro
 
 	if (error) return { success: false, error: error.message };
 	return { success: true, data };
+}
+
+export const PRODUCT_UPDATE_FIELDS = [
+	'ats',
+	'category',
+	'wholesale_price',
+	'retail_price',
+	'product_year',
+	'is_active'
+] as const;
+
+/** Pure: trims `updates` down to the allowed-field whitelist for `update_products`. */
+export function buildProductPatch(updates: Record<string, unknown>): Record<string, unknown> {
+	const patch: Record<string, unknown> = {};
+	for (const key of PRODUCT_UPDATE_FIELDS) {
+		if (key in updates) patch[key] = updates[key];
+	}
+	return patch;
+}
+
+async function updateProducts(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	const productIds = input.product_ids;
+	if (!Array.isArray(productIds) || productIds.length === 0) {
+		return { success: false, error: 'product_ids must be a non-empty array' };
+	}
+
+	const updates = (input.updates ?? {}) as Record<string, unknown>;
+	const patch = buildProductPatch(updates);
+
+	if ('season_name' in updates && typeof updates.season_name === 'string') {
+		const { data: seasons } = await ctx.supabase
+			.from('seasons')
+			.select('id')
+			.eq('organization_id', ctx.organizationId)
+			.ilike('name', `%${updates.season_name}%`)
+			.limit(1);
+		if (seasons?.[0]) patch.season_id = seasons[0].id;
+	}
+
+	if (Object.keys(patch).length === 0) {
+		return { success: false, error: 'No allowed fields in updates' };
+	}
+
+	patch.updated_at = new Date().toISOString();
+
+	const { data, error } = await ctx.supabase
+		.from('products')
+		.update(patch)
+		.in('id', productIds as string[])
+		.eq('organization_id', ctx.organizationId)
+		.select('id, name, style_number, ats');
+
+	if (error) return { success: false, error: error.message };
+	return { success: true, data: { updated: data?.length ?? 0, products: data ?? [] } };
 }
 
 // --- Integration tools ---

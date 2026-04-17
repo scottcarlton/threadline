@@ -28,21 +28,78 @@
 
 	type AccountEmailEntry = { email: string; accountId: string; accountName: string };
 	const accountEmailMap = $derived((data.accountEmailMap ?? []) as AccountEmailEntry[]);
+	const allAccounts = $derived(
+		(data.accounts ?? []) as Array<{ id: string; business_name: string }>
+	);
+	const emailLinks = $derived(
+		(data.emailLinks ?? {}) as Record<string, { entity_type: string; entity_id: string }>
+	);
 
-	const matchedAccount = $derived(() => {
+	// Resolve linked account: manual link wins over auto-match.
+	const linkedAccount = $derived(() => {
 		if (!selectedEmail) return null;
+		const manual = emailLinks[selectedEmail.id];
+		if (manual?.entity_type === 'account') {
+			const acct = allAccounts.find((a) => a.id === manual.entity_id);
+			if (acct) return { accountId: acct.id, accountName: acct.business_name, manual: true };
+		}
 		const senderEmail = selectedEmail.fromEmail.toLowerCase();
 		const exactMatch = accountEmailMap.find((a) => a.email === senderEmail);
-		if (exactMatch) return exactMatch;
+		if (exactMatch) return { ...exactMatch, manual: false };
 		const domain = senderEmail.split('@')[1];
 		if (
 			domain &&
 			!['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com'].includes(domain)
 		) {
-			return accountEmailMap.find((a) => a.email.endsWith(`@${domain}`)) ?? null;
+			const domainMatch = accountEmailMap.find((a) => a.email.endsWith(`@${domain}`));
+			if (domainMatch) return { ...domainMatch, manual: false };
 		}
 		return null;
 	});
+
+	// Manual link picker state
+	let linkPickerOpen = $state(false);
+	let linkSearch = $state('');
+	let linkSaving = $state(false);
+	const linkMatches = $derived(
+		linkSearch.trim()
+			? allAccounts.filter((a) => a.business_name.toLowerCase().includes(linkSearch.toLowerCase()))
+			: allAccounts.slice(0, 20)
+	);
+
+	async function linkToAccount(accountId: string) {
+		if (!selectedEmail) return;
+		linkSaving = true;
+		await fetch('/api/email/link', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				gmailMessageId: selectedEmail.id,
+				entityType: 'account',
+				entityId: accountId
+			})
+		});
+		// Update local state immediately so the UI reflects the change.
+		data.emailLinks = {
+			...emailLinks,
+			[selectedEmail.id]: { entity_type: 'account', entity_id: accountId }
+		};
+		linkSaving = false;
+		linkPickerOpen = false;
+		linkSearch = '';
+	}
+
+	async function unlinkEmail() {
+		if (!selectedEmail) return;
+		await fetch('/api/email/link', {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ gmailMessageId: selectedEmail.id })
+		});
+		const updated = { ...emailLinks };
+		delete updated[selectedEmail.id];
+		data.emailLinks = updated;
+	}
 
 	let filter = $state<'all' | 'accounts' | 'brands'>('all');
 	let searchQuery = $state('');
@@ -385,30 +442,109 @@
 					</p>
 				</div>
 
-				<!-- Account link suggestion -->
-				{#if matchedAccount()}
-					{@const acct = matchedAccount()}
-					<a
-						href={resolve(`/accounts/${acct?.accountId}`)}
-						class="flex items-center gap-2 border-b bg-blue-50 px-6 py-2 text-sm text-blue-700 transition-colors hover:bg-blue-100"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4 shrink-0"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
+				<!-- Account link -->
+				<div class="border-b px-6 py-2">
+					{#if linkedAccount()}
+						{@const acct = linkedAccount()}
+						<div class="flex items-center justify-between">
+							<a
+								href={resolve(`/accounts/${acct?.accountId}`)}
+								class="flex items-center gap-2 text-sm text-blue-700 transition-colors hover:text-blue-900"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4 shrink-0"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.97a4.5 4.5 0 00-6.364-6.364L5.25 6.268a4.5 4.5 0 001.242 7.244"
+									/>
+								</svg>
+								<span>Linked to <strong>{acct?.accountName}</strong></span>
+							</a>
+							<div class="flex items-center gap-2">
+								<button
+									type="button"
+									class="text-sm text-muted-foreground hover:text-foreground"
+									onclick={() => {
+										linkPickerOpen = true;
+										linkSearch = '';
+									}}
+								>
+									Change
+								</button>
+								{#if acct?.manual}
+									<button
+										type="button"
+										class="text-sm text-muted-foreground hover:text-red-600"
+										onclick={unlinkEmail}
+									>
+										Unlink
+									</button>
+								{/if}
+							</div>
+						</div>
+					{:else}
+						<button
+							type="button"
+							class="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+							onclick={() => {
+								linkPickerOpen = true;
+								linkSearch = '';
+							}}
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.97a4.5 4.5 0 00-6.364-6.364L5.25 6.268a4.5 4.5 0 001.242 7.244"
-							/>
-						</svg>
-						<span>Linked to <strong>{acct?.accountName}</strong></span>
-					</a>
-				{/if}
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.97a4.5 4.5 0 00-6.364-6.364L5.25 6.268a4.5 4.5 0 001.242 7.244"
+								/>
+							</svg>
+							Link to account
+						</button>
+					{/if}
+
+					{#if linkPickerOpen}
+						<div class="mt-2 rounded-lg border bg-background p-3 shadow-lg">
+							<Input placeholder="Search accounts..." bind:value={linkSearch} class="mb-2" />
+							<ul class="max-h-48 overflow-auto">
+								{#each linkMatches as acct (acct.id)}
+									<li>
+										<button
+											type="button"
+											class="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted"
+											disabled={linkSaving}
+											onclick={() => linkToAccount(acct.id)}
+										>
+											{acct.business_name}
+										</button>
+									</li>
+								{:else}
+									<li class="px-3 py-2 text-sm text-muted-foreground">No accounts found</li>
+								{/each}
+							</ul>
+							<button
+								type="button"
+								class="mt-2 text-sm text-muted-foreground hover:text-foreground"
+								onclick={() => (linkPickerOpen = false)}
+							>
+								Cancel
+							</button>
+						</div>
+					{/if}
+				</div>
 
 				<!-- Thread messages -->
 				<div class="flex-1 overflow-y-auto p-6">

@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
+	import { formatPhone } from '$lib/utils/phone';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -382,7 +383,12 @@
 							<div class="grid gap-4 sm:grid-cols-2">
 								<div class="space-y-2">
 									<Label for="contact-phone">Phone</Label>
-									<Input id="contact-phone" bind:value={contactPhone} />
+									<Input
+										id="contact-phone"
+										bind:value={contactPhone}
+										oninput={(e) =>
+											(contactPhone = formatPhone((e.currentTarget as HTMLInputElement).value))}
+									/>
 								</div>
 								<div class="space-y-2">
 									<Label for="website">Website</Label>

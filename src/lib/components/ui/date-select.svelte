@@ -20,16 +20,41 @@
 		Array.from({ length: yearRange.to - yearRange.from + 1 }, (_, i) => String(yearRange.from + i))
 	);
 
-	const yyyy = $derived(/^\d{4}-/.test(value) ? value.slice(0, 4) : '');
-	const mm = $derived(/^\d{4}-\d{2}-/.test(value) ? value.slice(5, 7) : '');
-	const dd = $derived(/^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(8, 10) : '');
+	function parts(v: string): { mm: string; dd: string; yyyy: string } {
+		return {
+			yyyy: /^\d{4}-/.test(v) ? v.slice(0, 4) : '',
+			mm: /^\d{4}-\d{2}-/.test(v) ? v.slice(5, 7) : '',
+			dd: /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(8, 10) : ''
+		};
+	}
 
-	function emit(newMm: string, newDd: string, newYyyy: string) {
-		if (!newMm || !newDd || !newYyyy) {
-			onchange('');
-			return;
+	// Local MM/DD/YYYY state. Derived-from-value would wipe partial picks
+	// because we roundtrip through an empty parent value until all three
+	// fields are filled. `lastSyncedValue` lets us distinguish our own
+	// emits from a genuine external prop change.
+	let mm = $state('');
+	let dd = $state('');
+	let yyyy = $state('');
+	let lastSyncedValue = $state<string | null>(null);
+
+	$effect(() => {
+		if (value === lastSyncedValue) return;
+		const p = parts(value);
+		mm = p.mm;
+		dd = p.dd;
+		yyyy = p.yyyy;
+		lastSyncedValue = value;
+	});
+
+	function emit() {
+		if (mm && dd && yyyy) {
+			const next = `${yyyy}-${mm}-${dd}`;
+			lastSyncedValue = next;
+			onchange(next);
 		}
-		onchange(`${newYyyy}-${newMm}-${newDd}`);
+		// Deliberately no emit('') for partials — if we cleared the parent
+		// here, the $effect above would wipe the user's in-progress pick on
+		// the next render.
 	}
 </script>
 
@@ -38,7 +63,10 @@
 		{id}
 		class="h-9 cursor-pointer rounded-md border bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
 		value={mm}
-		onchange={(e) => emit((e.target as HTMLSelectElement).value, dd, yyyy)}
+		onchange={(e) => {
+			mm = (e.target as HTMLSelectElement).value;
+			emit();
+		}}
 		aria-label="Month"
 	>
 		<option value="" disabled>MM</option>
@@ -49,7 +77,10 @@
 	<select
 		class="h-9 cursor-pointer rounded-md border bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
 		value={dd}
-		onchange={(e) => emit(mm, (e.target as HTMLSelectElement).value, yyyy)}
+		onchange={(e) => {
+			dd = (e.target as HTMLSelectElement).value;
+			emit();
+		}}
 		aria-label="Day"
 	>
 		<option value="" disabled>DD</option>
@@ -60,7 +91,10 @@
 	<select
 		class="h-9 cursor-pointer rounded-md border bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
 		value={yyyy}
-		onchange={(e) => emit(mm, dd, (e.target as HTMLSelectElement).value)}
+		onchange={(e) => {
+			yyyy = (e.target as HTMLSelectElement).value;
+			emit();
+		}}
 		aria-label="Year"
 	>
 		<option value="" disabled>YYYY</option>

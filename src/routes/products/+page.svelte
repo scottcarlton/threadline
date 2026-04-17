@@ -3,8 +3,12 @@
 	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import Switch from '$lib/components/ui/switch.svelte';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import type { Product } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -21,10 +25,14 @@
 	let search = $state('');
 	let seasonFilter = $state('');
 	let categoryFilter = $state('');
-	let priceMin = $state('');
-	let priceMax = $state('');
+	let priceRange = $state<[number, number]>([0, 500]);
+	let atsOnly = $state(false);
 	let showArchived = $state(false);
 	let showImport = $state(false);
+
+	const maxProductPrice = $derived(
+		Math.max(...products.map((p) => Number(p.wholesale_price)), 500)
+	);
 
 	const categories = $derived(
 		[...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort()
@@ -38,12 +46,18 @@
 				(p.category?.toLowerCase().includes(search.toLowerCase()) ?? false);
 			const matchesSeason = !seasonFilter || p.season_id === seasonFilter;
 			const matchesCategory = !categoryFilter || p.category === categoryFilter;
-			const min = parseFloat(priceMin);
-			const max = parseFloat(priceMax);
 			const price = Number(p.wholesale_price);
-			const matchesPrice = (!priceMin || price >= min) && (!priceMax || price <= max);
+			const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
 			const matchesArchive = showArchived ? true : !p.archived_at;
-			return matchesSearch && matchesSeason && matchesCategory && matchesPrice && matchesArchive;
+			const matchesAts = !atsOnly || p.ats;
+			return (
+				matchesSearch &&
+				matchesSeason &&
+				matchesCategory &&
+				matchesPrice &&
+				matchesArchive &&
+				matchesAts
+			);
 		})
 	);
 
@@ -73,6 +87,7 @@
 				errors.push(`Row ${i + 1}: Style Number and Name are required`);
 				continue;
 			}
+			const yearNum = parseInt(row.product_year ?? '', 10);
 			const { data: product, error } = await supabase
 				.from('products')
 				.insert({
@@ -83,7 +98,9 @@
 					wholesale_price: parseFloat(row.wholesale_price) || 0,
 					retail_price: parseFloat(row.retail_price) || null,
 					category: row.category?.trim() || null,
-					description: row.description?.trim() || null
+					description: row.description?.trim() || null,
+					season_id: row.season_id || null,
+					product_year: Number.isFinite(yearNum) ? yearNum : null
 				})
 				.select('id')
 				.single();
@@ -139,51 +156,55 @@
 </script>
 
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<h1 class="text-3xl">Products</h1>
-			<span class="text-sm text-muted-foreground"
-				>{filtered.length} product{filtered.length !== 1 ? 's' : ''}</span
-			>
-		</div>
+	<PageHeader
+		title="Products"
+		subtitle="{filtered.length} product{filtered.length !== 1 ? 's' : ''}"
+	>
 		{#if canEdit}
-			<div class="flex items-center gap-2">
-				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
-				<Button size="sm" href="/brands/{brand.id}/products/new">Add Product</Button>
-			</div>
+			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
+			<Button href="/brands/{brand.id}/products/new">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="-ml-1 h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+				>
+				Add Product
+			</Button>
 		{/if}
-	</div>
+	</PageHeader>
 
 	<!-- Filters -->
 	<div class="flex flex-wrap gap-3">
 		<div class="max-w-xs flex-1">
-			<Input placeholder="Search products..." bind:value={search} />
+			<SearchInput placeholder="Search products..." bind:value={search} />
 		</div>
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+		<SelectField
+			items={[
+				{ value: '', label: 'All Seasons' },
+				...seasons.map((s) => ({ value: s.id, label: s.name }))
+			]}
 			bind:value={seasonFilter}
-		>
-			<option value="">All Seasons</option>
-			{#each seasons as season (season.id)}
-				<option value={season.id}>{season.name}</option>
-			{/each}
-		</select>
+			placeholder="All Seasons"
+		/>
 		{#if categories.length > 0}
-			<select
-				class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+			<SelectField
+				items={[
+					{ value: '', label: 'All Categories' },
+					...categories.map((c) => ({ value: c, label: c }))
+				]}
 				bind:value={categoryFilter}
-			>
-				<option value="">All Categories</option>
-				{#each categories as cat (cat)}
-					<option value={cat}>{cat}</option>
-				{/each}
-			</select>
+				placeholder="All Categories"
+			/>
 		{/if}
-		<div class="flex items-center gap-1.5">
-			<Input class="w-24" type="number" placeholder="Min $" bind:value={priceMin} />
-			<span class="text-muted-foreground">–</span>
-			<Input class="w-24" type="number" placeholder="Max $" bind:value={priceMax} />
-		</div>
+		<PriceFilterDropdown bind:value={priceRange} maxPrice={maxProductPrice} />
+		<label class="ml-auto flex h-10 items-center gap-2 text-sm" for="ats-only">
+			ATS Only
+			<Switch id="ats-only" bind:checked={atsOnly} aria-label="ATS Only" />
+		</label>
 		{#if archivedCount > 0}
 			<button
 				class="text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -197,7 +218,7 @@
 	<!-- Product grid -->
 	{#if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
-			{#if search || seasonFilter || categoryFilter}
+			{#if search || seasonFilter || categoryFilter || atsOnly}
 				<p class="text-lg font-semibold">No products match your filters</p>
 				<p class="mt-2 text-sm text-muted-foreground">Try adjusting your filters</p>
 			{:else}
@@ -293,4 +314,5 @@
 	columns={productColumns}
 	onimport={handleImport}
 	enableLinesheet={true}
+	{seasons}
 />

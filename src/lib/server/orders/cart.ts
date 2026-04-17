@@ -3,7 +3,7 @@ import type { OrderType, OrderStatus } from '$lib/types/database.js';
 export type CartLine = {
 	product_id: string | null;
 	brand_id: string;
-	season_id: string;
+	season_id: string | null;
 	style_number: string | null;
 	description: string | null;
 	color: string | null;
@@ -18,7 +18,7 @@ export type DeliveryChoice =
 
 export type OrderGroup = {
 	brand_id: string;
-	season_id: string;
+	season_id: string | null;
 	lines: CartLine[];
 	total: number;
 	delivery: DeliveryChoice | null;
@@ -38,7 +38,7 @@ export type NewOrder = {
 	freeform_name: string | null;
 	location_id: string | null;
 	brand_id: string;
-	season_id: string;
+	season_id: string | null;
 	order_year: number | null;
 	delivery_id: string | null;
 	expected_ship_date: string | null;
@@ -48,8 +48,13 @@ export type NewOrder = {
 	lines: Array<Omit<CartLine, 'brand_id' | 'season_id'>>;
 };
 
+// Sentinel for products without a season — groups them per-brand under a single
+// "no season" bucket. Products may legitimately have a null season; the order
+// flow keeps them in their own group so brand+season ordering still works.
+export const NO_SEASON = '__no_season__';
+
 function groupKey(line: CartLine): string {
-	return `${line.brand_id}::${line.season_id}`;
+	return `${line.brand_id}::${line.season_id ?? NO_SEASON}`;
 }
 
 /**

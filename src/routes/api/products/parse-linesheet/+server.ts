@@ -26,6 +26,16 @@ const extractionTool: Anthropic.Tool = {
 	input_schema: {
 		type: 'object' as const,
 		properties: {
+			season: {
+				type: 'string',
+				description:
+					'Season name detected on the linesheet (e.g. "Spring", "Fall", "Resort", "Pre-Fall"). Omit if not confident.'
+			},
+			year: {
+				type: 'number',
+				description:
+					'Four-digit year detected on the linesheet (e.g. 2026). Expand shorthand like "FW25" → 2025. Omit if not confident.'
+			},
 			products: {
 				type: 'array',
 				description: 'Array of products extracted from the linesheet',
@@ -143,7 +153,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const input = toolBlock.input as { products?: Record<string, unknown>[] };
+		const input = toolBlock.input as {
+			products?: Record<string, unknown>[];
+			season?: unknown;
+			year?: unknown;
+		};
 		const products = input.products;
 
 		if (!Array.isArray(products) || products.length === 0) {
@@ -165,7 +179,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			colors: Array.isArray(p.colors) ? p.colors.map(String) : []
 		}));
 
-		return json({ products: normalized });
+		const seasonHint =
+			typeof input.season === 'string' && input.season.trim() ? input.season.trim() : null;
+		const yearHint =
+			typeof input.year === 'number' && Number.isFinite(input.year) ? Math.trunc(input.year) : null;
+
+		return json({ products: normalized, season: seasonHint, year: yearHint });
 	} catch (err) {
 		console.error('Linesheet parse error:', err);
 		const message = err instanceof Error ? err.message : 'Unknown error';
