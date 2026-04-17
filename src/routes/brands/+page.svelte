@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import type { Brand } from '$lib/types/database.js';
@@ -129,7 +129,7 @@
 
 	<div class="flex items-center gap-3">
 		<div class="max-w-xs flex-1">
-			<Input placeholder="Search brands..." bind:value={search} />
+			<SearchInput placeholder="Search brands..." bind:value={search} />
 		</div>
 		{#if archivedCount > 0}
 			<button

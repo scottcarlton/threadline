@@ -16,7 +16,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		return json({ error: 'No organization found' }, { status: 400 });
 	}
 
-	const { email, role, brandIds } = await request.json();
+	const { email, role, brandIds, commissionRate } = await request.json();
 
 	if (!email || !role) {
 		return json({ error: 'Missing required fields' }, { status: 400 });
@@ -27,6 +27,14 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	}
 
 	const scopedBrandIds = Array.isArray(brandIds) ? (brandIds as string[]) : [];
+
+	// Commission is only meaningful for sales members. Clamp to 0–100 and
+	// ignore for every other role so a stale client value can't slip in.
+	let commission = 0;
+	if (role === 'sales' && commissionRate != null) {
+		const n = Number(commissionRate);
+		if (Number.isFinite(n)) commission = Math.min(100, Math.max(0, n));
+	}
 
 	// Look up any existing auth user for this email
 	const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
@@ -51,6 +59,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 				organization_id: organization.id,
 				profile_id: matchingUser.id,
 				role,
+				commission_rate: commission,
 				invited_by: membership.profile_id,
 				accepted_at: new Date().toISOString()
 			})
@@ -68,6 +77,16 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 				granted_by: membership.profile_id
 			}));
 			await supabaseAdmin.from('member_brand_access').insert(rows);
+
+			if (commission > 0) {
+				const commissionRows = scopedBrandIds.map((brandId) => ({
+					organization_id: organization.id,
+					member_id: inserted.id,
+					brand_id: brandId,
+					rate: commission
+				}));
+				await supabaseAdmin.from('member_brand_commissions').insert(commissionRows);
+			}
 		}
 
 		return json({ success: true, autoAdded: true });
@@ -97,6 +116,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			email,
 			role,
 			brand_ids: scopedBrandIds,
+			commission_rate: commission,
 			token,
 			invited_by: membership.profile_id,
 			expires_at: expiresAt.toISOString()

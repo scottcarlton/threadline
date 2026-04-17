@@ -13,12 +13,12 @@ export const DATE_PRESET_IDS = [
 export type DatePresetId = (typeof DATE_PRESET_IDS)[number];
 
 export const DATE_PRESET_LABELS: Record<DatePresetId, string> = {
-	all: 'All time',
-	last_7_days: 'Last 7 days',
-	last_30_days: 'Last 30 days',
-	last_90_days: 'Last 90 days',
-	this_month: 'This month',
-	last_month: 'Last month',
+	all: 'All Time',
+	last_7_days: 'Last 7 Days',
+	last_30_days: 'Last 30 Days',
+	last_90_days: 'Last 90 Days',
+	this_month: 'This Month',
+	last_month: 'Last Month',
 	custom: 'Custom…'
 };
 

@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
+	import { formatPhone } from '$lib/utils/phone';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -436,7 +437,12 @@
 							</div>
 							<div class="space-y-2">
 								<Label for="phone">Phone</Label>
-								<Input id="phone" bind:value={phone} />
+								<Input
+									id="phone"
+									bind:value={phone}
+									oninput={(e) =>
+										(phone = formatPhone((e.currentTarget as HTMLInputElement).value))}
+								/>
 							</div>
 							<div class="space-y-2">
 								<Label for="address1">Address line 1</Label>
@@ -610,7 +616,13 @@
 								</div>
 								<div class="space-y-1.5">
 									<Label for="loc-phone">Phone</Label>
-									<Input id="loc-phone" name="phone" bind:value={locFields.phone} />
+									<Input
+										id="loc-phone"
+										name="phone"
+										bind:value={locFields.phone}
+										oninput={(e) =>
+											(locFields.phone = formatPhone((e.currentTarget as HTMLInputElement).value))}
+									/>
 								</div>
 								<div class="space-y-1.5 sm:col-span-2">
 									<Label for="loc-addr1">Address line 1</Label>

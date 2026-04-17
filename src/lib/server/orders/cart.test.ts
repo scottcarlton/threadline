@@ -10,7 +10,7 @@ import {
 
 const line = (
 	brand_id: string,
-	season_id: string,
+	season_id: string | null,
 	qty = 2,
 	unit_price = 10,
 	style = 'S1'
@@ -62,6 +62,27 @@ describe('groupCart', () => {
 	it('preserves first-seen order of groups', () => {
 		const groups = groupCart([line('B2', 'S1'), line('B1', 'S1'), line('B2', 'S1', 1)]);
 		expect(groups.map((g) => g.brand_id)).toEqual(['B2', 'B1']);
+	});
+
+	it('groups null-season lines into a single per-brand bucket', () => {
+		const groups = groupCart([
+			line('B1', null, 2, 10, 'X'),
+			line('B1', null, 1, 5, 'Y'),
+			line('B2', null, 3, 20, 'Z')
+		]);
+		expect(groups).toHaveLength(2);
+		expect(groups[0].brand_id).toBe('B1');
+		expect(groups[0].season_id).toBeNull();
+		expect(groups[0].lines).toHaveLength(2);
+		expect(groups[1].brand_id).toBe('B2');
+		expect(groups[1].season_id).toBeNull();
+	});
+
+	it('keeps null-season and real-season groups separate within the same brand', () => {
+		const groups = groupCart([line('B1', null), line('B1', 'S1'), line('B1', null, 1)]);
+		expect(groups).toHaveLength(2);
+		expect(groups.find((g) => g.season_id === null)?.lines).toHaveLength(2);
+		expect(groups.find((g) => g.season_id === 'S1')?.lines).toHaveLength(1);
 	});
 });
 
@@ -143,6 +164,11 @@ describe('validateCart', () => {
 
 	it('passes a valid order cart', () => {
 		const groups = groupCart([line('B1', 'S1')]);
+		expect(() => validateCart(groups, ctx(), 'submitted')).not.toThrow();
+	});
+
+	it('passes a valid order cart with null-season lines', () => {
+		const groups = groupCart([line('B1', null)]);
 		expect(() => validateCart(groups, ctx(), 'submitted')).not.toThrow();
 	});
 });

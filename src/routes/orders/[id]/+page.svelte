@@ -158,23 +158,15 @@
 	}
 
 	async function updateStatus(newStatus: OrderStatus) {
-		const timestampField: Record<string, string> = {
-			submitted: 'submitted_at',
-			confirmed: 'confirmed_at',
-			shipped: 'shipped_at',
-			delivered: 'delivered_at',
-			cancelled: 'cancelled_at'
-		};
-
-		const updateData: Record<string, unknown> = {
-			status: newStatus,
-			updated_at: new Date().toISOString()
-		};
-		if (timestampField[newStatus]) {
-			updateData[timestampField[newStatus]] = new Date().toISOString();
+		const res = await fetch(`/api/orders/${order.id}/status`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ status: newStatus })
+		});
+		if (!res.ok) {
+			const body = await res.json().catch(() => ({}));
+			console.error('Status update failed:', body.error);
 		}
-
-		await supabase.from('orders').update(updateData).eq('id', order.id);
 		invalidateAll();
 		fetchOrderAttentionCount();
 	}

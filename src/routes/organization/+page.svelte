@@ -3,6 +3,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { supabase } from '$lib/supabase.js';
+	import { formatPhone } from '$lib/utils/phone';
 
 	let { data } = $props();
 
@@ -106,7 +107,13 @@
 				</div>
 				<div class="space-y-2">
 					<Label for="contact-phone">Contact phone</Label>
-					<Input id="contact-phone" bind:value={contactPhone} placeholder="(555) 123-4567" />
+					<Input
+						id="contact-phone"
+						bind:value={contactPhone}
+						placeholder="(555) 123-4567"
+						oninput={(e) =>
+							(contactPhone = formatPhone((e.currentTarget as HTMLInputElement).value))}
+					/>
 				</div>
 			{/if}
 		</div>

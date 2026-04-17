@@ -44,3 +44,36 @@ export async function notifyOrgMembers(
 		}))
 	);
 }
+
+export async function notifyBrandAdmins(
+	brandId: string,
+	excludeUserId: string,
+	params: Omit<CreateNotificationParams, 'organizationId' | 'userId'>
+) {
+	const { data: brand } = await supabaseAdmin
+		.from('brands')
+		.select('organization_id')
+		.eq('id', brandId)
+		.single();
+	if (!brand) return;
+
+	const { data: admins } = await supabaseAdmin
+		.from('organization_members')
+		.select('profile_id')
+		.eq('organization_id', brand.organization_id)
+		.in('role', ['admin', 'owner'])
+		.neq('profile_id', excludeUserId);
+
+	if (!admins || admins.length === 0) return;
+
+	await supabaseAdmin.from('notifications').insert(
+		admins.map((m) => ({
+			organization_id: brand.organization_id,
+			user_id: m.profile_id,
+			type: params.type,
+			title: params.title,
+			body: params.body ?? null,
+			link: params.link ?? null
+		}))
+	);
+}

@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import { PinInput } from 'bits-ui';
 
 	let email = $state('');
 	let otpCode = $state('');
@@ -179,17 +180,26 @@
 			class="space-y-4"
 		>
 			<div class="space-y-2">
-				<Label for="otp">Verification code</Label>
-				<Input
-					id="otp"
-					type="text"
-					placeholder="Enter 6-digit code"
+				<Label>Verification code</Label>
+				<PinInput.Root
+					maxlength={6}
 					bind:value={otpCode}
-					autocomplete="one-time-code"
-					required
-				/>
+					onComplete={verifyOtp}
+					textalign="center"
+					pasteTransformer={(t) => t.replace(/[^0-9]/g, '')}
+					class="flex justify-center gap-2.5"
+				>
+					{#snippet children({ cells })}
+						{#each cells as cell (cell)}
+							<PinInput.Cell
+								{cell}
+								class="flex h-12 w-11 items-center justify-center rounded-lg border border-input bg-background text-center text-lg font-medium transition-colors data-[active]:border-ring data-[active]:ring-2 data-[active]:ring-ring/20"
+							/>
+						{/each}
+					{/snippet}
+				</PinInput.Root>
 			</div>
-			<Button size="lg" type="submit" class="w-full" disabled={loading || !otpCode}>
+			<Button size="lg" type="submit" class="w-full" disabled={loading || otpCode.length < 6}>
 				{loading ? 'Verifying...' : 'Verify code'}
 			</Button>
 			<button

@@ -95,6 +95,18 @@
 					body: formData
 				});
 			}
+			if (!asDraft) {
+				fetch('/api/notifications', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						type: 'expense_submitted',
+						title: 'Expense submitted for review',
+						body: `${expense.expense_number} — ${description}`,
+						link: `/expenses/${expense.id}`
+					})
+				});
+			}
 			loading = false;
 			goto(resolve(`/expenses/${expense.id}`));
 		}
