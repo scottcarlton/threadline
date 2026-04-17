@@ -660,6 +660,7 @@ export interface ConnectionInvite {
 	expires_at: string;
 	max_uses: number;
 	use_count: number;
+	auto_approve: boolean;
 	created_at: string;
 }
 

@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-import { notifyBrandAdmins } from '$lib/server/notifications.js';
+import { notifyOrgAdmins } from '$lib/server/notifications.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { session, organization, orgType, membership } = locals;
@@ -43,15 +43,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ error: 'Connection request already pending' }, { status: 409 });
 	}
 
-	// Create the connection request
+	// Create the connection — auto-approve skips the pending state
+	const autoApprove = Boolean(invite.auto_approve);
 	const { data: connection, error: connError } = await supabaseAdmin
 		.from('org_connections')
 		.insert({
 			rep_org_id: organization.id,
 			brand_org_id: invite.brand_org_id,
 			rep_brand_id: repBrandId || null,
-			status: 'pending',
-			requested_by: session.user.id
+			status: autoApprove ? 'active' : 'pending',
+			requested_by: session.user.id,
+			...(autoApprove
+				? { approved_by: invite.created_by, connected_at: new Date().toISOString() }
+				: {})
 		})
 		.select()
 		.single();
@@ -68,12 +72,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.organizations;
 	const brandOrg = Array.isArray(inviteOrgs) ? inviteOrgs[0] : inviteOrgs;
 
-	notifyBrandAdmins(invite.brand_org_id, session.user.id, {
-		type: 'connection_request',
-		title: 'New connection request',
-		body: `${organization.name} has requested to connect`,
+	notifyOrgAdmins(invite.brand_org_id, session.user.id, {
+		type: autoApprove ? 'connection_auto_approved' : 'connection_request',
+		title: autoApprove ? 'New rep auto-connected' : 'New connection request',
+		body: autoApprove
+			? `${organization.name} connected via auto-approve invite`
+			: `${organization.name} has requested to connect`,
 		link: '/settings/connections'
 	});
 
-	return json({ connection, brandName: brandOrg?.name });
+	return json({ connection, brandName: brandOrg?.name, autoApproved: autoApprove });
 };
