@@ -5,6 +5,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import type { BrandExpense } from '$lib/types/database.js';
@@ -128,22 +129,6 @@
 		{/if}
 	</PageHeader>
 
-	<!-- Status tabs -->
-	<div class="flex gap-1 border-b">
-		{#each statusTabs as tab (tab)}
-			<button
-				class="-mb-px px-4 py-2 text-[13px] font-medium whitespace-nowrap transition-colors {activeStatus ===
-				tab
-					? 'text-foreground'
-					: 'text-muted-foreground hover:text-foreground'}"
-				style="border-bottom: 1px solid {activeStatus === tab ? 'currentColor' : 'transparent'}"
-				onclick={() => setFilter('status', tab)}
-			>
-				{statusLabels[tab] ?? tab}
-			</button>
-		{/each}
-	</div>
-
 	<!-- Analytics Cards -->
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 		<Card>
@@ -185,33 +170,36 @@
 		</Card>
 	</div>
 
-	<!-- Filters -->
-	<div class="flex flex-wrap gap-3">
-		<div class="max-w-xs">
-			<SearchInput placeholder="Search expenses..." bind:value={search} />
-		</div>
+	<!-- Filters: Search + Status + Category | spacer | Brand -->
+	<div class="flex flex-wrap items-center gap-3">
+		<SearchInput placeholder="Search expenses..." bind:value={search} class="w-64" />
+		<SelectField
+			value={activeStatus}
+			items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+			placeholder="Status"
+			class="min-w-[120px]"
+			onValueChange={(v) => setFilter('status', v)}
+		/>
+		<SelectField
+			value={$page.url.searchParams.get('category') ?? ''}
+			items={[
+				{ value: '', label: 'All Categories' },
+				...Object.entries(categoryLabels).map(([value, label]) => ({ value, label }))
+			]}
+			placeholder="All Categories"
+			onValueChange={(v) => setFilter('category', v)}
+		/>
 		{#if !isBrandOrg}
-			<select
-				class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-				onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">All Brands</option>
-				{#each brands as brand (brand.id)}
-					<option value={brand.id} selected={$page.url.searchParams.get('brand') === brand.id}
-						>{brand.name}</option
-					>
-				{/each}
-			</select>
+			<SelectField
+				value={$page.url.searchParams.get('brand') ?? ''}
+				items={[
+					{ value: '', label: 'All Brands' },
+					...brands.map((b) => ({ value: b.id, label: b.name }))
+				]}
+				placeholder="All Brands"
+				onValueChange={(v) => setFilter('brand', v)}
+			/>
 		{/if}
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('category', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Categories</option>
-			{#each Object.entries(categoryLabels) as [value, label] (value)}
-				<option {value}>{label}</option>
-			{/each}
-		</select>
 	</div>
 
 	{#if filtered.length === 0}
@@ -280,13 +268,13 @@
 									class="font-mono text-base font-medium hover:underline"
 									>{expense.expense_number}</a
 								>
-								<p class="font-mono text-xs text-muted-foreground">
+								<p class="font-mono text-sm text-muted-foreground">
 									{categoryLabels[expense.category] ?? expense.category}
 								</p>
 							</td>
 							<td class="px-4 py-3 text-center">
 								<span
-									class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {statusBadgeColors[
+									class="inline-flex items-center rounded-md px-2 py-0.5 text-sm font-medium {statusBadgeColors[
 										expense.status
 									] ?? 'bg-zinc-100 text-zinc-500'}"
 								>
@@ -300,7 +288,7 @@
 							{/if}
 							<td class="hidden px-4 py-3 lg:table-cell">
 								<span class="text-sm">{expense.profiles?.display_name ?? '—'}</span>
-								<p class="font-mono text-xs text-muted-foreground">
+								<p class="font-mono text-sm text-muted-foreground">
 									{new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('en-US', {
 										month: 'short',
 										day: 'numeric',
@@ -317,7 +305,7 @@
 										expense.status === 'approved' ? expense.approved_at : expense.rejected_at}
 									<span class="text-sm">{reviewer?.display_name ?? '—'}</span>
 									{#if when}
-										<p class="font-mono text-xs text-muted-foreground">
+										<p class="font-mono text-sm text-muted-foreground">
 											{new Date(when).toLocaleDateString('en-US', {
 												month: 'short',
 												day: 'numeric',
