@@ -4,8 +4,11 @@
 	import { page } from '$app/stores';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import type { Order, Season } from '$lib/types/database.js';
@@ -91,12 +94,12 @@
 		cancelled: 'Cancelled'
 	};
 	const activeStatus = $derived($page.url.searchParams.get('status') ?? 'all');
-	const activeType = $derived($page.url.searchParams.get('type') ?? 'all');
+	const activeType = $derived($page.url.searchParams.get('type') ?? 'order');
 	const activeFrom = $derived($page.url.searchParams.get('from'));
 	const activeTo = $derived($page.url.searchParams.get('to'));
 	const activeDatePreset = $derived<DatePresetId>(matchPreset(activeFrom, activeTo));
 
-	let search = $state('');
+	let search = $state($page.url.searchParams.get('search') ?? '');
 	const filtered = $derived(
 		orders.filter((o) => {
 			if (activeType !== 'all' && o.order_type !== activeType) return false;
@@ -351,92 +354,68 @@
 </script>
 
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-3xl">Orders</h1>
-			<p class="mt-1 font-mono text-sm text-muted-foreground">
-				{orders.length} order{orders.length !== 1 ? 's' : ''}
-			</p>
-		</div>
-		<div class="flex items-center gap-2">
-			{#if filtered.length > 0 && canExport}
-				<Button variant="outline" size="sm" onclick={exportOrders}>Export CSV</Button>
-			{/if}
-			{#if isBrandOrg && canCreate}
-				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
-			{/if}
-			{#if canCreate}
-				<Button href="/orders/new">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="-ml-1 h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
-					>
-					New Order
-				</Button>
-			{/if}
-		</div>
-	</div>
+	<PageHeader title="Orders" subtitle="{orders.length} order{orders.length !== 1 ? 's' : ''}">
+		{#if filtered.length > 0 && canExport}
+			<Button variant="outline" onclick={exportOrders}>Export CSV</Button>
+		{/if}
+		{#if isBrandOrg && canCreate}
+			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
+		{/if}
+		{#if canCreate}
+			<Button href="/orders/new">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="-ml-1 h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+				>
+				New Order
+			</Button>
+		{/if}
+	</PageHeader>
 
-	<!-- Type filter -->
-	<div class="flex flex-wrap items-center gap-2">
-		{#each ['all', 'order', 'note'] as t (t)}
-			<button
-				class="rounded-full border px-3 py-1 text-sm transition {activeType === t
-					? 'border-foreground bg-foreground text-background'
-					: 'hover:border-foreground'}"
-				onclick={() => setFilter('type', t)}
-			>
-				{t === 'all' ? 'All' : t === 'note' ? 'Notes' : 'Orders'}
-			</button>
-		{/each}
-	</div>
-
-	<!-- Status tabs -->
+	<!-- Type tabs: Orders / Notes -->
 	<div class="flex gap-1 border-b">
-		{#each statusTabs as tab (tab)}
+		{#each ['order', 'note'] as t (t)}
+			{@const label = t === 'note' ? 'Notes' : 'Orders'}
 			<button
-				class="-mb-px px-4 py-2 text-[13px] font-medium whitespace-nowrap transition-colors {activeStatus ===
-				tab
+				class="-mb-px px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors {activeType ===
+				t
 					? 'text-foreground'
 					: 'text-muted-foreground hover:text-foreground'}"
-				style="border-bottom: 1px solid {activeStatus === tab ? 'currentColor' : 'transparent'}"
-				onclick={() => setFilter('status', tab)}
+				style="border-bottom: 1px solid {activeType === t ? 'currentColor' : 'transparent'}"
+				onclick={() => setFilter('type', t)}
 			>
-				{statusLabels[tab] ?? tab}
+				{label}
 			</button>
 		{/each}
 	</div>
 
 	<!-- Analytics Cards -->
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		<!-- Pipeline Value -->
 		<Card>
 			<CardContent class="pt-4 pb-4">
 				<p class="font-mono text-sm font-medium text-muted-foreground">Pipeline Value</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.pipelineValue)}</p>
-				<p class="mt-0.5 font-mono text-xs text-muted-foreground">
+				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
 					{metrics.pipelineCount} open order{metrics.pipelineCount !== 1 ? 's' : ''}
 				</p>
 			</CardContent>
 		</Card>
 
-		<!-- Revenue -->
 		<Card>
 			<CardContent class="pt-4 pb-4">
 				<p class="font-mono text-sm font-medium text-muted-foreground">Delivered Revenue</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.deliveredRevenue)}</p>
-				<p class="mt-0.5 font-mono text-xs text-muted-foreground">
+				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
 					{fmt.format(metrics.avgOrderValue)} avg order
 				</p>
 			</CardContent>
 		</Card>
 
-		<!-- Needs Attention -->
 		<Card class={metrics.needsAttention.total > 0 ? 'border-amber-300' : ''}>
 			<CardContent class="pt-4 pb-4">
 				<p
@@ -454,7 +433,7 @@
 					{metrics.needsAttention.total}
 				</p>
 				<p
-					class="mt-0.5 font-mono text-xs {metrics.needsAttention.total > 0
+					class="mt-0.5 font-mono text-sm {metrics.needsAttention.total > 0
 						? 'text-amber-600'
 						: 'text-muted-foreground'}"
 				>
@@ -472,101 +451,139 @@
 			</CardContent>
 		</Card>
 
-		<!-- Conversion Rate -->
 		<Card>
 			<CardContent class="pt-4 pb-4">
 				<p class="font-mono text-sm font-medium text-muted-foreground">Conversion Rate</p>
 				<p class="mt-1 text-2xl font-semibold">{Math.round(metrics.conversion.rate * 100)}%</p>
-				<p class="mt-0.5 font-mono text-xs text-muted-foreground">
+				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
 					{metrics.conversion.converted} of {metrics.conversion.submitted} submitted
 				</p>
 			</CardContent>
 		</Card>
 	</div>
 
-	<!-- Filters -->
-	<div class="flex flex-wrap items-center gap-3">
-		<div class="max-w-xs">
-			<Input placeholder="Search orders..." bind:value={search} />
-		</div>
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			value={activeDatePreset}
-			onchange={(e) => onDatePresetChange((e.target as HTMLSelectElement).value as DatePresetId)}
-		>
-			<option value="all">{DATE_PRESET_LABELS.all}</option>
-			<option value="last_7_days">{DATE_PRESET_LABELS.last_7_days}</option>
-			<option value="last_30_days">{DATE_PRESET_LABELS.last_30_days}</option>
-			<option value="last_90_days">{DATE_PRESET_LABELS.last_90_days}</option>
-			<option value="this_month">{DATE_PRESET_LABELS.this_month}</option>
-			<option value="last_month">{DATE_PRESET_LABELS.last_month}</option>
-			<option value="custom">{DATE_PRESET_LABELS.custom}</option>
-		</select>
-		{#if activeDatePreset === 'custom'}
-			<input
-				type="date"
-				aria-label="From date"
-				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-				value={activeFrom ?? ''}
-				onchange={(e) => setDateRange((e.target as HTMLInputElement).value || null, activeTo)}
+	<!-- Filters / Bulk action bar -->
+	<div class="flex min-h-[44px] flex-wrap items-center gap-3">
+		{#if selectedIds.size > 0}
+			{@const nextStatuses = bulkNextStatuses()}
+			<span class="text-sm font-medium">{selectedIds.size} selected</span>
+			<div class="h-5 w-px bg-border"></div>
+			{#if nextStatuses.length > 0}
+				{#each nextStatuses as status (status)}
+					<Button size="sm" onclick={() => bulkUpdateStatus(status)} disabled={bulkUpdating}>
+						{status === 'submitted'
+							? 'Submit'
+							: status === 'confirmed'
+								? 'Confirm'
+								: status === 'shipped'
+									? 'Mark Shipped'
+									: 'Mark Delivered'}
+					</Button>
+				{/each}
+			{:else}
+				<span class="text-sm text-muted-foreground">No common action available</span>
+			{/if}
+			<button
+				type="button"
+				aria-label="Clear selection"
+				class="ml-auto text-muted-foreground hover:text-foreground"
+				onclick={() => (selectedIds = new Set())}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</button>
+		{:else}
+			<SearchInput placeholder="Search orders..." bind:value={search} class="w-64" />
+			<SelectField
+				value={activeStatus}
+				items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+				placeholder="Status"
+				class="min-w-[120px]"
+				onValueChange={(v) => setFilter('status', v)}
 			/>
-			<span class="text-sm text-muted-foreground">to</span>
-			<input
-				type="date"
-				aria-label="To date"
-				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-				value={activeTo ?? ''}
-				onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
+			{#if !isBrandOrg}
+				<SelectField
+					value={$page.url.searchParams.get('brand') ?? ''}
+					items={[
+						{ value: '', label: 'All Brands' },
+						...brands.map((b) => ({ value: b.id, label: b.name }))
+					]}
+					placeholder="All Brands"
+					onValueChange={(v) => setFilter('brand', v)}
+				/>
+			{/if}
+			{#if isBrandOrg && reps.length > 0}
+				<SelectField
+					value={$page.url.searchParams.get('rep') ?? ''}
+					items={[
+						{ value: '', label: 'All Reps' },
+						...reps.map((r) => ({ value: r.id, label: r.name }))
+					]}
+					placeholder="All Reps"
+					onValueChange={(v) => setFilter('rep', v)}
+				/>
+			{/if}
+			{#if showDates.length > 0}
+				<SelectField
+					value={$page.url.searchParams.get('show') ?? ''}
+					items={[
+						{ value: '', label: 'All Shows' },
+						...showDates.map((sd) => {
+							const shows = sd.shows as { name?: string } | { name?: string }[] | null;
+							const showName = Array.isArray(shows)
+								? (shows[0]?.name ?? 'Show')
+								: (shows?.name ?? 'Show');
+							return {
+								value: sd.id,
+								label: `${showName} — ${monthNames[(sd.month ?? 1) - 1]} ${sd.year}${sd.city ? `, ${sd.city}` : ''}`
+							};
+						})
+					]}
+					placeholder="All Shows"
+					onValueChange={(v) => setFilter('show', v)}
+				/>
+			{/if}
+			<div class="flex-1"></div>
+			<SelectField
+				value={activeDatePreset}
+				items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
+				placeholder="All Time"
+				onValueChange={(v) => onDatePresetChange(v as DatePresetId)}
 			/>
-		{/if}
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('season', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Seasons</option>
-			{#each seasons as season (season.id)}
-				<option value={season.id}>{season.name}</option>
-			{/each}
-		</select>
-		{#if !isBrandOrg}
-			<select
-				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-				onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">All Brands</option>
-				{#each brands as brand (brand.id)}
-					<option value={brand.id}>{brand.name}</option>
-				{/each}
-			</select>
-		{/if}
-		{#if isBrandOrg && reps.length > 0}
-			<select
-				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-				onchange={(e) => setFilter('rep', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">All Reps</option>
-				{#each reps as r (r.id)}
-					<option value={r.id}>{r.name}</option>
-				{/each}
-			</select>
-		{/if}
-		{#if showDates.length > 0}
-			<select
-				class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-				onchange={(e) => setFilter('show', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">All Shows</option>
-				{#each showDates as sd (sd.id)}
-					{@const shows = sd.shows as { name?: string } | { name?: string }[] | null}
-					{@const showName = Array.isArray(shows)
-						? (shows[0]?.name ?? 'Show')
-						: (shows?.name ?? 'Show')}
-					<option value={sd.id}
-						>{showName} — {monthNames[(sd.month ?? 1) - 1]}
-						{sd.year}{sd.city ? `, ${sd.city}` : ''}</option
-					>
-				{/each}
-			</select>
+			{#if activeDatePreset === 'custom'}
+				<input
+					type="date"
+					aria-label="From date"
+					class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+					value={activeFrom ?? ''}
+					onchange={(e) => setDateRange((e.target as HTMLInputElement).value || null, activeTo)}
+				/>
+				<span class="text-sm text-muted-foreground">to</span>
+				<input
+					type="date"
+					aria-label="To date"
+					class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+					value={activeTo ?? ''}
+					onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
+				/>
+			{/if}
+			<SelectField
+				value={$page.url.searchParams.get('season') ?? ''}
+				items={[
+					{ value: '', label: 'All Seasons' },
+					...seasons.map((s) => ({ value: s.id, label: s.name }))
+				]}
+				placeholder="All Seasons"
+				onValueChange={(v) => setFilter('season', v)}
+			/>
 		{/if}
 	</div>
 
@@ -602,12 +619,11 @@
 			<table class="w-full">
 				<thead>
 					<tr class="border-b bg-muted/40">
-						<th class="w-10 px-4 py-2.5">
-							<input
-								type="checkbox"
+						<th class="w-8 py-2.5 pr-1 pl-4">
+							<Checkbox
 								checked={allSelected}
-								onchange={toggleAll}
-								class="h-4 w-4 rounded border-muted-foreground/30 accent-primary"
+								indeterminate={selectedIds.size > 0 && !allSelected}
+								onCheckedChange={() => toggleAll()}
 							/>
 						</th>
 						<th
@@ -678,17 +694,21 @@
 							? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 							: null}
 						<tr
-							class="transition-colors hover:bg-muted/30 {selectedIds.has(order.id)
+							class="group transition-colors hover:bg-muted/30 {selectedIds.has(order.id)
 								? 'bg-primary/5'
 								: ''}"
 						>
-							<td class="w-10 px-4 py-3">
-								<input
-									type="checkbox"
-									checked={selectedIds.has(order.id)}
-									onchange={() => toggleOne(order.id)}
-									class="h-4 w-4 rounded border-muted-foreground/30 accent-primary"
-								/>
+							<td class="w-8 py-3 pr-1 pl-4">
+								<div
+									class="{selectedIds.has(order.id) || selectedIds.size > 0
+										? 'opacity-100'
+										: 'opacity-0 group-hover:opacity-100'} transition-opacity"
+								>
+									<Checkbox
+										checked={selectedIds.has(order.id)}
+										onCheckedChange={() => toggleOne(order.id)}
+									/>
+								</div>
 							</td>
 							<td class="px-4 py-3">
 								{#if isBrandOrg}
@@ -699,7 +719,7 @@
 										href={resolve(`/orders/${order.id}`)}
 										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 									>
-									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
+									<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
 								{:else}
 									<a
 										href={resolve(`/orders/${order.id}`)}
@@ -715,7 +735,7 @@
 									<span class="text-sm text-muted-foreground">—</span>
 								{:else}
 									<span
-										class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {statusBadgeColors[
+										class="inline-flex items-center rounded-md px-2 py-0.5 text-sm font-medium {statusBadgeColors[
 											order.status
 										] ?? 'bg-zinc-100 text-zinc-500'}"
 									>
@@ -726,7 +746,7 @@
 							{#if !isBrandOrg}
 								<td class="hidden px-4 py-3 sm:table-cell">
 									<span class="text-sm">{order.brands?.name ?? '—'}</span>
-									<p class="font-mono text-xs text-muted-foreground">{seasonLabel(order)}</p>
+									<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
 								</td>
 							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
@@ -742,9 +762,9 @@
 									>
 								{/if}
 								{#if showDate && !isBrandOrg}
-									<p class="mt-0.5 text-xs text-muted-foreground">
+									<p class="mt-0.5 text-sm text-muted-foreground">
 										<span
-											class="mr-1 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-medium"
+											class="mr-1 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-sm font-medium"
 											>{[
 												'Jan',
 												'Feb',
@@ -767,7 +787,7 @@
 								<span class="text-sm {repName === '—' ? 'text-muted-foreground/50' : ''}"
 									>{repName}</span
 								>
-								<p class="font-mono text-xs text-muted-foreground">
+								<p class="font-mono text-sm text-muted-foreground">
 									{new Date(order.created_at).toLocaleDateString('en-US', {
 										month: 'short',
 										day: 'numeric',
@@ -813,49 +833,6 @@
 					{/each}
 				</tbody>
 			</table>
-		</div>
-	{/if}
-
-	<!-- Bulk action bar -->
-	{#if selectedIds.size > 0}
-		{@const nextStatuses = bulkNextStatuses()}
-		<div
-			class="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border bg-background px-4 py-3 shadow-lg"
-		>
-			<span class="text-sm font-medium">{selectedIds.size} selected</span>
-			<div class="h-5 w-px bg-border"></div>
-			{#if nextStatuses.length > 0}
-				{#each nextStatuses as status (status)}
-					<Button size="sm" onclick={() => bulkUpdateStatus(status)} disabled={bulkUpdating}>
-						{status === 'submitted'
-							? 'Submit'
-							: status === 'confirmed'
-								? 'Confirm'
-								: status === 'shipped'
-									? 'Mark Shipped'
-									: 'Mark Delivered'}
-					</Button>
-				{/each}
-			{:else}
-				<span class="text-sm text-muted-foreground">No common action available</span>
-			{/if}
-			<button
-				type="button"
-				aria-label="Clear selection"
-				class="ml-1 text-muted-foreground hover:text-foreground"
-				onclick={() => (selectedIds = new Set())}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-				</svg>
-			</button>
 		</div>
 	{/if}
 </div>

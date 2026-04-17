@@ -1120,6 +1120,7 @@
 	</div>
 
 	<SearchDialog
+		isBrandOrg={data.orgType === 'brand'}
 		onassistantToggle={() => {
 			const input = document.getElementById('ai-dock-input');
 			if (input) input.focus();

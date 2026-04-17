@@ -50,7 +50,7 @@
 	</Select.Trigger>
 	<Select.Portal>
 		<Select.Content
-			class="animate-in fade-in-0 zoom-in-95 z-50 min-w-[var(--bits-select-trigger-width)] overflow-hidden rounded-md border bg-background shadow-lg"
+			class="animate-in fade-in-0 zoom-in-95 z-50 w-[var(--bits-select-trigger-width)] min-w-[var(--bits-select-trigger-width)] overflow-hidden rounded-md border bg-background shadow-lg"
 			sideOffset={4}
 		>
 			<Select.Viewport class="p-1">
@@ -58,25 +58,9 @@
 					<Select.Item
 						value={item.value}
 						disabled={item.disabled}
-						class="relative flex cursor-pointer items-center rounded-sm px-3 py-2 text-sm transition-colors select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
+						class="relative flex cursor-pointer items-center rounded-sm px-3 py-2 text-sm transition-colors select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[state=checked]:bg-muted data-[state=checked]:font-medium"
 					>
-						{#snippet children({ selected })}
-							{#if selected}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="mr-2 h-4 w-4 shrink-0"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-								</svg>
-							{:else}
-								<span class="mr-2 inline-block w-4"></span>
-							{/if}
-							{item.label}
-						{/snippet}
+						{item.label}
 					</Select.Item>
 				{/each}
 			</Select.Viewport>

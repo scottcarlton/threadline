@@ -708,25 +708,6 @@
 					{converting ? 'Converting…' : 'Convert to Order'}
 				</Button>
 			{/if}
-			{#if canEdit && order.order_type !== 'note' && nextStatuses.length > 0}
-				{#each nextStatuses as nextStatus (nextStatus)}
-					{#if nextStatus === 'cancelled'}
-						<Button size="sm" variant="destructive" onclick={() => (cancelOpen = true)}>
-							Cancel
-						</Button>
-					{:else}
-						<Button size="sm" onclick={() => updateStatus(nextStatus)}>
-							{nextStatus === 'submitted'
-								? 'Submit'
-								: nextStatus === 'confirmed'
-									? 'Confirm'
-									: nextStatus === 'shipped'
-										? 'Ship'
-										: 'Mark Delivered'}
-						</Button>
-					{/if}
-				{/each}
-			{/if}
 		</div>
 	</div>
 
@@ -839,19 +820,6 @@
 							<dt class="text-xs text-muted-foreground">Ship To</dt>
 							<dd class="mt-0.5">
 								<div class="font-medium">{orderLocation.label}</div>
-								{#if orderLocation.address_line1}
-									<div class="text-muted-foreground">
-										{orderLocation.address_line1}
-										{#if orderLocation.address_line2}
-											· {orderLocation.address_line2}{/if}
-									</div>
-								{/if}
-								{#if orderLocation.city || orderLocation.state || orderLocation.zip}
-									<div class="text-muted-foreground">
-										{[orderLocation.city, orderLocation.state].filter(Boolean).join(', ')}
-										{orderLocation.zip ?? ''}
-									</div>
-								{/if}
 							</dd>
 						</div>
 					{/if}
@@ -975,7 +943,30 @@
 
 		<Card>
 			<CardHeader>
-				<CardTitle class="font-mono text-base">Order Total</CardTitle>
+				<div class="flex items-start justify-between">
+					<CardTitle class="font-mono text-base">Summary</CardTitle>
+					{#if canEdit && order.order_type !== 'note' && nextStatuses.length > 0}
+						<div class="flex flex-wrap gap-2">
+							{#each nextStatuses as nextStatus (nextStatus)}
+								{#if nextStatus === 'cancelled'}
+									<Button size="sm" variant="destructive" onclick={() => (cancelOpen = true)}>
+										Cancel
+									</Button>
+								{:else}
+									<Button size="sm" onclick={() => updateStatus(nextStatus)}>
+										{nextStatus === 'submitted'
+											? 'Submit'
+											: nextStatus === 'confirmed'
+												? 'Confirm'
+												: nextStatus === 'shipped'
+													? 'Ship'
+													: 'Mark Delivered'}
+									</Button>
+								{/if}
+							{/each}
+						</div>
+					{/if}
+				</div>
 			</CardHeader>
 			<CardContent>
 				<p class="font-mono text-3xl font-bold">{fmt.format(Number(order.total_amount))}</p>

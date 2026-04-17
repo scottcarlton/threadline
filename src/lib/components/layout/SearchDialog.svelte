@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { conversation } from '$lib/stores/conversation.js';
+	import { computePreset } from '$lib/utils/date-presets.js';
 
 	type SearchResult = {
 		type: 'brand' | 'account' | 'order' | 'contact';
@@ -24,14 +25,16 @@
 	};
 
 	type Props = {
+		isBrandOrg?: boolean;
 		onassistantToggle?: () => void;
 	};
 
-	let { onassistantToggle }: Props = $props();
+	let { isBrandOrg = false, onassistantToggle }: Props = $props();
 
 	let open = $state(false);
 	let query = $state('');
 	let results = $state<SearchResult[]>([]);
+	let orderTotalCount = $state(0);
 	let loading = $state(false);
 	let hasSearched = $state(false);
 	let selectedIndex = $state(0);
@@ -52,7 +55,7 @@
 		keys?: string[];
 	};
 
-	const createItems: DefaultItem[] = [
+	const createItems = $derived<DefaultItem[]>([
 		{
 			kind: 'create',
 			label: 'New Order',
@@ -75,16 +78,6 @@
 		},
 		{
 			kind: 'create',
-			label: 'New Brand',
-			icon: 'M12 4v16m8-8H4',
-			keys: ['⌘', 'B'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/brands/new'));
-			}
-		},
-		{
-			kind: 'create',
 			label: 'New Appointment',
 			icon: 'M12 4v16m8-8H4',
 			keys: ['Shift', '⌘', 'A'],
@@ -92,82 +85,142 @@
 				closeDialog();
 				goto(resolve('/appointments?new=true'));
 			}
+		},
+		...(!isBrandOrg
+			? [
+					{
+						kind: 'create' as const,
+						label: 'New Brand',
+						icon: 'M12 4v16m8-8H4',
+						keys: ['⌘', 'B'],
+						action: () => {
+							closeDialog();
+							goto(resolve('/brands/new'));
+						}
+					}
+				]
+			: [])
+	]);
+
+	const navOrders: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Orders',
+		icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+		keys: ['O'],
+		action: () => {
+			closeDialog();
+			goto(resolve('/orders'));
+		}
+	};
+	const navAccounts: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Accounts',
+		icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+		keys: ['A'],
+		action: () => {
+			closeDialog();
+			goto(resolve('/accounts'));
+		}
+	};
+	const navBrands: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Brands',
+		icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+		keys: ['B'],
+		action: () => {
+			closeDialog();
+			goto(resolve('/brands'));
+		}
+	};
+	const navInbox: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Inbox',
+		icon: 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75',
+		keys: ['Shift', 'I'],
+		action: () => {
+			closeDialog();
+			goto(resolve('/inbox'));
+		}
+	};
+	const navAppointments: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Appointments',
+		icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5',
+		keys: ['Shift', 'A'],
+		action: () => {
+			closeDialog();
+			goto(resolve('/appointments'));
+		}
+	};
+	const navReports: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Reports',
+		icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+		keys: ['R'],
+		action: () => {
+			closeDialog();
+			goto(resolve('/reports'));
+		}
+	};
+	const navSettings: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Settings',
+		icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+		action: () => {
+			closeDialog();
+			goto(resolve('/settings'));
+		}
+	};
+
+	const orderDocIcon =
+		'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z';
+
+	function presetUrl(preset: 'last_7_days' | 'last_30_days'): string {
+		const range = computePreset(preset);
+		return range ? `/orders?from=${range.from}&to=${range.to}` : '/orders';
+	}
+
+	const brandOrderLinks: DefaultItem[] = [
+		{
+			kind: 'navigate',
+			label: 'Most Recent Orders',
+			icon: orderDocIcon,
+			action: () => {
+				closeDialog();
+				goto(resolve(presetUrl('last_7_days') as '/orders'));
+			}
+		},
+		{
+			kind: 'navigate',
+			label: 'Confirmed Orders',
+			icon: orderDocIcon,
+			action: () => {
+				closeDialog();
+				goto(resolve('/orders?status=confirmed' as '/orders'));
+			}
+		},
+		{
+			kind: 'navigate',
+			label: 'Needs Attention',
+			icon: orderDocIcon,
+			action: () => {
+				closeDialog();
+				goto(resolve('/orders?attention=true' as '/orders'));
+			}
 		}
 	];
 
-	const navigateItems: DefaultItem[] = [
-		{
-			kind: 'navigate',
-			label: 'Go to Orders',
-			icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
-			keys: ['O'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/orders'));
-			}
-		},
-		{
-			kind: 'navigate',
-			label: 'Go to Accounts',
-			icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
-			keys: ['A'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/accounts'));
-			}
-		},
-		{
-			kind: 'navigate',
-			label: 'Go to Brands',
-			icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
-			keys: ['B'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/brands'));
-			}
-		},
-		{
-			kind: 'navigate',
-			label: 'Go to Inbox',
-			icon: 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75',
-			keys: ['Shift', 'I'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/inbox'));
-			}
-		},
-		{
-			kind: 'navigate',
-			label: 'Go to Appointments',
-			icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5',
-			keys: ['Shift', 'A'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/appointments'));
-			}
-		},
-		{
-			kind: 'navigate',
-			label: 'Go to Reports',
-			icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
-			keys: ['R'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/reports'));
-			}
-		},
-		{
-			kind: 'navigate',
-			label: 'Go to Settings',
-			icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-			action: () => {
-				closeDialog();
-				goto(resolve('/settings'));
-			}
-		}
-	];
+	const navigateItems = $derived<DefaultItem[]>(
+		isBrandOrg
+			? [navOrders, navReports, navAccounts, navInbox, navAppointments, navSettings]
+			: [navOrders, navAccounts, navBrands, navInbox, navAppointments, navReports, navSettings]
+	);
 
-	const defaultItems = $derived([...createItems, ...navigateItems]);
+	const defaultItems = $derived([
+		...(isBrandOrg ? brandOrderLinks : []),
+		...createItems,
+		...navigateItems
+	]);
 	const showDefaults = $derived(!hasSearched && !query.trim());
 
 	// Filter default actions that match the current query (shown alongside search results)
@@ -237,6 +290,22 @@
 		return items;
 	});
 
+	const orderOverflowCount = $derived(Math.max(0, orderTotalCount - orderResults.length));
+
+	// "+X more orders" action item for keyboard nav
+	const orderOverflowAction = $derived<ActionItem | null>(
+		orderOverflowCount > 0
+			? {
+					label: `+${orderOverflowCount} more order${orderOverflowCount !== 1 ? 's' : ''}`,
+					icon: 'plus',
+					action: () => {
+						closeDialog();
+						goto(resolve(`/orders?search=${encodeURIComponent(query.trim())}` as '/orders'));
+					}
+				}
+			: null
+	);
+
 	// Flatten all selectable items for keyboard nav
 	const allItems = $derived(
 		showDefaults
@@ -246,6 +315,7 @@
 					...brandResults.map((r) => ({ kind: 'result' as const, data: r })),
 					...accountResults.map((r) => ({ kind: 'result' as const, data: r })),
 					...orderResults.map((r) => ({ kind: 'result' as const, data: r })),
+					...(orderOverflowAction ? [{ kind: 'action' as const, data: orderOverflowAction }] : []),
 					...actions.map((a: ActionItem) => ({ kind: 'action' as const, data: a })),
 					...matchingDefaults.map((d) => ({ kind: 'default' as const, data: d }))
 				]
@@ -255,6 +325,7 @@
 		open = true;
 		query = '';
 		results = [];
+		orderTotalCount = 0;
 		hasSearched = false;
 		selectedIndex = 0;
 		setTimeout(() => inputEl?.focus(), 10);
@@ -264,13 +335,15 @@
 		open = false;
 		query = '';
 		results = [];
+		orderTotalCount = 0;
 		hasSearched = false;
 		selectedIndex = 0;
 	}
 
 	async function performSearch(q: string) {
-		if (!q.trim()) {
+		if (q.trim().length < 2) {
 			results = [];
+			orderTotalCount = 0;
 			hasSearched = false;
 			return;
 		}
@@ -284,10 +357,12 @@
 			});
 			const data = await res.json();
 			results = data.results ?? [];
+			orderTotalCount = data.orderTotalCount ?? 0;
 			hasSearched = true;
 			selectedIndex = 0;
 		} catch {
 			results = [];
+			orderTotalCount = 0;
 			hasSearched = true;
 		} finally {
 			loading = false;
@@ -363,11 +438,11 @@
 			activateSelected();
 		} else if (e.key === 'Tab') {
 			e.preventDefault();
-			if (query.trim() && onassistantToggle) {
-				const q = query.trim();
-				closeDialog();
+			const q = query.trim();
+			closeDialog();
+			if (onassistantToggle) {
 				onassistantToggle();
-				conversation.sendMessage(q);
+				if (q) conversation.sendMessage(q);
 			}
 		}
 	}
@@ -381,7 +456,8 @@
 	const brandOffset = $derived(contactResults.length);
 	const accountOffset = $derived(brandOffset + brandResults.length);
 	const orderOffset = $derived(accountOffset + accountResults.length);
-	const actionOffset = $derived(orderOffset + orderResults.length);
+	const orderOverflowOffset = $derived(orderOffset + orderResults.length);
+	const actionOffset = $derived(orderOverflowOffset + (orderOverflowAction ? 1 : 0));
 	const defaultMatchOffset = $derived(actionOffset + actions.length);
 
 	function seasonBadgeClass(year?: number): string {
@@ -399,7 +475,9 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onclick={closeDialog}></div>
 
-	<div class="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]">
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" onclick={closeDialog}>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
@@ -442,18 +520,50 @@
 			<!-- Results -->
 			<div class="max-h-[60vh] overflow-y-auto">
 				{#if showDefaults}
-					<!-- Default actions -->
+					<!-- Brand order links -->
+					{#if isBrandOrg}
+						<div class="px-5 pt-3 pb-1">
+							<span class="text-xs font-semibold tracking-wider text-white/40 uppercase"
+								>Orders</span
+							>
+						</div>
+						{#each brandOrderLinks as item, i (item.label)}
+							<button
+								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {i ===
+								selectedIndex
+									? 'bg-zinc-800'
+									: 'hover:bg-zinc-800/60'}"
+								onclick={item.action}
+								onmouseenter={() => (selectedIndex = i)}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4 shrink-0 text-zinc-500"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="1.5"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
+								</svg>
+								<span class="flex-1 text-sm text-zinc-300">{item.label}</span>
+							</button>
+						{/each}
+					{/if}
+
+					<!-- Create actions -->
 					<div class="px-5 pt-3 pb-1">
 						<span class="text-xs font-semibold tracking-wider text-white/40 uppercase">Create</span>
 					</div>
 					{#each createItems as item, i (item.label)}
+						{@const idx = (isBrandOrg ? brandOrderLinks.length : 0) + i}
 						<button
-							class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {i ===
+							class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
 							selectedIndex
 								? 'bg-zinc-800'
 								: 'hover:bg-zinc-800/60'}"
 							onclick={item.action}
-							onmouseenter={() => (selectedIndex = i)}
+							onmouseenter={() => (selectedIndex = idx)}
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -479,13 +589,14 @@
 						</button>
 					{/each}
 
+					<!-- Navigation -->
 					<div class="px-5 pt-3 pb-1">
 						<span class="text-xs font-semibold tracking-wider text-white/40 uppercase"
 							>Navigation</span
 						>
 					</div>
 					{#each navigateItems as item, i (item.label)}
-						{@const idx = createItems.length + i}
+						{@const idx = (isBrandOrg ? brandOrderLinks.length : 0) + createItems.length + i}
 						<button
 							class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
 							selectedIndex
@@ -721,6 +832,24 @@
 								</div>
 							</button>
 						{/each}
+						{#if orderOverflowCount > 0}
+							<button
+								class="flex w-full items-center gap-3 px-5 py-2 text-left transition-colors {orderOverflowOffset ===
+								selectedIndex
+									? 'bg-zinc-800'
+									: 'hover:bg-zinc-800/60'}"
+								onclick={() => {
+									closeDialog();
+									goto(resolve(`/orders?search=${encodeURIComponent(query.trim())}` as '/orders'));
+								}}
+								onmouseenter={() => (selectedIndex = orderOverflowOffset)}
+							>
+								<span class="h-4 w-4 shrink-0"></span>
+								<span class="text-sm text-zinc-400"
+									>+{orderOverflowCount} more order{orderOverflowCount !== 1 ? 's' : ''}</span
+								>
+							</button>
+						{/if}
 					{/if}
 
 					<!-- Actions -->
