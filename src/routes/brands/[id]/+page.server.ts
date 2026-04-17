@@ -1,35 +1,57 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase.js';
+import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, '/shop');
-	const { supabase } = locals;
+	const { supabase, organization } = locals;
+	if (!organization) throw error(404, 'Organization not found');
 
-	const [brandResult, assetsResult, productCountResult, expenseSummaryResult] = await Promise.all([
-		supabase.from('brands').select('*').eq('id', params.id).single(),
-		supabase
-			.from('brand_assets')
-			.select('*')
-			.eq('brand_id', params.id)
-			.order('created_at', { ascending: false }),
-		supabase
-			.from('products')
-			.select('id', { count: 'exact', head: true })
-			.eq('brand_id', params.id)
-			.is('archived_at', null),
-		supabase.from('brand_expenses').select('status, amount').eq('brand_id', params.id)
-	]);
+	const brandId = params.id;
 
-	if (brandResult.error || !brandResult.data) {
-		throw error(404, 'Brand not found');
+	// Determine if this brand is accessible: own org or federated via active connection
+	let brand = (await supabase.from('brands').select('*').eq('id', brandId).single()).data;
+
+	if (!brand && locals.orgType === 'rep') {
+		const connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
+		if (connectedOrgIds.length > 0) {
+			const { data: fedBrand } = await supabaseAdmin
+				.from('brands')
+				.select('*')
+				.eq('id', brandId)
+				.in('organization_id', connectedOrgIds)
+				.single();
+			brand = fedBrand;
+		}
 	}
 
-	// Performance metrics: orders for this brand
+	if (!brand) throw error(404, 'Brand not found');
+
+	// For federated brands, use admin client to bypass RLS on cross-org tables
+	const isFederated = brand.organization_id !== organization.id;
+	const db = isFederated ? supabaseAdmin : supabase;
+
+	const [assetsResult, productCountResult, expenseSummaryResult] = await Promise.all([
+		db
+			.from('brand_assets')
+			.select('*')
+			.eq('brand_id', brandId)
+			.order('created_at', { ascending: false }),
+		db
+			.from('products')
+			.select('id', { count: 'exact', head: true })
+			.eq('brand_id', brandId)
+			.is('archived_at', null),
+		supabase.from('brand_expenses').select('status, amount').eq('brand_id', brandId)
+	]);
+
+	// Performance metrics: orders for this brand (own-org orders only — federated orders are separate)
 	const currentYear = new Date().getFullYear();
 	const { data: brandOrders } = await supabase
 		.from('orders')
 		.select('id, account_id, total_amount, shipped_amount, status, order_year, created_at')
-		.eq('brand_id', params.id)
+		.eq('brand_id', brandId)
 		.neq('status', 'cancelled');
 
 	const allOrders = brandOrders ?? [];
@@ -86,10 +108,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	};
 
 	return {
-		brand: brandResult.data,
+		brand,
 		brandAssets: assetsResult.data ?? [],
 		productCount: productCountResult.count ?? 0,
 		expenseSummary,
-		performance
+		performance,
+		isFederated
 	};
 };

@@ -10,6 +10,7 @@
 
 	let { data } = $props();
 	let showImport = $state(false);
+	const federatedIds = $derived(new Set(data.federatedBrandIds ?? []));
 
 	const brandColumns = [
 		{ key: 'name', label: 'Name', required: true },
@@ -203,6 +204,12 @@
 								<a href={resolve(`/brands/${brand.id}`)} class="text-base hover:underline"
 									>{brand.name}</a
 								>
+								{#if federatedIds.has(brand.id)}
+									<span
+										class="ml-2 inline-flex rounded-full bg-blue-500/10 px-2 py-0.5 text-sm text-blue-600 dark:text-blue-400"
+										>Connected</span
+									>
+								{/if}
 								{#if brand.website}
 									<a
 										href={brand.website}

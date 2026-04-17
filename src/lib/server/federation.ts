@@ -43,6 +43,22 @@ type FederatedOrderLink = {
 };
 
 /**
+ * Return the org IDs of brand orgs that a rep org has an active connection to.
+ * Used to gate access to federated brand data across pages.
+ */
+export async function getConnectedBrandOrgIds(
+	supabase: SupabaseClient,
+	repOrgId: string
+): Promise<string[]> {
+	const { data } = await supabase
+		.from('org_connections')
+		.select('brand_org_id')
+		.eq('rep_org_id', repOrgId)
+		.eq('status', 'active');
+	return (data ?? []).map((c: { brand_org_id: string }) => c.brand_org_id);
+}
+
+/**
  * List connected rep orgs for a brand with per-connection aggregates (order count, revenue, last
  * activity, account count). One row per connection; pending/suspended connections also returned.
  */

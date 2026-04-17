@@ -71,8 +71,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		totals[order.brand_id] = (totals[order.brand_id] ?? 0) + Number(order.total_amount);
 	}
 
+	const federatedBrandIds = new Set((federatedBrands ?? []).map((b) => b.id));
+
 	return {
 		brands: allBrands,
-		brandTotals: totals
+		brandTotals: totals,
+		federatedBrandIds: Array.from(federatedBrandIds)
 	};
 };

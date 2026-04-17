@@ -1,10 +1,16 @@
 import type { PageServerLoad } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase.js';
+import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, organization } = locals;
 	if (!organization) return { knownContacts: [], discoveredContacts: [] };
 
-	const [accountsRes, brandsRes, discoveredRes] = await Promise.all([
+	// Fetch connected brand org IDs for federation (rep orgs only)
+	const connectedOrgIds =
+		locals.orgType === 'rep' ? await getConnectedBrandOrgIds(supabaseAdmin, organization.id) : [];
+
+	const [accountsRes, brandsRes, fedBrandsRes, discoveredRes] = await Promise.all([
 		supabase
 			.from('accounts')
 			.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone')
@@ -17,6 +23,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.eq('organization_id', organization.id)
 			.not('contact_email', 'is', null)
 			.order('contact_first_name'),
+		connectedOrgIds.length > 0
+			? supabaseAdmin
+					.from('brands')
+					.select('id, name, contact_first_name, contact_last_name, contact_email, contact_phone')
+					.in('organization_id', connectedOrgIds)
+					.not('contact_email', 'is', null)
+					.order('contact_first_name')
+			: Promise.resolve({ data: [] }),
 		supabase
 			.from('discovered_contacts')
 			.select('*')
@@ -56,7 +70,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
-	for (const b of brandsRes.data ?? []) {
+	// Own-org brands + federated brands
+	const allBrands = [...(brandsRes.data ?? []), ...(fedBrandsRes.data ?? [])];
+	for (const b of allBrands) {
 		if (b.contact_email) {
 			const key = b.contact_email.toLowerCase();
 			if (!seenEmails.has(key)) {
