@@ -18,7 +18,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	else if (new Date(invite.expires_at) < now) status = 'expired';
 	else if (invite.max_uses > 0 && invite.use_count >= invite.max_uses) status = 'maxed';
 
-	// Brand info is safe to show even for expired codes — helps the visitor identify who invited them.
 	const brand =
 		(
 			invite as {
@@ -35,7 +34,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	// /connect is a public route — hooks.server.ts skips loading membership/org data.
 	// Query the user's membership directly when they have a session.
-	let repBrands: Array<{ id: string; name: string }> = [];
 	let canConnect = false;
 	let orgType: string | null = null;
 	const session = locals.session;
@@ -58,13 +56,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 			if (orgType === 'rep' && ['admin', 'owner'].includes(membership.role as string)) {
 				canConnect = true;
-				const { data: brands } = await supabaseAdmin
-					.from('brands')
-					.select('id, name')
-					.eq('organization_id', membership.organization_id)
-					.eq('is_active', true)
-					.order('name');
-				repBrands = brands ?? [];
 			}
 		}
 	}
@@ -76,7 +67,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		autoApprove,
 		canConnect,
 		isLoggedIn: Boolean(session),
-		orgType,
-		repBrands
+		orgType
 	};
 };
