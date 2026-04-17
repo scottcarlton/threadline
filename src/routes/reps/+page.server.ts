@@ -1,5 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase.js';
+import { listConnectedReps } from '$lib/server/federation.js';
 
 type MemberRow = {
 	id: string;
@@ -105,5 +107,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		connectionInvites = data ?? [];
 	}
 
-	return { reps, pendingInvites, selfBrandId, connectionInvites, isAdmin };
+	// Connected external rep orgs (federation)
+	const connectedReps = await listConnectedReps(supabaseAdmin, orgId);
+
+	return { reps, pendingInvites, selfBrandId, connectionInvites, isAdmin, connectedReps };
 };

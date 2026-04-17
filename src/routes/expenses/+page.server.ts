@@ -24,12 +24,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const isSales = locals.membership?.role === 'sales';
 
+	// RLS handles federation — brand admin sees rep-submitted expenses for their brands
 	let query = supabase
 		.from('brand_expenses')
 		.select(
 			'*, brands(name), profiles!brand_expenses_submitted_by_fkey(display_name), reviewer:profiles!brand_expenses_reviewed_by_fkey(display_name)'
 		)
-		.eq('organization_id', organization.id)
 		.order('created_at', { ascending: false });
 
 	if (isSales) query = query.eq('submitted_by', locals.user?.id);
