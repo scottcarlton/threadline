@@ -2,6 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
+import { LINESHEET_PROMPT } from '$lib/server/ai-prompts.js';
+import { logUsage } from '$lib/server/ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -15,18 +17,7 @@ const ALLOWED_TYPES = new Set([
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
-const SYSTEM_PROMPT = `You are a product data extraction assistant for a wholesale fashion business.
-Analyze the linesheet and extract ALL products by calling the parse_products tool.
-
-Rules:
-- Extract every product visible in the document
-- If a price has a currency symbol like $, remove it and return just the number
-- If you cannot determine wholesale vs retail price, assume the lower price is wholesale
-- If only one price is shown, treat it as the wholesale price
-- If no price is visible for a product, use 0 for wholesale_price
-- Extract sizes and colors whenever visible — they may be listed per product, in a size run, or in a shared header/footer for all products
-- Do NOT put sizes or colors in the description field — use the sizes and colors arrays
-- You MUST call the parse_products tool with your results`;
+const SYSTEM_PROMPT = LINESHEET_PROMPT;
 
 // Define a tool so Claude returns structured JSON via tool_use (guaranteed valid)
 const extractionTool: Anthropic.Tool = {
@@ -35,6 +26,16 @@ const extractionTool: Anthropic.Tool = {
 	input_schema: {
 		type: 'object' as const,
 		properties: {
+			season: {
+				type: 'string',
+				description:
+					'Season name detected on the linesheet (e.g. "Spring", "Fall", "Resort", "Pre-Fall"). Omit if not confident.'
+			},
+			year: {
+				type: 'number',
+				description:
+					'Four-digit year detected on the linesheet (e.g. 2026). Expand shorthand like "FW25" → 2025. Omit if not confident.'
+			},
 			products: {
 				type: 'array',
 				description: 'Array of products extracted from the linesheet',
@@ -134,6 +135,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			tool_choice: { type: 'tool', name: 'parse_products' },
 			messages: [{ role: 'user', content }]
 		});
+		logUsage({
+			endpoint: 'linesheet',
+			purpose: 'parse_products',
+			model: 'claude-sonnet-4-20250514',
+			organizationId: locals.organization?.id ?? null,
+			userId: locals.user?.id ?? null,
+			response
+		});
 
 		// Find the tool_use block — guaranteed to be valid structured JSON
 		const toolBlock = response.content.find((b) => b.type === 'tool_use');
@@ -144,7 +153,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const input = toolBlock.input as { products?: Record<string, unknown>[] };
+		const input = toolBlock.input as {
+			products?: Record<string, unknown>[];
+			season?: unknown;
+			year?: unknown;
+		};
 		const products = input.products;
 
 		if (!Array.isArray(products) || products.length === 0) {
@@ -166,7 +179,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			colors: Array.isArray(p.colors) ? p.colors.map(String) : []
 		}));
 
-		return json({ products: normalized });
+		const seasonHint =
+			typeof input.season === 'string' && input.season.trim() ? input.season.trim() : null;
+		const yearHint =
+			typeof input.year === 'number' && Number.isFinite(input.year) ? Math.trunc(input.year) : null;
+
+		return json({ products: normalized, season: seasonHint, year: yearHint });
 	} catch (err) {
 		console.error('Linesheet parse error:', err);
 		const message = err instanceof Error ? err.message : 'Unknown error';

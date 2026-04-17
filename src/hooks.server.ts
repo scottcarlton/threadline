@@ -62,15 +62,15 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 	event.locals.safeGetSession = async () => {
 		const {
-			data: { session }
-		} = await supabase.auth.getSession();
-		if (!session) return { session: null, user: null };
-
-		const {
 			data: { user },
 			error
 		} = await supabase.auth.getUser();
-		if (error) return { session: null, user: null };
+		if (error || !user) return { session: null, user: null };
+
+		const {
+			data: { session }
+		} = await supabase.auth.getSession();
+		if (!session) return { session: null, user: null };
 		return { session, user };
 	};
 

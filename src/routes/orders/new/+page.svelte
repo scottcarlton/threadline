@@ -2,13 +2,17 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
+	import { toast } from 'svelte-sonner';
+	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { Input, SearchInput } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { OrderType } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import DateSelect from '$lib/components/ui/date-select.svelte';
+	import Switch from '$lib/components/ui/switch.svelte';
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
+	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 
 	type Brand = { id: string; name: string };
 	type Season = { id: string; name: string; sort_order: number | null };
@@ -67,10 +71,11 @@
 	type OrderItem = {
 		product_id: string;
 		brand_id: string;
-		season_id: string;
+		season_id: string | null;
 		// Product's original season (never mutated). Used to enforce "items can
-		// only move to seasons >= their own product season" during DnD.
-		original_season_id: string;
+		// only move to seasons >= their own product season" during DnD. Null
+		// origin = no-season floor, can move into any real season.
+		original_season_id: string | null;
 		product_year: number | null;
 		style_number: string;
 		name: string;
@@ -81,6 +86,8 @@
 		selected_color: string;
 		size_qtys: Record<string, number>;
 	};
+
+	const NO_SEASON = '__no_season__';
 
 	let { data } = $props();
 	const accounts = $derived(data.accounts as Account[]);
@@ -187,8 +194,8 @@
 	}
 
 	// Groups — derived from sized cart items; these are what the Delivery/Finalize steps show.
-	function groupKey(brand_id: string, season_id: string): string {
-		return `${brand_id}::${season_id}`;
+	function groupKey(brand_id: string, season_id: string | null): string {
+		return `${brand_id}::${season_id ?? NO_SEASON}`;
 	}
 	const groups = $derived.by(() => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
@@ -196,7 +203,7 @@
 			string,
 			{
 				brand_id: string;
-				season_id: string;
+				season_id: string | null;
 				product_year: number | null;
 				items: OrderItem[];
 				total: number;
@@ -236,7 +243,7 @@
 	function canDropItem(
 		item_product_id: string,
 		target_brand_id: string,
-		target_season_id: string
+		target_season_id: string | null
 	): boolean {
 		const it = cart.items.find((ci) => ci.product_id === item_product_id);
 		if (!it) return false;
@@ -259,7 +266,7 @@
 		dropTargetKey = null;
 	}
 
-	function onGroupDragOver(e: DragEvent, g: { brand_id: string; season_id: string }) {
+	function onGroupDragOver(e: DragEvent, g: { brand_id: string; season_id: string | null }) {
 		if (!draggingItemId) return;
 		if (!canDropItem(draggingItemId, g.brand_id, g.season_id)) return;
 		e.preventDefault();
@@ -267,12 +274,12 @@
 		dropTargetKey = groupKey(g.brand_id, g.season_id);
 	}
 
-	function onGroupDragLeave(g: { brand_id: string; season_id: string }) {
+	function onGroupDragLeave(g: { brand_id: string; season_id: string | null }) {
 		const key = groupKey(g.brand_id, g.season_id);
 		if (dropTargetKey === key) dropTargetKey = null;
 	}
 
-	function onGroupDrop(e: DragEvent, g: { brand_id: string; season_id: string }) {
+	function onGroupDrop(e: DragEvent, g: { brand_id: string; season_id: string | null }) {
 		e.preventDefault();
 		const id = e.dataTransfer?.getData('text/plain') || draggingItemId;
 		draggingItemId = null;
@@ -325,11 +332,13 @@
 	function brandName(id: string): string {
 		return brands.find((b) => b.id === id)?.name ?? 'Brand';
 	}
-	function seasonName(id: string): string {
+	function seasonName(id: string | null): string {
+		if (!id) return 'No season';
 		return seasons.find((s) => s.id === id)?.name ?? 'Season';
 	}
-	function seasonLabel(id: string, year: number | null | undefined): string {
+	function seasonLabel(id: string | null, year: number | null | undefined): string {
 		const name = seasonName(id);
+		if (!id) return year ? `${name} · ${year}` : name;
 		return year ? `${name} ${year}` : name;
 	}
 	function deliveryLabelFor(d: SeasonDeliveryRow): string {
@@ -353,14 +362,17 @@
 		};
 		return `${fmtShort(choice.start_ship_date)} → ${fmtShort(choice.expected_ship_date)}`;
 	}
-	// Group-level season sort_order helper (null sort_orders sort last).
-	function seasonSort(id: string): number {
+	// Group-level season sort_order helper. Null season acts as a floor (-1)
+	// so a no-season item can move forward into any real season; null
+	// sort_orders on real seasons sort last.
+	function seasonSort(id: string | null): number {
+		if (!id) return -1;
 		return seasons.find((s) => s.id === id)?.sort_order ?? 9999;
 	}
 
 	// Valid forward-only destinations for a group (same brand, same order year).
 	// Groups are keyed by (brand, season), so year stays constant for now.
-	function moveTargetsFor(source_season_id: string) {
+	function moveTargetsFor(source_season_id: string | null) {
 		const srcSort = seasonSort(source_season_id);
 		return seasons
 			.filter((s) => s.sort_order != null && s.sort_order > srcSort)
@@ -369,7 +381,11 @@
 
 	// Move every item in (brand, season) source to the destination season.
 	// Existing items at the destination merge naturally (groups re-derive).
-	function moveGroup(source_brand_id: string, source_season_id: string, dest_season_id: string) {
+	function moveGroup(
+		source_brand_id: string,
+		source_season_id: string | null,
+		dest_season_id: string
+	) {
 		for (const it of cart.items) {
 			if (it.brand_id === source_brand_id && it.season_id === source_season_id) {
 				it.season_id = dest_season_id;
@@ -377,15 +393,15 @@
 		}
 	}
 
-	// Move a single item to a destination season.
-	function moveItem(product_id: string, dest_season_id: string) {
+	// Move a single item to a destination season (null = no-season group).
+	function moveItem(product_id: string, dest_season_id: string | null) {
 		const it = cart.items.find((i) => i.product_id === product_id);
 		if (!it) return;
 		it.season_id = dest_season_id;
 	}
 
 	// Remove every item in a group.
-	function removeGroup(brand_id: string, season_id: string) {
+	function removeGroup(brand_id: string, season_id: string | null) {
 		cart.items = cart.items.filter(
 			(it) => !(it.brand_id === brand_id && it.season_id === season_id)
 		);
@@ -396,12 +412,12 @@
 		location_id: null
 	};
 	// Pure read — never mutate during render. Initialization happens in the $effect below.
-	function getMeta(brand_id: string, season_id: string) {
+	function getMeta(brand_id: string, season_id: string | null) {
 		return cart.groupMeta[groupKey(brand_id, season_id)] ?? EMPTY_META;
 	}
 	function setMeta(
 		brand_id: string,
-		season_id: string,
+		season_id: string | null,
 		patch: Partial<{ delivery: DeliveryChoice | null; location_id: string | null }>
 	) {
 		const key = groupKey(brand_id, season_id);
@@ -486,8 +502,8 @@
 	let modalSearch = $state('');
 	let modalSeason = $state<string | null>(null);
 	let modalBrand = $state<string | null>(null);
-	let modalMinPrice = $state('');
-	let modalMaxPrice = $state('');
+	let modalPriceRange = $state<[number, number]>([0, 500]);
+	let modalAtsOnly = $state(false);
 	let modalProducts = $state<Product[]>([]);
 	let modalLoading = $state(false);
 	let modalDebounce: ReturnType<typeof setTimeout> | undefined;
@@ -502,8 +518,9 @@
 		const brandIds = modalBrand ? [modalBrand] : allowedBrandIds;
 		for (const b of brandIds) params.append('brand_id', b);
 		if (modalSeason) params.append('season_id', modalSeason);
-		if (modalMinPrice) params.set('min_price', modalMinPrice);
-		if (modalMaxPrice) params.set('max_price', modalMaxPrice);
+		if (modalPriceRange[0] > 0) params.set('min_price', String(modalPriceRange[0]));
+		if (modalPriceRange[1] < 500) params.set('max_price', String(modalPriceRange[1]));
+		if (modalAtsOnly) params.set('ats', 'true');
 		params.set('limit', '200');
 		try {
 			const res = await fetch(`/api/products?${params.toString()}`);
@@ -546,7 +563,6 @@
 
 	function addProduct(p: Product) {
 		if (productInCart(p)) return;
-		if (!p.season_id) return;
 		const colors = productColors(p);
 		const sizes = productSizes(p);
 		const size_qtys: Record<string, number> = {};
@@ -645,27 +661,39 @@
 		}
 	});
 
-	// Seed each group's Start/Complete Ship dates from the first season delivery
-	// when no delivery choice exists yet. Month/day come from the first preset
-	// (by sort_order); year = cart.order_year.
+	// Seed each group's Start/Complete Ship dates:
+	//  - Season group with presets → latest preset (last valid ship window).
+	//  - No-season group (or season without presets) → today + 30 days so the
+	//    Delivery step isn't a dead end for rep-created ad-hoc orders.
 	$effect(() => {
 		for (const g of groups) {
 			const meta = getMeta(g.brand_id, g.season_id);
 			if (meta.delivery) continue;
-			// Seed with the LATEST preset of the season (latest month/day) so
-			// buyers land on the last valid ship window instead of the first.
 			const lastPreset = deliveries
 				.filter((d) => d.season_id === g.season_id)
 				.sort((a, b) => b.delivery_month - a.delivery_month || b.delivery_day - a.delivery_day)[0];
-			if (!lastPreset) continue;
-			const yyyy = String(cart.order_year);
-			const mm = String(lastPreset.delivery_month).padStart(2, '0');
-			const dd = String(lastPreset.delivery_day).padStart(2, '0');
+			if (lastPreset) {
+				const yyyy = String(cart.order_year);
+				const mm = String(lastPreset.delivery_month).padStart(2, '0');
+				const dd = String(lastPreset.delivery_day).padStart(2, '0');
+				setMeta(g.brand_id, g.season_id, {
+					delivery: {
+						kind: 'custom',
+						start_ship_date: `${yyyy}-${mm}-01`,
+						expected_ship_date: `${yyyy}-${mm}-${dd}`
+					}
+				});
+				continue;
+			}
+			const today = new Date();
+			const plus30 = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30);
+			const fmt = (d: Date) =>
+				`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 			setMeta(g.brand_id, g.season_id, {
 				delivery: {
 					kind: 'custom',
-					start_ship_date: `${yyyy}-${mm}-01`,
-					expected_ship_date: `${yyyy}-${mm}-${dd}`
+					start_ship_date: fmt(today),
+					expected_ship_date: fmt(plus30)
 				}
 			});
 		}
@@ -686,28 +714,40 @@
 	// ── Account combobox ────────────────────────────────────────────────────
 	let accountQuery = $state('');
 	let accountFocus = $state(false);
-	const accountMatches = $derived.by(() => {
-		const q = normalize(accountQuery);
-		if (!q) return accounts;
-		return accounts
-			.map((a) => ({ a, score: accountScore(a, q) }))
-			.filter((x) => x.score > 0)
-			.sort((x, y) => y.score - x.score)
-			.map((x) => x.a);
-	});
-	function accountScore(a: Account, q: string): number {
-		const name = normalize(a.business_name);
-		const city = normalize(a.city ?? '');
-		const state = normalize(a.state ?? '');
-		if (name.startsWith(q)) return 100;
-		if (name.includes(q)) return 80;
-		// Token prefix match ("ml leddys" → "mlleddys" → starts with q stripped? Handled by normalize above.)
-		// Token initial match: e.g. "ml" matches "M.L. Leddy's"
-		const tokens = a.business_name.toLowerCase().split(/\s+/);
-		const initials = tokens.map((t) => t.replace(/[^a-z0-9]/g, '').charAt(0)).join('');
-		if (initials.startsWith(q)) return 60;
-		if (city.includes(q) || state.includes(q)) return 20;
-		return 0;
+	let accountMatches = $state<Account[]>([]);
+	let accountSearching = $state(false);
+	let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function searchAccounts(query: string) {
+		const orgId = data.organization?.id;
+		if (!orgId) return;
+		accountSearching = true;
+		let q = supabase
+			.from('accounts')
+			.select('id, business_name, contact_email, address_line1, address_line2, city, state, zip')
+			.eq('organization_id', orgId)
+			.eq('is_active', true)
+			.is('archived_at', null)
+			.order('business_name')
+			.limit(30);
+		if (query.trim()) q = q.ilike('business_name', `%${query.trim()}%`);
+		const { data: rows } = await q;
+		accountMatches = (rows ?? []) as Account[];
+		accountSearching = false;
+	}
+
+	function onAccountInput(value: string) {
+		accountQuery = value;
+		if (cart.account_id !== null) cart.account_id = null;
+		cart.freeform_name = null;
+		if (searchTimer) clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => searchAccounts(value), 250);
+	}
+
+	// Seed results on first focus so the dropdown isn't empty before typing
+	function onAccountFocus() {
+		accountFocus = true;
+		if (accountMatches.length === 0 && !accountSearching) searchAccounts('');
 	}
 	function pickAccount(a: Account) {
 		cart.account_id = a.id;
@@ -724,13 +764,13 @@
 	}
 	// ── Submit ──────────────────────────────────────────────────────────────
 	let submitting = $state(false);
-	let submitError = $state<string | null>(null);
 	let submitStatus = $state<'draft' | 'submitted'>('draft');
 
 	const payload = $derived({
 		type: cart.type ?? 'order',
 		account_id: cart.account_id,
 		freeform_name: cart.freeform_name,
+		freeformDetails: isFreeform && hasFreeformDetails ? cart.freeformDetails : undefined,
 		order_year: cart.order_year,
 		submitStatus,
 		lines: toCartLines(cart.items),
@@ -1198,15 +1238,12 @@
 					placeholder="Type to search (e.g. &quot;Elm & Ivory&quot;) or enter a new account name"
 					value={accountQuery}
 					oninput={(e) => {
-						accountQuery = (e.target as HTMLInputElement).value;
+						onAccountInput((e.target as HTMLInputElement).value);
 						accountFocus = true;
-						// Typing clears the confirmed selection so freeform can engage if user continues
-						if (cart.account_id !== null) cart.account_id = null;
-						cart.freeform_name = null;
 					}}
-					onfocus={() => (accountFocus = true)}
+					onfocus={onAccountFocus}
 				/>
-				{#if accountFocus && accountQuery.trim()}
+				{#if accountFocus && (accountQuery.trim() || accountMatches.length > 0)}
 					<div
 						class="absolute top-full right-0 left-0 z-10 mt-1 max-h-72 overflow-auto rounded-lg border bg-background shadow-lg"
 					>
@@ -1447,22 +1484,19 @@
 				</ul>
 			</div>
 
-			{#if submitError}
-				<div class="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-900">
-					{submitError}
-				</div>
-			{/if}
-
 			<form
 				method="POST"
 				action="?/submit"
 				use:enhance={() => {
 					submitting = true;
-					submitError = null;
 					return async ({ result, update }) => {
 						submitting = false;
 						if (result.type === 'failure') {
-							submitError = (result.data as { message?: string })?.message ?? 'Submit failed';
+							toast.error((result.data as { message?: string })?.message ?? 'Could not save order');
+						} else if (result.type === 'redirect') {
+							toast.success(submitStatus === 'submitted' ? 'Order submitted' : 'Notes saved');
+						} else if (result.type === 'error') {
+							toast.error(result.error?.message ?? 'Something went wrong. Please try again.');
 						}
 						await update({ reset: false });
 					};
@@ -1528,7 +1562,7 @@
 
 		<!-- Filters -->
 		<div class="flex flex-wrap items-center gap-3 border-b px-5 py-3">
-			<Input
+			<SearchInput
 				placeholder="Search style # or name…"
 				bind:value={modalSearch}
 				oninput={onModalSearchChange}
@@ -1556,18 +1590,20 @@
 					{/each}
 				</select>
 			{/if}
-			<Input
-				placeholder="Min $"
-				bind:value={modalMinPrice}
-				oninput={onModalSearchChange}
-				class="w-24"
+			<PriceFilterDropdown
+				bind:value={modalPriceRange}
+				maxPrice={500}
+				onchange={loadModalProducts}
 			/>
-			<Input
-				placeholder="Max $"
-				bind:value={modalMaxPrice}
-				oninput={onModalSearchChange}
-				class="w-24"
-			/>
+			<label class="ml-auto flex h-10 items-center gap-2 text-sm" for="modal-ats-only">
+				ATS Only
+				<Switch
+					id="modal-ats-only"
+					bind:checked={modalAtsOnly}
+					onCheckedChange={loadModalProducts}
+					aria-label="ATS Only"
+				/>
+			</label>
 		</div>
 
 		<!-- Body: grid + optional sidebar -->

@@ -3,11 +3,17 @@ import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { computeAccountHealth } from '$lib/server/account-health.js';
+import { BRIEFING_PROMPT } from '$lib/server/ai-prompts.js';
+import { logUsage } from '$lib/server/ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
+type CachedBriefing = { text: string; timestamp: number };
+const briefingCache = new Map<string, CachedBriefing>();
+const CACHE_TTL = 15 * 60 * 1000;
+
 export const POST: RequestHandler = async ({ locals }) => {
-	const { supabase, organization, membership, user } = locals;
+	const { supabase, organization, membership, user, brandScope } = locals;
 
 	if (!organization || !membership || !user) {
 		return json({ briefing: null });
@@ -15,7 +21,92 @@ export const POST: RequestHandler = async ({ locals }) => {
 
 	const orgId = organization.id;
 
-	// Gather context data in parallel
+	const cacheKey = `${orgId}:${membership.id}`;
+	const cached = briefingCache.get(cacheKey);
+	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+		return json({ briefing: cached.text, cached: true });
+	}
+
+	// Territory scope: accounts the user is responsible for.
+	// If no territories are assigned, fall through to the org-wide view.
+	const { data: memberTerritories } = await supabase
+		.from('territories')
+		.select('id')
+		.eq('organization_id', orgId)
+		.eq('assigned_to', membership.id);
+	const territoryIds = (memberTerritories ?? []).map((t) => t.id);
+	const hasTerritoryScope = territoryIds.length > 0;
+
+	const todayIso = new Date().toISOString().split('T')[0];
+	const in7DaysIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+	const staleCutoffIso = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+	const weekAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+	const twoWeeksAgoIso = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+	const pipelineQuery = supabase.rpc('get_order_pipeline', { org_id: orgId });
+
+	let recentOrdersQuery = supabase
+		.from('orders')
+		.select('order_number, status, total_amount, created_at, brands(name), accounts(business_name)')
+		.eq('organization_id', orgId)
+		.order('created_at', { ascending: false })
+		.limit(10);
+	if (brandScope) recentOrdersQuery = recentOrdersQuery.in('brand_id', brandScope);
+
+	const upcomingShowsQuery = supabase
+		.from('shows')
+		.select('name, start_date, end_date, city, state, seasons(name), year')
+		.eq('organization_id', orgId)
+		.gte('start_date', todayIso)
+		.order('start_date')
+		.limit(5);
+
+	let brandsQuery = supabase
+		.from('brands')
+		.select('id, name')
+		.eq('organization_id', orgId)
+		.eq('is_active', true);
+	if (brandScope) brandsQuery = brandsQuery.in('id', brandScope);
+
+	let accountsQuery = supabase
+		.from('accounts')
+		.select('id, business_name, territory_id')
+		.eq('organization_id', orgId)
+		.eq('is_active', true);
+	if (hasTerritoryScope) accountsQuery = accountsQuery.in('territory_id', territoryIds);
+
+	let staleOrdersQuery = supabase
+		.from('orders')
+		.select('order_number, total_amount, created_at, accounts(business_name)')
+		.eq('organization_id', orgId)
+		.eq('status', 'draft')
+		.lte('created_at', staleCutoffIso);
+	if (brandScope) staleOrdersQuery = staleOrdersQuery.in('brand_id', brandScope);
+
+	const appointmentsQuery = supabase
+		.from('appointments')
+		.select('scheduled_date, scheduled_time, accounts(business_name), location_type')
+		.eq('organization_id', orgId)
+		.eq('status', 'scheduled')
+		.gte('scheduled_date', todayIso)
+		.lte('scheduled_date', in7DaysIso)
+		.order('scheduled_date');
+
+	let thisWeekOrdersQuery = supabase
+		.from('orders')
+		.select('total_amount')
+		.eq('organization_id', orgId)
+		.gte('created_at', weekAgoIso);
+	if (brandScope) thisWeekOrdersQuery = thisWeekOrdersQuery.in('brand_id', brandScope);
+
+	let lastWeekOrdersQuery = supabase
+		.from('orders')
+		.select('total_amount')
+		.eq('organization_id', orgId)
+		.gte('created_at', twoWeeksAgoIso)
+		.lt('created_at', weekAgoIso);
+	if (brandScope) lastWeekOrdersQuery = lastWeekOrdersQuery.in('brand_id', brandScope);
+
 	const [
 		pipelineRes,
 		recentOrdersRes,
@@ -24,49 +115,19 @@ export const POST: RequestHandler = async ({ locals }) => {
 		accountsRes,
 		staleOrdersRes,
 		appointmentsRes,
+		thisWeekRes,
+		lastWeekRes,
 		healthMap
 	] = await Promise.all([
-		supabase.rpc('get_order_pipeline', { org_id: orgId }),
-		supabase
-			.from('orders')
-			.select(
-				'order_number, status, total_amount, created_at, brands(name), accounts(business_name)'
-			)
-			.eq('organization_id', orgId)
-			.order('created_at', { ascending: false })
-			.limit(10),
-		supabase
-			.from('shows')
-			.select('name, start_date, end_date, city, state, seasons(name), year')
-			.eq('organization_id', orgId)
-			.gte('start_date', new Date().toISOString().split('T')[0])
-			.order('start_date')
-			.limit(5),
-		supabase.from('brands').select('name').eq('organization_id', orgId).eq('is_active', true),
-		supabase
-			.from('accounts')
-			.select('id, business_name')
-			.eq('organization_id', orgId)
-			.eq('is_active', true),
-		// Stale draft orders (14+ days old)
-		supabase
-			.from('orders')
-			.select('order_number, total_amount, created_at, accounts(business_name)')
-			.eq('organization_id', orgId)
-			.eq('status', 'draft')
-			.lte('created_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()),
-		// Upcoming appointments (next 7 days)
-		supabase
-			.from('appointments')
-			.select('scheduled_date, scheduled_time, accounts(business_name), location_type')
-			.eq('organization_id', orgId)
-			.eq('status', 'scheduled')
-			.gte('scheduled_date', new Date().toISOString().split('T')[0])
-			.lte(
-				'scheduled_date',
-				new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-			)
-			.order('scheduled_date'),
+		pipelineQuery,
+		recentOrdersQuery,
+		upcomingShowsQuery,
+		brandsQuery,
+		accountsQuery,
+		staleOrdersQuery,
+		appointmentsQuery,
+		thisWeekOrdersQuery,
+		lastWeekOrdersQuery,
 		computeAccountHealth(supabase, orgId)
 	]);
 
@@ -78,22 +139,57 @@ export const POST: RequestHandler = async ({ locals }) => {
 	const staleOrders = staleOrdersRes.data ?? [];
 	const appointments = appointmentsRes.data ?? [];
 
-	// Account health summary
-	const healthAccounts = Array.from(healthMap.values());
+	const sumOrderAmounts = (rows: unknown): number =>
+		((rows ?? []) as Array<{ total_amount?: number | string | null }>).reduce(
+			(sum, o) => sum + Number(o.total_amount ?? 0),
+			0
+		);
+	const thisWeekCount = (thisWeekRes.data ?? []).length;
+	const thisWeekTotal = sumOrderAmounts(thisWeekRes.data);
+	const lastWeekCount = (lastWeekRes.data ?? []).length;
+	const lastWeekTotal = sumOrderAmounts(lastWeekRes.data);
+
+	const pctDelta = (current: number, previous: number): string => {
+		if (previous === 0) return current === 0 ? 'flat' : 'new activity';
+		const delta = ((current - previous) / previous) * 100;
+		if (Math.abs(delta) < 1) return 'flat';
+		return `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`;
+	};
+
+	const scopedAccountIds = new Set(accounts.map((a) => a.id));
+	const healthAccounts = Array.from(healthMap.values()).filter(
+		(a) => !hasTerritoryScope || scopedAccountIds.has(a.accountId)
+	);
 	const atRiskAccounts = healthAccounts.filter((a) => a.label === 'at_risk');
-	const atRiskNames: string[] = [];
 	const acctNameMap = new Map(accounts.map((a) => [a.id, a.business_name]));
+	const atRiskNames: string[] = [];
 	for (const a of atRiskAccounts.slice(0, 5)) {
 		const name = acctNameMap.get(a.accountId);
 		if (name) atRiskNames.push(name);
 	}
 	const staleDraftTotal = staleOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
 
+	const scopeNote = [
+		brandScope
+			? `brand-scoped (${brandScope.length} brand${brandScope.length === 1 ? '' : 's'})`
+			: null,
+		hasTerritoryScope
+			? `territory-scoped (${territoryIds.length} territor${territoryIds.length === 1 ? 'y' : 'ies'})`
+			: null
+	]
+		.filter(Boolean)
+		.join(', ');
+
 	const contextData = `
-## Current Business State for ${organization.name}
+## Current Business State for ${organization.name}${scopeNote ? ` — ${scopeNote}` : ''}
 
 ### Order Pipeline
 ${pipeline.length > 0 ? pipeline.map((p: { status: string; count: number; total_amount: number }) => `- ${p.status}: ${p.count} orders ($${Number(p.total_amount).toLocaleString()})`).join('\n') : 'No orders yet.'}
+
+### Week-over-Week Orders
+- This week: ${thisWeekCount} orders ($${thisWeekTotal.toLocaleString()})
+- Last week: ${lastWeekCount} orders ($${lastWeekTotal.toLocaleString()})
+- Trend: count ${pctDelta(thisWeekCount, lastWeekCount)}, revenue ${pctDelta(thisWeekTotal, lastWeekTotal)}
 
 ### Recent Orders (last 10)
 ${
@@ -192,18 +288,7 @@ ${
 		const response = await anthropic.messages.create({
 			model: 'claude-haiku-4-5-20251001',
 			max_tokens: 600,
-			system: `You are a concise business assistant for a wholesale fashion company. Generate a brief morning briefing based on the data provided.
-
-Rules:
-- Write 4-6 short bullet points, each starting with a bold category label
-- PRIORITIZE in this order: (1) at-risk accounts and stale orders, (2) upcoming appointments, (3) pipeline status, (4) shows, (5) opportunities
-- If accounts are at risk (ordered before but not recently), name them and suggest action
-- If there are stale draft orders (14+ days), flag the dollar amount at risk
-- If appointments are coming up this week, mention them
-- If there's no data for something, skip it — don't mention empty categories
-- Be direct and actionable, not generic. Use specific numbers and names.
-- Keep the total response under 200 words
-- Do NOT use markdown headers. Use bullet points with **bold labels** only.`,
+			system: BRIEFING_PROMPT,
 			messages: [
 				{
 					role: 'user',
@@ -211,8 +296,20 @@ Rules:
 				}
 			]
 		});
+		logUsage({
+			endpoint: 'briefing',
+			purpose: 'briefing',
+			model: 'claude-haiku-4-5-20251001',
+			organizationId: orgId,
+			userId: user.id,
+			response
+		});
 
 		const briefing = response.content[0].type === 'text' ? response.content[0].text : '';
+
+		if (briefing) {
+			briefingCache.set(cacheKey, { text: briefing, timestamp: Date.now() });
+		}
 
 		return json({ briefing });
 	} catch {

@@ -3,7 +3,8 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
+	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import type { BrandExpense } from '$lib/types/database.js';
@@ -104,33 +105,28 @@
 </script>
 
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-3xl">Expenses</h1>
-			<p class="mt-1 font-mono text-sm text-muted-foreground">
-				{expenses.length} expense{expenses.length !== 1 ? 's' : ''}
-			</p>
-		</div>
-		<div class="flex items-center gap-2">
-			{#if filtered.length > 0}
-				<Button variant="outline" size="sm" onclick={exportExpenses}>Export CSV</Button>
-			{/if}
-			{#if canCreate}
-				<Button href="/expenses/new">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="-ml-1 h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
-					>
-					New Expense
-				</Button>
-			{/if}
-		</div>
-	</div>
+	<PageHeader
+		title="Expenses"
+		subtitle="{expenses.length} expense{expenses.length !== 1 ? 's' : ''}"
+	>
+		{#if filtered.length > 0}
+			<Button variant="outline" onclick={exportExpenses}>Export CSV</Button>
+		{/if}
+		{#if canCreate}
+			<Button href="/expenses/new">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="-ml-1 h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+				>
+				New Expense
+			</Button>
+		{/if}
+	</PageHeader>
 
 	<!-- Status tabs -->
 	<div class="flex gap-1 border-b">
@@ -192,19 +188,21 @@
 	<!-- Filters -->
 	<div class="flex flex-wrap gap-3">
 		<div class="max-w-xs">
-			<Input placeholder="Search expenses..." bind:value={search} />
+			<SearchInput placeholder="Search expenses..." bind:value={search} />
 		</div>
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Brands</option>
-			{#each brands as brand (brand.id)}
-				<option value={brand.id} selected={$page.url.searchParams.get('brand') === brand.id}
-					>{brand.name}</option
-				>
-			{/each}
-		</select>
+		{#if !isBrandOrg}
+			<select
+				class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+				onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
+			>
+				<option value="">All Brands</option>
+				{#each brands as brand (brand.id)}
+					<option value={brand.id} selected={$page.url.searchParams.get('brand') === brand.id}
+						>{brand.name}</option
+					>
+				{/each}
+			</select>
+		{/if}
 		<select
 			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
 			onchange={(e) => setFilter('category', (e.target as HTMLSelectElement).value)}

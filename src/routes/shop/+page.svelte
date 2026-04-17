@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
 
@@ -98,7 +98,7 @@
 		<!-- Filters -->
 		<div class="flex flex-wrap items-center gap-3">
 			<div class="max-w-xs flex-1">
-				<Input placeholder="Search products..." bind:value={search} />
+				<SearchInput placeholder="Search products..." bind:value={search} />
 			</div>
 			<div class="flex flex-wrap gap-1.5">
 				<button

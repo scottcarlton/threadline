@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 
@@ -18,6 +19,7 @@
 		avatarUrl?: string | null;
 	};
 	const reps = $derived((data.reps ?? []) as RepRow[]);
+	const selfBrandId = $derived((data.selfBrandId as string | null) ?? null);
 	const pendingInvites = $derived(data.pendingInvites ?? []);
 	const totalRevenue = $derived(reps.reduce((sum, r) => sum + r.revenue, 0));
 	const totalOrders = $derived(reps.reduce((sum, r) => sum + r.orderCount, 0));
@@ -129,6 +131,7 @@
 	// ── Invite form ────────────────────────────────────────────────────────
 	let inviteOpen = $state(false);
 	let inviteEmail = $state('');
+	let inviteCommissionRate = $state<string>('');
 	let sending = $state(false);
 	let inviteError = $state('');
 	let inviteSuccess = $state('');
@@ -149,7 +152,12 @@
 		const res = await fetch('/api/invite/send', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ email, role: 'sales', brandIds: [] })
+			body: JSON.stringify({
+				email,
+				role: 'sales',
+				brandIds: selfBrandId ? [selfBrandId] : [],
+				commissionRate: parseFloat(inviteCommissionRate) || 0
+			})
 		});
 		sending = false;
 		const body = (await res.json().catch(() => ({}))) as {
@@ -170,6 +178,7 @@
 			inviteSuccess = `Invite created for ${email}.`;
 		}
 		inviteEmail = '';
+		inviteCommissionRate = '';
 		invalidateAll();
 	}
 
@@ -194,37 +203,30 @@
 </script>
 
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-3xl">Reps</h1>
-			<p class="mt-1 font-mono text-sm text-muted-foreground">
-				{reps.length} team member{reps.length !== 1 ? 's' : ''}{pendingInvites.length > 0
-					? ` · ${pendingInvites.length} pending`
-					: ''} · {totalOrders} orders · {fmt.format(totalRevenue)} revenue
-			</p>
-		</div>
-		<div class="flex items-center gap-2">
-			{#if canManage}
-				<Button variant="outline" size="sm" onclick={handleExport} disabled={reps.length === 0}
-					>Export</Button
-				>
-				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
-			{/if}
-			<Button onclick={() => (inviteOpen = !inviteOpen)}>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-				</svg>
-				{inviteOpen ? 'Close' : 'Invite'}
-			</Button>
-		</div>
-	</div>
+	<PageHeader
+		title="Reps"
+		subtitle="{reps.length} team member{reps.length !== 1 ? 's' : ''}{pendingInvites.length > 0
+			? ` · ${pendingInvites.length} pending`
+			: ''} · {totalOrders} orders · {fmt.format(totalRevenue)} revenue"
+	>
+		{#if canManage}
+			<Button variant="outline" onclick={handleExport} disabled={reps.length === 0}>Export</Button>
+			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
+		{/if}
+		<Button onclick={() => (inviteOpen = !inviteOpen)}>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-4 w-4"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+			</svg>
+			{inviteOpen ? 'Close' : 'Invite'}
+		</Button>
+	</PageHeader>
 
 	{#if inviteOpen}
 		<div class="rounded-lg border p-5">
@@ -232,7 +234,7 @@
 			<p class="text-sm text-muted-foreground">
 				Send an invite to join your org. They'll get an email with a signup link.
 			</p>
-			<div class="mt-4 grid gap-4 sm:grid-cols-[1fr_auto]">
+			<div class="mt-4 grid gap-4 sm:grid-cols-[1fr_140px_auto]">
 				<div>
 					<Label for="invite-email">Email</Label>
 					<Input
@@ -240,6 +242,18 @@
 						type="email"
 						placeholder="name@example.com"
 						bind:value={inviteEmail}
+					/>
+				</div>
+				<div>
+					<Label for="invite-commission">Commission %</Label>
+					<Input
+						id="invite-commission"
+						type="number"
+						min="0"
+						max="100"
+						step="0.25"
+						placeholder="0"
+						bind:value={inviteCommissionRate}
 					/>
 				</div>
 				<div class="flex items-end">

@@ -23,6 +23,7 @@
 	let category = $state('');
 	let seasonId = $state('');
 	let productYear = $state<number>(new Date().getFullYear());
+	let ats = $state(false);
 	let description = $state('');
 	let wholesalePrice = $state('');
 	let retailPrice = $state('');
@@ -111,7 +112,8 @@
 				retail_price: parseFloat(retailPrice) || null,
 				category: category.trim() || null,
 				season_id: seasonId || null,
-				product_year: productYear || null
+				product_year: productYear || null,
+				ats
 			})
 			.select()
 			.single();
@@ -382,6 +384,20 @@
 									max="2100"
 									bind:value={productYear}
 								/>
+							</div>
+						</div>
+						<div class="flex items-start gap-3 pt-2">
+							<input
+								id="ats"
+								type="checkbox"
+								bind:checked={ats}
+								class="mt-0.5 h-4 w-4 rounded border-input"
+							/>
+							<div class="space-y-1">
+								<Label for="ats" class="cursor-pointer">Available to Ship (ATS)</Label>
+								<p class="text-sm text-muted-foreground">
+									In stock and shippable now. Leave off for futures / pre-orders.
+								</p>
 							</div>
 						</div>
 					</div>

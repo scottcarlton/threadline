@@ -2,9 +2,11 @@
 	import { page } from '$app/stores';
 	import { invalidateAll } from '$app/navigation';
 	import { supabase } from '$lib/supabase.js';
+	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import Switch from '$lib/components/ui/switch.svelte';
 	import {
 		preferences,
 		type Appearance,
@@ -13,6 +15,26 @@
 	} from '$lib/stores/preferences.js';
 
 	let { data } = $props();
+
+	const np = $derived(data.notificationPreferences);
+	let prefOrderUpdates = $state(true);
+	let prefComments = $state(true);
+	let prefBuyerActivity = $state(true);
+	let prefTeamActivity = $state(true);
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- preference UI not yet wired
+	let prefEmailDigest = $state(false);
+	let prefsSaving = $state(false);
+	let prefsSaved = $state(false);
+
+	$effect(() => {
+		if (np) {
+			prefOrderUpdates = np.order_updates ?? true;
+			prefComments = np.comments ?? true;
+			prefBuyerActivity = np.buyer_activity ?? true;
+			prefTeamActivity = np.team_activity ?? true;
+			prefEmailDigest = np.email_digest ?? false;
+		}
+	});
 
 	const appearanceOptions: { value: Appearance; label: string }[] = [
 		{ value: 'light', label: 'Light' },
@@ -249,8 +271,92 @@
 
 	<!-- Notifications -->
 	<div class="border-b pb-8">
-		<h3 class="text-[14px] font-semibold">Notifications</h3>
-		<p class="mt-1 text-[13px] text-muted-foreground">Coming soon</p>
+		<h3 class="text-sm font-semibold">Notifications</h3>
+		<p class="mt-1 text-sm text-muted-foreground">Choose which email notifications you receive</p>
+
+		<form
+			method="POST"
+			action="?/updateNotificationPreferences"
+			use:enhance={() => {
+				prefsSaving = true;
+				prefsSaved = false;
+				return async ({ update }) => {
+					prefsSaving = false;
+					prefsSaved = true;
+					setTimeout(() => (prefsSaved = false), 2000);
+					await update({ reset: false });
+				};
+			}}
+			class="mt-6 space-y-5"
+		>
+			<label class="flex items-center justify-between">
+				<div>
+					<p class="text-sm font-medium">Order Updates</p>
+					<p class="text-sm text-muted-foreground">Order submitted, confirmed, and shipped</p>
+				</div>
+				<input type="hidden" name="order_updates" value="off" />
+				<Switch
+					bind:checked={prefOrderUpdates}
+					name="order_updates"
+					value="on"
+					aria-label="Order updates"
+				/>
+			</label>
+
+			<label class="flex items-center justify-between">
+				<div>
+					<p class="text-sm font-medium">Comments</p>
+					<p class="text-sm text-muted-foreground">New comments on orders and accounts</p>
+				</div>
+				<input type="hidden" name="comments" value="off" />
+				<Switch bind:checked={prefComments} name="comments" value="on" aria-label="Comments" />
+			</label>
+
+			<label class="flex items-center justify-between">
+				<div>
+					<p class="text-sm font-medium">Buyer Activity</p>
+					<p class="text-sm text-muted-foreground">Buyer portal orders and account changes</p>
+				</div>
+				<input type="hidden" name="buyer_activity" value="off" />
+				<Switch
+					bind:checked={prefBuyerActivity}
+					name="buyer_activity"
+					value="on"
+					aria-label="Buyer activity"
+				/>
+			</label>
+
+			<label class="flex items-center justify-between">
+				<div>
+					<p class="text-sm font-medium">Team Activity</p>
+					<p class="text-sm text-muted-foreground">New members, connection requests, expenses</p>
+				</div>
+				<input type="hidden" name="team_activity" value="off" />
+				<Switch
+					bind:checked={prefTeamActivity}
+					name="team_activity"
+					value="on"
+					aria-label="Team activity"
+				/>
+			</label>
+
+			<label class="flex items-center justify-between opacity-50">
+				<div>
+					<p class="text-sm font-medium">Daily Digest</p>
+					<p class="text-sm text-muted-foreground">Summary email — coming soon</p>
+				</div>
+				<Switch checked={false} disabled aria-label="Daily digest" />
+			</label>
+
+			<div class="flex items-center gap-3 pt-2">
+				<Button type="submit" disabled={prefsSaving}>
+					{prefsSaving ? 'Saving…' : 'Save Preferences'}
+				</Button>
+				{#if prefsSaved}
+					<span class="text-sm text-emerald-600">Saved</span>
+				{/if}
+			</div>
+		</form>
 	</div>
 
 	<!-- Appearance -->
