@@ -19,8 +19,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		.select(
 			'id, brand_id, season_id, product_year, style_number, name, wholesale_price, category, ats, product_variants(id, color, size, price_override), product_images(id, is_primary, sort_order)'
 		)
-		// (product_images included for modal grid thumbnails)
-		.eq('organization_id', locals.organization.id)
+		// RLS handles org + federation visibility — no org_id filter here so
+		// MBISR users can browse products from connected brand orgs.
 		.eq('is_active', true)
 		.is('archived_at', null)
 		.order('style_number');

@@ -31,7 +31,7 @@
 		success = true;
 		// Auto-redirect to connections after a brief success flash
 		setTimeout(() => {
-			goto(resolve('/settings/connections'));
+			goto(resolve('/brands'));
 		}, 1500);
 	}
 </script>
@@ -88,9 +88,7 @@
 							when it goes live.
 						</p>
 					{/if}
-					<Button class="mt-4" onclick={() => goto(resolve('/settings/connections'))}
-						>Go to Connections</Button
-					>
+					<Button class="mt-4" onclick={() => goto(resolve('/brands'))}>Go to Connections</Button>
 				</div>
 			</div>
 		{:else}

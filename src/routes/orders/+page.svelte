@@ -735,7 +735,7 @@
 									<span class="text-sm text-muted-foreground">—</span>
 								{:else}
 									<span
-										class="inline-flex items-center rounded-md px-2 py-0.5 text-sm font-medium {statusBadgeColors[
+										class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {statusBadgeColors[
 											order.status
 										] ?? 'bg-zinc-100 text-zinc-500'}"
 									>

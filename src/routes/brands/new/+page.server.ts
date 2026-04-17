@@ -3,6 +3,7 @@ import { fail } from '@sveltejs/kit';
 import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { createBrandSchema } from '$lib/schemas/brand';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
 type SuccessMessage = { type: 'success'; brandId: string; inviteFailed: boolean };
 
@@ -23,10 +24,17 @@ export const actions: Actions = {
 			return fail(403, { form, message: 'No organization context.' });
 		}
 
+		// App-layer role gate (authenticated supabase client can't reliably attach
+		// session to RLS, so we authorize here and insert via admin).
+		const role = locals.membership?.role;
+		if (!role || !['admin', 'owner', 'member'].includes(role)) {
+			return fail(403, { form, message: 'You do not have permission to create a brand.' });
+		}
+
 		const nn = (v: string | undefined) => (v && v.length ? v : null);
 		const d = form.data;
 
-		const { data: newBrand, error: insertErr } = await locals.supabase
+		const { data: newBrand, error: insertErr } = await supabaseAdmin
 			.from('brands')
 			.insert({
 				organization_id: locals.organization.id,
@@ -43,6 +51,12 @@ export const actions: Actions = {
 			.single();
 
 		if (insertErr || !newBrand) {
+			console.error('[brands/new] insert failed:', {
+				org_id: locals.organization.id,
+				user_id: locals.user?.id,
+				role: locals.membership?.role,
+				error: insertErr
+			});
 			return fail(500, { form, message: insertErr?.message ?? 'Failed to create brand.' });
 		}
 

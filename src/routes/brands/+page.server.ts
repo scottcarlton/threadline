@@ -28,14 +28,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const currentYear = new Date().getFullYear();
 
-	// RLS handles federation visibility — no need for admin client or org_connections query
+	// RLS handles visibility: own-org brands + connected brands via federation policy.
+	// No org_id filter — MBISR users see their own brands AND connected BOA brands.
+	// Orders query keeps org filter (own-org totals only).
 	const [brandsRes, ordersRes] = await Promise.all([
-		supabase
-			.from('brands')
-			.select('*')
-			.eq('is_active', true)
-			.eq('organization_id', organization.id)
-			.order('name'),
+		supabase.from('brands').select('*').eq('is_active', true).order('name'),
 		supabase
 			.from('orders')
 			.select('brand_id, total_amount')

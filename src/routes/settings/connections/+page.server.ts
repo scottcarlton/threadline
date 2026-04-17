@@ -1,61 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { supabaseAdmin } from '$lib/server/supabase.js';
-import { listConnectedReps, type ConnectedRep } from '$lib/server/federation.js';
 
-type RepConnectionRow = {
-	id: string;
-	brand_org_id: string;
-	rep_brand_id: string | null;
-	status: 'pending' | 'active' | 'suspended' | 'disconnected';
-	commission_rate: number | null;
-	connected_at: string | null;
-	created_at: string;
-	brand_org: { id: string; name: string; slug: string | null } | null;
-};
-
-export const load: PageServerLoad = async ({ locals }) => {
-	const { organization, orgType, membership } = locals;
-	if (!organization || !membership) throw redirect(303, '/insight');
-
-	const orgId = organization.id;
-	const isAdmin = ['admin', 'owner'].includes(membership.role);
-
-	if (orgType === 'brand') {
-		const connectedReps = await listConnectedReps(supabaseAdmin, orgId);
-
-		return {
-			orgType,
-			isAdmin,
-			connectedReps,
-			repConnections: [] as RepConnectionRow[],
-			brands: [] as Array<{ id: string; name: string }>
-		};
-	}
-
-	// Rep org view: their connections + the brands they carry (for mapping when joining)
-	const { data: connectionsRaw } = await supabaseAdmin
-		.from('org_connections')
-		.select(
-			'id, brand_org_id, rep_brand_id, status, commission_rate, connected_at, created_at, brand_org:brand_org_id(id, name, slug)'
-		)
-		.eq('rep_org_id', orgId)
-		.order('created_at', { ascending: false });
-
-	const repConnections = (connectionsRaw ?? []) as unknown as RepConnectionRow[];
-
-	const { data: brandsData } = await locals.supabase
-		.from('brands')
-		.select('id, name')
-		.eq('organization_id', orgId)
-		.eq('is_active', true)
-		.order('name');
-
-	return {
-		orgType,
-		isAdmin,
-		connectedReps: [] as ConnectedRep[],
-		repConnections,
-		brands: brandsData ?? []
-	};
+// /settings/connections is retired. Connections live on /brands (MBISR) and /reps (BOA).
+export const load: PageServerLoad = async () => {
+	throw redirect(303, '/brands');
 };

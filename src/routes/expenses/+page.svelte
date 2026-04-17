@@ -274,7 +274,7 @@
 							</td>
 							<td class="px-4 py-3 text-center">
 								<span
-									class="inline-flex items-center rounded-md px-2 py-0.5 text-sm font-medium {statusBadgeColors[
+									class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {statusBadgeColors[
 										expense.status
 									] ?? 'bg-zinc-100 text-zinc-500'}"
 								>

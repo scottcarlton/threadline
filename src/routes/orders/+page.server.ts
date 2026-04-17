@@ -135,6 +135,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const federatedReshaped = federatedOrders.map((o) => ({
 			id: o.id,
 			order_number: o.order_number,
+			order_type: o.order_type,
 			status: o.status,
 			total_amount: o.total_amount,
 			created_at: o.created_at,
@@ -251,7 +252,23 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const isSales = locals.membership?.role === 'sales';
 
-	let query = supabase
+	// Federation: collect own org + connected org IDs so filter dropdowns surface
+	// connected brands, seasons, and shows.
+	const { data: connections } = await supabaseAdmin
+		.from('org_connections')
+		.select('rep_org_id, brand_org_id')
+		.eq('status', 'active')
+		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
+	const visibleOrgIdSet = new Set<string>([organization.id]);
+	for (const c of connections ?? []) {
+		if (c.rep_org_id && c.rep_org_id !== organization.id) visibleOrgIdSet.add(c.rep_org_id);
+		if (c.brand_org_id && c.brand_org_id !== organization.id) visibleOrgIdSet.add(c.brand_org_id);
+	}
+	const visibleOrgIds = Array.from(visibleOrgIdSet);
+
+	// Orders themselves stay own-org (MBISR owns the orders they place). Filter dropdowns
+	// widen to include connected orgs' brands/seasons/shows so reps can filter by them.
+	let query = supabaseAdmin
 		.from('orders')
 		.select(
 			'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)'
@@ -268,25 +285,24 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (from) query = query.gte('created_at', from);
 	if (toExclusive) query = query.lt('created_at', toExclusive);
 
-	// RLS handles federation visibility for brands — no need for admin client
 	const [ordersResult, seasonsResult, brandsResult, showDatesResult] = await Promise.all([
 		query,
-		supabase
+		supabaseAdmin
 			.from('seasons')
 			.select('*')
-			.eq('organization_id', organization.id)
+			.in('organization_id', visibleOrgIds)
 			.eq('is_active', true)
 			.order('sort_order'),
-		supabase
+		supabaseAdmin
 			.from('brands')
 			.select('id, name')
 			.eq('is_active', true)
-			.eq('organization_id', organization.id)
+			.in('organization_id', visibleOrgIds)
 			.order('name'),
-		supabase
+		supabaseAdmin
 			.from('show_dates')
 			.select('id, show_id, year, month, city, state, shows(name)')
-			.eq('organization_id', organization.id)
+			.in('organization_id', visibleOrgIds)
 			.order('year')
 			.order('month')
 	]);

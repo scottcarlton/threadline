@@ -43,6 +43,12 @@
 		},
 		onError: ({ result }) => {
 			toast.error(result.error?.message ?? 'Something went wrong. Please try again.');
+		},
+		onResult: ({ result }) => {
+			if (result.type === 'failure') {
+				const msg = (result.data as { message?: string } | undefined)?.message;
+				toast.error(msg ?? 'Could not create brand. Check required fields.');
+			}
 		}
 	});
 </script>

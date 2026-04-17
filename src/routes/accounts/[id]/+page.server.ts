@@ -1,13 +1,37 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
-	const { supabase, organization } = locals;
+	const { organization } = locals;
 	if (!organization) throw error(404, 'Organization not found');
 
-	// RLS handles federation visibility — just query by ID
+	// Load the account via admin, then enforce visibility in app code:
+	// the account's org must be the viewer's org OR an active connection.
+	const { data: preAccount } = await supabaseAdmin
+		.from('accounts')
+		.select('id, organization_id')
+		.eq('id', params.id)
+		.maybeSingle();
+
+	if (!preAccount) throw error(404, 'Account not found');
+
+	if (preAccount.organization_id !== organization.id) {
+		const { data: conn } = await supabaseAdmin
+			.from('org_connections')
+			.select('id')
+			.eq('status', 'active')
+			.or(
+				`and(rep_org_id.eq.${organization.id},brand_org_id.eq.${preAccount.organization_id}),and(brand_org_id.eq.${organization.id},rep_org_id.eq.${preAccount.organization_id})`
+			)
+			.maybeSingle();
+		if (!conn) throw error(404, 'Account not found');
+	}
+
+	const supabase = supabaseAdmin;
+
 	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes, locationsRes] =
 		await Promise.all([
 			supabase.from('accounts').select('*').eq('id', params.id).single(),

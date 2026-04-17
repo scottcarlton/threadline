@@ -240,17 +240,17 @@
 							<td class="px-4 py-3">
 								{#if brand.archived_at}
 									<span
-										class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500"
+										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
 										>Archived</span
 									>
 								{:else if brand.is_active}
 									<span
-										class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+										class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700"
 										>Active</span
 									>
 								{:else}
 									<span
-										class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500"
+										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
 										>Inactive</span
 									>
 								{/if}

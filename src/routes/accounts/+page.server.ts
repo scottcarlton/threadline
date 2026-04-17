@@ -1,28 +1,47 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
-	const { supabase, organization } = locals;
+	const { organization } = locals;
 	if (!organization) return { accounts: [], accountTotals: {}, accountHealth: {} };
 
 	const currentYear = new Date().getFullYear();
 
-	// RLS handles federation visibility — no need for admin client or connected org queries
+	// Build the list of org IDs this user can see accounts for:
+	// own org + any org connected via an active org_connections row (either direction).
+	const { data: connections } = await supabaseAdmin
+		.from('org_connections')
+		.select('rep_org_id, brand_org_id')
+		.eq('status', 'active')
+		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
+
+	const connectedOrgIds = new Set<string>([organization.id]);
+	for (const c of connections ?? []) {
+		if (c.rep_org_id && c.rep_org_id !== organization.id) connectedOrgIds.add(c.rep_org_id);
+		if (c.brand_org_id && c.brand_org_id !== organization.id) connectedOrgIds.add(c.brand_org_id);
+	}
+	const visibleOrgIds = Array.from(connectedOrgIds);
+
+	// Admin client + explicit org scope (authenticated client can't reliably attach
+	// session to RLS in this version of @supabase/ssr).
 	const [accountsRes, ordersRes, healthMap, tagAssignmentsRes] = await Promise.all([
-		supabase
+		supabaseAdmin
 			.from('accounts')
 			.select('*, territories(name)')
-			.eq('organization_id', organization.id)
+			.in('organization_id', visibleOrgIds)
 			.order('business_name'),
-		supabase
+		supabaseAdmin
 			.from('orders')
 			.select('account_id, total_amount')
 			.eq('organization_id', organization.id)
 			.eq('order_year', currentYear),
-		computeAccountHealth(supabase, organization.id),
-		supabase.from('account_tag_assignments').select('account_id, account_tags(id, name, color)')
+		computeAccountHealth(supabaseAdmin, organization.id),
+		supabaseAdmin
+			.from('account_tag_assignments')
+			.select('account_id, account_tags(id, name, color)')
 	]);
 
 	const accounts = accountsRes.data ?? [];

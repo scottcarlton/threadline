@@ -78,7 +78,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		body: autoApprove
 			? `${organization.name} connected via auto-approve invite`
 			: `${organization.name} has requested to connect`,
-		link: '/settings/connections'
+		link: '/reps'
 	});
 
 	return json({ connection, brandName: brandOrg?.name, autoApproved: autoApprove });
