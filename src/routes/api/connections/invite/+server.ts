@@ -11,7 +11,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Optional body — callers may omit to accept defaults (30d expiry, unlimited uses).
-	let body: { expires_at?: string | null; max_uses?: number | null } = {};
+	let body: { expires_at?: string | null; max_uses?: number | null; auto_approve?: boolean } = {};
 	try {
 		if (request.headers.get('content-type')?.includes('application/json')) {
 			body = await request.json();
@@ -25,12 +25,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		created_by: string;
 		expires_at?: string;
 		max_uses?: number;
+		auto_approve?: boolean;
 	} = {
 		brand_org_id: organization.id,
 		created_by: session.user.id
 	};
 	if (body.expires_at) insert.expires_at = body.expires_at;
 	if (typeof body.max_uses === 'number' && body.max_uses >= 0) insert.max_uses = body.max_uses;
+	if (typeof body.auto_approve === 'boolean') insert.auto_approve = body.auto_approve;
 
 	const { data: invite, error } = await supabase
 		.from('connection_invites')

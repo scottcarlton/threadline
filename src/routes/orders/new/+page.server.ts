@@ -298,9 +298,6 @@ export const actions: Actions = {
 			createdIds.push(orderRow.id);
 		}
 
-		if (createdIds.length === 1) {
-			throw redirect(303, `/orders/${createdIds[0]}`);
-		}
-		throw redirect(303, `/orders?created=${createdIds.join(',')}`);
+		throw redirect(303, `/orders`);
 	}
 };

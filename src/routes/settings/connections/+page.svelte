@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -136,61 +135,6 @@
 		}
 	}
 
-	// ── Invite creation ─────────────────────────────────────────────────────
-	let showInviteForm = $state(false);
-	let inviteExpiresDays = $state(30);
-	let inviteMaxUses = $state<number>(0);
-	let creatingInvite = $state(false);
-
-	async function createInvite() {
-		creatingInvite = true;
-		errorMsg = null;
-		try {
-			const body: { expires_at?: string; max_uses?: number } = {};
-			if (inviteExpiresDays && inviteExpiresDays > 0) {
-				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
-				const d = new Date();
-				d.setDate(d.getDate() + Number(inviteExpiresDays));
-				body.expires_at = d.toISOString();
-			}
-			if (inviteMaxUses && inviteMaxUses > 0) body.max_uses = Number(inviteMaxUses);
-			await post('/api/connections/invite', body);
-			showInviteForm = false;
-			await invalidateAll();
-		} catch (e) {
-			errorMsg = (e as Error).message;
-		} finally {
-			creatingInvite = false;
-		}
-	}
-	async function revokeInvite(id: string) {
-		if (!confirm('Revoke this invite link? Anyone who already has the URL will get an error.'))
-			return;
-		working = id;
-		errorMsg = null;
-		try {
-			const res = await fetch(`/api/connections/invite/${id}`, { method: 'DELETE' });
-			if (!res.ok) throw new Error('Failed to revoke');
-			await invalidateAll();
-		} catch (e) {
-			errorMsg = (e as Error).message;
-		} finally {
-			working = null;
-		}
-	}
-
-	function inviteUrl(code: string): string {
-		return `${$page.url.origin}/connect/${code}`;
-	}
-	let copiedId = $state<string | null>(null);
-	async function copyLink(id: string, code: string) {
-		await navigator.clipboard.writeText(inviteUrl(code));
-		copiedId = id;
-		setTimeout(() => {
-			if (copiedId === id) copiedId = null;
-		}, 1500);
-	}
-
 	// ── Rep-side state (join by code) ───────────────────────────────────────
 	let joinCode = $state('');
 	let repBrandId = $state('');
@@ -231,7 +175,7 @@
 			<h1 class="text-2xl font-semibold">Connections</h1>
 			<p class="text-sm text-muted-foreground">
 				{#if data.orgType === 'brand'}
-					Manage your rep-org network: invite, approve, configure commissions, and monitor activity.
+					Manage your rep-org network: approve, configure commissions, and monitor activity.
 				{:else}
 					Manage the brands you carry. Join a brand using an invite link they share with you.
 				{/if}
@@ -249,81 +193,6 @@
 
 	<!-- ── Brand side ───────────────────────────────────────────────────── -->
 	{#if data.orgType === 'brand'}
-		<!-- Invite block -->
-		{#if data.isAdmin}
-			<section class="rounded-lg border p-5">
-				<div class="flex items-center justify-between">
-					<div>
-						<h2 class="text-lg font-semibold">Invite links</h2>
-						<p class="text-sm text-muted-foreground">
-							Share a link with a rep org to kick off a connection.
-						</p>
-					</div>
-					<Button onclick={() => (showInviteForm = !showInviteForm)}>
-						{showInviteForm ? 'Cancel' : '+ Generate Invite'}
-					</Button>
-				</div>
-
-				{#if showInviteForm}
-					<div class="mt-4 grid gap-4 sm:grid-cols-3">
-						<div>
-							<Label for="expires">Expires in (days)</Label>
-							<Input id="expires" type="number" min="1" max="365" bind:value={inviteExpiresDays} />
-						</div>
-						<div>
-							<Label for="maxuses">Max uses (0 = unlimited)</Label>
-							<Input id="maxuses" type="number" min="0" bind:value={inviteMaxUses} />
-						</div>
-						<div class="flex items-end">
-							<Button disabled={creatingInvite} onclick={createInvite}>
-								{creatingInvite ? 'Creating…' : 'Create invite'}
-							</Button>
-						</div>
-					</div>
-				{/if}
-
-				{#if data.invites.length > 0}
-					<ul class="mt-4 divide-y">
-						{#each data.invites as inv (inv.id)}
-							{@const expired = new Date(inv.expires_at) < new Date()}
-							{@const maxed = inv.max_uses > 0 && inv.use_count >= inv.max_uses}
-							<li class="flex items-center justify-between py-3">
-								<div>
-									<div class="flex items-center gap-2 font-mono text-sm">
-										<span>{inviteUrl(inv.code)}</span>
-										<button
-											type="button"
-											class="text-sm underline hover:no-underline"
-											onclick={() => copyLink(inv.id, inv.code)}
-										>
-											{copiedId === inv.id ? 'Copied!' : 'Copy'}
-										</button>
-									</div>
-									<div class="mt-1 text-sm text-muted-foreground">
-										Uses: {inv.use_count}{inv.max_uses > 0 ? ` / ${inv.max_uses}` : ''} · Expires
-										{fmtDate.format(new Date(inv.expires_at))}
-										{#if expired}
-											· <span class="text-red-600">Expired</span>
-										{:else if maxed}
-											· <span class="text-red-600">Max uses reached</span>
-										{/if}
-									</div>
-								</div>
-								<Button
-									variant="ghost"
-									size="sm"
-									disabled={working === inv.id}
-									onclick={() => revokeInvite(inv.id)}
-								>
-									Revoke
-								</Button>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-			</section>
-		{/if}
-
 		<!-- Tabs -->
 		<section class="rounded-lg border">
 			<div class="flex gap-1 border-b px-4">
@@ -374,7 +243,7 @@
 					</div>
 					<p class="mt-1 text-sm text-muted-foreground">
 						{#if activeTab === 'active'}
-							Generate an invite link and share it with a rep agency to get started.
+							Invite a rep agency from the Reps page to get started.
 						{:else if activeTab === 'pending'}
 							When a rep claims an invite link, their request will appear here.
 						{:else}

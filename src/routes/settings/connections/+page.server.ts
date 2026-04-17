@@ -15,40 +15,19 @@ type RepConnectionRow = {
 };
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const { supabase, organization, orgType, membership } = locals;
+	const { organization, orgType, membership } = locals;
 	if (!organization || !membership) throw redirect(303, '/insight');
 
 	const orgId = organization.id;
 	const isAdmin = ['admin', 'owner'].includes(membership.role);
 
 	if (orgType === 'brand') {
-		// Admin client: federation joins touch rep-org tables whose RLS excludes the brand.
-		// Security guarantee is preserved by the brand_org_id filter inside the helper.
 		const connectedReps = await listConnectedReps(supabaseAdmin, orgId);
-
-		let invites: Array<{
-			id: string;
-			code: string;
-			expires_at: string;
-			max_uses: number;
-			use_count: number;
-			created_at: string;
-		}> = [];
-		if (isAdmin) {
-			const { data } = await supabase
-				.from('connection_invites')
-				.select('id, code, expires_at, max_uses, use_count, created_at')
-				.eq('brand_org_id', orgId)
-				.order('created_at', { ascending: false });
-			invites = data ?? [];
-		}
 
 		return {
 			orgType,
 			isAdmin,
 			connectedReps,
-			invites,
-			// rep-only fields kept empty so the type stays stable
 			repConnections: [] as RepConnectionRow[],
 			brands: [] as Array<{ id: string; name: string }>
 		};
@@ -65,7 +44,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const repConnections = (connectionsRaw ?? []) as unknown as RepConnectionRow[];
 
-	const { data: brandsData } = await supabase
+	const { data: brandsData } = await locals.supabase
 		.from('brands')
 		.select('id, name')
 		.eq('organization_id', orgId)
@@ -76,14 +55,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		orgType,
 		isAdmin,
 		connectedReps: [] as ConnectedRep[],
-		invites: [] as Array<{
-			id: string;
-			code: string;
-			expires_at: string;
-			max_uses: number;
-			use_count: number;
-			created_at: string;
-		}>,
 		repConnections,
 		brands: brandsData ?? []
 	};

@@ -8,6 +8,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import ConnectionInviteSection from '$lib/components/shared/ConnectionInviteSection.svelte';
 	import type { UserRole } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -84,6 +85,8 @@
 	const memberEmails = $derived(data.memberEmails as Record<string, string>);
 	const currentUserId = $derived(data.user?.id);
 
+	type InviteMode = 'invite' | 'connect';
+	let memberInviteMode = $state<InviteMode>('invite');
 	let showInviteForm = $state(false);
 	let inviteEmail = $state('');
 	let inviteRole: UserRole = $state('member');
@@ -412,71 +415,99 @@
 		<!-- Inline invite form -->
 		{#if showInviteForm}
 			<div class="space-y-3 rounded-lg border border-dashed p-4">
-				<div class="flex flex-wrap items-end gap-3">
-					<div class="min-w-[200px] flex-1">
-						<label for="invite-email" class="text-sm font-medium">Email</label>
-						<Input
-							id="invite-email"
-							type="email"
-							bind:value={inviteEmail}
-							placeholder="team@example.com"
-						/>
-					</div>
-					<div class="w-36">
-						<label for="invite-role" class="text-sm font-medium">Role</label>
-						<select
-							id="invite-role"
-							bind:value={inviteRole}
-							class="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+				<!-- Invite / Connect tabs (brand orgs only) -->
+				{#if data.isBrandOrg && data.isAdmin}
+					<div class="flex gap-1 border-b">
+						<button
+							class="-mb-px px-4 py-2 text-sm font-medium transition-colors {memberInviteMode ===
+							'invite'
+								? 'border-b border-current text-foreground'
+								: 'text-muted-foreground hover:text-foreground'}"
+							onclick={() => (memberInviteMode = 'invite')}
 						>
-							<option value="member">Member</option>
-							<option value="sales">Sales</option>
-							<option value="admin">Admin</option>
-							<option value="guest">Guest</option>
-						</select>
-					</div>
-					{#if inviteRole === 'sales'}
-						<div class="w-32">
-							<label for="invite-commission" class="text-sm font-medium">Commission %</label>
-							<Input
-								id="invite-commission"
-								type="number"
-								min="0"
-								max="100"
-								step="0.25"
-								placeholder="0"
-								bind:value={inviteCommissionRate}
-							/>
-						</div>
-					{/if}
-					<Button size="sm" onclick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
-						{inviting ? 'Sending...' : 'Send Invite'}
-					</Button>
-				</div>
-				{#if showBrandScope && brands.length > 0}
-					<div class="space-y-2">
-						<p class="text-sm text-muted-foreground">
-							Brand Access <span class="font-normal">(optional — leave empty for all)</span>
-						</p>
-						<div class="flex flex-wrap gap-2">
-							{#each brands as brand (brand.id)}
-								<button
-									type="button"
-									class="rounded-lg border px-2.5 py-1 text-sm transition-all {selectedBrandIds.includes(
-										brand.id
-									)
-										? 'border-primary bg-primary text-primary-foreground'
-										: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
-									onclick={() => toggleBrand(brand.id)}
-								>
-									{brand.name}
-								</button>
-							{/each}
-						</div>
+							Invite
+						</button>
+						<button
+							class="-mb-px px-4 py-2 text-sm font-medium transition-colors {memberInviteMode ===
+							'connect'
+								? 'border-b border-current text-foreground'
+								: 'text-muted-foreground hover:text-foreground'}"
+							onclick={() => (memberInviteMode = 'connect')}
+						>
+							Connect
+						</button>
 					</div>
 				{/if}
-				{#if inviteMessage}
-					<p class="text-sm text-muted-foreground">{inviteMessage}</p>
+
+				{#if memberInviteMode === 'invite'}
+					<div class="flex flex-wrap items-end gap-3">
+						<div class="min-w-[200px] flex-1">
+							<label for="invite-email" class="text-sm font-medium">Email</label>
+							<Input
+								id="invite-email"
+								type="email"
+								bind:value={inviteEmail}
+								placeholder="team@example.com"
+							/>
+						</div>
+						<div class="w-36">
+							<label for="invite-role" class="text-sm font-medium">Role</label>
+							<select
+								id="invite-role"
+								bind:value={inviteRole}
+								class="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+							>
+								<option value="member">Member</option>
+								<option value="sales">Sales</option>
+								<option value="admin">Admin</option>
+								<option value="guest">Guest</option>
+							</select>
+						</div>
+						{#if inviteRole === 'sales'}
+							<div class="w-32">
+								<label for="invite-commission" class="text-sm font-medium">Commission %</label>
+								<Input
+									id="invite-commission"
+									type="number"
+									min="0"
+									max="100"
+									step="0.25"
+									placeholder="0"
+									bind:value={inviteCommissionRate}
+								/>
+							</div>
+						{/if}
+						<Button size="sm" onclick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
+							{inviting ? 'Sending...' : 'Send Invite'}
+						</Button>
+					</div>
+					{#if showBrandScope && brands.length > 0}
+						<div class="space-y-2">
+							<p class="text-sm text-muted-foreground">
+								Brand Access <span class="font-normal">(optional — leave empty for all)</span>
+							</p>
+							<div class="flex flex-wrap gap-2">
+								{#each brands as brand (brand.id)}
+									<button
+										type="button"
+										class="rounded-lg border px-2.5 py-1 text-sm transition-all {selectedBrandIds.includes(
+											brand.id
+										)
+											? 'border-primary bg-primary text-primary-foreground'
+											: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
+										onclick={() => toggleBrand(brand.id)}
+									>
+										{brand.name}
+									</button>
+								{/each}
+							</div>
+						</div>
+					{/if}
+					{#if inviteMessage}
+						<p class="text-sm text-muted-foreground">{inviteMessage}</p>
+					{/if}
+				{:else}
+					<ConnectionInviteSection invites={data.connectionInvites ?? []} />
 				{/if}
 			</div>
 		{/if}

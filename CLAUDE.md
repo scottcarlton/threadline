@@ -11,7 +11,7 @@ Before proposing a form, page, route, component, field, table, column, or API be
 - **Framework:** SvelteKit 2 + Svelte 5 (runes)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS v4
-- **UI primitives:** Bits UI (tooltips, dialogs, etc.)
+- **UI primitives:** Bits UI (tooltips, dialogs, etc.) — docs at `bits-ui.com/docs/llms.txt`
 - **Animation:** Motion
 - **Backend:** Supabase (Postgres + SSR auth via `@supabase/ssr`)
 - **Observability:** Sentry

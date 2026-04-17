@@ -547,7 +547,22 @@
 					<div class="flex items-center justify-between">
 						<CardTitle class="text-base">Locations</CardTitle>
 						{#if canEdit && !locationFormOpen}
-							<Button size="sm" onclick={openAddLocation}>Add Location</Button>
+							<button
+								class="inline-flex cursor-pointer items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+								onclick={openAddLocation}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+								</svg>
+								Add Location
+							</button>
 						{/if}
 					</div>
 				</CardHeader>
@@ -699,7 +714,7 @@
 					{:else if locations.length > 0}
 						<ul class="divide-y">
 							{#each locations as loc (loc.id)}
-								<li class="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+								<li class="group flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
 									<div class="min-w-0 flex-1">
 										<div class="flex items-center gap-2">
 											<span class="font-semibold">{loc.label}</span>
@@ -737,7 +752,9 @@
 										{/if}
 									</div>
 									{#if canEdit}
-										<div class="flex shrink-0 items-center gap-2">
+										<div
+											class="flex shrink-0 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100"
+										>
 											{#if !loc.is_default}
 												<form method="POST" action="?/setDefault" use:enhance class="inline">
 													<input type="hidden" name="id" value={loc.id} />
@@ -752,25 +769,27 @@
 											>
 												Edit
 											</Button>
-											<form
-												method="POST"
-												action="?/deleteLocation"
-												use:enhance={() =>
-													async ({ result, update }) => {
-														if (result.type === 'failure') {
-															locationError =
-																(result.data as { message?: string })?.message ?? 'Delete failed';
-														}
-														await update({ reset: false });
+											{#if !loc.is_default}
+												<form
+													method="POST"
+													action="?/deleteLocation"
+													use:enhance={() =>
+														async ({ result, update }) => {
+															if (result.type === 'failure') {
+																locationError =
+																	(result.data as { message?: string })?.message ?? 'Delete failed';
+															}
+															await update({ reset: false });
+														}}
+													onsubmit={(e) => {
+														if (!confirm(`Delete location "${loc.label}"?`)) e.preventDefault();
 													}}
-												onsubmit={(e) => {
-													if (!confirm(`Delete location "${loc.label}"?`)) e.preventDefault();
-												}}
-												class="inline"
-											>
-												<input type="hidden" name="id" value={loc.id} />
-												<Button type="submit" variant="outline" size="sm">Delete</Button>
-											</form>
+													class="inline"
+												>
+													<input type="hidden" name="id" value={loc.id} />
+													<Button type="submit" variant="outline" size="sm">Delete</Button>
+												</form>
+											{/if}
 										</div>
 									{/if}
 								</li>
@@ -786,9 +805,30 @@
 					<CardHeader>
 						<div class="flex items-center justify-between">
 							<CardTitle class="text-base">Buyer Portal</CardTitle>
-							<Button size="sm" onclick={() => (showInviteDialog = !showInviteDialog)}>
-								{showInviteDialog ? 'Cancel' : 'Invite Buyer'}
-							</Button>
+							<button
+								class="inline-flex cursor-pointer items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+								onclick={() => (showInviteDialog = !showInviteDialog)}
+							>
+								{#if showInviteDialog}
+									Cancel
+								{:else}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4 -translate-y-0.5 -rotate-45"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
+										/>
+									</svg>
+									Invite Buyer
+								{/if}
+							</button>
 						</div>
 					</CardHeader>
 					<CardContent>
