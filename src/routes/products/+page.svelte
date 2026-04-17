@@ -11,57 +11,117 @@
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import type { Product } from '$lib/types/database.js';
 
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { debounce } from '$lib/utils/debounce.js';
+
+	const PAGE_SIZE = 50;
+
+	type ProductRow = Product & {
+		product_variants: { id: string; color: string | null; size: string | null }[];
+		product_images: { id: string; file_path: string; is_primary: boolean }[];
+	};
+
 	let { data } = $props();
 	const brand = $derived(data.brand as { id: string; name: string });
-	const products = $derived(
-		data.products as (Product & {
-			product_variants: { id: string; color: string | null; size: string | null }[];
-			product_images: { id: string; file_path: string; is_primary: boolean }[];
-		})[]
-	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
 	const canEdit = $derived(['admin', 'owner', 'member'].includes(data.membership?.role ?? ''));
 
-	let search = $state('');
-	let seasonFilter = $state('');
-	let categoryFilter = $state('');
+	// Mutable list — initial page from server, appended via infinite scroll
+	let productList = $state<ProductRow[]>([]);
+	let hasMore = $state(false);
+	let loadingMore = $state(false);
+	let sentinelEl = $state<HTMLDivElement | null>(null);
+
+	$effect(() => {
+		productList = data.products as ProductRow[];
+		hasMore = Boolean(data.hasMore);
+	});
+
+	let search = $state($page.url.searchParams.get('search') ?? '');
+	let seasonFilter = $state($page.url.searchParams.get('season') ?? '');
+	let categoryFilter = $state($page.url.searchParams.get('category') ?? '');
 	let priceRange = $state<[number, number]>([0, 500]);
 	let atsOnly = $state(false);
 	let showArchived = $state(false);
 	let showImport = $state(false);
 
 	const maxProductPrice = $derived(
-		Math.max(...products.map((p) => Number(p.wholesale_price)), 500)
+		Math.max(...productList.map((p) => Number(p.wholesale_price)), 500)
 	);
 
 	const categories = $derived(
-		[...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort()
+		[...new Set(productList.map((p) => p.category).filter(Boolean) as string[])].sort()
 	);
 
+	// Client-side filters for price/ATS (applied on top of server-paginated results)
 	const filtered = $derived(
-		products.filter((p) => {
-			const matchesSearch =
-				p.name.toLowerCase().includes(search.toLowerCase()) ||
-				p.style_number.toLowerCase().includes(search.toLowerCase()) ||
-				(p.category?.toLowerCase().includes(search.toLowerCase()) ?? false);
-			const matchesSeason = !seasonFilter || p.season_id === seasonFilter;
-			const matchesCategory = !categoryFilter || p.category === categoryFilter;
+		productList.filter((p) => {
 			const price = Number(p.wholesale_price);
 			const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
 			const matchesArchive = showArchived ? true : !p.archived_at;
 			const matchesAts = !atsOnly || p.ats;
-			return (
-				matchesSearch &&
-				matchesSeason &&
-				matchesCategory &&
-				matchesPrice &&
-				matchesArchive &&
-				matchesAts
-			);
+			return matchesPrice && matchesArchive && matchesAts;
 		})
 	);
 
-	const archivedCount = $derived(products.filter((p) => p.archived_at).length);
+	const archivedCount = $derived(productList.filter((p) => p.archived_at).length);
+
+	// Server-side filter via URL params
+	function setFilter(key: string, value: string) {
+		const params = new URLSearchParams($page.url.searchParams);
+		if (!value) params.delete(key);
+		else params.set(key, value);
+		goto(`/products?${params.toString()}`, { replaceState: true });
+	}
+
+	const debouncedSearch = debounce((value: string) => {
+		setFilter('search', value);
+	}, 300);
+
+	function onSearchInput(e: Event) {
+		const value = (e.target as HTMLInputElement).value;
+		search = value;
+		debouncedSearch(value);
+	}
+
+	// Infinite scroll
+	async function loadMore() {
+		if (loadingMore || !hasMore) return;
+		loadingMore = true;
+		try {
+			const params = new URLSearchParams();
+			params.set('offset', String(productList.length));
+			params.set('limit', String(PAGE_SIZE));
+			params.append('brand_id', brand.id);
+			if (search) params.set('q', search);
+			if (seasonFilter) params.append('season_id', seasonFilter);
+			if (categoryFilter) params.set('category', categoryFilter);
+			if (showArchived) params.set('archived', 'true');
+			const res = await fetch(`/api/products?${params.toString()}`);
+			if (res.ok) {
+				const json = await res.json();
+				productList = [...productList, ...(json.products as ProductRow[])];
+				hasMore = Boolean(json.hasMore);
+			}
+		} finally {
+			loadingMore = false;
+		}
+	}
+
+	$effect(() => {
+		if (!sentinelEl) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting && hasMore && !loadingMore) {
+					loadMore();
+				}
+			},
+			{ rootMargin: '200px' }
+		);
+		observer.observe(sentinelEl);
+		return () => observer.disconnect();
+	});
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 	// Import
@@ -158,7 +218,10 @@
 <div class="space-y-6">
 	<PageHeader
 		title="Products"
-		subtitle="{filtered.length} product{filtered.length !== 1 ? 's' : ''}"
+		subtitle="{data.totalCount ?? productList.length} product{(data.totalCount ??
+			productList.length) !== 1
+			? 's'
+			: ''}"
 	>
 		{#if canEdit}
 			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
@@ -180,15 +243,19 @@
 	<!-- Filters -->
 	<div class="flex flex-wrap gap-3">
 		<div class="max-w-xs flex-1">
-			<SearchInput placeholder="Search products..." bind:value={search} />
+			<SearchInput placeholder="Search products..." value={search} oninput={onSearchInput} />
 		</div>
 		<SelectField
 			items={[
 				{ value: '', label: 'All Seasons' },
 				...seasons.map((s) => ({ value: s.id, label: s.name }))
 			]}
-			bind:value={seasonFilter}
+			value={seasonFilter}
 			placeholder="All Seasons"
+			onValueChange={(v) => {
+				seasonFilter = v;
+				setFilter('season', v);
+			}}
 		/>
 		{#if categories.length > 0}
 			<SelectField
@@ -196,8 +263,12 @@
 					{ value: '', label: 'All Categories' },
 					...categories.map((c) => ({ value: c, label: c }))
 				]}
-				bind:value={categoryFilter}
+				value={categoryFilter}
 				placeholder="All Categories"
+				onValueChange={(v) => {
+					categoryFilter = v;
+					setFilter('category', v);
+				}}
 			/>
 		{/if}
 		<PriceFilterDropdown bind:value={priceRange} maxPrice={maxProductPrice} />
@@ -304,6 +375,14 @@
 				</a>
 			{/each}
 		</div>
+
+		{#if hasMore || loadingMore}
+			<div bind:this={sentinelEl} class="flex items-center justify-center py-6">
+				{#if loadingMore}
+					<span class="text-sm text-muted-foreground">Loading more products…</span>
+				{/if}
+			</div>
+		{/if}
 	{/if}
 </div>
 
