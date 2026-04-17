@@ -6,6 +6,14 @@ SvelteKit 5 app for fashion reps, brands, and buyers. Deployed to Vercel at `thr
 
 Before proposing a form, page, route, component, field, table, column, or API behavior — **verify it exists**. Read the file, grep the code, or ask. Do not infer from a plausible name. A wrong guess wastes the user's time and erodes trust. If you don't know, say "I don't know — let me check" and check.
 
+## Do not collapse federation boundaries
+
+The repo has two federation directions (MBISR→BOA via `get_connected_org_ids()`, BOA→MBISR via `federated_*_links`). They are different mechanisms by design. Do not replace one with the other.
+
+Every own-org list route (`/brands`, `/accounts`, `/orders`, `/expenses`, `/appointments`, `/organization/contacts`) MUST keep its `.eq('organization_id', currentOrgId)` filter. Federation views (`/shop`, `/reps`, `/brands/[id]` when viewing a connected BOA's brand) rely on RLS + connection gating and explicitly omit the org filter.
+
+When in doubt, read `docs/brd/permissions-implementation-map.md` §A.4. Skill: `.claude/skills/rbac-change`.
+
 ## Stack
 
 - **Framework:** SvelteKit 2 + Svelte 5 (runes)
@@ -132,6 +140,7 @@ Consult these before working in the relevant area. Do **not** inline their conte
 - `docs/brd/features.md` — feature requirements. Read before implementing any feature.
 - `docs/brd/roles-permissions.md` — RBAC rules. Read before touching auth, roles, or permissions.
 - `docs/brd/marketing.md` — marketing and launch requirements.
+- `docs/brd/permissions-implementation-map.md` — RLS helpers, per-table contracts, route/API classification, federation direction cheat-sheet. Read before touching RLS policies, adding tables, or wiring cross-org routes.
 
 ### Brand
 

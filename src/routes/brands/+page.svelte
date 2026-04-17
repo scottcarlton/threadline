@@ -10,6 +10,15 @@
 
 	let { data } = $props();
 	let showImport = $state(false);
+	const federatedIds = $derived(
+		new Set(
+			data.organizationId
+				? (data.brands as Brand[])
+						.filter((b) => b.organization_id !== data.organizationId)
+						.map((b) => b.id)
+				: []
+		)
+	);
 
 	const brandColumns = [
 		{ key: 'name', label: 'Name', required: true },
@@ -203,6 +212,12 @@
 								<a href={resolve(`/brands/${brand.id}`)} class="text-base hover:underline"
 									>{brand.name}</a
 								>
+								{#if federatedIds.has(brand.id)}
+									<span
+										class="ml-2 inline-flex rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-normal text-blue-600 dark:text-blue-400"
+										>Connected</span
+									>
+								{/if}
 								{#if brand.website}
 									<a
 										href={brand.website}
@@ -225,17 +240,17 @@
 							<td class="px-4 py-3">
 								{#if brand.archived_at}
 									<span
-										class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500"
+										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
 										>Archived</span
 									>
 								{:else if brand.is_active}
 									<span
-										class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+										class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700"
 										>Active</span
 									>
 								{:else}
 									<span
-										class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500"
+										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
 										>Inactive</span
 									>
 								{/if}

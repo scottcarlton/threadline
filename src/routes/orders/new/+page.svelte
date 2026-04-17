@@ -3,7 +3,6 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
-	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input, SearchInput } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -719,20 +718,23 @@
 	let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 	async function searchAccounts(query: string) {
-		const orgId = data.organization?.id;
-		if (!orgId) return;
+		if (!data.organization?.id) return;
 		accountSearching = true;
-		let q = supabase
-			.from('accounts')
-			.select('id, business_name, contact_email, address_line1, address_line2, city, state, zip')
-			.eq('organization_id', orgId)
-			.eq('is_active', true)
-			.is('archived_at', null)
-			.order('business_name')
-			.limit(30);
-		if (query.trim()) q = q.ilike('business_name', `%${query.trim()}%`);
-		const { data: rows } = await q;
-		accountMatches = (rows ?? []) as Account[];
+		// Server endpoint handles federation (own org + active connections).
+		const url = new URL('/api/accounts/search', window.location.origin);
+		if (query.trim()) url.searchParams.set('q', query.trim());
+		url.searchParams.set('limit', '30');
+		try {
+			const res = await fetch(url.toString());
+			if (res.ok) {
+				const body = (await res.json()) as { accounts: Account[] };
+				accountMatches = body.accounts ?? [];
+			} else {
+				accountMatches = [];
+			}
+		} catch {
+			accountMatches = [];
+		}
 		accountSearching = false;
 	}
 

@@ -11,7 +11,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		const { data: selfBrand } = await supabase
 			.from('brands')
 			.select('id, name')
-			.eq('organization_id', organization.id)
 			.eq('is_self_brand', true)
 			.single();
 
@@ -24,7 +23,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 					'*, product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order)'
 				)
 				.eq('brand_id', selfBrand.id)
-				.eq('organization_id', organization.id)
 				.order('style_number'),
 			supabase
 				.from('seasons')

@@ -26,13 +26,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	const { query } = await request.json();
+	const orgId = locals.organization.id;
 
 	if (!query || typeof query !== 'string' || query.trim().length === 0) {
 		return json({ results: [] });
 	}
 
 	const searchTerm = `%${query.trim()}%`;
-	const orgId = locals.organization.id;
 	const results: SearchResult[] = [];
 
 	// Search contacts from accounts
@@ -153,7 +153,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Search orders — match on order number, account name, or account contact
-	// First find account IDs that match the search term
 	const { data: matchingAccounts } = await locals.supabase
 		.from('accounts')
 		.select('id')

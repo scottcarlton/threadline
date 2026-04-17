@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { toast } from 'svelte-sonner';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -107,75 +108,52 @@
 		editing = true;
 	}
 
+	async function postAction(action: string, body?: FormData) {
+		const fd = body ?? new FormData();
+		loading = true;
+		const res = await fetch(`?/${action}`, { method: 'POST', body: fd });
+		loading = false;
+		const result = await res.json();
+		if (result.type === 'failure') {
+			toast.error(result.data?.message ?? 'Something went wrong');
+			return false;
+		}
+		return result;
+	}
+
 	async function handleSave() {
 		error = '';
-		loading = true;
-
-		const { error: err } = await supabase
-			.from('brand_expenses')
-			.update({
-				category: editCategory,
-				description: editDescription,
-				amount: parseFloat(editAmount),
-				expense_date: editDate,
-				notes: editNotes || null,
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', expense.id);
-
-		loading = false;
-		if (err) {
-			error = err.message;
-		} else {
+		const fd = new FormData();
+		fd.set('category', editCategory);
+		fd.set('description', editDescription);
+		fd.set('amount', editAmount);
+		fd.set('expense_date', editDate);
+		fd.set('notes', editNotes);
+		const ok = await postAction('update', fd);
+		if (ok) {
 			editing = false;
 			invalidateAll();
 		}
 	}
 
 	async function handleSubmit() {
-		loading = true;
-		await supabase
-			.from('brand_expenses')
-			.update({
-				status: 'submitted',
-				submitted_at: new Date().toISOString(),
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', expense.id);
-		loading = false;
-		invalidateAll();
+		const ok = await postAction('submit');
+		if (ok) invalidateAll();
 	}
 
 	async function handleApprove() {
-		loading = true;
-		await supabase
-			.from('brand_expenses')
-			.update({
-				status: 'approved',
-				reviewed_by: data.user?.id,
-				approved_at: new Date().toISOString(),
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', expense.id);
-		loading = false;
-		invalidateAll();
+		const ok = await postAction('approve');
+		if (ok) invalidateAll();
 	}
 
 	async function handleReject() {
-		loading = true;
-		await supabase
-			.from('brand_expenses')
-			.update({
-				status: 'rejected',
-				reviewed_by: data.user?.id,
-				review_notes: reviewNotes || null,
-				rejected_at: new Date().toISOString(),
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', expense.id);
-		loading = false;
-		showRejectForm = false;
-		invalidateAll();
+		const fd = new FormData();
+		fd.set('review_notes', reviewNotes);
+		const ok = await postAction('reject', fd);
+		if (ok) {
+			showRejectForm = false;
+			invalidateAll();
+		}
 	}
 
 	async function handleDelete() {
@@ -188,8 +166,8 @@
 			});
 		}
 
-		await supabase.from('brand_expenses').delete().eq('id', expense.id);
-		goto(resolve('/expenses'));
+		const ok = await postAction('delete');
+		if (ok) goto(resolve('/expenses'));
 	}
 
 	async function handleFiles(files: File[]) {

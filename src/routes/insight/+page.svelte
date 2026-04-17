@@ -573,7 +573,7 @@
 								</div>
 							</div>
 							{#if !cl.hasConnectedRep}
-								<Button size="sm" href="/settings/connections">Invite reps</Button>
+								<Button size="sm" href="/reps">Invite reps</Button>
 							{/if}
 						</li>
 						<li class="flex items-center justify-between py-3">
@@ -650,9 +650,7 @@
 															: 'No orders yet'}
 													</div>
 												</div>
-												<Button variant="ghost" size="sm" href="/settings/connections"
-													>Manage</Button
-												>
+												<Button variant="ghost" size="sm" href="/reps">Manage</Button>
 											</li>
 										{/each}
 									</ul>

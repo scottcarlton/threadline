@@ -8,7 +8,12 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 
+	import type { ConnectedRep } from '$lib/server/federation.js';
+
 	let { data } = $props();
+
+	const connectedReps = $derived((data.connectedReps ?? []) as ConnectedRep[]);
+	const activeConnectedReps = $derived(connectedReps.filter((c) => c.status === 'active'));
 
 	type RepRow = {
 		id: string;
@@ -370,7 +375,40 @@
 		</div>
 	{/if}
 
-	{#if reps.length === 0 && pendingInvites.length === 0}
+	<!-- Connected External Rep Agencies -->
+	{#if activeConnectedReps.length > 0}
+		<div class="space-y-2">
+			<h2 class="text-sm font-semibold text-muted-foreground">Connected Rep Agencies</h2>
+			{#each activeConnectedReps as conn (conn.connection_id)}
+				<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
+					<div class="flex items-center gap-3">
+						<div
+							class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-sm font-bold text-blue-600"
+						>
+							{conn.rep_org_name.charAt(0).toUpperCase()}
+						</div>
+						<div>
+							<p class="text-sm font-medium">{conn.rep_org_name}</p>
+							<p class="text-sm text-muted-foreground">
+								{conn.order_count} order{conn.order_count !== 1 ? 's' : ''} · {fmt.format(
+									conn.revenue
+								)}
+								{#if conn.connected_at}
+									· Connected {new Date(conn.connected_at).toLocaleDateString()}
+								{/if}
+							</p>
+						</div>
+					</div>
+					<span
+						class="inline-flex rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-normal text-blue-600 dark:text-blue-400"
+						>Connected</span
+					>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	{#if reps.length === 0 && pendingInvites.length === 0 && activeConnectedReps.length === 0}
 		<div class="flex flex-col items-center justify-center py-16">
 			<div class="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
 				<svg
