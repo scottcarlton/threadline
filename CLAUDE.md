@@ -132,6 +132,7 @@ Consult these before working in the relevant area. Do **not** inline their conte
 - `docs/brd/features.md` — feature requirements. Read before implementing any feature.
 - `docs/brd/roles-permissions.md` — RBAC rules. Read before touching auth, roles, or permissions.
 - `docs/brd/marketing.md` — marketing and launch requirements.
+- `docs/brd/permissions-implementation-map.md` — RLS helpers, per-table contracts, route/API classification, federation direction cheat-sheet. Read before touching RLS policies, adding tables, or wiring cross-org routes.
 
 ### Brand
 
