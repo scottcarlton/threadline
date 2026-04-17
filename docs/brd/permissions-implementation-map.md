@@ -280,6 +280,8 @@ For each route with a `+page.server.ts`, the tables queried and whether it needs
 
 ## A.6 Federation Direction Cheat-Sheet
 
+> **ADR:** [`docs/adr/0001-federation-model.md`](../adr/0001-federation-model.md) — records the accepted decision and rationale for one federation model per direction.
+
 Federation is **asymmetric**. The two directions use different mechanisms.
 
 ### MBISR (rep org) sees BOA (brand org) data
