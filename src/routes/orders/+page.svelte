@@ -33,8 +33,24 @@
 		source_org?: { name?: string | null } | null;
 	};
 
+	import { debounce } from '$lib/utils/debounce.js';
+
+	const PAGE_SIZE = 50;
+
 	let { data } = $props();
-	const orders = $derived(data.orders as OrderRow[]);
+
+	// Mutable orders list — initial page from server, appended via infinite scroll
+	let orderList = $state<OrderRow[]>([]);
+	let hasMore = $state(false);
+	let loadingMore = $state(false);
+	let sentinelEl = $state<HTMLDivElement | null>(null);
+
+	// Sync from server data when filters/search change (SvelteKit re-runs load)
+	$effect(() => {
+		orderList = data.orders as OrderRow[];
+		hasMore = Boolean(data.hasMore);
+	});
+
 	const seasons = $derived(data.seasons as Season[]);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
 	const showDates = $derived(data.showDates ?? []);
@@ -101,15 +117,57 @@
 
 	let search = $state($page.url.searchParams.get('search') ?? '');
 	const filtered = $derived(
-		orders.filter((o) => {
+		orderList.filter((o) => {
+			const activeType = $page.url.searchParams.get('type') ?? 'order';
 			if (activeType !== 'all' && o.order_type !== activeType) return false;
-			return (
-				o.order_number.toLowerCase().includes(search.toLowerCase()) ||
-				(o.accounts?.business_name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
-				(o.brands?.name?.toLowerCase().includes(search.toLowerCase()) ?? false)
-			);
+			return true;
 		})
 	);
+
+	// Debounced server-side search
+	const debouncedSearch = debounce((value: string) => {
+		setFilter('search', value);
+	}, 300);
+
+	function onSearchInput(e: Event) {
+		const value = (e.target as HTMLInputElement).value;
+		search = value;
+		debouncedSearch(value);
+	}
+
+	// Infinite scroll — load more orders
+	async function loadMore() {
+		if (loadingMore || !hasMore) return;
+		loadingMore = true;
+		try {
+			const params = new URLSearchParams($page.url.searchParams);
+			params.set('offset', String(orderList.length));
+			params.set('limit', String(PAGE_SIZE));
+			const res = await fetch(`/api/orders/list?${params.toString()}`);
+			if (res.ok) {
+				const json = await res.json();
+				orderList = [...orderList, ...(json.orders as OrderRow[])];
+				hasMore = Boolean(json.hasMore);
+			}
+		} finally {
+			loadingMore = false;
+		}
+	}
+
+	// IntersectionObserver for sentinel
+	$effect(() => {
+		if (!sentinelEl) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting && hasMore && !loadingMore) {
+					loadMore();
+				}
+			},
+			{ rootMargin: '200px' }
+		);
+		observer.observe(sentinelEl);
+		return () => observer.disconnect();
+	});
 
 	// Bulk selection
 	let selectedIds = $state<Set<string>>(new Set());
@@ -354,7 +412,13 @@
 </script>
 
 <div class="space-y-6">
-	<PageHeader title="Orders" subtitle="{orders.length} order{orders.length !== 1 ? 's' : ''}">
+	<PageHeader
+		title="Orders"
+		subtitle="{data.totalCount ?? orderList.length} order{(data.totalCount ?? orderList.length) !==
+		1
+			? 's'
+			: ''}"
+	>
 		{#if filtered.length > 0 && canExport}
 			<Button variant="outline" onclick={exportOrders}>Export CSV</Button>
 		{/if}
@@ -501,7 +565,12 @@
 				</svg>
 			</button>
 		{:else}
-			<SearchInput placeholder="Search orders..." bind:value={search} class="w-64" />
+			<SearchInput
+				placeholder="Search orders..."
+				value={search}
+				oninput={onSearchInput}
+				class="w-64"
+			/>
 			<SelectField
 				value={activeStatus}
 				items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
@@ -509,28 +578,6 @@
 				class="min-w-[120px]"
 				onValueChange={(v) => setFilter('status', v)}
 			/>
-			{#if !isBrandOrg}
-				<SelectField
-					value={$page.url.searchParams.get('brand') ?? ''}
-					items={[
-						{ value: '', label: 'All Brands' },
-						...brands.map((b) => ({ value: b.id, label: b.name }))
-					]}
-					placeholder="All Brands"
-					onValueChange={(v) => setFilter('brand', v)}
-				/>
-			{/if}
-			{#if isBrandOrg && reps.length > 0}
-				<SelectField
-					value={$page.url.searchParams.get('rep') ?? ''}
-					items={[
-						{ value: '', label: 'All Reps' },
-						...reps.map((r) => ({ value: r.id, label: r.name }))
-					]}
-					placeholder="All Reps"
-					onValueChange={(v) => setFilter('rep', v)}
-				/>
-			{/if}
 			{#if showDates.length > 0}
 				<SelectField
 					value={$page.url.searchParams.get('show') ?? ''}
@@ -552,6 +599,28 @@
 				/>
 			{/if}
 			<div class="flex-1"></div>
+			{#if isBrandOrg && reps.length > 0}
+				<SelectField
+					value={$page.url.searchParams.get('rep') ?? ''}
+					items={[
+						{ value: '', label: 'All Reps' },
+						...reps.map((r) => ({ value: r.id, label: r.name }))
+					]}
+					placeholder="All Reps"
+					onValueChange={(v) => setFilter('rep', v)}
+				/>
+			{/if}
+			{#if !isBrandOrg}
+				<SelectField
+					value={$page.url.searchParams.get('brand') ?? ''}
+					items={[
+						{ value: '', label: 'All Brands' },
+						...brands.map((b) => ({ value: b.name, label: b.name }))
+					]}
+					placeholder="All Brands"
+					onValueChange={(v) => setFilter('brand', v)}
+				/>
+			{/if}
 			<SelectField
 				value={activeDatePreset}
 				items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
@@ -576,10 +645,11 @@
 				/>
 			{/if}
 			<SelectField
+				class="min-w-[127px]"
 				value={$page.url.searchParams.get('season') ?? ''}
 				items={[
 					{ value: '', label: 'All Seasons' },
-					...seasons.map((s) => ({ value: s.id, label: s.name }))
+					...seasons.map((s) => ({ value: s.name, label: s.name }))
 				]}
 				placeholder="All Seasons"
 				onValueChange={(v) => setFilter('season', v)}
@@ -834,6 +904,15 @@
 				</tbody>
 			</table>
 		</div>
+
+		<!-- Infinite scroll sentinel -->
+		{#if hasMore || loadingMore}
+			<div bind:this={sentinelEl} class="flex items-center justify-center py-6">
+				{#if loadingMore}
+					<span class="text-sm text-muted-foreground">Loading more orders…</span>
+				{/if}
+			</div>
+		{/if}
 	{/if}
 </div>
 

@@ -12,6 +12,7 @@
 	import Switch from '$lib/components/ui/switch.svelte';
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
+	import { SelectField } from '$lib/components/ui/select/index.js';
 
 	type Brand = { id: string; name: string };
 	type Season = { id: string; name: string; sort_order: number | null };
@@ -93,6 +94,16 @@
 	const allLocations = $derived(data.locations as LocationRow[]);
 	const brands = $derived(data.brands as Brand[]);
 	const seasons = $derived(data.seasons as Season[]);
+	// Deduplicated by name for dropdown display; full `seasons` used for ID resolution
+	const dedupedSeasons = $derived.by(() => {
+		const seen = new Set<string>();
+		return seasons.filter((s) => {
+			const key = s.name.trim().toLowerCase();
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
+	});
 	const deliveries = $derived(data.deliveries as SeasonDeliveryRow[]);
 	const isBuyer = $derived(data.isBuyer === true);
 	const isBrandOrg = $derived(data.isBrandOrg === true);
@@ -499,8 +510,8 @@
 	// ── Items / modal ───────────────────────────────────────────────────────
 	let modalOpen = $state(false);
 	let modalSearch = $state('');
-	let modalSeason = $state<string | null>(null);
-	let modalBrand = $state<string | null>(null);
+	let modalSeason = $state('');
+	let modalBrand = $state('');
 	let modalPriceRange = $state<[number, number]>([0, 500]);
 	let modalAtsOnly = $state(false);
 	let modalProducts = $state<Product[]>([]);
@@ -514,9 +525,16 @@
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams();
 		if (modalSearch) params.set('q', modalSearch);
-		const brandIds = modalBrand ? [modalBrand] : allowedBrandIds;
+		const brandIds = modalBrand
+			? brands.filter((b) => b.name === modalBrand).map((b) => b.id)
+			: allowedBrandIds;
 		for (const b of brandIds) params.append('brand_id', b);
-		if (modalSeason) params.append('season_id', modalSeason);
+		if (modalSeason) {
+			const key = modalSeason.trim().toLowerCase();
+			for (const s of seasons) {
+				if (s.name.trim().toLowerCase() === key) params.append('season_id', s.id);
+			}
+		}
 		if (modalPriceRange[0] > 0) params.set('min_price', String(modalPriceRange[0]));
 		if (modalPriceRange[1] < 500) params.set('max_price', String(modalPriceRange[1]));
 		if (modalAtsOnly) params.set('ats', 'true');
@@ -1570,27 +1588,33 @@
 				oninput={onModalSearchChange}
 				class="w-64"
 			/>
-			<select
-				class="h-10 rounded-md border bg-background px-3 text-sm"
-				bind:value={modalSeason}
-				onchange={loadModalProducts}
-			>
-				<option value={null}>All seasons</option>
-				{#each seasons as s (s.id)}
-					<option value={s.id}>{s.name}</option>
-				{/each}
-			</select>
+			<SelectField
+				value={modalSeason}
+				items={[
+					{ value: '', label: 'All seasons' },
+					...dedupedSeasons.map((s) => ({ value: s.name, label: s.name }))
+				]}
+				placeholder="All seasons"
+				onValueChange={(v) => {
+					modalSeason = v;
+					loadModalProducts();
+				}}
+			/>
 			{#if cart.brandFilter === 'all' || (cart.brandFilter as string[]).length > 1}
-				<select
-					class="h-10 rounded-md border bg-background px-3 text-sm"
-					bind:value={modalBrand}
-					onchange={loadModalProducts}
-				>
-					<option value={null}>All brands</option>
-					{#each brands.filter((b) => allowedBrandIds.includes(b.id)) as b (b.id)}
-						<option value={b.id}>{b.name}</option>
-					{/each}
-				</select>
+				<SelectField
+					value={modalBrand}
+					items={[
+						{ value: '', label: 'All brands' },
+						...brands
+							.filter((b) => allowedBrandIds.includes(b.id))
+							.map((b) => ({ value: b.name, label: b.name }))
+					]}
+					placeholder="All brands"
+					onValueChange={(v) => {
+						modalBrand = v;
+						loadModalProducts();
+					}}
+				/>
 			{/if}
 			<PriceFilterDropdown
 				bind:value={modalPriceRange}
