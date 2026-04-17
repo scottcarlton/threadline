@@ -635,7 +635,6 @@
 			organization={data.organization}
 			{orgDisplayName}
 			{sidebarOpen}
-			showTeam={!isBrandScoped && !data.isBuyer && data.membership?.role !== 'sales'}
 			role={data.membership?.role ?? null}
 			isBuyer={data.isBuyer === true}
 			onsidebarToggle={() => (sidebarOpen = !sidebarOpen)}
