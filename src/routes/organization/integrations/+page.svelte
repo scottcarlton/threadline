@@ -296,7 +296,7 @@
 			</div>
 		{/each}
 
-		{#each filtered.filter((i) => i.comingSoon) as integration (integration.provider)}
+		{#each filtered.filter((i) => i.comingSoon) as integration (integration.name)}
 			<div class="space-y-3 rounded-lg border p-5 opacity-50">
 				<div class="flex h-10 w-10 items-center justify-center">
 					<svg
