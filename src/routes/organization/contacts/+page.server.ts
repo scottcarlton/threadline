@@ -1,48 +1,21 @@
 import type { PageServerLoad } from './$types';
-import { supabaseAdmin } from '$lib/server/supabase.js';
-import { getConnectedBrandOrgIds, getConnectedRepOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, organization } = locals;
 	if (!organization) return { knownContacts: [], discoveredContacts: [] };
 
-	// Fetch connected org IDs for federation (both directions)
-	let connectedOrgIds: string[] = [];
-	if (locals.orgType === 'rep') {
-		connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
-	} else if (locals.orgType === 'brand') {
-		connectedOrgIds = await getConnectedRepOrgIds(supabaseAdmin, organization.id);
-	}
-
-	const [accountsRes, brandsRes, fedAccountsRes, fedBrandsRes, discoveredRes] = await Promise.all([
+	// RLS handles federation visibility — no admin client or connected org queries needed
+	const [accountsRes, brandsRes, discoveredRes] = await Promise.all([
 		supabase
 			.from('accounts')
 			.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone')
-			.eq('organization_id', organization.id)
 			.not('contact_email', 'is', null)
 			.order('contact_first_name'),
 		supabase
 			.from('brands')
 			.select('id, name, contact_first_name, contact_last_name, contact_email, contact_phone')
-			.eq('organization_id', organization.id)
 			.not('contact_email', 'is', null)
 			.order('contact_first_name'),
-		connectedOrgIds.length > 0
-			? supabaseAdmin
-					.from('accounts')
-					.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone')
-					.in('organization_id', connectedOrgIds)
-					.not('contact_email', 'is', null)
-					.order('contact_first_name')
-			: Promise.resolve({ data: [] }),
-		connectedOrgIds.length > 0
-			? supabaseAdmin
-					.from('brands')
-					.select('id, name, contact_first_name, contact_last_name, contact_email, contact_phone')
-					.in('organization_id', connectedOrgIds)
-					.not('contact_email', 'is', null)
-					.order('contact_first_name')
-			: Promise.resolve({ data: [] }),
 		supabase
 			.from('discovered_contacts')
 			.select('*')
@@ -64,9 +37,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const knownContacts: KnownContact[] = [];
 	const seenEmails = new Set<string>();
 
-	// Own-org accounts + federated accounts
-	const allAccounts = [...(accountsRes.data ?? []), ...(fedAccountsRes.data ?? [])];
-	for (const a of allAccounts) {
+	for (const a of accountsRes.data ?? []) {
 		if (a.contact_email) {
 			const key = a.contact_email.toLowerCase();
 			if (!seenEmails.has(key)) {
@@ -84,9 +55,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
-	// Own-org brands + federated brands
-	const allBrands = [...(brandsRes.data ?? []), ...(fedBrandsRes.data ?? [])];
-	for (const b of allBrands) {
+	for (const b of brandsRes.data ?? []) {
 		if (b.contact_email) {
 			const key = b.contact_email.toLowerCase();
 			if (!seenEmails.has(key)) {

@@ -1,46 +1,21 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
-import { supabaseAdmin } from '$lib/server/supabase.js';
-import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { supabase, organization } = locals;
 	if (!organization) throw error(404, 'Organization not found');
 
-	// Determine if this is a federated account — check own org first, then connected orgs
-	let isFederated = false;
-	const ownAccount = (
-		await supabase.from('accounts').select('id').eq('id', params.id).maybeSingle()
-	).data;
-
-	if (!ownAccount && locals.orgType === 'rep') {
-		const connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
-		if (connectedOrgIds.length > 0) {
-			const { data: fedCheck } = await supabaseAdmin
-				.from('accounts')
-				.select('id')
-				.eq('id', params.id)
-				.in('organization_id', connectedOrgIds)
-				.maybeSingle();
-			if (fedCheck) isFederated = true;
-		}
-	}
-
-	if (!ownAccount && !isFederated) throw error(404, 'Account not found');
-
-	// Use admin client for federated accounts so all cross-org data is visible
-	const db = isFederated ? supabaseAdmin : supabase;
-
+	// RLS handles federation visibility — just query by ID
 	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes, locationsRes] =
 		await Promise.all([
-			db.from('accounts').select('*').eq('id', params.id).single(),
-			db
+			supabase.from('accounts').select('*').eq('id', params.id).single(),
+			supabase
 				.from('orders')
 				.select('brand_id, total_amount, status, order_year, brands(id, name)')
 				.eq('account_id', params.id),
-			db
+			supabase
 				.from('orders')
 				.select(
 					'id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)'
@@ -48,7 +23,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				.eq('account_id', params.id)
 				.order('created_at', { ascending: false })
 				.limit(20),
-			db
+			supabase
 				.from('appointments')
 				.select(
 					'id, appointment_type, scheduled_date, scheduled_time, status, notes, created_at, show_dates(id, year, month, city, state, shows(name))'
@@ -56,14 +31,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				.eq('account_id', params.id)
 				.order('created_at', { ascending: false })
 				.limit(20),
-			db
+			supabase
 				.from('email_logs')
 				.select('id, to_email, subject, created_at, sent_by, profiles:sent_by(display_name)')
 				.eq('related_type', 'account')
 				.eq('related_id', params.id)
 				.order('created_at', { ascending: false })
 				.limit(20),
-			db
+			supabase
 				.from('account_locations')
 				.select(
 					'id, account_id, label, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country, notes, is_default, sort_order'
@@ -100,15 +75,17 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const brandSummaries = Array.from(brandMap.values()).sort((a, b) => b.totalSales - a.totalSales);
 
-	// Get health score — use the account's own org for health computation
-	const healthOrgId = isFederated ? (account.organization_id as string) : organization.id;
-	const healthMap = await computeAccountHealth(isFederated ? supabaseAdmin : supabase, healthOrgId);
+	// Get health score — use the user's own org for health computation
+	const healthMap = await computeAccountHealth(supabase, organization.id);
 	const health = healthMap.get(params.id) ?? null;
 
 	// Load tags for this account and available tags
 	const [tagAssignmentsRes, availableTagsRes] = await Promise.all([
-		db.from('account_tag_assignments').select('*, account_tags(*)').eq('account_id', params.id),
-		db
+		supabase
+			.from('account_tag_assignments')
+			.select('*, account_tags(*)')
+			.eq('account_id', params.id),
+		supabase
 			.from('account_tags')
 			.select('*')
 			.eq('organization_id', account.organization_id)
@@ -116,26 +93,26 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	]);
 
 	// Load buyer users for this account
-	const { data: buyerUsers } = await db
+	const { data: buyerUsers } = await supabase
 		.from('account_users')
 		.select('*, profiles(display_name)')
 		.eq('account_id', params.id);
 
 	// Load buyer brand access
-	const { data: buyerBrandAccess } = await db
+	const { data: buyerBrandAccess } = await supabase
 		.from('account_brand_access')
 		.select('*, brands(name)')
 		.eq('account_id', params.id);
 
 	// Load pending buyer invitations
-	const { data: buyerInvitations } = await db
+	const { data: buyerInvitations } = await supabase
 		.from('buyer_invitations')
 		.select('*')
 		.eq('account_id', params.id)
 		.is('accepted_at', null);
 
 	// Load all brands for the invite dialog
-	const { data: allBrands } = await db
+	const { data: allBrands } = await supabase
 		.from('brands')
 		.select('id, name')
 		.eq('organization_id', account.organization_id)

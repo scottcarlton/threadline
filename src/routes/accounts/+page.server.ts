@@ -1,8 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
-import { supabaseAdmin } from '$lib/server/supabase.js';
-import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
@@ -11,23 +9,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const currentYear = new Date().getFullYear();
 
-	// For rep orgs, also fetch accounts from connected brand orgs
-	const connectedOrgIds =
-		locals.orgType === 'rep' ? await getConnectedBrandOrgIds(supabaseAdmin, organization.id) : [];
-
-	const [accountsRes, fedAccountsRes, ordersRes, healthMap, tagAssignmentsRes] = await Promise.all([
-		supabase
-			.from('accounts')
-			.select('*, territories(name)')
-			.eq('organization_id', organization.id)
-			.order('business_name'),
-		connectedOrgIds.length > 0
-			? supabaseAdmin
-					.from('accounts')
-					.select('*, territories(name)')
-					.in('organization_id', connectedOrgIds)
-					.order('business_name')
-			: Promise.resolve({ data: [] }),
+	// RLS handles federation visibility — no need for admin client or connected org queries
+	const [accountsRes, ordersRes, healthMap, tagAssignmentsRes] = await Promise.all([
+		supabase.from('accounts').select('*, territories(name)').order('business_name'),
 		supabase
 			.from('orders')
 			.select('account_id, total_amount')
@@ -37,13 +21,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		supabase.from('account_tag_assignments').select('account_id, account_tags(id, name, color)')
 	]);
 
-	// Merge own + federated accounts, deduplicate
-	const ownAccounts = accountsRes.data ?? [];
-	const ownIds = new Set(ownAccounts.map((a) => a.id));
-	const allAccounts = [
-		...ownAccounts,
-		...(fedAccountsRes.data ?? []).filter((a) => !ownIds.has(a.id))
-	];
+	const accounts = accountsRes.data ?? [];
 
 	// Build YTD totals per account
 	const totals: Record<string, number> = {};
@@ -69,7 +47,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	return {
-		accounts: allAccounts,
+		accounts,
 		accountTotals: totals,
 		accountHealth,
 		accountTags: accountTagMap

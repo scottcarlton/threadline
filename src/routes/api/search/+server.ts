@@ -32,14 +32,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	const searchTerm = `%${query.trim()}%`;
-	const orgId = locals.organization.id;
 	const results: SearchResult[] = [];
 
-	// Search contacts from accounts
+	// Search contacts from accounts — RLS handles org scoping
 	const { data: accountContacts } = await locals.supabase
 		.from('accounts')
 		.select('id, business_name, contact_first_name, contact_last_name, contact_email')
-		.eq('organization_id', orgId)
 		.or(`contact_first_name.not.is.null,contact_last_name.not.is.null`)
 		.or(
 			`contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
@@ -62,11 +60,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	// Search contacts from brands
+	// Search contacts from brands — RLS handles org scoping
 	const { data: brandContacts } = await locals.supabase
 		.from('brands')
 		.select('id, name, contact_first_name, contact_last_name, contact_email')
-		.eq('organization_id', orgId)
 		.or(`contact_first_name.not.is.null,contact_last_name.not.is.null`)
 		.or(
 			`contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
@@ -89,11 +86,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	// Search saved discovered contacts
+	// Search saved discovered contacts — RLS handles org scoping
 	const { data: discoveredContacts } = await locals.supabase
 		.from('discovered_contacts')
 		.select('id, name, email, status')
-		.eq('organization_id', orgId)
 		.eq('status', 'saved')
 		.or(`name.ilike.${searchTerm},email.ilike.${searchTerm}`)
 		.limit(3);
@@ -109,11 +105,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	// Search brands
+	// Search brands — RLS handles org scoping
 	const { data: brands } = await locals.supabase
 		.from('brands')
 		.select('id, name, contact_first_name, contact_last_name, contact_email, website')
-		.eq('organization_id', orgId)
 		.or(
 			`name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
 		)
@@ -131,11 +126,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	// Search accounts
+	// Search accounts — RLS handles org scoping
 	const { data: accounts } = await locals.supabase
 		.from('accounts')
 		.select('id, business_name, contact_first_name, contact_last_name, contact_email, city, state')
-		.eq('organization_id', orgId)
 		.or(
 			`business_name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm},city.ilike.${searchTerm}`
 		)
@@ -153,11 +147,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Search orders — match on order number, account name, or account contact
-	// First find account IDs that match the search term
+	// First find account IDs that match the search term — RLS handles org scoping
 	const { data: matchingAccounts } = await locals.supabase
 		.from('accounts')
 		.select('id')
-		.eq('organization_id', orgId)
 		.or(
 			`business_name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
 		)
@@ -166,12 +159,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const matchingAccountIds = (matchingAccounts ?? []).map((a) => a.id);
 
 	// Build order query — match on order_number OR account_id in matching accounts
+	// RLS handles org scoping
 	let orderQuery = locals.supabase
 		.from('orders')
 		.select(
 			'id, order_number, status, order_year, created_at, brands(name), accounts(business_name, contact_first_name, contact_last_name, contact_email), seasons(name)'
 		)
-		.eq('organization_id', orgId)
 		.order('created_at', { ascending: false });
 
 	if (matchingAccountIds.length > 0) {

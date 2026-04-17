@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-import { listFederatedOrders, getConnectedBrandOrgIds } from '$lib/server/federation.js';
+import { listFederatedOrders } from '$lib/server/federation.js';
 import { incrementDate } from '$lib/utils/date-presets.js';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -268,40 +268,23 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (from) query = query.gte('created_at', from);
 	if (toExclusive) query = query.lt('created_at', toExclusive);
 
-	// Fetch connected brand org IDs for rep federation
-	const connectedOrgIds =
-		locals.orgType === 'rep' ? await getConnectedBrandOrgIds(supabaseAdmin, organization.id) : [];
-
-	const [ordersResult, seasonsResult, brandsResult, fedBrandsResult, showDatesResult] =
-		await Promise.all([
-			query,
-			supabase
-				.from('seasons')
-				.select('*')
-				.eq('organization_id', organization.id)
-				.eq('is_active', true)
-				.order('sort_order'),
-			supabase
-				.from('brands')
-				.select('id, name')
-				.eq('organization_id', organization.id)
-				.eq('is_active', true)
-				.order('name'),
-			connectedOrgIds.length > 0
-				? supabaseAdmin
-						.from('brands')
-						.select('id, name')
-						.in('organization_id', connectedOrgIds)
-						.eq('is_active', true)
-						.order('name')
-				: Promise.resolve({ data: [] }),
-			supabase
-				.from('show_dates')
-				.select('id, show_id, year, month, city, state, shows(name)')
-				.eq('organization_id', organization.id)
-				.order('year')
-				.order('month')
-		]);
+	// RLS handles federation visibility for brands — no need for admin client
+	const [ordersResult, seasonsResult, brandsResult, showDatesResult] = await Promise.all([
+		query,
+		supabase
+			.from('seasons')
+			.select('*')
+			.eq('organization_id', organization.id)
+			.eq('is_active', true)
+			.order('sort_order'),
+		supabase.from('brands').select('id, name').eq('is_active', true).order('name'),
+		supabase
+			.from('show_dates')
+			.select('id, show_id, year, month, city, state, shows(name)')
+			.eq('organization_id', organization.id)
+			.order('year')
+			.order('month')
+	]);
 
 	const orders = ordersResult.data ?? [];
 
@@ -373,17 +356,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	};
 
-	const ownBrands = brandsResult.data ?? [];
-	const ownBrandIds = new Set(ownBrands.map((b) => b.id));
-	const allBrands = [
-		...ownBrands,
-		...(fedBrandsResult.data ?? []).filter((b) => !ownBrandIds.has(b.id))
-	];
-
 	return {
 		orders,
 		seasons: seasonsResult.data ?? [],
-		brands: allBrands,
+		brands: brandsResult.data ?? [],
 		showDates: showDatesResult.data ?? [],
 		reps: [] as Array<{ id: string; name: string }>,
 		isBrandOrg: false,

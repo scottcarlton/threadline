@@ -1,37 +1,22 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { supabaseAdmin } from '$lib/server/supabase.js';
-import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, `/shop/${params.productId}`);
 	const { supabase, organization } = locals;
 	if (!organization) throw error(404, 'Organization not found');
 
-	// Try own-org first, then federated
-	let brand = (await supabase.from('brands').select('id, name').eq('id', params.id).single()).data;
-	let isFederated = false;
-
-	if (!brand && locals.orgType === 'rep') {
-		const connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
-		if (connectedOrgIds.length > 0) {
-			const { data: fedBrand } = await supabaseAdmin
-				.from('brands')
-				.select('id, name')
-				.eq('id', params.id)
-				.in('organization_id', connectedOrgIds)
-				.single();
-			brand = fedBrand;
-			isFederated = true;
-		}
-	}
+	// RLS handles federation visibility — just query by ID
+	const { data: brand } = await supabase
+		.from('brands')
+		.select('id, name')
+		.eq('id', params.id)
+		.single();
 
 	if (!brand) throw error(404, 'Brand not found');
 
-	const db = isFederated ? supabaseAdmin : supabase;
-
 	const [productRes, seasonsRes] = await Promise.all([
-		db
+		supabase
 			.from('products')
 			.select('*, product_variants(*), product_images(*)')
 			.eq('id', params.productId)

@@ -11,8 +11,6 @@ import {
 import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import { notifyBrandAdmins } from '$lib/server/notifications.js';
-import { supabaseAdmin } from '$lib/server/supabase.js';
-import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, organization, user } = locals;
@@ -63,7 +61,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			(() => {
 				let q = supabase.from('brands').select('id, name, is_self_brand').eq('is_active', true);
 				if (buyerBrandIds) q = q.in('id', buyerBrandIds.length ? buyerBrandIds : ['__none__']);
-				else q = q.eq('organization_id', organization.id);
+				// RLS handles federation visibility — no org_id filter needed for non-buyer
 				return q.order('name');
 			})(),
 			supabase
@@ -95,23 +93,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
 
-	let brands = brandsRes.data ?? [];
+	const brands = brandsRes.data ?? [];
 	const isBrandOrg = locals.orgType === 'brand';
-
-	// Merge federated brands for rep orgs
-	if (!isBuyer && locals.orgType === 'rep') {
-		const connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
-		if (connectedOrgIds.length > 0) {
-			const { data: fedBrands } = await supabaseAdmin
-				.from('brands')
-				.select('id, name, is_self_brand')
-				.in('organization_id', connectedOrgIds)
-				.eq('is_active', true)
-				.order('name');
-			const ownIds = new Set(brands.map((b) => b.id));
-			brands = [...brands, ...(fedBrands ?? []).filter((b) => !ownIds.has(b.id))];
-		}
-	}
 
 	const selfBrandId = isBrandOrg
 		? (brands.find((b) => (b as { is_self_brand?: boolean }).is_self_brand)?.id ?? null)

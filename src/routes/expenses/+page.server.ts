@@ -1,6 +1,4 @@
 import type { PageServerLoad } from './$types';
-import { supabaseAdmin } from '$lib/server/supabase.js';
-import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const { supabase, organization } = locals;
@@ -39,26 +37,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (brandId) query = query.eq('brand_id', brandId);
 	if (category) query = query.eq('category', category);
 
-	// Fetch federated brands for rep orgs
-	const connectedOrgIds =
-		locals.orgType === 'rep' ? await getConnectedBrandOrgIds(supabaseAdmin, organization.id) : [];
-
-	const [expensesResult, brandsResult, fedBrandsResult] = await Promise.all([
+	// RLS handles federation visibility for brands — no admin client needed
+	const [expensesResult, brandsResult] = await Promise.all([
 		query,
-		supabase
-			.from('brands')
-			.select('id, name')
-			.eq('organization_id', organization.id)
-			.eq('is_active', true)
-			.order('name'),
-		connectedOrgIds.length > 0
-			? supabaseAdmin
-					.from('brands')
-					.select('id, name')
-					.in('organization_id', connectedOrgIds)
-					.eq('is_active', true)
-					.order('name')
-			: Promise.resolve({ data: [] })
+		supabase.from('brands').select('id, name').eq('is_active', true).order('name')
 	]);
 
 	const expenses = expensesResult.data ?? [];
@@ -97,16 +79,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		rejectedCount
 	};
 
-	const ownBrands = brandsResult.data ?? [];
-	const ownBrandIds = new Set(ownBrands.map((b) => b.id));
-	const allBrands = [
-		...ownBrands,
-		...(fedBrandsResult.data ?? []).filter((b) => !ownBrandIds.has(b.id))
-	];
-
 	return {
 		expenses,
-		brands: allBrands,
+		brands: brandsResult.data ?? [],
 		metrics
 	};
 };

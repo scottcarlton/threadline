@@ -10,7 +10,15 @@
 
 	let { data } = $props();
 	let showImport = $state(false);
-	const federatedIds = $derived(new Set(data.federatedBrandIds ?? []));
+	const federatedIds = $derived(
+		new Set(
+			data.organizationId
+				? (data.brands as Brand[])
+						.filter((b) => b.organization_id !== data.organizationId)
+						.map((b) => b.id)
+				: []
+		)
+	);
 
 	const brandColumns = [
 		{ key: 'name', label: 'Name', required: true },
