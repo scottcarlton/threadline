@@ -11,6 +11,8 @@ import {
 import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import { notifyBrandAdmins } from '$lib/server/notifications.js';
+import { supabaseAdmin } from '$lib/server/supabase.js';
+import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, organization, user } = locals;
@@ -93,8 +95,24 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
 
-	const brands = brandsRes.data ?? [];
+	let brands = brandsRes.data ?? [];
 	const isBrandOrg = locals.orgType === 'brand';
+
+	// Merge federated brands for rep orgs
+	if (!isBuyer && locals.orgType === 'rep') {
+		const connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
+		if (connectedOrgIds.length > 0) {
+			const { data: fedBrands } = await supabaseAdmin
+				.from('brands')
+				.select('id, name, is_self_brand')
+				.in('organization_id', connectedOrgIds)
+				.eq('is_active', true)
+				.order('name');
+			const ownIds = new Set(brands.map((b) => b.id));
+			brands = [...brands, ...(fedBrands ?? []).filter((b) => !ownIds.has(b.id))];
+		}
+	}
+
 	const selfBrandId = isBrandOrg
 		? (brands.find((b) => (b as { is_self_brand?: boolean }).is_self_brand)?.id ?? null)
 		: null;

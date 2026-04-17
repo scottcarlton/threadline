@@ -107,12 +107,41 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		pendingAmount: pendingExpenses.reduce((s, e) => s + Number(e.amount), 0)
 	};
 
+	// For federated brands, pull the brand org admin's profile as the contact
+	let orgAdminContact: { display_name: string; email: string } | null = null;
+	if (isFederated) {
+		const { data: adminMember } = await supabaseAdmin
+			.from('organization_members')
+			.select('profiles!organization_members_profile_id_fkey(id, display_name)')
+			.eq('organization_id', brand.organization_id)
+			.in('role', ['admin', 'owner'])
+			.limit(1)
+			.single();
+
+		if (adminMember) {
+			const profile = adminMember.profiles as
+				| { id: string; display_name: string }
+				| { id: string; display_name: string }[]
+				| null;
+			const p = Array.isArray(profile) ? profile[0] : profile;
+			if (p) {
+				// Get the email from auth.users
+				const { data: authData } = await supabaseAdmin.auth.admin.getUserById(p.id);
+				orgAdminContact = {
+					display_name: p.display_name ?? '',
+					email: authData?.user?.email ?? ''
+				};
+			}
+		}
+	}
+
 	return {
 		brand,
 		brandAssets: assetsResult.data ?? [],
 		productCount: productCountResult.count ?? 0,
 		expenseSummary,
 		performance,
-		isFederated
+		isFederated,
+		orgAdminContact
 	};
 };

@@ -1,14 +1,19 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
+import { supabaseAdmin } from '$lib/server/supabase.js';
+import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { supabase, organization } = locals;
 
+	// Try own-org account first, then check federated
+	let accountQuery = supabase.from('accounts').select('*').eq('id', params.id).single();
+
 	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes, locationsRes] =
 		await Promise.all([
-			supabase.from('accounts').select('*').eq('id', params.id).single(),
+			accountQuery,
 			supabase
 				.from('orders')
 				.select('brand_id, total_amount, status, order_year, brands(id, name)')
@@ -46,7 +51,20 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				.order('sort_order', { ascending: true })
 		]);
 
-	if (accountRes.error || !accountRes.data) {
+	let account = accountRes.data;
+	if (!account && organization && locals.orgType === 'rep') {
+		const connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
+		if (connectedOrgIds.length > 0) {
+			const { data: fedAccount } = await supabaseAdmin
+				.from('accounts')
+				.select('*')
+				.eq('id', params.id)
+				.in('organization_id', connectedOrgIds)
+				.single();
+			account = fedAccount;
+		}
+	}
+	if (!account) {
 		throw error(404, 'Account not found');
 	}
 
@@ -195,7 +213,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	activity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 	return {
-		account: accountRes.data,
+		account,
 		brandSummaries,
 		accountHealth: health,
 		buyerUsers: buyerUsers ?? [],

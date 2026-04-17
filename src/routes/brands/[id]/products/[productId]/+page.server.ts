@@ -1,14 +1,37 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase.js';
+import { getConnectedBrandOrgIds } from '$lib/server/federation.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, `/shop/${params.productId}`);
 	const { supabase, organization } = locals;
 	if (!organization) throw error(404, 'Organization not found');
 
-	const [brandRes, productRes, seasonsRes] = await Promise.all([
-		supabase.from('brands').select('id, name').eq('id', params.id).single(),
-		supabase
+	// Try own-org first, then federated
+	let brand = (await supabase.from('brands').select('id, name').eq('id', params.id).single()).data;
+	let isFederated = false;
+
+	if (!brand && locals.orgType === 'rep') {
+		const connectedOrgIds = await getConnectedBrandOrgIds(supabaseAdmin, organization.id);
+		if (connectedOrgIds.length > 0) {
+			const { data: fedBrand } = await supabaseAdmin
+				.from('brands')
+				.select('id, name')
+				.eq('id', params.id)
+				.in('organization_id', connectedOrgIds)
+				.single();
+			brand = fedBrand;
+			isFederated = true;
+		}
+	}
+
+	if (!brand) throw error(404, 'Brand not found');
+
+	const db = isFederated ? supabaseAdmin : supabase;
+
+	const [productRes, seasonsRes] = await Promise.all([
+		db
 			.from('products')
 			.select('*, product_variants(*), product_images(*)')
 			.eq('id', params.productId)
@@ -22,7 +45,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.order('name')
 	]);
 
-	if (brandRes.error || !brandRes.data) throw error(404, 'Brand not found');
 	if (productRes.error || !productRes.data) throw error(404, 'Product not found');
 
 	// Style velocity for this product — orders in last 30 and 90 days
@@ -52,7 +74,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			| { account_id?: string; created_at?: string; status?: string }[]
 			| null;
 	}>;
-	// Supabase may return the joined `orders` as object or array — normalize to single object.
 	const lines: VelocityLine[] = rawLines.map((l) => ({
 		qty: l.qty,
 		unit_price: l.unit_price,
@@ -70,7 +91,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	};
 
 	return {
-		brand: brandRes.data,
+		brand,
 		product: productRes.data,
 		seasons: seasonsRes.data ?? [],
 		velocity
