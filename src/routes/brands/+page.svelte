@@ -206,7 +206,7 @@
 								>
 								{#if federatedIds.has(brand.id)}
 									<span
-										class="ml-2 inline-flex rounded-full bg-blue-500/10 px-2 py-0.5 text-sm text-blue-600 dark:text-blue-400"
+										class="ml-2 inline-flex rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-normal text-blue-600 dark:text-blue-400"
 										>Connected</span
 									>
 								{/if}
