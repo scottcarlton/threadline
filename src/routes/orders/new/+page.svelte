@@ -719,13 +719,11 @@
 	let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 	async function searchAccounts(query: string) {
-		const orgId = data.organization?.id;
-		if (!orgId) return;
+		if (!data.organization?.id) return;
 		accountSearching = true;
 		let q = supabase
 			.from('accounts')
 			.select('id, business_name, contact_email, address_line1, address_line2, city, state, zip')
-			.eq('organization_id', orgId)
 			.eq('is_active', true)
 			.is('archived_at', null)
 			.order('business_name')

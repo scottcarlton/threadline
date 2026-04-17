@@ -25,7 +25,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		supabase
 			.from('accounts')
 			.select('id, business_name, contact_first_name, contact_last_name, city, state')
-			.eq('organization_id', orgId)
 			.eq('is_active', true)
 			.order('business_name')
 	]);
