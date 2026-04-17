@@ -85,5 +85,25 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const pendingInvites = (invitationsRaw ?? []) as InvitationRow[];
 
-	return { reps, pendingInvites, selfBrandId };
+	// Connection invites (shareable links for external rep agencies)
+	const isAdmin = ['admin', 'owner'].includes(locals.membership?.role ?? '');
+	let connectionInvites: Array<{
+		id: string;
+		code: string;
+		expires_at: string;
+		max_uses: number;
+		use_count: number;
+		auto_approve: boolean;
+		created_at: string;
+	}> = [];
+	if (isAdmin) {
+		const { data } = await supabase
+			.from('connection_invites')
+			.select('id, code, expires_at, max_uses, use_count, auto_approve, created_at')
+			.eq('brand_org_id', orgId)
+			.order('created_at', { ascending: false });
+		connectionInvites = data ?? [];
+	}
+
+	return { reps, pendingInvites, selfBrandId, connectionInvites, isAdmin };
 };
