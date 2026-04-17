@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { notifyOrgMembers } from '$lib/server/notifications.js';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const { token, userId } = await request.json();
@@ -30,6 +31,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		organization_id: invitation.organization_id,
 		profile_id: userId,
 		role: invitation.role,
+		commission_rate: invitation.commission_rate ?? 0,
 		invited_by: invitation.invited_by,
 		accepted_at: new Date().toISOString()
 	});
@@ -64,6 +66,18 @@ export const POST: RequestHandler = async ({ request }) => {
 		.from('invitations')
 		.update({ accepted_at: new Date().toISOString() })
 		.eq('id', invitation.id);
+
+	const { data: profile } = await supabaseAdmin
+		.from('profiles')
+		.select('display_name')
+		.eq('id', userId)
+		.single();
+	notifyOrgMembers(invitation.organization_id, userId, {
+		type: 'member_joined',
+		title: 'New team member',
+		body: `${profile?.display_name ?? 'A new member'} has joined the team`,
+		link: '/organization/members'
+	});
 
 	return json({ success: true });
 };

@@ -26,7 +26,7 @@ describe('computeAccountHealth', () => {
 		expect(health).toBeDefined();
 		expect(health!.label).toBe('new');
 		expect(health!.score).toBe(0);
-		expect(health!.signals).toContain('New account — no orders yet');
+		expect(health!.signals).toEqual([]);
 	});
 
 	it('labels an inactive account (>90 days, no orders) with score 10', async () => {

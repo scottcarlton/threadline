@@ -88,6 +88,7 @@
 	let inviteEmail = $state('');
 	let inviteRole: UserRole = $state('member');
 	let selectedBrandIds = $state<string[]>([]);
+	let inviteCommissionRate = $state<string>('');
 	let inviting = $state(false);
 	let inviteMessage = $state('');
 	let updatingId = $state('');
@@ -145,7 +146,8 @@
 			body: JSON.stringify({
 				email: inviteEmail,
 				role: inviteRole,
-				brandIds: showBrandScope ? selectedBrandIds : []
+				brandIds: showBrandScope ? selectedBrandIds : [],
+				commissionRate: inviteRole === 'sales' ? parseFloat(inviteCommissionRate) || 0 : undefined
 			})
 		});
 
@@ -155,6 +157,7 @@
 			inviteEmail = '';
 			inviteRole = 'member';
 			selectedBrandIds = [];
+			inviteCommissionRate = '';
 			await invalidateAll();
 		} else {
 			inviteMessage = result.error || 'Failed to send invitation.';
@@ -188,6 +191,7 @@
 		updatingId = '';
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- wired up when Remove button lands
 	async function handleRemove(memberId: string) {
 		if (!confirm('Are you sure you want to remove this team member?')) return;
 		updatingId = memberId;
@@ -431,6 +435,20 @@
 							<option value="guest">Guest</option>
 						</select>
 					</div>
+					{#if inviteRole === 'sales'}
+						<div class="w-32">
+							<label for="invite-commission" class="text-sm font-medium">Commission %</label>
+							<Input
+								id="invite-commission"
+								type="number"
+								min="0"
+								max="100"
+								step="0.25"
+								placeholder="0"
+								bind:value={inviteCommissionRate}
+							/>
+						</div>
+					{/if}
 					<Button size="sm" onclick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
 						{inviting ? 'Sending...' : 'Send Invite'}
 					</Button>
@@ -565,22 +583,7 @@
 										</div>
 									{/if}
 								</td>
-								<td class="px-4 py-3 text-right">
-									{#if !isOwner && !isCurrentUser}
-										<!-- svelte-ignore a11y_click_events_have_key_events -->
-										<!-- svelte-ignore a11y_no_static_element_interactions -->
-										<div onclick={(e) => e.stopPropagation()}>
-											<Button
-												variant="destructive"
-												size="sm"
-												disabled={updatingId === member.id}
-												onclick={() => handleRemove(member.id)}
-											>
-												Remove
-											</Button>
-										</div>
-									{/if}
-								</td>
+								<td class="px-4 py-3 text-right"></td>
 							</tr>
 						{/each}
 					</tbody>

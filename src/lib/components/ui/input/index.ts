@@ -1,2 +1,3 @@
 import Root from './input.svelte';
-export { Root as Input, Root };
+import Search from './search-input.svelte';
+export { Root as Input, Root, Search as SearchInput };

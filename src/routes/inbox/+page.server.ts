@@ -19,25 +19,46 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.eq('profile_id', user.id)
 		.maybeSingle();
 
-	// Load account email map for auto-linking
+	// Load account email map for auto-linking + manual links
 	const orgId = locals.organization?.id;
 	let accountEmailMap: { email: string; accountId: string; accountName: string }[] = [];
+	let accounts: { id: string; business_name: string }[] = [];
+	const emailLinks: Record<string, { entity_type: string; entity_id: string }> = {};
 	if (orgId) {
-		const { data: accounts } = await supabase
-			.from('accounts')
-			.select('id, business_name, contact_email')
-			.eq('organization_id', orgId)
-			.not('contact_email', 'is', null);
-		accountEmailMap = (accounts ?? []).map((a) => ({
-			email: a.contact_email!.toLowerCase(),
-			accountId: a.id,
-			accountName: a.business_name
-		}));
+		const [accountsRes, linksRes] = await Promise.all([
+			supabase
+				.from('accounts')
+				.select('id, business_name, contact_email')
+				.eq('organization_id', orgId)
+				.eq('is_active', true)
+				.order('business_name'),
+			supabase
+				.from('email_links')
+				.select('gmail_message_id, entity_type, entity_id')
+				.eq('organization_id', orgId)
+		]);
+		const allAccounts = accountsRes.data ?? [];
+		accounts = allAccounts.map((a) => ({ id: a.id, business_name: a.business_name }));
+		accountEmailMap = allAccounts
+			.filter((a) => a.contact_email)
+			.map((a) => ({
+				email: a.contact_email!.toLowerCase(),
+				accountId: a.id,
+				accountName: a.business_name
+			}));
+		for (const link of linksRes.data ?? []) {
+			emailLinks[link.gmail_message_id] = {
+				entity_type: link.entity_type,
+				entity_id: link.entity_id
+			};
+		}
 	}
 
 	return {
 		connected: !!connection,
 		emailAddress: connection?.email_address ?? null,
-		accountEmailMap
+		accountEmailMap,
+		accounts,
+		emailLinks
 	};
 };

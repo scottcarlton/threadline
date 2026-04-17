@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 
 	const reports = [
 		{
@@ -46,12 +47,7 @@
 </script>
 
 <div class="space-y-6">
-	<div>
-		<h1 class="text-3xl">Reports</h1>
-		<p class="mt-1 font-mono text-sm text-muted-foreground">
-			Select a report to view detailed data
-		</p>
-	</div>
+	<PageHeader title="Reports" subtitle="Select a report to view detailed data" />
 
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 		{#each reports as report (report.id)}
