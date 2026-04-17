@@ -9,11 +9,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 		supabase
 			.from('accounts')
 			.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone')
+			.eq('organization_id', organization.id)
 			.not('contact_email', 'is', null)
 			.order('contact_first_name'),
 		supabase
 			.from('brands')
 			.select('id, name, contact_first_name, contact_last_name, contact_email, contact_phone')
+			.eq('organization_id', organization.id)
 			.not('contact_email', 'is', null)
 			.order('contact_first_name'),
 		supabase

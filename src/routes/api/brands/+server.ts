@@ -6,10 +6,10 @@ export const GET: RequestHandler = async ({ locals }) => {
 		return json({ brands: [] });
 	}
 
-	// RLS handles federation visibility — no admin client needed
 	const { data: brands } = await locals.supabase
 		.from('brands')
 		.select('id, name')
+		.eq('organization_id', locals.organization.id)
 		.eq('is_active', true)
 		.order('name');
 

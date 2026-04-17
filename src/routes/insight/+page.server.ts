@@ -54,9 +54,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// ── Setup checklist (onboarding state) ──────────────────────────────
 	const [brandCountCheck, productCountCheck, accountCountCheck, orderCountCheck] =
 		await Promise.all([
-			supabase.from('brands').select('id', { count: 'exact', head: true }).eq('is_active', true),
-			supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
-			supabase.from('accounts').select('id', { count: 'exact', head: true }).eq('is_active', true),
+			supabase
+				.from('brands')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', orgId)
+				.eq('is_active', true),
+			supabase
+				.from('products')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', orgId)
+				.eq('is_active', true),
+			supabase
+				.from('accounts')
+				.select('id', { count: 'exact', head: true })
+				.eq('organization_id', orgId)
+				.eq('is_active', true),
 			supabase
 				.from('orders')
 				.select('id', { count: 'exact', head: true })
@@ -75,6 +87,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const { data: firstBrand } = await supabase
 			.from('brands')
 			.select('id')
+			.eq('organization_id', orgId)
 			.eq('is_active', true)
 			.limit(1)
 			.single();
@@ -185,6 +198,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const { data: accountRows } = await supabase
 		.from('accounts')
 		.select('id, business_name, city, state, notes, is_active')
+		.eq('organization_id', orgId)
 		.eq('is_active', true)
 		.order('business_name', { ascending: true });
 
@@ -389,6 +403,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const { data: commBrandRows } = await supabase
 		.from('brands')
 		.select('id, name, commission_rate')
+		.eq('organization_id', orgId)
 		.eq('is_active', true)
 		.order('name', { ascending: true });
 
@@ -810,11 +825,7 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 
 	// ── Onboarding checklist (Phase C) ────────────────────────────────────────
 	const [productCount, teammateCount, salesRepCount] = await Promise.all([
-		admin
-			.from('products')
-			.select('id', { count: 'exact', head: true })
-			.eq('organization_id', brandOrgId)
-			.eq('is_active', true),
+		admin.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
 		admin
 			.from('organization_members')
 			.select('id', { count: 'exact', head: true })

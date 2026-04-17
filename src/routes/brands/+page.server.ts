@@ -30,7 +30,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// RLS handles federation visibility — no need for admin client or org_connections query
 	const [brandsRes, ordersRes] = await Promise.all([
-		supabase.from('brands').select('*').eq('is_active', true).order('name'),
+		supabase
+			.from('brands')
+			.select('*')
+			.eq('is_active', true)
+			.eq('organization_id', organization.id)
+			.order('name'),
 		supabase
 			.from('orders')
 			.select('brand_id, total_amount')

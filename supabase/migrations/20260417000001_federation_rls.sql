@@ -1,12 +1,13 @@
--- Federation RLS: make cross-org data visible through the normal supabase client
--- when organizations are connected via org_connections.
+-- Federation RLS: MBISR→BOA implicit visibility for brands, products, and brand assets.
+-- BOA→MBISR visibility uses explicit links (federated_order_links, federated_account_links)
+-- and is NOT handled here — those policies exist in 20260411000002_federation_infrastructure.sql.
 --
--- Instead of patching every page server with supabaseAdmin queries, we add
--- RLS policies that let connected org data pass through naturally.
+-- See docs/plans/rbac-federation-fix.md §1.3 for the asymmetric model.
 
 -- ============================================================================
 -- Helper: get_connected_org_ids()
 -- Returns org IDs from active connections (both directions).
+-- Used for MBISR→BOA implicit federation (brands, products, brand_assets).
 -- ============================================================================
 CREATE OR REPLACE FUNCTION get_connected_org_ids()
 RETURNS SETOF uuid
@@ -33,40 +34,21 @@ END;
 $$;
 
 -- ============================================================================
--- Brands: connected reps see brand org's brands
--- (existing policy only covers own-org via get_user_brand_ids)
+-- Brands: connected reps see brand org's brands (MBISR→BOA implicit)
 -- ============================================================================
 CREATE POLICY "Brands visible via federation"
   ON brands FOR SELECT
   USING (organization_id IN (SELECT get_connected_org_ids()));
 
 -- ============================================================================
--- Brand assets: connected reps see brand org's assets
--- (existing policy only covers own-org via is_org_member)
+-- Brand assets: connected reps see brand org's assets (MBISR→BOA implicit)
 -- ============================================================================
 CREATE POLICY "Brand assets visible via federation"
   ON brand_assets FOR SELECT
   USING (organization_id IN (SELECT get_connected_org_ids()));
 
 -- ============================================================================
--- Accounts: connected orgs see each other's accounts
--- (existing federation policy uses federated_account_links which requires
---  explicit linking; this covers all accounts from connected orgs)
--- ============================================================================
-CREATE POLICY "Accounts visible via federation"
-  ON accounts FOR SELECT
-  USING (organization_id IN (SELECT get_connected_org_ids()));
-
--- ============================================================================
--- Account locations: follow accounts — visible if the account's org is connected
--- (existing policy only covers own-org via is_org_member)
--- ============================================================================
-CREATE POLICY "Account locations visible via federation"
-  ON account_locations FOR SELECT
-  USING (organization_id IN (SELECT get_connected_org_ids()));
-
--- ============================================================================
--- Brand expenses: allow reps to INSERT expenses against federated brands.
+-- Brand expenses INSERT: allow reps to submit expenses against federated brands.
 -- The existing INSERT policy requires brand_id IN get_user_brand_ids(org_id),
 -- which fails for federated brands. Drop and recreate with federation support.
 -- ============================================================================
@@ -86,33 +68,22 @@ CREATE POLICY "Admin/owner/member/sales can insert expenses"
   );
 
 -- ============================================================================
--- Brand expenses SELECT: also allow viewing expenses for federated brands
--- (existing policy scopes by brand_id via get_user_brand_ids)
+-- Brand expenses SELECT: BOA sees expenses where brand_id belongs to BOA's brands.
+-- Scoped to brand ownership, not blanket connected-org visibility.
 -- ============================================================================
 CREATE POLICY "Expenses visible via federation"
   ON brand_expenses FOR SELECT
   USING (
     brand_id IN (
       SELECT b.id FROM brands b
-      WHERE b.organization_id IN (SELECT get_connected_org_ids())
+      WHERE b.organization_id IN (SELECT get_user_org_ids())
     )
+    AND organization_id NOT IN (SELECT get_user_org_ids())
   );
 
--- ============================================================================
--- Account tags: visible if the account's org is connected (for viewing)
--- ============================================================================
-CREATE POLICY "Account tags visible via federation"
-  ON account_tags FOR SELECT
-  USING (organization_id IN (SELECT get_connected_org_ids()));
-
--- ============================================================================
--- Account tag assignments: visible if the account is in a connected org
--- ============================================================================
-CREATE POLICY "Tag assignments visible via federation"
-  ON account_tag_assignments FOR SELECT
-  USING (
-    account_id IN (
-      SELECT a.id FROM accounts a
-      WHERE a.organization_id IN (SELECT get_connected_org_ids())
-    )
-  );
+-- NOTE: The following policies were INTENTIONALLY OMITTED per §C.4 of the plan:
+--   - "Accounts visible via federation" — BOA sees MBISR accounts via federated_account_links only (explicit model)
+--   - "Account locations visible via federation" — follows accounts
+--   - "Account tags visible via federation" — follows accounts
+--   - "Tag assignments visible via federation" — follows accounts
+-- These belong to the explicit-link federation model, not the implicit model.

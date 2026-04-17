@@ -6,8 +6,7 @@
  * For RLS-level enforcement tests against a live Supabase instance,
  * gate behind VITEST_RLS=1 (see bottom of file for stubs).
  */
-import { describe, it, expect, vi } from 'vitest';
-import { createMockSupabase } from '$lib/test-helpers/supabase-mock.js';
+import { describe, it, expect } from 'vitest';
 import {
 	FEDERATION,
 	makeBrand,
@@ -144,7 +143,7 @@ const allOrders = [mbisrOrder, boaDirectOrder];
 const federatedOrderLink = makeFederatedOrderLink({ order_id: mbisrOrder.id });
 const federatedAccountLink = makeFederatedAccountLink({ account_id: FEDERATION.mbisr.accountId });
 
-const activeConnection = makeConnection();
+// Connection lifecycle tests use makeConnection() inline — no top-level variable needed.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MBISR-side visibility (implicit federation)

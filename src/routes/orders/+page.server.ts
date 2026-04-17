@@ -277,7 +277,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.eq('organization_id', organization.id)
 			.eq('is_active', true)
 			.order('sort_order'),
-		supabase.from('brands').select('id, name').eq('is_active', true).order('name'),
+		supabase
+			.from('brands')
+			.select('id, name')
+			.eq('is_active', true)
+			.eq('organization_id', organization.id)
+			.order('name'),
 		supabase
 			.from('show_dates')
 			.select('id, show_id, year, month, city, state, shows(name)')

@@ -11,7 +11,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		const { data: selfBrand } = await supabase
 			.from('brands')
 			.select('id, name')
-			.eq('organization_id', organization.id)
 			.eq('is_self_brand', true)
 			.single();
 

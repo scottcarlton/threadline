@@ -44,16 +44,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 					);
 				if (buyerAccountIds)
 					q = q.in('id', buyerAccountIds.length ? buyerAccountIds : ['__none__']);
-				else q = q.eq('is_active', true).is('archived_at', null);
-				// RLS handles federation — MBISR sees connected brand org accounts
+				else
+					q = q
+						.eq('organization_id', organization.id)
+						.eq('is_active', true)
+						.is('archived_at', null);
 				return q.order('business_name');
 			})(),
-			// RLS handles federation — locations visible for connected org accounts
 			supabase
 				.from('account_locations')
 				.select(
 					'id, account_id, label, contact_email, address_line1, address_line2, city, state, zip, is_default, sort_order'
 				)
+				.eq('organization_id', organization.id)
 				.order('sort_order'),
 			(() => {
 				let q = supabase.from('brands').select('id, name, is_self_brand').eq('is_active', true);
