@@ -3,9 +3,10 @@
 	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import type { Account } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -131,36 +132,30 @@
 </script>
 
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-3xl">Accounts</h1>
-			<p class="mt-1 font-mono text-sm text-muted-foreground">Manage buyer accounts</p>
-		</div>
-		<div class="flex items-center gap-2">
-			{#if filtered.length > 0 && canExport}
-				<Button variant="outline" size="sm" onclick={exportAccounts}>Export</Button>
-			{/if}
-			{#if canEdit}
-				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
-				<Button href="/accounts/new">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="-ml-1 h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
-					>
-					Add Account
-				</Button>
-			{/if}
-		</div>
-	</div>
+	<PageHeader title="Accounts" subtitle="Manage buyer accounts">
+		{#if filtered.length > 0 && canExport}
+			<Button variant="outline" onclick={exportAccounts}>Export</Button>
+		{/if}
+		{#if canEdit}
+			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
+			<Button href="/accounts/new">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="-ml-1 h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+				>
+				Add Account
+			</Button>
+		{/if}
+	</PageHeader>
 
 	<div class="flex items-center gap-3">
 		<div class="max-w-xs flex-1">
-			<Input placeholder="Search accounts..." bind:value={search} />
+			<SearchInput placeholder="Search accounts..." bind:value={search} />
 		</div>
 		{#if archivedCount > 0}
 			<button
@@ -279,9 +274,6 @@
 											class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {badge.class}"
 											>{badge.label}</span
 										>
-										{#if health?.signals?.length}
-											<p class="mt-0.5 text-[11px] text-muted-foreground">{health.signals[0]}</p>
-										{/if}
 									</div>
 								{/if}
 							</td>

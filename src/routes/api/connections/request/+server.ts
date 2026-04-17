@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { notifyBrandAdmins } from '$lib/server/notifications.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { session, organization, orgType, membership } = locals;
@@ -66,5 +67,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const inviteOrgs = (invite as { organizations?: { name?: string } | { name?: string }[] | null })
 		.organizations;
 	const brandOrg = Array.isArray(inviteOrgs) ? inviteOrgs[0] : inviteOrgs;
+
+	notifyBrandAdmins(invite.brand_org_id, session.user.id, {
+		type: 'connection_request',
+		title: 'New connection request',
+		body: `${organization.name} has requested to connect`,
+		link: '/settings/connections'
+	});
+
 	return json({ connection, brandName: brandOrg?.name });
 };

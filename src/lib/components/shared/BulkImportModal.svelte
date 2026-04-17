@@ -8,9 +8,18 @@
 		columns: { key: string; label: string; required?: boolean }[];
 		onimport: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[] }>;
 		enableLinesheet?: boolean;
+		seasons?: { id: string; name: string }[];
 	};
 
-	let { open, ontoggle, entityType, columns, onimport, enableLinesheet = false }: Props = $props();
+	let {
+		open,
+		ontoggle,
+		entityType,
+		columns,
+		onimport,
+		enableLinesheet = false,
+		seasons = []
+	}: Props = $props();
 
 	// Default mode; reactive effect below syncs when the prop changes or the
 	// modal reopens, instead of capturing `enableLinesheet` at init.
@@ -32,6 +41,11 @@
 	let parsingStatus = $state('');
 	let parsingStatusIndex = $state(0);
 	let parsingInterval: ReturnType<typeof setInterval> | undefined;
+	// AI-detected season/year hints, plus user-editable selection applied to the whole batch
+	let detectedSeason = $state<string | null>(null);
+	let detectedYear = $state<number | null>(null);
+	let importSeasonId = $state('');
+	let importYear = $state<number | ''>('');
 
 	const parsingMessages = [
 		'Reading document...',
@@ -69,7 +83,22 @@
 		result = null;
 		linesheetFile = null;
 		parsing = false;
+		detectedSeason = null;
+		detectedYear = null;
+		importSeasonId = '';
+		importYear = '';
 		stopParsingMessages();
+	}
+
+	// Fuzzy-match the AI's free-form season string ("Fall", "FW") to one of the org's
+	// configured seasons by case-insensitive substring. First match wins.
+	function matchSeasonId(name: string): string {
+		const needle = name.toLowerCase();
+		for (const s of seasons) {
+			const hay = s.name.toLowerCase();
+			if (hay.includes(needle) || needle.includes(hay)) return s.id;
+		}
+		return '';
 	}
 
 	$effect(() => {
@@ -197,6 +226,11 @@
 				parseError = 'No products found in this file. Try a clearer image or use CSV import.';
 				return;
 			}
+			// Capture AI-detected season/year hints and pre-fill the import controls
+			detectedSeason = typeof data.season === 'string' ? data.season : null;
+			detectedYear = typeof data.year === 'number' ? data.year : null;
+			if (detectedSeason && !importSeasonId) importSeasonId = matchSeasonId(detectedSeason);
+			if (detectedYear && !importYear) importYear = detectedYear;
 			// Flatten any array fields (e.g. sizes, colors) to comma-separated strings for preview
 			const flattened = data.products.map((p: Record<string, unknown>) => {
 				const row: Record<string, string> = {};
@@ -217,7 +251,18 @@
 	async function handleImport() {
 		if (parsedRows.length === 0) return;
 		importing = true;
-		result = await onimport(parsedRows);
+		// Inject batch-level season_id / product_year onto every row so the page's
+		// onimport handler can include them in the insert without extra plumbing.
+		const yearStr = typeof importYear === 'number' ? String(importYear) : '';
+		const decorated =
+			importSeasonId || yearStr
+				? parsedRows.map((row) => ({
+						...row,
+						...(importSeasonId ? { season_id: importSeasonId } : {}),
+						...(yearStr ? { product_year: yearStr } : {})
+					}))
+				: parsedRows;
+		result = await onimport(decorated);
 		importing = false;
 	}
 
@@ -310,6 +355,48 @@
 								<LongArrow direction="left" /> Back
 							</button>
 						</div>
+
+						{#if seasons.length > 0}
+							<div class="rounded-none border bg-muted/20 p-4">
+								<p class="text-sm font-medium">Season &amp; year</p>
+								<p class="mt-0.5 text-sm text-muted-foreground">
+									Applied to all {parsedRows.length}
+									{entityType}s.
+									{#if detectedSeason || detectedYear}
+										AI detected:
+										<span class="font-medium text-foreground"
+											>{[detectedSeason, detectedYear].filter(Boolean).join(' ')}</span
+										>.
+									{/if}
+								</p>
+								<div class="mt-3 flex flex-wrap items-end gap-3">
+									<div class="space-y-1">
+										<label for="import-season" class="text-sm text-muted-foreground">Season</label>
+										<select
+											id="import-season"
+											bind:value={importSeasonId}
+											class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+										>
+											<option value="">— None —</option>
+											{#each seasons as s (s.id)}
+												<option value={s.id}>{s.name}</option>
+											{/each}
+										</select>
+									</div>
+									<div class="space-y-1">
+										<label for="import-year" class="text-sm text-muted-foreground">Year</label>
+										<input
+											id="import-year"
+											type="number"
+											min="2000"
+											max="2100"
+											bind:value={importYear}
+											class="h-10 w-28 rounded-md border border-input bg-background px-3 text-sm"
+										/>
+									</div>
+								</div>
+							</div>
+						{/if}
 
 						<div class="overflow-x-auto rounded-none border">
 							<table class="w-full">

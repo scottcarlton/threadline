@@ -581,6 +581,27 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 		}
 	},
 	{
+		name: 'update_products',
+		description:
+			"Bulk update fields on multiple products at once. Provide product_ids (array of UUIDs) and updates (object with fields to set). Useful for toggling ATS across many styles, reassigning season, adjusting prices, or archiving in bulk. All updates are scoped to the agent's organization.",
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				product_ids: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Array of product UUIDs to update (required, min 1)'
+				},
+				updates: {
+					type: 'object',
+					description:
+						'Fields to set on every listed product. Allowed: ats (boolean), category (string), wholesale_price (number), retail_price (number), product_year (number), is_active (boolean), season_name (string, fuzzy-matched to a season in this org).'
+				}
+			},
+			required: ['product_ids', 'updates']
+		}
+	},
+	{
 		name: 'send_slack_message',
 		description:
 			'Send a notification message to the connected Slack channel. Requires Slack to be connected.',

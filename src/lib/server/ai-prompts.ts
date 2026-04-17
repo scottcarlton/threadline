@@ -82,6 +82,7 @@ Rules:
 - If no price visible, use 0 for wholesale_price
 - Extract sizes and colors whenever visible
 - Do NOT put sizes or colors in description field — use arrays
+- Look on the cover, header, footer, or filename for a SEASON ("Spring", "Summer", "Fall", "Winter", "Resort", "Pre-Fall", "Holiday", etc.) and YEAR (e.g. 2026). Common shorthand: "FW25" = Fall/Winter 2025, "SS26" = Spring/Summer 2026, "PF26" = Pre-Fall 2026. Set the top-level season and year fields if confident; omit if ambiguous.
 - You MUST call the parse_products tool with your results`;
 
 export function agentBasePrompt(

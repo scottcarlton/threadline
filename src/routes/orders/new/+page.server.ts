@@ -9,6 +9,8 @@ import {
 	type DeliveryChoice
 } from '$lib/server/orders/cart.js';
 import type { OrderType, OrderStatus } from '$lib/types/database.js';
+import { sendOrderEmail } from '$lib/server/order-emails.js';
+import { notifyBrandAdmins } from '$lib/server/notifications.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, organization, user } = locals;
@@ -111,16 +113,29 @@ export const load: PageServerLoad = async ({ locals }) => {
 	};
 };
 
+type FreeformDetails = {
+	business_name: string;
+	contact_first_name: string;
+	contact_last_name: string;
+	contact_email: string;
+	phone: string;
+	address_line1: string;
+	city: string;
+	state: string;
+	zip: string;
+};
+
 type SubmitPayload = {
 	type: OrderType;
 	account_id: string | null;
 	freeform_name: string | null;
+	freeformDetails?: FreeformDetails;
 	order_year: number | null;
 	submitStatus: OrderStatus; // 'draft' | 'submitted'
 	lines: CartLine[];
 	groups: Array<{
 		brand_id: string;
-		season_id: string;
+		season_id: string | null;
 		delivery: DeliveryChoice | null;
 		location_id: string | null;
 	}>;
@@ -157,13 +172,42 @@ export const actions: Actions = {
 			}
 		}
 
+		// If freeform details were provided, create the account first so the
+		// orders can be linked and submitted (not stuck as drafts).
+		let resolvedAccountId = payload.account_id;
+		let resolvedFreeformName = payload.freeform_name;
+		if (!resolvedAccountId && payload.freeformDetails?.business_name?.trim()) {
+			const details = payload.freeformDetails;
+			const { data: newAccount, error: acctErr } = await supabase
+				.from('accounts')
+				.insert({
+					organization_id: organization.id,
+					business_name: details.business_name.trim(),
+					contact_first_name: details.contact_first_name?.trim() || null,
+					contact_last_name: details.contact_last_name?.trim() || null,
+					contact_email: details.contact_email?.trim() || null,
+					phone: details.phone?.trim() || null,
+					address_line1: details.address_line1?.trim() || null,
+					city: details.city?.trim() || null,
+					state: details.state?.trim() || null,
+					zip: details.zip?.trim() || null
+				})
+				.select('id')
+				.single();
+			if (acctErr || !newAccount) {
+				return fail(500, { message: acctErr?.message ?? 'Failed to create account' });
+			}
+			resolvedAccountId = newAccount.id;
+			resolvedFreeformName = null;
+		}
+
 		try {
 			validateCart(
 				groups,
 				{
 					type: payload.type,
-					account_id: payload.account_id,
-					freeform_name: payload.freeform_name,
+					account_id: resolvedAccountId,
+					freeform_name: resolvedFreeformName,
 					order_year: payload.order_year
 				},
 				payload.submitStatus
@@ -177,8 +221,8 @@ export const actions: Actions = {
 			groups,
 			{
 				type: payload.type,
-				account_id: payload.account_id,
-				freeform_name: payload.freeform_name,
+				account_id: resolvedAccountId,
+				freeform_name: resolvedFreeformName,
 				order_year: payload.order_year
 			},
 			payload.submitStatus
@@ -206,7 +250,7 @@ export const actions: Actions = {
 					created_by: user.id,
 					submitted_at: o.status === 'submitted' ? new Date().toISOString() : null
 				})
-				.select('id')
+				.select('id, order_number')
 				.single();
 
 			if (orderErr || !orderRow) {
@@ -227,6 +271,28 @@ export const actions: Actions = {
 				}));
 				const { error: lineErr } = await supabase.from('order_lines').insert(linesInsert);
 				if (lineErr) return fail(500, { message: lineErr.message });
+			}
+
+			if (o.status === 'submitted') {
+				const origin = request.headers.get('origin') ?? '';
+				sendOrderEmail(
+					'submitted',
+					{
+						id: orderRow.id,
+						order_number: orderRow.order_number,
+						total_amount: o.total_amount,
+						brand_id: o.brand_id,
+						account_id: o.account_id,
+						created_by: user.id
+					},
+					origin
+				);
+				notifyBrandAdmins(o.brand_id, user.id, {
+					type: 'order_submitted',
+					title: 'New order submitted',
+					body: `Order ${orderRow.order_number} has been submitted`,
+					link: `/orders/${orderRow.id}`
+				});
 			}
 
 			createdIds.push(orderRow.id);

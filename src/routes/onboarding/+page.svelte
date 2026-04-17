@@ -12,17 +12,26 @@
 
 	async function loadAuthMeta() {
 		const { data: authData } = await supabase.auth.getUser();
-		if (authData?.user?.user_metadata) {
-			authUserMeta = authData.user.user_metadata;
-			if (!nameInitialized) {
-				const fullName = String(authUserMeta.full_name ?? authUserMeta.name ?? '');
-				if (fullName) {
-					const parts = fullName.split(' ');
-					firstName = parts[0] ?? '';
-					lastName = parts.slice(1).join(' ') ?? '';
-					nameInitialized = true;
-				}
-			}
+		if (!authData?.user?.user_metadata) return;
+		authUserMeta = authData.user.user_metadata;
+		if (nameInitialized) return;
+
+		// Google hands us given_name / family_name separately — prefer those over
+		// splitting a single `name` string, which misses compound surnames.
+		const given = String(authUserMeta.given_name ?? '').trim();
+		const family = String(authUserMeta.family_name ?? '').trim();
+		if (given || family) {
+			firstName = given;
+			lastName = family;
+			nameInitialized = true;
+			return;
+		}
+		const fullName = String(authUserMeta.full_name ?? authUserMeta.name ?? '').trim();
+		if (fullName) {
+			const parts = fullName.split(/\s+/);
+			firstName = parts[0] ?? '';
+			lastName = parts.slice(1).join(' ');
+			nameInitialized = true;
 		}
 	}
 
@@ -37,7 +46,8 @@
 	let brandName = $state('');
 	let brandEmail = $state('');
 	let inviteEmail = $state('');
-	let inviteRole = $state<'admin' | 'member' | 'guest'>('member');
+	let inviteRole = $state<'admin' | 'member' | 'sales' | 'guest'>('member');
+	let inviteCommissionRate = $state<string>('');
 	let loading = $state(false);
 	let error = $state('');
 
@@ -283,6 +293,19 @@
 			if (data.user?.display_name) {
 				step = 2;
 			}
+		}
+	});
+
+	// Skip the name step entirely when we already have both first AND last name
+	// (e.g. Google OAuth handed them to us, or an existing display_name parsed
+	// cleanly). If only one is present, show step 1 so the user can fill in the
+	// missing half — we require both on this flow. Flag-guarded so going back
+	// to step 1 to edit doesn't re-auto-advance.
+	let nameStepSkipped = false;
+	$effect(() => {
+		if (step === 1 && nameInitialized && firstName.trim() && lastName.trim() && !nameStepSkipped) {
+			nameStepSkipped = true;
+			step = 2;
 		}
 	});
 
@@ -570,7 +593,8 @@
 			body: JSON.stringify({
 				email: inviteEmail.trim(),
 				role: inviteRole,
-				brandIds: []
+				brandIds: [],
+				commissionRate: inviteRole === 'sales' ? parseFloat(inviteCommissionRate) || 0 : undefined
 			})
 		});
 
@@ -731,20 +755,20 @@
 					</div>
 					<div class="space-y-3">
 						<button
-							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors {orgType ===
+							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
 							'rep'
-								? 'border-black dark:border-white'
-								: 'border-border hover:border-black dark:hover:border-white'}"
+								? 'border-foreground'
+								: 'border-border hover:border-foreground'}"
 							onclick={() => {
 								orgType = 'rep';
 								saveOrgType();
 							}}
 						>
 							<div
-								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors {orgType ===
+								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
 								'rep'
-									? 'bg-black text-white dark:bg-white dark:text-black'
-									: 'bg-muted text-muted-foreground group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black'}"
+									? 'bg-foreground text-background'
+									: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -769,20 +793,20 @@
 							</div>
 						</button>
 						<button
-							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors {orgType ===
+							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
 							'brand'
-								? 'border-black dark:border-white'
-								: 'border-border hover:border-black dark:hover:border-white'}"
+								? 'border-foreground'
+								: 'border-border hover:border-foreground'}"
 							onclick={() => {
 								orgType = 'brand';
 								saveOrgType();
 							}}
 						>
 							<div
-								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors {orgType ===
+								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
 								'brand'
-									? 'bg-black text-white dark:bg-white dark:text-black'
-									: 'bg-muted text-muted-foreground group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black'}"
+									? 'bg-foreground text-background'
+									: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -800,7 +824,7 @@
 								</svg>
 							</div>
 							<div>
-								<p class="text-sm font-semibold">Brand or manufacturer</p>
+								<p class="text-sm font-semibold">Brand</p>
 								<p class="mt-0.5 text-sm text-muted-foreground">
 									I manage my product catalog, track orders across all sales channels, and work with
 									reps.
@@ -1176,15 +1200,47 @@
 									<option value="guest">Guest</option>
 								</select>
 							</div>
+							{#if inviteRole === 'sales'}
+								<div class="space-y-2">
+									<Label for="invite-commission">Commission rate (%)</Label>
+									<Input
+										id="invite-commission"
+										type="number"
+										min="0"
+										max="100"
+										step="0.25"
+										placeholder="0"
+										bind:value={inviteCommissionRate}
+									/>
+									<p class="text-sm text-muted-foreground">
+										Applied to every order this rep writes. You can override per-brand later.
+									</p>
+								</div>
+							{/if}
 							<Button size="lg" type="submit" class="h-12 w-full text-base" disabled={loading}>
 								{loading ? 'Sending...' : 'Send Invite'}
 							</Button>
 						</form>
 						<button
-							class="text-sm text-muted-foreground transition-colors hover:text-foreground"
+							class="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
 							onclick={() => (memberImportMode = true)}
 						>
-							Import multiple team members
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.75"
+								aria-hidden="true"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 7.5 12 3m0 0 4.5 4.5M12 3v13.5"
+								/>
+							</svg>
+							Import Members
 						</button>
 					{:else}
 						<!-- Import mode -->

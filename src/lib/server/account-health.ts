@@ -119,7 +119,7 @@ export async function computeAccountHealth(
 				accountId,
 				score: 0,
 				label: 'new',
-				signals: ['New account — no orders yet'],
+				signals: [],
 				lastOrderDate,
 				daysSinceLastOrder,
 				totalOrders,

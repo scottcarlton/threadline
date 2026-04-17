@@ -4,7 +4,7 @@
 	import { supabase } from '$lib/supabase.js';
 	import { cn } from '$lib/utils.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import type { DiscoveredContact } from '$lib/types/database.js';
@@ -308,7 +308,7 @@
 	<!-- Search + Tabs -->
 	<div class="flex items-center gap-3">
 		<div class="max-w-xs flex-1">
-			<Input placeholder="Search contacts..." bind:value={search} />
+			<SearchInput placeholder="Search contacts..." bind:value={search} />
 		</div>
 		<div class="flex gap-1 rounded-lg bg-muted p-1">
 			<button

@@ -4,6 +4,9 @@
 	import { page } from '$app/stores';
 	import { fetchUpcomingCount } from '$lib/stores/appointments.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { formatPhone } from '$lib/utils/phone';
 
 	let { data } = $props();
 
@@ -161,6 +164,7 @@
 		return `${showName} — ${mon} ${sd.year ?? ''}${loc ? ', ' + loc : ''}`;
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- wired to SelectField onValueChange when show filter is added
 	function handleShowDateChange(event: Event) {
 		const target = event.target as HTMLSelectElement;
 		const val = target.value;
@@ -310,14 +314,8 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="space-y-6">
-	<!-- Header -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<div>
-			<h1 class="text-3xl">Appointments</h1>
-			<p class="mt-1 font-mono text-sm text-muted-foreground">Schedule and manage appointments</p>
-		</div>
+	<PageHeader title="Appointments" subtitle="Schedule and manage appointments">
 		<Button
-			size="sm"
 			variant={showAddForm ? 'outline' : 'default'}
 			onclick={() => {
 				showAddForm = !showAddForm;
@@ -340,7 +338,7 @@
 				Add Appointment
 			{/if}
 		</Button>
-	</div>
+	</PageHeader>
 
 	<!-- Filters -->
 	{#if !showAddForm}
@@ -377,16 +375,20 @@
 					onclick={() => (filterTab = 'completed')}>Completed</button
 				>
 			</div>
-			<select
-				class="h-9 min-w-[300px] cursor-pointer rounded-lg border border-input bg-background px-3 text-sm shadow-sm focus:ring-2 focus:ring-ring focus:outline-none"
+			<SelectField
 				value={selectedShowDateId ?? ''}
-				onchange={handleShowDateChange}
-			>
-				<option value="">All shows</option>
-				{#each showDates as sd (sd.id)}
-					<option value={sd.id}>{showDateLabel(sd)}</option>
-				{/each}
-			</select>
+				items={[
+					{ value: '', label: 'All Shows' },
+					...showDates.map((sd) => ({ value: sd.id, label: showDateLabel(sd) }))
+				]}
+				onValueChange={(v) => {
+					const url = new URL($page.url);
+					if (v) url.searchParams.set('show_date', v);
+					else url.searchParams.delete('show_date');
+					// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamic same-page URL rebuild
+					goto(`${resolve('/appointments')}${url.search}`, { replaceState: true });
+				}}
+			/>
 		</div>
 		{#if isAdmin}
 			<div class="flex items-center gap-1 font-mono text-sm" style="margin-bottom: 6px">
@@ -617,6 +619,10 @@
 								class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
 								placeholder="Phone"
 								bind:value={formFreeformContactPhone}
+								oninput={(e) =>
+									(formFreeformContactPhone = formatPhone(
+										(e.currentTarget as HTMLInputElement).value
+									))}
 							/>
 						</div>
 					</div>

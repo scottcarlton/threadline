@@ -3,7 +3,7 @@
 	import { supabase } from '$lib/supabase.js';
 	import { cn } from '$lib/utils.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { Input, SearchInput } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import type { Show, ShowDate, ShowDateDocument } from '$lib/types/database.js';
@@ -377,7 +377,7 @@
 	{/if}
 
 	<div class="max-w-xs">
-		<Input placeholder="Search shows..." bind:value={search} />
+		<SearchInput placeholder="Search shows..." bind:value={search} />
 	</div>
 
 	{#if filtered.length === 0}
