@@ -15,6 +15,11 @@ export type SearchResult = {
 	};
 };
 
+export type SearchResponse = {
+	results: SearchResult[];
+	orderTotalCount?: number;
+};
+
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.session || !locals.user || !locals.organization) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
@@ -147,25 +152,53 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	// Search orders
-	const { data: orders } = await locals.supabase
+	// Search orders — match on order number, account name, or account contact
+	// First find account IDs that match the search term
+	const { data: matchingAccounts } = await locals.supabase
+		.from('accounts')
+		.select('id')
+		.eq('organization_id', orgId)
+		.or(
+			`business_name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
+		)
+		.limit(50);
+
+	const matchingAccountIds = (matchingAccounts ?? []).map((a) => a.id);
+
+	// Build order query — match on order_number OR account_id in matching accounts
+	let orderQuery = locals.supabase
 		.from('orders')
 		.select(
-			'id, order_number, status, order_year, brands(name), accounts(business_name), seasons(name)'
+			'id, order_number, status, order_year, created_at, brands(name), accounts(business_name, contact_first_name, contact_last_name, contact_email), seasons(name)'
 		)
 		.eq('organization_id', orgId)
-		.or(`order_number.ilike.${searchTerm}`)
-		.limit(5);
+		.order('created_at', { ascending: false });
 
+	if (matchingAccountIds.length > 0) {
+		orderQuery = orderQuery.or(
+			`order_number.ilike.${searchTerm},account_id.in.(${matchingAccountIds.join(',')})`
+		);
+	} else {
+		orderQuery = orderQuery.or(`order_number.ilike.${searchTerm}`);
+	}
+
+	const { data: orders } = await orderQuery.limit(20);
+
+	const orderResults: SearchResult[] = [];
 	if (orders) {
 		for (const o of orders) {
 			const brandData = o.brands as unknown as { name: string } | null;
-			const accountData = o.accounts as unknown as { business_name: string } | null;
+			const accountData = o.accounts as unknown as {
+				business_name: string;
+				contact_first_name?: string;
+				contact_last_name?: string;
+				contact_email?: string;
+			} | null;
 			const seasonData = o.seasons as unknown as { name: string } | null;
 			const brandName = brandData?.name ?? '';
 			const accountName = accountData?.business_name ?? '';
 
-			results.push({
+			orderResults.push({
 				type: 'order',
 				id: o.id,
 				title: o.order_number,
@@ -179,5 +212,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	return json({ results: results.slice(0, 20) });
+	// Add only first 2 order results to the main results array
+	results.push(...orderResults.slice(0, 2));
+
+	return json({
+		results: results.slice(0, 20),
+		orderTotalCount: orderResults.length
+	} satisfies SearchResponse);
 };
