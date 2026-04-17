@@ -128,7 +128,7 @@
 				<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
 			{/if}
 
-			{#if !hasSingleBrand}
+			{#if brands.length > 0}
 				<div class="space-y-2">
 					<Label for="brand">Brand</Label>
 					<select
