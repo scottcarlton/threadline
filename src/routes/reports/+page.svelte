@@ -58,6 +58,11 @@
 			id: 'product-performance',
 			title: 'Product Performance',
 			description: 'Style-level velocity — which products are moving across reps'
+		},
+		{
+			id: 'territory-coverage',
+			title: 'Territory Coverage',
+			description: 'Accounts by territory across in-house and connected rep agencies'
 		}
 	];
 

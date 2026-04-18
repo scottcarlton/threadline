@@ -32,6 +32,8 @@
 		velocityScore?: number;
 		trend?: 'up' | 'down' | 'flat';
 		accounts?: number;
+		territoryId?: string | null;
+		territoryName?: string;
 		[k: string]: unknown;
 	};
 	const rows = $derived(data.rows as ReportRow[]);
@@ -101,7 +103,7 @@
 		</div>
 	</div>
 
-	{#if rows.length === 0 && !(report === 'sales-by-rep' && variant === 'brand') && report !== 'product-performance'}
+	{#if rows.length === 0 && !(report === 'sales-by-rep' && variant === 'brand') && !(report === 'territory-coverage' && variant === 'brand') && report !== 'product-performance'}
 		<div class="rounded-none p-12 text-center">
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -487,6 +489,87 @@
 							>
 							<td class="px-4 py-2.5"></td>
 							<td class="px-4 py-2.5"></td>
+						</tr>
+					</tfoot>
+				</table>
+			</div>
+		{/if}
+	{:else if report === 'territory-coverage' && variant === 'brand'}
+		{#if rows.length === 0}
+			<div class="flex flex-col items-center gap-3 py-16 text-center">
+				<div
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-6 w-6"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+						/>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+						/>
+					</svg>
+				</div>
+				<p class="text-sm font-medium">No territory activity yet</p>
+				<p class="text-sm text-muted-foreground">
+					Orders placed by in-house reps or connected agencies will show up grouped by territory.
+				</p>
+			</div>
+		{:else}
+			<div class="overflow-hidden rounded-none border">
+				<table class="w-full">
+					<thead>
+						<tr class="border-b bg-muted/40">
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Agency</th>
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Territory</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Accounts</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Orders</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Revenue</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y">
+						{#each rows as row, i (`${row.agencyOrgId}-${row.territoryId ?? 'none'}-${i}`)}
+							<tr class="hover:bg-muted/30">
+								<td class="px-4 py-3 text-sm">
+									<div class="flex items-center gap-2">
+										<span class="font-medium">{row.agencyName}</span>
+										{#if row.source === 'in_house'}
+											<span
+												class="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
+												>In-house</span
+											>
+										{/if}
+									</div>
+								</td>
+								<td class="px-4 py-3 text-sm">{row.territoryName}</td>
+								<td class="px-4 py-3 text-right text-sm">{row.accounts}</td>
+								<td class="px-4 py-3 text-right text-sm">{row.orders}</td>
+								<td class="px-4 py-3 text-right font-mono text-sm">{fmt.format(row.revenue)}</td>
+							</tr>
+						{/each}
+					</tbody>
+					<tfoot>
+						<tr class="bg-muted/40">
+							<td colspan="2" class="px-4 py-2.5 text-sm font-medium">Total</td>
+							<td class="px-4 py-2.5 text-right text-sm font-medium"
+								>{rows.reduce((s, r) => s + (r.accounts ?? 0), 0)}</td
+							>
+							<td class="px-4 py-2.5 text-right text-sm font-medium"
+								>{rows.reduce((s, r) => s + r.orders, 0)}</td
+							>
+							<td class="px-4 py-2.5 text-right font-mono text-sm font-bold"
+								>{fmt.format(rows.reduce((s, r) => s + r.revenue, 0))}</td
+							>
 						</tr>
 					</tfoot>
 				</table>
