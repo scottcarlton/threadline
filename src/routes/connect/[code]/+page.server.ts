@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const now = new Date();
 	let status: 'ok' | 'expired' | 'maxed' | 'not_found' = 'ok';
 	if (!invite) status = 'not_found';
-	else if (new Date(invite.expires_at) < now) status = 'expired';
+	else if (invite.expires_at && new Date(invite.expires_at) < now) status = 'expired';
 	else if (invite.max_uses > 0 && invite.use_count >= invite.max_uses) status = 'maxed';
 
 	const brand =

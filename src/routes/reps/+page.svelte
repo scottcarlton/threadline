@@ -2,7 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
-	import ConnectionInviteSection from '$lib/components/shared/ConnectionInviteSection.svelte';
+	import InviteOrgSidebar from '$lib/components/connect/InviteOrgSidebar.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -135,8 +135,6 @@
 	}
 
 	// ── Invite form ────────────────────────────────────────────────────────
-	type InviteMode = 'invite' | 'connect';
-	let inviteMode = $state<InviteMode>('invite');
 	let inviteOpen = $state(false);
 	let inviteEmail = $state('');
 	let inviteCommissionRate = $state<string>('');
@@ -236,230 +234,218 @@
 		</Button>
 	</PageHeader>
 
-	{#if inviteOpen}
-		<div class="rounded-lg border p-5">
-			<!-- Invite / Connect tabs -->
-			{#if data.isAdmin}
-				<div class="mb-4 flex gap-1 border-b">
-					<button
-						class="-mb-px px-4 py-2 text-sm font-medium transition-colors {inviteMode === 'invite'
-							? 'border-b border-current text-foreground'
-							: 'text-muted-foreground hover:text-foreground'}"
-						onclick={() => (inviteMode = 'invite')}
-					>
-						Invite
-					</button>
-					<button
-						class="-mb-px px-4 py-2 text-sm font-medium transition-colors {inviteMode === 'connect'
-							? 'border-b border-current text-foreground'
-							: 'text-muted-foreground hover:text-foreground'}"
-						onclick={() => (inviteMode = 'connect')}
-					>
-						Connect
-					</button>
+	<div class="grid gap-6 {data.connectInvite ? 'md:grid-cols-[1fr_360px]' : ''}">
+		{#if data.connectInvite}
+			<aside class="md:order-last">
+				<InviteOrgSidebar
+					invite={data.connectInvite}
+					origin={data.origin}
+					emailForm={data.inviteEmailForm}
+				/>
+			</aside>
+		{/if}
+
+		<div class="min-w-0 space-y-6">
+			{#if inviteOpen}
+				<div class="rounded-lg border p-5">
+					<h2 class="text-lg font-semibold">Invite a rep</h2>
+					<p class="text-sm text-muted-foreground">
+						Send an invite to join your org. They'll get an email with a signup link.
+					</p>
+					<div class="mt-4 grid gap-4 sm:grid-cols-[1fr_140px_auto]">
+						<div>
+							<Label for="invite-email">Email</Label>
+							<Input
+								id="invite-email"
+								type="email"
+								placeholder="name@example.com"
+								bind:value={inviteEmail}
+							/>
+						</div>
+						<div>
+							<Label for="invite-commission">Commission %</Label>
+							<Input
+								id="invite-commission"
+								type="number"
+								min="0"
+								max="100"
+								step="0.25"
+								placeholder="0"
+								bind:value={inviteCommissionRate}
+							/>
+						</div>
+						<div class="flex items-end">
+							<Button disabled={sending || !inviteEmail.trim()} onclick={sendInvite}>
+								{sending ? 'Sending…' : 'Send invite'}
+							</Button>
+						</div>
+					</div>
+					<p class="mt-2 text-sm text-muted-foreground">
+						Invites from this page join as sales reps. To invite an admin or member, use
+						<a href={resolve('/organization/members')} class="underline hover:text-foreground"
+							>Organization › Members</a
+						>.
+					</p>
+					{#if inviteError}
+						<p class="mt-3 text-sm text-red-600">{inviteError}</p>
+					{/if}
+					{#if inviteSuccess}
+						<div class="mt-3 space-y-3">
+							<div class="flex items-center justify-between text-sm text-emerald-600">
+								<span>{inviteSuccess}</span>
+								<button
+									type="button"
+									class="text-sm text-muted-foreground underline hover:text-foreground"
+									onclick={closeInvite}
+								>
+									Done
+								</button>
+							</div>
+							{#if inviteLink}
+								<div class="flex items-center gap-2">
+									<Input
+										readonly
+										value={inviteLink}
+										onclick={(e: Event) => (e.currentTarget as HTMLInputElement).select()}
+									/>
+									<Button variant="outline" onclick={copyInviteLink}>
+										{linkCopied ? 'Copied' : 'Copy link'}
+									</Button>
+								</div>
+								<p class="text-sm text-muted-foreground">
+									Link expires in 7 days. Email delivery is coming soon — share this link manually
+									for now.
+								</p>
+							{/if}
+						</div>
+					{/if}
 				</div>
 			{/if}
 
-			{#if inviteMode === 'invite'}
-				<h2 class="text-lg font-semibold">Invite a rep</h2>
-				<p class="text-sm text-muted-foreground">
-					Send an invite to join your org. They'll get an email with a signup link.
-				</p>
-				<div class="mt-4 grid gap-4 sm:grid-cols-[1fr_140px_auto]">
-					<div>
-						<Label for="invite-email">Email</Label>
-						<Input
-							id="invite-email"
-							type="email"
-							placeholder="name@example.com"
-							bind:value={inviteEmail}
-						/>
-					</div>
-					<div>
-						<Label for="invite-commission">Commission %</Label>
-						<Input
-							id="invite-commission"
-							type="number"
-							min="0"
-							max="100"
-							step="0.25"
-							placeholder="0"
-							bind:value={inviteCommissionRate}
-						/>
-					</div>
-					<div class="flex items-end">
-						<Button disabled={sending || !inviteEmail.trim()} onclick={sendInvite}>
-							{sending ? 'Sending…' : 'Send invite'}
-						</Button>
-					</div>
-				</div>
-				<p class="mt-2 text-sm text-muted-foreground">
-					Invites from this page join as sales reps. To invite an admin or member, use
-					<a href={resolve('/organization/members')} class="underline hover:text-foreground"
-						>Organization › Members</a
-					>.
-				</p>
-				{#if inviteError}
-					<p class="mt-3 text-sm text-red-600">{inviteError}</p>
-				{/if}
-				{#if inviteSuccess}
-					<div class="mt-3 space-y-3">
-						<div class="flex items-center justify-between text-sm text-emerald-600">
-							<span>{inviteSuccess}</span>
-							<button
-								type="button"
-								class="text-sm text-muted-foreground underline hover:text-foreground"
-								onclick={closeInvite}
-							>
-								Done
-							</button>
-						</div>
-						{#if inviteLink}
+			{#if pendingInvites.length > 0}
+				<div class="space-y-2">
+					<h2 class="text-sm font-semibold text-muted-foreground">Pending invitations</h2>
+					{#each pendingInvites as inv (inv.id)}
+						<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
+							<div class="flex items-center gap-3">
+								<div
+									class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground"
+								>
+									{inv.email.charAt(0).toUpperCase()}
+								</div>
+								<div>
+									<p class="text-sm font-medium">{inv.email}</p>
+									<p class="text-sm text-muted-foreground">
+										{roleLabel(inv.role)} &middot; Invited {new Date(
+											inv.created_at
+										).toLocaleDateString()}
+									</p>
+								</div>
+							</div>
 							<div class="flex items-center gap-2">
-								<Input
-									readonly
-									value={inviteLink}
-									onclick={(e: Event) => (e.currentTarget as HTMLInputElement).select()}
-								/>
-								<Button variant="outline" onclick={copyInviteLink}>
-									{linkCopied ? 'Copied' : 'Copy link'}
+								<span class="rounded-full border px-2 py-0.5 text-sm text-muted-foreground"
+									>Pending</span
+								>
+								<Button
+									variant="outline"
+									size="sm"
+									onclick={() => copyPendingInviteLink(inv.token, inv.id)}
+								>
+									{copiedInviteId === inv.id ? 'Copied' : 'Copy link'}
 								</Button>
 							</div>
-							<p class="text-sm text-muted-foreground">
-								Link expires in 7 days. Email delivery is coming soon — share this link manually for
-								now.
-							</p>
-						{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			<!-- Connected External Rep Agencies -->
+			{#if activeConnectedReps.length > 0}
+				<div class="space-y-2">
+					<h2 class="text-sm font-semibold text-muted-foreground">Connected Rep Agencies</h2>
+					{#each activeConnectedReps as conn (conn.connection_id)}
+						<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
+							<div class="flex items-center gap-3">
+								<div
+									class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-sm font-bold text-blue-600"
+								>
+									{conn.rep_org_name.charAt(0).toUpperCase()}
+								</div>
+								<div>
+									<p class="text-sm font-medium">{conn.rep_org_name}</p>
+									<p class="text-sm text-muted-foreground">
+										{conn.order_count} order{conn.order_count !== 1 ? 's' : ''} · {fmt.format(
+											conn.revenue
+										)}
+										{#if conn.connected_at}
+											· Connected {new Date(conn.connected_at).toLocaleDateString()}
+										{/if}
+									</p>
+								</div>
+							</div>
+							<span
+								class="inline-flex rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-normal text-blue-600 dark:text-blue-400"
+								>Connected</span
+							>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			{#if reps.length === 0 && pendingInvites.length === 0 && activeConnectedReps.length === 0}
+				<div class="flex flex-col items-center justify-center py-16">
+					<div class="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-7 w-7 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="1.5"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
+							/>
+						</svg>
 					</div>
-				{/if}
+					<h3 class="mt-4 text-base font-semibold">No reps yet</h3>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Invite team members to start tracking rep performance.
+					</p>
+				</div>
 			{:else}
-				<ConnectionInviteSection invites={data.connectionInvites} />
+				<div class="space-y-2">
+					{#each reps as rep (rep.id)}
+						<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
+							<div class="flex items-center gap-3">
+								<div
+									class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary"
+								>
+									{getInitials(rep.name)}
+								</div>
+								<div>
+									<p class="text-sm font-medium">{rep.name}</p>
+									<p class="text-sm text-muted-foreground">{roleLabel(rep.role)}</p>
+								</div>
+							</div>
+							<div class="flex items-center gap-8 text-right">
+								<div>
+									<p class="text-sm font-medium">{rep.orderCount}</p>
+									<p class="text-sm text-muted-foreground">Orders</p>
+								</div>
+								<div>
+									<p class="text-sm font-medium">{fmt.format(rep.revenue)}</p>
+									<p class="text-sm text-muted-foreground">Revenue</p>
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
 			{/if}
 		</div>
-	{/if}
-
-	{#if pendingInvites.length > 0}
-		<div class="space-y-2">
-			<h2 class="text-sm font-semibold text-muted-foreground">Pending invitations</h2>
-			{#each pendingInvites as inv (inv.id)}
-				<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
-					<div class="flex items-center gap-3">
-						<div
-							class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground"
-						>
-							{inv.email.charAt(0).toUpperCase()}
-						</div>
-						<div>
-							<p class="text-sm font-medium">{inv.email}</p>
-							<p class="text-sm text-muted-foreground">
-								{roleLabel(inv.role)} &middot; Invited {new Date(
-									inv.created_at
-								).toLocaleDateString()}
-							</p>
-						</div>
-					</div>
-					<div class="flex items-center gap-2">
-						<span class="rounded-full border px-2 py-0.5 text-sm text-muted-foreground"
-							>Pending</span
-						>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={() => copyPendingInviteLink(inv.token, inv.id)}
-						>
-							{copiedInviteId === inv.id ? 'Copied' : 'Copy link'}
-						</Button>
-					</div>
-				</div>
-			{/each}
-		</div>
-	{/if}
-
-	<!-- Connected External Rep Agencies -->
-	{#if activeConnectedReps.length > 0}
-		<div class="space-y-2">
-			<h2 class="text-sm font-semibold text-muted-foreground">Connected Rep Agencies</h2>
-			{#each activeConnectedReps as conn (conn.connection_id)}
-				<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
-					<div class="flex items-center gap-3">
-						<div
-							class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-sm font-bold text-blue-600"
-						>
-							{conn.rep_org_name.charAt(0).toUpperCase()}
-						</div>
-						<div>
-							<p class="text-sm font-medium">{conn.rep_org_name}</p>
-							<p class="text-sm text-muted-foreground">
-								{conn.order_count} order{conn.order_count !== 1 ? 's' : ''} · {fmt.format(
-									conn.revenue
-								)}
-								{#if conn.connected_at}
-									· Connected {new Date(conn.connected_at).toLocaleDateString()}
-								{/if}
-							</p>
-						</div>
-					</div>
-					<span
-						class="inline-flex rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-normal text-blue-600 dark:text-blue-400"
-						>Connected</span
-					>
-				</div>
-			{/each}
-		</div>
-	{/if}
-
-	{#if reps.length === 0 && pendingInvites.length === 0 && activeConnectedReps.length === 0}
-		<div class="flex flex-col items-center justify-center py-16">
-			<div class="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-7 w-7 text-muted-foreground"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="1.5"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
-					/>
-				</svg>
-			</div>
-			<h3 class="mt-4 text-base font-semibold">No reps yet</h3>
-			<p class="mt-1 text-sm text-muted-foreground">
-				Invite team members to start tracking rep performance.
-			</p>
-		</div>
-	{:else}
-		<div class="space-y-2">
-			{#each reps as rep (rep.id)}
-				<div class="flex items-center justify-between rounded-none border bg-card px-5 py-4">
-					<div class="flex items-center gap-3">
-						<div
-							class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary"
-						>
-							{getInitials(rep.name)}
-						</div>
-						<div>
-							<p class="text-sm font-medium">{rep.name}</p>
-							<p class="text-sm text-muted-foreground">{roleLabel(rep.role)}</p>
-						</div>
-					</div>
-					<div class="flex items-center gap-8 text-right">
-						<div>
-							<p class="text-sm font-medium">{rep.orderCount}</p>
-							<p class="text-sm text-muted-foreground">Orders</p>
-						</div>
-						<div>
-							<p class="text-sm font-medium">{fmt.format(rep.revenue)}</p>
-							<p class="text-sm text-muted-foreground">Revenue</p>
-						</div>
-					</div>
-				</div>
-			{/each}
-		</div>
-	{/if}
+	</div>
 </div>
 
 <BulkImportModal
