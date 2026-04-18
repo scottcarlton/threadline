@@ -450,6 +450,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			return { report, title, year, rows };
 		}
 
+		case 'product-performance': {
+			const { loadProductPerformance } =
+				await import('$lib/server/reports/brand/productPerformance');
+			const daysBack = parseInt(url.searchParams.get('days') ?? '') || 90;
+			const rows = await loadProductPerformance(supabase, orgId, daysBack);
+			return { report, title, year, rows, daysBack };
+		}
+
 		default:
 			throw error(404, 'Report not found');
 	}
