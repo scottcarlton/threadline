@@ -237,7 +237,11 @@
 	<div class="grid gap-6 {data.connectInvite ? 'md:grid-cols-[1fr_360px]' : ''}">
 		{#if data.connectInvite}
 			<aside class="md:order-last">
-				<InviteOrgSidebar invite={data.connectInvite} origin={data.origin} />
+				<InviteOrgSidebar
+					invite={data.connectInvite}
+					origin={data.origin}
+					emailForm={data.inviteEmailForm}
+				/>
 			</aside>
 		{/if}
 
