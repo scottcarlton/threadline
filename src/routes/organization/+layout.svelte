@@ -11,6 +11,15 @@
 			href: '/organization/members' as const,
 			badge: (data.teamCount as number) ?? 0
 		},
+		...(data.orgType === 'brand'
+			? [
+					{
+						label: 'Partners',
+						href: '/organization/partners' as const,
+						badge: (data.partnersCount as number) ?? 0
+					}
+				]
+			: []),
 		{
 			label: 'Contacts',
 			href: '/organization/contacts' as const,

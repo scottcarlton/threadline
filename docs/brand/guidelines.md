@@ -392,7 +392,7 @@ Supporting text     ← text-lg, text-foreground/60
 
 | Type          | Style                                             | Usage                                                  |
 | ------------- | ------------------------------------------------- | ------------------------------------------------------ |
-| Primary CTA   | `bg-foreground text-primary-foreground px-8 py-3` | Main actions: "Join Early Access", "Get Started"       |
+| Primary CTA   | `bg-foreground text-primary-foreground px-8 py-3` | Main actions: "Join Beta", "Get Started"               |
 | Secondary CTA | `border border-foreground px-8 py-3`              | Supporting actions: "View Pricing", "See All Features" |
 | Ghost         | No background, no border, text only               | Navigation links, inline actions                       |
 

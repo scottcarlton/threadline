@@ -10,15 +10,15 @@
 
 ## 1. Overview
 
-This document defines the marketing strategy, website requirements, content plan, and launch timeline for Threadline — a multi-tenant B2B wholesale order management platform for the fashion and apparel industry. The plan covers three release phases from Early Access through Full Release, with a marketing website inspired by the design quality and clarity of Ramp.com, positioned competitively against Brandboom and JOOR.
+This document defines the marketing strategy, website requirements, content plan, and launch timeline for Threadline — a multi-tenant B2B wholesale order management platform for the fashion and apparel industry. The plan covers three release phases from Beta through Public, with a marketing website inspired by the design quality and clarity of Ramp.com, positioned competitively against Brandboom and JOOR.
 
 ### 1.1 Release Timeline
 
-| Phase            | Date           | Description                                                                                                   |
-| ---------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
-| **Early Access** | April 30, 2026 | Invite-only release for founding users. Core features complete. Gather feedback, validate product-market fit. |
-| **Beta Release** | May 30, 2026   | Open waitlist, expanded access. Marketing site fully live. Content engine running.                            |
-| **Full Release** | June 30, 2026  | Public launch. All features, billing, and integrations live. PR and paid acquisition begin.                   |
+| Phase             | Date           | Description                                                                                                   |
+| ----------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Beta**          | April 30, 2026 | Invite-only release for founding users. Core features complete. Gather feedback, validate product-market fit. |
+| **Early Release** | May 30, 2026   | Open waitlist, expanded access. Marketing site fully live. Content engine running.                            |
+| **Public**        | June 30, 2026  | Public launch. All features, billing, and integrations live. PR and paid acquisition begin.                   |
 
 ### 1.2 Competitive Landscape
 
@@ -105,19 +105,19 @@ Footer:
 
 #### Pages by Priority
 
-**Phase 1 — Early Access (by April 30):**
+**Phase 1 — Beta (by April 30):**
 
-| Page                                 | Status       | Requirements                                                                                                    |
-| ------------------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------- |
-| Homepage `/`                         | Needs update | Update hero for Early Access CTA, add social proof section, update footer, fix stats with real/credible numbers |
-| Features `/features`                 | Needs update | Expand to sub-pages per feature. Add product screenshots/mockups. Add comparison table vs competitors           |
-| Pricing `/pricing`                   | Exists       | Add FAQ, add feature comparison table per tier, add "Contact Sales" for enterprise                              |
-| Early Access Landing `/early-access` | New          | Dedicated landing page with waitlist signup, value props, founding member benefits                              |
-| Terms of Service `/legal/terms`      | New          | Full legal terms page                                                                                           |
-| Privacy Policy `/legal/privacy`      | New          | Full privacy policy page                                                                                        |
-| Security `/security`                 | New          | Security practices, SOC 2 roadmap, encryption, SSO, RLS details                                                 |
+| Page                            | Status       | Requirements                                                                                            |
+| ------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| Homepage `/`                    | Needs update | Update hero for Beta CTA, add social proof section, update footer, fix stats with real/credible numbers |
+| Features `/features`            | Needs update | Expand to sub-pages per feature. Add product screenshots/mockups. Add comparison table vs competitors   |
+| Pricing `/pricing`              | Exists       | Add FAQ, add feature comparison table per tier, add "Contact Sales" for enterprise                      |
+| Beta Landing `/beta`            | New          | Dedicated landing page with waitlist signup, value props, founding member benefits                      |
+| Terms of Service `/legal/terms` | New          | Full legal terms page                                                                                   |
+| Privacy Policy `/legal/privacy` | New          | Full privacy policy page                                                                                |
+| Security `/security`            | New          | Security practices, SOC 2 roadmap, encryption, SSO, RLS details                                         |
 
-**Phase 2 — Beta Release (by May 30):**
+**Phase 2 — Early Release (by May 30):**
 
 | Page                                                      | Status          | Requirements                                                                                      |
 | --------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
@@ -135,7 +135,7 @@ Footer:
 | Contact `/contact`                                        | New             | Contact form, email, support hours                                                                |
 | Changelog `/changelog`                                    | New             | Product updates and release notes feed                                                            |
 
-**Phase 3 — Full Release (by June 30):**
+**Phase 3 — Public (by June 30):**
 
 | Page                                   | Status | Requirements                                                               |
 | -------------------------------------- | ------ | -------------------------------------------------------------------------- |
@@ -263,18 +263,18 @@ Footer:
 
 ### 4.2 Content Calendar
 
-**Phase 1: Early Access (April 14–30)**
+**Phase 1: Beta (April 14–30)**
 
 | Week      | Content                                    | Channel                        |
 | --------- | ------------------------------------------ | ------------------------------ |
 | Apr 14–18 | "Introducing Threadline" announcement post | Blog, LinkedIn                 |
 | Apr 14–18 | 3 teaser social posts (features preview)   | LinkedIn, Twitter/X, Instagram |
 | Apr 21–25 | "Why We Built Threadline" founder story    | Blog, LinkedIn                 |
-| Apr 21–25 | Early Access signup landing page live      | Website                        |
-| Apr 28–30 | Early Access launch email to waitlist      | Email                          |
+| Apr 21–25 | Beta signup landing page live              | Website                        |
+| Apr 28–30 | Beta launch email to waitlist              | Email                          |
 | Apr 28–30 | "What's Coming" product roadmap post       | Blog                           |
 
-**Phase 2: Beta (May 1–30)**
+**Phase 2: Early Release (May 1–30)**
 
 | Week   | Content                                            | Channel             |
 | ------ | -------------------------------------------------- | ------------------- |
@@ -283,11 +283,11 @@ Footer:
 | Week 2 | Comparison: Threadline vs Brandboom vs JOOR        | Blog, SEO           |
 | Week 2 | 5 social posts (tips, features, behind-the-scenes) | LinkedIn, Twitter/X |
 | Week 3 | Feature deep-dive: Buyer Portal                    | Blog                |
-| Week 3 | Email newsletter #1 to beta users                  | Email               |
+| Week 3 | Email newsletter #1 to Early Release users         | Email               |
 | Week 4 | "How [Early User] Saved X Hours/Week" case study   | Blog, LinkedIn      |
-| Week 4 | Beta feedback roundup + what we shipped            | Blog, Email         |
+| Week 4 | Early Release feedback roundup + what we shipped   | Blog, Email         |
 
-**Phase 3: Full Launch (June 1–30)**
+**Phase 3: Public (June 1–30)**
 
 | Week   | Content                                                    | Channel                      |
 | ------ | ---------------------------------------------------------- | ---------------------------- |
@@ -304,9 +304,9 @@ Footer:
 
 **Sequences to Build:**
 
-- [ ] Waitlist nurture (Early Access period — 3 emails)
+- [ ] Waitlist nurture (Beta period — 3 emails)
 - [ ] Welcome/onboarding (new signups — 5 emails over 14 days)
-- [ ] Beta feedback request (post-beta — 2 emails)
+- [ ] Early Release feedback request (post-Early-Release — 2 emails)
 - [ ] Launch announcement (full release — 1 email blast)
 - [ ] Monthly newsletter template (ongoing)
 - [ ] Re-engagement sequence (inactive users — 3 emails)
@@ -473,27 +473,27 @@ AI Agents
 
 ## 7. Launch Milestones & Timeline
 
-### Phase 1: Pre-Launch → Early Access (April 12–30)
+### Phase 1: Pre-Launch → Beta (April 12–30)
 
-| Date      | Milestone                 | Deliverables                                                                                                    |
-| --------- | ------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Apr 12–16 | Brand & Design Foundation | Brand guidelines doc, logo variations, color/type finalization, OG images                                       |
-| Apr 16–20 | Website Updates           | Homepage refresh, Early Access landing page, footer fix, SEO basics (meta tags, sitemap), Terms & Privacy pages |
-| Apr 20–24 | Content Creation          | "Introducing Threadline" blog post, founder story draft, 6 social posts, waitlist email sequence                |
-| Apr 24–28 | Launch Prep               | Analytics setup (GA4, Search Console), email platform configured, social profiles created, product screenshots  |
-| Apr 30    | **Early Access Launch**   | Waitlist opens, first blog posts live, social announcement, Early Access emails sent                            |
+| Date      | Milestone                 | Deliverables                                                                                                   |
+| --------- | ------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Apr 12–16 | Brand & Design Foundation | Brand guidelines doc, logo variations, color/type finalization, OG images                                      |
+| Apr 16–20 | Website Updates           | Homepage refresh, Beta landing page, footer fix, SEO basics (meta tags, sitemap), Terms & Privacy pages        |
+| Apr 20–24 | Content Creation          | "Introducing Threadline" blog post, founder story draft, 6 social posts, waitlist email sequence               |
+| Apr 24–28 | Launch Prep               | Analytics setup (GA4, Search Console), email platform configured, social profiles created, product screenshots |
+| Apr 30    | **Beta Launch**           | Waitlist opens, first blog posts live, social announcement, Beta emails sent                                   |
 
-### Phase 2: Early Access → Beta (May 1–30)
+### Phase 2: Beta → Early Release (May 1–30)
 
-| Date      | Milestone             | Deliverables                                                                        |
-| --------- | --------------------- | ----------------------------------------------------------------------------------- |
-| May 1–7   | Content Engine Starts | Getting Started guide, first feature deep-dive, Help Center launched (10 articles)  |
-| May 7–14  | Solutions Expansion   | Dedicated solutions pages (4), integrations directory page, comparison blog posts   |
-| May 14–21 | Social Proof          | First case study, testimonial collection, customer logos for website                |
-| May 21–28 | Beta Prep             | Changelog page, About page, Contact page, blog category pages, 20+ help articles    |
-| May 30    | **Beta Launch**       | Open waitlist, marketing site fully live, beta announcement email + social campaign |
+| Date      | Milestone                | Deliverables                                                                                 |
+| --------- | ------------------------ | -------------------------------------------------------------------------------------------- |
+| May 1–7   | Content Engine Starts    | Getting Started guide, first feature deep-dive, Help Center launched (10 articles)           |
+| May 7–14  | Solutions Expansion      | Dedicated solutions pages (4), integrations directory page, comparison blog posts            |
+| May 14–21 | Social Proof             | First case study, testimonial collection, customer logos for website                         |
+| May 21–28 | Early Release Prep       | Changelog page, About page, Contact page, blog category pages, 20+ help articles             |
+| May 30    | **Early Release Launch** | Open waitlist, marketing site fully live, Early Release announcement email + social campaign |
 
-### Phase 3: Beta → Full Release (June 1–30)
+### Phase 3: Early Release → Public (June 1–30)
 
 | Date      | Milestone             | Deliverables                                                                              |
 | --------- | --------------------- | ----------------------------------------------------------------------------------------- |
@@ -501,30 +501,30 @@ AI Agents
 | Jun 7–14  | Content Blitz         | Competitor comparison pages, pillar SEO content, 3 customer videos, webinar prep          |
 | Jun 14–21 | PR & Outreach         | Press outreach to trade publications, influencer/partner outreach, guest post submissions |
 | Jun 21–28 | Final Polish          | ROI calculator, API docs, careers page, all help docs complete (40+ articles)             |
-| Jun 30    | **Full Launch**       | Product Hunt launch, press release, paid ads go live, full public availability            |
+| Jun 30    | **Public Launch**     | Product Hunt launch, press release, paid ads go live, full public availability            |
 
 ---
 
 ## 8. Metrics & Success Criteria
 
-### 8.1 Early Access (April 30)
+### 8.1 Beta (April 30)
 
 - [ ] Waitlist signups: 100+ emails
-- [ ] Early Access users: 20–50 active orgs
+- [ ] Beta users: 20–50 active orgs
 - [ ] Website live with 7+ pages, full SEO metadata
 - [ ] 2+ blog posts published
 
 ### 8.2 Beta (May 30)
 
 - [ ] Waitlist signups: 500+ emails
-- [ ] Beta users: 100–200 active orgs
+- [ ] Early Release users: 100–200 active orgs
 - [ ] Website: 20+ pages live
 - [ ] Blog: 8+ posts published
 - [ ] Help Center: 20+ articles
 - [ ] Social followers: 500+ across platforms
 - [ ] Organic search impressions growing week-over-week
 
-### 8.3 Full Launch (June 30)
+### 8.3 Public Launch (June 30)
 
 - [ ] Registered users: 500+ orgs
 - [ ] Paid conversions: 50+ Pro/Agency subscriptions
@@ -586,12 +586,12 @@ AI Agents
 - [ ] Should the Help Center be built in-app, as a separate subdomain (help.threadline.com), or use a third-party tool?
 - [ ] Should marketing pages be statically generated (SSG) for performance, or remain SSR?
 - [ ] Is there a need for internationalization (i18n) of the marketing site?
-- [ ] Should the Early Access signup use a separate waitlist tool or the existing Supabase auth?
+- [ ] Should the Beta signup use a separate waitlist tool or the existing Supabase auth?
 
 ### Launch Strategy
 
 - [ ] Is the April 30 → May 30 → June 30 timeline realistic given current team size?
-- [ ] Should there be a referral/invite program for Early Access users?
+- [ ] Should there be a referral/invite program for Beta users?
 - [ ] Is a Product Hunt launch the right channel for B2B wholesale, or are trade publications more impactful?
 - [ ] Should Threadline offer a lifetime deal or founding member discount for early adopters?
 
