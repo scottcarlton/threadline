@@ -73,6 +73,11 @@
 			id: 'season-sell-through',
 			title: 'Season Sell-Through',
 			description: "How much of each season's catalog has sold — units, revenue, and rate"
+		},
+		{
+			id: 'pipeline',
+			title: 'Order Pipeline',
+			description: 'Live view of orders by status across in-house and connected agencies'
 		}
 	];
 

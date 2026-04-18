@@ -18,7 +18,8 @@ const brandReportTitles: Record<string, string> = {
 	'product-performance': 'Product Performance',
 	'territory-coverage': 'Territory Coverage',
 	'account-penetration': 'Account Penetration',
-	'season-sell-through': 'Season Sell-Through'
+	'season-sell-through': 'Season Sell-Through',
+	pipeline: 'Order Pipeline'
 };
 
 function titleFor(orgType: OrgType, slug: string): string | null {
@@ -305,6 +306,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		}
 
 		case 'pipeline': {
+			if (locals.orgType === 'brand') {
+				const { loadOrderPipeline } = await import('$lib/server/reports/brand/orderPipeline');
+				const rows = await loadOrderPipeline(supabase, orgId);
+				return { report, title, year, rows, variant: 'brand' as const };
+			}
 			const { data: orders } = await scopeByRep(
 				scopeByBrand(
 					supabase
