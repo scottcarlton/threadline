@@ -17,7 +17,8 @@ const brandReportTitles: Record<string, string> = {
 	'sales-by-rep': 'Sales by Rep',
 	'product-performance': 'Product Performance',
 	'territory-coverage': 'Territory Coverage',
-	'account-penetration': 'Account Penetration'
+	'account-penetration': 'Account Penetration',
+	'season-sell-through': 'Season Sell-Through'
 };
 
 function titleFor(orgType: OrgType, slug: string): string | null {
@@ -471,6 +472,13 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			const { loadAccountPenetration } =
 				await import('$lib/server/reports/brand/accountPenetration');
 			const rows = await loadAccountPenetration(supabase, orgId, year);
+			return { report, title, year, rows, variant: 'brand' as const };
+		}
+
+		case 'season-sell-through': {
+			if (locals.orgType !== 'brand') throw error(404, 'Report not found');
+			const { loadSeasonSellThrough } = await import('$lib/server/reports/brand/seasonSellThrough');
+			const rows = await loadSeasonSellThrough(supabase, orgId, year);
 			return { report, title, year, rows, variant: 'brand' as const };
 		}
 

@@ -68,6 +68,11 @@
 			id: 'account-penetration',
 			title: 'Account Penetration',
 			description: 'Which accounts are ordering, which are dormant, and year-over-year trend'
+		},
+		{
+			id: 'season-sell-through',
+			title: 'Season Sell-Through',
+			description: "How much of each season's catalog has sold — units, revenue, and rate"
 		}
 	];
 
