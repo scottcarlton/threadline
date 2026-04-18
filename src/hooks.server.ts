@@ -102,7 +102,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	// Load user context for authenticated routes
 	if (session && user && !isPublicRoute) {
 		const [{ data: profile }, { data: allMemberships }] = await Promise.all([
-			supabase.from('profiles').select('*').eq('id', user.id).single(),
+			supabaseAdmin.from('profiles').select('*').eq('id', user.id).single(),
 			supabase.from('organization_members').select('*, organizations(*)').eq('profile_id', user.id)
 		]);
 

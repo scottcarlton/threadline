@@ -4,6 +4,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, organization } = locals;
 	if (!organization) return { knownContacts: [], discoveredContacts: [] };
 
+	// RLS handles federation visibility — no admin client or connected org queries needed
 	const [accountsRes, brandsRes, discoveredRes] = await Promise.all([
 		supabase
 			.from('accounts')
@@ -83,7 +84,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		emailMap.get(key)!.push(d.id);
 	}
 
-	// Also check for discovered contacts that match known contact emails
 	type DuplicateGroup = {
 		email: string;
 		contacts: { id: string; name: string | null; source: string }[];
@@ -106,7 +106,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
-	// Check for duplicate emails within discovered contacts
 	for (const [email, ids] of emailMap) {
 		if (ids.length > 1) {
 			duplicates.push({

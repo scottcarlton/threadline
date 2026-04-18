@@ -90,6 +90,7 @@
 			$page.url.pathname.startsWith('/signup') ||
 			$page.url.pathname.startsWith('/invite') ||
 			$page.url.pathname.startsWith('/buyer-invite') ||
+			$page.url.pathname.startsWith('/connect') ||
 			$page.url.pathname.startsWith('/upload') ||
 			$page.url.pathname.startsWith('/onboarding') ||
 			$page.url.pathname.startsWith('/features') ||
@@ -635,7 +636,6 @@
 			organization={data.organization}
 			{orgDisplayName}
 			{sidebarOpen}
-			showTeam={!isBrandScoped && !data.isBuyer && data.membership?.role !== 'sales'}
 			role={data.membership?.role ?? null}
 			isBuyer={data.isBuyer === true}
 			onsidebarToggle={() => (sidebarOpen = !sidebarOpen)}

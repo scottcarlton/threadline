@@ -6,10 +6,20 @@
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import type { Brand } from '$lib/types/database.js';
 
 	let { data } = $props();
 	let showImport = $state(false);
+	const federatedIds = $derived(
+		new Set(
+			data.organizationId
+				? (data.brands as Brand[])
+						.filter((b) => b.organization_id !== data.organizationId)
+						.map((b) => b.id)
+				: []
+		)
+	);
 
 	const brandColumns = [
 		{ key: 'name', label: 'Name', required: true },
@@ -100,32 +110,26 @@
 </script>
 
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-3xl">Brands</h1>
-			<p class="mt-1 font-mono text-sm text-muted-foreground">Manage your brand portfolio</p>
-		</div>
-		<div class="flex items-center gap-2">
-			{#if filtered.length > 0}
-				<Button variant="outline" size="sm" onclick={exportBrands}>Export</Button>
-			{/if}
-			{#if canEdit}
-				<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
-				<Button href="/brands/new">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="-ml-1 h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
-					>
-					Add Brand
-				</Button>
-			{/if}
-		</div>
-	</div>
+	<PageHeader title="Brands" subtitle="Manage your brand portfolio">
+		{#if filtered.length > 0}
+			<Button variant="outline" onclick={exportBrands}>Export</Button>
+		{/if}
+		{#if canEdit}
+			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
+			<Button href="/brands/new">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="-ml-1 h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+				>
+				Add Brand
+			</Button>
+		{/if}
+	</PageHeader>
 
 	<div class="flex items-center gap-3">
 		<div class="max-w-xs flex-1">
@@ -168,10 +172,10 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-none border">
+		<div class="overflow-hidden border-b">
 			<table class="w-full">
 				<thead>
-					<tr class="border-b bg-muted/40">
+					<tr class="border-b">
 						<th
 							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Brand</th
@@ -203,6 +207,12 @@
 								<a href={resolve(`/brands/${brand.id}`)} class="text-base hover:underline"
 									>{brand.name}</a
 								>
+								{#if federatedIds.has(brand.id)}
+									<span
+										class="ml-2 inline-flex rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-normal text-blue-600 dark:text-blue-400"
+										>Connected</span
+									>
+								{/if}
 								{#if brand.website}
 									<a
 										href={brand.website}
@@ -225,17 +235,17 @@
 							<td class="px-4 py-3">
 								{#if brand.archived_at}
 									<span
-										class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500"
+										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
 										>Archived</span
 									>
 								{:else if brand.is_active}
 									<span
-										class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+										class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700"
 										>Active</span
 									>
 								{:else}
 									<span
-										class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500"
+										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
 										>Inactive</span
 									>
 								{/if}

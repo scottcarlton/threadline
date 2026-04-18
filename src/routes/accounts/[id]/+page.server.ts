@@ -1,10 +1,36 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
-	const { supabase, organization } = locals;
+	const { organization } = locals;
+	if (!organization) throw error(404, 'Organization not found');
+
+	// Load the account via admin, then enforce visibility in app code:
+	// the account's org must be the viewer's org OR an active connection.
+	const { data: preAccount } = await supabaseAdmin
+		.from('accounts')
+		.select('id, organization_id')
+		.eq('id', params.id)
+		.maybeSingle();
+
+	if (!preAccount) throw error(404, 'Account not found');
+
+	if (preAccount.organization_id !== organization.id) {
+		const { data: conn } = await supabaseAdmin
+			.from('org_connections')
+			.select('id')
+			.eq('status', 'active')
+			.or(
+				`and(rep_org_id.eq.${organization.id},brand_org_id.eq.${preAccount.organization_id}),and(brand_org_id.eq.${organization.id},rep_org_id.eq.${preAccount.organization_id})`
+			)
+			.maybeSingle();
+		if (!conn) throw error(404, 'Account not found');
+	}
+
+	const supabase = supabaseAdmin;
 
 	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes, locationsRes] =
 		await Promise.all([
@@ -46,9 +72,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				.order('sort_order', { ascending: true })
 		]);
 
-	if (accountRes.error || !accountRes.data) {
-		throw error(404, 'Account not found');
-	}
+	const account = accountRes.data;
+	if (!account) throw error(404, 'Account not found');
 
 	// Aggregate brand stats from orders
 	type BrandSummary = { id: string; name: string; orderCount: number; totalSales: number };
@@ -74,12 +99,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const brandSummaries = Array.from(brandMap.values()).sort((a, b) => b.totalSales - a.totalSales);
 
-	// Get health score for this account
-	let health = null;
-	if (organization) {
-		const healthMap = await computeAccountHealth(supabase, organization.id);
-		health = healthMap.get(params.id) ?? null;
-	}
+	// Get health score — use the user's own org for health computation
+	const healthMap = await computeAccountHealth(supabase, organization.id);
+	const health = healthMap.get(params.id) ?? null;
 
 	// Load tags for this account and available tags
 	const [tagAssignmentsRes, availableTagsRes] = await Promise.all([
@@ -87,13 +109,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.from('account_tag_assignments')
 			.select('*, account_tags(*)')
 			.eq('account_id', params.id),
-		organization
-			? supabase
-					.from('account_tags')
-					.select('*')
-					.eq('organization_id', organization.id)
-					.order('sort_order')
-			: Promise.resolve({ data: [] })
+		supabase
+			.from('account_tags')
+			.select('*')
+			.eq('organization_id', account.organization_id)
+			.order('sort_order')
 	]);
 
 	// Load buyer users for this account
@@ -116,14 +136,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		.is('accepted_at', null);
 
 	// Load all brands for the invite dialog
-	const { data: allBrands } = organization
-		? await supabase
-				.from('brands')
-				.select('id, name')
-				.eq('organization_id', organization.id)
-				.eq('is_active', true)
-				.order('name')
-		: { data: [] };
+	const { data: allBrands } = await supabase
+		.from('brands')
+		.select('id, name')
+		.eq('organization_id', account.organization_id)
+		.eq('is_active', true)
+		.order('name');
 
 	// Build activity timeline
 	type ActivityItem = {
@@ -195,7 +213,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	activity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 	return {
-		account: accountRes.data,
+		account,
 		brandSummaries,
 		accountHealth: health,
 		buyerUsers: buyerUsers ?? [],
@@ -322,7 +340,6 @@ export const actions: Actions = {
 		if (delErr) return fail(500, { message: delErr.message });
 
 		if (wasDefault) {
-			// Promote the next location (by sort_order) to default, if any.
 			const { data: next } = await supabase
 				.from('account_locations')
 				.select('id')
@@ -343,8 +360,6 @@ export const actions: Actions = {
 		const id = (fd.get('id') ?? '').toString();
 		if (!id) return fail(400, { message: 'Missing id' });
 
-		// Atomicity: unset existing default first, then set the new one. The
-		// unique partial index prevents two defaults, so order matters.
 		const { error: unsetErr } = await supabase
 			.from('account_locations')
 			.update({ is_default: false })

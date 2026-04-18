@@ -9,6 +9,12 @@
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import type { Account } from '$lib/types/database.js';
 
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { debounce } from '$lib/utils/debounce.js';
+
+	const PAGE_SIZE = 50;
+
 	let { data } = $props();
 	let showImport = $state(false);
 
@@ -60,7 +66,17 @@
 	}
 	import type { AccountHealth } from '$lib/server/account-health.js';
 
-	const accounts = $derived(data.accounts as Account[]);
+	// Mutable list — initial page from server, appended via infinite scroll
+	let accountList = $state<Account[]>([]);
+	let hasMore = $state(false);
+	let loadingMore = $state(false);
+	let sentinelEl = $state<HTMLDivElement | null>(null);
+
+	$effect(() => {
+		accountList = data.accounts as Account[];
+		hasMore = Boolean(data.hasMore);
+	});
+
 	const accountTotals = $derived((data.accountTotals ?? {}) as Record<string, number>);
 	const accountHealth = $derived((data.accountHealth ?? {}) as Record<string, AccountHealth>);
 	const accountTags = $derived(
@@ -97,23 +113,68 @@
 		}).format(value);
 	}
 
-	let search = $state('');
+	let search = $state($page.url.searchParams.get('search') ?? '');
 	let showArchived = $state(false);
 
 	const filtered = $derived(
-		accounts.filter((a) => {
-			const matchesSearch =
-				a.business_name.toLowerCase().includes(search.toLowerCase()) ||
-				(a.contact_first_name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
-				(a.contact_last_name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
-				(a.city?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
-				(a.state?.toLowerCase().includes(search.toLowerCase()) ?? false);
+		accountList.filter((a) => {
 			const matchesArchive = showArchived ? true : !a.archived_at;
-			return matchesSearch && matchesArchive;
+			return matchesArchive;
 		})
 	);
 
-	const archivedCount = $derived(accounts.filter((a) => a.archived_at).length);
+	const archivedCount = $derived(accountList.filter((a) => a.archived_at).length);
+
+	// Debounced server-side search
+	const debouncedSearch = debounce((value: string) => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		if (value) params.set('search', value);
+		else params.delete('search');
+		goto(resolve(`/accounts?${params.toString()}`), { replaceState: true });
+	}, 300);
+
+	function onSearchInput(e: Event) {
+		const value = (e.target as HTMLInputElement).value;
+		search = value;
+		debouncedSearch(value);
+	}
+
+	// Infinite scroll
+	async function loadMore() {
+		if (loadingMore || !hasMore) return;
+		loadingMore = true;
+		try {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+			const params = new URLSearchParams();
+			params.set('offset', String(accountList.length));
+			params.set('limit', String(PAGE_SIZE));
+			if (search) params.set('search', search);
+			if (showArchived) params.set('archived', 'true');
+			const res = await fetch(`/api/accounts/list?${params.toString()}`);
+			if (res.ok) {
+				const json = await res.json();
+				accountList = [...accountList, ...(json.accounts as Account[])];
+				hasMore = Boolean(json.hasMore);
+			}
+		} finally {
+			loadingMore = false;
+		}
+	}
+
+	$effect(() => {
+		if (!sentinelEl) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting && hasMore && !loadingMore) {
+					loadMore();
+				}
+			},
+			{ rootMargin: '200px' }
+		);
+		observer.observe(sentinelEl);
+		return () => observer.disconnect();
+	});
 
 	function exportAccounts() {
 		const rows = filtered.map((a) => ({
@@ -132,7 +193,13 @@
 </script>
 
 <div class="space-y-6">
-	<PageHeader title="Accounts" subtitle="Manage buyer accounts">
+	<PageHeader
+		title="Accounts"
+		subtitle="{data.totalCount ?? accountList.length} account{(data.totalCount ??
+			accountList.length) !== 1
+			? 's'
+			: ''}"
+	>
 		{#if filtered.length > 0 && canExport}
 			<Button variant="outline" onclick={exportAccounts}>Export</Button>
 		{/if}
@@ -155,7 +222,7 @@
 
 	<div class="flex items-center gap-3">
 		<div class="max-w-xs flex-1">
-			<SearchInput placeholder="Search accounts..." bind:value={search} />
+			<SearchInput placeholder="Search accounts..." value={search} oninput={onSearchInput} />
 		</div>
 		{#if archivedCount > 0}
 			<button
@@ -194,10 +261,10 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-none border">
+		<div class="overflow-hidden border-b">
 			<table class="w-full">
 				<thead>
-					<tr class="border-b bg-muted/40">
+					<tr class="border-b">
 						<th
 							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Account</th
@@ -263,7 +330,7 @@
 							<td class="px-4 py-3">
 								{#if account.archived_at}
 									<span
-										class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500"
+										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
 										>Archived</span
 									>
 								{:else}
@@ -271,7 +338,7 @@
 									{@const badge = healthBadge[health?.label ?? 'inactive']}
 									<div>
 										<span
-											class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {badge.class}"
+											class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {badge.class}"
 											>{badge.label}</span
 										>
 									</div>
@@ -289,6 +356,14 @@
 				</tbody>
 			</table>
 		</div>
+
+		{#if hasMore || loadingMore}
+			<div bind:this={sentinelEl} class="flex items-center justify-center py-6">
+				{#if loadingMore}
+					<span class="text-sm text-muted-foreground">Loading more accounts…</span>
+				{/if}
+			</div>
+		{/if}
 	{/if}
 </div>
 

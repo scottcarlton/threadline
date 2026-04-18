@@ -16,6 +16,11 @@
 	let website = $state('');
 	let contactEmail = $state('');
 	let contactPhone = $state('');
+	let addressLine1 = $state('');
+	let addressLine2 = $state('');
+	let city = $state('');
+	let orgState = $state('');
+	let zip = $state('');
 
 	$effect(() => {
 		orgName = data.org?.name ?? '';
@@ -23,6 +28,11 @@
 		website = data.selfBrand?.website ?? '';
 		contactEmail = data.selfBrand?.contact_email ?? '';
 		contactPhone = data.selfBrand?.contact_phone ?? '';
+		addressLine1 = data.org?.address_line1 ?? '';
+		addressLine2 = data.org?.address_line2 ?? '';
+		city = data.org?.city ?? '';
+		orgState = data.org?.state ?? '';
+		zip = data.org?.zip ?? '';
 	});
 	let saving = $state(false);
 	let message = $state('');
@@ -37,6 +47,11 @@
 			.update({
 				name: orgName,
 				logo_url: logoUrl || null,
+				address_line1: addressLine1 || null,
+				address_line2: addressLine2 || null,
+				city: city || null,
+				state: orgState || null,
+				zip: zip || null,
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', org.id);
@@ -114,6 +129,29 @@
 						oninput={(e) =>
 							(contactPhone = formatPhone((e.currentTarget as HTMLInputElement).value))}
 					/>
+				</div>
+
+				<div class="space-y-2">
+					<Label for="address-line1">Address</Label>
+					<Input id="address-line1" bind:value={addressLine1} placeholder="123 Main St" />
+				</div>
+				<div class="space-y-2">
+					<Label for="address-line2">Address line 2</Label>
+					<Input id="address-line2" bind:value={addressLine2} placeholder="Suite 100" />
+				</div>
+				<div class="grid grid-cols-[1fr_80px_100px] gap-3">
+					<div class="space-y-2">
+						<Label for="city">City</Label>
+						<Input id="city" bind:value={city} placeholder="New York" />
+					</div>
+					<div class="space-y-2">
+						<Label for="state">State</Label>
+						<Input id="state" bind:value={orgState} placeholder="NY" />
+					</div>
+					<div class="space-y-2">
+						<Label for="zip">ZIP</Label>
+						<Input id="zip" bind:value={zip} placeholder="10001" />
+					</div>
 				</div>
 			{/if}
 		</div>

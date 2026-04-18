@@ -1,7 +1,8 @@
 import type { PageServerLoad } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const { supabase, organization } = locals;
+	const { organization } = locals;
 
 	if (!organization) {
 		return {
@@ -15,17 +16,29 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const orgId = organization.id;
 	const selectedShowDateId = url.searchParams.get('show_date') ?? null;
 
+	// Collect own org + connected org IDs for federation-aware queries
+	const { data: connections } = await supabaseAdmin
+		.from('org_connections')
+		.select('rep_org_id, brand_org_id')
+		.eq('status', 'active')
+		.or(`rep_org_id.eq.${orgId},brand_org_id.eq.${orgId}`);
+	const visibleOrgIds = [orgId];
+	for (const c of connections ?? []) {
+		if (c.rep_org_id && c.rep_org_id !== orgId) visibleOrgIds.push(c.rep_org_id);
+		if (c.brand_org_id && c.brand_org_id !== orgId) visibleOrgIds.push(c.brand_org_id);
+	}
+
 	const [showDatesRes, accountsRes] = await Promise.all([
-		supabase
+		supabaseAdmin
 			.from('show_dates')
 			.select('id, show_id, year, month, city, state, shows(name)')
 			.eq('organization_id', orgId)
 			.order('year')
 			.order('month'),
-		supabase
+		supabaseAdmin
 			.from('accounts')
 			.select('id, business_name, contact_first_name, contact_last_name, city, state')
-			.eq('organization_id', orgId)
+			.in('organization_id', visibleOrgIds)
 			.eq('is_active', true)
 			.order('business_name')
 	]);
@@ -33,12 +46,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Load appointments, optionally filtered by show_date
 	// Sales reps only see their own appointments
 	const isSales = locals.membership?.role === 'sales';
-	let apptQuery = supabase
+	let apptQuery = supabaseAdmin
 		.from('appointments')
 		.select(
 			'*, accounts(business_name, contact_first_name, contact_last_name, city, state), show_dates(show_id, year, month, city, state, shows(name)), profiles!appointments_created_by_fkey(display_name)'
 		)
-		.eq('organization_id', orgId)
+		.in('organization_id', visibleOrgIds)
 		.order('scheduled_date', { ascending: true })
 		.order('scheduled_time', { ascending: true });
 

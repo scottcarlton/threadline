@@ -212,6 +212,7 @@ export async function connectionActivityFeed(
 export type FederatedOrderRow = {
 	id: string;
 	order_number: string | null;
+	order_type: string;
 	status: string;
 	total_amount: number;
 	created_at: string;
@@ -227,6 +228,8 @@ export type FederatedOrderRow = {
 	account_name: string | null;
 	brand_name: string | null;
 	season_name: string | null;
+	created_by: string | null;
+	created_by_name: string | null;
 };
 
 /**
@@ -244,7 +247,7 @@ export async function listFederatedOrders(
 				'source_org_id',
 				'connection_id',
 				'source_org:source_org_id(id, name)',
-				'orders(id, order_number, status, total_amount, created_at, expected_ship_date, start_ship_date, season_id, brand_id, account_id, freeform_name, connection_id, accounts(business_name), brands(name), seasons(name))'
+				'orders(id, order_number, order_type, status, total_amount, created_at, expected_ship_date, start_ship_date, season_id, brand_id, account_id, freeform_name, connection_id, created_by, accounts(business_name), brands(name), seasons(name), profiles!orders_created_by_fkey(display_name))'
 			].join(', ')
 		)
 		.eq('target_org_id', brandOrgId)
@@ -259,6 +262,7 @@ export async function listFederatedOrders(
 		orders: {
 			id: string;
 			order_number: string | null;
+			order_type: string;
 			status: string;
 			total_amount: number | null;
 			created_at: string;
@@ -269,9 +273,11 @@ export async function listFederatedOrders(
 			account_id: string | null;
 			freeform_name: string | null;
 			connection_id: string | null;
+			created_by: string | null;
 			accounts: { business_name: string | null } | null;
 			brands: { name: string | null } | null;
 			seasons: { name: string | null } | null;
+			profiles: { display_name: string | null } | null;
 		} | null;
 	};
 
@@ -281,6 +287,7 @@ export async function listFederatedOrders(
 		.map((r) => ({
 			id: r.orders.id,
 			order_number: r.orders.order_number,
+			order_type: r.orders.order_type,
 			status: r.orders.status,
 			total_amount: Number(r.orders.total_amount ?? 0),
 			created_at: r.orders.created_at,
@@ -295,6 +302,8 @@ export async function listFederatedOrders(
 			rep_org_name: r.source_org?.name ?? 'Rep',
 			account_name: r.orders.accounts?.business_name ?? null,
 			brand_name: r.orders.brands?.name ?? null,
-			season_name: r.orders.seasons?.name ?? null
+			season_name: r.orders.seasons?.name ?? null,
+			created_by: r.orders.created_by ?? null,
+			created_by_name: r.orders.profiles?.display_name ?? null
 		}));
 }

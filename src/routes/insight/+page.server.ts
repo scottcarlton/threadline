@@ -825,11 +825,7 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 
 	// ── Onboarding checklist (Phase C) ────────────────────────────────────────
 	const [productCount, teammateCount, salesRepCount] = await Promise.all([
-		admin
-			.from('products')
-			.select('id', { count: 'exact', head: true })
-			.eq('organization_id', brandOrgId)
-			.eq('is_active', true),
+		admin.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
 		admin
 			.from('organization_members')
 			.select('id', { count: 'exact', head: true })

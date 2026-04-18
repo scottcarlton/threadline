@@ -5,10 +5,10 @@
 	import { supabase } from '$lib/supabase.js';
 	import { cn } from '$lib/utils.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
-	import ConnectionInviteSection from '$lib/components/shared/ConnectionInviteSection.svelte';
+	import InviteModal from '$lib/components/shared/InviteModal.svelte';
+	import InviteOrgSidebar from '$lib/components/connect/InviteOrgSidebar.svelte';
 	import type { UserRole } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -85,15 +85,7 @@
 	const memberEmails = $derived(data.memberEmails as Record<string, string>);
 	const currentUserId = $derived(data.user?.id);
 
-	type InviteMode = 'invite' | 'connect';
-	let memberInviteMode = $state<InviteMode>('invite');
-	let showInviteForm = $state(false);
-	let inviteEmail = $state('');
-	let inviteRole: UserRole = $state('member');
-	let selectedBrandIds = $state<string[]>([]);
-	let inviteCommissionRate = $state<string>('');
-	let inviting = $state(false);
-	let inviteMessage = $state('');
+	let showInviteModal = $state(false);
 	let updatingId = $state('');
 	let copiedId = $state('');
 
@@ -109,17 +101,6 @@
 	// Brand orgs only ever have one brand (their self-brand), so per-member
 	// brand scope is tautological — hide for brand orgs entirely.
 	const isBrandOrg = $derived(data.orgType === 'brand');
-	const showBrandScope = $derived(
-		!isBrandOrg && (inviteRole === 'member' || inviteRole === 'sales' || inviteRole === 'guest')
-	);
-
-	function toggleBrand(brandId: string) {
-		if (selectedBrandIds.includes(brandId)) {
-			selectedBrandIds = selectedBrandIds.filter((id) => id !== brandId);
-		} else {
-			selectedBrandIds = [...selectedBrandIds, brandId];
-		}
-	}
 
 	const roleBadgeVariant = (role: UserRole) => {
 		switch (role) {
@@ -137,36 +118,6 @@
 				return 'outline' as const;
 		}
 	};
-
-	async function handleInvite() {
-		if (!inviteEmail.trim()) return;
-		inviting = true;
-		inviteMessage = '';
-
-		const res = await fetch('/api/invite/send', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				email: inviteEmail,
-				role: inviteRole,
-				brandIds: showBrandScope ? selectedBrandIds : [],
-				commissionRate: inviteRole === 'sales' ? parseFloat(inviteCommissionRate) || 0 : undefined
-			})
-		});
-
-		const result = await res.json();
-		if (res.ok) {
-			inviteMessage = 'Invitation sent successfully.';
-			inviteEmail = '';
-			inviteRole = 'member';
-			selectedBrandIds = [];
-			inviteCommissionRate = '';
-			await invalidateAll();
-		} else {
-			inviteMessage = result.error || 'Failed to send invitation.';
-		}
-		inviting = false;
-	}
 
 	async function handleRoleChange(memberId: string, newRole: UserRole) {
 		updatingId = memberId;
@@ -392,235 +343,143 @@
 		</div>
 		<div class="flex items-center gap-2">
 			<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
-			<Button size="sm" onclick={() => (showInviteForm = !showInviteForm)}>
-				{#if showInviteForm}
-					Cancel
-				{:else}
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="-ml-1 h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
-					>
-					Add User
-				{/if}
+			<Button size="sm" onclick={() => (showInviteModal = true)}>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="-ml-1 h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+				>
+				Add User
 			</Button>
 		</div>
 	</div>
 
-	<div class="space-y-4">
-		<!-- Inline invite form -->
-		{#if showInviteForm}
-			<div class="space-y-3 rounded-lg border border-dashed p-4">
-				<!-- Invite / Connect tabs (brand orgs only) -->
-				{#if data.isBrandOrg && data.isAdmin}
-					<div class="flex gap-1 border-b">
-						<button
-							class="-mb-px px-4 py-2 text-sm font-medium transition-colors {memberInviteMode ===
-							'invite'
-								? 'border-b border-current text-foreground'
-								: 'text-muted-foreground hover:text-foreground'}"
-							onclick={() => (memberInviteMode = 'invite')}
-						>
-							Invite
-						</button>
-						<button
-							class="-mb-px px-4 py-2 text-sm font-medium transition-colors {memberInviteMode ===
-							'connect'
-								? 'border-b border-current text-foreground'
-								: 'text-muted-foreground hover:text-foreground'}"
-							onclick={() => (memberInviteMode = 'connect')}
-						>
-							Connect
-						</button>
-					</div>
-				{/if}
-
-				{#if memberInviteMode === 'invite'}
-					<div class="flex flex-wrap items-end gap-3">
-						<div class="min-w-[200px] flex-1">
-							<label for="invite-email" class="text-sm font-medium">Email</label>
-							<Input
-								id="invite-email"
-								type="email"
-								bind:value={inviteEmail}
-								placeholder="team@example.com"
-							/>
-						</div>
-						<div class="w-36">
-							<label for="invite-role" class="text-sm font-medium">Role</label>
-							<select
-								id="invite-role"
-								bind:value={inviteRole}
-								class="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
-							>
-								<option value="member">Member</option>
-								<option value="sales">Sales</option>
-								<option value="admin">Admin</option>
-								<option value="guest">Guest</option>
-							</select>
-						</div>
-						{#if inviteRole === 'sales'}
-							<div class="w-32">
-								<label for="invite-commission" class="text-sm font-medium">Commission %</label>
-								<Input
-									id="invite-commission"
-									type="number"
-									min="0"
-									max="100"
-									step="0.25"
-									placeholder="0"
-									bind:value={inviteCommissionRate}
-								/>
-							</div>
-						{/if}
-						<Button size="sm" onclick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
-							{inviting ? 'Sending...' : 'Send Invite'}
-						</Button>
-					</div>
-					{#if showBrandScope && brands.length > 0}
-						<div class="space-y-2">
-							<p class="text-sm text-muted-foreground">
-								Brand Access <span class="font-normal">(optional — leave empty for all)</span>
-							</p>
-							<div class="flex flex-wrap gap-2">
-								{#each brands as brand (brand.id)}
-									<button
-										type="button"
-										class="rounded-lg border px-2.5 py-1 text-sm transition-all {selectedBrandIds.includes(
-											brand.id
-										)
-											? 'border-primary bg-primary text-primary-foreground'
-											: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
-										onclick={() => toggleBrand(brand.id)}
-									>
-										{brand.name}
-									</button>
-								{/each}
-							</div>
-						</div>
-					{/if}
-					{#if inviteMessage}
-						<p class="text-sm text-muted-foreground">{inviteMessage}</p>
-					{/if}
-				{:else}
-					<ConnectionInviteSection invites={data.connectionInvites ?? []} />
-				{/if}
-			</div>
+	<div class="grid gap-6 {data.connectInvite ? 'md:grid-cols-[1fr_360px]' : ''}">
+		{#if data.connectInvite}
+			<aside class="md:order-last">
+				<InviteOrgSidebar
+					invite={data.connectInvite}
+					origin={data.origin}
+					emailForm={data.inviteEmailForm}
+				/>
+			</aside>
 		{/if}
 
-		<!-- Pending invitations (compact) -->
-		{#if invitations.length > 0}
-			<div class="space-y-2">
-				<p class="text-sm font-medium text-muted-foreground">Pending Invitations</p>
-				{#each invitations as invitation (invitation.id)}
-					<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
-						<div class="flex items-center gap-3">
-							<span class="font-mono text-sm">{invitation.email}</span>
-							<Badge variant={roleBadgeVariant(invitation.role)}>{invitation.role}</Badge>
+		<div class="min-w-0 space-y-4">
+			<!-- Pending invitations (compact) -->
+			{#if invitations.length > 0}
+				<div class="space-y-2">
+					<p class="text-sm font-medium text-muted-foreground">Pending Invitations</p>
+					{#each invitations as invitation (invitation.id)}
+						<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
+							<div class="flex items-center gap-3">
+								<span class="font-mono text-sm">{invitation.email}</span>
+								<Badge variant={roleBadgeVariant(invitation.role)}>{invitation.role}</Badge>
+							</div>
+							<div class="flex items-center gap-1">
+								<button
+									class="text-sm text-muted-foreground transition-colors hover:text-foreground"
+									onclick={() => copyInviteLink(invitation.token, invitation.id)}
+								>
+									{copiedId === invitation.id ? 'Copied!' : 'Copy Link'}
+								</button>
+								<button
+									class="text-sm text-muted-foreground transition-colors hover:text-destructive"
+									disabled={updatingId === invitation.id}
+									onclick={() => revokeInvite(invitation.id)}
+								>
+									Revoke
+								</button>
+							</div>
 						</div>
-						<div class="flex items-center gap-1">
-							<button
-								class="text-sm text-muted-foreground transition-colors hover:text-foreground"
-								onclick={() => copyInviteLink(invitation.token, invitation.id)}
-							>
-								{copiedId === invitation.id ? 'Copied!' : 'Copy Link'}
-							</button>
-							<button
-								class="text-sm text-muted-foreground transition-colors hover:text-destructive"
-								disabled={updatingId === invitation.id}
-								onclick={() => revokeInvite(invitation.id)}
-							>
-								Revoke
-							</button>
-						</div>
-					</div>
-				{/each}
-			</div>
-		{/if}
+					{/each}
+				</div>
+			{/if}
 
-		{#if members.length === 0}
-			<div class="rounded-lg border border-dashed p-8 text-center">
-				<p class="text-muted-foreground">No team members found.</p>
-			</div>
-		{:else}
-			<div class="rounded-md border">
-				<table class="w-full">
-					<thead>
-						<tr class="border-b bg-muted/50">
-							<th class="px-4 py-3 text-left text-sm font-medium">Name</th>
-							<th class="px-4 py-3 text-left text-sm font-medium">Role</th>
-							<th class="px-4 py-3 text-right text-sm font-medium">Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each members as member (member.id)}
-							{@const isCurrentUser = member.profile_id === currentUserId}
-							{@const isOwner = member.role === 'owner'}
-							<tr
-								class="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/50 {drawerMemberId ===
-								member.id
-									? 'bg-muted/50'
-									: ''}"
-								onclick={() => openDrawer(member.id)}
-							>
-								<td class="px-4 py-3">
-									<div class="flex items-center gap-3">
-										<div
-											class="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium"
-										>
-											{member.profiles?.display_name?.charAt(0)?.toUpperCase() ?? '?'}
-										</div>
-										<div>
-											<span class="text-base font-medium"
-												>{member.profiles?.display_name ?? 'Unknown'}
-												{#if isCurrentUser}<span
-														class="ml-1 text-xs font-normal text-muted-foreground">(You)</span
-													>{/if}</span
-											>
-											<p class="font-mono text-xs text-muted-foreground">
-												{memberEmails[member.profile_id] ?? ''}
-											</p>
-										</div>
-									</div>
-								</td>
-								<td class="px-4 py-3">
-									{#if isOwner || isCurrentUser}
-										<Badge variant={roleBadgeVariant(member.role)}>
-											{member.role}
-										</Badge>
-									{:else}
-										<!-- svelte-ignore a11y_click_events_have_key_events -->
-										<!-- svelte-ignore a11y_no_static_element_interactions -->
-										<div onclick={(e) => e.stopPropagation()}>
-											<select
-												value={member.role}
-												disabled={updatingId === member.id}
-												onchange={(e) =>
-													handleRoleChange(
-														member.id,
-														(e.target as HTMLSelectElement).value as UserRole
-													)}
-												class="h-8 rounded-md border border-input bg-background px-2 text-sm"
-											>
-												<option value="admin">Admin</option>
-												<option value="member">Member</option>
-												<option value="sales">Sales</option>
-												<option value="guest">Guest</option>
-											</select>
-										</div>
-									{/if}
-								</td>
-								<td class="px-4 py-3 text-right"></td>
+			{#if members.length === 0}
+				<div class="rounded-lg border border-dashed p-8 text-center">
+					<p class="text-muted-foreground">No team members found.</p>
+				</div>
+			{:else}
+				<div class="rounded-md border">
+					<table class="w-full">
+						<thead>
+							<tr class="border-b bg-muted/50">
+								<th class="px-4 py-3 text-left text-sm font-medium">Name</th>
+								<th class="px-4 py-3 text-left text-sm font-medium">Role</th>
+								<th class="px-4 py-3 text-right text-sm font-medium">Actions</th>
 							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		{/if}
+						</thead>
+						<tbody>
+							{#each members as member (member.id)}
+								{@const isCurrentUser = member.profile_id === currentUserId}
+								{@const isOwner = member.role === 'owner'}
+								<tr
+									class="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/50 {drawerMemberId ===
+									member.id
+										? 'bg-muted/50'
+										: ''}"
+									onclick={() => openDrawer(member.id)}
+								>
+									<td class="px-4 py-3">
+										<div class="flex items-center gap-3">
+											<div
+												class="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium"
+											>
+												{member.profiles?.display_name?.charAt(0)?.toUpperCase() ?? '?'}
+											</div>
+											<div>
+												<span class="text-base font-medium"
+													>{member.profiles?.display_name ?? 'Unknown'}
+													{#if isCurrentUser}<span
+															class="ml-1 text-xs font-normal text-muted-foreground">(You)</span
+														>{/if}</span
+												>
+												<p class="font-mono text-xs text-muted-foreground">
+													{memberEmails[member.profile_id] ?? ''}
+												</p>
+											</div>
+										</div>
+									</td>
+									<td class="px-4 py-3">
+										{#if isOwner || isCurrentUser}
+											<Badge variant={roleBadgeVariant(member.role)}>
+												{member.role}
+											</Badge>
+										{:else}
+											<!-- svelte-ignore a11y_click_events_have_key_events -->
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<div onclick={(e) => e.stopPropagation()}>
+												<select
+													value={member.role}
+													disabled={updatingId === member.id}
+													onchange={(e) =>
+														handleRoleChange(
+															member.id,
+															(e.target as HTMLSelectElement).value as UserRole
+														)}
+													class="h-8 rounded-md border border-input bg-background px-2 text-sm"
+												>
+													<option value="admin">Admin</option>
+													<option value="member">Member</option>
+													<option value="sales">Sales</option>
+													<option value="guest">Guest</option>
+												</select>
+											</div>
+										{/if}
+									</td>
+									<td class="px-4 py-3 text-right"></td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
+		</div>
 	</div>
 </div>
 
@@ -861,6 +720,14 @@
 	entityType="team member"
 	columns={teamColumns}
 	onimport={handleTeamImport}
+/>
+
+<InviteModal
+	open={showInviteModal}
+	orgType={isBrandOrg ? 'brand' : 'rep'}
+	{brands}
+	onclose={() => (showInviteModal = false)}
+	oninvited={() => invalidateAll()}
 />
 
 <svelte:window

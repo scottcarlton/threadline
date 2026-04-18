@@ -428,12 +428,14 @@
 									<dd class="mt-1">
 										{[brand.contact_first_name, brand.contact_last_name]
 											.filter(Boolean)
-											.join(' ') || '—'}
+											.join(' ') ||
+											data.orgAdminContact?.display_name ||
+											'—'}
 									</dd>
 								</div>
 								<div>
 									<dt class="text-sm font-medium text-muted-foreground">Email</dt>
-									<dd class="mt-1">{brand.contact_email ?? '—'}</dd>
+									<dd class="mt-1">{brand.contact_email ?? data.orgAdminContact?.email ?? '—'}</dd>
 								</div>
 							</div>
 							<div class="grid gap-4 sm:grid-cols-2">

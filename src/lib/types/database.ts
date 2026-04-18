@@ -36,6 +36,12 @@ export interface Organization {
 	logo_url: string | null;
 	sso_enforced: boolean;
 	org_type: OrgType;
+	address_line1: string | null;
+	address_line2: string | null;
+	city: string | null;
+	state: string | null;
+	zip: string | null;
+	country: string;
 	created_at: string;
 	updated_at: string;
 }

@@ -2,27 +2,21 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
 
 	let { data } = $props();
 
-	let selectedBrandId = $state('');
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 	let success = $state(false);
 	let autoApproved = $state(false);
 
 	async function submit() {
-		if (!selectedBrandId) {
-			error = 'Pick which of your brands this connection applies to.';
-			return;
-		}
 		submitting = true;
 		error = null;
 		const res = await fetch('/api/connections/request', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ code: data.code, repBrandId: selectedBrandId })
+			body: JSON.stringify({ code: data.code, repBrandId: null })
 		});
 		const json = (await res.json().catch(() => ({}))) as {
 			error?: string;
@@ -35,6 +29,10 @@
 		}
 		autoApproved = Boolean(json.autoApproved);
 		success = true;
+		// Auto-redirect to connections after a brief success flash
+		setTimeout(() => {
+			goto(resolve('/brands'));
+		}, 1500);
 	}
 </script>
 
@@ -90,9 +88,6 @@
 							when it goes live.
 						</p>
 					{/if}
-					<Button class="mt-4" onclick={() => goto(resolve('/settings/connections'))}
-						>Go to Connections</Button
-					>
 				</div>
 			</div>
 		{:else}
@@ -107,18 +102,18 @@
 			<h1 class="text-2xl font-semibold">{data.brand?.name ?? 'a brand'}</h1>
 			<p class="mt-2 text-sm text-muted-foreground">
 				{#if data.autoApprove}
-					Confirm below and you'll be connected immediately. Orders you write against this brand
-					will automatically be shared.
+					Accept below and you'll be connected immediately. Their products and orders will sync with
+					your portal.
 				{:else}
-					Once you confirm and the brand approves the request, orders and accounts you place will
-					automatically be shared with them.
+					Accept below to send a connection request. Once approved, their products and orders will
+					sync with your portal.
 				{/if}
 			</p>
 
 			{#if !data.isLoggedIn}
 				<div class="mt-6 rounded border p-4 text-sm">
-					Sign in as a rep-org admin to accept this invite.
-					<div class="mt-3 flex gap-2">
+					Sign in to accept this invite.
+					<div class="mt-3">
 						<Button href={`/login?redirect=/connect/${data.code}`}>Sign in</Button>
 					</div>
 				</div>
@@ -132,21 +127,6 @@
 				</div>
 			{:else}
 				<div class="mt-6 space-y-3">
-					<Label for="rep-brand">Which of your brands does this connection cover?</Label>
-					<select
-						id="rep-brand"
-						class="flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm"
-						bind:value={selectedBrandId}
-					>
-						<option value="">— Pick a brand —</option>
-						{#each data.repBrands as b (b.id)}
-							<option value={b.id}>{b.name}</option>
-						{/each}
-					</select>
-					<p class="text-sm text-muted-foreground">
-						Orders you write against this brand will federate to {data.brand?.name ?? 'the brand'}.
-					</p>
-
 					{#if error}
 						<div
 							class="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-900 dark:bg-red-950/30 dark:text-red-200"
@@ -155,13 +135,13 @@
 						</div>
 					{/if}
 
-					<Button disabled={submitting || !selectedBrandId} onclick={submit}>
+					<Button disabled={submitting} onclick={submit}>
 						{#if submitting}
 							Connecting…
 						{:else if data.autoApprove}
-							Connect
+							Accept & Connect
 						{:else}
-							Request Connection
+							Accept
 						{/if}
 					</Button>
 				</div>

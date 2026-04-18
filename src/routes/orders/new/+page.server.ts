@@ -11,9 +11,10 @@ import {
 import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import { notifyBrandAdmins } from '$lib/server/notifications.js';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const { supabase, organization, user } = locals;
+	const { organization, user } = locals;
 
 	if (!organization) {
 		return {
@@ -34,10 +35,23 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const buyerAccountIds = isBuyer ? (locals.buyerAccounts?.map((a) => a.account_id) ?? []) : null;
 	const buyerBrandIds = isBuyer ? (locals.buyerBrandIds ?? []) : null;
 
+	// Federation-aware org set: own org + active connections (both directions).
+	const { data: conns } = await supabaseAdmin
+		.from('org_connections')
+		.select('rep_org_id, brand_org_id')
+		.eq('status', 'active')
+		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
+	const visibleOrgIdSet = new Set<string>([organization.id]);
+	for (const c of conns ?? []) {
+		if (c.rep_org_id && c.rep_org_id !== organization.id) visibleOrgIdSet.add(c.rep_org_id);
+		if (c.brand_org_id && c.brand_org_id !== organization.id) visibleOrgIdSet.add(c.brand_org_id);
+	}
+	const visibleOrgIds = Array.from(visibleOrgIdSet);
+
 	const [accountsRes, locationsRes, brandsRes, seasonsRes, deliveriesRes, membersRes] =
 		await Promise.all([
 			(() => {
-				let q = supabase
+				let q = supabaseAdmin
 					.from('accounts')
 					.select(
 						'id, business_name, contact_email, address_line1, address_line2, city, state, zip'
@@ -45,38 +59,37 @@ export const load: PageServerLoad = async ({ locals }) => {
 				if (buyerAccountIds)
 					q = q.in('id', buyerAccountIds.length ? buyerAccountIds : ['__none__']);
 				else
-					q = q
-						.eq('organization_id', organization.id)
-						.eq('is_active', true)
-						.is('archived_at', null);
+					q = q.in('organization_id', visibleOrgIds).eq('is_active', true).is('archived_at', null);
 				return q.order('business_name');
 			})(),
-			supabase
+			supabaseAdmin
 				.from('account_locations')
 				.select(
 					'id, account_id, label, contact_email, address_line1, address_line2, city, state, zip, is_default, sort_order'
 				)
-				.eq('organization_id', organization.id)
+				.in('organization_id', visibleOrgIds)
 				.order('sort_order'),
 			(() => {
-				let q = supabase.from('brands').select('id, name, is_self_brand').eq('is_active', true);
+				let q = supabaseAdmin
+					.from('brands')
+					.select('id, name, is_self_brand')
+					.eq('is_active', true);
 				if (buyerBrandIds) q = q.in('id', buyerBrandIds.length ? buyerBrandIds : ['__none__']);
-				else q = q.eq('organization_id', organization.id);
+				else q = q.in('organization_id', visibleOrgIds);
 				return q.order('name');
 			})(),
-			supabase
+			supabaseAdmin
 				.from('seasons')
 				.select('id, name, sort_order')
-				.eq('organization_id', organization.id)
+				.in('organization_id', visibleOrgIds)
 				.eq('is_active', true)
 				.order('sort_order'),
-			supabase
+			supabaseAdmin
 				.from('season_deliveries')
 				.select('id, season_id, label, delivery_month, delivery_day, sort_order')
-				.eq('organization_id', organization.id)
 				.order('delivery_month')
 				.order('delivery_day'),
-			supabase
+			supabaseAdmin
 				.from('organization_members')
 				.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
 				.eq('organization_id', organization.id)
@@ -95,6 +108,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const brands = brandsRes.data ?? [];
 	const isBrandOrg = locals.orgType === 'brand';
+
 	const selfBrandId = isBrandOrg
 		? (brands.find((b) => (b as { is_self_brand?: boolean }).is_self_brand)?.id ?? null)
 		: null;
@@ -143,8 +157,19 @@ type SubmitPayload = {
 
 export const actions: Actions = {
 	submit: async ({ request, locals }) => {
-		const { supabase, organization, user } = locals;
+		const { organization, user } = locals;
+		const role = locals.membership?.role;
+
 		if (!organization || !user) return fail(401, { message: 'Not authenticated' });
+
+		// App-layer role gate (buyers allowed; org members need a write role).
+		if (!locals.isBuyer && !['admin', 'owner', 'member', 'sales'].includes(role ?? '')) {
+			console.error('[orders/new submit] role rejected', { role, org_id: organization.id });
+			return fail(403, { message: 'You do not have permission to submit orders.' });
+		}
+
+		// Writes use admin client (authenticated SSR client can't reliably attach session to RLS).
+		const supabase = supabaseAdmin;
 
 		const formData = await request.formData();
 		const raw = formData.get('payload');
@@ -195,6 +220,12 @@ export const actions: Actions = {
 				.select('id')
 				.single();
 			if (acctErr || !newAccount) {
+				console.error('[orders/new submit] freeform account insert failed', {
+					org_id: organization.id,
+					user_id: user.id,
+					role,
+					error: acctErr
+				});
 				return fail(500, { message: acctErr?.message ?? 'Failed to create account' });
 			}
 			resolvedAccountId = newAccount.id;
@@ -254,6 +285,14 @@ export const actions: Actions = {
 				.single();
 
 			if (orderErr || !orderRow) {
+				console.error('[orders/new submit] order insert failed', {
+					org_id: organization.id,
+					user_id: user.id,
+					role,
+					brand_id: o.brand_id,
+					account_id: o.account_id,
+					error: orderErr
+				});
 				return fail(500, { message: orderErr?.message ?? 'Failed to create order' });
 			}
 
@@ -270,7 +309,14 @@ export const actions: Actions = {
 					sort_order: i
 				}));
 				const { error: lineErr } = await supabase.from('order_lines').insert(linesInsert);
-				if (lineErr) return fail(500, { message: lineErr.message });
+				if (lineErr) {
+					console.error('[orders/new submit] order_lines insert failed', {
+						order_id: orderRow.id,
+						line_count: linesInsert.length,
+						error: lineErr
+					});
+					return fail(500, { message: lineErr.message });
+				}
 			}
 
 			if (o.status === 'submitted') {

@@ -244,8 +244,14 @@ A separate role managed through the `account_users` table rather than organizati
 | ----------------------- | ----- | ----- | ------ | ------ | ----- | ----- |
 | View expenses           | All   | All   | Scoped | Scoped | No    | No    |
 | Submit expenses         | Yes   | Yes   | Scoped | Scoped | No    | No    |
-| Approve/reject expenses | Yes   | Yes   | No     | No     | No    | No    |
+| Approve/reject expenses | No    | No    | Scoped | No     | No    | No    |
 | Attach receipts         | Yes   | Yes   | Scoped | Scoped | No    | No    |
+
+**Expense approval rules:**
+
+- **MBISR Member scoped to a brand:** Can approve/reject expenses for that brand within their own org.
+- **BOA Admin/Owner:** Can approve/reject expenses submitted by connected reps against BOA brands (cross-org).
+- **MBISR Admin/Owner:** Cannot approve expenses — they submit, the brand-scoped member or BOA reviews.
 
 **Expense categories:** Trade show, Samples, Marketing, Travel, Meals, Shipping, Photography, Office, Other
 
