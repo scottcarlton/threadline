@@ -16,7 +16,8 @@ const repReportTitles: Record<string, string> = {
 const brandReportTitles: Record<string, string> = {
 	'sales-by-rep': 'Sales by Rep',
 	'product-performance': 'Product Performance',
-	'territory-coverage': 'Territory Coverage'
+	'territory-coverage': 'Territory Coverage',
+	'account-penetration': 'Account Penetration'
 };
 
 function titleFor(orgType: OrgType, slug: string): string | null {
@@ -462,6 +463,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			if (locals.orgType !== 'brand') throw error(404, 'Report not found');
 			const { loadTerritoryCoverage } = await import('$lib/server/reports/brand/territoryCoverage');
 			const rows = await loadTerritoryCoverage(supabase, orgId, year);
+			return { report, title, year, rows, variant: 'brand' as const };
+		}
+
+		case 'account-penetration': {
+			if (locals.orgType !== 'brand') throw error(404, 'Report not found');
+			const { loadAccountPenetration } =
+				await import('$lib/server/reports/brand/accountPenetration');
+			const rows = await loadAccountPenetration(supabase, orgId, year);
 			return { report, title, year, rows, variant: 'brand' as const };
 		}
 
