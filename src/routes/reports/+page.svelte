@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
+	import type { PageData } from './$types';
 
-	const reports = [
+	let { data }: { data: PageData } = $props();
+
+	const repReports = [
 		{
 			id: 'sales-by-brand',
 			title: 'Sales by Brand',
@@ -44,6 +47,21 @@
 			description: 'ROI per show — orders, new accounts, and appointments'
 		}
 	];
+
+	const brandReports = [
+		{
+			id: 'sales-by-rep-agency',
+			title: 'Sales by Rep Agency',
+			description: 'Revenue and order count per connected rep org'
+		},
+		{
+			id: 'product-performance',
+			title: 'Product Performance',
+			description: 'Style-level velocity — which products are moving across reps'
+		}
+	];
+
+	const reports = $derived(data.orgType === 'brand' ? brandReports : repReports);
 </script>
 
 <div class="space-y-6">
