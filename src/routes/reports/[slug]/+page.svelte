@@ -22,6 +22,12 @@
 		repOrgName?: string;
 		avgOrderValue?: number;
 		lastOrderDate?: string | null;
+		styleNumber?: string;
+		productName?: string;
+		unitsOrdered?: number;
+		velocityScore?: number;
+		trend?: 'up' | 'down' | 'flat';
+		accounts?: number;
 		[k: string]: unknown;
 	};
 	const rows = $derived(data.rows as ReportRow[]);
@@ -45,6 +51,10 @@
 		goto(resolve(`/reports/${report}?year=${y}`), { replaceState: true });
 	}
 
+	function changeDaysBack(days: number) {
+		goto(resolve(`/reports/${report}?days=${days}`), { replaceState: true });
+	}
+
 	function exportReport() {
 		if (!rows.length) return;
 		downloadCSV(rows, `${report}-${year}.csv`);
@@ -60,7 +70,17 @@
 			<h1 class="text-3xl">{title}</h1>
 		</div>
 		<div class="flex items-center gap-2">
-			{#if report !== 'pipeline'}
+			{#if report === 'product-performance'}
+				<select
+					class="h-9 rounded-lg border border-input bg-background px-3 text-sm"
+					value={data.daysBack ?? 90}
+					onchange={(e) => changeDaysBack(parseInt((e.target as HTMLSelectElement).value))}
+				>
+					{#each [14, 30, 90, 180] as d (d)}
+						<option value={d}>{d} days</option>
+					{/each}
+				</select>
+			{:else if report !== 'pipeline'}
 				<select
 					class="h-9 rounded-lg border border-input bg-background px-3 text-sm"
 					value={year}
@@ -77,7 +97,7 @@
 		</div>
 	</div>
 
-	{#if rows.length === 0 && report !== 'sales-by-rep-agency'}
+	{#if rows.length === 0 && report !== 'sales-by-rep-agency' && report !== 'product-performance'}
 		<div class="rounded-none p-12 text-center">
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -358,6 +378,100 @@
 								>{fmt.format(rows.reduce((s, r) => s + r.revenue, 0))}</td
 							>
 							<td class="px-4 py-2.5"></td>
+							<td class="px-4 py-2.5"></td>
+							<td class="px-4 py-2.5"></td>
+						</tr>
+					</tfoot>
+				</table>
+			</div>
+		{/if}
+	{:else if report === 'product-performance'}
+		{#if rows.length === 0}
+			<div class="flex flex-col items-center gap-3 py-16 text-center">
+				<div
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-6 w-6"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+					</svg>
+				</div>
+				<p class="text-sm font-medium">No products moving in this window</p>
+				<p class="text-sm text-muted-foreground">
+					Try a longer time window or wait for more orders.
+				</p>
+			</div>
+		{:else}
+			<div class="overflow-hidden rounded-none border">
+				<table class="w-full">
+					<thead>
+						<tr class="border-b bg-muted/40">
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Style #</th>
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Product</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Units</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Revenue</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium"># Accounts</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Velocity</th>
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Trend</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y">
+						{#each rows as row (row.styleNumber)}
+							<tr class="hover:bg-muted/30">
+								<td class="px-4 py-3 text-sm font-medium">{row.styleNumber}</td>
+								<td class="px-4 py-3 text-sm">{row.productName}</td>
+								<td class="px-4 py-3 text-right text-sm">{row.unitsOrdered}</td>
+								<td class="px-4 py-3 text-right font-mono text-sm">{fmt.format(row.revenue)}</td>
+								<td class="px-4 py-3 text-right text-sm">{row.accounts}</td>
+								<td class="px-4 py-3 text-right font-mono text-sm text-muted-foreground"
+									>{row.velocityScore?.toFixed(1) ?? '0.0'}</td
+								>
+								<td class="px-4 py-3 text-sm">
+									{#if row.trend === 'up'}
+										<span class="inline-flex items-center gap-1 text-emerald-600">
+											<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
+												><path d="M5 15l5-5 5 5H5z" /></svg
+											>
+											up
+										</span>
+									{:else if row.trend === 'down'}
+										<span class="inline-flex items-center gap-1 text-destructive">
+											<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
+												><path d="M5 5l5 5 5-5H5z" /></svg
+											>
+											down
+										</span>
+									{:else}
+										<span class="inline-flex items-center gap-1 text-muted-foreground">
+											<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
+												><path d="M4 10h12v2H4z" /></svg
+											>
+											flat
+										</span>
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+					<tfoot>
+						<tr class="bg-muted/40">
+							<td class="px-4 py-2.5"></td>
+							<td class="px-4 py-2.5 text-sm font-medium">Total</td>
+							<td class="px-4 py-2.5 text-right text-sm font-medium"
+								>{rows.reduce((s, r) => s + (r.unitsOrdered ?? 0), 0)}</td
+							>
+							<td class="px-4 py-2.5 text-right font-mono text-sm font-bold"
+								>{fmt.format(rows.reduce((s, r) => s + r.revenue, 0))}</td
+							>
+							<td class="px-4 py-2.5 text-right text-sm font-medium"
+								>{rows.reduce((s, r) => s + (r.accounts ?? 0), 0)}</td
+							>
 							<td class="px-4 py-2.5"></td>
 							<td class="px-4 py-2.5"></td>
 						</tr>
