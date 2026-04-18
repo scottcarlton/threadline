@@ -9,6 +9,7 @@
 	const report = $derived(data.report as string);
 	const title = $derived(data.title as string);
 	const year = $derived(data.year as number);
+	const variant = $derived((data as { variant?: string }).variant);
 	type ReportRow = {
 		name: string;
 		orders: number;
@@ -18,8 +19,11 @@
 		orderAmount: number;
 		brandCommission: number;
 		repCommission: number;
-		repOrgId?: string;
-		repOrgName?: string;
+		repUserId?: string;
+		repName?: string;
+		agencyOrgId?: string;
+		agencyName?: string;
+		source?: 'in_house' | 'agency';
 		avgOrderValue?: number;
 		lastOrderDate?: string | null;
 		styleNumber?: string;
@@ -97,7 +101,7 @@
 		</div>
 	</div>
 
-	{#if rows.length === 0 && report !== 'sales-by-rep-agency' && report !== 'product-performance'}
+	{#if rows.length === 0 && !(report === 'sales-by-rep' && variant === 'brand') && report !== 'product-performance'}
 		<div class="rounded-none p-12 text-center">
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -118,7 +122,7 @@
 				Data will appear here once orders come in{report !== 'pipeline' ? ` for ${year}` : ''}
 			</p>
 		</div>
-	{:else if report === 'sales-by-brand' || report === 'sales-by-account' || report === 'sales-by-rep'}
+	{:else if report === 'sales-by-brand' || report === 'sales-by-account' || (report === 'sales-by-rep' && variant !== 'brand')}
 		<div class="overflow-hidden rounded-none border">
 			<table class="w-full">
 				<thead>
@@ -313,7 +317,7 @@
 				</tbody>
 			</table>
 		</div>
-	{:else if report === 'sales-by-rep-agency'}
+	{:else if report === 'sales-by-rep' && variant === 'brand'}
 		{#if rows.length === 0}
 			<div class="flex flex-col items-center gap-3 py-16 text-center">
 				<div
@@ -334,9 +338,9 @@
 						/>
 					</svg>
 				</div>
-				<p class="text-sm font-medium">No connected rep agencies yet</p>
+				<p class="text-sm font-medium">No rep sales yet</p>
 				<p class="text-sm text-muted-foreground">
-					Invite reps to carry your brand and their sales will appear here.
+					Sales from in-house reps and connected rep agencies will appear here.
 				</p>
 			</div>
 		{:else}
@@ -344,18 +348,29 @@
 				<table class="w-full">
 					<thead>
 						<tr class="border-b bg-muted/40">
-							<th class="px-4 py-2.5 text-left text-sm font-medium">Rep Agency</th>
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Rep</th>
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Agency</th>
 							<th class="px-4 py-2.5 text-right text-sm font-medium">Orders</th>
 							<th class="px-4 py-2.5 text-right text-sm font-medium">Revenue</th>
 							<th class="px-4 py-2.5 text-right text-sm font-medium">Avg Order Value</th>
 							<th class="px-4 py-2.5 text-left text-sm font-medium">Last Order</th>
-							<th class="px-4 py-2.5 text-left text-sm font-medium">Status</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y">
-						{#each rows as row (row.repOrgId)}
+						{#each rows as row (row.repUserId)}
 							<tr class="hover:bg-muted/30">
-								<td class="px-4 py-3 text-sm font-medium">{row.repOrgName}</td>
+								<td class="px-4 py-3 text-sm font-medium">{row.repName}</td>
+								<td class="px-4 py-3 text-sm">
+									<div class="flex items-center gap-2">
+										<span>{row.agencyName}</span>
+										{#if row.source === 'in_house'}
+											<span
+												class="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
+												>In-house</span
+											>
+										{/if}
+									</div>
+								</td>
 								<td class="px-4 py-3 text-right text-sm">{row.orders}</td>
 								<td class="px-4 py-3 text-right font-mono text-sm">{fmt.format(row.revenue)}</td>
 								<td class="px-4 py-3 text-right font-mono text-sm text-muted-foreground"
@@ -364,20 +379,18 @@
 								<td class="px-4 py-3 text-sm"
 									>{row.lastOrderDate ? formatDate(row.lastOrderDate) : '—'}</td
 								>
-								<td class="px-4 py-3 text-sm capitalize">{row.status}</td>
 							</tr>
 						{/each}
 					</tbody>
 					<tfoot>
 						<tr class="bg-muted/40">
-							<td class="px-4 py-2.5 text-sm font-medium">Total</td>
+							<td colspan="2" class="px-4 py-2.5 text-sm font-medium">Total</td>
 							<td class="px-4 py-2.5 text-right text-sm font-medium"
 								>{rows.reduce((s, r) => s + r.orders, 0)}</td
 							>
 							<td class="px-4 py-2.5 text-right font-mono text-sm font-bold"
 								>{fmt.format(rows.reduce((s, r) => s + r.revenue, 0))}</td
 							>
-							<td class="px-4 py-2.5"></td>
 							<td class="px-4 py-2.5"></td>
 							<td class="px-4 py-2.5"></td>
 						</tr>

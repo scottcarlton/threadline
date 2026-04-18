@@ -14,7 +14,7 @@ const repReportTitles: Record<string, string> = {
 };
 
 const brandReportTitles: Record<string, string> = {
-	'sales-by-rep-agency': 'Sales by Rep Agency',
+	'sales-by-rep': 'Sales by Rep',
 	'product-performance': 'Product Performance'
 };
 
@@ -171,6 +171,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		}
 
 		case 'sales-by-rep': {
+			if (locals.orgType === 'brand') {
+				const { loadSalesByRep } = await import('$lib/server/reports/brand/salesByRep');
+				const rows = await loadSalesByRep(supabase, orgId, year);
+				return { report, title, year, rows, variant: 'brand' as const };
+			}
 			const { data: orders } = await scopeByRep(
 				scopeByBrand(
 					supabase
@@ -441,12 +446,6 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 					appointments: sdAppts.length
 				};
 			});
-			return { report, title, year, rows };
-		}
-
-		case 'sales-by-rep-agency': {
-			const { loadSalesByRepAgency } = await import('$lib/server/reports/brand/salesByRepAgency');
-			const rows = await loadSalesByRepAgency(supabase, orgId, year);
 			return { report, title, year, rows };
 		}
 

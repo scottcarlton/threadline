@@ -50,9 +50,9 @@
 
 	const brandReports = [
 		{
-			id: 'sales-by-rep-agency',
-			title: 'Sales by Rep Agency',
-			description: 'Revenue and order count per connected rep org'
+			id: 'sales-by-rep',
+			title: 'Sales by Rep',
+			description: 'Revenue per rep across in-house sellers and connected agencies'
 		},
 		{
 			id: 'product-performance',
