@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { recordConnectInviteUse } from '$lib/server/connections.js';
 import { notifyOrgAdmins } from '$lib/server/notifications.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -23,7 +24,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.single();
 
 	if (!invite) return json({ error: 'Invalid invite code' }, { status: 404 });
-	if (new Date(invite.expires_at) < new Date())
+	if (invite.expires_at && new Date(invite.expires_at) < new Date())
 		return json({ error: 'Invite code has expired' }, { status: 410 });
 	if (invite.max_uses > 0 && invite.use_count >= invite.max_uses)
 		return json({ error: 'Invite code has reached max uses' }, { status: 410 });
@@ -62,11 +63,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	if (connError) return json({ error: connError.message }, { status: 500 });
 
-	// Increment invite use count
-	await supabaseAdmin
-		.from('connection_invites')
-		.update({ use_count: invite.use_count + 1 })
-		.eq('id', invite.id);
+	// Stamp usage telemetry on the invite (use_count, last_used_at).
+	await recordConnectInviteUse(supabaseAdmin, code);
 
 	const inviteOrgs = (invite as { organizations?: { name?: string } | { name?: string }[] | null })
 		.organizations;
