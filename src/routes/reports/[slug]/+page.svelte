@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
 
@@ -47,11 +48,11 @@
 		});
 	}
 
-	function changeYear(y: number) {
+	function changeYear(y: string) {
 		goto(resolve(`/reports/${report}?year=${y}`), { replaceState: true });
 	}
 
-	function changeDaysBack(days: number) {
+	function changeDaysBack(days: string) {
 		goto(resolve(`/reports/${report}?days=${days}`), { replaceState: true });
 	}
 
@@ -59,37 +60,35 @@
 		if (!rows.length) return;
 		downloadCSV(rows, `${report}-${year}.csv`);
 	}
+
+	const yearItems = [
+		{ value: '2024', label: '2024' },
+		{ value: '2025', label: '2025' },
+		{ value: '2026', label: '2026' },
+		{ value: '2027', label: '2027' }
+	];
+
+	const daysItems = [
+		{ value: '14', label: '14 days' },
+		{ value: '30', label: '30 days' },
+		{ value: '90', label: '90 days' },
+		{ value: '180', label: '180 days' }
+	];
+
+	let selectedYear = $derived(String(year));
+	let selectedDays = $derived(String(data.daysBack ?? 90));
 </script>
 
 <div class="space-y-6">
+	<!-- Toolbar -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/reports"
-				><LongArrow direction="left" /> Reports</Button
-			>
-			<h1 class="text-3xl">{title}</h1>
-		</div>
+		<Button variant="ghost" size="sm" href="/reports"><LongArrow direction="left" /> Reports</Button
+		>
 		<div class="flex items-center gap-2">
 			{#if report === 'product-performance'}
-				<select
-					class="h-9 rounded-lg border border-input bg-background px-3 text-sm"
-					value={data.daysBack ?? 90}
-					onchange={(e) => changeDaysBack(parseInt((e.target as HTMLSelectElement).value))}
-				>
-					{#each [14, 30, 90, 180] as d (d)}
-						<option value={d}>{d} days</option>
-					{/each}
-				</select>
+				<SelectField items={daysItems} bind:value={selectedDays} onValueChange={changeDaysBack} />
 			{:else if report !== 'pipeline'}
-				<select
-					class="h-9 rounded-lg border border-input bg-background px-3 text-sm"
-					value={year}
-					onchange={(e) => changeYear(parseInt((e.target as HTMLSelectElement).value))}
-				>
-					{#each [2024, 2025, 2026, 2027] as y (y)}
-						<option value={y}>{y}</option>
-					{/each}
-				</select>
+				<SelectField items={yearItems} bind:value={selectedYear} onValueChange={changeYear} />
 			{/if}
 			{#if rows.length > 0}
 				<Button variant="outline" size="sm" onclick={exportReport}>Export CSV</Button>
@@ -97,24 +96,32 @@
 		</div>
 	</div>
 
+	<!-- Page Header -->
+	<header>
+		<h1 class="text-3xl">{title}</h1>
+	</header>
+
+	<!-- Content -->
 	{#if rows.length === 0 && report !== 'sales-by-rep-agency' && report !== 'product-performance'}
-		<div class="rounded-none p-12 text-center">
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="mx-auto h-16 w-16 text-foreground"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				stroke-width="0.4"
-			>
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"
-				/>
-			</svg>
-			<p class="mt-4 text-lg font-semibold">No data yet</p>
-			<p class="mt-2 text-sm text-muted-foreground">
+		<div class="flex flex-col items-center justify-center py-16">
+			<div class="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-7 w-7 text-muted-foreground"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="1.5"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"
+					/>
+				</svg>
+			</div>
+			<h3 class="mt-4 text-base font-semibold">No data yet</h3>
+			<p class="mt-1 text-sm text-muted-foreground">
 				Data will appear here once orders come in{report !== 'pipeline' ? ` for ${year}` : ''}
 			</p>
 		</div>
@@ -301,7 +308,7 @@
 						<tr class="hover:bg-muted/30">
 							<td class="px-4 py-3">
 								<span class="text-sm font-medium">{row.show}</span>
-								<p class="text-xs text-muted-foreground">{row.location || '—'}</p>
+								<p class="text-sm text-muted-foreground">{row.location || '—'}</p>
 							</td>
 							<td class="px-4 py-3 text-right text-sm">{row.appointments}</td>
 							<td class="px-4 py-3 text-right text-sm">{row.visits}</td>
@@ -315,13 +322,11 @@
 		</div>
 	{:else if report === 'sales-by-rep-agency'}
 		{#if rows.length === 0}
-			<div class="flex flex-col items-center gap-3 py-16 text-center">
-				<div
-					class="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
-				>
+			<div class="flex flex-col items-center justify-center py-16">
+				<div class="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
-						class="h-6 w-6"
+						class="h-7 w-7 text-muted-foreground"
 						fill="none"
 						viewBox="0 0 24 24"
 						stroke="currentColor"
@@ -334,8 +339,8 @@
 						/>
 					</svg>
 				</div>
-				<p class="text-sm font-medium">No connected rep agencies yet</p>
-				<p class="text-sm text-muted-foreground">
+				<h3 class="mt-4 text-base font-semibold">No connected rep agencies yet</h3>
+				<p class="mt-1 text-sm text-muted-foreground">
 					Invite reps to carry your brand and their sales will appear here.
 				</p>
 			</div>
@@ -387,13 +392,11 @@
 		{/if}
 	{:else if report === 'product-performance'}
 		{#if rows.length === 0}
-			<div class="flex flex-col items-center gap-3 py-16 text-center">
-				<div
-					class="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
-				>
+			<div class="flex flex-col items-center justify-center py-16">
+				<div class="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
-						class="h-6 w-6"
+						class="h-7 w-7 text-muted-foreground"
 						fill="none"
 						viewBox="0 0 24 24"
 						stroke="currentColor"
@@ -402,8 +405,8 @@
 						<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7" />
 					</svg>
 				</div>
-				<p class="text-sm font-medium">No products moving in this window</p>
-				<p class="text-sm text-muted-foreground">
+				<h3 class="mt-4 text-base font-semibold">No products moving in this window</h3>
+				<p class="mt-1 text-sm text-muted-foreground">
 					Try a longer time window or wait for more orders.
 				</p>
 			</div>

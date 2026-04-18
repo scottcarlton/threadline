@@ -108,11 +108,11 @@
 	}
 }
 
-button,
-a,
-[role='button'],
+button:not(:disabled),
+a[href],
+[role='button']:not([aria-disabled='true']),
 [role='option'],
-select,
+select:not(:disabled),
 summary,
 label[for] {
 	cursor: pointer;
