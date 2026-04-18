@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-const reportTitles: Record<string, string> = {
+const repReportTitles: Record<string, string> = {
 	'sales-by-brand': 'Sales by Brand',
 	'sales-by-account': 'Sales by Account',
 	'sales-by-territory': 'Sales by Territory',
@@ -12,13 +12,24 @@ const reportTitles: Record<string, string> = {
 	'show-performance': 'Show Performance'
 };
 
+const brandReportTitles: Record<string, string> = {
+	'sales-by-rep-agency': 'Sales by Rep Agency',
+	'product-performance': 'Product Performance'
+};
+
+function titleFor(orgType: string | null | undefined, slug: string): string | null {
+	if (orgType === 'brand') return brandReportTitles[slug] ?? null;
+	return repReportTitles[slug] ?? null;
+}
+
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const { supabase, organization } = locals;
 	const report = params.slug;
 
-	if (!reportTitles[report]) throw error(404, 'Report not found');
-	if (!organization)
-		return { report, title: reportTitles[report], year: new Date().getFullYear(), rows: [] };
+	const orgType = locals.organization?.org_type ?? null;
+	const title = titleFor(orgType, report);
+	if (!title) throw error(404, 'Report not found');
+	if (!organization) return { report, title, year: new Date().getFullYear(), rows: [] };
 
 	const orgId = organization.id;
 	const year = parseInt(url.searchParams.get('year') ?? '') || new Date().getFullYear();
@@ -65,7 +76,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			}
 			return {
 				report,
-				title: reportTitles[report],
+				title,
 				year,
 				rows: Array.from(brands.values()).sort((a, b) => b.revenue - a.revenue)
 			};
@@ -101,7 +112,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			}
 			return {
 				report,
-				title: reportTitles[report],
+				title,
 				year,
 				rows: Array.from(accounts.values()).sort((a, b) => b.revenue - a.revenue)
 			};
@@ -146,7 +157,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			}
 			return {
 				report,
-				title: reportTitles[report],
+				title,
 				year,
 				rows: Array.from(territories.values())
 					.map((t) => ({
@@ -198,7 +209,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			}
 			return {
 				report,
-				title: reportTitles[report],
+				title,
 				year,
 				rows: Array.from(reps.values()).sort((a, b) => b.revenue - a.revenue)
 			};
@@ -282,7 +293,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				})
 				.sort((a, b) => b.orderAmount - a.orderAmount);
 
-			return { report, title: reportTitles[report], year, rows };
+			return { report, title, year, rows };
 		}
 
 		case 'pipeline': {
@@ -309,7 +320,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 						total_amount: Number(o.total_amount)
 					});
 			}
-			return { report, title: reportTitles[report], year, rows: Array.from(statuses.values()) };
+			return { report, title, year, rows: Array.from(statuses.values()) };
 		}
 
 		case 'season-comparison': {
@@ -346,7 +357,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			}
 			return {
 				report,
-				title: reportTitles[report],
+				title,
 				year,
 				rows: Array.from(seasons.values()).sort((a, b) => b.year - a.year || b.revenue - a.revenue)
 			};
@@ -370,7 +381,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			};
 			const showDateRows = (showDates ?? []) as ShowDateRow[];
 			const dateIds = showDateRows.map((sd) => sd.id);
-			if (dateIds.length === 0) return { report, title: reportTitles[report], year, rows: [] };
+			if (dateIds.length === 0) return { report, title, year, rows: [] };
 
 			const [ordersRes, visitsRes, apptsRes] = await Promise.all([
 				scopeByRep(
@@ -430,7 +441,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 					appointments: sdAppts.length
 				};
 			});
-			return { report, title: reportTitles[report], year, rows };
+			return { report, title, year, rows };
 		}
 
 		default:
