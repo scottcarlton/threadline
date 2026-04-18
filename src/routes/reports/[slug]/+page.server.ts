@@ -444,6 +444,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			return { report, title, year, rows };
 		}
 
+		case 'sales-by-rep-agency': {
+			const { loadSalesByRepAgency } = await import('$lib/server/reports/brand/salesByRepAgency');
+			const rows = await loadSalesByRepAgency(supabase, orgId, year);
+			return { report, title, year, rows };
+		}
+
 		default:
 			throw error(404, 'Report not found');
 	}
