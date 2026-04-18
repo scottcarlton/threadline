@@ -395,7 +395,8 @@
 		{#if showOrg}
 			<a
 				href={resolve('/organization/billing')}
-				class="mt-3 flex w-full items-center justify-center rounded-lg bg-foreground px-3 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+				class="mt-3 flex w-full items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
+				style="background-color: lab(92.1406% -20.4979 84.7726); color: #1a1a00;"
 			>
 				Upgrade to Pro
 			</a>

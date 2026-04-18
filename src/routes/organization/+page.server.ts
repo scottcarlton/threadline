@@ -22,7 +22,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		org: organization
-			? { id: organization.id, name: organization.name, logo_url: organization.logo_url }
+			? {
+					id: organization.id,
+					name: organization.name,
+					logo_url: organization.logo_url,
+					address_line1: organization.address_line1,
+					address_line2: organization.address_line2,
+					city: organization.city,
+					state: organization.state,
+					zip: organization.zip
+				}
 			: null,
 		orgType,
 		selfBrand

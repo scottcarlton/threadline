@@ -3,10 +3,15 @@ import type { PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 
-export const load: PageServerLoad = async ({ locals }) => {
+const PAGE_SIZE = 50;
+
+export const load: PageServerLoad = async ({ locals, url }) => {
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { organization } = locals;
-	if (!organization) return { accounts: [], accountTotals: {}, accountHealth: {} };
+	if (!organization)
+		return { accounts: [], hasMore: false, totalCount: 0, accountTotals: {}, accountHealth: {} };
+
+	const search = url.searchParams.get('search')?.trim() ?? '';
 
 	const currentYear = new Date().getFullYear();
 
@@ -27,12 +32,24 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// Admin client + explicit org scope (authenticated client can't reliably attach
 	// session to RLS in this version of @supabase/ssr).
+	// Build paginated accounts query with optional search
+	let accountsQuery = supabaseAdmin
+		.from('accounts')
+		.select('*, territories(name)', { count: 'exact' })
+		.in('organization_id', visibleOrgIds)
+		.is('archived_at', null)
+		.order('business_name')
+		.range(0, PAGE_SIZE - 1);
+
+	if (search) {
+		const pattern = `%${search}%`;
+		accountsQuery = accountsQuery.or(
+			`business_name.ilike.${pattern},contact_first_name.ilike.${pattern},contact_last_name.ilike.${pattern},city.ilike.${pattern},state.ilike.${pattern}`
+		);
+	}
+
 	const [accountsRes, ordersRes, healthMap, tagAssignmentsRes] = await Promise.all([
-		supabaseAdmin
-			.from('accounts')
-			.select('*, territories(name)')
-			.in('organization_id', visibleOrgIds)
-			.order('business_name'),
+		accountsQuery,
 		supabaseAdmin
 			.from('orders')
 			.select('account_id, total_amount')
@@ -69,8 +86,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		accountTagMap[assignment.account_id].push({ id: tag.id, name: tag.name, color: tag.color });
 	}
 
+	const totalCount = accountsRes.count ?? accounts.length;
+
 	return {
 		accounts,
+		hasMore: totalCount > PAGE_SIZE,
+		totalCount,
 		accountTotals: totals,
 		accountHealth,
 		accountTags: accountTagMap

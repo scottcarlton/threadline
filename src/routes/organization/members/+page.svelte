@@ -5,9 +5,9 @@
 	import { supabase } from '$lib/supabase.js';
 	import { cn } from '$lib/utils.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import InviteModal from '$lib/components/shared/InviteModal.svelte';
 	import InviteOrgSidebar from '$lib/components/connect/InviteOrgSidebar.svelte';
 	import type { UserRole } from '$lib/types/database.js';
 
@@ -85,13 +85,7 @@
 	const memberEmails = $derived(data.memberEmails as Record<string, string>);
 	const currentUserId = $derived(data.user?.id);
 
-	let showInviteForm = $state(false);
-	let inviteEmail = $state('');
-	let inviteRole: UserRole = $state('member');
-	let selectedBrandIds = $state<string[]>([]);
-	let inviteCommissionRate = $state<string>('');
-	let inviting = $state(false);
-	let inviteMessage = $state('');
+	let showInviteModal = $state(false);
 	let updatingId = $state('');
 	let copiedId = $state('');
 
@@ -107,17 +101,6 @@
 	// Brand orgs only ever have one brand (their self-brand), so per-member
 	// brand scope is tautological — hide for brand orgs entirely.
 	const isBrandOrg = $derived(data.orgType === 'brand');
-	const showBrandScope = $derived(
-		!isBrandOrg && (inviteRole === 'member' || inviteRole === 'sales' || inviteRole === 'guest')
-	);
-
-	function toggleBrand(brandId: string) {
-		if (selectedBrandIds.includes(brandId)) {
-			selectedBrandIds = selectedBrandIds.filter((id) => id !== brandId);
-		} else {
-			selectedBrandIds = [...selectedBrandIds, brandId];
-		}
-	}
 
 	const roleBadgeVariant = (role: UserRole) => {
 		switch (role) {
@@ -135,36 +118,6 @@
 				return 'outline' as const;
 		}
 	};
-
-	async function handleInvite() {
-		if (!inviteEmail.trim()) return;
-		inviting = true;
-		inviteMessage = '';
-
-		const res = await fetch('/api/invite/send', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				email: inviteEmail,
-				role: inviteRole,
-				brandIds: showBrandScope ? selectedBrandIds : [],
-				commissionRate: inviteRole === 'sales' ? parseFloat(inviteCommissionRate) || 0 : undefined
-			})
-		});
-
-		const result = await res.json();
-		if (res.ok) {
-			inviteMessage = 'Invitation sent successfully.';
-			inviteEmail = '';
-			inviteRole = 'member';
-			selectedBrandIds = [];
-			inviteCommissionRate = '';
-			await invalidateAll();
-		} else {
-			inviteMessage = result.error || 'Failed to send invitation.';
-		}
-		inviting = false;
-	}
 
 	async function handleRoleChange(memberId: string, newRole: UserRole) {
 		updatingId = memberId;
@@ -390,21 +343,17 @@
 		</div>
 		<div class="flex items-center gap-2">
 			<Button variant="outline" size="sm" onclick={() => (showImport = true)}>Import</Button>
-			<Button size="sm" onclick={() => (showInviteForm = !showInviteForm)}>
-				{#if showInviteForm}
-					Cancel
-				{:else}
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="-ml-1 h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
-					>
-					Add User
-				{/if}
+			<Button size="sm" onclick={() => (showInviteModal = true)}>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="-ml-1 h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+				>
+				Add User
 			</Button>
 		</div>
 	</div>
@@ -421,78 +370,6 @@
 		{/if}
 
 		<div class="min-w-0 space-y-4">
-			<!-- Inline invite form -->
-			{#if showInviteForm}
-				<div class="space-y-3 rounded-lg border border-dashed p-4">
-					<div class="flex flex-wrap items-end gap-3">
-						<div class="min-w-[200px] flex-1">
-							<label for="invite-email" class="text-sm font-medium">Email</label>
-							<Input
-								id="invite-email"
-								type="email"
-								bind:value={inviteEmail}
-								placeholder="team@example.com"
-							/>
-						</div>
-						<div class="w-36">
-							<label for="invite-role" class="text-sm font-medium">Role</label>
-							<select
-								id="invite-role"
-								bind:value={inviteRole}
-								class="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
-							>
-								<option value="member">Member</option>
-								<option value="sales">Sales</option>
-								<option value="admin">Admin</option>
-								<option value="guest">Guest</option>
-							</select>
-						</div>
-						{#if inviteRole === 'sales'}
-							<div class="w-32">
-								<label for="invite-commission" class="text-sm font-medium">Commission %</label>
-								<Input
-									id="invite-commission"
-									type="number"
-									min="0"
-									max="100"
-									step="0.25"
-									placeholder="0"
-									bind:value={inviteCommissionRate}
-								/>
-							</div>
-						{/if}
-						<Button size="sm" onclick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
-							{inviting ? 'Sending...' : 'Send Invite'}
-						</Button>
-					</div>
-					{#if showBrandScope && brands.length > 0}
-						<div class="space-y-2">
-							<p class="text-sm text-muted-foreground">
-								Brand Access <span class="font-normal">(optional — leave empty for all)</span>
-							</p>
-							<div class="flex flex-wrap gap-2">
-								{#each brands as brand (brand.id)}
-									<button
-										type="button"
-										class="rounded-lg border px-2.5 py-1 text-sm transition-all {selectedBrandIds.includes(
-											brand.id
-										)
-											? 'border-primary bg-primary text-primary-foreground'
-											: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
-										onclick={() => toggleBrand(brand.id)}
-									>
-										{brand.name}
-									</button>
-								{/each}
-							</div>
-						</div>
-					{/if}
-					{#if inviteMessage}
-						<p class="text-sm text-muted-foreground">{inviteMessage}</p>
-					{/if}
-				</div>
-			{/if}
-
 			<!-- Pending invitations (compact) -->
 			{#if invitations.length > 0}
 				<div class="space-y-2">
@@ -843,6 +720,14 @@
 	entityType="team member"
 	columns={teamColumns}
 	onimport={handleTeamImport}
+/>
+
+<InviteModal
+	open={showInviteModal}
+	orgType={isBrandOrg ? 'brand' : 'rep'}
+	{brands}
+	onclose={() => (showInviteModal = false)}
+	oninvited={() => invalidateAll()}
 />
 
 <svelte:window

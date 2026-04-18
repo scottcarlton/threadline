@@ -88,7 +88,6 @@
 							when it goes live.
 						</p>
 					{/if}
-					<Button class="mt-4" onclick={() => goto(resolve('/brands'))}>Go to Connections</Button>
 				</div>
 			</div>
 		{:else}

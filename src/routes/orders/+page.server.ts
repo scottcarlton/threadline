@@ -1,17 +1,21 @@
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listFederatedOrders } from '$lib/server/federation.js';
+import { resolveOrderSearch, applyOrderSearch } from '$lib/server/orders/search.js';
 import { incrementDate } from '$lib/utils/date-presets.js';
+
+const PAGE_SIZE = 50;
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const { supabase, organization, orgType } = locals;
 
 	const status = url.searchParams.get('status');
-	const seasonId = url.searchParams.get('season');
+	const seasonFilter = url.searchParams.get('season');
 	const year = url.searchParams.get('year');
-	const brandId = url.searchParams.get('brand');
+	const brandFilter = url.searchParams.get('brand');
 	const showDateId = url.searchParams.get('show');
 	const repOrgId = url.searchParams.get('rep');
+	const search = url.searchParams.get('search')?.trim() ?? '';
 	const from = url.searchParams.get('from');
 	const to = url.searchParams.get('to');
 	// Exclusive upper bound so the `to` day is fully included in the window.
@@ -29,8 +33,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.order('created_at', { ascending: false });
 
 		if (status) query = query.eq('status', status);
-		if (brandId) query = query.eq('brand_id', brandId);
-		if (seasonId) query = query.eq('season_id', seasonId);
+		if (brandFilter) query = query.eq('brand_id', brandFilter);
+		if (seasonFilter) query = query.eq('season_id', seasonFilter);
 		if (from) query = query.gte('created_at', from);
 		if (toExclusive) query = query.lt('created_at', toExclusive);
 
@@ -47,6 +51,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const orders = ordersRes.data ?? [];
 		return {
 			orders,
+			hasMore: false,
+			totalCount: orders.length,
 			seasons: [],
 			brands: brandsRes.data ?? [],
 			showDates: [],
@@ -74,6 +80,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!organization)
 		return {
 			orders: [],
+			hasMore: false,
+			totalCount: 0,
 			seasons: [],
 			brands: [],
 			showDates: [],
@@ -94,6 +102,24 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const brandIsSales = locals.membership?.role === 'sales';
 		const brandUserId = locals.user?.id;
 
+		// Resolve name-based season/brand filters to matching IDs
+		let seasonIds: string[] | null = null;
+		if (seasonFilter) {
+			const { data: matchSeasons } = await supabaseAdmin
+				.from('seasons')
+				.select('id, name')
+				.ilike('name', seasonFilter);
+			seasonIds = matchSeasons?.map((s) => s.id) ?? [];
+		}
+		let brandIds: string[] | null = null;
+		if (brandFilter) {
+			const { data: matchBrands } = await supabaseAdmin
+				.from('brands')
+				.select('id, name')
+				.ilike('name', brandFilter);
+			brandIds = matchBrands?.map((b) => b.id) ?? [];
+		}
+
 		// 1. Direct orders owned by the brand org.
 		//    Sales reps only see their own. Admin/owner/member see all.
 		let directQuery = supabase
@@ -105,12 +131,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.order('created_at', { ascending: false });
 		if (brandIsSales && brandUserId) directQuery = directQuery.eq('created_by', brandUserId);
 		if (status) directQuery = directQuery.eq('status', status);
-		if (seasonId) directQuery = directQuery.eq('season_id', seasonId);
+		if (seasonIds && seasonIds.length > 0) directQuery = directQuery.in('season_id', seasonIds);
 		if (year) directQuery = directQuery.eq('order_year', parseInt(year));
-		if (brandId) directQuery = directQuery.eq('brand_id', brandId);
+		if (brandIds && brandIds.length > 0) directQuery = directQuery.in('brand_id', brandIds);
 		if (showDateId) directQuery = directQuery.eq('show_date_id', showDateId);
 		if (from) directQuery = directQuery.gte('created_at', from);
 		if (toExclusive) directQuery = directQuery.lt('created_at', toExclusive);
+		if (search) {
+			const resolved = await resolveOrderSearch(supabaseAdmin, search, [organization.id]);
+			directQuery = applyOrderSearch(directQuery, search, resolved.accountIds, resolved.brandIds);
+		}
 		const directRes = await directQuery;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const directOrders = ((directRes.data ?? []) as any[]).map((o) => ({
@@ -126,10 +156,22 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			: await listFederatedOrders(supabaseAdmin, organization.id);
 		if (status) federatedOrders = federatedOrders.filter((o) => o.status === status);
 		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.rep_org_id === repOrgId);
-		if (seasonId) federatedOrders = federatedOrders.filter((o) => o.season_id === seasonId);
-		if (brandId) federatedOrders = federatedOrders.filter((o) => o.brand_id === brandId);
+		if (seasonIds)
+			federatedOrders = federatedOrders.filter(
+				(o) => o.season_id && seasonIds!.includes(o.season_id)
+			);
+		if (brandIds) federatedOrders = federatedOrders.filter((o) => brandIds!.includes(o.brand_id));
 		if (from) federatedOrders = federatedOrders.filter((o) => o.created_at >= from);
 		if (toExclusive) federatedOrders = federatedOrders.filter((o) => o.created_at < toExclusive);
+		if (search) {
+			const q = search.toLowerCase();
+			federatedOrders = federatedOrders.filter(
+				(o) =>
+					o.order_number?.toLowerCase().includes(q) ||
+					o.account_name?.toLowerCase().includes(q) ||
+					o.brand_name?.toLowerCase().includes(q)
+			);
+		}
 
 		// Reshape federated to match the direct row structure.
 		const federatedReshaped = federatedOrders.map((o) => ({
@@ -149,6 +191,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			brands: o.brand_name ? { name: o.brand_name } : null,
 			accounts: o.account_name ? { business_name: o.account_name } : null,
 			seasons: o.season_name ? { name: o.season_name } : null,
+			profiles: o.created_by_name ? { display_name: o.created_by_name } : null,
 			source_org: { id: o.rep_org_id, name: o.rep_org_name }
 		}));
 
@@ -160,31 +203,40 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		>();
 		for (const o of federatedReshaped) orderMap.set(o.id as string, o);
 		for (const o of directOrders) orderMap.set(o.id as string, o); // direct wins if dup
-		const orders = [...orderMap.values()].sort((a, b) =>
+		const allOrders = [...orderMap.values()].sort((a, b) =>
 			String(b.created_at).localeCompare(String(a.created_at))
 		);
+		const orders = allOrders.slice(0, PAGE_SIZE);
 
-		// Filter chip sources — union of direct + federated.
+		// Filter chip sources — union of direct + federated, deduped by name.
 		const brandMap = new Map<string, { id: string; name: string }>();
 		const seasonMap = new Map<string, { id: string; name: string }>();
 		const repMap = new Map<string, { id: string; name: string }>();
 		for (const o of federatedOrders) {
-			if (o.brand_id && o.brand_name)
-				brandMap.set(o.brand_id, { id: o.brand_id, name: o.brand_name });
-			if (o.season_id && o.season_name)
-				seasonMap.set(o.season_id, { id: o.season_id, name: o.season_name });
+			if (o.brand_id && o.brand_name) {
+				const key = o.brand_name.trim().toLowerCase();
+				if (!brandMap.has(key)) brandMap.set(key, { id: o.brand_id, name: o.brand_name });
+			}
+			if (o.season_id && o.season_name) {
+				const key = o.season_name.trim().toLowerCase();
+				if (!seasonMap.has(key)) seasonMap.set(key, { id: o.season_id, name: o.season_name });
+			}
 			repMap.set(o.rep_org_id, { id: o.rep_org_id, name: o.rep_org_name });
 		}
 		for (const o of directOrders) {
 			const b = (o.brands as { name?: string } | null)?.name;
-			const bid = o.brand_id as string | undefined;
-			if (bid && b) brandMap.set(bid, { id: bid, name: b });
+			if (b) {
+				const key = b.trim().toLowerCase();
+				if (!brandMap.has(key)) brandMap.set(key, { id: o.brand_id as string, name: b });
+			}
 			const s = (o.seasons as { name?: string } | null)?.name;
-			const sid = o.season_id as string | undefined;
-			if (sid && s) seasonMap.set(sid, { id: sid, name: s });
+			if (s) {
+				const key = s.trim().toLowerCase();
+				if (!seasonMap.has(key)) seasonMap.set(key, { id: o.season_id as string, name: s });
+			}
 		}
 
-		// Metrics (same shape as rep side)
+		// Metrics computed from ALL matching orders, not just first page
 		const now = new Date();
 		const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 		const todayStr = now.toISOString().split('T')[0];
@@ -198,7 +250,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			overdueShipments = 0,
 			submittedCount = 0,
 			convertedCount = 0;
-		for (const o of orders) {
+		for (const o of allOrders) {
 			const amount = Number(o.total_amount) || 0;
 			if (pipelineStatuses.has(o.status)) {
 				pipelineValue += amount;
@@ -221,6 +273,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 		return {
 			orders,
+			hasMore: allOrders.length > PAGE_SIZE,
+			totalCount: allOrders.length,
 			seasons: [...seasonMap.values()],
 			brands: [...brandMap.values()],
 			reps: [...repMap.values()],
@@ -233,8 +287,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				avgOrderValue:
 					deliveredCount > 0
 						? deliveredRevenue / deliveredCount
-						: orders.length > 0
-							? orders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) / orders.length
+						: allOrders.length > 0
+							? allOrders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) / allOrders.length
 							: 0,
 				needsAttention: {
 					staleDrafts,
@@ -266,27 +320,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 	const visibleOrgIds = Array.from(visibleOrgIdSet);
 
-	// Orders themselves stay own-org (MBISR owns the orders they place). Filter dropdowns
-	// widen to include connected orgs' brands/seasons/shows so reps can filter by them.
-	let query = supabaseAdmin
-		.from('orders')
-		.select(
-			'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)'
-		)
-		.eq('organization_id', organization.id)
-		.order('created_at', { ascending: false });
-
-	if (isSales) query = query.eq('created_by', locals.user?.id);
-	if (status) query = query.eq('status', status);
-	if (seasonId) query = query.eq('season_id', seasonId);
-	if (year) query = query.eq('order_year', parseInt(year));
-	if (brandId) query = query.eq('brand_id', brandId);
-	if (showDateId) query = query.eq('show_date_id', showDateId);
-	if (from) query = query.gte('created_at', from);
-	if (toExclusive) query = query.lt('created_at', toExclusive);
-
-	const [ordersResult, seasonsResult, brandsResult, showDatesResult] = await Promise.all([
-		query,
+	// Filter dropdowns widen to include connected orgs' brands/seasons/shows.
+	// Fetch these first so we can resolve name-based filters to IDs.
+	const [seasonsResult, brandsResult, showDatesResult] = await Promise.all([
 		supabaseAdmin
 			.from('seasons')
 			.select('*')
@@ -307,9 +343,71 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.order('month')
 	]);
 
-	const orders = ordersResult.data ?? [];
+	const allSeasons = seasonsResult.data ?? [];
+	const allBrands = (brandsResult.data ?? []) as Array<{ id: string; name: string }>;
 
-	// Compute analytics metrics from orders
+	// Resolve name-based filters to matching IDs across all visible orgs
+	let seasonIds: string[] | null = null;
+	if (seasonFilter) {
+		const key = seasonFilter.trim().toLowerCase();
+		seasonIds = allSeasons.filter((s) => s.name.trim().toLowerCase() === key).map((s) => s.id);
+	}
+	let brandIds: string[] | null = null;
+	if (brandFilter) {
+		const key = brandFilter.trim().toLowerCase();
+		brandIds = allBrands.filter((b) => b.name.trim().toLowerCase() === key).map((b) => b.id);
+	}
+
+	// Resolve search to matching account/brand IDs
+	let searchAccountIds: string[] = [];
+	let searchBrandIds: string[] = [];
+	if (search) {
+		const resolved = await resolveOrderSearch(supabaseAdmin, search, [organization.id]);
+		searchAccountIds = resolved.accountIds;
+		searchBrandIds = resolved.brandIds;
+	}
+
+	// Helper to apply shared filters to an orders query
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	function applyFilters(q: any) {
+		if (isSales) q = q.eq('created_by', locals.user?.id);
+		if (status) q = q.eq('status', status);
+		if (seasonIds && seasonIds.length > 0) q = q.in('season_id', seasonIds);
+		if (year) q = q.eq('order_year', parseInt(year));
+		if (brandIds && brandIds.length > 0) q = q.in('brand_id', brandIds);
+		if (showDateId) q = q.eq('show_date_id', showDateId);
+		if (from) q = q.gte('created_at', from);
+		if (toExclusive) q = q.lt('created_at', toExclusive);
+		if (search) q = applyOrderSearch(q, search, searchAccountIds, searchBrandIds);
+		return q;
+	}
+
+	// 1. Paginated display query (first page)
+	let displayQuery = supabaseAdmin
+		.from('orders')
+		.select(
+			'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)',
+			{ count: 'exact' }
+		)
+		.eq('organization_id', organization.id)
+		.order('created_at', { ascending: false })
+		.range(0, PAGE_SIZE - 1);
+	displayQuery = applyFilters(displayQuery);
+
+	// 2. Lightweight metrics query (all matching, minimal columns)
+	let metricsQuery = supabaseAdmin
+		.from('orders')
+		.select('id, status, total_amount, created_at, expected_ship_date')
+		.eq('organization_id', organization.id);
+	metricsQuery = applyFilters(metricsQuery);
+
+	const [displayResult, metricsResult] = await Promise.all([displayQuery, metricsQuery]);
+
+	const orders = displayResult.data ?? [];
+	const totalCount = displayResult.count ?? orders.length;
+	const metricsRows = metricsResult.data ?? [];
+
+	// Compute analytics metrics from ALL matching orders
 	const now = new Date();
 	const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 	const todayStr = now.toISOString().split('T')[0];
@@ -326,7 +424,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let submittedCount = 0;
 	let convertedCount = 0;
 
-	for (const o of orders) {
+	for (const o of metricsRows) {
 		const amount = Number(o.total_amount) || 0;
 
 		if (pipelineStatuses.has(o.status)) {
@@ -362,8 +460,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		avgOrderValue:
 			deliveredCount > 0
 				? deliveredRevenue / deliveredCount
-				: orders.length > 0
-					? orders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) / orders.length
+				: metricsRows.length > 0
+					? metricsRows.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) / metricsRows.length
 					: 0,
 		needsAttention: {
 			staleDrafts,
@@ -377,10 +475,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	};
 
+	// Deduplicate seasons and brands by name for filter dropdowns
+	const seenSeasonNames = new Set<string>();
+	const dedupedSeasons = allSeasons.filter((s) => {
+		const key = s.name.trim().toLowerCase();
+		if (seenSeasonNames.has(key)) return false;
+		seenSeasonNames.add(key);
+		return true;
+	});
+	const seenBrandNames = new Set<string>();
+	const dedupedBrands = allBrands.filter((b) => {
+		const key = b.name.trim().toLowerCase();
+		if (seenBrandNames.has(key)) return false;
+		seenBrandNames.add(key);
+		return true;
+	});
+
 	return {
 		orders,
-		seasons: seasonsResult.data ?? [],
-		brands: brandsResult.data ?? [],
+		hasMore: totalCount > PAGE_SIZE,
+		totalCount,
+		seasons: dedupedSeasons,
+		brands: dedupedBrands,
 		showDates: showDatesResult.data ?? [],
 		reps: [] as Array<{ id: string; name: string }>,
 		isBrandOrg: false,
