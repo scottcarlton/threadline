@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import type { OrgType } from '$lib/types/database';
 
 const repReportTitles: Record<string, string> = {
 	'sales-by-brand': 'Sales by Brand',
@@ -17,7 +18,7 @@ const brandReportTitles: Record<string, string> = {
 	'product-performance': 'Product Performance'
 };
 
-function titleFor(orgType: string | null | undefined, slug: string): string | null {
+function titleFor(orgType: OrgType, slug: string): string | null {
 	if (orgType === 'brand') return brandReportTitles[slug] ?? null;
 	return repReportTitles[slug] ?? null;
 }
@@ -26,8 +27,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const { supabase, organization } = locals;
 	const report = params.slug;
 
-	const orgType = locals.organization?.org_type ?? null;
-	const title = titleFor(orgType, report);
+	const title = titleFor(locals.orgType, report);
 	if (!title) throw error(404, 'Report not found');
 	if (!organization) return { report, title, year: new Date().getFullYear(), rows: [] };
 
