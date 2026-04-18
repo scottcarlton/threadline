@@ -227,10 +227,10 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="overflow-x-auto rounded-none border">
+		<div class="overflow-x-auto border-b">
 			<table class="w-full">
 				<thead>
-					<tr class="border-b bg-muted/40">
+					<tr class="border-b">
 						<th
 							class="w-48 px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Expense</th

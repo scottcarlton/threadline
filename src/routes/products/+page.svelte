@@ -69,10 +69,11 @@
 
 	// Server-side filter via URL params
 	function setFilter(key: string, value: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams($page.url.searchParams);
 		if (!value) params.delete(key);
 		else params.set(key, value);
-		goto(`/products?${params.toString()}`, { replaceState: true });
+		goto(resolve(`/products?${params.toString()}`), { replaceState: true });
 	}
 
 	const debouncedSearch = debounce((value: string) => {
@@ -90,6 +91,7 @@
 		if (loadingMore || !hasMore) return;
 		loadingMore = true;
 		try {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 			const params = new URLSearchParams();
 			params.set('offset', String(productList.length));
 			params.set('limit', String(PAGE_SIZE));

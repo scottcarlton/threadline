@@ -96,6 +96,7 @@
 	const seasons = $derived(data.seasons as Season[]);
 	// Deduplicated by name for dropdown display; full `seasons` used for ID resolution
 	const dedupedSeasons = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation inside $derived
 		const seen = new Set<string>();
 		return seasons.filter((s) => {
 			const key = s.name.trim().toLowerCase();
@@ -1632,8 +1633,8 @@
 			</label>
 		</div>
 
-		<!-- Body: grid + optional sidebar -->
-		<div class="flex flex-1 overflow-hidden">
+		<!-- Body: grid + overlay sizing panel -->
+		<div class="relative flex flex-1 overflow-hidden">
 			<div class="flex-1 overflow-auto p-5">
 				{#if modalLoading}
 					<div class="p-10 text-center text-sm text-muted-foreground">Loading…</div>
@@ -1713,33 +1714,24 @@
 				{/if}
 			</div>
 
-			<!-- Sizing sidebar -->
+			<!-- Sizing panel (overlay) -->
 			{#if sizingProductId}
 				{@const it = findItem(sizingProductId)}
 				{#if it}
-					<aside class="flex w-[380px] shrink-0 flex-col border-l">
-						<div class="flex items-center justify-between border-b px-4 py-3">
-							<div>
-								<div class="text-sm text-muted-foreground">{it.style_number}</div>
-								<div class="text-base font-semibold">{it.name}</div>
-							</div>
+					<aside
+						class="absolute top-0 right-0 bottom-0 z-10 flex w-[380px] flex-col border-l bg-background shadow-lg transition-transform duration-200"
+					>
+						<div class="px-4 pt-5 pb-3">
 							<button
 								type="button"
-								class="rounded p-1 hover:bg-muted/50"
-								aria-label="Close sizing"
+								class="mb-4 flex items-center gap-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
 								onclick={() => (sizingProductId = null)}
 							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									class="h-5 w-5"
-								>
-									<path d="M18 6L6 18M6 6l12 12" />
-								</svg>
+								<LongArrow direction="left" class="h-4 w-4" />
+								Back to products
 							</button>
+							<div class="text-sm text-muted-foreground">{it.style_number}</div>
+							<div class="text-base font-semibold">{it.name}</div>
 						</div>
 						<div class="flex-1 overflow-auto p-4">
 							{#if it.available_colors.length > 0}

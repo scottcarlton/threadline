@@ -1,12 +1,10 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import ConnectionInviteSection from '$lib/components/shared/ConnectionInviteSection.svelte';
+	import InviteModal from '$lib/components/shared/InviteModal.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
 
 	import type { ConnectedRep } from '$lib/server/federation.js';
 
@@ -134,80 +132,8 @@
 		return { success, errors };
 	}
 
-	// ── Invite form ────────────────────────────────────────────────────────
-	type InviteMode = 'invite' | 'connect';
-	let inviteMode = $state<InviteMode>('invite');
 	let inviteOpen = $state(false);
-	let inviteEmail = $state('');
-	let inviteCommissionRate = $state<string>('');
-	let sending = $state(false);
-	let inviteError = $state('');
-	let inviteSuccess = $state('');
-	let inviteLink = $state('');
-	let linkCopied = $state(false);
-
-	async function sendInvite() {
-		const email = inviteEmail.trim();
-		if (!email) {
-			inviteError = 'Enter an email address.';
-			return;
-		}
-		sending = true;
-		inviteError = '';
-		inviteSuccess = '';
-		inviteLink = '';
-		linkCopied = false;
-		const res = await fetch('/api/invite/send', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				email,
-				role: 'sales',
-				brandIds: selfBrandId ? [selfBrandId] : [],
-				commissionRate: parseFloat(inviteCommissionRate) || 0
-			})
-		});
-		sending = false;
-		const body = (await res.json().catch(() => ({}))) as {
-			error?: string;
-			autoAdded?: boolean;
-			inviteUrl?: string;
-		};
-		if (!res.ok) {
-			inviteError = body.error ?? 'Failed to send invite';
-			return;
-		}
-		if (body.autoAdded) {
-			inviteSuccess = `${email} was added to your organization.`;
-		} else if (body.inviteUrl) {
-			inviteLink = `${window.location.origin}${body.inviteUrl}`;
-			inviteSuccess = `Invite ready for ${email}. Copy the link below and send it to them.`;
-		} else {
-			inviteSuccess = `Invite created for ${email}.`;
-		}
-		inviteEmail = '';
-		inviteCommissionRate = '';
-		invalidateAll();
-	}
-
-	async function copyInviteLink() {
-		if (!inviteLink) return;
-		try {
-			await navigator.clipboard.writeText(inviteLink);
-			linkCopied = true;
-			setTimeout(() => (linkCopied = false), 2000);
-		} catch {
-			// Clipboard API can fail in insecure contexts — fall through silently; the input is selectable.
-		}
-	}
-
-	function closeInvite() {
-		inviteOpen = false;
-		inviteError = '';
-		inviteSuccess = '';
-		inviteLink = '';
-		linkCopied = false;
-	}
+	let showInviteModal = $state(false);
 </script>
 
 <div class="space-y-6">
@@ -221,7 +147,7 @@
 			<Button variant="outline" onclick={handleExport} disabled={reps.length === 0}>Export</Button>
 			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
 		{/if}
-		<Button onclick={() => (inviteOpen = !inviteOpen)}>
+		<Button onclick={() => (showInviteModal = true)}>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				class="h-4 w-4"
@@ -232,109 +158,13 @@
 			>
 				<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 			</svg>
-			{inviteOpen ? 'Close' : 'Invite'}
+			Invite
 		</Button>
 	</PageHeader>
 
-	{#if inviteOpen}
+	{#if inviteOpen && data.isAdmin}
 		<div class="rounded-lg border p-5">
-			<!-- Invite / Connect tabs -->
-			{#if data.isAdmin}
-				<div class="mb-4 flex gap-1 border-b">
-					<button
-						class="-mb-px px-4 py-2 text-sm font-medium transition-colors {inviteMode === 'invite'
-							? 'border-b border-current text-foreground'
-							: 'text-muted-foreground hover:text-foreground'}"
-						onclick={() => (inviteMode = 'invite')}
-					>
-						Invite
-					</button>
-					<button
-						class="-mb-px px-4 py-2 text-sm font-medium transition-colors {inviteMode === 'connect'
-							? 'border-b border-current text-foreground'
-							: 'text-muted-foreground hover:text-foreground'}"
-						onclick={() => (inviteMode = 'connect')}
-					>
-						Connect
-					</button>
-				</div>
-			{/if}
-
-			{#if inviteMode === 'invite'}
-				<h2 class="text-lg font-semibold">Invite a rep</h2>
-				<p class="text-sm text-muted-foreground">
-					Send an invite to join your org. They'll get an email with a signup link.
-				</p>
-				<div class="mt-4 grid gap-4 sm:grid-cols-[1fr_140px_auto]">
-					<div>
-						<Label for="invite-email">Email</Label>
-						<Input
-							id="invite-email"
-							type="email"
-							placeholder="name@example.com"
-							bind:value={inviteEmail}
-						/>
-					</div>
-					<div>
-						<Label for="invite-commission">Commission %</Label>
-						<Input
-							id="invite-commission"
-							type="number"
-							min="0"
-							max="100"
-							step="0.25"
-							placeholder="0"
-							bind:value={inviteCommissionRate}
-						/>
-					</div>
-					<div class="flex items-end">
-						<Button disabled={sending || !inviteEmail.trim()} onclick={sendInvite}>
-							{sending ? 'Sending…' : 'Send invite'}
-						</Button>
-					</div>
-				</div>
-				<p class="mt-2 text-sm text-muted-foreground">
-					Invites from this page join as sales reps. To invite an admin or member, use
-					<a href={resolve('/organization/members')} class="underline hover:text-foreground"
-						>Organization › Members</a
-					>.
-				</p>
-				{#if inviteError}
-					<p class="mt-3 text-sm text-red-600">{inviteError}</p>
-				{/if}
-				{#if inviteSuccess}
-					<div class="mt-3 space-y-3">
-						<div class="flex items-center justify-between text-sm text-emerald-600">
-							<span>{inviteSuccess}</span>
-							<button
-								type="button"
-								class="text-sm text-muted-foreground underline hover:text-foreground"
-								onclick={closeInvite}
-							>
-								Done
-							</button>
-						</div>
-						{#if inviteLink}
-							<div class="flex items-center gap-2">
-								<Input
-									readonly
-									value={inviteLink}
-									onclick={(e: Event) => (e.currentTarget as HTMLInputElement).select()}
-								/>
-								<Button variant="outline" onclick={copyInviteLink}>
-									{linkCopied ? 'Copied' : 'Copy link'}
-								</Button>
-							</div>
-							<p class="text-sm text-muted-foreground">
-								Link expires in 7 days. Email delivery is coming soon — share this link manually for
-								now.
-							</p>
-						{/if}
-					</div>
-				{/if}
-			{:else}
-				<ConnectionInviteSection invites={data.connectionInvites} />
-			{/if}
+			<ConnectionInviteSection invites={data.connectionInvites} />
 		</div>
 	{/if}
 
@@ -468,4 +298,14 @@
 	entityType="Reps"
 	columns={repColumns}
 	onimport={handleImport}
+/>
+
+<InviteModal
+	open={showInviteModal}
+	orgType="brand"
+	brands={[]}
+	{selfBrandId}
+	fixedRole="sales"
+	onclose={() => (showInviteModal = false)}
+	oninvited={() => invalidateAll()}
 />

@@ -140,6 +140,7 @@
 		if (loadingMore || !hasMore) return;
 		loadingMore = true;
 		try {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 			const params = new URLSearchParams($page.url.searchParams);
 			params.set('offset', String(orderList.length));
 			params.set('limit', String(PAGE_SIZE));
@@ -685,10 +686,10 @@
 		</div>
 	{:else}
 		<!-- Responsive table: Account & Brand hidden on mobile, Season hidden below md -->
-		<div class="overflow-x-auto rounded-none border">
+		<div class="overflow-x-auto border-b">
 			<table class="w-full">
 				<thead>
-					<tr class="border-b bg-muted/40">
+					<tr class="border-b">
 						<th class="w-8 py-2.5 pr-1 pl-4">
 							<Checkbox
 								checked={allSelected}

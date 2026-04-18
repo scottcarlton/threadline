@@ -127,10 +127,11 @@
 
 	// Debounced server-side search
 	const debouncedSearch = debounce((value: string) => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams($page.url.searchParams);
 		if (value) params.set('search', value);
 		else params.delete('search');
-		goto(`/accounts?${params.toString()}`, { replaceState: true });
+		goto(resolve(`/accounts?${params.toString()}`), { replaceState: true });
 	}, 300);
 
 	function onSearchInput(e: Event) {
@@ -144,6 +145,7 @@
 		if (loadingMore || !hasMore) return;
 		loadingMore = true;
 		try {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 			const params = new URLSearchParams();
 			params.set('offset', String(accountList.length));
 			params.set('limit', String(PAGE_SIZE));
@@ -259,10 +261,10 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-none border">
+		<div class="overflow-hidden border-b">
 			<table class="w-full">
 				<thead>
-					<tr class="border-b bg-muted/40">
+					<tr class="border-b">
 						<th
 							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Account</th

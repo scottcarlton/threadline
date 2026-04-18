@@ -786,7 +786,7 @@
 								</svg>
 							</div>
 							<div>
-								<p class="text-sm font-semibold">Sales rep or agency</p>
+								<p class="text-sm font-semibold">Independent Sales Rep</p>
 								<p class="mt-0.5 text-sm text-muted-foreground">
 									I represent multiple brands and manage accounts, orders, and commissions.
 								</p>
