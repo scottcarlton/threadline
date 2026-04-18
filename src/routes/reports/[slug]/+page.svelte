@@ -10,6 +10,13 @@
 	const title = $derived(data.title as string);
 	const year = $derived(data.year as number);
 	const variant = $derived((data as { variant?: string }).variant);
+	const hasCustomEmptyState = $derived(
+		report === 'product-performance' ||
+			(variant === 'brand' &&
+				(report === 'sales-by-rep' ||
+					report === 'territory-coverage' ||
+					report === 'account-penetration'))
+	);
 	type ReportRow = {
 		name: string;
 		orders: number;
@@ -34,6 +41,12 @@
 		accounts?: number;
 		territoryId?: string | null;
 		territoryName?: string;
+		accountId?: string;
+		businessName?: string;
+		currentOrders?: number;
+		currentRevenue?: number;
+		priorRevenue?: number;
+		hasAccess?: boolean;
 		[k: string]: unknown;
 	};
 	const rows = $derived(data.rows as ReportRow[]);
@@ -103,7 +116,7 @@
 		</div>
 	</div>
 
-	{#if rows.length === 0 && !(report === 'sales-by-rep' && variant === 'brand') && !(report === 'territory-coverage' && variant === 'brand') && report !== 'product-performance'}
+	{#if rows.length === 0 && !hasCustomEmptyState}
 		<div class="rounded-none p-12 text-center">
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -570,6 +583,132 @@
 							<td class="px-4 py-2.5 text-right font-mono text-sm font-bold"
 								>{fmt.format(rows.reduce((s, r) => s + r.revenue, 0))}</td
 							>
+						</tr>
+					</tfoot>
+				</table>
+			</div>
+		{/if}
+	{:else if report === 'account-penetration' && variant === 'brand'}
+		{#if rows.length === 0}
+			<div class="flex flex-col items-center gap-3 py-16 text-center">
+				<div
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-6 w-6"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+						/>
+					</svg>
+				</div>
+				<p class="text-sm font-medium">No accounts yet</p>
+				<p class="text-sm text-muted-foreground">
+					Accounts approved to carry your brand will show up here along with their order activity.
+				</p>
+			</div>
+		{:else}
+			<div class="overflow-x-auto rounded-none border">
+				<table class="w-full">
+					<thead>
+						<tr class="border-b bg-muted/40">
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Account</th>
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Agency</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Orders</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Revenue</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Prior Year</th>
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Trend</th>
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Last Order</th>
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Status</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y">
+						{#each rows as row (row.accountId)}
+							<tr class="hover:bg-muted/30">
+								<td class="px-4 py-3 text-sm font-medium">{row.businessName}</td>
+								<td class="px-4 py-3 text-sm">
+									<div class="flex items-center gap-2">
+										<span>{row.agencyName}</span>
+										{#if row.source === 'in_house'}
+											<span
+												class="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
+												>In-house</span
+											>
+										{/if}
+									</div>
+								</td>
+								<td class="px-4 py-3 text-right text-sm">{row.currentOrders ?? 0}</td>
+								<td class="px-4 py-3 text-right font-mono text-sm"
+									>{fmt.format(row.currentRevenue ?? 0)}</td
+								>
+								<td class="px-4 py-3 text-right font-mono text-sm text-muted-foreground"
+									>{fmt.format(row.priorRevenue ?? 0)}</td
+								>
+								<td class="px-4 py-3 text-sm">
+									{#if row.trend === 'up'}
+										<span class="inline-flex items-center gap-1 text-emerald-600">
+											<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
+												><path d="M5 15l5-5 5 5H5z" /></svg
+											>
+											up
+										</span>
+									{:else if row.trend === 'down'}
+										<span class="inline-flex items-center gap-1 text-destructive">
+											<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
+												><path d="M5 5l5 5 5-5H5z" /></svg
+											>
+											down
+										</span>
+									{:else}
+										<span class="inline-flex items-center gap-1 text-muted-foreground">
+											<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
+												><path d="M4 10h12v2H4z" /></svg
+											>
+											flat
+										</span>
+									{/if}
+								</td>
+								<td class="px-4 py-3 text-sm"
+									>{row.lastOrderDate ? formatDate(row.lastOrderDate) : '—'}</td
+								>
+								<td class="px-4 py-3 text-sm">
+									{#if row.status === 'dormant'}
+										<span
+											class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-sm text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+											>Dormant</span
+										>
+									{:else}
+										<span
+											class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-sm text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+											>Active</span
+										>
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+					<tfoot>
+						<tr class="bg-muted/40">
+							<td colspan="2" class="px-4 py-2.5 text-sm font-medium">Total</td>
+							<td class="px-4 py-2.5 text-right text-sm font-medium"
+								>{rows.reduce((s, r) => s + (r.currentOrders ?? 0), 0)}</td
+							>
+							<td class="px-4 py-2.5 text-right font-mono text-sm font-bold"
+								>{fmt.format(rows.reduce((s, r) => s + (r.currentRevenue ?? 0), 0))}</td
+							>
+							<td class="px-4 py-2.5 text-right font-mono text-sm font-bold"
+								>{fmt.format(rows.reduce((s, r) => s + (r.priorRevenue ?? 0), 0))}</td
+							>
+							<td class="px-4 py-2.5"></td>
+							<td class="px-4 py-2.5"></td>
+							<td class="px-4 py-2.5"></td>
 						</tr>
 					</tfoot>
 				</table>

@@ -63,6 +63,11 @@
 			id: 'territory-coverage',
 			title: 'Territory Coverage',
 			description: 'Accounts by territory across in-house and connected rep agencies'
+		},
+		{
+			id: 'account-penetration',
+			title: 'Account Penetration',
+			description: 'Which accounts are ordering, which are dormant, and year-over-year trend'
 		}
 	];
 
