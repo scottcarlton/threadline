@@ -191,6 +191,136 @@ describe('MBISR independent-data boundary', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MBISR sees connected brand's accounts (MBISR→BOA implicit federation)
+// Regression coverage for migration 20260418000006_rep_sees_connected_brand_accounts.
+// Before this migration the accounts table had no "Rep sees connected brand
+// accounts" policy, so Stitch (and any authenticated read path) could not
+// resolve a brand-owned account by name. The /accounts page worked only
+// because it bypassed RLS via supabaseAdmin + manual visibleOrgIds.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Simulates the post-20260418000006 accounts SELECT policy for an MBISR user:
+ *   organization_id IN (brand_org_ids of the user's active rep-side connections).
+ */
+function accountsVisibleToRep(
+	all: Record<string, unknown>[],
+	repOrgId: string,
+	activeConnections: Array<{ rep_org_id: string; brand_org_id: string; status: string }>
+) {
+	const connectedBrandOrgIds = new Set(
+		activeConnections
+			.filter((c) => c.rep_org_id === repOrgId && c.status === 'active')
+			.map((c) => c.brand_org_id)
+	);
+	return all.filter((a) => connectedBrandOrgIds.has(a.organization_id as string));
+}
+
+describe('Rep sees connected brand accounts (MBISR→BOA implicit)', () => {
+	const brandOwnedAccount = makeAccount({
+		id: FEDERATION.boa.accountId,
+		business_name: FEDERATION.boa.accountName,
+		organization_id: FEDERATION.boa.orgId
+	});
+	const repOwnedAccount = makeAccount({
+		id: FEDERATION.mbisr.accountId,
+		business_name: FEDERATION.mbisr.accountName,
+		organization_id: FEDERATION.mbisr.orgId
+	});
+	const activeConn = makeConnection({ status: 'active' });
+
+	it('rep resolves a brand-owned account by name via the implicit federation policy', () => {
+		const visible = accountsVisibleToRep(
+			[brandOwnedAccount, repOwnedAccount, mbisrAccount, boaAccount],
+			FEDERATION.mbisr.orgId,
+			[activeConn]
+		);
+		const found = visible.find((a) => a.business_name === FEDERATION.boa.accountName);
+		expect(found).toBeDefined();
+		expect(found!.organization_id).toBe(FEDERATION.boa.orgId);
+	});
+
+	it('suspended connection hides the brand-owned account from the rep', () => {
+		const suspendedConn = makeConnection({ status: 'suspended' });
+		const visible = accountsVisibleToRep([brandOwnedAccount], FEDERATION.mbisr.orgId, [
+			suspendedConn
+		]);
+		expect(visible).toHaveLength(0);
+	});
+
+	it('brand does NOT see rep-owned accounts implicitly (explicit-link model preserved)', () => {
+		// Brand side must go through federated_account_links — never get rep
+		// accounts "for free" from an org_connections implicit policy.
+		const brandSees = getFederatedAccountsForBoa(
+			[], // no federated_account_links rows yet
+			[repOwnedAccount],
+			FEDERATION.boa.orgId
+		);
+		expect(brandSees).toHaveLength(0);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MBISR admin/owner/member can view own orders for federated brands
+// (regression coverage for migration 20260418000005)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Simulates the orders SELECT policy after 20260418000005:
+ *   own-org brand visibility OR (non-scoped role + brand from connected org).
+ */
+function orderVisibleToOrgUser(
+	order: Record<string, unknown>,
+	viewer: { orgId: string; role: 'admin' | 'owner' | 'member' | 'sales' | 'guest' },
+	ownOrgBrandIds: string[],
+	connectedOrgBrandIds: string[]
+) {
+	const orderOrgId = order.organization_id as string;
+	const orderBrandId = order.brand_id as string;
+	if (viewer.orgId !== orderOrgId) return false;
+	if (ownOrgBrandIds.includes(orderBrandId)) return true;
+	const nonScopedRole = ['admin', 'owner', 'member'].includes(viewer.role);
+	return nonScopedRole && connectedOrgBrandIds.includes(orderBrandId);
+}
+
+describe('MBISR can view own-org orders for federated brands', () => {
+	const mbisrOwnBrandIds = [FEDERATION.mbisr.ownBrandId];
+	const federatedBrandIds = [FEDERATION.boa.brandId];
+
+	it('admin of rep org sees an order for a connected brand (BOA-owned brand_id)', () => {
+		const visible = orderVisibleToOrgUser(
+			mbisrOrder,
+			{ orgId: FEDERATION.mbisr.orgId, role: 'admin' },
+			mbisrOwnBrandIds,
+			federatedBrandIds
+		);
+		expect(visible).toBe(true);
+	});
+
+	it('sales scoped only to own-org brand cannot see federated brand orders via this policy', () => {
+		// Sales follows get_user_brand_ids; scoping to mbisr own brand excludes BOA brand
+		const scopedBrandIds = [FEDERATION.mbisr.ownBrandId];
+		const visible = orderVisibleToOrgUser(
+			mbisrOrder,
+			{ orgId: FEDERATION.mbisr.orgId, role: 'sales' },
+			scopedBrandIds,
+			federatedBrandIds
+		);
+		expect(visible).toBe(false);
+	});
+
+	it('unrelated org admin cannot see the order', () => {
+		const visible = orderVisibleToOrgUser(
+			mbisrOrder,
+			{ orgId: FEDERATION.unrelated.orgId, role: 'admin' },
+			[FEDERATION.unrelated.brandId],
+			[]
+		);
+		expect(visible).toBe(false);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // BOA-side visibility (explicit federation)
 // ═══════════════════════════════════════════════════════════════════════════
 
