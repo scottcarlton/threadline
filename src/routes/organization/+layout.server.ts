@@ -8,7 +8,9 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		throw redirect(303, '/insight');
 	}
 
-	const [teamRes, accountContactsRes, brandContactsRes, showsRes, territoriesRes] =
+	const isBrandOrg = locals.orgType === 'brand';
+
+	const [teamRes, accountContactsRes, brandContactsRes, showsRes, territoriesRes, partnersRes] =
 		await Promise.all([
 			supabase
 				.from('organization_members')
@@ -31,13 +33,22 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			supabase
 				.from('territories')
 				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', organization!.id)
+				.eq('organization_id', organization!.id),
+			isBrandOrg
+				? supabase
+						.from('org_connections')
+						.select('id', { count: 'exact', head: true })
+						.eq('brand_org_id', organization!.id)
+						.eq('status', 'active')
+				: Promise.resolve({ count: 0 })
 		]);
 
 	return {
 		teamCount: teamRes.count ?? 0,
 		contactsCount: (accountContactsRes.count ?? 0) + (brandContactsRes.count ?? 0),
 		showsCount: showsRes.count ?? 0,
-		territoriesCount: territoriesRes.count ?? 0
+		territoriesCount: territoriesRes.count ?? 0,
+		partnersCount: partnersRes.count ?? 0,
+		orgType: locals.orgType
 	};
 };

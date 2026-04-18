@@ -573,7 +573,7 @@
 								</div>
 							</div>
 							{#if !cl.hasConnectedRep}
-								<Button size="sm" href="/reps">Invite reps</Button>
+								<Button size="sm" href="/organization/partners">Invite reps</Button>
 							{/if}
 						</li>
 						<li class="flex items-center justify-between py-3">
@@ -598,7 +598,7 @@
 								</div>
 							</div>
 							{#if !cl.hasTeammates}
-								<Button size="sm" href="/reps">Invite team</Button>
+								<Button size="sm" href="/organization/members">Invite team</Button>
 							{/if}
 						</li>
 					</ul>
@@ -650,7 +650,9 @@
 															: 'No orders yet'}
 													</div>
 												</div>
-												<Button variant="ghost" size="sm" href="/reps">Manage</Button>
+												<Button variant="ghost" size="sm" href="/organization/partners"
+													>Manage</Button
+												>
 											</li>
 										{/each}
 									</ul>

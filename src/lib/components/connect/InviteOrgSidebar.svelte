@@ -78,7 +78,7 @@
 	<div class="space-y-1">
 		<h2 id="invite-org-heading" class="text-base font-semibold">Invite Organization</h2>
 		<p class="text-sm text-muted-foreground">
-			A shareable link for external organizations to connect with your brand.
+			A shareable link for external Threadline independent sales organizations.
 		</p>
 	</div>
 

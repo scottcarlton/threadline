@@ -12,6 +12,9 @@
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { entityContext } from '$lib/stores/entityContext.js';
 	import { fetchOrderAttentionCount } from '$lib/stores/orderAttention.js';
+	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
+	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
+	import { toast } from 'svelte-sonner';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
 	// just marked the order viewed; status changes below also call this.
@@ -296,44 +299,97 @@
 		}
 	}
 
-	// Add new line item
-	let addingLine = $state(false);
-	let newStyleNumber = $state('');
-	let newDescription = $state('');
-	let newColor = $state('');
-	let newSize = $state('');
-	let newQty = $state(1);
-	let newUnitPrice = $state('');
-	let savingNewLine = $state(false);
+	// Add items via catalog picker
+	let catalogPickerOpen = $state(false);
+	let catalogPickerItems = $state<CatalogCartItem[]>([]);
 
-	function resetNewLine() {
-		newStyleNumber = '';
-		newDescription = '';
-		newColor = '';
-		newSize = '';
-		newQty = 1;
-		newUnitPrice = '';
-		addingLine = false;
+	function openCatalogPicker() {
+		// Pre-populate cart from existing order_lines that have a product_id.
+		// Aggregate multiple lines for the same product into one cart item.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const byProduct = new Map<string, CatalogCartItem>();
+		for (const l of activeLines) {
+			const pid = (l as { product_id?: string | null }).product_id;
+			if (!pid) continue;
+			if (!byProduct.has(pid)) {
+				byProduct.set(pid, {
+					product_id: pid,
+					brand_id: order.brand_id,
+					season_id: order.season_id ?? null,
+					original_season_id: order.season_id ?? null,
+					product_year: null,
+					style_number: l.style_number ?? '',
+					name: l.description ?? l.style_number ?? '',
+					unit_price: Number(l.unit_price),
+					image_id: null,
+					available_colors: [],
+					available_sizes: [],
+					selected_color: l.color ?? '',
+					size_qtys: {}
+				});
+			}
+			const item = byProduct.get(pid)!;
+			const sizeKey = l.size ?? '';
+			item.size_qtys[sizeKey] = (item.size_qtys[sizeKey] ?? 0) + l.qty;
+		}
+		catalogPickerItems = [...byProduct.values()];
+		catalogPickerOpen = true;
 	}
 
-	async function saveNewLine() {
-		const price = parseFloat(newUnitPrice);
-		if (newQty < 1 || isNaN(price) || price < 0) return;
-		savingNewLine = true;
+	async function handleCatalogDone(items: CatalogCartItem[]) {
+		// Existing product_ids already in order_lines
+		const existingProductIds = new Set(
+			activeLines
+				.map((l) => (l as { product_id?: string | null }).product_id)
+				.filter(Boolean) as string[]
+		);
+
+		// Only insert NEW items (not already in order)
+		const newItems = items.filter((it) => !existingProductIds.has(it.product_id));
+		if (newItems.length === 0) {
+			catalogPickerOpen = false;
+			return;
+		}
+
 		const maxSort = activeLines.reduce((max, l) => Math.max(max, l.sort_order), 0);
-		await supabase.from('order_lines').insert({
-			order_id: order.id,
-			style_number: newStyleNumber || null,
-			description: newDescription || null,
-			color: newColor || null,
-			size: newSize || null,
-			qty: newQty,
-			unit_price: price,
-			sort_order: maxSort + 1
-		});
-		savingNewLine = false;
-		resetNewLine();
-		invalidateAll();
+		const linesToInsert: Array<Record<string, unknown>> = [];
+		let sortCounter = maxSort;
+
+		for (const item of newItems) {
+			const totalUnits = Object.values(item.size_qtys).reduce((s, q) => s + (q || 0), 0);
+			if (totalUnits === 0) continue;
+
+			// One order_line per size entry (matching the create-order pattern)
+			for (const [size, qty] of Object.entries(item.size_qtys)) {
+				if (qty <= 0) continue;
+				sortCounter++;
+				linesToInsert.push({
+					order_id: order.id,
+					product_id: item.product_id,
+					style_number: item.style_number,
+					description: item.name,
+					color: item.selected_color || null,
+					size: size || null,
+					qty,
+					unit_price: item.unit_price,
+					sort_order: sortCounter
+				});
+			}
+		}
+
+		if (linesToInsert.length > 0) {
+			const { error } = await supabase.from('order_lines').insert(linesToInsert);
+			if (error) {
+				toast.error('Failed to add items');
+				console.error(error);
+			} else {
+				toast.success(
+					`Added ${linesToInsert.length} line item${linesToInsert.length === 1 ? '' : 's'}`
+				);
+				invalidateAll();
+			}
+		}
+		catalogPickerOpen = false;
 	}
 
 	// Remove line
@@ -1098,18 +1154,14 @@
 							{#if activeLines.length > 0}
 								<Button variant="outline" size="sm" onclick={enterEditMode}>Edit Items</Button>
 							{/if}
-							{#if !addingLine}
-								<Button variant="outline" size="sm" onclick={() => (addingLine = true)}
-									>Add Item</Button
-								>
-							{/if}
+							<Button variant="outline" size="sm" onclick={openCatalogPicker}>Add Item</Button>
 						{/if}
 					</div>
 				{/if}
 			</div>
 		</CardHeader>
 		<CardContent>
-			{#if activeLines.length === 0 && removedLines.length === 0 && !addingLine}
+			{#if activeLines.length === 0 && removedLines.length === 0}
 				<p class="text-sm text-muted-foreground">No line items.</p>
 			{:else}
 				<div class="rounded-md border">
@@ -1199,75 +1251,6 @@
 									{/if}
 								</tr>
 							{/each}
-
-							<!-- Add new line inline -->
-							{#if addingLine}
-								<tr class="border-b bg-muted/20">
-									<td class="px-3 py-2">
-										<input
-											type="text"
-											bind:value={newStyleNumber}
-											placeholder="Style #"
-											class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-										/>
-									</td>
-									<td class="px-3 py-2">
-										<input
-											type="text"
-											bind:value={newDescription}
-											placeholder="Description"
-											class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-										/>
-									</td>
-									<td class="px-3 py-2">
-										<input
-											type="text"
-											bind:value={newColor}
-											placeholder="Color"
-											class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-										/>
-									</td>
-									<td class="px-3 py-2">
-										<input
-											type="text"
-											bind:value={newSize}
-											placeholder="Size"
-											class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-										/>
-									</td>
-									<td class="px-3 py-2">
-										<input
-											type="number"
-											min="1"
-											bind:value={newQty}
-											class="h-8 w-full rounded-md border border-input bg-background px-2 text-right text-sm"
-										/>
-									</td>
-									<td class="px-3 py-2">
-										<input
-											type="number"
-											step="0.01"
-											min="0"
-											bind:value={newUnitPrice}
-											placeholder="0.00"
-											class="h-8 w-full rounded-md border border-input bg-background px-2 text-right text-sm"
-										/>
-									</td>
-									<td class="px-3 py-2"></td>
-									<td class="px-3 py-2 text-right">
-										<div class="flex items-center justify-end gap-1">
-											<Button
-												size="sm"
-												onclick={saveNewLine}
-												disabled={savingNewLine || newQty < 1 || !newUnitPrice}
-											>
-												{savingNewLine ? '...' : 'Add'}
-											</Button>
-											<Button variant="outline" size="sm" onclick={resetNewLine}>Cancel</Button>
-										</div>
-									</td>
-								</tr>
-							{/if}
 						</tbody>
 						<tfoot>
 							<tr class="bg-muted/50">
@@ -1357,6 +1340,24 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Catalog picker modal for adding items -->
+<CatalogPickerModal
+	bind:open={catalogPickerOpen}
+	bind:items={catalogPickerItems}
+	brandIds={[order.brand_id]}
+	brands={[
+		{ id: order.brand_id, name: (order.brands as { name?: string } | null)?.name ?? 'Brand' }
+	]}
+	seasons={order.season_id && order.seasons
+		? [{ id: order.season_id, name: (order.seasons as { name?: string }).name ?? 'Season' }]
+		: []}
+	showBrandFilter={false}
+	onclose={() => {
+		catalogPickerOpen = false;
+	}}
+	ondone={handleCatalogDone}
+/>
 
 <!-- Comments -->
 <Card>
