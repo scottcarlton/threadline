@@ -1,7 +1,12 @@
-import { redirect } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+import { redirect, fail } from '@sveltejs/kit';
+import type { PageServerLoad, Actions } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listConnectedReps } from '$lib/server/federation.js';
+import {
+	getOrCreateConnectInvite,
+	refreshConnectInvite,
+	type ConnectInvite
+} from '$lib/server/connections.js';
 
 type MemberRow = {
 	id: string;
@@ -19,7 +24,7 @@ type InvitationRow = {
 	expires_at: string;
 };
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const { supabase, organization, orgType } = locals;
 
 	if (!organization) throw redirect(303, '/insight');
@@ -87,28 +92,41 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const pendingInvites = (invitationsRaw ?? []) as InvitationRow[];
 
-	// Connection invites (shareable links for external rep agencies)
+	// Sidebar: shareable connect link (Admin/Owner only).
 	const isAdmin = ['admin', 'owner'].includes(locals.membership?.role ?? '');
-	let connectionInvites: Array<{
-		id: string;
-		code: string;
-		expires_at: string;
-		max_uses: number;
-		use_count: number;
-		auto_approve: boolean;
-		created_at: string;
-	}> = [];
-	if (isAdmin) {
-		const { data } = await supabase
-			.from('connection_invites')
-			.select('id, code, expires_at, max_uses, use_count, auto_approve, created_at')
-			.eq('brand_org_id', orgId)
-			.order('created_at', { ascending: false });
-		connectionInvites = data ?? [];
+	let connectInvite: ConnectInvite | null = null;
+	if (isAdmin && locals.session) {
+		connectInvite = await getOrCreateConnectInvite(supabaseAdmin, orgId, locals.session.user.id);
 	}
 
 	// Connected external rep orgs (federation)
 	const connectedReps = await listConnectedReps(supabaseAdmin, orgId);
 
-	return { reps, pendingInvites, selfBrandId, connectionInvites, isAdmin, connectedReps };
+	return {
+		reps,
+		pendingInvites,
+		selfBrandId,
+		connectInvite,
+		origin: url.origin,
+		isAdmin,
+		connectedReps
+	};
+};
+
+export const actions: Actions = {
+	refreshInvite: async ({ locals }) => {
+		const role = locals.membership?.role;
+		if (!role || !['admin', 'owner'].includes(role)) {
+			return fail(403, { message: 'Not authorized' });
+		}
+		if (!locals.organization || locals.orgType !== 'brand') {
+			return fail(400, { message: 'Only brand orgs can refresh invites' });
+		}
+		try {
+			await refreshConnectInvite(supabaseAdmin, locals.organization.id);
+			return { success: true };
+		} catch {
+			return fail(500, { message: 'Failed to refresh invite' });
+		}
+	}
 };
