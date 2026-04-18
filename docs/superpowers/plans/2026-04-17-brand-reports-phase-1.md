@@ -80,12 +80,12 @@ Replace `src/routes/reports/+page.server.ts` with:
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const orgType = locals.organization?.type ?? null;
+	const orgType = locals.organization?.org_type ?? null;
 	return { orgType };
 };
 ```
 
-If Task 0 found the type lives elsewhere (not `locals.organization.type`), read it here instead (e.g., a direct `supabase.from('organizations').select('type').eq('id', orgId).single()`).
+Verified in Task 0: column is `organizations.org_type` (values `'rep'` / `'brand'`) and is already exposed on `locals.organization`.
 
 - [ ] **Step 2: Branch the template list by org type in `+page.svelte`**
 
@@ -220,7 +220,7 @@ if (!reportTitles[report]) throw error(404, 'Report not found');
 Replace with:
 
 ```ts
-const orgType = locals.organization?.type ?? null;
+const orgType = locals.organization?.org_type ?? null;
 const title = titleFor(orgType, report);
 if (!title) throw error(404, 'Report not found');
 ```
@@ -248,6 +248,98 @@ git add src/routes/reports/[slug]/+page.server.ts
 git commit -m "feat(reports): gate [slug] by org type with per-type allow-list
 
 SCO-126"
+```
+
+---
+
+## Task 2.5: RLS — let brand users read connected rep org names
+
+**Files:**
+
+- Create: `supabase/migrations/<next-timestamp>_brand_can_read_connected_rep_orgs.sql`
+
+**Why:** Task 0 verified that `organizations` RLS only allows users to SELECT orgs they're a member of (`organization_members`). A brand user is not a member of the rep's org, so the implicit FK join `org_connections.organizations:rep_org_id(name)` returns NULL for the name. Without this, SCO-127 cannot show rep agency names.
+
+**Federation contract:** This is brand→rep visibility scoped to active connections only. Same direction as `federated_*_links` (BOA→MBISR per CLAUDE.md). Run the rbac-change skill before writing.
+
+- [ ] **Step 1: Run the rbac-change preflight**
+
+Invoke `.claude/skills/rbac-change`. Walk its checklist with this change classified as: federation (brand→rep), `organizations` table SELECT policy add (not replace).
+
+- [ ] **Step 2: Generate migration**
+
+```bash
+ls -1 supabase/migrations | tail -3
+```
+
+Pick a fresh `YYYYMMDDHHMMSS` greater than the latest. Filename: `<timestamp>_brand_can_read_connected_rep_orgs.sql`.
+
+- [ ] **Step 3: Write the policy**
+
+```sql
+-- ============================================================
+-- Brand users can SELECT organizations rows for rep orgs they
+-- have an active connection with. Federation visibility only —
+-- mirrors the brand→rep direction used by federated_*_links.
+-- ============================================================
+
+CREATE POLICY "Brand can view connected rep organizations"
+  ON organizations
+  FOR SELECT
+  TO authenticated
+  USING (
+    id IN (
+      SELECT oc.rep_org_id
+      FROM org_connections oc
+      WHERE oc.brand_org_id IN (
+        SELECT om.organization_id
+        FROM organization_members om
+        WHERE om.profile_id = auth.uid()
+      )
+      AND oc.status = 'active'
+    )
+  );
+```
+
+- [ ] **Step 4: Apply to local Supabase**
+
+```bash
+bunx supabase migration up --local
+```
+
+Or if a full reset is faster:
+
+```bash
+bun run supabase db reset --local
+```
+
+Expected: applies cleanly. The new policy is additive — existing membership-based access unchanged.
+
+- [ ] **Step 5: Smoke test**
+
+In the local Supabase SQL editor (as a brand user via `set_config('request.jwt.claim.sub', '<brand-user-uuid>', true)` or with an actual session):
+
+```sql
+SELECT id, name, org_type
+FROM organizations
+WHERE id IN (
+  SELECT rep_org_id FROM org_connections
+  WHERE brand_org_id = '<some-brand-org-id>' AND status = 'active'
+);
+```
+
+Expected: returns rep org rows. If empty (and you know there are active connections), the policy isn't matching — debug.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add supabase/migrations/<timestamp>_brand_can_read_connected_rep_orgs.sql
+git commit -m "feat(rls): brand users can SELECT connected rep organizations
+
+Required for Sales by Rep Agency report (SCO-127) to display rep org names.
+Federation policy: scoped to active org_connections, brand→rep direction.
+
+SCO-127"
 ```
 
 ---
@@ -441,7 +533,7 @@ export async function loadSalesByRepAgency(
 }
 ```
 
-Note: if Task 0 Step 4 found that brand users cannot read `organizations.name` for rep orgs via the implicit FK join, swap the `organizations:rep_org_id(name)` select for a secondary `supabase.from('organizations').select('id, name').in('id', repOrgIds)` query after fetching the connection IDs, and merge by id.
+Note: Task 2.5 added the RLS policy that makes the implicit FK join work for brand users. If for any reason the join still returns NULL names, fall back to a secondary `supabase.from('organizations').select('id, name').in('id', repOrgIds)` query and merge by id.
 
 - [ ] **Step 4: Run test to verify it passes**
 
