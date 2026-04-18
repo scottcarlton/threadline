@@ -15,7 +15,8 @@
 			(variant === 'brand' &&
 				(report === 'sales-by-rep' ||
 					report === 'territory-coverage' ||
-					report === 'account-penetration'))
+					report === 'account-penetration' ||
+					report === 'season-sell-through'))
 	);
 	type ReportRow = {
 		name: string;
@@ -47,6 +48,14 @@
 		currentRevenue?: number;
 		priorRevenue?: number;
 		hasAccess?: boolean;
+		seasonId?: string;
+		seasonName?: string;
+		productsInSeason?: number;
+		productsOrdered?: number;
+		sellThroughPct?: number;
+		totalUnits?: number;
+		totalRevenue?: number;
+		isActive?: boolean;
 		[k: string]: unknown;
 	};
 	const rows = $derived(data.rows as ReportRow[]);
@@ -709,6 +718,102 @@
 							<td class="px-4 py-2.5"></td>
 							<td class="px-4 py-2.5"></td>
 							<td class="px-4 py-2.5"></td>
+						</tr>
+					</tfoot>
+				</table>
+			</div>
+		{/if}
+	{:else if report === 'season-sell-through' && variant === 'brand'}
+		{#if rows.length === 0}
+			<div class="flex flex-col items-center gap-3 py-16 text-center">
+				<div
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-6 w-6"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+						/>
+					</svg>
+				</div>
+				<p class="text-sm font-medium">No seasons yet</p>
+				<p class="text-sm text-muted-foreground">
+					Create a season and assign products to see sell-through here.
+				</p>
+			</div>
+		{:else}
+			<div class="overflow-hidden rounded-none border">
+				<table class="w-full">
+					<thead>
+						<tr class="border-b bg-muted/40">
+							<th class="px-4 py-2.5 text-left text-sm font-medium">Season</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Catalog</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Sold</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Sell-through</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Units</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Orders</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Accounts</th>
+							<th class="px-4 py-2.5 text-right text-sm font-medium">Revenue</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y">
+						{#each rows as row (row.seasonId)}
+							<tr class="hover:bg-muted/30">
+								<td class="px-4 py-3 text-sm font-medium">
+									<div class="flex items-center gap-2">
+										<span>{row.seasonName}</span>
+										{#if row.isActive === false}
+											<span
+												class="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
+												>Inactive</span
+											>
+										{/if}
+									</div>
+								</td>
+								<td class="px-4 py-3 text-right text-sm text-muted-foreground"
+									>{row.productsInSeason ?? 0}</td
+								>
+								<td class="px-4 py-3 text-right text-sm">{row.productsOrdered ?? 0}</td>
+								<td class="px-4 py-3 text-right font-mono text-sm font-medium"
+									>{row.sellThroughPct ?? 0}%</td
+								>
+								<td class="px-4 py-3 text-right text-sm">{row.totalUnits ?? 0}</td>
+								<td class="px-4 py-3 text-right text-sm">{row.orders}</td>
+								<td class="px-4 py-3 text-right text-sm">{row.accounts ?? 0}</td>
+								<td class="px-4 py-3 text-right font-mono text-sm"
+									>{fmt.format(row.totalRevenue ?? 0)}</td
+								>
+							</tr>
+						{/each}
+					</tbody>
+					<tfoot>
+						<tr class="bg-muted/40">
+							<td class="px-4 py-2.5 text-sm font-medium">Total</td>
+							<td class="px-4 py-2.5 text-right text-sm font-medium"
+								>{rows.reduce((s, r) => s + (r.productsInSeason ?? 0), 0)}</td
+							>
+							<td class="px-4 py-2.5 text-right text-sm font-medium"
+								>{rows.reduce((s, r) => s + (r.productsOrdered ?? 0), 0)}</td
+							>
+							<td class="px-4 py-2.5"></td>
+							<td class="px-4 py-2.5 text-right text-sm font-medium"
+								>{rows.reduce((s, r) => s + (r.totalUnits ?? 0), 0)}</td
+							>
+							<td class="px-4 py-2.5 text-right text-sm font-medium"
+								>{rows.reduce((s, r) => s + r.orders, 0)}</td
+							>
+							<td class="px-4 py-2.5"></td>
+							<td class="px-4 py-2.5 text-right font-mono text-sm font-bold"
+								>{fmt.format(rows.reduce((s, r) => s + (r.totalRevenue ?? 0), 0))}</td
+							>
 						</tr>
 					</tfoot>
 				</table>
