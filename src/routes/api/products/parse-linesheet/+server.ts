@@ -128,7 +128,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	try {
 		const response = await anthropic.messages.create({
-			model: 'claude-sonnet-4-20250514',
+			model: 'claude-sonnet-4-6',
 			max_tokens: 16384,
 			system: SYSTEM_PROMPT,
 			tools: [extractionTool],
@@ -138,7 +138,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		logUsage({
 			endpoint: 'linesheet',
 			purpose: 'parse_products',
-			model: 'claude-sonnet-4-20250514',
+			model: 'claude-sonnet-4-6',
 			organizationId: locals.organization?.id ?? null,
 			userId: locals.user?.id ?? null,
 			response
