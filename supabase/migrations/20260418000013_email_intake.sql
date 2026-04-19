@@ -2,9 +2,10 @@
 -- SCO-112
 
 -- ============================================================
--- 1. Enable pg_trgm for fuzzy matching
+-- 1. Enable extensions: pg_trgm (fuzzy match) + citext (case-insensitive email)
 -- ============================================================
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS citext;
 
 -- ============================================================
 -- 2. Add email_intake_enabled to organization_members
@@ -150,7 +151,7 @@ CREATE POLICY "org_members_update_intakes" ON email_intakes
     organization_id IN (
       SELECT om.organization_id FROM organization_members om
       WHERE om.profile_id = auth.uid()
-        AND om.role IN ('rep', 'admin', 'owner')
+        AND om.role IN ('admin', 'owner', 'member', 'sales')
     )
   );
 
@@ -175,6 +176,14 @@ CREATE POLICY "org_members_read_line_resolutions" ON email_intake_line_resolutio
 -- ============================================================
 -- 10. updated_at trigger for email_intakes
 -- ============================================================
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER set_email_intakes_updated_at
   BEFORE UPDATE ON email_intakes
   FOR EACH ROW

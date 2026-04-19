@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto, invalidate, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase.js';
@@ -748,6 +748,32 @@
 		}
 		await invalidateAll();
 	}
+
+	// Realtime: re-run the page loader whenever a comment on this order changes
+	// (insert/update/delete from rep or brand side). RLS on order_comments still
+	// gates which subscribers receive each event.
+	$effect(() => {
+		const orderId = order?.id;
+		if (!orderId) return;
+		const channel = supabase
+			.channel(`order-comments:${orderId}`)
+			.on(
+				'postgres_changes',
+				{
+					event: '*',
+					schema: 'public',
+					table: 'order_comments',
+					filter: `order_id=eq.${orderId}`
+				},
+				() => {
+					invalidate('data:orders');
+				}
+			)
+			.subscribe();
+		return () => {
+			supabase.removeChannel(channel);
+		};
+	});
 
 	// Clone order
 	let cloning = $state(false);

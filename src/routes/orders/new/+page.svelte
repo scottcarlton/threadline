@@ -1218,19 +1218,21 @@
 									</button>
 								</li>
 							{/each}
-							<li>
-								<button
-									type="button"
-									class="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-normal text-foreground hover:bg-muted/50"
-									onclick={useFreeform}
-								>
-									<span class="flex items-center gap-2">
-										<span aria-hidden="true">+</span>
-										<span>Add "{accountQuery.trim()}" as new account</span>
-									</span>
-									<span class="text-muted-foreground">New Account</span>
-								</button>
-							</li>
+							{#if accountQuery.trim().length >= 2}
+								<li>
+									<button
+										type="button"
+										class="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-normal text-foreground hover:bg-muted/50"
+										onclick={useFreeform}
+									>
+										<span class="flex items-center gap-2">
+											<span aria-hidden="true">+</span>
+											<span>Add "{accountQuery.trim()}" as new account</span>
+										</span>
+										<span class="text-muted-foreground">New Account</span>
+									</button>
+								</li>
+							{/if}
 						</ul>
 					</div>
 				{/if}
