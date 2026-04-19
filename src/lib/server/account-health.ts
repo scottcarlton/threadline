@@ -17,24 +17,32 @@ export type AccountHealth = {
 
 export async function computeAccountHealth(
 	supabase: SupabaseClient,
-	organizationId: string
+	organizationId: string | string[]
 ): Promise<Map<string, AccountHealth>> {
+	const orgIds = Array.isArray(organizationId) ? organizationId : [organizationId];
+	if (orgIds.length === 0) return new Map();
+
 	const currentYear = new Date().getFullYear();
 	const priorYear = currentYear - 1;
 	const now = new Date();
 
-	// Get all orders for this org
-	const { data: orders } = await supabase
+	const ordersQuery = supabase
 		.from('orders')
 		.select('account_id, total_amount, status, created_at, order_year')
-		.eq('organization_id', organizationId)
 		.neq('status', 'cancelled');
+	const accountsQuery = supabase.from('accounts').select('id, created_at, is_active, archived_at');
 
-	// Get account creation dates
-	const { data: accounts } = await supabase
-		.from('accounts')
-		.select('id, created_at, is_active, archived_at')
-		.eq('organization_id', organizationId);
+	// Use .eq for a single org (test mocks don't implement .in); .in for multiple.
+	const [{ data: orders }, { data: accounts }] =
+		orgIds.length === 1
+			? await Promise.all([
+					ordersQuery.eq('organization_id', orgIds[0]),
+					accountsQuery.eq('organization_id', orgIds[0])
+				])
+			: await Promise.all([
+					ordersQuery.in('organization_id', orgIds),
+					accountsQuery.in('organization_id', orgIds)
+				]);
 
 	const healthMap = new Map<string, AccountHealth>();
 

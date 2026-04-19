@@ -302,6 +302,28 @@ describe('computeAccountHealth', () => {
 		expect(result.size).toBe(0);
 	});
 
+	it('accepts an array of organization_ids for federation-aware health', async () => {
+		const supabase = buildSupabase(
+			[makeAccount({ id: 'a1', created_at: daysAgo(365) })],
+			[
+				makeOrder({
+					account_id: 'a1',
+					created_at: daysAgo(10),
+					order_year: currentYear,
+					total_amount: 60000
+				})
+			]
+		);
+		const result = await computeAccountHealth(supabase, ['org-1', 'org-2']);
+		expect(result.get('a1')!.label).toBe('excellent');
+	});
+
+	it('returns an empty map when given an empty organization_ids array', async () => {
+		const supabase = buildSupabase([], []);
+		const result = await computeAccountHealth(supabase, []);
+		expect(result.size).toBe(0);
+	});
+
 	it('assigns correct label thresholds', async () => {
 		// Recency 10 (120 days) + Frequency 15 (1 ytd) + Monetary 5 ($500) + Growth 15 (new this year) = 45 → fair
 		const supabase = buildSupabase(

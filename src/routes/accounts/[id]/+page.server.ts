@@ -3,7 +3,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 
-export const load: PageServerLoad = async ({ locals, params }) => {
+export const load: PageServerLoad = async ({ locals, params, depends }) => {
+	depends('data:accounts');
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { organization } = locals;
 	if (!organization) throw error(404, 'Organization not found');
@@ -99,8 +100,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const brandSummaries = Array.from(brandMap.values()).sort((a, b) => b.totalSales - a.totalSales);
 
-	// Get health score — use the user's own org for health computation
-	const healthMap = await computeAccountHealth(supabase, organization.id);
+	// Health reflects engagement on THIS account, computed against the account's own
+	// org (the one that created the orders). For own-org accounts this matches the
+	// viewer's org; for federated accounts it uses the connected org so the card
+	// still renders.
+	const healthMap = await computeAccountHealth(supabase, account.organization_id);
 	const health = healthMap.get(params.id) ?? null;
 
 	// Load tags for this account and available tags

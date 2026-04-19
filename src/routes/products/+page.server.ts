@@ -3,7 +3,8 @@ import type { PageServerLoad } from './$types';
 
 const PAGE_SIZE = 50;
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, depends }) => {
+	depends('data:products');
 	const { supabase, organization, orgType } = locals;
 
 	if (!organization) throw redirect(303, '/insight');

@@ -18,6 +18,10 @@ import {
 	type SyncDataType
 } from './integrations/notion.js';
 
+// Submit-side effects (email + notifications) are loaded lazily so that the
+// ai-tools module stays importable in unit tests where $env/dynamic/private
+// isn't wired. See notifyOrderSubmitted below.
+
 type ToolContext = {
 	supabase: SupabaseClient;
 	organizationId: string;
@@ -178,11 +182,42 @@ async function createAccount(
 	input: Record<string, unknown>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
+	const businessName = (input.business_name as string)?.trim();
+	if (!businessName) {
+		return { success: false, error: 'business_name is required' };
+	}
+
+	// Dedupe: case-insensitive exact match against any visible active account
+	// (own-org OR federated). Prevents recreating a BOA-owned account the rep
+	// already sees through a connection. RLS handles the federation scoping.
+	const { data: existing } = await ctx.supabase
+		.from('accounts')
+		.select('id, business_name, city, state, organization_id')
+		.eq('is_active', true)
+		.ilike('business_name', businessName)
+		.limit(1)
+		.maybeSingle();
+
+	if (existing) {
+		const connected = existing.organization_id !== ctx.organizationId;
+		return {
+			success: true,
+			data: {
+				id: existing.id,
+				business_name: existing.business_name,
+				city: existing.city,
+				state: existing.state,
+				already_exists: true,
+				connected
+			}
+		};
+	}
+
 	const { data, error } = await ctx.supabase
 		.from('accounts')
 		.insert({
 			organization_id: ctx.organizationId,
-			business_name: input.business_name as string,
+			business_name: businessName,
 			contact_first_name: (input.contact_first_name as string) ?? null,
 			contact_last_name: (input.contact_last_name as string) ?? null,
 			contact_email: (input.contact_email as string) ?? null,
@@ -229,117 +264,306 @@ async function updateAccount(
 	return { success: true, data };
 }
 
+type OrderLineInput = {
+	style_number?: string;
+	description?: string;
+	color?: string;
+	size?: string;
+	qty: number;
+	unit_price?: number;
+};
+
 async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	// Fuzzy match account by business_name
-	const { data: accounts, error: accError } = await ctx.supabase
-		.from('accounts')
-		.select('id, business_name')
-		.eq('organization_id', ctx.organizationId)
-		.ilike('business_name', `%${input.account_name as string}%`)
-		.limit(1);
+	// Mirror the manual /orders/new flow (src/lib/server/orders/cart.ts):
+	//   - one order per (brand, season)
+	//   - season is DERIVED from the products in the cart, not passed in
+	//   - ship window is "custom" mode: start_ship_date + expected_ship_date,
+	//     delivery_id stays null
+	//   - created_by = the sales rep's profile (defaults to the caller)
 
-	if (accError || !accounts?.length) {
+	const accountName = (input.account_name as string)?.trim() ?? '';
+	const brandName = (input.brand_name as string)?.trim() ?? '';
+	const startShip = input.start_ship_date as string | undefined;
+	const completeShip = input.complete_ship_date as string | undefined;
+	const rawLines = input.lines as OrderLineInput[] | undefined;
+
+	if (!accountName) return { success: false, error: 'account_name is required' };
+	if (!brandName) return { success: false, error: 'brand_name is required' };
+	if (!startShip || !completeShip) {
 		return {
 			success: false,
-			error: `Account not found matching "${input.account_name}". ${accError?.message ?? ''}`
+			error:
+				'Both start_ship_date and complete_ship_date are required (YYYY-MM-DD). Ask the user for the ship window before creating the order.'
 		};
 	}
-
-	// Fuzzy match brand by name
-	let brandQuery = ctx.supabase
-		.from('brands')
-		.select('id, name')
-		.eq('organization_id', ctx.organizationId)
-		.ilike('name', `%${input.brand_name as string}%`);
-
-	if (ctx.brandScope) {
-		brandQuery = brandQuery.in('id', ctx.brandScope);
+	if (!rawLines?.length) {
+		return { success: false, error: 'lines is required (at least one item with size/qty)' };
 	}
 
-	const { data: brands, error: brandError } = await brandQuery.limit(1);
+	// --- Account (federation-aware via RLS) ---
+	const account = await findByName<{ id: string; business_name: string }>(
+		() => ctx.supabase.from('accounts').select('id, business_name').eq('is_active', true),
+		'business_name',
+		accountName
+	);
+	if (!account) return { success: false, error: `Account not found matching "${accountName}"` };
 
-	if (brandError || !brands?.length) {
-		return {
-			success: false,
-			error: `Brand not found matching "${input.brand_name}". ${brandError?.message ?? ''}`
+	// --- Brand (federation-aware via RLS; honors Sales brandScope) ---
+	const brand = await findByName<{ id: string; name: string }>(
+		() => {
+			let q = ctx.supabase.from('brands').select('id, name').eq('is_active', true);
+			if (ctx.brandScope) q = q.in('id', ctx.brandScope);
+			return q;
+		},
+		'name',
+		brandName
+	);
+	if (!brand) return { success: false, error: `Brand not found matching "${brandName}"` };
+
+	// --- Sales rep → created_by (defaults to the authenticated user) ---
+	let createdBy = ctx.userId;
+	const repName = (input.rep_name as string | undefined)?.trim();
+	if (repName) {
+		const { data: memberRow } = await ctx.supabase
+			.from('organization_members')
+			.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
+			.eq('organization_id', ctx.organizationId)
+			.limit(50);
+		type MemberRow = {
+			profile_id: string;
+			profiles: { display_name: string | null } | { display_name: string | null }[] | null;
 		};
-	}
-
-	// Resolve season if provided
-	let seasonId: string | null = null;
-	if (input.season_name) {
-		const { data: seasons } = await ctx.supabase
-			.from('seasons')
-			.select('id')
-			.eq('organization_id', ctx.organizationId)
-			.ilike('name', `%${input.season_name as string}%`)
-			.limit(1);
-		seasonId = seasons?.[0]?.id ?? null;
-	}
-
-	// Resolve show if provided
-	let showId: string | null = null;
-	if (input.show_name) {
-		const { data: shows } = await ctx.supabase
-			.from('shows')
-			.select('id')
-			.eq('organization_id', ctx.organizationId)
-			.ilike('name', `%${input.show_name as string}%`)
-			.limit(1);
-		showId = shows?.[0]?.id ?? null;
-	}
-
-	// Auto-set expected ship date from season delivery
-	let expectedShipDate: string | null = null;
-	if (seasonId && input.order_year) {
-		const { data: deliveries } = await ctx.supabase
-			.from('season_deliveries')
-			.select('delivery_month, delivery_day')
-			.eq('season_id', seasonId)
-			.order('sort_order')
-			.limit(1);
-		if (deliveries?.[0]) {
-			const month = String(deliveries[0].delivery_month).padStart(2, '0');
-			const day = String(deliveries[0].delivery_day).padStart(2, '0');
-			expectedShipDate = `${input.order_year}-${month}-${day}`;
+		const rows = (memberRow ?? []) as MemberRow[];
+		const needle = repName.toLowerCase();
+		const match = rows.find((m) => {
+			const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
+			return (p?.display_name ?? '').toLowerCase().includes(needle);
+		});
+		if (!match) {
+			return { success: false, error: `Sales rep not found matching "${repName}"` };
 		}
+		createdBy = match.profile_id;
 	}
 
-	const { data, error } = await ctx.supabase
+	// --- Resolve each line to a product (for season + default unit_price) ---
+	type ResolvedLine = OrderLineInput & { seasonId: string | null; resolvedPrice: number };
+	const resolved: ResolvedLine[] = [];
+	for (const line of rawLines) {
+		if (!line.qty || line.qty < 1) {
+			return { success: false, error: 'Every line needs qty >= 1' };
+		}
+
+		let seasonId: string | null = null;
+		let price = line.unit_price;
+
+		// Product lookup: try style_number first, fall back to name match on
+		// the description. The product row gives us season_id and a default
+		// wholesale_price so the agent doesn't have to know either.
+		const lookupBase = () =>
+			ctx.supabase
+				.from('products')
+				.select('id, style_number, name, brand_id, season_id, wholesale_price')
+				.eq('is_active', true)
+				.eq('brand_id', brand.id);
+		let product: {
+			id: string;
+			style_number: string | null;
+			season_id: string | null;
+			wholesale_price: number | null;
+		} | null = null;
+		if (line.style_number) {
+			const { data } = await lookupBase().ilike('style_number', line.style_number).limit(1);
+			product = data?.[0] ?? null;
+		}
+		if (!product && line.description) {
+			const { data } = await lookupBase().ilike('name', `%${line.description}%`).limit(1);
+			product = data?.[0] ?? null;
+			if (product?.style_number && !line.style_number) {
+				line.style_number = product.style_number;
+			}
+		}
+		if (product) {
+			seasonId = product.season_id ?? null;
+			if (price == null) price = Number(product.wholesale_price ?? 0);
+		}
+
+		if (price == null) {
+			const label = line.style_number ?? line.description ?? 'line';
+			const nameHint = line.description ?? line.style_number ?? '';
+			return {
+				success: false,
+				error: `Could not resolve product for "${label}" in ${brand.name}'s catalog. Before asking the user for a wholesale price, call query_data with entity="products" and filters={name:"${nameHint}", brand_id:"${brand.id}"} to confirm whether it's really off-catalog. If it IS in the catalog, retry create_order with description set to the exact product name; only ask the user for unit_price if query_data returns zero matches.`
+			};
+		}
+
+		resolved.push({ ...line, seasonId, resolvedPrice: price });
+	}
+
+	// All lines must share a single season (null is fine). Multi-season carts
+	// would split into multiple orders in the manual flow — keep the AI tool
+	// single-shot and make the agent call again for a second season.
+	const seasonIds = new Set(resolved.map((l) => l.seasonId).filter((s): s is string => Boolean(s)));
+	if (seasonIds.size > 1) {
+		return {
+			success: false,
+			error:
+				'Lines span multiple seasons; create one order per season. Split the items by season and call create_order again.'
+		};
+	}
+	const seasonId: string | null = [...seasonIds][0] ?? null;
+
+	const orderYear = Number(startShip.slice(0, 4)) || null;
+
+	// Status defaults to 'submitted' when everything validates cleanly. The
+	// caller can force a draft by passing status='draft' in the tool input
+	// (e.g. the user said "save as a draft"). We insert as 'draft' first so
+	// that if line insertion fails the order isn't left submitted-with-no-lines,
+	// then flip to 'submitted' once the lines are in.
+	const requestedStatus = input.status as 'draft' | 'submitted' | undefined;
+	const finalStatus: 'draft' | 'submitted' = requestedStatus === 'draft' ? 'draft' : 'submitted';
+	const requestedType = input.order_type as 'order' | 'note' | undefined;
+	const orderType: 'order' | 'note' = requestedType === 'note' ? 'note' : 'order';
+
+	// --- Insert the order (custom delivery mode — explicit start+expected) ---
+	const { data: orderRow, error: orderErr } = await ctx.supabase
 		.from('orders')
 		.insert({
 			organization_id: ctx.organizationId,
-			account_id: accounts[0].id,
-			brand_id: brands[0].id,
+			account_id: account.id,
+			brand_id: brand.id,
 			season_id: seasonId,
-			order_year: (input.order_year as number) ?? null,
-			expected_ship_date: expectedShipDate,
-			show_id: showId,
+			order_year: orderYear,
+			start_ship_date: startShip,
+			expected_ship_date: completeShip,
+			delivery_id: null,
 			status: 'draft',
+			order_type: orderType,
 			notes: (input.notes as string) ?? null,
-			created_by: ctx.userId
+			created_by: createdBy
 		})
-		.select(
-			'id, order_number, status, total_amount, order_year, expected_ship_date, brands(name), accounts(business_name), seasons(name)'
-		)
+		.select('id, order_number')
 		.single();
 
-	if (error) return { success: false, error: error.message };
-	const row = (data ?? {}) as Record<string, unknown>;
-	const trimmed = formatToolResult(row, {
+	if (orderErr || !orderRow) {
+		return { success: false, error: orderErr?.message ?? 'Failed to create order' };
+	}
+
+	// --- Insert lines (line_total is GENERATED ALWAYS; do NOT include) ---
+	const lineRows = resolved.map((line, idx) => ({
+		order_id: orderRow.id,
+		style_number: line.style_number ?? null,
+		description: line.description ?? null,
+		color: line.color ?? null,
+		size: line.size ?? null,
+		qty: line.qty,
+		unit_price: line.resolvedPrice,
+		sort_order: idx
+	}));
+
+	const { error: linesErr } = await ctx.supabase.from('order_lines').insert(lineRows);
+	if (linesErr) {
+		return {
+			success: false,
+			error: `Order ${orderRow.order_number} created but adding lines failed: ${linesErr.message}`
+		};
+	}
+
+	// --- Promote to submitted (unless the caller asked for draft) ---
+	if (finalStatus === 'submitted') {
+		const { error: statusErr } = await ctx.supabase
+			.from('orders')
+			.update({ status: 'submitted', submitted_at: new Date().toISOString() })
+			.eq('id', orderRow.id);
+		if (statusErr) {
+			return {
+				success: false,
+				error: `Order ${orderRow.order_number} created with lines but failed to submit: ${statusErr.message}. It's saved as a draft — tell the user to review and submit from the order detail page.`
+			};
+		}
+
+		const totalForNotify = lineRows.reduce((sum, r) => sum + r.qty * r.unit_price, 0);
+		await notifyOrderSubmitted(
+			{
+				id: orderRow.id,
+				order_number: orderRow.order_number,
+				total_amount: totalForNotify,
+				brand_id: brand.id,
+				account_id: account.id,
+				created_by: createdBy
+			},
+			ctx.origin
+		);
+	}
+
+	// --- Return the final shape (total_amount now populated by the trigger) ---
+	const { data: finalRow } = await ctx.supabase
+		.from('orders')
+		.select(
+			'id, order_number, status, total_amount, order_year, start_ship_date, expected_ship_date, brands(name), accounts(business_name), seasons(name)'
+		)
+		.eq('id', orderRow.id)
+		.single();
+
+	const trimmed = formatToolResult((finalRow ?? {}) as Record<string, unknown>, {
 		keep: [
 			'id',
 			'order_number',
 			'status',
 			'total_amount',
 			'order_year',
+			'start_ship_date',
 			'expected_ship_date',
 			'brands',
 			'accounts',
 			'seasons'
 		]
 	});
-	return { success: true, data: trimmed };
+	return { success: true, data: { ...trimmed, lines_added: lineRows.length } };
+}
+
+// Fire the same email + in-app notifications that /orders/new does on submit.
+// Best-effort, dynamically imported to keep this module test-safe (the email
+// module pulls $env/dynamic/private which isn't available in vitest). Mirrors
+// src/routes/orders/new/+page.server.ts.
+async function notifyOrderSubmitted(
+	order: {
+		id: string;
+		order_number: string;
+		total_amount: number;
+		brand_id: string;
+		account_id: string | null;
+		created_by: string;
+	},
+	origin: string
+): Promise<void> {
+	try {
+		const [emailMod, notifMod] = await Promise.all([
+			import('./order-emails.js'),
+			import('./notifications.js')
+		]);
+		await Promise.allSettled([
+			emailMod.sendOrderEmail('submitted', order, origin),
+			notifMod.notifyBrandAdmins(order.brand_id, order.created_by, {
+				type: 'order_submitted',
+				title: 'New order submitted',
+				body: `Order ${order.order_number} has been submitted`,
+				link: `/orders/${order.id}`
+			})
+		]);
+	} catch (err) {
+		console.error('[ai-tools] notifyOrderSubmitted failed', err);
+	}
+}
+
+// Helper: exact-ilike match first, fuzzy %…% fallback. Caller passes a factory
+// so each attempt gets a fresh query builder (Supabase builders are stateful
+// and ilike-then-ilike would stack both filters).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function findByName<T>(factory: () => any, column: string, value: string): Promise<T | null> {
+	const exact = await factory().ilike(column, value).limit(1);
+	if (exact.data?.length) return exact.data[0] as T;
+	const fuzzy = await factory().ilike(column, `%${value}%`).limit(1);
+	return (fuzzy.data?.[0] as T) ?? null;
 }
 
 async function addOrderLines(
@@ -369,6 +593,10 @@ async function addOrderLines(
 		return { success: false, error: 'Order not found or access denied.' };
 	}
 
+	// line_total is GENERATED ALWAYS AS (qty * unit_price) STORED — do NOT
+	// include it in the insert or Postgres will reject the row. The
+	// recalc_order_total trigger on order_lines updates orders.total_amount
+	// automatically, so we don't touch the order row here either.
 	const rows = lines.map((line, idx) => ({
 		order_id: orderId,
 		style_number: line.style_number ?? null,
@@ -377,29 +605,23 @@ async function addOrderLines(
 		size: line.size ?? null,
 		qty: line.qty,
 		unit_price: line.unit_price,
-		line_total: line.qty * line.unit_price,
 		sort_order: idx
 	}));
 
-	const { data, error } = await ctx.supabase.from('order_lines').insert(rows).select();
+	const { data, error } = await ctx.supabase
+		.from('order_lines')
+		.insert(rows)
+		.select('id, qty, unit_price, line_total');
 
 	if (error) return { success: false, error: error.message };
 
-	// Update order total
-	const total = rows.reduce((sum, r) => sum + r.line_total, 0);
-	await ctx.supabase
-		.rpc('increment_order_total', {
-			p_order_id: orderId,
-			p_amount: total
-		})
-		.then(({ error: rpcError }) => {
-			// Fallback: if RPC doesn't exist, update directly
-			if (rpcError) {
-				return ctx.supabase.from('orders').update({ total_amount: total }).eq('id', orderId);
-			}
-		});
+	const rowsOut = (data ?? []) as Array<{ line_total: number }>;
+	const totalAdded = rowsOut.reduce((sum, r) => sum + Number(r.line_total ?? 0), 0);
 
-	return { success: true, data: { lines_added: data?.length ?? rows.length, total_added: total } };
+	return {
+		success: true,
+		data: { lines_added: rowsOut.length || rows.length, total_added: totalAdded }
+	};
 }
 
 async function updateOrderStatus(
@@ -425,11 +647,39 @@ async function updateOrderStatus(
 		.update(updatePayload)
 		.eq('id', input.order_id as string)
 		.eq('organization_id', ctx.organizationId)
-		.select('id, order_number, status')
+		.select('id, order_number, status, total_amount, brand_id, account_id, created_by')
 		.single();
 
 	if (error) return { success: false, error: error.message };
-	return { success: true, data };
+
+	// If we just transitioned to 'submitted', fire the same notifications the
+	// manual /orders/new flow fires. Best-effort. Mirrors that handler.
+	if (status === 'submitted' && data) {
+		const row = data as {
+			id: string;
+			order_number: string;
+			total_amount: number | null;
+			brand_id: string;
+			account_id: string | null;
+			created_by: string;
+		};
+		await notifyOrderSubmitted(
+			{
+				id: row.id,
+				order_number: row.order_number,
+				total_amount: Number(row.total_amount ?? 0),
+				brand_id: row.brand_id,
+				account_id: row.account_id,
+				created_by: row.created_by
+			},
+			ctx.origin
+		);
+	}
+
+	return {
+		success: true,
+		data: { id: data?.id, order_number: data?.order_number, status: data?.status }
+	};
 }
 
 async function createSeason(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
@@ -518,13 +768,17 @@ async function queryData(input: Record<string, unknown>, ctx: ToolContext): Prom
 
 	let query = ctx.supabase.from(table).select(selectStr);
 
-	// order_lines doesn't have organization_id — filter by order_id from filters
+	// Federation-aware tables: rely on RLS so federated rows (connected brand's brands/products,
+	// brand's view of rep orders/accounts) come through. Own-org-only tables keep the explicit
+	// organization_id filter.
+	const FEDERATION_AWARE = new Set(['brands', 'accounts', 'products', 'orders']);
+
 	if (entity === 'order_lines') {
 		if (!filters.order_id)
 			return { success: false, error: 'order_id filter required for order_lines' };
 	} else if (entity === 'contacts') {
 		query = query.eq('organization_id', ctx.organizationId).in('status', ['new', 'saved']);
-	} else {
+	} else if (!FEDERATION_AWARE.has(entity)) {
 		query = query.eq('organization_id', ctx.organizationId);
 	}
 
@@ -554,26 +808,45 @@ async function queryData(input: Record<string, unknown>, ctx: ToolContext): Prom
 }
 
 async function listBrands(ctx: ToolContext): Promise<ToolResult> {
-	let query = ctx.supabase
-		.from('brands')
-		.select('id, name')
-		.eq('organization_id', ctx.organizationId)
-		.eq('is_active', true);
+	// No organization_id filter — RLS returns own-org brands plus federated brands
+	// from connected brand orgs (MBISR→BOA).
+	let query = ctx.supabase.from('brands').select('id, name, organization_id').eq('is_active', true);
 	if (ctx.brandScope) query = query.in('id', ctx.brandScope);
 	const { data, error } = await query.order('name');
 	if (error) return { success: false, error: error.message };
-	return { success: true, data };
+	const rows = (data ?? []) as Array<{ id: string; name: string; organization_id: string }>;
+	const shaped = rows.map((b) => ({
+		id: b.id,
+		name: b.name,
+		connected: b.organization_id !== ctx.organizationId
+	}));
+	return { success: true, data: shaped };
 }
 
 async function listAccounts(ctx: ToolContext): Promise<ToolResult> {
+	// No organization_id filter — RLS returns own-org accounts plus any federated
+	// accounts visible via get_connected_org_ids() or federated_account_links.
 	const { data, error } = await ctx.supabase
 		.from('accounts')
-		.select('id, business_name, city, state')
-		.eq('organization_id', ctx.organizationId)
+		.select('id, business_name, city, state, organization_id')
 		.eq('is_active', true)
 		.order('business_name');
 	if (error) return { success: false, error: error.message };
-	return { success: true, data };
+	const rows = (data ?? []) as Array<{
+		id: string;
+		business_name: string;
+		city: string | null;
+		state: string | null;
+		organization_id: string;
+	}>;
+	const shaped = rows.map((a) => ({
+		id: a.id,
+		business_name: a.business_name,
+		city: a.city,
+		state: a.state,
+		connected: a.organization_id !== ctx.organizationId
+	}));
+	return { success: true, data: shaped };
 }
 
 async function getDashboardMetrics(
@@ -656,22 +929,19 @@ async function getDashboardMetrics(
 async function resolveEmail(nameOrEmail: string, ctx: ToolContext): Promise<string | null> {
 	if (nameOrEmail.includes('@')) return nameOrEmail;
 
-	// Try account contact
+	// Accounts + brands are federation-aware; RLS gates own-org + connected orgs.
 	const { data: account } = await ctx.supabase
 		.from('accounts')
 		.select('contact_email')
-		.eq('organization_id', ctx.organizationId)
 		.ilike('business_name', `%${nameOrEmail}%`)
 		.not('contact_email', 'is', null)
 		.limit(1)
 		.single();
 	if (account?.contact_email) return account.contact_email;
 
-	// Try brand contact
 	const { data: brand } = await ctx.supabase
 		.from('brands')
 		.select('contact_email')
-		.eq('organization_id', ctx.organizationId)
 		.ilike('name', `%${nameOrEmail}%`)
 		.not('contact_email', 'is', null)
 		.limit(1)
@@ -942,11 +1212,11 @@ async function createAppointment(
 	input: Record<string, unknown>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	// Fuzzy match account
+	// Accounts are federation-aware: RLS returns own + federated so reps can
+	// schedule appointments against a connected brand's accounts.
 	const { data: accounts } = await ctx.supabase
 		.from('accounts')
 		.select('id, business_name')
-		.eq('organization_id', ctx.organizationId)
 		.ilike('business_name', `%${input.account_name as string}%`)
 		.limit(1);
 
@@ -1307,10 +1577,10 @@ async function getCommissionReport(
 	if (input.order_year) query = query.eq('order_year', input.order_year as number);
 
 	if (input.brand_name) {
+		// Brands are federation-aware — a rep may filter by a connected brand.
 		const { data: brands } = await ctx.supabase
 			.from('brands')
 			.select('id')
-			.eq('organization_id', ctx.organizationId)
 			.ilike('name', `%${input.brand_name as string}%`)
 			.limit(1);
 		if (brands?.[0]) query = query.eq('brand_id', brands[0].id);
@@ -1445,11 +1715,9 @@ async function getAccountHealth(
 	// Sort: at_risk first, then by score ascending (worst first)
 	accounts.sort((a, b) => a.score - b.score);
 
-	// Join with account names
-	const { data: acctNames } = await ctx.supabase
-		.from('accounts')
-		.select('id, business_name')
-		.eq('organization_id', ctx.organizationId);
+	// Join with account names — RLS returns own-org + federated so health rows
+	// for federated accounts render with a real business_name instead of 'Unknown'.
+	const { data: acctNames } = await ctx.supabase.from('accounts').select('id, business_name');
 
 	const nameMap = new Map((acctNames ?? []).map((a) => [a.id, a.business_name]));
 

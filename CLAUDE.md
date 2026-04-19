@@ -76,6 +76,12 @@ Run `bun run test:run` before claiming work is complete.
 - Use inline SVGs. No icon libraries for new code.
 - Never use the native `title=""` attribute for tooltips. Use Bits UI `Tooltip`.
 
+### Form controls — Bits UI, not raw HTML
+
+- **No native `<select>` in new code.** Use `src/lib/components/ui/select` (Bits UI wrapper). Native selects bypass the dark theme and break the keyboard behavior we've tuned. Same rule for checkboxes (`ui/checkbox`), switches (`ui/switch`), and tooltips (`ui/tooltip`).
+- Available primitives: `alert`, `avatar`, `badge`, `button`, `card`, `checkbox`, `input`, `label`, `select`, `separator`, `skeleton`, `switch`, `tooltip`, plus `date-select` and `price-range-slider`. Check `src/lib/components/ui/` before hand-rolling.
+- If a primitive is missing, add it under `src/lib/components/ui/` instead of inlining one more ad-hoc control. Bits UI docs: `bits-ui.com/docs/llms.txt`.
+
 ### Svelte 5
 
 - Do not use `{@const}` inside plain `<div>` blocks — it only works inside block tags (`{#if}`, `{#each}`, etc.). Use a `<script>` variable instead.

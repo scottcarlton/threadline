@@ -13,7 +13,8 @@ type BrandTopAccount = {
 	order_count: number;
 };
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, depends }) => {
+	depends('data:dashboard');
 	const { supabase, organization, orgType } = locals;
 
 	if (!organization) {
