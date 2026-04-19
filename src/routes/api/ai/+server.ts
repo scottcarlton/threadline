@@ -46,7 +46,8 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	},
 	{
 		name: 'create_account',
-		description: 'Create a new wholesale account (retail buyer/store).',
+		description:
+			'Create a new wholesale account (retail buyer/store). If an active account with the same business_name already exists in this org, returns the existing row with already_exists=true instead of inserting a duplicate — treat that as the account and proceed.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -88,7 +89,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'create_order',
 		description:
-			'Create a new wholesale order. Fuzzy matches account and brand by name. Provide season_name and order_year separately (e.g., season_name="Fall", order_year=2026). Auto-sets the expected ship date from the season delivery schedule when both season_name and order_year are supplied. Returns the new order with joined brand, account, and season names.',
+			'Create a wholesale order OR a note in one call: account, brand, ship window, and line items. order_type defaults to "order"; pass order_type="note" when the user says anything like "create note", "create a note", "notes out", "write up notes", "note for <account>", etc. — those phrases mean the record should be stored as a note, not a standard order. The server auto-resolves each line against the brand\'s product catalog by style_number OR by product name (passed as `description`) — that lookup supplies season_id and wholesale_price for you. DO NOT ask the user for a wholesale price; the product catalog has it. Only fall back to asking if the user explicitly says the item is not in the catalog. Season is derived from the products; do not pass season separately. If the ship window is missing, ask the user for start_ship_date and complete_ship_date — do not guess. Sales rep defaults to the authenticated user unless rep_name is supplied. line_total and orders.total_amount are computed by the database; never pass them. Status defaults to "submitted" — pass status="draft" ONLY when the user explicitly asks to save a draft (e.g. "hold it", "save as draft"). Returns the order with joined brand, account, and season names.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -100,27 +101,64 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 					type: 'string',
 					description: 'Brand name to fuzzy match (required)'
 				},
-				season_name: {
+				start_ship_date: {
 					type: 'string',
-					description: 'Season name (e.g. "Fall", "Spring")'
+					description: 'Ship window start, YYYY-MM-DD (required — ask user if not given)'
 				},
-				order_year: {
-					type: 'number',
-					description: 'Order year (e.g. 2026)'
-				},
-				show_name: {
+				complete_ship_date: {
 					type: 'string',
-					description: 'Show name to associate with'
+					description: 'Ship window complete/end, YYYY-MM-DD (required — ask user if not given)'
 				},
-				notes: { type: 'string', description: 'Order notes' }
+				lines: {
+					type: 'array',
+					description:
+						'Line items, one per (style + size) pair. Product catalog lookup runs on EVERY line: pass style_number if you know it, otherwise pass the product name in `description` and the server will fuzzy-match it against the brand catalog to set season + unit_price automatically. qty is always required.',
+					items: {
+						type: 'object',
+						properties: {
+							style_number: { type: 'string', description: 'Product style number (preferred).' },
+							description: {
+								type: 'string',
+								description:
+									'Product name (e.g. "Kailua Bubble Gauze Cotton Shirt"). Used for catalog lookup when style_number is unknown — pass this instead of asking the user for the price.'
+							},
+							color: { type: 'string' },
+							size: { type: 'string' },
+							qty: { type: 'number' },
+							unit_price: {
+								type: 'number',
+								description:
+									'Only pass this when the product truly is not in the catalog AND the user has given you the price. For catalog items leave it off — the server fills in wholesale_price from the product row.'
+							}
+						},
+						required: ['qty']
+					}
+				},
+				rep_name: {
+					type: 'string',
+					description: 'Sales rep display name (fuzzy match). Omit to default to the current user.'
+				},
+				status: {
+					type: 'string',
+					enum: ['draft', 'submitted'],
+					description:
+						'Defaults to "submitted" when everything validates. Only pass "draft" if the user explicitly said "save as draft" or asked to hold the order for review.'
+				},
+				order_type: {
+					type: 'string',
+					enum: ['order', 'note'],
+					description:
+						'Defaults to "order". Pass "note" when the user said any variant of "create note", "notes out", "note for <account>", "write a note", etc. Notes use the same schema as orders but are displayed as notes in the UI.'
+				},
+				notes: { type: 'string', description: 'Order notes (optional)' }
 			},
-			required: ['account_name', 'brand_name']
+			required: ['account_name', 'brand_name', 'start_ship_date', 'complete_ship_date', 'lines']
 		}
 	},
 	{
 		name: 'add_order_lines',
 		description:
-			'Add line items to an existing order. Each line requires qty and unit_price. style_number is optional but recommended for products matching the brand catalog. description, color, and size are optional. Recalculates the order total automatically.',
+			'Add line items to an EXISTING order. For new orders, prefer create_order which accepts lines directly. Each line requires qty and unit_price; style_number, description, color, size are optional. line_total and orders.total_amount are computed by the database — never try to pass them.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -852,29 +890,27 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const orgTypeLabel = locals.orgType === 'brand' ? 'Brand (manufacturer)' : 'Rep (sales agency)';
 
-	// Check setup state for new rep orgs
+	// Check setup state for new rep orgs.
+	// All four counts rely on RLS so federation visibility counts: a rep connected
+	// to a brand org that already has brands/products/accounts is NOT a new workspace,
+	// even if they haven't created their own data yet. Orders are always rep-owned,
+	// but we keep the default (RLS also returns own-org orders for reps).
 	let setupInfo = '';
 	if (locals.orgType === 'rep') {
 		const [brandCheck, productCheck, accountCheck, orderCheck] = await Promise.all([
 			locals.supabase
 				.from('brands')
 				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', locals.organization.id)
 				.eq('is_active', true),
 			locals.supabase
 				.from('products')
 				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', locals.organization.id)
 				.eq('is_active', true),
 			locals.supabase
 				.from('accounts')
 				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', locals.organization.id)
 				.eq('is_active', true),
-			locals.supabase
-				.from('orders')
-				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', locals.organization.id)
+			locals.supabase.from('orders').select('id', { count: 'exact', head: true })
 		]);
 		const hasBrands = (brandCheck.count ?? 0) > 0;
 		const hasProducts = (productCheck.count ?? 0) > 0;
