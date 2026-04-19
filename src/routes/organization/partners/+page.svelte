@@ -29,6 +29,7 @@
 					invite={data.connectInvite}
 					origin={data.origin}
 					emailForm={data.inviteEmailForm}
+					defaultCommissionRate={data.defaultCommissionRate}
 				/>
 			</aside>
 		{/if}
@@ -73,6 +74,9 @@
 										{conn.order_count} order{conn.order_count !== 1 ? 's' : ''} · {fmt.format(
 											conn.revenue
 										)}
+										{#if conn.commission_rate}
+											· {conn.commission_rate}% commission
+										{/if}
 										{#if conn.connected_at}
 											· Connected {new Date(conn.connected_at).toLocaleDateString()}
 										{/if}

@@ -21,6 +21,7 @@
 	let city = $state('');
 	let orgState = $state('');
 	let zip = $state('');
+	let defaultCommissionRate = $state(10);
 
 	$effect(() => {
 		orgName = data.org?.name ?? '';
@@ -33,6 +34,7 @@
 		city = data.org?.city ?? '';
 		orgState = data.org?.state ?? '';
 		zip = data.org?.zip ?? '';
+		defaultCommissionRate = data.org?.default_commission_rate ?? 10;
 	});
 	let saving = $state(false);
 	let message = $state('');
@@ -52,6 +54,7 @@
 				city: city || null,
 				state: orgState || null,
 				zip: zip || null,
+				...(isBrandOrg ? { default_commission_rate: defaultCommissionRate } : {}),
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', org.id);
@@ -129,6 +132,24 @@
 						oninput={(e) =>
 							(contactPhone = formatPhone((e.currentTarget as HTMLInputElement).value))}
 					/>
+				</div>
+				<div class="space-y-2">
+					<Label for="default-commission-rate">Default commission rate</Label>
+					<div class="flex items-center gap-2">
+						<Input
+							id="default-commission-rate"
+							type="number"
+							min={0}
+							max={100}
+							step={0.25}
+							bind:value={defaultCommissionRate}
+							class="w-28"
+						/>
+						<span class="text-sm text-muted-foreground">%</span>
+					</div>
+					<p class="text-sm text-muted-foreground">
+						Pre-selected when sharing your connect link with reps.
+					</p>
 				</div>
 
 				<div class="space-y-2">

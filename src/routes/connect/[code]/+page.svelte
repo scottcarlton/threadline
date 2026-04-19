@@ -53,10 +53,9 @@
 				brand to generate a new one.
 			</p>
 		{:else if data.status === 'maxed'}
-			<h1 class="text-2xl font-semibold">Invite at max uses</h1>
+			<h1 class="text-2xl font-semibold">Link already used</h1>
 			<p class="mt-2 text-sm text-muted-foreground">
-				This invite has already been claimed the maximum number of times. Ask the brand for a new
-				link.
+				This link has already been used. Ask {data.brand?.name ?? 'the brand'} for a fresh link to connect.
 			</p>
 		{:else if success}
 			<div class="flex items-start gap-3">
@@ -109,6 +108,16 @@
 					sync with your portal.
 				{/if}
 			</p>
+
+			{#if data.commissionRate > 0}
+				<div class="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-6 text-center">
+					<p class="text-sm text-muted-foreground">
+						{data.brand?.name ?? 'This brand'} is offering
+					</p>
+					<p class="mt-1 text-3xl font-semibold">{data.commissionRate}%</p>
+					<p class="mt-1 text-sm text-muted-foreground">commission on shipped orders</p>
+				</div>
+			{/if}
 
 			{#if !data.isLoggedIn}
 				<div class="mt-6 rounded border p-4 text-sm">
