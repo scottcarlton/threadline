@@ -203,7 +203,6 @@
 		sort_order: number | null;
 	};
 	const locations = $derived((data.locations ?? []) as AccountLocation[]);
-	const defaultLocation = $derived(locations.find((l) => l.is_default) ?? locations[0] ?? null);
 
 	// Shape of the form fields for add/edit. `editingLocationId === null`
 	// means we're creating a new location; non-null = editing that one.
@@ -347,6 +346,18 @@
 			maximumFractionDigits: 0
 		}).format(value);
 	}
+
+	// Compact currency for sub-values: >= $10,000 renders as "$12.3K" / "$1.2M"
+	// so the secondary line doesn't dominate the primary YTD number.
+	function fmtCompact(value: number): string {
+		if (value >= 1_000_000) {
+			return `$${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+		}
+		if (value >= 10_000) {
+			return `$${(value / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+		}
+		return fmt(value);
+	}
 </script>
 
 <div class="space-y-6">
@@ -480,47 +491,20 @@
 						<dl class="space-y-4">
 							<div class="grid gap-4 sm:grid-cols-2">
 								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Contact Name</dt>
+									<dt class="text-sm font-medium text-muted-foreground">Contact</dt>
 									<dd class="mt-1">
 										{[account.contact_first_name, account.contact_last_name]
 											.filter(Boolean)
 											.join(' ') || '—'}
 									</dd>
+									{#if account.contact_email}
+										<dd class="mt-0.5 text-sm text-muted-foreground">{account.contact_email}</dd>
+									{/if}
 								</div>
 								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Email</dt>
-									<dd class="mt-1">{account.contact_email ?? '—'}</dd>
+									<dt class="text-sm font-medium text-muted-foreground">Phone</dt>
+									<dd class="mt-1">{account.phone ?? '—'}</dd>
 								</div>
-							</div>
-							<div>
-								<dt class="text-sm font-medium text-muted-foreground">Phone</dt>
-								<dd class="mt-1">{account.phone ?? '—'}</dd>
-							</div>
-							<div>
-								<dt class="text-sm font-medium text-muted-foreground">
-									Address
-									{#if defaultLocation}<span class="ml-2 text-sm text-muted-foreground"
-											>·
-											{defaultLocation.label}</span
-										>{/if}
-								</dt>
-								<dd class="mt-1">
-									{#if defaultLocation?.address_line1}
-										{defaultLocation.address_line1}<br />
-										{#if defaultLocation.address_line2}{defaultLocation.address_line2}<br />{/if}
-										{[defaultLocation.city, defaultLocation.state].filter(Boolean).join(', ')}
-										{#if defaultLocation.zip}
-											{defaultLocation.zip}{/if}
-									{:else if account.address_line1}
-										{account.address_line1}<br />
-										{#if account.address_line2}{account.address_line2}<br />{/if}
-										{[account.city, account.state].filter(Boolean).join(', ')}
-										{#if account.zip}
-											{account.zip}{/if}
-									{:else}
-										—
-									{/if}
-								</dd>
 							</div>
 							{#if account.notes}
 								<div>
@@ -716,12 +700,23 @@
 							{#each locations as loc (loc.id)}
 								<li class="group flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
 									<div class="min-w-0 flex-1">
-										<div class="flex items-center gap-2">
-											<span class="font-semibold">{loc.label}</span>
-											{#if loc.is_default}
-												<Badge variant="secondary">Default</Badge>
-											{/if}
-										</div>
+										{#if loc.address_line1 || loc.city || loc.state || loc.zip}
+											<div class="flex flex-wrap items-center gap-2 text-base">
+												<span>
+													{#if loc.address_line1}{loc.address_line1}{/if}
+													{#if loc.address_line2}
+														· {loc.address_line2}{/if}
+													{#if loc.address_line1 && (loc.city || loc.state || loc.zip)}
+														·
+													{/if}
+													{[loc.city, loc.state].filter(Boolean).join(', ')}
+													{loc.zip ?? ''}
+												</span>
+												{#if loc.is_default}
+													<Badge variant="secondary">Default</Badge>
+												{/if}
+											</div>
+										{/if}
 										{#if loc.contact_first_name || loc.contact_last_name || loc.contact_email || loc.phone}
 											<div class="mt-0.5 text-sm text-muted-foreground">
 												{[loc.contact_first_name, loc.contact_last_name]
@@ -733,18 +728,6 @@
 												{loc.contact_email ?? ''}
 												{#if loc.contact_email && loc.phone}·{/if}
 												{loc.phone ?? ''}
-											</div>
-										{/if}
-										{#if loc.address_line1 || loc.city || loc.state || loc.zip}
-											<div class="mt-0.5 text-sm text-muted-foreground">
-												{#if loc.address_line1}{loc.address_line1}{/if}
-												{#if loc.address_line2}
-													· {loc.address_line2}{/if}
-												{#if loc.address_line1 && (loc.city || loc.state || loc.zip)}
-													·
-												{/if}
-												{[loc.city, loc.state].filter(Boolean).join(', ')}
-												{loc.zip ?? ''}
 											</div>
 										{/if}
 										{#if loc.notes}
@@ -979,20 +962,18 @@
 						</div>
 						<div class="mt-4 grid grid-cols-2 gap-3">
 							<div class="rounded-lg bg-muted/50 px-3 py-2">
-								<p class="text-lg font-semibold">{health.totalOrders}</p>
-								<p class="text-xs text-muted-foreground">Total Orders</p>
+								<p class="text-sm text-muted-foreground">YTD Orders</p>
+								<p class="mt-0.5 text-lg font-semibold">{health.ytdOrders}</p>
+								<p class="mt-0.5 text-sm text-muted-foreground/70">
+									{health.totalOrders} total order{health.totalOrders === 1 ? '' : 's'}
+								</p>
 							</div>
 							<div class="rounded-lg bg-muted/50 px-3 py-2">
-								<p class="text-lg font-semibold">{fmt(health.lifetimeRevenue)}</p>
-								<p class="text-xs text-muted-foreground">Lifetime Revenue</p>
-							</div>
-							<div class="rounded-lg bg-muted/50 px-3 py-2">
-								<p class="text-lg font-semibold">{health.ytdOrders}</p>
-								<p class="text-xs text-muted-foreground">YTD Orders</p>
-							</div>
-							<div class="rounded-lg bg-muted/50 px-3 py-2">
-								<p class="text-lg font-semibold">{fmt(health.ytdRevenue)}</p>
-								<p class="text-xs text-muted-foreground">YTD Revenue</p>
+								<p class="text-sm text-muted-foreground">YTD Revenue</p>
+								<p class="mt-0.5 text-lg font-semibold">{fmt(health.ytdRevenue)}</p>
+								<p class="mt-0.5 text-sm text-muted-foreground/70">
+									{fmtCompact(health.lifetimeRevenue)} lifetime
+								</p>
 							</div>
 						</div>
 						{#if health.yoyGrowth !== null}

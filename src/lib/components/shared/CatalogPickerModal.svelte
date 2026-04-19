@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
@@ -22,6 +23,8 @@
 		brands: { id: string; name: string }[];
 		seasons: { id: string; name: string }[];
 		showBrandFilter?: boolean;
+		/** Product IDs rendered dimmed + non-interactive ("already in order"). */
+		lockedProductIds?: string[];
 		onclose: () => void;
 		ondone: (items: CatalogCartItem[]) => void;
 	};
@@ -33,6 +36,7 @@
 		brands,
 		seasons,
 		showBrandFilter = false,
+		lockedProductIds = [],
 		onclose,
 		ondone
 	}: Props = $props();
@@ -97,8 +101,11 @@
 	}
 
 	// ── Open/reset on visibility change ──────────────────────────────────────
+	// Track only `open`; the resets and loadModalProducts() read the same state
+	// they write, which would otherwise create an infinite effect loop.
 	$effect(() => {
-		if (open) {
+		if (!open) return;
+		untrack(() => {
 			modalSearch = '';
 			modalSeason = '';
 			modalBrand = '';
@@ -106,27 +113,30 @@
 			modalAtsOnly = false;
 			sizingProductId = null;
 			loadModalProducts();
-		}
+		});
 	});
 
-	// Enrich pre-populated cart items with product data once loaded
+	// Enrich pre-populated cart items with product data once loaded.
+	// Only track `modalProducts`; the writes below target the same reactive
+	// state the loop reads (items[i].available_colors, etc.), so tracking both
+	// sides would create an infinite effect loop.
 	$effect(() => {
-		if (modalProducts.length > 0) {
+		if (modalProducts.length === 0) return;
+		untrack(() => {
 			for (let i = 0; i < items.length; i++) {
 				const product = modalProducts.find((p) => p.id === items[i].product_id);
-				if (product) {
-					if (items[i].available_colors.length === 0) {
-						items[i].available_colors = productColors(product);
-					}
-					if (items[i].available_sizes.length === 0) {
-						items[i].available_sizes = productSizes(product);
-					}
-					if (!items[i].image_id) {
-						items[i].image_id = primaryImageId(product);
-					}
+				if (!product) continue;
+				if (items[i].available_colors.length === 0) {
+					items[i].available_colors = productColors(product);
+				}
+				if (items[i].available_sizes.length === 0) {
+					items[i].available_sizes = productSizes(product);
+				}
+				if (!items[i].image_id) {
+					items[i].image_id = primaryImageId(product);
 				}
 			}
-		}
+		});
 	});
 
 	// ── Helpers ──────────────────────────────────────────────────────────────
@@ -279,64 +289,86 @@
 						{#each modalProducts as p (p.id)}
 							{@const added = productInCart(p)}
 							{@const imgId = primaryImageId(p)}
+							{@const locked = lockedProductIds.includes(p.id)}
 							<div
-								class="flex flex-col rounded-lg border transition {added
+								class="relative flex flex-col rounded-lg border transition {added
 									? 'border-foreground'
-									: 'border-border'}"
+									: 'border-border'} {locked ? 'pointer-events-none' : ''}"
 							>
-								<div class="aspect-square overflow-hidden rounded-t-lg bg-muted">
-									{#if imgId}
-										<img
-											src={`/api/products/${p.id}/images/${imgId}`}
-											alt=""
-											class="h-full w-full object-cover"
-										/>
-									{:else}
-										<div class="flex h-full w-full items-center justify-center">
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												viewBox="0 0 24 24"
-												fill="none"
-												stroke="currentColor"
-												stroke-width="1.5"
-												class="h-10 w-10 text-muted-foreground/40"
-											>
-												<rect x="3" y="3" width="18" height="18" rx="2" />
-												<circle cx="8.5" cy="8.5" r="1.5" />
-												<path d="M21 15l-5-5L5 21" />
-											</svg>
-										</div>
-									{/if}
-								</div>
-								<div class="flex flex-1 flex-col gap-1 p-3">
-									<div class="text-sm text-muted-foreground">{p.style_number}</div>
-									<div class="line-clamp-2 text-sm font-semibold">{p.name}</div>
-									<div class="text-sm text-muted-foreground">
-										{brandName(p.brand_id)}{p.season_id
-											? ' · ' + seasonLabel(p.season_id, p.product_year)
-											: ''}
-									</div>
-									<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
-									<div class="mt-auto grid grid-cols-2 gap-2 pt-3">
-										{#if added}
-											<button
-												type="button"
-												class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
-												onclick={() => toggleProduct(p)}
-											>
-												Remove
-											</button>
+								{#if locked}
+									<span
+										class="absolute top-2 right-2 z-10 rounded-full bg-foreground px-2 py-0.5 text-sm font-medium text-background shadow-sm"
+									>
+										In Order
+									</span>
+								{/if}
+								<div class="flex flex-1 flex-col {locked ? 'opacity-50' : ''}">
+									<div class="aspect-square overflow-hidden rounded-t-lg bg-muted">
+										{#if imgId}
+											<img
+												src={`/api/products/${p.id}/images/${imgId}`}
+												alt=""
+												class="h-full w-full object-cover"
+											/>
 										{:else}
-											<Button size="sm" onclick={() => toggleProduct(p)}>Add</Button>
+											<div class="flex h-full w-full items-center justify-center">
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+													stroke-width="1.5"
+													class="h-10 w-10 text-muted-foreground/40"
+												>
+													<rect x="3" y="3" width="18" height="18" rx="2" />
+													<circle cx="8.5" cy="8.5" r="1.5" />
+													<path d="M21 15l-5-5L5 21" />
+												</svg>
+											</div>
 										{/if}
-										<Button
-											size="sm"
-											variant="outline"
-											disabled={!added}
-											onclick={() => openSizing(p)}
-										>
-											Size
-										</Button>
+									</div>
+									<div class="flex flex-1 flex-col gap-1 p-3">
+										<div class="text-sm text-muted-foreground">{p.style_number}</div>
+										<div class="line-clamp-2 text-sm font-semibold">{p.name}</div>
+										<div class="text-sm text-muted-foreground">
+											{brandName(p.brand_id)}{p.season_id
+												? ' · ' + seasonLabel(p.season_id, p.product_year)
+												: ''}
+										</div>
+										<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
+										<div class="mt-auto grid grid-cols-2 gap-2 pt-3">
+											{#if added}
+												{#if locked}
+													<Button
+														size="sm"
+														variant="outline"
+														onclick={() => toggleProduct(p)}
+														class="border-muted-foreground!"
+													>
+														Remove
+													</Button>
+												{:else}
+													<button
+														type="button"
+														class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
+														onclick={() => toggleProduct(p)}
+													>
+														Remove
+													</button>
+												{/if}
+											{:else}
+												<Button size="sm" onclick={() => toggleProduct(p)}>Add</Button>
+											{/if}
+											<Button
+												size="sm"
+												variant="outline"
+												disabled={!added}
+												onclick={() => openSizing(p)}
+												class={locked ? 'border-muted-foreground!' : ''}
+											>
+												Size
+											</Button>
+										</div>
 									</div>
 								</div>
 							</div>

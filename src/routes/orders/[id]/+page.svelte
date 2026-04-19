@@ -14,6 +14,9 @@
 	import { fetchOrderAttentionCount } from '$lib/stores/orderAttention.js';
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
 	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
+	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
+	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
+	import { diffLineEdits, type DraftRowInput } from '$lib/utils/order-line-diff.js';
 	import { toast } from 'svelte-sonner';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
@@ -51,12 +54,6 @@
 		).account_locations ?? null
 	);
 
-	// Action: focus the element once when mounted. Avoids the bare `autofocus`
-	// attribute (which screen readers handle inconsistently).
-	function autofocusOnMount(node: HTMLElement) {
-		node.focus();
-	}
-
 	$effect(() => {
 		const o = order;
 		const brandName = o.brands?.name ?? 'Unknown brand';
@@ -71,12 +68,99 @@
 	const allLines = $derived(data.lines as OrderLine[]);
 	const activeLines = $derived(allLines.filter((l) => !l.removed_at));
 	const removedLines = $derived(allLines.filter((l) => l.removed_at));
+
+	type ProductMeta = {
+		primary_image_id: string | null;
+		colors: string[];
+		sizes: string[];
+		season_name: string | null;
+		season_year: number | null;
+	};
+	const productsById = $derived((data.productsById ?? {}) as Record<string, ProductMeta>);
+
+	type LineRow = {
+		key: string;
+		product_id: string;
+		style_number: string;
+		name: string;
+		season_label: string | null;
+		image_id: string | null;
+		unit_price: number;
+		color: string | null;
+		available_colors: string[];
+		available_sizes: string[];
+		lines: Array<{ id: string; size: string | null; qty: number; original_qty: number | null }>;
+	};
+
+	const lineRows = $derived.by<LineRow[]>(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient map
+		const byKey = new Map<string, LineRow>();
+		for (const l of activeLines) {
+			const pid = (l as { product_id?: string | null }).product_id;
+			if (!pid) continue; // custom lines fall through; we render them separately below
+			const meta = productsById[pid];
+			const key = `${pid}|${l.color ?? ''}`;
+			if (!byKey.has(key)) {
+				const season =
+					meta?.season_name && meta?.season_year
+						? `${meta.season_name} ${meta.season_year}`
+						: (meta?.season_name ?? null);
+				byKey.set(key, {
+					key,
+					product_id: pid,
+					style_number: l.style_number ?? '',
+					name: l.description ?? l.style_number ?? '',
+					season_label: season,
+					image_id: meta?.primary_image_id ?? null,
+					unit_price: Number(l.unit_price),
+					color: l.color,
+					available_colors: meta?.colors ?? [],
+					available_sizes: meta?.sizes ?? [],
+					lines: []
+				});
+			}
+			const row = byKey.get(key)!;
+			row.lines.push({
+				id: l.id,
+				size: l.size,
+				qty: l.qty,
+				original_qty: l.original_qty
+			});
+		}
+		return [...byKey.values()];
+	});
+
+	// Lines without a product_id (custom entered) don't fit the new row model —
+	// render them as flat single-line rows at the end until they're migrated.
+	const customLines = $derived(
+		activeLines.filter((l) => !(l as { product_id?: string | null }).product_id)
+	);
+
+	// Projected order total while in edit mode (includes in-memory qty edits).
+	const projectedOrderTotal = $derived.by(() =>
+		draftRows
+			.filter((r) => !r.to_remove)
+			.reduce(
+				(sum, r) =>
+					sum + Object.values(r.qty_by_size).reduce((s, q) => s + (q || 0) * r.unit_price, 0),
+				0
+			)
+	);
+	const projectedOrderUnits = $derived.by(() =>
+		draftRows
+			.filter((r) => !r.to_remove)
+			.reduce((sum, r) => sum + Object.values(r.qty_by_size).reduce((s, q) => s + (q || 0), 0), 0)
+	);
+	const savedOrderUnits = $derived(activeLines.reduce((s, l) => s + l.qty, 0));
 	const brandAssets = $derived((data.brandAssets ?? []) as BrandAsset[]);
 	const isBrandOrg = $derived(data.orgType === 'brand');
 	const canEdit = $derived(
 		data.isBuyer
 			? order.status === 'draft' && order.created_by === data.user?.id
 			: data.membership?.role !== 'guest'
+	);
+	const canModify = $derived(
+		canEdit && order.status !== 'cancelled' && order.status !== 'delivered'
 	);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
 	const repName = $derived(data.repName as string | null);
@@ -237,184 +321,257 @@
 	}
 
 	// Line item editing — bulk edit mode
+	// ── Line Items edit mode ────────────────────────────────────────────────
+	// Edit mode snapshots each LineRow into a DraftRow. On Save Items we diff
+	// draftRows vs the live rows and run the resulting ops. Cancel discards.
+	type DraftRow = DraftRowInput & {
+		key: string;
+		season_label: string | null;
+		image_id: string | null;
+		available_colors: string[];
+		added_here: boolean;
+	};
+
 	let editMode = $state(false);
-	let editedQtys = $state<Record<string, number>>({});
+	let draftRows = $state<DraftRow[]>([]);
 	let savingEdits = $state(false);
 
-	// Inline single-cell edit (double-click)
-	let inlineEditId = $state('');
-	let inlineEditQty = $state(0);
+	function snapshotDrafts(): DraftRow[] {
+		return lineRows.map((row) => {
+			const qty_by_size: Record<string, number> = {};
+			for (const s of row.available_sizes) qty_by_size[s] = 0;
+			for (const l of row.lines) qty_by_size[l.size ?? ''] = l.qty;
+			return {
+				key: row.key,
+				product_id: row.product_id,
+				style_number: row.style_number,
+				name: row.name,
+				season_label: row.season_label,
+				image_id: row.image_id,
+				color: row.color,
+				color_edit: row.color,
+				unit_price: row.unit_price,
+				available_sizes: row.available_sizes,
+				available_colors: row.available_colors,
+				qty_by_size,
+				lines: row.lines.map((l) => ({
+					id: l.id,
+					product_id: row.product_id,
+					color: row.color,
+					size: l.size,
+					qty: l.qty
+				})),
+				to_remove: false,
+				added_here: false
+			};
+		});
+	}
 
 	function enterEditMode() {
-		editedQtys = {};
-		for (const line of activeLines) {
-			editedQtys[line.id] = line.qty;
-		}
+		draftRows = snapshotDrafts();
 		editMode = true;
 	}
 
-	async function exitEditMode() {
-		savingEdits = true;
-		for (const line of activeLines) {
-			const newQty = editedQtys[line.id];
-			if (newQty != null && newQty >= 1 && newQty !== line.qty) {
-				await supabase
-					.from('order_lines')
-					.update({ qty: newQty, original_qty: line.original_qty ?? line.qty })
-					.eq('id', line.id);
+	function cancelEdit() {
+		draftRows = [];
+		editMode = false;
+	}
+
+	function removeDraftRow(idx: number) {
+		const row = draftRows[idx];
+		if (row.added_here) {
+			draftRows.splice(idx, 1);
+		} else {
+			draftRows[idx].to_remove = true;
+		}
+	}
+
+	function restoreDraftRow(idx: number) {
+		draftRows[idx].to_remove = false;
+	}
+
+	function addColorFor(idx: number, color: string) {
+		const row = draftRows[idx];
+		const qty_by_size: Record<string, number> = {};
+		for (const s of row.available_sizes) qty_by_size[s] = 0;
+		draftRows.push({
+			key: `${row.product_id}|${color}|new-${Date.now()}`,
+			product_id: row.product_id,
+			style_number: row.style_number,
+			name: row.name,
+			season_label: row.season_label,
+			image_id: row.image_id,
+			color,
+			color_edit: color,
+			unit_price: row.unit_price,
+			available_sizes: row.available_sizes,
+			available_colors: row.available_colors,
+			qty_by_size,
+			lines: [],
+			to_remove: false,
+			added_here: true
+		});
+	}
+
+	// Soft-remove every line in a (product, color) row without entering edit
+	// mode. Mirrors the saveEdits soft_remove op path. Used by the trash icon
+	// on read-only rows.
+	let removingRowKey = $state<string | null>(null);
+	async function removeLineRow(row: LineRow) {
+		if (row.lines.length === 0) return;
+		removingRowKey = row.key;
+		const now = new Date().toISOString();
+		let failures = 0;
+		for (const l of row.lines) {
+			const { error } = await supabase
+				.from('order_lines')
+				.update({ removed_at: now, removed_reason: null })
+				.eq('id', l.id);
+			if (error) {
+				console.error('[orders/[id] removeLineRow]', error);
+				failures++;
 			}
 		}
+		removingRowKey = null;
+		if (failures > 0) {
+			toast.error(`${failures} line${failures === 1 ? '' : 's'} failed to remove.`);
+		} else {
+			toast.success(row.lines.length === 1 ? 'Line removed' : 'Lines removed');
+		}
 		invalidateAll();
-		savingEdits = false;
-		editMode = false;
-		editedQtys = {};
 	}
 
-	function handleQtyDblClick(line: OrderLine) {
-		if (editMode) return;
-		inlineEditId = line.id;
-		inlineEditQty = line.qty;
-	}
-
-	async function saveInlineEdit(line: OrderLine) {
-		if (inlineEditQty < 1 || inlineEditQty === line.qty) {
-			inlineEditId = '';
+	async function saveEdits() {
+		savingEdits = true;
+		const ops = diffLineEdits(draftRows);
+		if (ops.length === 0) {
+			savingEdits = false;
+			editMode = false;
+			draftRows = [];
 			return;
 		}
-		await supabase
-			.from('order_lines')
-			.update({ qty: inlineEditQty, original_qty: line.original_qty ?? line.qty })
-			.eq('id', line.id);
-		inlineEditId = '';
+
+		let maxSort = activeLines.reduce((max, l) => Math.max(max, l.sort_order), 0);
+		let failures = 0;
+
+		for (const op of ops) {
+			if (op.kind === 'insert') {
+				maxSort++;
+				const { error } = await supabase.from('order_lines').insert({
+					order_id: order.id,
+					...op.row,
+					sort_order: maxSort
+				});
+				if (error) {
+					console.error('[orders/[id] saveEdits insert]', error);
+					failures++;
+				}
+			} else if (op.kind === 'update') {
+				const { error } = await supabase.from('order_lines').update(op.patch).eq('id', op.id);
+				if (error) {
+					console.error('[orders/[id] saveEdits update]', error);
+					failures++;
+				}
+			} else if (op.kind === 'soft_remove') {
+				const { error } = await supabase
+					.from('order_lines')
+					.update({ removed_at: new Date().toISOString(), removed_reason: null })
+					.eq('id', op.id);
+				if (error) {
+					console.error('[orders/[id] saveEdits remove]', error);
+					failures++;
+				}
+			}
+		}
+
+		savingEdits = false;
+
+		if (failures > 0) {
+			toast.error(`${failures} change${failures === 1 ? '' : 's'} failed to save.`);
+		} else {
+			toast.success('Order updated');
+			editMode = false;
+			draftRows = [];
+		}
 		invalidateAll();
 	}
 
-	function handleInlineKeydown(e: KeyboardEvent, line: OrderLine) {
-		if (e.key === 'Enter') {
-			e.preventDefault();
-			saveInlineEdit(line);
-		}
-		if (e.key === 'Escape') {
-			inlineEditId = '';
-		}
-	}
-
-	// Add items via catalog picker
+	// ── Add items via catalog picker ─────────────────────────────────────────
+	// The picker seeds its cart with every product already in the order so
+	// those cards show dimmed/disabled inside the modal. On Done we only care
+	// which NEW products the user selected — their sizes and qtys are set
+	// inline in the Line Items table (edit mode auto-opens).
 	let catalogPickerOpen = $state(false);
 	let catalogPickerItems = $state<CatalogCartItem[]>([]);
 
 	function openCatalogPicker() {
-		// Pre-populate cart from existing order_lines that have a product_id.
-		// Aggregate multiple lines for the same product into one cart item.
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient map
 		const byProduct = new Map<string, CatalogCartItem>();
 		for (const l of activeLines) {
 			const pid = (l as { product_id?: string | null }).product_id;
-			if (!pid) continue;
-			if (!byProduct.has(pid)) {
-				byProduct.set(pid, {
-					product_id: pid,
-					brand_id: order.brand_id,
-					season_id: order.season_id ?? null,
-					original_season_id: order.season_id ?? null,
-					product_year: null,
-					style_number: l.style_number ?? '',
-					name: l.description ?? l.style_number ?? '',
-					unit_price: Number(l.unit_price),
-					image_id: null,
-					available_colors: [],
-					available_sizes: [],
-					selected_color: l.color ?? '',
-					size_qtys: {}
-				});
-			}
-			const item = byProduct.get(pid)!;
-			const sizeKey = l.size ?? '';
-			item.size_qtys[sizeKey] = (item.size_qtys[sizeKey] ?? 0) + l.qty;
+			if (!pid || byProduct.has(pid)) continue;
+			byProduct.set(pid, {
+				product_id: pid,
+				brand_id: order.brand_id,
+				season_id: order.season_id ?? null,
+				original_season_id: order.season_id ?? null,
+				product_year: null,
+				style_number: l.style_number ?? '',
+				name: l.description ?? l.style_number ?? '',
+				unit_price: Number(l.unit_price),
+				image_id: null,
+				available_colors: [],
+				available_sizes: [],
+				selected_color: l.color ?? '',
+				size_qtys: {}
+			});
 		}
 		catalogPickerItems = [...byProduct.values()];
 		catalogPickerOpen = true;
 	}
 
 	async function handleCatalogDone(items: CatalogCartItem[]) {
-		// Existing product_ids already in order_lines
-		const existingProductIds = new Set(
-			activeLines
-				.map((l) => (l as { product_id?: string | null }).product_id)
-				.filter(Boolean) as string[]
-		);
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient set
+		const existingProductIds = new Set<string>();
+		for (const l of activeLines) {
+			const pid = (l as { product_id?: string | null }).product_id;
+			if (pid) existingProductIds.add(pid);
+		}
 
-		// Only insert NEW items (not already in order)
-		const newItems = items.filter((it) => !existingProductIds.has(it.product_id));
-		if (newItems.length === 0) {
+		const fresh = items.filter((it) => !existingProductIds.has(it.product_id));
+		if (fresh.length === 0) {
 			catalogPickerOpen = false;
 			return;
 		}
 
-		const maxSort = activeLines.reduce((max, l) => Math.max(max, l.sort_order), 0);
-		const linesToInsert: Array<Record<string, unknown>> = [];
-		let sortCounter = maxSort;
-
-		for (const item of newItems) {
-			const totalUnits = Object.values(item.size_qtys).reduce((s, q) => s + (q || 0), 0);
-			if (totalUnits === 0) continue;
-
-			// One order_line per size entry (matching the create-order pattern)
-			for (const [size, qty] of Object.entries(item.size_qtys)) {
-				if (qty <= 0) continue;
-				sortCounter++;
-				linesToInsert.push({
-					order_id: order.id,
-					product_id: item.product_id,
-					style_number: item.style_number,
-					description: item.name,
-					color: item.selected_color || null,
-					size: size || null,
-					qty,
-					unit_price: item.unit_price,
-					sort_order: sortCounter
-				});
-			}
+		// Start (or continue) edit mode so the user can type qtys inline.
+		const baseDrafts = editMode ? draftRows : snapshotDrafts();
+		for (const it of fresh) {
+			const color = it.selected_color || null;
+			const key = `${it.product_id}|${color ?? ''}|new-${Date.now()}-${Math.random()}`;
+			const qty_by_size: Record<string, number> = {};
+			for (const s of it.available_sizes) qty_by_size[s] = 0;
+			baseDrafts.push({
+				key,
+				product_id: it.product_id,
+				style_number: it.style_number,
+				name: it.name,
+				season_label: null,
+				image_id: it.image_id,
+				color,
+				color_edit: color,
+				unit_price: it.unit_price,
+				available_sizes: it.available_sizes,
+				available_colors: it.available_colors,
+				qty_by_size,
+				lines: [],
+				to_remove: false,
+				added_here: true
+			});
 		}
-
-		if (linesToInsert.length > 0) {
-			const { error } = await supabase.from('order_lines').insert(linesToInsert);
-			if (error) {
-				toast.error('Failed to add items');
-				console.error(error);
-			} else {
-				toast.success(
-					`Added ${linesToInsert.length} line item${linesToInsert.length === 1 ? '' : 's'}`
-				);
-				invalidateAll();
-			}
-		}
+		draftRows = baseDrafts;
+		editMode = true;
 		catalogPickerOpen = false;
-	}
-
-	// Remove line
-	let removingLineId = $state('');
-	let removeReason = $state('');
-	let savingRemove = $state(false);
-
-	function startRemoveLine(lineId: string) {
-		removingLineId = lineId;
-		removeReason = '';
-	}
-
-	async function confirmRemoveLine() {
-		if (!removeReason.trim()) return;
-		savingRemove = true;
-		await supabase
-			.from('order_lines')
-			.update({
-				removed_at: new Date().toISOString(),
-				removed_reason: removeReason.trim()
-			})
-			.eq('id', removingLineId);
-		savingRemove = false;
-		removingLineId = '';
-		invalidateAll();
 	}
 
 	// Cancel order with reason
@@ -681,20 +838,10 @@
 	}
 </script>
 
-<div class="space-y-6">
-	<!-- Header -->
+<div class="space-y-4">
+	<!-- Toolbar -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/orders"><LongArrow direction="left" /> Back</Button>
-			<h1 class="font-mono text-3xl">{order.order_number}</h1>
-			{#if order.order_type === 'note'}
-				<Badge variant="outline">Note</Badge>
-			{:else}
-				<Badge variant={statusColors[order.status] ?? 'secondary'}
-					>{statusLabels[order.status] ?? order.status}</Badge
-				>
-			{/if}
-		</div>
+		<Button variant="ghost" size="sm" href="/orders"><LongArrow direction="left" /> Back</Button>
 		<div class="flex gap-2">
 			<Button variant="outline" size="sm" onclick={handleCloneOrder} disabled={cloning}>
 				{#if cloning}
@@ -767,72 +914,60 @@
 		</div>
 	</div>
 
-	<!-- Rep info banner (brand-side federated view) -->
-	{#if isFederatedView}
-		<div class="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
-			<div class="flex items-center gap-3">
-				<div
-					class="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground"
+	<!-- Title row: order number + status on the left, inline progress on the right -->
+	<div class="flex flex-wrap items-center justify-between gap-4">
+		<div class="flex items-center gap-3">
+			<h1 class="font-mono text-3xl">{order.order_number}</h1>
+			{#if order.order_type === 'note'}
+				<Badge variant="outline">Note</Badge>
+			{:else}
+				<Badge variant={statusColors[order.status] ?? 'secondary'}
+					>{statusLabels[order.status] ?? order.status}</Badge
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
-						class="h-5 w-5"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-						/>
-					</svg>
-				</div>
-				<div>
-					<div class="text-sm text-muted-foreground">From rep</div>
-					<div class="font-semibold">
-						{federation?.sourceOrg?.name ?? 'Rep org'}
-						{#if federation?.repDisplayName}
-							<span class="ml-1 font-normal text-muted-foreground">
-								· {federation.repDisplayName}
-							</span>
-						{/if}
-					</div>
-				</div>
-			</div>
-			<div class="text-sm text-muted-foreground">Federated order</div>
+			{/if}
 		</div>
-	{/if}
 
-	<!-- Status timeline -->
-	{#if order.order_type !== 'note' && order.status !== 'cancelled'}
-		<div class="flex items-center gap-1">
-			{#each timeline as step, i (step.status)}
-				{@const isComplete = step.date !== null}
-				{@const isCurrent = step.status === order.status}
-				<div class="flex items-center gap-1">
-					<div class="flex flex-col items-center">
+		{#if order.order_type !== 'note' && order.status !== 'cancelled'}
+			<div class="flex items-center gap-12">
+				{#each timeline as step (step.status)}
+					{@const isComplete = step.date !== null}
+					{@const isCurrent = step.status === order.status}
+					<div class="flex items-center gap-2">
 						<div
-							class="flex h-6 w-6 items-center justify-center rounded-full text-xs {isComplete
+							class="flex h-4 w-4 items-center justify-center rounded-full transition-colors {isComplete
 								? 'bg-primary text-primary-foreground'
 								: isCurrent
-									? 'border-2 border-primary'
-									: 'border border-muted-foreground/30'}"
+									? 'bg-background ring-2 ring-primary ring-offset-2 ring-offset-background'
+									: 'border border-muted-foreground/20 bg-muted/40'}"
+							aria-label={step.label}
 						>
-							{#if isComplete}✓{/if}
+							{#if isComplete}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-2.5 w-2.5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="3"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+								</svg>
+							{/if}
 						</div>
-						<span class="mt-1 text-xs text-muted-foreground">{step.label}</span>
+						<span
+							class="text-sm {isCurrent
+								? 'font-medium text-foreground'
+								: isComplete
+									? 'text-foreground'
+									: 'text-muted-foreground'}"
+						>
+							{step.label}
+						</span>
 					</div>
-					{#if i < timeline.length - 1}
-						<div
-							class="mb-5 h-px w-12 {isComplete ? 'bg-primary' : 'bg-muted-foreground/30'}"
-						></div>
-					{/if}
-				</div>
-			{/each}
-		</div>
-	{/if}
+				{/each}
+			</div>
+		{/if}
+	</div>
 
 	<!-- Order details -->
 	<div class="grid gap-4 sm:grid-cols-2">
@@ -864,7 +999,7 @@
 				{@const createdByName = order.profiles?.display_name ?? null}
 				<dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
 					<div>
-						<dt class="text-xs text-muted-foreground">Account</dt>
+						<dt class="text-sm text-muted-foreground">Account</dt>
 						<dd class="mt-0.5">
 							<a href={resolve(`/accounts/${order.account_id}`)} class="hover:underline"
 								>{order.accounts?.business_name}</a
@@ -873,7 +1008,7 @@
 					</div>
 					{#if orderLocation}
 						<div>
-							<dt class="text-xs text-muted-foreground">Ship To</dt>
+							<dt class="text-sm text-muted-foreground">Ship To</dt>
 							<dd class="mt-0.5">
 								<div class="font-medium">{orderLocation.label}</div>
 							</dd>
@@ -881,7 +1016,7 @@
 					{/if}
 					{#if !isBrandOrg}
 						<div>
-							<dt class="text-xs text-muted-foreground">Brand</dt>
+							<dt class="text-sm text-muted-foreground">Brand</dt>
 							<dd class="mt-0.5">
 								<a href={resolve(`/brands/${order.brand_id}`)} class="hover:underline"
 									>{order.brands?.name}</a
@@ -890,16 +1025,16 @@
 						</div>
 					{/if}
 					<div>
-						<dt class="text-xs text-muted-foreground">Season</dt>
+						<dt class="text-sm text-muted-foreground">Season</dt>
 						<dd class="mt-0.5">{seasonLabel()}</dd>
 					</div>
 					<div>
-						<dt class="text-xs text-muted-foreground">Source</dt>
+						<dt class="text-sm text-muted-foreground">Source</dt>
 						<dd class="mt-0.5">
 							{#if sourceDisplay}
 								<span>{sourceDisplay}</span>
 								{#if showDateData}
-									<p class="font-mono text-xs text-muted-foreground">
+									<p class="font-mono text-sm text-muted-foreground">
 										{monthNames[(showDateData.month ?? 1) - 1]} · {sourceLocation}
 									</p>
 								{/if}
@@ -909,7 +1044,7 @@
 						</dd>
 					</div>
 					<div>
-						<dt class="text-xs text-muted-foreground">Ship Window</dt>
+						<dt class="text-sm text-muted-foreground">Ship Window</dt>
 						<dd class="mt-0.5">
 							{#if deliveryData?.delivery_month}
 								{monthNames[deliveryData.delivery_month - 1]} 1 — {order.expected_ship_date
@@ -940,7 +1075,7 @@
 							{/if}
 							{#if canEdit}
 								<button
-									class="ml-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+									class="ml-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
 									onclick={startEditShipDate}
 								>
 									{order.expected_ship_date ? 'Edit' : 'Set'}
@@ -954,12 +1089,12 @@
 										class="h-8 rounded-md border border-input bg-background px-2 text-sm"
 									/>
 									<button
-										class="text-xs text-primary hover:underline"
+										class="text-sm text-primary hover:underline"
 										onclick={saveShipDate}
 										disabled={savingShipDate}>{savingShipDate ? '...' : 'Save'}</button
 									>
 									<button
-										class="text-xs text-muted-foreground hover:underline"
+										class="text-sm text-muted-foreground hover:underline"
 										onclick={() => (editingShipDate = false)}>Cancel</button
 									>
 								</div>
@@ -967,7 +1102,7 @@
 						</dd>
 					</div>
 					<div>
-						<dt class="text-xs text-muted-foreground">Shipped</dt>
+						<dt class="text-sm text-muted-foreground">Shipped</dt>
 						<dd class="mt-0.5">
 							{#if order.shipped_at}
 								{new Date(order.shipped_at).toLocaleDateString('en-US', {
@@ -981,10 +1116,14 @@
 						</dd>
 					</div>
 					<div class="col-span-2 border-t pt-3">
-						<dt class="text-xs text-muted-foreground">Created</dt>
+						<dt class="text-sm text-muted-foreground">Created</dt>
 						<dd class="mt-0.5">
-							{#if createdByName}<span>{createdByName}</span>{/if}
-							<p class="font-mono text-xs text-muted-foreground">
+							{#if isFederatedView}
+								<span>{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}</span>
+							{:else if createdByName}
+								<span>{createdByName}</span>
+							{/if}
+							<p class="font-mono text-sm text-muted-foreground">
 								{new Date(order.created_at).toLocaleDateString('en-US', {
 									month: 'short',
 									day: 'numeric',
@@ -1109,10 +1248,10 @@
 					{:else}
 						<div class="rounded-md bg-muted p-3">
 							<div class="flex items-center justify-between">
-								<p class="text-xs font-medium text-muted-foreground">Notes</p>
+								<p class="text-sm font-medium text-muted-foreground">Notes</p>
 								{#if canEdit}
 									<button
-										class="text-xs text-muted-foreground transition-colors hover:text-foreground"
+										class="text-sm text-muted-foreground transition-colors hover:text-foreground"
 										onclick={startEditNotes}
 									>
 										{order.notes ? 'Edit' : 'Add'}
@@ -1131,7 +1270,7 @@
 				<!-- Cancel reason -->
 				{#if order.status === 'cancelled' && order.cancelled_reason}
 					<div class="mt-4 rounded-md border border-destructive/20 bg-destructive/5 p-3">
-						<p class="text-xs font-medium text-destructive">Cancellation Reason</p>
+						<p class="text-sm font-medium text-destructive">Cancellation Reason</p>
 						<p class="mt-1 text-sm">{order.cancelled_reason}</p>
 					</div>
 				{/if}
@@ -1144,125 +1283,385 @@
 		<CardHeader>
 			<div class="flex items-center justify-between">
 				<CardTitle class="text-base">Line Items</CardTitle>
-				{#if canEdit && order.status !== 'cancelled' && order.status !== 'delivered'}
+				{#if canModify}
 					<div class="flex gap-2">
 						{#if editMode}
-							<Button size="sm" onclick={exitEditMode} disabled={savingEdits}>
-								{savingEdits ? 'Saving...' : 'Done'}
+							<Button variant="ghost" size="sm" onclick={cancelEdit} disabled={savingEdits}>
+								Cancel
+							</Button>
+							<Button size="sm" onclick={saveEdits} disabled={savingEdits}>
+								{savingEdits ? 'Saving…' : 'Save Items'}
 							</Button>
 						{:else}
-							{#if activeLines.length > 0}
+							{#if lineRows.length > 0 || customLines.length > 0}
 								<Button variant="outline" size="sm" onclick={enterEditMode}>Edit Items</Button>
 							{/if}
-							<Button variant="outline" size="sm" onclick={openCatalogPicker}>Add Item</Button>
+							<Button variant="outline" size="sm" onclick={openCatalogPicker}>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2.25"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									class="h-3 w-3"
+								>
+									<path d="M12 5v14" />
+									<path d="M5 12h14" />
+								</svg>
+								Add Item
+							</Button>
 						{/if}
 					</div>
 				{/if}
 			</div>
 		</CardHeader>
 		<CardContent>
-			{#if activeLines.length === 0 && removedLines.length === 0}
+			{#if lineRows.length === 0 && customLines.length === 0 && removedLines.length === 0 && !editMode}
 				<p class="text-sm text-muted-foreground">No line items.</p>
 			{:else}
 				<div class="rounded-md border">
 					<table class="w-full">
-						<thead>
-							<tr class="border-b bg-muted/50">
-								<th class="px-3 py-2 text-left text-xs font-medium">Item</th>
-								<th class="px-3 py-2 text-left text-xs font-medium">Color</th>
-								<th class="px-3 py-2 text-left text-xs font-medium">Size</th>
-								<th class="px-3 py-2 text-right text-xs font-medium">Qty</th>
-								<th class="px-3 py-2 text-right text-xs font-medium">Unit Price</th>
-								<th class="px-3 py-2 text-right text-xs font-medium">Total</th>
-								{#if canEdit && order.status !== 'cancelled' && order.status !== 'delivered'}
-									<th class="px-3 py-2 text-right text-xs font-medium"></th>
+						<thead class="bg-muted/50">
+							<tr class="border-b">
+								<th class="w-20 px-3 py-2 text-left text-sm font-medium"></th>
+								<th class="w-72 px-3 py-2 text-left text-sm font-medium">Item</th>
+								<th class="px-3 py-2 text-center text-sm font-medium">Color</th>
+								<th class="px-3 py-2 text-left text-sm font-medium">Sizes / Qty</th>
+								<th class="px-3 py-2 text-right text-sm font-medium">Unit Price</th>
+								<th class="px-3 py-2 text-right text-sm font-medium">Total</th>
+								{#if canModify}
+									<th class="w-px px-2 py-2 whitespace-nowrap"></th>
 								{/if}
 							</tr>
 						</thead>
 						<tbody>
-							{#each activeLines as line (line.id)}
-								<tr class="group border-b">
-									<td class="px-3 py-2">
-										<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
-										{#if line.description}
-											<p class="text-xs text-muted-foreground">{line.description}</p>
-										{/if}
-									</td>
-									<td class="px-3 py-2 text-sm">{line.color ?? '—'}</td>
-									<td class="px-3 py-2 text-sm">{line.size ?? '—'}</td>
-									<td
-										class="px-3 py-2 text-right text-sm {!editMode &&
-										canEdit &&
-										order.status !== 'cancelled' &&
-										order.status !== 'delivered'
-											? 'cursor-pointer rounded hover:bg-muted/50'
-											: ''}"
-										ondblclick={() => {
-											if (
-												!editMode &&
-												canEdit &&
-												order.status !== 'cancelled' &&
-												order.status !== 'delivered'
-											)
-												handleQtyDblClick(line);
-										}}
-									>
-										{#if editMode}
-											<input
-												type="number"
-												min="1"
-												bind:value={editedQtys[line.id]}
-												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-right text-sm"
-											/>
-										{:else if inlineEditId === line.id}
-											<input
-												type="number"
-												min="1"
-												bind:value={inlineEditQty}
-												onblur={() => saveInlineEdit(line)}
-												onkeydown={(e) => handleInlineKeydown(e, line)}
-												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-right text-sm"
-												use:autofocusOnMount
-											/>
-										{:else}
-											{#if line.original_qty && line.original_qty !== line.qty}
-												<span class="mr-1 text-muted-foreground line-through"
-													>{line.original_qty}</span
+							{#if editMode}
+								{#each draftRows as draft, idx (draft.key)}
+									{@const usedColors = draftRows
+										.filter(
+											(r, i) => i !== idx && r.product_id === draft.product_id && !r.to_remove
+										)
+										.map((r) => r.color_edit)
+										.filter((c): c is string => !!c)}
+									{@const rowUnits = Object.values(draft.qty_by_size).reduce(
+										(s, q) => s + (q || 0),
+										0
+									)}
+									{@const rowTotal = rowUnits * draft.unit_price}
+									<tr class="group border-b align-top {draft.to_remove ? 'opacity-40' : ''}">
+										<td class="px-3 py-3">
+											{#if draft.image_id}
+												<img
+													src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
+													alt=""
+													class="h-14 w-14 rounded-md object-cover"
+												/>
+											{:else}
+												<div
+													class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
 												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="1.5"
+														class="h-6 w-6"
+													>
+														<rect x="3" y="3" width="18" height="18" rx="2" />
+														<circle cx="8.5" cy="8.5" r="1.5" />
+														<path d="M21 15l-5-5L5 21" />
+													</svg>
+												</div>
 											{/if}
-											{line.qty}
-										{/if}
-									</td>
-									<td class="px-3 py-2 text-right font-mono text-sm"
-										>{fmt.format(Number(line.unit_price))}</td
-									>
-									<td class="px-3 py-2 text-right font-mono text-sm font-medium"
-										>{fmt.format(Number(line.line_total))}</td
-									>
-									{#if canEdit && order.status !== 'cancelled' && order.status !== 'delivered'}
-										<td class="px-3 py-2 text-right">
-											<button
-												class="rounded px-2 py-1 text-xs text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-												onclick={() => startRemoveLine(line.id)}
-											>
-												Remove
-											</button>
 										</td>
-									{/if}
-								</tr>
-							{/each}
+										<td class="px-3 py-3">
+											<div class="font-mono text-sm">{draft.style_number}</div>
+											<div class="text-sm font-medium">{draft.name}</div>
+											{#if draft.season_label}
+												<div class="text-sm text-muted-foreground">{draft.season_label}</div>
+											{/if}
+										</td>
+										<td class="px-3 py-3 text-center align-middle">
+											{#if draft.available_colors && draft.available_colors.length > 0}
+												<ColorSwatchPicker
+													value={draft.color_edit}
+													options={draft.available_colors}
+													disabledColors={usedColors}
+													onChange={(c) => (draftRows[idx].color_edit = c)}
+													disabled={draft.to_remove}
+												/>
+											{:else}
+												<div class="flex items-center justify-center gap-2 text-sm">
+													<ColorSwatch color={draft.color_edit} size={28} />
+													{#if draft.color_edit}
+														<span>{draft.color_edit}</span>
+													{/if}
+												</div>
+											{/if}
+										</td>
+										<td class="px-3 py-3 align-middle">
+											{#if draft.available_sizes.length > 0}
+												<div class="flex flex-wrap gap-2">
+													{#each draft.available_sizes as size (size)}
+														<label class="flex flex-col items-center gap-1">
+															<span class="text-sm text-muted-foreground">{size}</span>
+															<input
+																type="number"
+																min="0"
+																value={draft.qty_by_size[size] ?? 0}
+																disabled={draft.to_remove}
+																oninput={(e) => {
+																	const n = parseInt((e.target as HTMLInputElement).value, 10);
+																	draftRows[idx].qty_by_size[size] = Number.isNaN(n)
+																		? 0
+																		: Math.max(0, n);
+																}}
+																class="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm"
+															/>
+														</label>
+													{/each}
+												</div>
+											{:else}
+												<div class="flex items-center gap-2">
+													<span class="text-sm text-muted-foreground">Qty</span>
+													<input
+														type="number"
+														min="0"
+														value={draft.qty_by_size[''] ?? 0}
+														disabled={draft.to_remove}
+														oninput={(e) => {
+															const n = parseInt((e.target as HTMLInputElement).value, 10);
+															draftRows[idx].qty_by_size[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
+														}}
+														class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center text-sm"
+													/>
+												</div>
+											{/if}
+										</td>
+										<td class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm">
+											{fmt.format(draft.unit_price)}
+										</td>
+										<td
+											class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
+										>
+											<div>{fmt.format(rowTotal)}</div>
+											<div class="text-sm font-normal text-muted-foreground">
+												{rowUnits}
+												{rowUnits === 1 ? 'unit' : 'units'}
+											</div>
+										</td>
+										<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
+											<div class="flex items-center justify-end gap-1">
+												{#if !draft.to_remove && draft.available_colors && draft.available_colors.length > 1}
+													{@const unused = draft.available_colors.filter(
+														(c) =>
+															!draftRows.some(
+																(r) =>
+																	!r.to_remove &&
+																	r.product_id === draft.product_id &&
+																	r.color_edit === c
+															)
+													)}
+													{#if unused.length > 0}
+														<ColorSwatchPicker
+															value={null}
+															options={unused}
+															onChange={(c) => c && addColorFor(idx, c)}
+															triggerLabel="+ color"
+														/>
+													{/if}
+												{/if}
+												{#if draft.to_remove}
+													<Button size="sm" variant="outline" onclick={() => restoreDraftRow(idx)}>
+														Undo
+													</Button>
+												{:else}
+													<button
+														type="button"
+														aria-label="Remove row"
+														class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+														onclick={() => removeDraftRow(idx)}
+													>
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															viewBox="0 0 24 24"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.75"
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															class="h-4 w-4"
+														>
+															<path d="M3 6h18" />
+															<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+															<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+															<path d="M10 11v6" />
+															<path d="M14 11v6" />
+														</svg>
+													</button>
+												{/if}
+											</div>
+										</td>
+									</tr>
+								{/each}
+							{:else}
+								{#each lineRows as row (row.key)}
+									{@const visibleLines = row.lines
+										.filter((l) => l.qty > 0)
+										.sort((a, b) => {
+											const ai = row.available_sizes.indexOf(a.size ?? '');
+											const bi = row.available_sizes.indexOf(b.size ?? '');
+											return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+										})}
+									{@const rowUnits = row.lines.reduce((s, l) => s + l.qty, 0)}
+									{@const rowTotal = rowUnits * row.unit_price}
+									<tr class="group border-b align-top">
+										<td class="px-3 py-3">
+											{#if row.image_id}
+												<img
+													src={`/api/products/${row.product_id}/images/${row.image_id}`}
+													alt=""
+													class="h-14 w-14 rounded-md object-cover"
+												/>
+											{:else}
+												<div
+													class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="1.5"
+														class="h-6 w-6"
+													>
+														<rect x="3" y="3" width="18" height="18" rx="2" />
+														<circle cx="8.5" cy="8.5" r="1.5" />
+														<path d="M21 15l-5-5L5 21" />
+													</svg>
+												</div>
+											{/if}
+										</td>
+										<td class="px-3 py-3">
+											<div class="font-mono text-sm">{row.style_number}</div>
+											<div class="text-sm font-medium">{row.name}</div>
+											{#if row.season_label}
+												<div class="text-sm text-muted-foreground">{row.season_label}</div>
+											{/if}
+										</td>
+										<td class="px-3 py-3 text-center align-middle">
+											<div class="flex items-center justify-center gap-2 text-sm">
+												<ColorSwatch color={row.color} size={28} />
+												{#if row.color}
+													<span>{row.color}</span>
+												{/if}
+											</div>
+										</td>
+										<td class="px-3 py-3 align-middle">
+											{#if visibleLines.length > 0}
+												<div class="flex flex-wrap gap-x-6 gap-y-2">
+													{#each visibleLines as l (l.id)}
+														<div class="flex flex-col items-center">
+															<span class="text-sm text-muted-foreground">{l.size ?? '—'}</span>
+															<span class="text-sm">{l.qty}</span>
+														</div>
+													{/each}
+												</div>
+											{:else}
+												<span class="text-sm text-muted-foreground">—</span>
+											{/if}
+										</td>
+										<td class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm">
+											{fmt.format(row.unit_price)}
+										</td>
+										<td
+											class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
+										>
+											<div>{fmt.format(rowTotal)}</div>
+											<div class="text-sm font-normal text-muted-foreground">
+												{rowUnits}
+												{rowUnits === 1 ? 'unit' : 'units'}
+											</div>
+										</td>
+										{#if canModify}
+											<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
+												<button
+													type="button"
+													aria-label="Remove row"
+													disabled={removingRowKey === row.key}
+													class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-40"
+													onclick={() => removeLineRow(row)}
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="1.75"
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														class="h-4 w-4"
+													>
+														<path d="M3 6h18" />
+														<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+														<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+														<path d="M10 11v6" />
+														<path d="M14 11v6" />
+													</svg>
+												</button>
+											</td>
+										{/if}
+									</tr>
+								{/each}
+								{#each customLines as line (line.id)}
+									<tr class="border-b align-top text-sm">
+										<td class="px-3 py-3"></td>
+										<td class="px-3 py-3">
+											<div class="font-mono">{line.style_number ?? '—'}</div>
+											{#if line.description}
+												<div class="text-muted-foreground">{line.description}</div>
+											{/if}
+										</td>
+										<td class="px-3 py-3">{line.color ?? '—'}</td>
+										<td class="px-3 py-3">
+											<div class="flex flex-col items-center">
+												<span class="text-muted-foreground">{line.size ?? '—'}</span>
+												<span class="font-semibold">{line.qty}</span>
+											</div>
+										</td>
+										<td class="px-3 py-3 text-right font-mono">
+											{fmt.format(Number(line.unit_price))}
+										</td>
+										<td class="px-3 py-3 text-right font-mono font-medium">
+											{fmt.format(Number(line.line_total))}
+										</td>
+										{#if canModify}
+											<td class="w-px px-2 py-3 whitespace-nowrap"></td>
+										{/if}
+									</tr>
+								{/each}
+							{/if}
 						</tbody>
-						<tfoot>
-							<tr class="bg-muted/50">
-								<td
-									colspan={canEdit && order.status !== 'cancelled' && order.status !== 'delivered'
-										? 7
-										: 6}
-									class="px-3 py-2 text-right font-mono text-sm font-medium">Order Total</td
-								>
-								<td class="px-3 py-2 text-right font-mono text-sm font-bold"
-									>{fmt.format(Number(order.total_amount))}</td
-								>
+						<tfoot class="bg-muted/50">
+							<tr class="align-top">
+								<td colspan="5" class="px-3 py-2 text-right font-mono text-sm font-medium">
+									Order Total
+								</td>
+								<td class="px-3 py-2 text-right font-mono text-sm font-bold">
+									<div>
+										{fmt.format(editMode ? projectedOrderTotal : Number(order.total_amount))}
+									</div>
+									<div class="text-sm font-normal text-muted-foreground">
+										{editMode ? projectedOrderUnits : savedOrderUnits}
+										{(editMode ? projectedOrderUnits : savedOrderUnits) === 1 ? 'unit' : 'units'}
+									</div>
+								</td>
+								{#if canModify}
+									<td class="px-3 py-2"></td>
+								{/if}
 							</tr>
 						</tfoot>
 					</table>
@@ -1272,7 +1671,7 @@
 			<!-- Removed lines -->
 			{#if removedLines.length > 0}
 				<div class="mt-4">
-					<p class="mb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+					<p class="mb-2 text-sm font-medium tracking-wider text-muted-foreground uppercase">
 						Removed Items
 					</p>
 					<div class="rounded-md border border-dashed">
@@ -1283,7 +1682,7 @@
 										<td class="px-3 py-2 line-through">
 											<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
 											{#if line.description}
-												<p class="text-xs text-muted-foreground">{line.description}</p>
+												<p class="text-sm text-muted-foreground">{line.description}</p>
 											{/if}
 										</td>
 										<td class="px-3 py-2 text-sm">{line.color ?? '—'} / {line.size ?? '—'}</td>
@@ -1302,45 +1701,6 @@
 	</Card>
 </div>
 
-<!-- Remove Line Modal -->
-{#if removingLineId}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-		onclick={() => (removingLineId = '')}
-	></div>
-	<div class="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="w-full max-w-md rounded-none border bg-card p-6 shadow-xl"
-			onclick={(e: MouseEvent) => e.stopPropagation()}
-		>
-			<h2 class="text-base font-semibold">Remove Line Item</h2>
-			<p class="mt-1 text-sm text-muted-foreground">
-				Please provide a reason for removing this item.
-			</p>
-			<textarea
-				bind:value={removeReason}
-				rows="3"
-				placeholder="Reason for removal..."
-				class="mt-4 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-			></textarea>
-			<div class="mt-4 flex justify-end gap-2">
-				<Button variant="outline" onclick={() => (removingLineId = '')}>Cancel</Button>
-				<Button
-					variant="destructive"
-					onclick={confirmRemoveLine}
-					disabled={savingRemove || !removeReason.trim()}
-				>
-					{savingRemove ? 'Removing...' : 'Remove Item'}
-				</Button>
-			</div>
-		</div>
-	</div>
-{/if}
-
 <!-- Catalog picker modal for adding items -->
 <CatalogPickerModal
 	bind:open={catalogPickerOpen}
@@ -1353,6 +1713,7 @@
 		? [{ id: order.season_id, name: (order.seasons as { name?: string }).name ?? 'Season' }]
 		: []}
 	showBrandFilter={false}
+	lockedProductIds={catalogPickerItems.map((it) => it.product_id)}
 	onclose={() => {
 		catalogPickerOpen = false;
 	}}
@@ -1642,7 +2003,7 @@
 											class="cursor-pointer rounded"
 										/>
 										<span class="truncate">{asset.name}</span>
-										<span class="shrink-0 text-xs text-muted-foreground">({asset.category})</span>
+										<span class="shrink-0 text-sm text-muted-foreground">({asset.category})</span>
 									</label>
 								{/each}
 							</div>

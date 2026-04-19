@@ -219,6 +219,7 @@ export type FederatedOrderRow = {
 	expected_ship_date: string | null;
 	start_ship_date: string | null;
 	season_id: string | null;
+	order_year: number | null;
 	brand_id: string;
 	account_id: string | null;
 	freeform_name: string | null;
@@ -228,6 +229,15 @@ export type FederatedOrderRow = {
 	account_name: string | null;
 	brand_name: string | null;
 	season_name: string | null;
+	source_type_name: string | null;
+	show_date: {
+		id: string;
+		year: number | null;
+		month: number | null;
+		city: string | null;
+		state: string | null;
+		show_name: string | null;
+	} | null;
 	created_by: string | null;
 	created_by_name: string | null;
 };
@@ -247,7 +257,7 @@ export async function listFederatedOrders(
 				'source_org_id',
 				'connection_id',
 				'source_org:source_org_id(id, name)',
-				'orders(id, order_number, order_type, status, total_amount, created_at, expected_ship_date, start_ship_date, season_id, brand_id, account_id, freeform_name, connection_id, created_by, accounts(business_name), brands(name), seasons(name), profiles!orders_created_by_fkey(display_name))'
+				'orders(id, order_number, order_type, status, total_amount, created_at, expected_ship_date, start_ship_date, season_id, order_year, brand_id, account_id, freeform_name, connection_id, created_by, accounts(business_name), brands(name), seasons(name), source_types(name), show_dates(id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name))'
 			].join(', ')
 		)
 		.eq('target_org_id', brandOrgId)
@@ -269,6 +279,7 @@ export async function listFederatedOrders(
 			expected_ship_date: string | null;
 			start_ship_date: string | null;
 			season_id: string | null;
+			order_year: number | null;
 			brand_id: string;
 			account_id: string | null;
 			freeform_name: string | null;
@@ -277,14 +288,48 @@ export async function listFederatedOrders(
 			accounts: { business_name: string | null } | null;
 			brands: { name: string | null } | null;
 			seasons: { name: string | null } | null;
+			source_types: { name: string | null } | null;
+			show_dates: {
+				id: string;
+				year: number | null;
+				month: number | null;
+				city: string | null;
+				state: string | null;
+				shows: { name: string | null } | null;
+			} | null;
 			profiles: { display_name: string | null } | null;
 		} | null;
 	};
 
 	const rows = (data ?? []) as unknown as Link[];
-	return rows
-		.filter((r): r is Link & { orders: NonNullable<Link['orders']> } => r.orders !== null)
-		.map((r) => ({
+	const liveRows = rows.filter(
+		(r): r is Link & { orders: NonNullable<Link['orders']> } => r.orders !== null
+	);
+
+	// Supabase's nested profiles join is fragile (sometimes typed as an array
+	// of one, sometimes empty under specific RLS paths). Look up rep display
+	// names in one admin shot keyed by created_by so we never lose the name.
+	const createdByIds = Array.from(
+		new Set(liveRows.map((r) => r.orders.created_by).filter((id): id is string => !!id))
+	);
+	const nameById = new Map<string, string>();
+	if (createdByIds.length > 0) {
+		const { data: profiles } = await supabase
+			.from('profiles')
+			.select('id, display_name')
+			.in('id', createdByIds);
+		for (const p of (profiles ?? []) as Array<{ id: string; display_name: string | null }>) {
+			if (p.display_name) nameById.set(p.id, p.display_name);
+		}
+	}
+
+	return liveRows.map((r) => {
+		const joinedProfile = (r.orders as unknown as { profiles?: unknown }).profiles;
+		const joinedName = Array.isArray(joinedProfile)
+			? ((joinedProfile[0] as { display_name?: string | null } | undefined)?.display_name ?? null)
+			: ((joinedProfile as { display_name?: string | null } | null)?.display_name ?? null);
+		const createdById = r.orders.created_by ?? null;
+		return {
 			id: r.orders.id,
 			order_number: r.orders.order_number,
 			order_type: r.orders.order_type,
@@ -294,6 +339,7 @@ export async function listFederatedOrders(
 			expected_ship_date: r.orders.expected_ship_date,
 			start_ship_date: r.orders.start_ship_date,
 			season_id: r.orders.season_id,
+			order_year: r.orders.order_year,
 			brand_id: r.orders.brand_id,
 			account_id: r.orders.account_id,
 			freeform_name: r.orders.freeform_name,
@@ -303,7 +349,19 @@ export async function listFederatedOrders(
 			account_name: r.orders.accounts?.business_name ?? null,
 			brand_name: r.orders.brands?.name ?? null,
 			season_name: r.orders.seasons?.name ?? null,
-			created_by: r.orders.created_by ?? null,
-			created_by_name: r.orders.profiles?.display_name ?? null
-		}));
+			source_type_name: r.orders.source_types?.name ?? null,
+			show_date: r.orders.show_dates
+				? {
+						id: r.orders.show_dates.id,
+						year: r.orders.show_dates.year,
+						month: r.orders.show_dates.month,
+						city: r.orders.show_dates.city,
+						state: r.orders.show_dates.state,
+						show_name: r.orders.show_dates.shows?.name ?? null
+					}
+				: null,
+			created_by: createdById,
+			created_by_name: joinedName ?? (createdById ? (nameById.get(createdById) ?? null) : null)
+		};
+	});
 }
