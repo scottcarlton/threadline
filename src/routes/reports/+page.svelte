@@ -50,14 +50,34 @@
 
 	const brandReports = [
 		{
-			id: 'sales-by-rep-agency',
-			title: 'Sales by Rep Agency',
-			description: 'Revenue and order count per connected rep org'
+			id: 'sales-by-rep',
+			title: 'Sales by Rep',
+			description: 'Revenue per rep across in-house sellers and connected agencies'
 		},
 		{
 			id: 'product-performance',
 			title: 'Product Performance',
 			description: 'Style-level velocity — which products are moving across reps'
+		},
+		{
+			id: 'territory-coverage',
+			title: 'Territory Coverage',
+			description: 'Accounts by territory across in-house and connected rep agencies'
+		},
+		{
+			id: 'account-penetration',
+			title: 'Account Penetration',
+			description: 'Which accounts are ordering, which are dormant, and year-over-year trend'
+		},
+		{
+			id: 'season-sell-through',
+			title: 'Season Sell-Through',
+			description: "How much of each season's catalog has sold — units, revenue, and rate"
+		},
+		{
+			id: 'pipeline',
+			title: 'Order Pipeline',
+			description: 'Live view of orders by status across in-house and connected agencies'
 		}
 	];
 

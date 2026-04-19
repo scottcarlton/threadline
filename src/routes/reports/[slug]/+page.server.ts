@@ -14,8 +14,12 @@ const repReportTitles: Record<string, string> = {
 };
 
 const brandReportTitles: Record<string, string> = {
-	'sales-by-rep-agency': 'Sales by Rep Agency',
-	'product-performance': 'Product Performance'
+	'sales-by-rep': 'Sales by Rep',
+	'product-performance': 'Product Performance',
+	'territory-coverage': 'Territory Coverage',
+	'account-penetration': 'Account Penetration',
+	'season-sell-through': 'Season Sell-Through',
+	pipeline: 'Order Pipeline'
 };
 
 function titleFor(orgType: OrgType, slug: string): string | null {
@@ -171,6 +175,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		}
 
 		case 'sales-by-rep': {
+			if (locals.orgType === 'brand') {
+				const { loadSalesByRep } = await import('$lib/server/reports/brand/salesByRep');
+				const rows = await loadSalesByRep(supabase, orgId, year);
+				return { report, title, year, rows, variant: 'brand' as const };
+			}
 			const { data: orders } = await scopeByRep(
 				scopeByBrand(
 					supabase
@@ -297,6 +306,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		}
 
 		case 'pipeline': {
+			if (locals.orgType === 'brand') {
+				const { loadOrderPipeline } = await import('$lib/server/reports/brand/orderPipeline');
+				const rows = await loadOrderPipeline(supabase, orgId);
+				return { report, title, year, rows, variant: 'brand' as const };
+			}
 			const { data: orders } = await scopeByRep(
 				scopeByBrand(
 					supabase
@@ -444,18 +458,34 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			return { report, title, year, rows };
 		}
 
-		case 'sales-by-rep-agency': {
-			const { loadSalesByRepAgency } = await import('$lib/server/reports/brand/salesByRepAgency');
-			const rows = await loadSalesByRepAgency(supabase, orgId, year);
-			return { report, title, year, rows };
-		}
-
 		case 'product-performance': {
 			const { loadProductPerformance } =
 				await import('$lib/server/reports/brand/productPerformance');
 			const daysBack = parseInt(url.searchParams.get('days') ?? '') || 90;
 			const rows = await loadProductPerformance(supabase, orgId, daysBack);
 			return { report, title, year, rows, daysBack };
+		}
+
+		case 'territory-coverage': {
+			if (locals.orgType !== 'brand') throw error(404, 'Report not found');
+			const { loadTerritoryCoverage } = await import('$lib/server/reports/brand/territoryCoverage');
+			const rows = await loadTerritoryCoverage(supabase, orgId, year);
+			return { report, title, year, rows, variant: 'brand' as const };
+		}
+
+		case 'account-penetration': {
+			if (locals.orgType !== 'brand') throw error(404, 'Report not found');
+			const { loadAccountPenetration } =
+				await import('$lib/server/reports/brand/accountPenetration');
+			const rows = await loadAccountPenetration(supabase, orgId, year);
+			return { report, title, year, rows, variant: 'brand' as const };
+		}
+
+		case 'season-sell-through': {
+			if (locals.orgType !== 'brand') throw error(404, 'Report not found');
+			const { loadSeasonSellThrough } = await import('$lib/server/reports/brand/seasonSellThrough');
+			const rows = await loadSeasonSellThrough(supabase, orgId, year);
+			return { report, title, year, rows, variant: 'brand' as const };
 		}
 
 		default:

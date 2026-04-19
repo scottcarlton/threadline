@@ -8,7 +8,7 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import InviteModal from '$lib/components/shared/InviteModal.svelte';
-	import InviteOrgSidebar from '$lib/components/connect/InviteOrgSidebar.svelte';
+
 	import type { UserRole } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -338,7 +338,7 @@
 		<div>
 			<h2 class="text-lg font-semibold">Members</h2>
 			<p class="mt-0.5 text-sm text-muted-foreground">
-				Manage roles and access for your organization
+				Manage your team and access for your organization
 			</p>
 		</div>
 		<div class="flex items-center gap-2">
@@ -358,17 +358,7 @@
 		</div>
 	</div>
 
-	<div class="grid gap-6 {data.connectInvite ? 'md:grid-cols-[1fr_360px]' : ''}">
-		{#if data.connectInvite}
-			<aside class="md:order-last">
-				<InviteOrgSidebar
-					invite={data.connectInvite}
-					origin={data.origin}
-					emailForm={data.inviteEmailForm}
-				/>
-			</aside>
-		{/if}
-
+	<div>
 		<div class="min-w-0 space-y-4">
 			<!-- Pending invitations (compact) -->
 			{#if invitations.length > 0}

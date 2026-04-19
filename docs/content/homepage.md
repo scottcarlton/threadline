@@ -24,7 +24,7 @@
 
 > Turn every signal into a sale.
 
-**CTA Button:** `Early Access →` (links to `/early-access`)
+**CTA Button:** `Join Beta →` (links to `/beta`)
 
 **Supporting text:**
 
@@ -131,7 +131,7 @@ _Sources: McKinsey; industry survey data on agentic AI adoption, 2025_
 
 **Layout:** Centered headline, then logo row or testimonial cards.
 
-**Mono label:** `Early Access`
+**Mono label:** `Beta`
 
 **Section headline:**
 
@@ -148,7 +148,7 @@ _Sources: McKinsey; industry survey data on agentic AI adoption, 2025_
 
 **Option C — Metrics (if no testimonials yet):**
 
-- X brands connected in Early Access
+- X brands connected in Beta
 - X orders processed
 - X insights generated
 
@@ -200,11 +200,11 @@ A: Never. Brand data is completely siloed. Stitches generates cross-brand insigh
 
 **Supporting text:**
 
-> Threadline is building the intelligence layer wholesale has been missing. Join Early Access and be the first to see what AI-powered wholesale looks like.
+> Threadline is building the intelligence layer wholesale has been missing. Join Beta and be the first to see what AI-powered wholesale looks like.
 
 **CTA buttons:**
 
-- Primary: `Join Early Access` → `/early-access`
+- Primary: `Join Beta` → `/beta`
 - Secondary: `View Pricing` → `/pricing`
 
 ---
@@ -274,7 +274,7 @@ A: Never. Brand data is completely siloed. Stitches generates cross-brand insigh
 | Feature cards            | Good copy, keep spirit                                                              | Refined — more specific outcomes per card                     | Tighten language, lead with "what you get" not "what it is"                                |
 | Social proof             | None                                                                                | New section with logos/testimonials/metrics                   | Critical for conversion. Add once available, omit until then.                              |
 | Footer mission           | "Our mission is to protect service members and civilians with intelligent systems." | "Building intelligent systems for the people who move goods." | Current text is from a different product/template. Must be replaced.                       |
-| CTA language             | "Early Access"                                                                      | "Join Early Access"                                           | More action-oriented                                                                       |
+| CTA language             | "Early Access"                                                                      | "Join Beta"                                                   | More action-oriented; matches Beta phase naming                                            |
 | SEO                      | No meta tags                                                                        | Full OG, Twitter, meta description                            | Required for any marketing site                                                            |
 
 ---
