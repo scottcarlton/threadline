@@ -73,7 +73,7 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 		const messages: Anthropic.MessageParam[] = [{ role: 'user', content: params.prompt }];
 
 		let response = await anthropic.messages.create({
-			model: 'claude-sonnet-4-20250514',
+			model: 'claude-sonnet-4-6',
 			max_tokens: 4096,
 			system: systemBlocks,
 			tools: agentTools,
@@ -82,7 +82,7 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 		logUsage({
 			endpoint: 'agent',
 			purpose: 'agent',
-			model: 'claude-sonnet-4-20250514',
+			model: 'claude-sonnet-4-6',
 			organizationId: params.orgId,
 			response
 		});
@@ -119,7 +119,7 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 			messages.push({ role: 'user', content: toolResults });
 
 			response = await anthropic.messages.create({
-				model: 'claude-sonnet-4-20250514',
+				model: 'claude-sonnet-4-6',
 				max_tokens: 4096,
 				system: systemBlocks,
 				tools: agentTools,
@@ -128,7 +128,7 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 			logUsage({
 				endpoint: 'agent',
 				purpose: 'agent',
-				model: 'claude-sonnet-4-20250514',
+				model: 'claude-sonnet-4-6',
 				organizationId: params.orgId,
 				response
 			});
