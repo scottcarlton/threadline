@@ -147,6 +147,18 @@ When planning or reviewing a UI feature, answer these before writing code:
 
 If you can't answer all seven, the design isn't ready.
 
+## Primitives — prefer Bits UI components over raw HTML controls
+
+Threadline wraps Bits UI in `src/lib/components/ui/` for a consistent look, keyboard behavior, focus states, and dark-mode support. Reach for those before a native element.
+
+- **Native `<select>` is banned for new code.** Use `src/lib/components/ui/select` (the Bits-UI-backed `Select` + `SelectTrigger` / `SelectContent` / `SelectItem` primitives) or `select-field.svelte` for the superforms wrapper. Native `<select>` ignores the app's dark theme, has unstyled chrome, and breaks keyboard affordances we've tuned elsewhere.
+- **Other primitives available today**: `alert`, `avatar`, `badge`, `button`, `card`, `checkbox`, `input`, `label`, `select`, `separator`, `skeleton`, `switch`, `tooltip`, plus `date-select.svelte` and `price-range-slider.svelte`. Use them instead of hand-rolling the equivalent.
+- **Tooltips**: Bits UI `Tooltip`. Never `title=""`.
+- **If a primitive is missing** (e.g. textarea, radio group), add one under `src/lib/components/ui/` rather than inlining yet another ad-hoc control. Follow the existing wrapper pattern: re-export Bits UI primitives with Tailwind classes on trigger/content.
+- **Bits UI docs are at `bits-ui.com/docs/llms.txt`.** When in doubt, look up the component — don't guess the API.
+
+**Anti-pattern:** `<select bind:value={…}><option>…</option></select>` anywhere outside of a legacy page being carried forward. Migrate to `ui/select` when you're touching the file for another reason.
+
 ## Styling — lowest specificity wins
 
 Reach for the lowest CSS specificity that still expresses the intent:
