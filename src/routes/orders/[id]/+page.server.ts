@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { logSupabaseError } from '$lib/server/log-supabase-error.js';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	// Hook for invalidate('data:orders') after AI tool calls that touch orders
@@ -121,20 +122,61 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 			.single(),
 		// Use supabaseAdmin for comments + audits — order visibility is already
 		// enforced by the orders SELECT above (404 if the user can't see it).
-		// RLS on order_comments / order_audits was previously returning empty
-		// for brand admins viewing direct orders because of nested-policy eval
-		// quirks. Admin read is safe here.
+		// author_id / actor_id FK to auth.users, not public.profiles, so we
+		// can't embed profiles here — display names are merged in below.
 		supabaseAdmin
 			.from('order_comments')
-			.select('*, profiles:author_id(display_name), source_org:source_org_id(id, name)')
+			.select('*, source_org:source_org_id(id, name)')
 			.eq('order_id', params.id)
 			.order('created_at', { ascending: true }),
 		supabaseAdmin
 			.from('order_audits')
-			.select('*, actor:actor_id(display_name)')
+			.select('*')
 			.eq('order_id', params.id)
 			.order('created_at', { ascending: false })
 	]);
+
+	logSupabaseError('orders/[id] load: order_comments', commentsRes.error);
+	logSupabaseError('orders/[id] load: order_audits', auditsRes.error);
+
+	// Resolve author/actor display names separately (see note above).
+	const commentRows = (commentsRes.data ?? []) as Array<{
+		author_id: string | null;
+		[key: string]: unknown;
+	}>;
+	const auditRows = (auditsRes.data ?? []) as Array<{
+		actor_id: string | null;
+		[key: string]: unknown;
+	}>;
+	const profileIds = Array.from(
+		new Set(
+			[...commentRows.map((c) => c.author_id), ...auditRows.map((a) => a.actor_id)].filter(
+				(id): id is string => !!id
+			)
+		)
+	);
+	const profileNameById = new Map<string, string | null>();
+	if (profileIds.length > 0) {
+		const profilesRes = await supabaseAdmin
+			.from('profiles')
+			.select('id, display_name')
+			.in('id', profileIds);
+		logSupabaseError('orders/[id] load: profiles lookup', profilesRes.error);
+		for (const p of (profilesRes.data ?? []) as Array<{
+			id: string;
+			display_name: string | null;
+		}>) {
+			profileNameById.set(p.id, p.display_name);
+		}
+	}
+	const comments = commentRows.map((c) => ({
+		...c,
+		profiles: c.author_id ? { display_name: profileNameById.get(c.author_id) ?? null } : null
+	}));
+	const audits = auditRows.map((a) => ({
+		...a,
+		actor: a.actor_id ? { display_name: profileNameById.get(a.actor_id) ?? null } : null
+	}));
 
 	// Look up per-brand commission for the rep, fall back to their default rate
 	let repCommissionRate = repRes.data?.commission_rate ?? 0;
@@ -209,8 +251,8 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 				null
 			);
 		})(),
-		comments: commentsRes.data ?? [],
-		audits: auditsRes.data ?? [],
+		comments,
+		audits,
 		federation
 	};
 };
