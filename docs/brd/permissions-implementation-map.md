@@ -119,7 +119,7 @@ These tables use explicit link records rather than `get_connected_org_ids()`.
 
 Accounts (and their satellites: `account_locations`, `account_tags`, `account_tag_assignments`) use **asymmetric** federation, unlike brands/products where the implicit `get_connected_org_ids()` policy is symmetric:
 
-- **Rep→Brand (implicit):** members of a rep org see accounts owned by any brand org they have an active `org_connections` row with. Rep-side-only subquery on `org_connections` — brand org members do NOT benefit from this policy. Implemented by `20260418000006_rep_sees_connected_brand_accounts.sql`.
+- **Rep→Brand (implicit):** members of a rep org see accounts owned by any brand org they have an active `org_connections` row with. Rep-side-only subquery on `org_connections` — brand org members do NOT benefit from this policy. Implemented by `20260418000012_rep_sees_connected_brand_accounts.sql`.
 - **Brand→Rep (explicit):** brand org members see a rep's account ONLY via a `federated_account_links` row (target_org_id = brand org). These rows are created by the `auto_federate_order()` trigger when a rep places an order against one of the brand's brands. Implemented in `20260411000002_federation_infrastructure.sql`.
 
 Rationale: a rep has no privacy interest in hiding which brands they rep for (those connections are mutually known), but a rep has a strong interest in NOT exposing their full account book to every connected brand. A brand should only see the rep's accounts that have actually placed an order with it.
@@ -306,7 +306,7 @@ Federation is **asymmetric**. The two directions use different mechanisms.
 | Products           | `products` SELECT policy: `organization_id IN org_connections.brand_org_id`                                                           |
 | Product variants   | `product_variants` SELECT policy: via products join + `org_connections`                                                               |
 | Product images     | `product_images` SELECT policy: via products join + `org_connections`                                                                 |
-| Accounts (brand's) | `accounts` SELECT policy: `organization_id IN (rep_side org_connections.brand_org_id, active)` — unidirectional; see `20260418000006` |
+| Accounts (brand's) | `accounts` SELECT policy: `organization_id IN (rep_side org_connections.brand_org_id, active)` — unidirectional; see `20260418000012` |
 | Account locations  | `account_locations` SELECT policy: same rep-side-only subquery                                                                        |
 | Account tags       | `account_tags` SELECT policy: same rep-side-only subquery                                                                             |
 | Brand expenses     | `brand_expenses` SELECT: `brand_id` in connected org's brands. INSERT: allowed for federated brands                                   |

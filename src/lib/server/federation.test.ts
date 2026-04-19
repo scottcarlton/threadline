@@ -192,7 +192,7 @@ describe('MBISR independent-data boundary', () => {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MBISR sees connected brand's accounts (MBISR→BOA implicit federation)
-// Regression coverage for migration 20260418000006_rep_sees_connected_brand_accounts.
+// Regression coverage for migration 20260418000012_rep_sees_connected_brand_accounts.
 // Before this migration the accounts table had no "Rep sees connected brand
 // accounts" policy, so Stitch (and any authenticated read path) could not
 // resolve a brand-owned account by name. The /accounts page worked only
@@ -200,7 +200,7 @@ describe('MBISR independent-data boundary', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Simulates the post-20260418000006 accounts SELECT policy for an MBISR user:
+ * Simulates the post-20260418000012 accounts SELECT policy for an MBISR user:
  *   organization_id IN (brand_org_ids of the user's active rep-side connections).
  */
 function accountsVisibleToRep(
@@ -262,11 +262,11 @@ describe('Rep sees connected brand accounts (MBISR→BOA implicit)', () => {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MBISR admin/owner/member can view own orders for federated brands
-// (regression coverage for migration 20260418000005)
+// (regression coverage for migration 20260418000011)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Simulates the orders SELECT policy after 20260418000005:
+ * Simulates the orders SELECT policy after 20260418000011:
  *   own-org brand visibility OR (non-scoped role + brand from connected org).
  */
 function orderVisibleToOrgUser(
