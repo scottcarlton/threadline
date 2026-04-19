@@ -8,14 +8,16 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { inviteEmailSchema, type InviteEmailInput } from '$lib/schemas/invite-email.js';
+	import ShareLinkPicker from '$lib/components/connections/ShareLinkPicker.svelte';
 	import type { ConnectInvite } from '$lib/server/connections.js';
 
 	type Props = {
 		invite: ConnectInvite;
 		origin: string;
 		emailForm: SuperValidated<InviteEmailInput>;
+		defaultCommissionRate: number;
 	};
-	let { invite, origin, emailForm }: Props = $props();
+	let { invite, origin, emailForm, defaultCommissionRate }: Props = $props();
 
 	const inviteUrl = $derived(`${origin}/connect/${invite.code}`);
 
@@ -106,6 +108,7 @@
 	{/if}
 
 	<div class="flex flex-wrap items-center gap-2 pt-1">
+		<ShareLinkPicker {defaultCommissionRate} />
 		<Button variant="outline" size="sm" onclick={() => (emailOpen = true)}>Send by email</Button>
 		<Button variant="outline" size="sm" onclick={() => (confirmOpen = true)}>Refresh</Button>
 	</div>

@@ -57,6 +57,34 @@ export async function getOrCreateConnectInvite(
  * Rotates the connect invite's code in place. Invalidates the old code
  * immediately. Resets use_count and last_used_at.
  */
+/**
+ * Rotates the invite code and stamps a commission rate for one-time use.
+ * Called when a brand admin copies the connect link via the ShareLinkPicker.
+ * Sets max_uses = 1 so the link is single-use; resets use_count to 0.
+ */
+export async function shareConnectInvite(
+	supabase: SupabaseClient,
+	brandOrgId: string,
+	commissionRate: number
+): Promise<ConnectInvite & { commission_rate: number }> {
+	const rate = Math.max(0, Math.min(100, Number(commissionRate) || 0));
+	const { data, error } = await supabase
+		.from('connection_invites')
+		.update({
+			code: newCode(),
+			commission_rate: rate,
+			max_uses: 1,
+			use_count: 0,
+			last_used_at: null
+		})
+		.eq('brand_org_id', brandOrgId)
+		.select(`${COLUMNS}, commission_rate`)
+		.single();
+
+	if (error) throw error;
+	return data as ConnectInvite & { commission_rate: number };
+}
+
 export async function refreshConnectInvite(
 	supabase: SupabaseClient,
 	brandOrgId: string

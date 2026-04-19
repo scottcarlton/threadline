@@ -7,7 +7,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const { data: invite } = await supabaseAdmin
 		.from('connection_invites')
 		.select(
-			'id, code, expires_at, max_uses, use_count, auto_approve, organizations:brand_org_id(id, name, slug, logo_url)'
+			'id, code, expires_at, max_uses, use_count, auto_approve, commission_rate, organizations:brand_org_id(id, name, slug, logo_url)'
 		)
 		.eq('code', code)
 		.maybeSingle();
@@ -60,11 +60,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		}
 	}
 
+	const commissionRate = Number(invite?.commission_rate) || 0;
+
 	return {
 		code,
 		status,
 		brand,
 		autoApprove,
+		commissionRate,
 		canConnect,
 		isLoggedIn: Boolean(session),
 		orgType
