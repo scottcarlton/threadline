@@ -18,6 +18,9 @@
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
 	import { diffLineEdits, type DraftRowInput } from '$lib/utils/order-line-diff.js';
 	import { toast } from 'svelte-sonner';
+	import { enhance } from '$app/forms';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { acceptedPaymentMethods, paymentMethodLabel } from '$lib/payment-methods';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
 	// just marked the order viewed; status changes below also call this.
@@ -164,6 +167,19 @@
 	);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
 	const repName = $derived(data.repName as string | null);
+
+	const canEditPayment = $derived(canEdit && data.canEditOrder === true);
+	const paymentItems = $derived(
+		acceptedPaymentMethods(
+			(data.acceptedPaymentMethods ?? []) as string[],
+			order.payment_preference
+		).map((m) => ({ value: m.code, label: m.label }))
+	);
+	let paymentPrefForm: HTMLFormElement | null = $state(null);
+	let paymentPrefValue = $state('');
+	$effect(() => {
+		paymentPrefValue = order.payment_preference ?? '';
+	});
 
 	const statusLabels: Record<string, string> = {
 		draft: 'Draft',
@@ -1040,6 +1056,46 @@
 							</dd>
 						</div>
 					{/if}
+					<div>
+						<dt class="text-sm text-muted-foreground">Payment</dt>
+						<dd class="mt-0.5">
+							{#if canEditPayment && paymentItems.length > 0}
+								<form
+									bind:this={paymentPrefForm}
+									method="POST"
+									action="?/updatePaymentPreference"
+									use:enhance={() => {
+										return async ({ result, update }) => {
+											if (result.type === 'success') {
+												toast.success('Payment preference updated');
+											} else if (result.type === 'failure') {
+												const msg =
+													(result.data as { message?: string } | undefined)?.message ??
+													'Could not update payment preference.';
+												toast.error(msg);
+												paymentPrefValue = order.payment_preference ?? '';
+											}
+											await update();
+										};
+									}}
+								>
+									<input type="hidden" name="code" value={paymentPrefValue} />
+									<SelectField
+										bind:value={paymentPrefValue}
+										items={paymentItems}
+										placeholder="Not set"
+										class="min-w-[200px]"
+										onValueChange={(v) => {
+											paymentPrefValue = v;
+											queueMicrotask(() => paymentPrefForm?.requestSubmit());
+										}}
+									/>
+								</form>
+							{:else}
+								<span>{paymentMethodLabel(order.payment_preference)}</span>
+							{/if}
+						</dd>
+					</div>
 					{#if !isBrandOrg}
 						<div>
 							<dt class="text-sm text-muted-foreground">Brand</dt>

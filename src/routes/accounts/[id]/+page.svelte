@@ -16,6 +16,9 @@
 		CardContent,
 		CardFooter
 	} from '$lib/components/ui/card/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { acceptedPaymentMethods, paymentMethodLabel } from '$lib/payment-methods';
+	import { toast } from 'svelte-sonner';
 	import type { Account } from '$lib/types/database.js';
 	import type { AccountHealth } from '$lib/server/account-health.js';
 	import { entityContext } from '$lib/stores/entityContext.js';
@@ -284,6 +287,18 @@
 	let error = $state('');
 	let loading = $state(false);
 
+	const canEditAccount = $derived(data.canEditAccount === true && canEdit);
+	const paymentItems = $derived(
+		acceptedPaymentMethods(data.acceptedPaymentMethods ?? [], account.payment_preference).map(
+			(m) => ({ value: m.code, label: m.label })
+		)
+	);
+	let paymentPrefForm: HTMLFormElement | null = $state(null);
+	let paymentPrefValue = $state('');
+	$effect(() => {
+		paymentPrefValue = account.payment_preference ?? '';
+	});
+
 	function startEdit() {
 		businessName = account.business_name;
 		contactFirstName = account.contact_first_name ?? '';
@@ -505,6 +520,46 @@
 									<dt class="text-sm font-medium text-muted-foreground">Phone</dt>
 									<dd class="mt-1">{account.phone ?? '—'}</dd>
 								</div>
+							</div>
+							<div>
+								<dt class="text-sm font-medium text-muted-foreground">Payment preference</dt>
+								<dd class="mt-1">
+									{#if canEditAccount && paymentItems.length > 0}
+										<form
+											bind:this={paymentPrefForm}
+											method="POST"
+											action="?/updatePaymentPreference"
+											use:enhance={() => {
+												return async ({ result, update }) => {
+													if (result.type === 'success') {
+														toast.success('Payment preference updated');
+													} else if (result.type === 'failure') {
+														const msg =
+															(result.data as { message?: string } | undefined)?.message ??
+															'Could not update payment preference.';
+														toast.error(msg);
+														paymentPrefValue = account.payment_preference ?? '';
+													}
+													await update();
+												};
+											}}
+										>
+											<input type="hidden" name="code" value={paymentPrefValue} />
+											<SelectField
+												bind:value={paymentPrefValue}
+												items={paymentItems}
+												placeholder="Not set"
+												class="min-w-[240px]"
+												onValueChange={(v) => {
+													paymentPrefValue = v;
+													queueMicrotask(() => paymentPrefForm?.requestSubmit());
+												}}
+											/>
+										</form>
+									{:else}
+										<span>{paymentMethodLabel(account.payment_preference)}</span>
+									{/if}
+								</dd>
 							</div>
 							{#if account.notes}
 								<div>

@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { isPaymentMethodCode } from '$lib/payment-methods';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	depends('data:accounts');
@@ -216,6 +217,8 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 
 	activity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+	const canEditAccount = account.organization_id === organization.id;
+
 	return {
 		account,
 		brandSummaries,
@@ -227,7 +230,11 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		activity: activity.slice(0, 30),
 		tagAssignments: tagAssignmentsRes.data ?? [],
 		availableTags: availableTagsRes.data ?? [],
-		locations: locationsRes.data ?? []
+		locations: locationsRes.data ?? [],
+		canEditAccount,
+		acceptedPaymentMethods: canEditAccount
+			? ((organization.accepted_payment_methods ?? []) as string[])
+			: ([] as string[])
 	};
 };
 
@@ -377,6 +384,36 @@ export const actions: Actions = {
 			.eq('id', id)
 			.eq('account_id', params.id);
 		if (setErr) return fail(500, { message: setErr.message });
+		return { ok: true };
+	},
+
+	updatePaymentPreference: async ({ request, locals, params }) => {
+		const { organization, membership } = locals;
+		if (!organization) return fail(401, { message: 'Not authenticated' });
+		const role = membership?.role;
+		if (!['admin', 'owner', 'member', 'sales'].includes(role ?? '')) {
+			return fail(403, { message: 'You do not have permission to edit payment preference.' });
+		}
+
+		const fd = await request.formData();
+		const raw = (fd.get('code') ?? '').toString().trim();
+		const accepted = (organization.accepted_payment_methods ?? []) as string[];
+
+		let next: string | null = null;
+		if (raw) {
+			if (!isPaymentMethodCode(raw) || !accepted.includes(raw)) {
+				return fail(400, { message: 'That payment method is not accepted by your organization.' });
+			}
+			next = raw;
+		}
+
+		// Only the account's own org can edit.
+		const { error: updErr } = await supabaseAdmin
+			.from('accounts')
+			.update({ payment_preference: next, updated_at: new Date().toISOString() })
+			.eq('id', params.id)
+			.eq('organization_id', organization.id);
+		if (updErr) return fail(500, { message: updErr.message });
 		return { ok: true };
 	}
 };

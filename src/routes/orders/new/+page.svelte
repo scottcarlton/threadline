@@ -20,6 +20,8 @@
 		TooltipProvider,
 		TooltipTrigger
 	} from '$lib/components/ui/tooltip/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { acceptedPaymentMethods } from '$lib/payment-methods';
 
 	type Brand = { id: string; name: string };
 	type Season = { id: string; name: string; sort_order: number | null };
@@ -40,6 +42,7 @@
 		city: string | null;
 		state: string | null;
 		zip: string | null;
+		payment_preference: string | null;
 	};
 	type LocationRow = {
 		id: string;
@@ -81,6 +84,8 @@
 	const selfBrandId = $derived(data.selfBrandId ?? null);
 	const reps = $derived((data.reps ?? []) as Rep[]);
 	const currentUserId = $derived((data.currentUser?.id as string | undefined) ?? null);
+	const orgAcceptedMethods = $derived((data.acceptedPaymentMethods ?? []) as string[]);
+	const orgDefaultMethod = $derived((data.defaultPaymentMethod ?? null) as string | null);
 
 	const monthAbbrev = [
 		'Jan',
@@ -108,6 +113,8 @@
 		freeform_name: string | null;
 		order_year: number;
 		rep_user_id: string | null;
+		payment_preference: string;
+		payment_preference_touched: boolean;
 		freeformDetails: {
 			business_name: string;
 			contact_first_name: string;
@@ -128,6 +135,8 @@
 		freeform_name: null,
 		order_year: new Date().getFullYear(),
 		rep_user_id: null,
+		payment_preference: '',
+		payment_preference_touched: false,
 		freeformDetails: {
 			business_name: '',
 			contact_first_name: '',
@@ -525,6 +534,22 @@
 		}
 	});
 
+	// Seed payment_preference from the selected account (or the org default).
+	// Runs until the user explicitly picks one on the Finalize step.
+	$effect(() => {
+		if (cart.payment_preference_touched) return;
+		const acc = accounts.find((a) => a.id === cart.account_id);
+		const seeded = acc?.payment_preference ?? orgDefaultMethod ?? '';
+		cart.payment_preference = seeded;
+	});
+
+	const paymentMethodItems = $derived(
+		acceptedPaymentMethods(orgAcceptedMethods, cart.payment_preference || null).map((m) => ({
+			value: m.code,
+			label: m.label
+		}))
+	);
+
 	// Default the rep to the current user on mount.
 	$effect(() => {
 		if (cart.rep_user_id === null && currentUserId) {
@@ -668,6 +693,7 @@
 		freeformDetails: isFreeform && hasFreeformDetails ? cart.freeformDetails : undefined,
 		order_year: cart.order_year,
 		submitStatus,
+		payment_preference: cart.payment_preference || null,
 		lines: toCartLines(cart.items),
 		groups: groups.map((g) => ({
 			brand_id: g.brand_id,
@@ -1414,6 +1440,25 @@
 							<option value={r.user_id}>{r.name}</option>
 						{/each}
 					</select>
+				</div>
+			{/if}
+
+			<!-- Payment preference -->
+			{#if paymentMethodItems.length > 0}
+				<div class="rounded-lg border p-4">
+					<Label class="text-sm text-muted-foreground">Payment preference</Label>
+					<div class="mt-1">
+						<SelectField
+							bind:value={cart.payment_preference}
+							items={paymentMethodItems}
+							placeholder="Select a payment preference"
+							class="w-full"
+							onValueChange={() => (cart.payment_preference_touched = true)}
+						/>
+					</div>
+					<p class="mt-2 text-sm text-muted-foreground">
+						Pre-filled from the account. Changing it here only affects these orders.
+					</p>
 				</div>
 			{/if}
 

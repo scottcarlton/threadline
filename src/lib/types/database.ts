@@ -42,6 +42,8 @@ export interface Organization {
 	state: string | null;
 	zip: string | null;
 	country: string;
+	accepted_payment_methods: string[];
+	default_payment_method: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -110,6 +112,7 @@ export interface Account {
 	country: string;
 	notes: string | null;
 	territory_id: string | null;
+	payment_preference: string | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;
@@ -283,6 +286,7 @@ export interface Order {
 	cancelled_at: string | null;
 	cancelled_reason: string | null;
 	connection_id: string | null;
+	payment_preference: string | null;
 	created_at: string;
 	updated_at: string;
 	brands?: Brand;

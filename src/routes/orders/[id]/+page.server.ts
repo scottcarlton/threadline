@@ -1,7 +1,8 @@
-import { error } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+import { error, fail } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { logSupabaseError } from '$lib/server/log-supabase-error.js';
+import { isPaymentMethodCode } from '$lib/payment-methods';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	// Hook for invalidate('data:orders') after AI tool calls that touch orders
@@ -232,6 +233,8 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		}
 	}
 
+	const canEditOrder = !!organization && orderResult.data.organization_id === organization.id;
+
 	return {
 		order: orderResult.data,
 		lines: linesResult.data ?? [],
@@ -253,6 +256,41 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		})(),
 		comments,
 		audits,
-		federation
+		federation,
+		canEditOrder,
+		acceptedPaymentMethods: canEditOrder
+			? ((organization.accepted_payment_methods ?? []) as string[])
+			: ([] as string[])
 	};
+};
+
+export const actions: Actions = {
+	updatePaymentPreference: async ({ request, locals, params }) => {
+		const { organization, membership } = locals;
+		if (!organization) return fail(401, { message: 'Not authenticated' });
+		const role = membership?.role;
+		if (!['admin', 'owner', 'member', 'sales'].includes(role ?? '')) {
+			return fail(403, { message: 'You do not have permission to edit payment preference.' });
+		}
+
+		const fd = await request.formData();
+		const raw = (fd.get('code') ?? '').toString().trim();
+		const accepted = (organization.accepted_payment_methods ?? []) as string[];
+
+		let next: string | null = null;
+		if (raw) {
+			if (!isPaymentMethodCode(raw) || !accepted.includes(raw)) {
+				return fail(400, { message: 'That payment method is not accepted by your organization.' });
+			}
+			next = raw;
+		}
+
+		const { error: updErr } = await supabaseAdmin
+			.from('orders')
+			.update({ payment_preference: next, updated_at: new Date().toISOString() })
+			.eq('id', params.id)
+			.eq('organization_id', organization.id);
+		if (updErr) return fail(500, { message: updErr.message });
+		return { ok: true };
+	}
 };
