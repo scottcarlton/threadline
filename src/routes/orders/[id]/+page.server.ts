@@ -2,7 +2,11 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 
-export const load: PageServerLoad = async ({ locals, params }) => {
+export const load: PageServerLoad = async ({ locals, params, depends }) => {
+	// Hook for invalidate('data:orders') after AI tool calls that touch orders
+	// or order lines — keeps the detail page in sync without a manual refresh.
+	depends('data:orders');
+
 	const { supabase, organization, orgType } = locals;
 
 	const [orderResult, linesResult] = await Promise.all([

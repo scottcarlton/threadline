@@ -1,7 +1,8 @@
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, depends }) => {
+	depends('data:expenses');
 	const { organization, orgType } = locals;
 
 	const emptyReturn = {
