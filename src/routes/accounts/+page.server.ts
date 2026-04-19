@@ -5,7 +5,8 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 
 const PAGE_SIZE = 50;
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, depends }) => {
+	depends('data:accounts');
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
 	const { organization } = locals;
 	if (!organization)
@@ -55,7 +56,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.select('account_id, total_amount')
 			.eq('organization_id', organization.id)
 			.eq('order_year', currentYear),
-		computeAccountHealth(supabaseAdmin, organization.id),
+		// Health across every org the viewer can see accounts for — so federated
+		// accounts show a score too, computed against their own org's orders.
+		computeAccountHealth(supabaseAdmin, visibleOrgIds),
 		supabaseAdmin
 			.from('account_tag_assignments')
 			.select('account_id, account_tags(id, name, color)')

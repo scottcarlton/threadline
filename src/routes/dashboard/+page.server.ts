@@ -1,7 +1,8 @@
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, depends }) => {
+	depends('data:dashboard');
 	const { supabase } = locals;
 
 	// Dashboard is buyer-only — redirect non-buyers to /insight

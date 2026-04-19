@@ -6,7 +6,13 @@ import { incrementDate } from '$lib/utils/date-presets.js';
 
 const PAGE_SIZE = 50;
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, depends }) => {
+	// Hook for the AI conversation store's invalidate('data:orders') after
+	// create_order / update_order / add_order_lines etc. — keeps the list
+	// view in sync with Stitch's tool calls without a manual refresh.
+	depends('data:orders');
+	depends('data:dashboard');
+
 	const { supabase, organization, orgType } = locals;
 
 	const status = url.searchParams.get('status');

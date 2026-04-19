@@ -1,6 +1,7 @@
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, depends }) => {
+	depends('data:shows');
 	const { supabase, organization } = locals;
 	if (!organization) return { shows: [] };
 

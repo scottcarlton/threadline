@@ -2,7 +2,9 @@ import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 
-export const load: PageServerLoad = async ({ locals, params }) => {
+export const load: PageServerLoad = async ({ locals, params, depends }) => {
+	depends('data:brands');
+	depends('data:products');
 	if (locals.isBuyer) throw redirect(303, '/shop');
 	const { supabase, organization } = locals;
 	if (!organization) throw error(404, 'Organization not found');
