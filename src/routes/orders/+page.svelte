@@ -78,6 +78,7 @@
 			pipelineValue: number;
 			pipelineCount: number;
 			deliveredRevenue: number;
+			shippedCount: number;
 			avgOrderValue: number;
 			needsAttention: { staleDrafts: number; overdueShipments: number; total: number };
 			conversion: { submitted: number; converted: number; rate: number };
@@ -127,12 +128,16 @@
 	// Debounced server-side search
 	const debouncedSearch = debounce((value: string) => {
 		setFilter('search', value);
-	}, 300);
+	}, 500);
 
 	function onSearchInput(e: Event) {
 		const value = (e.target as HTMLInputElement).value;
 		search = value;
-		debouncedSearch(value);
+		// Don't fire server search for a single character — too noisy and
+		// matches too much. Empty string clears the filter.
+		if (value.length === 0 || value.length >= 2) {
+			debouncedSearch(value);
+		}
 	}
 
 	// Infinite scroll — load more orders
@@ -382,7 +387,11 @@
 		} else {
 			params.set(key, value);
 		}
-		goto(resolve(`/orders?${params.toString()}`), { replaceState: true });
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	function setDateRange(from: string | null, to: string | null) {
@@ -392,7 +401,11 @@
 		else params.delete('from');
 		if (to) params.set('to', to);
 		else params.delete('to');
-		goto(resolve(`/orders?${params.toString()}`), { replaceState: true });
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	function onDatePresetChange(presetId: DatePresetId) {
@@ -415,10 +428,9 @@
 <div class="space-y-6">
 	<PageHeader
 		title="Orders"
-		subtitle="{data.totalCount ?? orderList.length} order{(data.totalCount ?? orderList.length) !==
-		1
-			? 's'
-			: ''}"
+		subtitle="{data.totalCount ?? orderList.length} {activeType === 'note'
+			? 'Note'
+			: 'Order'}{(data.totalCount ?? orderList.length) !== 1 ? 's' : ''}"
 	>
 		{#if filtered.length > 0 && canExport}
 			<Button variant="outline" onclick={exportOrders}>Export CSV</Button>
@@ -466,7 +478,7 @@
 				<p class="font-mono text-sm font-medium text-muted-foreground">Pipeline Value</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.pipelineValue)}</p>
 				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
-					{metrics.pipelineCount} open order{metrics.pipelineCount !== 1 ? 's' : ''}
+					{fmt.format(metrics.avgOrderValue)} avg order
 				</p>
 			</CardContent>
 		</Card>
@@ -476,7 +488,7 @@
 				<p class="font-mono text-sm font-medium text-muted-foreground">Delivered Revenue</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.deliveredRevenue)}</p>
 				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
-					{fmt.format(metrics.avgOrderValue)} avg order
+					{metrics.shippedCount} order{metrics.shippedCount !== 1 ? 's' : ''} shipped
 				</p>
 			</CardContent>
 		</Card>
@@ -572,13 +584,15 @@
 				oninput={onSearchInput}
 				class="w-64"
 			/>
-			<SelectField
-				value={activeStatus}
-				items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
-				placeholder="Status"
-				class="min-w-[120px]"
-				onValueChange={(v) => setFilter('status', v)}
-			/>
+			{#if activeType !== 'note'}
+				<SelectField
+					value={activeStatus}
+					items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+					placeholder="Status"
+					class="min-w-[120px]"
+					onValueChange={(v) => setFilter('status', v)}
+				/>
+			{/if}
 			{#if showDates.length > 0}
 				<SelectField
 					value={$page.url.searchParams.get('show') ?? ''}
@@ -715,6 +729,12 @@
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
 							>{isBrandOrg ? 'Rep' : 'Source'}</th
 						>
+						{#if isBrandOrg}
+							<th
+								class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
+								>Source</th
+							>
+						{/if}
 						<th
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase md:table-cell"
 							>Created</th
@@ -803,7 +823,7 @@
 							</td>
 							<td class="px-4 py-3 text-center">
 								{#if order.order_type === 'note'}
-									<span class="text-sm text-muted-foreground">—</span>
+									<span class="text-sm font-medium text-muted-foreground">Note</span>
 								{:else}
 									<span
 										class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {statusBadgeColors[
@@ -822,10 +842,9 @@
 							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
 								{#if isBrandOrg}
-									{@const repOrgName =
-										order.source_org?.name ?? order.profiles?.display_name ?? '—'}
-									<span class="text-sm {repOrgName === '—' ? 'text-muted-foreground/50' : ''}"
-										>{repOrgName}</span
+									{@const repName = order.profiles?.display_name ?? order.source_org?.name ?? '—'}
+									<span class="text-sm {repName === '—' ? 'text-muted-foreground/50' : ''}"
+										>{repName}</span
 									>
 								{:else}
 									<span class="text-sm {sourceName ? '' : 'text-muted-foreground/50'}"
@@ -854,6 +873,34 @@
 									</p>
 								{/if}
 							</td>
+							{#if isBrandOrg}
+								<td class="hidden px-4 py-3 md:table-cell">
+									<span class="text-sm {sourceName ? '' : 'text-muted-foreground/50'}"
+										>{sourceName ?? '—'}</span
+									>
+									{#if showDate}
+										<p class="mt-0.5 text-sm text-muted-foreground">
+											<span
+												class="mr-1 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-sm font-medium"
+												>{[
+													'Jan',
+													'Feb',
+													'Mar',
+													'Apr',
+													'May',
+													'Jun',
+													'Jul',
+													'Aug',
+													'Sep',
+													'Oct',
+													'Nov',
+													'Dec'
+												][(showDate.month ?? 1) - 1]}</span
+											>{#if sourceLocation}<span class="font-mono">{sourceLocation}</span>{/if}
+										</p>
+									{/if}
+								</td>
+							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
 								<span class="text-sm {repName === '—' ? 'text-muted-foreground/50' : ''}"
 									>{repName}</span

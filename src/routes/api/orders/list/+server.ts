@@ -59,7 +59,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 		// Search on direct orders
 		if (search) {
-			const resolved = await resolveOrderSearch(supabaseAdmin, search, [organization.id]);
+			const resolved = await resolveOrderSearch(supabaseAdmin, search);
 			directQuery = applyOrderSearch(directQuery, search, resolved.accountIds, resolved.brandIds);
 		}
 
@@ -181,7 +181,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	if (toExclusive) query = query.lt('created_at', toExclusive);
 
 	if (search) {
-		const resolved = await resolveOrderSearch(supabaseAdmin, search, [organization.id]);
+		const resolved = await resolveOrderSearch(supabaseAdmin, search);
 		query = applyOrderSearch(query, search, resolved.accountIds, resolved.brandIds);
 	}
 
