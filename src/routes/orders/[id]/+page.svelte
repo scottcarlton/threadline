@@ -1380,7 +1380,11 @@
 										<td class="px-3 py-3">
 											<div class="font-mono text-sm">{draft.style_number}</div>
 											<div class="text-sm font-medium">{draft.name}</div>
-											{#if draft.season_label}
+											{#if !isBrandOrg && order.brands?.name}
+												<div class="text-sm text-muted-foreground">
+													{order.brands.name}{draft.season_label ? ` · ${draft.season_label}` : ''}
+												</div>
+											{:else if draft.season_label}
 												<div class="text-sm text-muted-foreground">{draft.season_label}</div>
 											{/if}
 										</td>
@@ -1548,7 +1552,11 @@
 										<td class="px-3 py-3">
 											<div class="font-mono text-sm">{row.style_number}</div>
 											<div class="text-sm font-medium">{row.name}</div>
-											{#if row.season_label}
+											{#if !isBrandOrg && order.brands?.name}
+												<div class="text-sm text-muted-foreground">
+													{order.brands.name}{row.season_label ? ` · ${row.season_label}` : ''}
+												</div>
+											{:else if row.season_label}
 												<div class="text-sm text-muted-foreground">{row.season_label}</div>
 											{/if}
 										</td>
