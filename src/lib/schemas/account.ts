@@ -51,6 +51,7 @@ export const createAccountSchema = z.object({
 		email: optEmail,
 		phone: optPhone
 	}),
+	paymentPreference: z.string().trim().max(64).default(''),
 	notes: optLongString
 });
 

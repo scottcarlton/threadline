@@ -3,12 +3,21 @@ import { fail } from '@sveltejs/kit';
 import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { createAccountSchema } from '$lib/schemas/account';
+import { isPaymentMethodCode } from '$lib/payment-methods';
 
 type SuccessMessage = { type: 'success'; accountId: string; inviteFailed: boolean };
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const form = await superValidate(zod4(createAccountSchema));
-	return { form };
+	const org = locals.organization;
+	if (org?.default_payment_method && isPaymentMethodCode(org.default_payment_method)) {
+		form.data.paymentPreference = org.default_payment_method;
+	}
+	return {
+		form,
+		acceptedPaymentMethods: (org?.accepted_payment_methods ?? []) as string[],
+		defaultPaymentMethod: (org?.default_payment_method ?? null) as string | null
+	};
 };
 
 export const actions: Actions = {
@@ -23,10 +32,17 @@ export const actions: Actions = {
 			return fail(403, { form, message: 'No organization context.' });
 		}
 
-		const { business, contact, notes } = form.data;
+		const { business, contact, notes, paymentPreference } = form.data;
 		const orgId = locals.organization.id;
 
 		const nn = (v: string | undefined) => (v && v.length ? v : null);
+
+		const accepted = (locals.organization.accepted_payment_methods ?? []) as string[];
+		const orgDefault = locals.organization.default_payment_method ?? null;
+		const picked = paymentPreference?.trim() ?? '';
+		const validPick =
+			picked && isPaymentMethodCode(picked) && accepted.includes(picked) ? picked : null;
+		const paymentPrefValue = validPick ?? (accepted.includes(orgDefault ?? '') ? orgDefault : null);
 
 		const { data: newAccount, error: insertErr } = await locals.supabase
 			.from('accounts')
@@ -44,7 +60,8 @@ export const actions: Actions = {
 				contact_last_name: contact.lastName,
 				contact_email: nn(contact.email),
 				contact_phone: nn(contact.phone),
-				notes: nn(notes)
+				notes: nn(notes),
+				payment_preference: paymentPrefValue
 			})
 			.select('id')
 			.single();

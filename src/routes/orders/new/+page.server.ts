@@ -12,6 +12,7 @@ import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import { notifyBrandAdmins } from '$lib/server/notifications.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { isPaymentMethodCode } from '$lib/payment-methods';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { organization, user } = locals;
@@ -27,7 +28,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			currentUser: null,
 			isBuyer: locals.isBuyer ?? false,
 			isBrandOrg: false,
-			selfBrandId: null as string | null
+			selfBrandId: null as string | null,
+			acceptedPaymentMethods: [] as string[],
+			defaultPaymentMethod: null as string | null
 		};
 	}
 
@@ -54,7 +57,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				let q = supabaseAdmin
 					.from('accounts')
 					.select(
-						'id, business_name, contact_email, address_line1, address_line2, city, state, zip'
+						'id, business_name, contact_email, address_line1, address_line2, city, state, zip, payment_preference'
 					);
 				if (buyerAccountIds)
 					q = q.in('id', buyerAccountIds.length ? buyerAccountIds : ['__none__']);
@@ -123,7 +126,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		currentUser: user ? { id: user.id } : null,
 		isBuyer,
 		isBrandOrg,
-		selfBrandId
+		selfBrandId,
+		acceptedPaymentMethods: (organization.accepted_payment_methods ?? []) as string[],
+		defaultPaymentMethod: (organization.default_payment_method ?? null) as string | null
 	};
 };
 
@@ -146,6 +151,7 @@ type SubmitPayload = {
 	freeformDetails?: FreeformDetails;
 	order_year: number | null;
 	submitStatus: OrderStatus; // 'draft' | 'submitted'
+	payment_preference: string | null;
 	lines: CartLine[];
 	groups: Array<{
 		brand_id: string;
@@ -261,6 +267,11 @@ export const actions: Actions = {
 
 		const createdIds: string[] = [];
 
+		const acceptedMethods = (organization.accepted_payment_methods ?? []) as string[];
+		const rawPref = (payload.payment_preference ?? '').toString().trim();
+		const paymentPrefValue =
+			rawPref && isPaymentMethodCode(rawPref) && acceptedMethods.includes(rawPref) ? rawPref : null;
+
 		for (const o of newOrders) {
 			const { data: orderRow, error: orderErr } = await supabase
 				.from('orders')
@@ -278,6 +289,7 @@ export const actions: Actions = {
 					start_ship_date: o.start_ship_date,
 					status: o.status,
 					total_amount: o.total_amount,
+					payment_preference: paymentPrefValue,
 					created_by: user.id,
 					submitted_at: o.status === 'submitted' ? new Date().toISOString() : null
 				})
