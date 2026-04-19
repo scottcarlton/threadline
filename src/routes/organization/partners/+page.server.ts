@@ -31,12 +31,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		superValidate(zod4(inviteEmailSchema))
 	]);
 
+	// Fetch the brand's default commission rate for the share picker
+	const defaultCommissionRate =
+		(organization as { default_commission_rate?: number }).default_commission_rate ?? 10;
+
 	return {
 		connectInvite,
 		inviteEmailForm,
 		origin: url.origin,
 		isAdmin,
-		connectedReps
+		connectedReps,
+		defaultCommissionRate
 	};
 };
 

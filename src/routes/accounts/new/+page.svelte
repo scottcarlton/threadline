@@ -7,6 +7,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
 	import {
 		Card,
 		CardHeader,
@@ -15,6 +16,7 @@
 		CardFooter
 	} from '$lib/components/ui/card/index.js';
 	import { createAccountSchema } from '$lib/schemas/account';
+	import { acceptedPaymentMethods } from '$lib/payment-methods';
 	import { formatPhone } from '$lib/utils/phone';
 
 	let { data } = $props();
@@ -53,6 +55,13 @@
 		{ n: 2, label: 'Contact' },
 		{ n: 3, label: 'Notes' }
 	] as const;
+
+	const paymentMethodItems = $derived(
+		acceptedPaymentMethods(data.acceptedPaymentMethods).map((m) => ({
+			value: m.code,
+			label: m.label
+		}))
+	);
 
 	function blankLocation() {
 		return {
@@ -372,6 +381,20 @@
 						{/if}
 					</div>
 				{:else}
+					{#if paymentMethodItems.length > 0}
+						<div class="space-y-2">
+							<Label for="payment-preference">Payment preference</Label>
+							<SelectField
+								bind:value={$form.paymentPreference}
+								items={paymentMethodItems}
+								placeholder="Select a payment preference"
+								class="w-full"
+							/>
+							<p class="text-sm text-muted-foreground">
+								Pre-filled from your organization default. Changeable per order.
+							</p>
+						</div>
+					{/if}
 					<div class="space-y-2">
 						<Label for="notes">Notes</Label>
 						<textarea

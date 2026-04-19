@@ -12,6 +12,16 @@
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
 	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
+	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
+	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
+	import {
+		Tooltip,
+		TooltipContent,
+		TooltipProvider,
+		TooltipTrigger
+	} from '$lib/components/ui/tooltip/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { acceptedPaymentMethods } from '$lib/payment-methods';
 
 	type Brand = { id: string; name: string };
 	type Season = { id: string; name: string; sort_order: number | null };
@@ -32,6 +42,7 @@
 		city: string | null;
 		state: string | null;
 		zip: string | null;
+		payment_preference: string | null;
 	};
 	type LocationRow = {
 		id: string;
@@ -73,6 +84,8 @@
 	const selfBrandId = $derived(data.selfBrandId ?? null);
 	const reps = $derived((data.reps ?? []) as Rep[]);
 	const currentUserId = $derived((data.currentUser?.id as string | undefined) ?? null);
+	const orgAcceptedMethods = $derived((data.acceptedPaymentMethods ?? []) as string[]);
+	const orgDefaultMethod = $derived((data.defaultPaymentMethod ?? null) as string | null);
 
 	const monthAbbrev = [
 		'Jan',
@@ -100,6 +113,8 @@
 		freeform_name: string | null;
 		order_year: number;
 		rep_user_id: string | null;
+		payment_preference: string;
+		payment_preference_touched: boolean;
 		freeformDetails: {
 			business_name: string;
 			contact_first_name: string;
@@ -120,6 +135,8 @@
 		freeform_name: null,
 		order_year: new Date().getFullYear(),
 		rep_user_id: null,
+		payment_preference: '',
+		payment_preference_touched: false,
 		freeformDetails: {
 			business_name: '',
 			contact_first_name: '',
@@ -517,6 +534,22 @@
 		}
 	});
 
+	// Seed payment_preference from the selected account (or the org default).
+	// Runs until the user explicitly picks one on the Finalize step.
+	$effect(() => {
+		if (cart.payment_preference_touched) return;
+		const acc = accounts.find((a) => a.id === cart.account_id);
+		const seeded = acc?.payment_preference ?? orgDefaultMethod ?? '';
+		cart.payment_preference = seeded;
+	});
+
+	const paymentMethodItems = $derived(
+		acceptedPaymentMethods(orgAcceptedMethods, cart.payment_preference || null).map((m) => ({
+			value: m.code,
+			label: m.label
+		}))
+	);
+
 	// Default the rep to the current user on mount.
 	$effect(() => {
 		if (cart.rep_user_id === null && currentUserId) {
@@ -660,6 +693,7 @@
 		freeformDetails: isFreeform && hasFreeformDetails ? cart.freeformDetails : undefined,
 		order_year: cart.order_year,
 		submitStatus,
+		payment_preference: cart.payment_preference || null,
 		lines: toCartLines(cart.items),
 		groups: groups.map((g) => ({
 			brand_id: g.brand_id,
@@ -782,109 +816,170 @@
 			{:else}
 				<div class="space-y-3">
 					{#each cart.items as it, idx (it.product_id)}
+						{@const rowUnits = itemUnits(it)}
+						{@const rowTotal = itemTotal(it)}
 						<div class="group/item rounded-lg border p-4">
-							<div class="flex items-start gap-3">
-								<div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
+							<div class="flex items-start gap-4">
+								<div class="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
 									{#if it.image_id}
 										<img
 											src={`/api/products/${it.product_id}/images/${it.image_id}`}
 											alt=""
 											class="h-full w-full object-cover"
 										/>
+									{:else}
+										<div
+											class="flex h-full w-full items-center justify-center text-muted-foreground/40"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.5"
+												class="h-6 w-6"
+											>
+												<rect x="3" y="3" width="18" height="18" rx="2" />
+												<circle cx="8.5" cy="8.5" r="1.5" />
+												<path d="M21 15l-5-5L5 21" />
+											</svg>
+										</div>
 									{/if}
 								</div>
+
 								<div class="min-w-0 flex-1">
-									<div class="text-sm text-muted-foreground">{it.style_number}</div>
-									<div class="truncate text-base font-semibold">{it.name}</div>
+									<div class="font-mono text-sm">{it.style_number}</div>
+									<div class="text-sm font-medium">{it.name}</div>
 									<div class="text-sm text-muted-foreground">
-										{fmt.format(it.unit_price)} · {brandName(it.brand_id)} · {seasonLabel(
-											it.season_id,
-											it.product_year
-										)}
+										{brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
 									</div>
 								</div>
-								<div class="shrink-0 text-right">
-									<div class="text-sm font-semibold">
-										{itemUnits(it)} unit{itemUnits(it) === 1 ? '' : 's'}
-									</div>
-									<div class="text-sm text-muted-foreground">{fmt.format(itemTotal(it))}</div>
-								</div>
-							</div>
 
-							{#if it.available_colors.length > 0}
-								<div class="mt-3 flex flex-wrap items-center gap-2">
-									<span class="text-sm text-muted-foreground">Color:</span>
-									{#each it.available_colors as color (color)}
-										<button
-											type="button"
-											class="rounded-full px-3 py-1 text-sm font-medium transition {it.selected_color ===
-											color
-												? 'bg-foreground text-background'
-												: 'bg-muted text-muted-foreground hover:text-foreground'}"
-											onclick={() => (cart.items[idx].selected_color = color)}
-										>
-											{color}
-										</button>
-									{/each}
+								<div class="shrink-0 self-center">
+									{#if it.available_colors.length > 1}
+										<ColorSwatchPicker
+											value={it.selected_color || null}
+											options={it.available_colors}
+											onChange={(c) => (cart.items[idx].selected_color = c ?? '')}
+										/>
+									{:else}
+										<div class="flex items-center justify-center gap-2 text-sm">
+											<ColorSwatch color={it.selected_color || null} size={28} />
+											{#if it.selected_color}
+												<span>{it.selected_color}</span>
+											{/if}
+										</div>
+									{/if}
 								</div>
-							{/if}
 
-							{#if it.available_sizes.length > 0}
-								<div class="mt-3 flex flex-wrap items-end gap-2">
-									{#each it.available_sizes as size (size)}
-										<div class="flex flex-col items-center gap-1">
-											<span class="text-sm text-muted-foreground">{size}</span>
+								<div class="shrink-0">
+									{#if it.available_sizes.length > 0}
+										<div class="flex flex-wrap items-end gap-2">
+											{#each it.available_sizes as size (size)}
+												<label class="flex flex-col items-center gap-1">
+													<span class="text-sm text-muted-foreground">{size}</span>
+													<input
+														type="number"
+														min="0"
+														class="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm"
+														value={it.size_qtys[size] ?? 0}
+														oninput={(e) => {
+															const n = parseInt((e.target as HTMLInputElement).value, 10);
+															cart.items[idx].size_qtys[size] = Number.isNaN(n)
+																? 0
+																: Math.max(0, n);
+														}}
+													/>
+												</label>
+											{/each}
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger>
+														<button
+															type="button"
+															aria-label="Fill all sizes"
+															class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-40"
+															disabled={rowUnits === 0}
+															onclick={() => autoSize(idx)}
+														>
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="none"
+																stroke="currentColor"
+																stroke-width="1.75"
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																class="h-4 w-4"
+															>
+																<path d="M3 6h13" />
+																<path d="M3 12h13" />
+																<path d="M3 18h13" />
+																<path d="M19 9l3 3-3 3" />
+															</svg>
+														</button>
+													</TooltipTrigger>
+													<TooltipContent>
+														Apply this row's first non-zero qty to every size
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</div>
+									{:else}
+										<label class="flex flex-col items-center gap-1">
+											<span class="text-sm text-muted-foreground">Qty</span>
 											<input
 												type="number"
 												min="0"
-												class="h-9 w-16 rounded border bg-background px-2 text-center text-sm"
-												value={it.size_qtys[size] ?? 0}
+												class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center text-sm"
+												value={it.size_qtys[''] ?? 0}
 												oninput={(e) => {
 													const n = parseInt((e.target as HTMLInputElement).value, 10);
-													cart.items[idx].size_qtys[size] = Number.isNaN(n) ? 0 : Math.max(0, n);
+													cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
 												}}
 											/>
-										</div>
-									{/each}
+										</label>
+									{/if}
+								</div>
+
+								<div class="shrink-0 pt-[1.5rem] text-right font-mono text-sm">
+									{fmt.format(it.unit_price)}
+								</div>
+
+								<div class="shrink-0 pt-[1.5rem] text-right font-mono text-sm font-medium">
+									<div>{fmt.format(rowTotal)}</div>
+									<div class="text-sm font-normal text-muted-foreground">
+										{rowUnits}
+										{rowUnits === 1 ? 'unit' : 'units'}
+									</div>
+								</div>
+
+								<div class="shrink-0 pt-[1.5rem]">
 									<button
 										type="button"
-										class="h-9 pl-2 text-sm underline hover:no-underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
-										disabled={itemUnits(it) === 0}
-										onclick={() => autoSize(idx)}
-										title="Apply the first non-zero size quantity to every size"
-									>
-										Auto size
-									</button>
-									<button
-										type="button"
-										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 hover:bg-red-500/10 focus-visible:opacity-100"
+										aria-label="Remove item"
+										class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100"
 										onclick={() => removeProduct(it.product_id)}
 									>
-										Remove
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.75"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											class="h-4 w-4"
+										>
+											<path d="M3 6h18" />
+											<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+											<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+											<path d="M10 11v6" />
+											<path d="M14 11v6" />
+										</svg>
 									</button>
 								</div>
-							{:else}
-								<div class="mt-3 flex items-center gap-2">
-									<span class="text-sm text-muted-foreground">Qty:</span>
-									<input
-										type="number"
-										min="0"
-										class="h-9 w-20 rounded border bg-background px-2 text-center text-sm"
-										value={it.size_qtys[''] ?? 0}
-										oninput={(e) => {
-											const n = parseInt((e.target as HTMLInputElement).value, 10);
-											cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
-										}}
-									/>
-									<button
-										type="button"
-										class="ml-auto inline-flex h-9 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 opacity-0 transition-all group-hover/item:opacity-100 hover:bg-red-500/10 focus-visible:opacity-100"
-										onclick={() => removeProduct(it.product_id)}
-									>
-										Remove
-									</button>
-								</div>
-							{/if}
+							</div>
 						</div>
 					{/each}
 				</div>
@@ -1149,19 +1244,21 @@
 									</button>
 								</li>
 							{/each}
-							<li>
-								<button
-									type="button"
-									class="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-normal text-foreground hover:bg-muted/50"
-									onclick={useFreeform}
-								>
-									<span class="flex items-center gap-2">
-										<span aria-hidden="true">+</span>
-										<span>Add "{accountQuery.trim()}" as new account</span>
-									</span>
-									<span class="text-muted-foreground">New Account</span>
-								</button>
-							</li>
+							{#if accountQuery.trim().length >= 2}
+								<li>
+									<button
+										type="button"
+										class="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-normal text-foreground hover:bg-muted/50"
+										onclick={useFreeform}
+									>
+										<span class="flex items-center gap-2">
+											<span aria-hidden="true">+</span>
+											<span>Add "{accountQuery.trim()}" as new account</span>
+										</span>
+										<span class="text-muted-foreground">New Account</span>
+									</button>
+								</li>
+							{/if}
 						</ul>
 					</div>
 				{/if}
@@ -1343,6 +1440,25 @@
 							<option value={r.user_id}>{r.name}</option>
 						{/each}
 					</select>
+				</div>
+			{/if}
+
+			<!-- Payment preference -->
+			{#if paymentMethodItems.length > 0}
+				<div class="rounded-lg border p-4">
+					<Label class="text-sm text-muted-foreground">Payment preference</Label>
+					<div class="mt-1">
+						<SelectField
+							bind:value={cart.payment_preference}
+							items={paymentMethodItems}
+							placeholder="Select a payment preference"
+							class="w-full"
+							onValueChange={() => (cart.payment_preference_touched = true)}
+						/>
+					</div>
+					<p class="mt-2 text-sm text-muted-foreground">
+						Pre-filled from the account. Changing it here only affects these orders.
+					</p>
 				</div>
 			{/if}
 

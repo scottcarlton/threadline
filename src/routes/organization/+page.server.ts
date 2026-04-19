@@ -30,7 +30,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 					address_line2: organization.address_line2,
 					city: organization.city,
 					state: organization.state,
-					zip: organization.zip
+					zip: organization.zip,
+					default_commission_rate:
+						(organization as { default_commission_rate?: number }).default_commission_rate ?? 10,
+					accepted_payment_methods: organization.accepted_payment_methods ?? [],
+					default_payment_method: organization.default_payment_method ?? null
 				}
 			: null,
 		orgType,

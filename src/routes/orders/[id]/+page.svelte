@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto, invalidate, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase.js';
@@ -18,6 +18,9 @@
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
 	import { diffLineEdits, type DraftRowInput } from '$lib/utils/order-line-diff.js';
 	import { toast } from 'svelte-sonner';
+	import { enhance } from '$app/forms';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { acceptedPaymentMethods, paymentMethodLabel } from '$lib/payment-methods';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
 	// just marked the order viewed; status changes below also call this.
@@ -164,6 +167,19 @@
 	);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
 	const repName = $derived(data.repName as string | null);
+
+	const canEditPayment = $derived(canEdit && data.canEditOrder === true);
+	const paymentItems = $derived(
+		acceptedPaymentMethods(
+			(data.acceptedPaymentMethods ?? []) as string[],
+			order.payment_preference
+		).map((m) => ({ value: m.code, label: m.label }))
+	);
+	let paymentPrefForm: HTMLFormElement | null = $state(null);
+	let paymentPrefValue = $state('');
+	$effect(() => {
+		paymentPrefValue = order.payment_preference ?? '';
+	});
 
 	const statusLabels: Record<string, string> = {
 		draft: 'Draft',
@@ -749,6 +765,32 @@
 		await invalidateAll();
 	}
 
+	// Realtime: re-run the page loader whenever a comment on this order changes
+	// (insert/update/delete from rep or brand side). RLS on order_comments still
+	// gates which subscribers receive each event.
+	$effect(() => {
+		const orderId = order?.id;
+		if (!orderId) return;
+		const channel = supabase
+			.channel(`order-comments:${orderId}`)
+			.on(
+				'postgres_changes',
+				{
+					event: '*',
+					schema: 'public',
+					table: 'order_comments',
+					filter: `order_id=eq.${orderId}`
+				},
+				() => {
+					invalidate('data:orders');
+				}
+			)
+			.subscribe();
+		return () => {
+			supabase.removeChannel(channel);
+		};
+	});
+
 	// Clone order
 	let cloning = $state(false);
 
@@ -1014,6 +1056,46 @@
 							</dd>
 						</div>
 					{/if}
+					<div>
+						<dt class="text-sm text-muted-foreground">Payment</dt>
+						<dd class="mt-0.5">
+							{#if canEditPayment && paymentItems.length > 0}
+								<form
+									bind:this={paymentPrefForm}
+									method="POST"
+									action="?/updatePaymentPreference"
+									use:enhance={() => {
+										return async ({ result, update }) => {
+											if (result.type === 'success') {
+												toast.success('Payment preference updated');
+											} else if (result.type === 'failure') {
+												const msg =
+													(result.data as { message?: string } | undefined)?.message ??
+													'Could not update payment preference.';
+												toast.error(msg);
+												paymentPrefValue = order.payment_preference ?? '';
+											}
+											await update();
+										};
+									}}
+								>
+									<input type="hidden" name="code" value={paymentPrefValue} />
+									<SelectField
+										bind:value={paymentPrefValue}
+										items={paymentItems}
+										placeholder="Not set"
+										class="min-w-[200px]"
+										onValueChange={(v) => {
+											paymentPrefValue = v;
+											queueMicrotask(() => paymentPrefForm?.requestSubmit());
+										}}
+									/>
+								</form>
+							{:else}
+								<span>{paymentMethodLabel(order.payment_preference)}</span>
+							{/if}
+						</dd>
+					</div>
 					{#if !isBrandOrg}
 						<div>
 							<dt class="text-sm text-muted-foreground">Brand</dt>
@@ -1380,7 +1462,11 @@
 										<td class="px-3 py-3">
 											<div class="font-mono text-sm">{draft.style_number}</div>
 											<div class="text-sm font-medium">{draft.name}</div>
-											{#if draft.season_label}
+											{#if !isBrandOrg && order.brands?.name}
+												<div class="text-sm text-muted-foreground">
+													{order.brands.name}{draft.season_label ? ` · ${draft.season_label}` : ''}
+												</div>
+											{:else if draft.season_label}
 												<div class="text-sm text-muted-foreground">{draft.season_label}</div>
 											{/if}
 										</td>
@@ -1548,7 +1634,11 @@
 										<td class="px-3 py-3">
 											<div class="font-mono text-sm">{row.style_number}</div>
 											<div class="text-sm font-medium">{row.name}</div>
-											{#if row.season_label}
+											{#if !isBrandOrg && order.brands?.name}
+												<div class="text-sm text-muted-foreground">
+													{order.brands.name}{row.season_label ? ` · ${row.season_label}` : ''}
+												</div>
+											{:else if row.season_label}
 												<div class="text-sm text-muted-foreground">{row.season_label}</div>
 											{/if}
 										</td>

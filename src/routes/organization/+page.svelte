@@ -2,8 +2,12 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { formatPhone } from '$lib/utils/phone';
+	import { PAYMENT_METHODS } from '$lib/payment-methods';
+	import { toast } from 'svelte-sonner';
+	import { SvelteSet } from 'svelte/reactivity';
 
 	let { data } = $props();
 
@@ -21,6 +25,11 @@
 	let city = $state('');
 	let orgState = $state('');
 	let zip = $state('');
+	let defaultCommissionRate = $state(10);
+
+	const acceptedMethods = new SvelteSet<string>();
+	let defaultMethod = $state<string | null>(null);
+	let savingPayment = $state(false);
 
 	$effect(() => {
 		orgName = data.org?.name ?? '';
@@ -33,9 +42,49 @@
 		city = data.org?.city ?? '';
 		orgState = data.org?.state ?? '';
 		zip = data.org?.zip ?? '';
+		defaultCommissionRate = data.org?.default_commission_rate ?? 10;
+		acceptedMethods.clear();
+		for (const m of data.org?.accepted_payment_methods ?? []) acceptedMethods.add(m);
+		defaultMethod = data.org?.default_payment_method ?? null;
 	});
 	let saving = $state(false);
 	let message = $state('');
+
+	function toggleMethod(code: string, next: boolean) {
+		if (next) {
+			acceptedMethods.add(code);
+		} else {
+			acceptedMethods.delete(code);
+			if (defaultMethod === code) defaultMethod = null;
+		}
+	}
+
+	async function handleSavePayment() {
+		if (!org) return;
+		if (acceptedMethods.size === 0) {
+			toast.error('Pick at least one payment method you accept.');
+			return;
+		}
+		if (!defaultMethod || !acceptedMethods.has(defaultMethod)) {
+			toast.error('Pick a default payment method.');
+			return;
+		}
+		savingPayment = true;
+		const { error } = await supabase
+			.from('organizations')
+			.update({
+				accepted_payment_methods: Array.from(acceptedMethods),
+				default_payment_method: defaultMethod,
+				updated_at: new Date().toISOString()
+			})
+			.eq('id', org.id);
+		savingPayment = false;
+		if (error) {
+			toast.error('Could not save payment methods.');
+			return;
+		}
+		toast.success('Payment methods updated.');
+	}
 
 	async function handleSave() {
 		if (!org) return;
@@ -52,6 +101,7 @@
 				city: city || null,
 				state: orgState || null,
 				zip: zip || null,
+				...(isBrandOrg ? { default_commission_rate: defaultCommissionRate } : {}),
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', org.id);
@@ -130,6 +180,24 @@
 							(contactPhone = formatPhone((e.currentTarget as HTMLInputElement).value))}
 					/>
 				</div>
+				<div class="space-y-2">
+					<Label for="default-commission-rate">Default commission rate</Label>
+					<div class="flex items-center gap-2">
+						<Input
+							id="default-commission-rate"
+							type="number"
+							min={0}
+							max={100}
+							step={0.25}
+							bind:value={defaultCommissionRate}
+							class="w-28"
+						/>
+						<span class="text-sm text-muted-foreground">%</span>
+					</div>
+					<p class="text-sm text-muted-foreground">
+						Pre-selected when sharing your connect link with reps.
+					</p>
+				</div>
 
 				<div class="space-y-2">
 					<Label for="address-line1">Address</Label>
@@ -163,6 +231,49 @@
 			{#if message}
 				<p class="text-sm text-muted-foreground">{message}</p>
 			{/if}
+		</div>
+	</div>
+
+	<div class="border-b pb-6">
+		<div>
+			<h2 class="text-lg font-semibold">Payment methods</h2>
+			<p class="mt-0.5 text-sm text-muted-foreground">
+				Pick the methods you accept on orders. One must be the default for new accounts.
+			</p>
+		</div>
+
+		<ul class="mt-6 divide-y rounded-md border">
+			{#each PAYMENT_METHODS as method (method.code)}
+				{@const accepted = acceptedMethods.has(method.code)}
+				{@const isDefault = defaultMethod === method.code}
+				<li class="flex items-center gap-4 px-4 py-3">
+					<Checkbox checked={accepted} onCheckedChange={(v) => toggleMethod(method.code, v)} />
+					<span class="flex-1 text-sm font-medium">{method.label}</span>
+					{#if isDefault}
+						<span
+							class="inline-flex items-center gap-1.5 rounded-full bg-foreground px-2.5 py-1 text-sm font-medium text-background"
+						>
+							<span class="h-1.5 w-1.5 rounded-full bg-background"></span>
+							Default
+						</span>
+					{:else}
+						<button
+							type="button"
+							disabled={!accepted}
+							onclick={() => (defaultMethod = method.code)}
+							class="rounded-full border px-2.5 py-1 text-sm text-muted-foreground transition-colors hover:border-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-input disabled:hover:text-muted-foreground"
+						>
+							Set default
+						</button>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+
+		<div class="mt-6">
+			<Button onclick={handleSavePayment} disabled={savingPayment}>
+				{savingPayment ? 'Saving...' : 'Save payment methods'}
+			</Button>
 		</div>
 	</div>
 </div>

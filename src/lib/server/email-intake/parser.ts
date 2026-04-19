@@ -98,7 +98,7 @@ export async function parseInboundOrder(
 	userId?: string | null
 ): Promise<ParsedOrder> {
 	const response = await anthropic.messages.create({
-		model: 'claude-sonnet-4-20250514',
+		model: 'claude-sonnet-4-6',
 		max_tokens: 4096,
 		system: SYSTEM_PROMPT,
 		tools: [extractionTool],
@@ -114,7 +114,7 @@ export async function parseInboundOrder(
 	logUsage({
 		endpoint: 'email-intake',
 		purpose: 'extract_order',
-		model: 'claude-sonnet-4-20250514',
+		model: 'claude-sonnet-4-6',
 		organizationId: organizationId ?? null,
 		userId: userId ?? null,
 		response

@@ -977,8 +977,11 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 	);
 
 	try {
+		// Cap prior turns to keep request size bounded; older turns are dropped.
+		const HISTORY_LIMIT = 20;
+		const trimmedHistory = (conversationHistory ?? []).slice(-HISTORY_LIMIT);
 		const messages: Anthropic.MessageParam[] = [
-			...(conversationHistory ?? []),
+			...trimmedHistory,
 			{ role: 'user' as const, content: userContent }
 		];
 
@@ -997,7 +1000,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			classifyMessages.push({ role: 'user', content: userContent });
 
 			const classifyResponse = await anthropic.messages.create({
-				model: 'claude-haiku-4-5-20251001',
+				model: 'claude-haiku-4-5',
 				max_tokens: 20,
 				system: [{ type: 'text', text: CLASSIFIER_PROMPT }],
 				messages: classifyMessages
@@ -1005,7 +1008,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			logUsage({
 				endpoint: 'chat',
 				purpose: 'classifier',
-				model: 'claude-haiku-4-5-20251001',
+				model: 'claude-haiku-4-5',
 				organizationId: locals.organization!.id,
 				userId: locals.user!.id,
 				response: classifyResponse
@@ -1020,7 +1023,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		if (useHaiku) {
 			// Simple conversational response — Haiku without tools
 			const haikuResponse = await anthropic.messages.create({
-				model: 'claude-haiku-4-5-20251001',
+				model: 'claude-haiku-4-5',
 				max_tokens: 1024,
 				system: systemBlocks,
 				messages
@@ -1028,7 +1031,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			logUsage({
 				endpoint: 'chat',
 				purpose: 'chat',
-				model: 'claude-haiku-4-5-20251001',
+				model: 'claude-haiku-4-5',
 				organizationId: locals.organization!.id,
 				userId: locals.user!.id,
 				response: haikuResponse
@@ -1072,7 +1075,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		}
 
 		let response = await anthropic.messages.create({
-			model: 'claude-sonnet-4-20250514',
+			model: 'claude-sonnet-4-6',
 			max_tokens: 4096,
 			system: systemBlocks,
 			tools: cachedTools,
@@ -1081,7 +1084,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		logUsage({
 			endpoint: 'chat',
 			purpose: 'tools',
-			model: 'claude-sonnet-4-20250514',
+			model: 'claude-sonnet-4-6',
 			organizationId: locals.organization!.id,
 			userId: locals.user!.id,
 			response
@@ -1156,7 +1159,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			messages.push({ role: 'user' as const, content: toolResults });
 
 			response = await anthropic.messages.create({
-				model: 'claude-sonnet-4-20250514',
+				model: 'claude-sonnet-4-6',
 				max_tokens: 4096,
 				system: systemBlocks,
 				tools: cachedTools,
@@ -1165,7 +1168,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			logUsage({
 				endpoint: 'chat',
 				purpose: 'tools',
-				model: 'claude-sonnet-4-20250514',
+				model: 'claude-sonnet-4-6',
 				organizationId: locals.organization!.id,
 				userId: locals.user!.id,
 				response
@@ -1251,7 +1254,7 @@ function streamResponse(params: StreamResponseParams): Response {
 
 				while (iteration++ < MAX_TOOL_ITERATIONS) {
 					const modelStream = params.anthropic.messages.stream({
-						model: 'claude-sonnet-4-20250514',
+						model: 'claude-sonnet-4-6',
 						max_tokens: 4096,
 						system: params.systemBlocks,
 						tools: params.cachedTools,
@@ -1268,7 +1271,7 @@ function streamResponse(params: StreamResponseParams): Response {
 					logUsage({
 						endpoint: 'chat',
 						purpose: 'tools',
-						model: 'claude-sonnet-4-20250514',
+						model: 'claude-sonnet-4-6',
 						organizationId: params.locals.organization!.id,
 						userId: params.locals.user!.id,
 						response: finalMessage

@@ -29,6 +29,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (invite.max_uses > 0 && invite.use_count >= invite.max_uses)
 		return json({ error: 'Invite code has reached max uses' }, { status: 410 });
 
+	// Atomically claim the invite when single-use (max_uses > 0).
+	// Prevents two reps from racing to redeem the same one-time link.
+	if (invite.max_uses > 0) {
+		const { data: claimed } = await supabaseAdmin
+			.from('connection_invites')
+			.update({
+				use_count: invite.use_count + 1,
+				last_used_at: new Date().toISOString()
+			})
+			.eq('id', invite.id)
+			.lt('use_count', invite.max_uses)
+			.select('id')
+			.maybeSingle();
+
+		if (!claimed) return json({ error: 'Invite code has reached max uses' }, { status: 410 });
+	}
+
 	// Check if connection already exists
 	const { data: existing } = await supabaseAdmin
 		.from('org_connections')
@@ -46,6 +63,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	// Create the connection — auto-approve skips the pending state
 	const autoApprove = Boolean(invite.auto_approve);
+	const commissionRate = Number(invite.commission_rate) || 0;
 	const { data: connection, error: connError } = await supabaseAdmin
 		.from('org_connections')
 		.insert({
@@ -54,6 +72,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			rep_brand_id: repBrandId || null,
 			status: autoApprove ? 'active' : 'pending',
 			requested_by: session.user.id,
+			commission_rate: commissionRate,
 			...(autoApprove
 				? { approved_by: invite.created_by, connected_at: new Date().toISOString() }
 				: {})
@@ -63,8 +82,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	if (connError) return json({ error: connError.message }, { status: 500 });
 
+	// Propagate commission rate to the rep's local brand row if provided.
+	if (repBrandId && commissionRate > 0) {
+		await supabaseAdmin
+			.from('brands')
+			.update({ commission_rate: commissionRate })
+			.eq('id', repBrandId)
+			.eq('organization_id', organization.id);
+	}
+
 	// Stamp usage telemetry on the invite (use_count, last_used_at).
-	await recordConnectInviteUse(supabaseAdmin, code);
+	// For single-use invites, the atomic claim above already incremented; for
+	// unlimited invites (max_uses = 0) we still need the legacy counter bump.
+	if (invite.max_uses === 0) {
+		await recordConnectInviteUse(supabaseAdmin, code);
+	}
 
 	const inviteOrgs = (invite as { organizations?: { name?: string } | { name?: string }[] | null })
 		.organizations;
