@@ -24,6 +24,69 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		throw error(404, 'Order not found');
 	}
 
+	// Load product metadata for any order_lines that reference a product. The
+	// Line Items table needs image, variants (sizes/colors), and season label
+	// per row so the redesigned (product, color)-granular view can render
+	// without extra round-trips.
+	const productIds = Array.from(
+		new Set(
+			(linesResult.data ?? [])
+				.map((l) => (l as { product_id?: string | null }).product_id)
+				.filter((id): id is string => !!id)
+		)
+	);
+	const productsById: Record<
+		string,
+		{
+			primary_image_id: string | null;
+			colors: string[];
+			sizes: string[];
+			season_name: string | null;
+			season_year: number | null;
+		}
+	> = {};
+	if (productIds.length > 0) {
+		const { data: productsData } = await supabase
+			.from('products')
+			.select(
+				'id, product_year, seasons(name), product_variants(color, size), product_images(id, is_primary, sort_order)'
+			)
+			.in('id', productIds);
+		for (const p of productsData ?? []) {
+			const row = p as unknown as {
+				id: string;
+				product_year: number | null;
+				seasons: { name?: string | null } | { name?: string | null }[] | null;
+				product_variants: Array<{ color: string | null; size: string | null }> | null;
+				product_images: Array<{
+					id: string;
+					is_primary: boolean | null;
+					sort_order: number | null;
+				}> | null;
+			};
+			const images = [...(row.product_images ?? [])].sort((a, b) => {
+				if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+				return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+			});
+			const season = Array.isArray(row.seasons) ? (row.seasons[0] ?? null) : row.seasons;
+			productsById[row.id] = {
+				primary_image_id: images[0]?.id ?? null,
+				colors: [
+					...new Set(
+						(row.product_variants ?? []).map((v) => v.color).filter((c): c is string => !!c)
+					)
+				],
+				sizes: [
+					...new Set(
+						(row.product_variants ?? []).map((v) => v.size).filter((s): s is string => !!s)
+					)
+				],
+				season_name: season?.name ?? null,
+				season_year: row.product_year
+			};
+		}
+	}
+
 	// Mark this order as viewed by the current user. Drives the Orders nav badge
 	// ('unviewed' drops once the user opens the detail page). Best-effort — don't
 	// fail the page load if the upsert errors.
@@ -109,19 +172,28 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 			const sourceOrg = Array.isArray(rawSourceOrg)
 				? ((rawSourceOrg[0] ?? null) as { id: string; name: string } | null)
 				: ((rawSourceOrg ?? null) as { id: string; name: string } | null);
-			federation = {
-				isFederatedView: true,
-				sourceOrg,
-				repDisplayName:
-					(orderResult.data as { profiles?: { display_name?: string | null } | null }).profiles
-						?.display_name ?? null
-			};
+			// Fetch the rep's profile via admin — the order SELECT's joined
+			// profiles row is gated by profiles RLS which the brand-side viewer
+			// typically can't satisfy (rep user is in a different org).
+			let repDisplayName: string | null =
+				(orderResult.data as { profiles?: { display_name?: string | null } | null }).profiles
+					?.display_name ?? null;
+			if (!repDisplayName && orderResult.data.created_by) {
+				const { data: repProfile } = await supabaseAdmin
+					.from('profiles')
+					.select('display_name')
+					.eq('id', orderResult.data.created_by)
+					.maybeSingle();
+				repDisplayName = repProfile?.display_name ?? null;
+			}
+			federation = { isFederatedView: true, sourceOrg, repDisplayName };
 		}
 	}
 
 	return {
 		order: orderResult.data,
 		lines: linesResult.data ?? [],
+		productsById,
 		brandAssets: brandAssetsRes.data ?? [],
 		commissionOverride: overrideRes.data?.rate ?? null,
 		repCommissionRate,

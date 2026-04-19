@@ -24,6 +24,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const search = url.searchParams.get('search')?.trim() ?? '';
 	const from = url.searchParams.get('from');
 	const to = url.searchParams.get('to');
+	// Default the totals / pagination to orders-only; notes tab flips this.
+	const activeType = url.searchParams.get('type') ?? 'order';
 	// Exclusive upper bound so the `to` day is fully included in the window.
 	const toExclusive = to ? incrementDate(to) : null;
 
@@ -43,6 +45,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		if (seasonFilter) query = query.eq('season_id', seasonFilter);
 		if (from) query = query.gte('created_at', from);
 		if (toExclusive) query = query.lt('created_at', toExclusive);
+		if (activeType !== 'all') query = query.eq('order_type', activeType);
 
 		const [ordersRes, brandsRes] = await Promise.all([
 			query,
@@ -73,6 +76,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				deliveredRevenue: orders
 					.filter((o) => o.status === 'delivered')
 					.reduce((s, o) => s + Number(o.total_amount), 0),
+				shippedCount: orders.filter((o) => o.status === 'shipped' || o.status === 'delivered')
+					.length,
 				avgOrderValue:
 					orders.length > 0
 						? orders.reduce((s, o) => s + Number(o.total_amount), 0) / orders.length
@@ -97,6 +102,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				pipelineValue: 0,
 				pipelineCount: 0,
 				deliveredRevenue: 0,
+				shippedCount: 0,
 				avgOrderValue: 0,
 				needsAttention: { staleDrafts: 0, overdueShipments: 0, total: 0 },
 				conversion: { submitted: 0, converted: 0, rate: 0 }
@@ -144,7 +150,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		if (from) directQuery = directQuery.gte('created_at', from);
 		if (toExclusive) directQuery = directQuery.lt('created_at', toExclusive);
 		if (search) {
-			const resolved = await resolveOrderSearch(supabaseAdmin, search, [organization.id]);
+			const resolved = await resolveOrderSearch(supabaseAdmin, search);
 			directQuery = applyOrderSearch(directQuery, search, resolved.accountIds, resolved.brandIds);
 		}
 		const directRes = await directQuery;
@@ -190,6 +196,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			expected_ship_date: o.expected_ship_date,
 			start_ship_date: o.start_ship_date,
 			season_id: o.season_id,
+			order_year: o.order_year,
 			brand_id: o.brand_id,
 			account_id: o.account_id,
 			freeform_name: o.freeform_name,
@@ -197,6 +204,17 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			brands: o.brand_name ? { name: o.brand_name } : null,
 			accounts: o.account_name ? { business_name: o.account_name } : null,
 			seasons: o.season_name ? { name: o.season_name } : null,
+			source_types: o.source_type_name ? { name: o.source_type_name } : null,
+			show_dates: o.show_date
+				? {
+						id: o.show_date.id,
+						year: o.show_date.year,
+						month: o.show_date.month,
+						city: o.show_date.city,
+						state: o.show_date.state,
+						shows: o.show_date.show_name ? { name: o.show_date.show_name } : null
+					}
+				: null,
 			profiles: o.created_by_name ? { display_name: o.created_by_name } : null,
 			source_org: { id: o.rep_org_id, name: o.rep_org_name }
 		}));
@@ -209,9 +227,13 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		>();
 		for (const o of federatedReshaped) orderMap.set(o.id as string, o);
 		for (const o of directOrders) orderMap.set(o.id as string, o); // direct wins if dup
-		const allOrders = [...orderMap.values()].sort((a, b) =>
+		const allOrdersUnfiltered = [...orderMap.values()].sort((a, b) =>
 			String(b.created_at).localeCompare(String(a.created_at))
 		);
+		const allOrders =
+			activeType === 'all'
+				? allOrdersUnfiltered
+				: allOrdersUnfiltered.filter((o) => o.order_type === activeType);
 		const orders = allOrders.slice(0, PAGE_SIZE);
 
 		// Filter chip sources — union of direct + federated, deduped by name.
@@ -227,7 +249,16 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				const key = o.season_name.trim().toLowerCase();
 				if (!seasonMap.has(key)) seasonMap.set(key, { id: o.season_id, name: o.season_name });
 			}
-			repMap.set(o.rep_org_id, { id: o.rep_org_id, name: o.rep_org_name });
+			// Display the rep's person name in the filter chip (falls back to org
+			// name only if the rep's profile isn't resolvable). The filter value
+			// is still rep_org_id, so multiple reps from one rep-org collapse to
+			// whichever name wins first.
+			if (!repMap.has(o.rep_org_id)) {
+				repMap.set(o.rep_org_id, {
+					id: o.rep_org_id,
+					name: o.created_by_name ?? o.rep_org_name
+				});
+			}
 		}
 		for (const o of directOrders) {
 			const b = (o.brands as { name?: string } | null)?.name;
@@ -252,6 +283,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			pipelineCount = 0,
 			deliveredRevenue = 0,
 			deliveredCount = 0,
+			shippedCount = 0,
 			staleDrafts = 0,
 			overdueShipments = 0,
 			submittedCount = 0,
@@ -266,6 +298,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				deliveredRevenue += amount;
 				deliveredCount++;
 			}
+			if (o.status === 'shipped' || o.status === 'delivered') shippedCount++;
 			if (o.status === 'draft' && new Date(o.created_at) < sevenDaysAgo) staleDrafts++;
 			if (
 				(o.status === 'submitted' || o.status === 'confirmed') &&
@@ -290,6 +323,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				pipelineValue,
 				pipelineCount,
 				deliveredRevenue,
+				shippedCount,
 				avgOrderValue:
 					deliveredCount > 0
 						? deliveredRevenue / deliveredCount
@@ -368,7 +402,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	let searchAccountIds: string[] = [];
 	let searchBrandIds: string[] = [];
 	if (search) {
-		const resolved = await resolveOrderSearch(supabaseAdmin, search, [organization.id]);
+		const resolved = await resolveOrderSearch(supabaseAdmin, search);
 		searchAccountIds = resolved.accountIds;
 		searchBrandIds = resolved.brandIds;
 	}
@@ -385,6 +419,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		if (from) q = q.gte('created_at', from);
 		if (toExclusive) q = q.lt('created_at', toExclusive);
 		if (search) q = applyOrderSearch(q, search, searchAccountIds, searchBrandIds);
+		if (activeType !== 'all') q = q.eq('order_type', activeType);
 		return q;
 	}
 
@@ -425,6 +460,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	let pipelineCount = 0;
 	let deliveredRevenue = 0;
 	let deliveredCount = 0;
+	let shippedCount = 0;
 	let staleDrafts = 0;
 	let overdueShipments = 0;
 	let submittedCount = 0;
@@ -440,6 +476,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		if (o.status === 'delivered') {
 			deliveredRevenue += amount;
 			deliveredCount++;
+		}
+		if (o.status === 'shipped' || o.status === 'delivered') {
+			shippedCount++;
 		}
 		if (o.status === 'draft' && new Date(o.created_at) < sevenDaysAgo) {
 			staleDrafts++;
@@ -463,6 +502,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		pipelineValue,
 		pipelineCount,
 		deliveredRevenue,
+		shippedCount,
 		avgOrderValue:
 			deliveredCount > 0
 				? deliveredRevenue / deliveredCount

@@ -33,7 +33,7 @@ export async function computeAccountHealth(
 	const accountsQuery = supabase.from('accounts').select('id, created_at, is_active, archived_at');
 
 	// Use .eq for a single org (test mocks don't implement .in); .in for multiple.
-	const [{ data: orders }, { data: accounts }] =
+	const [{ data: directOrders }, { data: accounts }] =
 		orgIds.length === 1
 			? await Promise.all([
 					ordersQuery.eq('organization_id', orgIds[0]),
@@ -43,6 +43,35 @@ export async function computeAccountHealth(
 					ordersQuery.in('organization_id', orgIds),
 					accountsQuery.in('organization_id', orgIds)
 				]);
+
+	// Also include orders federated INTO these orgs (rep → brand). A brand
+	// org's account health must reflect orders the rep created that reference
+	// this brand's accounts, not just orders owned by the brand org directly.
+	type LinkRow = { order_id: string | null };
+	const linksRes = (await (orgIds.length === 1
+		? supabase
+				.from('federated_order_links')
+				.select('order_id')
+				.eq('status', 'active')
+				.eq('target_org_id', orgIds[0])
+		: supabase
+				.from('federated_order_links')
+				.select('order_id')
+				.eq('status', 'active')
+				.in('target_org_id', orgIds))) as { data: LinkRow[] | null };
+	const federatedIds = (linksRes.data ?? [])
+		.map((l) => l.order_id)
+		.filter((id): id is string => !!id);
+	let federatedOrders: typeof directOrders = [];
+	if (federatedIds.length > 0) {
+		const { data } = await supabase
+			.from('orders')
+			.select('account_id, total_amount, status, created_at, order_year')
+			.neq('status', 'cancelled')
+			.in('id', federatedIds);
+		federatedOrders = data ?? [];
+	}
+	const orders = [...(directOrders ?? []), ...(federatedOrders ?? [])];
 
 	const healthMap = new Map<string, AccountHealth>();
 

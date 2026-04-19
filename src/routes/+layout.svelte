@@ -622,7 +622,10 @@
 
 {#if $navigating}
 	<div class="fixed inset-x-0 top-0 z-[100] h-0.5">
-		<div class="nav-progress h-full bg-primary"></div>
+		<div
+			class="nav-progress h-full"
+			style="background-color: lab(92.1406% -20.4979 84.7726);"
+		></div>
 	</div>
 {/if}
 
