@@ -28,8 +28,8 @@ const ADMIN_ROLES = new Set(['admin', 'owner']);
 const MEMBER_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
 
 export const PATCH: RequestHandler = async ({ request, params, locals }) => {
-	const { organization, membership, session } = locals;
-	if (!session || !organization) throw error(401, 'Not authenticated');
+	const { organization, membership, session, user } = locals;
+	if (!session || !organization || !user) throw error(401, 'Not authenticated');
 
 	const role = membership?.role ?? '';
 	if (!MEMBER_ROLES.has(role)) {
@@ -42,7 +42,8 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 		throw error(400, parsed.error.issues[0]?.message ?? 'Invalid request body');
 	}
 
-	// Load the order so we can verify org ownership and status gate.
+	// Load the order so we can verify ownership (same-org OR active federation
+	// link to the caller's org) and then apply the status gate.
 	const { data: order, error: orderErr } = await supabaseAdmin
 		.from('orders')
 		.select('id, organization_id, status, order_type')
@@ -50,7 +51,21 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 		.single();
 
 	if (orderErr || !order) throw error(404, 'Order not found');
-	if (order.organization_id !== organization.id) throw error(403, 'Not your order');
+
+	if (order.organization_id !== organization.id) {
+		// Cross-org: allow only when there's an active federated_order_links row
+		// pointing at the caller's org. This mirrors the read side at
+		// src/routes/orders/[id]/+page.server.ts — BOA can act on a rep-owned
+		// federated order (confirm/ship/etc.), so line edits must follow.
+		const { data: link } = await supabaseAdmin
+			.from('federated_order_links')
+			.select('id')
+			.eq('order_id', order.id)
+			.eq('target_org_id', organization.id)
+			.eq('status', 'active')
+			.maybeSingle();
+		if (!link) throw error(403, 'Not your order');
+	}
 
 	const isNote = order.order_type === 'note';
 	const isAdmin = ADMIN_ROLES.has(role);
@@ -63,6 +78,7 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 	const result = await saveLineEdits({
 		supabase: supabaseAdmin as unknown as SupabaseForLineEdits,
 		orderId: order.id,
+		actorId: user.id,
 		rows: parsed.data.rows
 	});
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { saveLineEdits, type IncomingRow } from './save-line-edits.js';
+import type { DiffOp } from '$lib/utils/order-line-diff.js';
 
 type DbLineRow = {
 	id: string;
@@ -9,30 +10,27 @@ type DbLineRow = {
 	qty: number;
 	original_qty: number | null;
 	sort_order: number | null;
-	removed_at?: string | null;
-	removed_reason?: string | null;
 };
 
-type Op =
-	| { kind: 'select'; filters: Record<string, unknown> }
-	| { kind: 'insert'; row: Record<string, unknown> }
-	| { kind: 'update'; id: string; patch: Record<string, unknown> };
+type RpcCall = {
+	fn: string;
+	params: { actor: string; order_id: string; ops: DiffOp[] };
+};
 
 type MockOptions = {
 	initialLines?: DbLineRow[];
 	selectError?: string;
-	failInsertAt?: number; // zero-indexed across insert ops
-	failUpdateAt?: number; // zero-indexed across update ops
+	rpcError?: string;
+	rpcResult?: { ok: boolean; applied: number; failed: number };
 };
 
-/** Minimal Supabase mock tailored to the surface saveLineEdits touches. */
 function makeSupabaseMock(opts: MockOptions = {}) {
-	const ops: Op[] = [];
-	let insertCounter = 0;
-	let updateCounter = 0;
+	const rpcCalls: RpcCall[] = [];
+	const selectCalls: Record<string, unknown>[] = [];
 
 	return {
-		ops,
+		rpcCalls,
+		selectCalls,
 		db: {
 			from(table: string) {
 				if (table !== 'order_lines') throw new Error(`Unexpected table: ${table}`);
@@ -47,7 +45,7 @@ function makeSupabaseMock(opts: MockOptions = {}) {
 							},
 							async is(col: string, val: unknown) {
 								filters[col] = val;
-								ops.push({ kind: 'select', filters: { ...filters } });
+								selectCalls.push({ ...filters });
 								if (opts.selectError) {
 									return { data: null, error: { message: opts.selectError } };
 								}
@@ -55,29 +53,18 @@ function makeSupabaseMock(opts: MockOptions = {}) {
 							}
 						};
 						return builder;
-					},
-					async insert(row: Record<string, unknown>) {
-						ops.push({ kind: 'insert', row });
-						const idx = insertCounter++;
-						if (opts.failInsertAt === idx) {
-							return { error: { message: `insert ${idx} failed` } };
-						}
-						return { error: null };
-					},
-					update(patch: Record<string, unknown>) {
-						return {
-							eq: async (col: string, val: unknown) => {
-								if (col !== 'id') throw new Error(`Unexpected eq col: ${col}`);
-								ops.push({ kind: 'update', id: String(val), patch });
-								const idx = updateCounter++;
-								if (opts.failUpdateAt === idx) {
-									return { error: { message: `update ${idx} failed` } };
-								}
-								return { error: null };
-							}
-						};
 					}
 				};
+			},
+			async rpc(fn: string, params: { actor: string; order_id: string; ops: DiffOp[] }) {
+				rpcCalls.push({ fn, params });
+				if (opts.rpcError) return { data: null, error: { message: opts.rpcError } };
+				const defaultResult = {
+					ok: true,
+					applied: params.ops.length,
+					failed: 0
+				};
+				return { data: opts.rpcResult ?? defaultResult, error: null };
 			}
 		}
 	};
@@ -98,81 +85,53 @@ function row(over: Partial<IncomingRow> = {}): IncomingRow {
 	};
 }
 
-const NOW = '2026-04-21T12:00:00.000Z';
+const ACTOR = '00000000-0000-0000-0000-000000000aaa';
+const ORDER = '00000000-0000-0000-0000-000000000001';
 
 describe('saveLineEdits', () => {
-	it('returns ok with 0 applied when no rows produce ops', async () => {
+	it('returns ok with 0 applied when the diff yields no ops', async () => {
 		const mock = makeSupabaseMock({ initialLines: [] });
 		const res = await saveLineEdits({
 			supabase: mock.db,
-			orderId: 'o1',
-			rows: [],
-			now: () => NOW
+			orderId: ORDER,
+			actorId: ACTOR,
+			rows: []
 		});
 		expect(res).toEqual({ ok: true, applied: 0, failed: 0, ops: [] });
-		// Still makes one select to establish baseline.
-		expect(mock.ops.filter((o) => o.kind === 'select')).toHaveLength(1);
+		expect(mock.selectCalls).toHaveLength(1);
+		expect(mock.rpcCalls).toHaveLength(0);
 	});
 
-	it('inserts a new (style, color, size) when qty > 0 and no existing line', async () => {
+	it('sends an insert op to apply_line_ops when a new size has qty > 0', async () => {
 		const mock = makeSupabaseMock({ initialLines: [] });
 		const res = await saveLineEdits({
 			supabase: mock.db,
-			orderId: 'o1',
-			rows: [row({ qty_by_size: { M: 2 } })],
-			now: () => NOW
+			orderId: ORDER,
+			actorId: ACTOR,
+			rows: [row({ qty_by_size: { M: 2 } })]
 		});
 		expect(res.ok).toBe(true);
-		expect(res.applied).toBe(1);
-		const inserts = mock.ops.filter((o) => o.kind === 'insert') as Array<{
-			kind: 'insert';
-			row: Record<string, unknown>;
-		}>;
-		expect(inserts).toHaveLength(1);
-		expect(inserts[0].row).toMatchObject({
-			order_id: 'o1',
-			product_id: 'p1',
-			style_number: 'S-1',
-			description: 'Shirt',
-			color: 'Natural',
-			size: 'M',
-			qty: 2,
-			unit_price: 100,
-			sort_order: 1
-		});
-	});
-
-	it('assigns sort_order after the current max when inserting', async () => {
-		const mock = makeSupabaseMock({
-			initialLines: [
-				{
-					id: 'existing',
+		expect(mock.rpcCalls).toHaveLength(1);
+		expect(mock.rpcCalls[0].fn).toBe('apply_line_ops');
+		expect(mock.rpcCalls[0].params.actor).toBe(ACTOR);
+		expect(mock.rpcCalls[0].params.order_id).toBe(ORDER);
+		expect(mock.rpcCalls[0].params.ops).toEqual([
+			{
+				kind: 'insert',
+				row: {
 					product_id: 'p1',
+					style_number: 'S-1',
+					description: 'Shirt',
 					color: 'Natural',
-					size: 'S',
-					qty: 1,
-					original_qty: null,
-					sort_order: 7
+					size: 'M',
+					qty: 2,
+					unit_price: 100
 				}
-			]
-		});
-		const res = await saveLineEdits({
-			supabase: mock.db,
-			orderId: 'o1',
-			rows: [row({ qty_by_size: { S: 1, M: 3 } })],
-			now: () => NOW
-		});
-		expect(res.ok).toBe(true);
-		const inserts = mock.ops.filter((o) => o.kind === 'insert') as Array<{
-			kind: 'insert';
-			row: Record<string, unknown>;
-		}>;
-		expect(inserts).toHaveLength(1);
-		expect(inserts[0].row.size).toBe('M');
-		expect(inserts[0].row.sort_order).toBe(8);
+			}
+		]);
 	});
 
-	it('updates qty on an existing line and snapshots original_qty when null', async () => {
+	it('sends an update op when an existing line qty changes', async () => {
 		const mock = makeSupabaseMock({
 			initialLines: [
 				{
@@ -186,57 +145,16 @@ describe('saveLineEdits', () => {
 				}
 			]
 		});
-		const res = await saveLineEdits({
+		await saveLineEdits({
 			supabase: mock.db,
-			orderId: 'o1',
-			rows: [row({ qty_by_size: { M: 3 } })],
-			now: () => NOW
+			orderId: ORDER,
+			actorId: ACTOR,
+			rows: [row({ qty_by_size: { M: 3 } })]
 		});
-		expect(res.ok).toBe(true);
-		const updates = mock.ops.filter((o) => o.kind === 'update') as Array<{
-			kind: 'update';
-			id: string;
-			patch: Record<string, unknown>;
-		}>;
-		expect(updates).toHaveLength(1);
-		expect(updates[0]).toEqual({
-			kind: 'update',
-			id: 'l1',
-			patch: { qty: 3, original_qty: 1 }
-		});
+		expect(mock.rpcCalls[0].params.ops).toEqual([{ kind: 'update', id: 'l1', patch: { qty: 3 } }]);
 	});
 
-	it('leaves original_qty alone when it is already set', async () => {
-		const mock = makeSupabaseMock({
-			initialLines: [
-				{
-					id: 'l1',
-					product_id: 'p1',
-					color: 'Natural',
-					size: 'M',
-					qty: 2,
-					original_qty: 1,
-					sort_order: 1
-				}
-			]
-		});
-		const res = await saveLineEdits({
-			supabase: mock.db,
-			orderId: 'o1',
-			rows: [row({ qty_by_size: { M: 4 } })],
-			now: () => NOW
-		});
-		expect(res.ok).toBe(true);
-		const updates = mock.ops.filter((o) => o.kind === 'update') as Array<{
-			kind: 'update';
-			id: string;
-			patch: Record<string, unknown>;
-		}>;
-		expect(updates).toHaveLength(1);
-		expect(updates[0].patch).toEqual({ qty: 4 });
-	});
-
-	it('soft-removes an existing line when new qty is 0', async () => {
+	it('sends a soft_remove op when existing qty goes to 0', async () => {
 		const mock = makeSupabaseMock({
 			initialLines: [
 				{
@@ -250,27 +168,16 @@ describe('saveLineEdits', () => {
 				}
 			]
 		});
-		const res = await saveLineEdits({
+		await saveLineEdits({
 			supabase: mock.db,
-			orderId: 'o1',
-			rows: [row({ qty_by_size: { M: 0 } })],
-			now: () => NOW
+			orderId: ORDER,
+			actorId: ACTOR,
+			rows: [row({ qty_by_size: { M: 0 } })]
 		});
-		expect(res.ok).toBe(true);
-		const updates = mock.ops.filter((o) => o.kind === 'update') as Array<{
-			kind: 'update';
-			id: string;
-			patch: Record<string, unknown>;
-		}>;
-		expect(updates).toHaveLength(1);
-		expect(updates[0]).toEqual({
-			kind: 'update',
-			id: 'l1',
-			patch: { removed_at: NOW, removed_reason: null }
-		});
+		expect(mock.rpcCalls[0].params.ops).toEqual([{ kind: 'soft_remove', id: 'l1' }]);
 	});
 
-	it('soft-removes every line on a row when to_remove is true', async () => {
+	it('sends soft_remove ops for every line on a to_remove row', async () => {
 		const mock = makeSupabaseMock({
 			initialLines: [
 				{
@@ -293,23 +200,19 @@ describe('saveLineEdits', () => {
 				}
 			]
 		});
-		const res = await saveLineEdits({
+		await saveLineEdits({
 			supabase: mock.db,
-			orderId: 'o1',
-			rows: [row({ to_remove: true })],
-			now: () => NOW
+			orderId: ORDER,
+			actorId: ACTOR,
+			rows: [row({ to_remove: true })]
 		});
-		expect(res.ok).toBe(true);
-		const updates = mock.ops.filter((o) => o.kind === 'update') as Array<{
-			kind: 'update';
-			id: string;
-			patch: Record<string, unknown>;
-		}>;
-		expect(updates).toHaveLength(2);
-		expect(updates.every((u) => u.patch.removed_at === NOW)).toBe(true);
+		expect(mock.rpcCalls[0].params.ops).toEqual([
+			{ kind: 'soft_remove', id: 'l1' },
+			{ kind: 'soft_remove', id: 'l2' }
+		]);
 	});
 
-	it('does not touch DB lines whose (product, color) is not represented in incoming rows', async () => {
+	it('does not include DB lines whose (product, color) is absent from incoming rows', async () => {
 		const mock = makeSupabaseMock({
 			initialLines: [
 				{
@@ -323,47 +226,62 @@ describe('saveLineEdits', () => {
 				}
 			]
 		});
-		const res = await saveLineEdits({
+		await saveLineEdits({
 			supabase: mock.db,
-			orderId: 'o1',
-			rows: [row({ product_id: 'p1', qty_by_size: { S: 2 } })],
-			now: () => NOW
+			orderId: ORDER,
+			actorId: ACTOR,
+			rows: [row({ product_id: 'p1', qty_by_size: { S: 2 } })]
 		});
-		expect(res.ok).toBe(true);
-		const updates = mock.ops.filter((o) => o.kind === 'update');
-		expect(updates).toHaveLength(0);
-		// Only the insert on p1 should happen.
-		expect(mock.ops.filter((o) => o.kind === 'insert')).toHaveLength(1);
+		expect(mock.rpcCalls[0].params.ops).toEqual([
+			{
+				kind: 'insert',
+				row: expect.objectContaining({ product_id: 'p1', size: 'S', qty: 2 })
+			}
+		]);
 	});
 
-	it('reports failure count when an op errors without aborting the rest', async () => {
+	it('propagates RPC error into the result', async () => {
 		const mock = makeSupabaseMock({
 			initialLines: [],
-			failInsertAt: 0
+			rpcError: 'apply_line_ops exploded'
 		});
 		const res = await saveLineEdits({
 			supabase: mock.db,
-			orderId: 'o1',
-			rows: [row({ qty_by_size: { S: 1, M: 2 } })],
-			now: () => NOW
+			orderId: ORDER,
+			actorId: ACTOR,
+			rows: [row({ qty_by_size: { M: 1 } })]
 		});
 		expect(res.ok).toBe(false);
+		expect(res.error).toBe('apply_line_ops exploded');
 		expect(res.failed).toBe(1);
-		expect(res.applied).toBe(1);
-		// Both inserts were attempted even though one failed.
-		expect(mock.ops.filter((o) => o.kind === 'insert')).toHaveLength(2);
 	});
 
-	it('returns an error when the initial fetch fails', async () => {
+	it('returns an error when the baseline fetch fails (no RPC call)', async () => {
 		const mock = makeSupabaseMock({ selectError: 'permission denied' });
 		const res = await saveLineEdits({
 			supabase: mock.db,
-			orderId: 'o1',
-			rows: [row({ qty_by_size: { M: 1 } })],
-			now: () => NOW
+			orderId: ORDER,
+			actorId: ACTOR,
+			rows: [row({ qty_by_size: { M: 1 } })]
 		});
 		expect(res.ok).toBe(false);
 		expect(res.error).toBe('permission denied');
-		expect(mock.ops.filter((o) => o.kind !== 'select')).toHaveLength(0);
+		expect(mock.rpcCalls).toHaveLength(0);
+	});
+
+	it('surfaces partial-failure counts reported by the RPC', async () => {
+		const mock = makeSupabaseMock({
+			initialLines: [],
+			rpcResult: { ok: false, applied: 1, failed: 1 }
+		});
+		const res = await saveLineEdits({
+			supabase: mock.db,
+			orderId: ORDER,
+			actorId: ACTOR,
+			rows: [row({ qty_by_size: { S: 1, M: 2 } })]
+		});
+		expect(res.ok).toBe(false);
+		expect(res.applied).toBe(1);
+		expect(res.failed).toBe(1);
 	});
 });

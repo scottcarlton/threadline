@@ -352,7 +352,11 @@
 
 	// ── Status context copy shown under the stepper ───────────────────────
 	const statusContext = $derived.by(() => {
-		const actor = (order.profiles?.display_name as string | undefined) ?? null;
+		// On federated (BOA) views, the profiles join on orders is gated by
+		// profiles RLS that the BOA org can't satisfy, so we fall back to
+		// the admin-fetched repDisplayName from +page.server.ts.
+		const actor =
+			(order.profiles?.display_name as string | undefined) ?? federation?.repDisplayName ?? null;
 		switch (order.status) {
 			case 'draft':
 				return "Draft — not yet sent to the brand. Submit when you're ready.";
@@ -1595,9 +1599,9 @@
 					</div>
 				</CardHeader>
 				<CardContent>
-					{#if lineRows.length === 0 && customLines.length === 0 && removedLines.length === 0 && !editMode}
+					{#if lineRows.length === 0 && customLines.length === 0 && !editMode}
 						<p class="text-sm text-muted-foreground">No line items.</p>
-					{:else}
+					{:else if editMode}
 						<div class="rounded-md border">
 							<table class="w-full">
 								<thead class="bg-muted/50">
@@ -1965,36 +1969,125 @@
 								</tfoot>
 							</table>
 						</div>
-					{/if}
+					{:else}
+						<!-- ── View mode: grouped size-matrix card stack ── -->
+						<div class="overflow-hidden rounded-lg border">
+							<div class="divide-y">
+								{#each lineRows as row (row.key)}
+									{@const visibleLines = row.lines.filter((l) => l.qty > 0)}
+									{@const rowUnits = row.lines.reduce((s, l) => s + l.qty, 0)}
+									{@const rowTotal = rowUnits * row.unit_price}
+									{@const fallbackSizes = Array.from(
+										new Set(row.lines.map((l) => l.size ?? '').filter((s) => s.length > 0))
+									)}
+									{@const sizesToShow =
+										row.available_sizes.length > 0 ? row.available_sizes : fallbackSizes}
+									<div class="px-6 py-4">
+										<div class="flex items-start justify-between gap-6">
+											<div class="flex min-w-0 items-center gap-4">
+												{#if row.image_id}
+													<img
+														src={`/api/products/${row.product_id}/images/${row.image_id}`}
+														alt=""
+														class="h-20 w-20 shrink-0 rounded-md border object-cover"
+													/>
+												{:else}
+													<div
+														class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40 text-muted-foreground/50"
+													>
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															viewBox="0 0 24 24"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.5"
+															class="h-7 w-7"
+														>
+															<rect x="3" y="3" width="18" height="18" rx="2" />
+															<circle cx="8.5" cy="8.5" r="1.5" />
+															<path d="M21 15l-5-5L5 21" />
+														</svg>
+													</div>
+												{/if}
+												<div class="min-w-0">
+													<div class="truncate font-mono text-sm text-muted-foreground/70">
+														{row.style_number}
+													</div>
+													<div class="mt-0.5 truncate text-sm font-medium">{row.name}</div>
+													<div class="mt-1 flex items-center gap-2">
+														<ColorSwatch color={row.color} size={12} />
+														<span
+															class="text-sm {row.color
+																? 'text-muted-foreground'
+																: 'text-muted-foreground/50'}"
+														>
+															{row.color ?? '—'}
+														</span>
+													</div>
+												</div>
+											</div>
+											<div class="shrink-0 pt-1 text-right">
+												<div class="font-mono text-sm">{fmt.format(rowTotal)}</div>
+												<div class="font-mono text-sm text-muted-foreground/70">
+													{rowUnits}
+													{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(row.unit_price)}/ea
+												</div>
+											</div>
+										</div>
+										{#if sizesToShow.length > 0}
+											<div class="mt-3 grid grid-cols-6 gap-2">
+												{#each sizesToShow as size (size)}
+													{@const sizeLine = row.lines.find((l) => (l.size ?? '') === size)}
+													{@const qty = sizeLine?.qty ?? 0}
+													<div
+														class="rounded-md border bg-muted/40 py-2 text-center {qty === 0
+															? 'opacity-40'
+															: ''}"
+													>
+														<div class="text-sm text-muted-foreground">{size}</div>
+														<div class="mt-0.5 font-mono text-sm">
+															{qty > 0 ? qty : '—'}
+														</div>
+													</div>
+												{/each}
+											</div>
+										{:else if visibleLines.length === 0}
+											<div class="mt-2 text-sm text-muted-foreground">No sizes.</div>
+										{/if}
+									</div>
+								{/each}
 
-					<!-- Removed lines -->
-					{#if removedLines.length > 0}
-						<div class="mt-4">
-							<p class="mb-2 text-sm font-medium tracking-wider text-muted-foreground uppercase">
-								Removed Items
-							</p>
-							<div class="rounded-md border border-dashed">
-								<table class="w-full">
-									<tbody>
-										{#each removedLines as line (line.id)}
-											<tr class="border-b opacity-60 last:border-0">
-												<td class="px-3 py-2 line-through">
-													<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
-													{#if line.description}
-														<p class="text-sm text-muted-foreground">{line.description}</p>
-													{/if}
-												</td>
-												<td class="px-3 py-2 text-sm">{line.color ?? '—'} / {line.size ?? '—'}</td>
-												<td class="px-3 py-2 text-right text-sm"
-													>{line.qty} x {fmt.format(Number(line.unit_price))}</td
-												>
-												<td class="px-3 py-2 text-sm text-muted-foreground"
-													>{line.removed_reason}</td
-												>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
+								{#each customLines as line (line.id)}
+									<div class="flex items-start justify-between gap-6 px-6 py-4">
+										<div class="min-w-0">
+											<div class="font-mono text-sm">{line.style_number ?? '—'}</div>
+											{#if line.description}
+												<div class="text-sm text-muted-foreground">{line.description}</div>
+											{/if}
+											{#if line.color || line.size}
+												<div class="text-sm text-muted-foreground">
+													{[line.color, line.size].filter(Boolean).join(' · ')}
+												</div>
+											{/if}
+										</div>
+										<div class="shrink-0 text-right">
+											<div class="font-mono text-sm">{fmt.format(Number(line.line_total))}</div>
+											<div class="font-mono text-sm text-muted-foreground/70">
+												{line.qty} × {fmt.format(Number(line.unit_price))}
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+							<div class="flex items-center justify-between border-t bg-muted/20 px-6 py-3">
+								<span class="font-mono text-sm text-muted-foreground">
+									{lineRows.length + customLines.length}
+									{lineRows.length + customLines.length === 1 ? 'Item' : 'Items'} · {savedOrderUnits}
+									{savedOrderUnits === 1 ? 'unit' : 'units'}
+								</span>
+								<span class="font-mono text-lg font-medium">
+									{fmt.format(Number(order.total_amount))}
+								</span>
 							</div>
 						</div>
 					{/if}
