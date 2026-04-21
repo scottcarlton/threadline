@@ -196,8 +196,11 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 
 	// Shape audits into humanized, aggregated timeline entries for the
 	// redesigned Activity panel. Consecutive line_added events from the same
-	// actor collapse into a single "N lines added" entry.
-	const activity = aggregateOrderActivity(auditRows as RawAudit[], profileNameById);
+	// actor collapse into a single "N lines added" entry. Pass order_type so
+	// the "Order created" / "Note created" title matches.
+	const activity = aggregateOrderActivity(auditRows as RawAudit[], profileNameById, {
+		orderType: (orderResult.data as { order_type?: 'order' | 'note' | null }).order_type ?? null
+	});
 
 	// Look up per-brand commission for the rep, fall back to their default rate
 	let repCommissionRate = repRes.data?.commission_rate ?? 0;

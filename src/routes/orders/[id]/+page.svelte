@@ -1068,11 +1068,6 @@
 				</svg>
 				Send to Account
 			</Button>
-			{#if canEdit && order.order_type === 'note'}
-				<Button size="sm" onclick={convertNoteToOrder} disabled={converting}>
-					{converting ? 'Converting…' : 'Convert to Order'}
-				</Button>
-			{/if}
 		</div>
 	</div>
 
@@ -1668,7 +1663,7 @@
 																</span>
 															{/if}
 														{:else}
-															<ColorSwatch color={draft.color_edit} size={12} />
+															<ColorSwatch color={draft.color_edit} size={16} />
 															<span
 																class="text-sm {draft.color_edit
 																	? 'text-muted-foreground'
@@ -1886,7 +1881,7 @@
 													</div>
 													<div class="mt-0.5 truncate text-sm font-medium">{row.name}</div>
 													<div class="mt-1 flex items-center gap-2">
-														<ColorSwatch color={row.color} size={12} />
+														<ColorSwatch color={row.color} size={16} />
 														<span
 															class="text-sm {row.color
 																? 'text-muted-foreground'
@@ -1977,9 +1972,12 @@
 					</div>
 
 					{#if canEdit}
-						{@const viewerEmail =
-							(data.user as { email?: string | null } | null | undefined)?.email ?? ''}
-						{@const viewerInitial = viewerEmail ? viewerEmail.charAt(0).toUpperCase() : '?'}
+						{@const viewerName =
+							(data.user as { display_name?: string | null } | null | undefined)?.display_name ??
+							''}
+						{@const viewerInitial = viewerName.trim()
+							? viewerName.trim().charAt(0).toUpperCase()
+							: '?'}
 						<div class="mt-3 flex gap-3">
 							<span
 								class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-sm"
@@ -2030,13 +2028,6 @@
 											<span class="text-sm font-medium">
 												{comment.profiles?.display_name ?? 'Unknown'}
 											</span>
-											{#if comment.source_org?.name}
-												<span
-													class="rounded-full border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground"
-												>
-													{comment.source_org.name}
-												</span>
-											{/if}
 											<span class="text-xs text-muted-foreground/70">
 												{new Date(comment.created_at).toLocaleDateString('en-US', {
 													month: 'short',
@@ -2093,12 +2084,12 @@
 						<ol class="relative mt-3">
 							<span aria-hidden="true" class="absolute top-1 bottom-1 left-[13px] w-px bg-border"
 							></span>
-							{#each activity as entry (entry.id)}
+							{#each activity as entry, i (entry.id)}
 								<li class="relative py-2 pl-9">
 									<span class="absolute top-2.5 left-0 flex w-[27px] justify-center">
 										<span
-											class="h-2 w-2 rounded-full {entry.kind === 'status'
-												? 'bg-emerald-500 ring-4 ring-emerald-500/20'
+											class="h-2 w-2 rounded-full {i === 0
+												? 'bg-foreground ring-4 ring-foreground/20'
 												: 'bg-muted-foreground/50'}"
 										></span>
 									</span>
