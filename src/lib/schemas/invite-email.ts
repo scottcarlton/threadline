@@ -12,6 +12,12 @@ export const inviteEmailSchema = z.object({
 		.trim()
 		.max(500, 'Keep your note under 500 characters')
 		.optional()
+		.transform((v) => (v && v.length ? v : undefined)),
+	code: z
+		.string()
+		.trim()
+		.max(128)
+		.optional()
 		.transform((v) => (v && v.length ? v : undefined))
 });
 

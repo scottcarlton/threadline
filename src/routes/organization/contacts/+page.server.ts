@@ -1,8 +1,13 @@
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const { supabase, organization } = locals;
+	const { supabase, organization, orgType } = locals;
 	if (!organization) return { knownContacts: [], discoveredContacts: [] };
+
+	// Brand orgs' own `brands` rows represent themselves — surfacing them as
+	// contacts is self-referential noise. Only include brand contacts for rep
+	// orgs, whose `brands` table holds the partners they represent.
+	const includeBrandContacts = orgType === 'rep';
 
 	// RLS handles federation visibility — no admin client or connected org queries needed
 	const [accountsRes, brandsRes, discoveredRes] = await Promise.all([
@@ -12,12 +17,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.eq('organization_id', organization.id)
 			.not('contact_email', 'is', null)
 			.order('contact_first_name'),
-		supabase
-			.from('brands')
-			.select('id, name, contact_first_name, contact_last_name, contact_email, contact_phone')
-			.eq('organization_id', organization.id)
-			.not('contact_email', 'is', null)
-			.order('contact_first_name'),
+		includeBrandContacts
+			? supabase
+					.from('brands')
+					.select('id, name, contact_first_name, contact_last_name, contact_email, contact_phone')
+					.eq('organization_id', organization.id)
+					.not('contact_email', 'is', null)
+					.order('contact_first_name')
+			: Promise.resolve({ data: [] as never[] }),
 		supabase
 			.from('discovered_contacts')
 			.select('*')

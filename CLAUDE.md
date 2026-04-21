@@ -2,9 +2,20 @@
 
 SvelteKit 5 app for fashion reps, brands, and buyers. Deployed to Vercel at `threadline.systems`.
 
-## Do not guess, do not assume
+## Do not guess, do not assume — period
 
-Before proposing a form, page, route, component, field, table, column, or API behavior — **verify it exists**. Read the file, grep the code, or ask. Do not infer from a plausible name. A wrong guess wastes the user's time and erodes trust. If you don't know, say "I don't know — let me check" and check.
+**This rule covers everything, not just code.** Schema, routes, fields, API behavior, **UI patterns, styling conventions, copy, tone, component variants, empty-state styles, icon choices, modal vs dialog patterns, the exact classes used elsewhere** — all of it.
+
+Before proposing any of the above, **verify**: read the file, grep the codebase, or ask the user. Do not infer from a plausible name. Do not assume "this pattern is probably like X." Do not invent copy from a feature description without checking the brand voice doc.
+
+If you're not sure, say "I don't know — let me check" and check. If there isn't a clear answer in the code or docs, **ask the user** before acting. A wrong guess wastes the user's time and erodes trust more than the 10 seconds it costs to grep or ask.
+
+Canonical patterns to verify (not an exhaustive list — the rule applies to everything):
+
+- **Empty states** — see the Empty states subsection in Code Style below. Copy the canonical pattern exactly; do not pick a different variant you happen to remember.
+- **Brand voice** — read `docs/brand/guidelines.md` §1.5 before writing any user-facing copy, including coming-soon subtitles, button labels, toast text, and modal descriptions. Do not transcribe a feature description the user gave you as copy — rewrite it against brand voice.
+- **Role-aware audit** — before shipping a role-scoped page, mentally render it as every role and strip self-referential or tautological content.
+- **UI primitives** — check `src/lib/components/ui/` before hand-rolling a control.
 
 ## Do not collapse federation boundaries
 
@@ -92,7 +103,14 @@ Run `bun run test:run` before claiming work is complete.
 
 ### Empty states
 
-- Use the icon-circle + title + subtitle pattern. Do not use dashed-border boxes.
+Canonical pattern across `/accounts`, `/products`, `/orders`, `/reports`, `/shop`, `/organization/contacts` — copy it, do not invent variants.
+
+- **Icon:** inline SVG, classes `mx-auto h-16 w-16 text-foreground`, `stroke="currentColor"`, `stroke-width="0.4"`. Big and thin, no fill, **no circle background**, no muted tint.
+- **Title:** `<p class="mt-4 text-lg font-semibold">` (or `<h2>` if it's the page's primary heading).
+- **Subtitle:** `<p class="mt-2 text-sm text-muted-foreground">`.
+- Wrapper is a centered column: `class="text-center"` (or `flex flex-col items-center` when you need vertical positioning control).
+- Do not use dashed-border boxes.
+- Do not use the smaller `h-14 w-14 rounded-full bg-muted` circle + `h-7 w-7` inner icon variant — that's for secondary/inline empty states inside a card, not full-page empty states.
 
 ### Type safety
 

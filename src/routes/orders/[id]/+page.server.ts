@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		supabase
 			.from('orders')
 			.select(
-				'*, brands(name, commission_rate), accounts(business_name, contact_email), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name)), account_locations!location_id(label, address_line1, address_line2, city, state, zip)'
+				'*, brands(name, commission_rate), accounts(business_name, contact_first_name, contact_last_name, contact_email, contact_phone, phone, address_line1, address_line2, city, state, zip), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name)), account_locations!location_id(label, address_line1, address_line2, city, state, zip)'
 			)
 			.eq('id', params.id)
 			.single(),
@@ -118,7 +118,9 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 			.single(),
 		supabase
 			.from('organization_members')
-			.select('id, commission_rate, profiles!organization_members_profile_id_fkey(display_name)')
+			.select(
+				'id, commission_rate, profiles!organization_members_profile_id_fkey(display_name, email)'
+			)
 			.eq('profile_id', orderResult.data.created_by)
 			.single(),
 		// Use supabaseAdmin for comments + audits — order visibility is already
@@ -244,8 +246,8 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		repCommissionRate,
 		repName: (() => {
 			const profilesJoin = repRes.data?.profiles as
-				| { display_name?: string }
-				| { display_name?: string }[]
+				| { display_name?: string; email?: string }
+				| { display_name?: string; email?: string }[]
 				| null
 				| undefined;
 			if (!profilesJoin) return null;
@@ -253,6 +255,15 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 				(Array.isArray(profilesJoin) ? profilesJoin[0]?.display_name : profilesJoin.display_name) ??
 				null
 			);
+		})(),
+		repEmail: (() => {
+			const profilesJoin = repRes.data?.profiles as
+				| { email?: string }
+				| { email?: string }[]
+				| null
+				| undefined;
+			if (!profilesJoin) return null;
+			return (Array.isArray(profilesJoin) ? profilesJoin[0]?.email : profilesJoin.email) ?? null;
 		})(),
 		comments,
 		audits,

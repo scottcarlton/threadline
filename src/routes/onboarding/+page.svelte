@@ -896,14 +896,7 @@
 							<p class="text-sm text-red-600">{catalogError}</p>
 						{/if}
 
-						<div class="flex items-center justify-between">
-							<button
-								type="button"
-								class="text-sm text-muted-foreground underline hover:text-foreground"
-								onclick={skipCatalog}
-							>
-								I'll do this later
-							</button>
+						<div class="flex items-center justify-end">
 							<button
 								type="button"
 								class="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
@@ -1426,15 +1419,16 @@
 						></button>
 					{/each}
 				</div>
-				{#if (step === 4 && effectiveOrgType === 'rep') || step === inviteStep || (step === 5 && effectiveOrgType === 'rep')}
+				{#if (step === catalogStep && effectiveOrgType === 'brand') || (step === 4 && effectiveOrgType === 'rep') || step === inviteStep || (step === 5 && effectiveOrgType === 'rep')}
 					<button
 						class="text-sm text-muted-foreground transition-colors hover:text-foreground"
 						onclick={() => {
-							if (step === 4 && effectiveOrgType === 'rep') step = 5;
+							if (step === catalogStep && effectiveOrgType === 'brand') skipCatalog();
+							else if (step === 4 && effectiveOrgType === 'rep') step = 5;
 							else step = welcomeStep;
 						}}
 					>
-						Skip
+						I'll do this later
 					</button>
 				{/if}
 			</div>
