@@ -1663,6 +1663,28 @@
 								</div>
 							</div>
 							<div class="flex items-center gap-3">
+								{#if !isOpen}
+									{@const prevBrandId = i > 0 ? groups[i - 1].brand_id : null}
+									{@const hasOverrides = Boolean(
+										meta.bill_to_location_id ||
+										meta.payment_preference ||
+										meta.payment_terms ||
+										meta.shipping_method ||
+										meta.po_number ||
+										meta.internal_note
+									)}
+									{#if prevBrandId !== null && prevBrandId !== g.brand_id}
+										<span
+											class="rounded-full border bg-muted/40 px-2 py-0.5 text-sm text-muted-foreground"
+											>Different brand</span
+										>
+									{:else if !hasOverrides}
+										<span
+											class="rounded-full border bg-muted/40 px-2 py-0.5 text-sm text-muted-foreground"
+											>Defaults from account</span
+										>
+									{/if}
+								{/if}
 								<span class="font-mono text-sm">{fmt.format(g.total)}</span>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"

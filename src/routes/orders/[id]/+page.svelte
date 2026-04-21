@@ -1307,6 +1307,36 @@
 					{/if}
 				</div>
 
+				<!-- Terms agreement -->
+				{#if order.terms_id}
+					{@const termsJoin = order as typeof order & {
+						brand_terms?: { id: string; title: string; version: number } | null;
+						terms_agreed_profile?: { display_name: string | null } | null;
+					}}
+					{@const termsRow = termsJoin.brand_terms}
+					{@const agreedBy = termsJoin.terms_agreed_profile?.display_name ?? null}
+					{@const agreedAt = order.terms_agreed_at
+						? new Date(order.terms_agreed_at as string)
+						: null}
+					<div class="mt-3 rounded-md border bg-muted/20 p-3">
+						<div class="flex items-center justify-between">
+							<span class="text-sm font-medium text-muted-foreground">Terms agreed</span>
+							{#if termsRow}
+								<span class="text-sm">
+									{termsRow.title} · v{termsRow.version}
+								</span>
+							{/if}
+						</div>
+						{#if agreedBy || agreedAt}
+							<p class="mt-1 text-sm text-muted-foreground">
+								{#if agreedBy}{agreedBy}{/if}{#if agreedBy && agreedAt}
+									·
+								{/if}{#if agreedAt}{agreedAt.toLocaleString()}{/if}
+							</p>
+						{/if}
+					</div>
+				{/if}
+
 				<!-- Commission -->
 				<div class="mt-4 space-y-3">
 					{#if repCommissionRate > 0}

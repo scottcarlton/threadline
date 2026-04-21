@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		supabase
 			.from('orders')
 			.select(
-				'*, brands(name, commission_rate), accounts(business_name, contact_first_name, contact_last_name, contact_email, contact_phone, phone, address_line1, address_line2, city, state, zip), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name)), account_locations!location_id(label, address_line1, address_line2, city, state, zip)'
+				'*, brands(name, commission_rate), accounts(business_name, contact_first_name, contact_last_name, contact_email, contact_phone, phone, address_line1, address_line2, city, state, zip), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name)), account_locations!location_id(label, address_line1, address_line2, city, state, zip), bill_to_location:account_locations!bill_to_location_id(label, address_line1, address_line2, city, state, zip), brand_terms!terms_id(id, title, body, version), terms_agreed_profile:profiles!terms_agreed_by(display_name)'
 			)
 			.eq('id', params.id)
 			.single(),
