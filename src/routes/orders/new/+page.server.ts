@@ -12,7 +12,7 @@ import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import { notifyBrandAdmins } from '$lib/server/notifications.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-import { isPaymentMethodCode } from '$lib/payment-methods';
+import { isPaymentPreferenceCode } from '$lib/payment-methods';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { organization, user } = locals;
@@ -270,7 +270,9 @@ export const actions: Actions = {
 		const acceptedMethods = (organization.accepted_payment_methods ?? []) as string[];
 		const rawPref = (payload.payment_preference ?? '').toString().trim();
 		const paymentPrefValue =
-			rawPref && isPaymentMethodCode(rawPref) && acceptedMethods.includes(rawPref) ? rawPref : null;
+			rawPref && isPaymentPreferenceCode(rawPref) && acceptedMethods.includes(rawPref)
+				? rawPref
+				: null;
 
 		for (const o of newOrders) {
 			const { data: orderRow, error: orderErr } = await supabase

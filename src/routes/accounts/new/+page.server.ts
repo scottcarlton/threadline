@@ -3,7 +3,7 @@ import { fail } from '@sveltejs/kit';
 import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { createAccountSchema } from '$lib/schemas/account';
-import { isPaymentMethodCode } from '$lib/payment-methods';
+import { isPaymentMethodCode, isPaymentPreferenceCode } from '$lib/payment-methods';
 
 type SuccessMessage = { type: 'success'; accountId: string; inviteFailed: boolean };
 
@@ -40,8 +40,10 @@ export const actions: Actions = {
 		const accepted = (locals.organization.accepted_payment_methods ?? []) as string[];
 		const orgDefault = locals.organization.default_payment_method ?? null;
 		const picked = paymentPreference?.trim() ?? '';
+		// Form still submits the merged payment-preference list until the
+		// Finalize redesign splits methods from terms in the UI.
 		const validPick =
-			picked && isPaymentMethodCode(picked) && accepted.includes(picked) ? picked : null;
+			picked && isPaymentPreferenceCode(picked) && accepted.includes(picked) ? picked : null;
 		const paymentPrefValue = validPick ?? (accepted.includes(orgDefault ?? '') ? orgDefault : null);
 
 		const { data: newAccount, error: insertErr } = await locals.supabase

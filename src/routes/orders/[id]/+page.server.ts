@@ -2,7 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { logSupabaseError } from '$lib/server/log-supabase-error.js';
-import { isPaymentMethodCode } from '$lib/payment-methods';
+import { isPaymentPreferenceCode } from '$lib/payment-methods';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	// Hook for invalidate('data:orders') after AI tool calls that touch orders
@@ -290,7 +290,7 @@ export const actions: Actions = {
 
 		let next: string | null = null;
 		if (raw) {
-			if (!isPaymentMethodCode(raw) || !accepted.includes(raw)) {
+			if (!isPaymentPreferenceCode(raw) || !accepted.includes(raw)) {
 				return fail(400, { message: 'That payment method is not accepted by your organization.' });
 			}
 			next = raw;
