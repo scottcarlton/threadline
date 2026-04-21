@@ -11,20 +11,32 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 
 	const { supabase, organization, orgType } = locals;
 
-	const [orderResult, linesResult] = await Promise.all([
-		supabase
-			.from('orders')
-			.select(
-				'*, brands(name, commission_rate), accounts(business_name, contact_first_name, contact_last_name, contact_email, contact_phone, phone, address_line1, address_line2, city, state, zip), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name)), account_locations!location_id(label, address_line1, address_line2, city, state, zip), bill_to_location:account_locations!bill_to_location_id(label, address_line1, address_line2, city, state, zip), brand_terms!terms_id(id, title, body, version), terms_agreed_profile:profiles!terms_agreed_by(display_name)'
-			)
-			.eq('id', params.id)
-			.single(),
-		supabase.from('order_lines').select('*').eq('order_id', params.id).order('sort_order')
-	]);
+	// Accept either a UUID (legacy list/dashboard links) or a human-readable
+	// order_number (e.g. DEN-000002 from the confirmation page). UUIDs have the
+	// 8-4-4-4-12 hex-with-dashes shape; anything else is treated as order_number.
+	const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+	const isUuid = UUID_RE.test(params.id);
+
+	const baseOrderQuery = supabase
+		.from('orders')
+		.select(
+			'*, brands(name, commission_rate), accounts(business_name, contact_first_name, contact_last_name, contact_email, contact_phone, phone, address_line1, address_line2, city, state, zip), seasons(name), shows(name), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day), show_dates(id, year, month, city, state, shows(name)), account_locations!location_id(label, address_line1, address_line2, city, state, zip), bill_to_location:account_locations!bill_to_location_id(label, address_line1, address_line2, city, state, zip), brand_terms!terms_id(id, title, body, version), terms_agreed_profile:profiles!terms_agreed_by(display_name)'
+		);
+
+	const orderResult = await (isUuid
+		? baseOrderQuery.eq('id', params.id).single()
+		: baseOrderQuery.eq('order_number', params.id).single());
 
 	if (orderResult.error || !orderResult.data) {
 		throw error(404, 'Order not found');
 	}
+
+	const resolvedOrderId = (orderResult.data as { id: string }).id;
+	const linesResult = await supabase
+		.from('order_lines')
+		.select('*')
+		.eq('order_id', resolvedOrderId)
+		.order('sort_order');
 
 	// Load product metadata for any order_lines that reference a product. The
 	// Line Items table needs image, variants (sizes/colors), and season label
@@ -95,7 +107,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	if (locals.user?.id) {
 		await supabaseAdmin.from('order_views').upsert(
 			{
-				order_id: params.id,
+				order_id: resolvedOrderId,
 				profile_id: locals.user.id,
 				viewed_at: new Date().toISOString()
 			},
@@ -130,12 +142,12 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		supabaseAdmin
 			.from('order_comments')
 			.select('*, source_org:source_org_id(id, name)')
-			.eq('order_id', params.id)
+			.eq('order_id', resolvedOrderId)
 			.order('created_at', { ascending: true }),
 		supabaseAdmin
 			.from('order_audits')
 			.select('*')
-			.eq('order_id', params.id)
+			.eq('order_id', resolvedOrderId)
 			.order('created_at', { ascending: false })
 	]);
 
@@ -207,7 +219,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		const { data: link } = await supabaseAdmin
 			.from('federated_order_links')
 			.select('source_org_id, source_org:source_org_id(id, name)')
-			.eq('order_id', params.id)
+			.eq('order_id', resolvedOrderId)
 			.eq('target_org_id', organization.id)
 			.eq('status', 'active')
 			.maybeSingle();
@@ -296,11 +308,15 @@ export const actions: Actions = {
 			next = raw;
 		}
 
-		const { error: updErr } = await supabaseAdmin
+		// Accept UUID or order_number in the URL.
+		const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+		const baseUpdate = supabaseAdmin
 			.from('orders')
 			.update({ payment_preference: next, updated_at: new Date().toISOString() })
-			.eq('id', params.id)
 			.eq('organization_id', organization.id);
+		const { error: updErr } = await (UUID_RE.test(params.id)
+			? baseUpdate.eq('id', params.id)
+			: baseUpdate.eq('order_number', params.id));
 		if (updErr) return fail(500, { message: updErr.message });
 		return { ok: true };
 	}
