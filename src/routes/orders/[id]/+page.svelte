@@ -300,10 +300,14 @@
 		label: s.charAt(0).toUpperCase() + s.slice(1)
 	}));
 	const convertLocationItems = $derived(
-		noteAccountLocations.map((l) => ({
-			value: l.id,
-			label: `${l.label ?? 'Location'}${l.is_default ? ' · default' : ''}`
-		}))
+		noteAccountLocations.map((l) => {
+			const addr = [l.address_line1, l.city].filter(Boolean).join(', ');
+			const base = l.label ?? 'Location';
+			return {
+				value: l.id,
+				label: addr ? `${base} — ${addr}` : base
+			};
+		})
 	);
 	const convertBillToItems = $derived([
 		{ value: '', label: 'Same as ship to' },
@@ -1138,10 +1142,11 @@
 				<div class="min-w-0">
 					<div class="text-sm">This is a Note — nothing has been committed yet.</div>
 					<div class="mt-1 text-sm text-muted-foreground/70">
-						Created {longDate(order.created_at)}
-						{#if (order.profiles?.display_name as string | undefined) ?? null}
-							· by {order.profiles?.display_name}
-						{/if}
+						Created {longDate(
+							order.created_at
+						)}{#if (order.profiles?.display_name as string | undefined) ?? federation?.repDisplayName}
+							· by {(order.profiles?.display_name as string | undefined) ??
+								federation?.repDisplayName}{/if}
 					</div>
 				</div>
 				{#if canEdit}
@@ -2298,7 +2303,7 @@
 					};
 				}}
 			>
-				<header class="flex items-start justify-between gap-4 border-b px-6 py-5">
+				<header class="flex items-start justify-between gap-4 px-6 py-5">
 					<div class="min-w-0">
 						<Dialog.Title class="text-lg font-medium">Convert to order</Dialog.Title>
 						<Dialog.Description class="mt-1 text-sm text-muted-foreground">
@@ -2516,7 +2521,7 @@
 					{/if}
 				</div>
 
-				<footer class="flex flex-wrap items-center gap-3 border-t px-6 py-4">
+				<footer class="flex flex-wrap items-center gap-3 px-6 py-4">
 					{#if currentBrandTerms && !convertTermsAgreed}
 						<span class="mr-auto text-sm text-muted-foreground/70">
 							Agree to the buyer terms to continue
