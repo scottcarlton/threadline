@@ -1351,7 +1351,7 @@
 						{/if}
 					</div>
 					<div>
-						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Rep</div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Sales Rep</div>
 						<div class="mt-1.5 text-sm">
 							{#if isFederatedView}
 								{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}
