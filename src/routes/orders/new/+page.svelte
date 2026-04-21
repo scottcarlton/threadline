@@ -23,11 +23,7 @@
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Dialog } from 'bits-ui';
-	import {
-		acceptedMethodsOnly,
-		acceptedPaymentMethods,
-		acceptedTermsOnly
-	} from '$lib/payment-methods';
+	import { acceptedMethodsOnly, acceptedTermsOnly } from '$lib/payment-methods';
 	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
 
 	type Brand = { id: string; name: string };
@@ -94,7 +90,6 @@
 	const selfBrandId = $derived(data.selfBrandId ?? null);
 	const reps = $derived((data.reps ?? []) as Rep[]);
 	const currentUserId = $derived((data.currentUser?.id as string | undefined) ?? null);
-	const orgAcceptedMethods = $derived((data.acceptedPaymentMethods ?? []) as string[]);
 	const orgDefaultMethod = $derived((data.defaultPaymentMethod ?? null) as string | null);
 
 	const monthAbbrev = [
@@ -571,13 +566,6 @@
 		cart.payment_preference = seeded;
 	});
 
-	const paymentMethodItems = $derived(
-		acceptedPaymentMethods(orgAcceptedMethods, cart.payment_preference || null).map((m) => ({
-			value: m.code,
-			label: m.label
-		}))
-	);
-
 	// Default the rep to the current user on mount.
 	$effect(() => {
 		if (cart.rep_user_id === null && currentUserId) {
@@ -738,6 +726,7 @@
 		(data.sourceTypes ?? []) as Array<{ id: string; name: string; sort_order: number | null }>
 	);
 	const distinctBrandsInCart = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const seen = new Set<string>();
 		const out: Array<{ id: string; name: string }> = [];
 		for (const g of groups) {
@@ -1826,7 +1815,6 @@
 								.map((g, i) => (g.brand_id === b.id ? i + 1 : null))
 								.filter((n): n is number => n !== null)}
 							<li class="flex items-start justify-between gap-4 px-5 py-4">
-								<!-- svelte-ignore a11y_label_has_associated_control -->
 								<label class="flex cursor-pointer gap-3">
 									<Checkbox
 										checked={cart.termsAgreedByBrand[b.id] === true}

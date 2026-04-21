@@ -49,14 +49,9 @@
 	const brandItems = $derived(brands.map((b) => ({ value: b.id, label: b.name })));
 
 	// svelte-ignore state_referenced_locally
-	const { form, errors, enhance, submitting, message } = superForm(data.form, {
+	const { form, errors, enhance, submitting } = superForm(data.form, {
 		validators: zod4Client(brandTermsSchema),
 		validationMethod: 'onblur',
-		onUpdated: ({ form: f }) => {
-			if (f.valid && (f.message as { success?: boolean } | undefined)?.success === undefined) {
-				// superForm message lives in data after redirect; we set success via returned result
-			}
-		},
 		onResult: ({ result }) => {
 			if (result.type === 'success') {
 				toast.success('Terms saved. The new version is now current.');
@@ -81,9 +76,6 @@
 			$form.body = '';
 		}
 	});
-
-	// Swallow unused-variable warning — `message` is reserved for future use.
-	void message;
 </script>
 
 <div class="space-y-6">

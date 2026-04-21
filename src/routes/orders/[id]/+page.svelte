@@ -342,27 +342,6 @@
 		invalidateAll();
 	}
 
-	// Notes editing
-	let editingNotes = $state(false);
-	let notesValue = $state('');
-	let savingNotes = $state(false);
-
-	function startEditNotes() {
-		notesValue = order.notes ?? '';
-		editingNotes = true;
-	}
-
-	async function saveNotes() {
-		savingNotes = true;
-		await supabase
-			.from('orders')
-			.update({ notes: notesValue || null, updated_at: new Date().toISOString() })
-			.eq('id', order.id);
-		savingNotes = false;
-		editingNotes = false;
-		invalidateAll();
-	}
-
 	// Line item editing — bulk edit mode
 	// ── Line Items edit mode ────────────────────────────────────────────────
 	// Edit mode snapshots each LineRow into a DraftRow. On Save Items we diff
@@ -1073,7 +1052,6 @@
 				{@const sourceLocation = showDateData
 					? [showDateData.city, showDateData.state].filter(Boolean).join(', ')
 					: null}
-				{@const deliveryData = order.season_deliveries}
 				{@const createdByName = order.profiles?.display_name ?? null}
 				<dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
 					<div>
