@@ -52,6 +52,11 @@ export type ActivityEntry = {
 // treated as one logical add (e.g. a batch save of several sizes/colors).
 const LINE_ADD_BUCKET_MS = 60_000;
 
+export type AggregateOptions = {
+	/** 'note' or 'order' — flips titles between "Order created" and "Note created". */
+	orderType?: 'order' | 'note' | string | null;
+};
+
 /**
  * Collapse raw `order_audits` rows into rendering-ready entries. Input is
  * expected in descending-time order (newest first), matching the index on
@@ -59,7 +64,8 @@ const LINE_ADD_BUCKET_MS = 60_000;
  */
 export function aggregateOrderActivity(
 	audits: RawAudit[],
-	profileNames: ReadonlyMap<string, string | null>
+	profileNames: ReadonlyMap<string, string | null>,
+	options: AggregateOptions = {}
 ): ActivityEntry[] {
 	const out: ActivityEntry[] = [];
 	let i = 0;
@@ -86,7 +92,7 @@ export function aggregateOrderActivity(
 			continue;
 		}
 
-		out.push(describeSingle(a, profileNames));
+		out.push(describeSingle(a, profileNames, options));
 		i++;
 	}
 	return out;
@@ -145,7 +151,8 @@ function describeLineAddBucket(
 
 function describeSingle(
 	a: RawAudit,
-	profileNames: ReadonlyMap<string, string | null>
+	profileNames: ReadonlyMap<string, string | null>,
+	options: AggregateOptions
 ): ActivityEntry {
 	const actor_name = actorNameFor(a, profileNames);
 	const base = {
@@ -154,10 +161,11 @@ function describeSingle(
 		at: a.created_at,
 		event_count: 1
 	} as const;
+	const entityLabel = options.orderType === 'note' ? 'Note' : 'Order';
 
 	switch (a.event_type) {
 		case 'order_created':
-			return { ...base, kind: 'status', title: 'Order created', subtitle: null };
+			return { ...base, kind: 'status', title: `${entityLabel} created`, subtitle: null };
 		case 'status_changed': {
 			const from = asText(a.before_value);
 			const to = asText(a.after_value);
@@ -169,7 +177,7 @@ function describeSingle(
 			};
 		}
 		case 'order_cancelled':
-			return { ...base, kind: 'status', title: 'Order cancelled', subtitle: null };
+			return { ...base, kind: 'status', title: `${entityLabel} cancelled`, subtitle: null };
 		case 'line_removed': {
 			const snap = (a.before_value ?? {}) as LineSnapshot;
 			const label = snap.description ?? snap.style_number ?? 'Line';
