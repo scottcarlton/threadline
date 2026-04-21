@@ -17,7 +17,7 @@
 	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
-	import type { DraftRowInput } from '$lib/utils/order-line-diff.js';
+	import { diffLineEdits, type DraftRowInput } from '$lib/utils/order-line-diff.js';
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import { SelectField } from '$lib/components/ui/select/index.js';
@@ -532,6 +532,10 @@
 	let editMode = $state(false);
 	let draftRows = $state<DraftRow[]>([]);
 	let savingEdits = $state(false);
+
+	// Count of DB ops that would be generated if the user saves right now.
+	// Each size-cell change, color change, or removed style contributes one op.
+	const pendingChanges = $derived(editMode ? diffLineEdits(draftRows).length : 0);
 
 	function snapshotDrafts(): DraftRow[] {
 		return lineRows.map((row) => {
@@ -1586,12 +1590,20 @@
 					<div class="flex items-center justify-between">
 						<CardTitle class="text-base">Line Items</CardTitle>
 						{#if canModify}
-							<div class="flex gap-2">
+							<div class="flex items-center gap-2">
 								{#if editMode}
+									<span class="font-mono text-sm text-muted-foreground/70">
+										{pendingChanges}
+										{pendingChanges === 1 ? 'pending change' : 'pending changes'}
+									</span>
 									<Button variant="ghost" size="sm" onclick={cancelEdit} disabled={savingEdits}>
 										Cancel
 									</Button>
-									<Button size="sm" onclick={saveEdits} disabled={savingEdits}>
+									<Button
+										size="sm"
+										onclick={saveEdits}
+										disabled={savingEdits || pendingChanges === 0}
+									>
 										{savingEdits ? 'Saving…' : 'Save Items'}
 									</Button>
 								{:else}
@@ -1623,372 +1635,229 @@
 					{#if lineRows.length === 0 && customLines.length === 0 && !editMode}
 						<p class="text-sm text-muted-foreground">No line items.</p>
 					{:else if editMode}
-						<div class="rounded-md border">
-							<table class="w-full">
-								<thead class="bg-muted/50">
-									<tr class="border-b">
-										<th class="w-20 px-3 py-2 text-left text-sm font-medium"></th>
-										<th class="w-72 px-3 py-2 text-left text-sm font-medium">Item</th>
-										<th class="px-3 py-2 text-center text-sm font-medium">Color</th>
-										<th class="px-3 py-2 text-left text-sm font-medium">Sizes / Qty</th>
-										<th class="px-3 py-2 text-right text-sm font-medium">Unit Price</th>
-										<th class="px-3 py-2 text-right text-sm font-medium">Total</th>
-										{#if canModify}
-											<th class="w-px px-2 py-2 whitespace-nowrap"></th>
-										{/if}
-									</tr>
-								</thead>
-								<tbody>
-									{#if editMode}
-										{#each draftRows as draft, idx (draft.key)}
-											{@const usedColors = draftRows
-												.filter(
-													(r, i) => i !== idx && r.product_id === draft.product_id && !r.to_remove
+						<!-- ── Edit mode: card stack with editable size cells ── -->
+						<div class="overflow-hidden rounded-lg border">
+							<div class="divide-y">
+								{#each draftRows as draft, idx (draft.key)}
+									{@const usedColors = draftRows
+										.filter(
+											(r, i) => i !== idx && r.product_id === draft.product_id && !r.to_remove
+										)
+										.map((r) => r.color_edit)
+										.filter((c): c is string => !!c)}
+									{@const rowUnits = Object.values(draft.qty_by_size).reduce(
+										(s, q) => s + (q || 0),
+										0
+									)}
+									{@const rowTotal = rowUnits * draft.unit_price}
+									{@const fallbackSizes = Array.from(
+										new Set(draft.lines.map((l) => l.size ?? '').filter((s) => s.length > 0))
+									)}
+									{@const sizesToShow =
+										draft.available_sizes.length > 0 ? draft.available_sizes : fallbackSizes}
+									{@const unusedColors =
+										draft.available_colors && draft.available_colors.length > 1
+											? draft.available_colors.filter(
+													(c) =>
+														!draftRows.some(
+															(r) =>
+																!r.to_remove &&
+																r.product_id === draft.product_id &&
+																r.color_edit === c
+														)
 												)
-												.map((r) => r.color_edit)
-												.filter((c): c is string => !!c)}
-											{@const rowUnits = Object.values(draft.qty_by_size).reduce(
-												(s, q) => s + (q || 0),
-												0
-											)}
-											{@const rowTotal = rowUnits * draft.unit_price}
-											<tr class="group border-b align-top {draft.to_remove ? 'opacity-40' : ''}">
-												<td class="px-3 py-3">
-													{#if draft.image_id}
-														<img
-															src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
-															alt=""
-															class="h-14 w-14 rounded-md object-cover"
-														/>
-													{:else}
-														<div
-															class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
+											: []}
+									<div class="px-6 py-4 {draft.to_remove ? 'bg-destructive/5' : ''}">
+										<div class="flex items-start justify-between gap-6">
+											<div class="flex min-w-0 items-center gap-4">
+												{#if draft.image_id}
+													<img
+														src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
+														alt=""
+														class="h-20 w-20 shrink-0 rounded-md border object-cover {draft.to_remove
+															? 'opacity-50'
+															: ''}"
+													/>
+												{:else}
+													<div
+														class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40 text-muted-foreground/50 {draft.to_remove
+															? 'opacity-50'
+															: ''}"
+													>
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															viewBox="0 0 24 24"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.5"
+															class="h-7 w-7"
 														>
-															<svg
-																xmlns="http://www.w3.org/2000/svg"
-																viewBox="0 0 24 24"
-																fill="none"
-																stroke="currentColor"
-																stroke-width="1.5"
-																class="h-6 w-6"
-															>
-																<rect x="3" y="3" width="18" height="18" rx="2" />
-																<circle cx="8.5" cy="8.5" r="1.5" />
-																<path d="M21 15l-5-5L5 21" />
-															</svg>
-														</div>
-													{/if}
-												</td>
-												<td class="px-3 py-3">
-													<div class="font-mono text-sm">{draft.style_number}</div>
-													<div class="text-sm font-medium">{draft.name}</div>
-													{#if !isBrandOrg && order.brands?.name}
-														<div class="text-sm text-muted-foreground">
-															{order.brands.name}{draft.season_label
-																? ` · ${draft.season_label}`
-																: ''}
-														</div>
-													{:else if draft.season_label}
-														<div class="text-sm text-muted-foreground">{draft.season_label}</div>
-													{/if}
-												</td>
-												<td class="px-3 py-3 text-center align-middle">
-													{#if draft.available_colors && draft.available_colors.length > 0}
-														<ColorSwatchPicker
-															value={draft.color_edit}
-															options={draft.available_colors}
-															disabledColors={usedColors}
-															onChange={(c) => (draftRows[idx].color_edit = c)}
-															disabled={draft.to_remove}
-														/>
-													{:else}
-														<div class="flex items-center justify-center gap-2 text-sm">
-															<ColorSwatch color={draft.color_edit} size={28} />
+															<rect x="3" y="3" width="18" height="18" rx="2" />
+															<circle cx="8.5" cy="8.5" r="1.5" />
+															<path d="M21 15l-5-5L5 21" />
+														</svg>
+													</div>
+												{/if}
+												<div class="min-w-0">
+													<div
+														class="truncate font-mono text-sm text-muted-foreground/70 {draft.to_remove
+															? 'line-through'
+															: ''}"
+													>
+														{draft.style_number}
+													</div>
+													<div
+														class="mt-0.5 truncate text-sm font-medium {draft.to_remove
+															? 'line-through'
+															: ''}"
+													>
+														{draft.name}
+													</div>
+													<div class="mt-1 flex items-center gap-2">
+														{#if draft.available_colors && draft.available_colors.length > 0 && !draft.to_remove}
+															<ColorSwatchPicker
+																value={draft.color_edit}
+																options={draft.available_colors}
+																disabledColors={usedColors}
+																onChange={(c) => (draftRows[idx].color_edit = c)}
+																disabled={draft.to_remove}
+															/>
 															{#if draft.color_edit}
-																<span>{draft.color_edit}</span>
+																<span class="text-sm text-muted-foreground">
+																	{draft.color_edit}
+																</span>
 															{/if}
+														{:else}
+															<ColorSwatch color={draft.color_edit} size={12} />
+															<span
+																class="text-sm {draft.color_edit
+																	? 'text-muted-foreground'
+																	: 'text-muted-foreground/50'}"
+															>
+																{draft.color_edit ?? '—'}
+															</span>
+														{/if}
+													</div>
+													{#if draft.to_remove}
+														<div class="mt-2 text-sm text-destructive">
+															Will be removed on save.
 														</div>
 													{/if}
-												</td>
-												<td class="px-3 py-3 align-middle">
-													{#if draft.available_sizes.length > 0}
-														<div class="flex flex-wrap gap-2">
-															{#each draft.available_sizes as size (size)}
-																<label class="flex flex-col items-center gap-1">
-																	<span class="text-sm text-muted-foreground">{size}</span>
-																	<input
-																		type="number"
-																		min="0"
-																		value={draft.qty_by_size[size] ?? 0}
-																		disabled={draft.to_remove}
-																		oninput={(e) => {
-																			const n = parseInt((e.target as HTMLInputElement).value, 10);
-																			draftRows[idx].qty_by_size[size] = Number.isNaN(n)
-																				? 0
-																				: Math.max(0, n);
-																		}}
-																		class="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm"
-																	/>
-																</label>
-															{/each}
-														</div>
-													{:else}
-														<div class="flex items-center gap-2">
-															<span class="text-sm text-muted-foreground">Qty</span>
+												</div>
+											</div>
+											<div class="flex shrink-0 items-start gap-3">
+												<div class="pt-1 text-right">
+													<div
+														class="font-mono text-sm {draft.to_remove
+															? 'text-muted-foreground line-through'
+															: ''}"
+													>
+														{fmt.format(rowTotal)}
+													</div>
+													<div class="font-mono text-sm text-muted-foreground/70">
+														{rowUnits}
+														{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(draft.unit_price)}/ea
+													</div>
+												</div>
+												{#if draft.to_remove}
+													<Button size="sm" variant="outline" onclick={() => restoreDraftRow(idx)}>
+														Undo
+													</Button>
+												{:else}
+													{#if unusedColors.length > 0}
+														<ColorSwatchPicker
+															value={null}
+															options={unusedColors}
+															onChange={(c) => c && addColorFor(idx, c)}
+															triggerLabel="+ color"
+														/>
+													{/if}
+													<button
+														type="button"
+														aria-label="Remove style"
+														class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+														onclick={() => removeDraftRow(idx)}
+													>
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															viewBox="0 0 24 24"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.75"
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															class="h-4 w-4"
+														>
+															<path d="M3 6h18" />
+															<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+															<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+															<path d="M10 11v6" />
+															<path d="M14 11v6" />
+														</svg>
+													</button>
+												{/if}
+											</div>
+										</div>
+
+										{#if !draft.to_remove}
+											{#if sizesToShow.length > 0}
+												<div class="mt-3 grid grid-cols-6 gap-2">
+													{#each sizesToShow as size (size)}
+														{@const qty = draft.qty_by_size[size] ?? 0}
+														<label
+															class="block cursor-text rounded-md border bg-muted/40 px-2 py-1.5 text-center transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
+															0
+																? 'border-dashed opacity-60'
+																: ''}"
+														>
+															<span class="block text-sm text-muted-foreground">{size}</span>
 															<input
 																type="number"
 																min="0"
-																value={draft.qty_by_size[''] ?? 0}
-																disabled={draft.to_remove}
+																value={qty}
 																oninput={(e) => {
-																	const n = parseInt((e.target as HTMLInputElement).value, 10);
-																	draftRows[idx].qty_by_size[''] = Number.isNaN(n)
+																	const n = parseInt(
+																		(e.currentTarget as HTMLInputElement).value,
+																		10
+																	);
+																	draftRows[idx].qty_by_size[size] = Number.isNaN(n)
 																		? 0
 																		: Math.max(0, n);
 																}}
-																class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center text-sm"
+																class="mt-0.5 block w-full bg-transparent text-center font-mono text-sm outline-none"
 															/>
-														</div>
-													{/if}
-												</td>
-												<td
-													class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm"
-												>
-													{fmt.format(draft.unit_price)}
-												</td>
-												<td
-													class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
-												>
-													<div>{fmt.format(rowTotal)}</div>
-													<div class="text-sm font-normal text-muted-foreground">
-														{rowUnits}
-														{rowUnits === 1 ? 'unit' : 'units'}
-													</div>
-												</td>
-												<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
-													<div class="flex items-center justify-end gap-1">
-														{#if !draft.to_remove && draft.available_colors && draft.available_colors.length > 1}
-															{@const unused = draft.available_colors.filter(
-																(c) =>
-																	!draftRows.some(
-																		(r) =>
-																			!r.to_remove &&
-																			r.product_id === draft.product_id &&
-																			r.color_edit === c
-																	)
-															)}
-															{#if unused.length > 0}
-																<ColorSwatchPicker
-																	value={null}
-																	options={unused}
-																	onChange={(c) => c && addColorFor(idx, c)}
-																	triggerLabel="+ color"
-																/>
-															{/if}
-														{/if}
-														{#if draft.to_remove}
-															<Button
-																size="sm"
-																variant="outline"
-																onclick={() => restoreDraftRow(idx)}
-															>
-																Undo
-															</Button>
-														{:else}
-															<button
-																type="button"
-																aria-label="Remove row"
-																class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-																onclick={() => removeDraftRow(idx)}
-															>
-																<svg
-																	xmlns="http://www.w3.org/2000/svg"
-																	viewBox="0 0 24 24"
-																	fill="none"
-																	stroke="currentColor"
-																	stroke-width="1.75"
-																	stroke-linecap="round"
-																	stroke-linejoin="round"
-																	class="h-4 w-4"
-																>
-																	<path d="M3 6h18" />
-																	<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-																	<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-																	<path d="M10 11v6" />
-																	<path d="M14 11v6" />
-																</svg>
-															</button>
-														{/if}
-													</div>
-												</td>
-											</tr>
-										{/each}
-									{:else}
-										{#each lineRows as row (row.key)}
-											{@const visibleLines = row.lines
-												.filter((l) => l.qty > 0)
-												.sort((a, b) => {
-													const ai = row.available_sizes.indexOf(a.size ?? '');
-													const bi = row.available_sizes.indexOf(b.size ?? '');
-													return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
-												})}
-											{@const rowUnits = row.lines.reduce((s, l) => s + l.qty, 0)}
-											{@const rowTotal = rowUnits * row.unit_price}
-											<tr class="group border-b align-top">
-												<td class="px-3 py-3">
-													{#if row.image_id}
-														<img
-															src={`/api/products/${row.product_id}/images/${row.image_id}`}
-															alt=""
-															class="h-14 w-14 rounded-md object-cover"
-														/>
-													{:else}
-														<div
-															class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
-														>
-															<svg
-																xmlns="http://www.w3.org/2000/svg"
-																viewBox="0 0 24 24"
-																fill="none"
-																stroke="currentColor"
-																stroke-width="1.5"
-																class="h-6 w-6"
-															>
-																<rect x="3" y="3" width="18" height="18" rx="2" />
-																<circle cx="8.5" cy="8.5" r="1.5" />
-																<path d="M21 15l-5-5L5 21" />
-															</svg>
-														</div>
-													{/if}
-												</td>
-												<td class="px-3 py-3">
-													<div class="font-mono text-sm">{row.style_number}</div>
-													<div class="text-sm font-medium">{row.name}</div>
-													{#if !isBrandOrg && order.brands?.name}
-														<div class="text-sm text-muted-foreground">
-															{order.brands.name}{row.season_label ? ` · ${row.season_label}` : ''}
-														</div>
-													{:else if row.season_label}
-														<div class="text-sm text-muted-foreground">{row.season_label}</div>
-													{/if}
-												</td>
-												<td class="px-3 py-3 text-center align-middle">
-													<div class="flex items-center justify-center gap-2 text-sm">
-														<ColorSwatch color={row.color} size={28} />
-														{#if row.color}
-															<span>{row.color}</span>
-														{/if}
-													</div>
-												</td>
-												<td class="px-3 py-3 align-middle">
-													{#if visibleLines.length > 0}
-														<div class="flex flex-wrap gap-x-6 gap-y-2">
-															{#each visibleLines as l (l.id)}
-																<div class="flex flex-col items-center">
-																	<span class="text-sm text-muted-foreground">{l.size ?? '—'}</span>
-																	<span class="text-sm">{l.qty}</span>
-																</div>
-															{/each}
-														</div>
-													{:else}
-														<span class="text-sm text-muted-foreground">—</span>
-													{/if}
-												</td>
-												<td
-													class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm"
-												>
-													{fmt.format(row.unit_price)}
-												</td>
-												<td
-													class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
-												>
-													<div>{fmt.format(rowTotal)}</div>
-													<div class="text-sm font-normal text-muted-foreground">
-														{rowUnits}
-														{rowUnits === 1 ? 'unit' : 'units'}
-													</div>
-												</td>
-												{#if canModify}
-													<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
-														<button
-															type="button"
-															aria-label="Remove row"
-															disabled={removingRowKey === row.key}
-															class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-40"
-															onclick={() => removeLineRow(row)}
-														>
-															<svg
-																xmlns="http://www.w3.org/2000/svg"
-																viewBox="0 0 24 24"
-																fill="none"
-																stroke="currentColor"
-																stroke-width="1.75"
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																class="h-4 w-4"
-															>
-																<path d="M3 6h18" />
-																<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-																<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-																<path d="M10 11v6" />
-																<path d="M14 11v6" />
-															</svg>
-														</button>
-													</td>
-												{/if}
-											</tr>
-										{/each}
-										{#each customLines as line (line.id)}
-											<tr class="border-b align-top text-sm">
-												<td class="px-3 py-3"></td>
-												<td class="px-3 py-3">
-													<div class="font-mono">{line.style_number ?? '—'}</div>
-													{#if line.description}
-														<div class="text-muted-foreground">{line.description}</div>
-													{/if}
-												</td>
-												<td class="px-3 py-3">{line.color ?? '—'}</td>
-												<td class="px-3 py-3">
-													<div class="flex flex-col items-center">
-														<span class="text-muted-foreground">{line.size ?? '—'}</span>
-														<span class="font-semibold">{line.qty}</span>
-													</div>
-												</td>
-												<td class="px-3 py-3 text-right font-mono">
-													{fmt.format(Number(line.unit_price))}
-												</td>
-												<td class="px-3 py-3 text-right font-mono font-medium">
-													{fmt.format(Number(line.line_total))}
-												</td>
-												{#if canModify}
-													<td class="w-px px-2 py-3 whitespace-nowrap"></td>
-												{/if}
-											</tr>
-										{/each}
-									{/if}
-								</tbody>
-								<tfoot class="bg-muted/50">
-									<tr class="align-top">
-										<td colspan="5" class="px-3 py-2 text-right font-mono text-sm font-medium">
-											Order Total
-										</td>
-										<td class="px-3 py-2 text-right font-mono text-sm font-bold">
-											<div>
-												{fmt.format(editMode ? projectedOrderTotal : Number(order.total_amount))}
-											</div>
-											<div class="text-sm font-normal text-muted-foreground">
-												{editMode ? projectedOrderUnits : savedOrderUnits}
-												{(editMode ? projectedOrderUnits : savedOrderUnits) === 1
-													? 'unit'
-													: 'units'}
-											</div>
-										</td>
-										{#if canModify}
-											<td class="px-3 py-2"></td>
+														</label>
+													{/each}
+												</div>
+											{:else}
+												<div class="mt-3 flex items-center gap-3">
+													<span class="text-sm text-muted-foreground">Qty</span>
+													<input
+														type="number"
+														min="0"
+														value={draft.qty_by_size[''] ?? 0}
+														oninput={(e) => {
+															const n = parseInt((e.currentTarget as HTMLInputElement).value, 10);
+															draftRows[idx].qty_by_size[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
+														}}
+														class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center font-mono text-sm"
+													/>
+												</div>
+											{/if}
 										{/if}
-									</tr>
-								</tfoot>
-							</table>
+									</div>
+								{/each}
+							</div>
+							<div class="flex items-center justify-between border-t bg-muted/20 px-6 py-3">
+								<span class="font-mono text-sm text-muted-foreground">
+									{draftRows.filter((d) => !d.to_remove).length}
+									{draftRows.filter((d) => !d.to_remove).length === 1 ? 'Item' : 'Items'} · {projectedOrderUnits}
+									{projectedOrderUnits === 1 ? 'unit' : 'units'}
+								</span>
+								<span class="font-mono text-lg font-medium">
+									{fmt.format(projectedOrderTotal)}
+								</span>
+							</div>
 						</div>
 					{:else}
 						<!-- ── View mode: grouped size-matrix card stack ── -->
