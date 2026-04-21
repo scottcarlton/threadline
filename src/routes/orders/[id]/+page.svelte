@@ -21,8 +21,15 @@
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Dialog } from 'bits-ui';
-	import { acceptedPaymentMethods, paymentMethodLabel } from '$lib/payment-methods';
+	import {
+		acceptedPaymentMethods,
+		acceptedMethodsOnly,
+		acceptedTermsOnly,
+		paymentMethodLabel
+	} from '$lib/payment-methods';
+	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
 	// just marked the order viewed; status changes below also call this.
@@ -262,24 +269,83 @@
 		return '—';
 	}
 
-	let converting = $state(false);
-	async function convertNoteToOrder() {
-		if (!confirm('Convert this note to a draft order? You can submit it afterward.')) return;
-		converting = true;
-		try {
-			await supabase
-				.from('orders')
-				.update({
-					order_type: 'order',
-					status: 'draft',
-					updated_at: new Date().toISOString()
-				})
-				.eq('id', order.id);
-			invalidateAll();
-		} finally {
-			converting = false;
-		}
+	// ── Convert-to-Order modal ─────────────────────────────────────────────
+	type ConvertLocation = {
+		id: string;
+		label: string | null;
+		is_default: boolean | null;
+		address_line1: string | null;
+		address_line2: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
+	};
+	type ConvertBrandTerms = { id: string; title: string; body: string; version: number };
+	const noteAccountLocations = $derived((data.accountLocations ?? []) as ConvertLocation[]);
+	const currentBrandTerms = $derived((data.currentBrandTerms ?? null) as ConvertBrandTerms | null);
+	const convertMethodItems = $derived(
+		acceptedMethodsOnly((data.acceptedPaymentMethods ?? []) as string[]).map((m) => ({
+			value: m.code,
+			label: m.label
+		}))
+	);
+	const convertTermsItems = $derived(
+		acceptedTermsOnly((data.acceptedPaymentMethods ?? []) as string[]).map((t) => ({
+			value: t.code,
+			label: t.label
+		}))
+	);
+	const convertShippingItems = SHIPPING_METHODS.map((s) => ({
+		value: s,
+		label: s.charAt(0).toUpperCase() + s.slice(1)
+	}));
+	const convertLocationItems = $derived(
+		noteAccountLocations.map((l) => ({
+			value: l.id,
+			label: `${l.label ?? 'Location'}${l.is_default ? ' · default' : ''}`
+		}))
+	);
+	const convertBillToItems = $derived([
+		{ value: '', label: 'Same as ship to' },
+		...convertLocationItems
+	]);
+
+	let convertOpen = $state(false);
+	let convertSubmitting = $state(false);
+	let convertTermsAgreed = $state(false);
+	let convertForm = $state({
+		start_ship_date: '',
+		expected_ship_date: '',
+		location_id: '',
+		bill_to_location_id: '',
+		payment_preference: '',
+		payment_terms: '',
+		shipping_method: '',
+		po_number: ''
+	});
+
+	function openConvertModal() {
+		// Seed defaults from the current note so the user starts close to done.
+		const defaultLoc = noteAccountLocations.find((l) => l.is_default) ?? noteAccountLocations[0];
+		convertForm = {
+			start_ship_date: (order.start_ship_date as string | null) ?? '',
+			expected_ship_date: (order.expected_ship_date as string | null) ?? '',
+			location_id: (order.location_id as string | null) ?? defaultLoc?.id ?? '',
+			bill_to_location_id: (order.bill_to_location_id as string | null) ?? '',
+			payment_preference: (order.payment_preference as string | null) ?? '',
+			payment_terms: (order.payment_terms as string | null) ?? '',
+			shipping_method: (order.shipping_method as string | null) ?? '',
+			po_number: (order.po_number as string | null) ?? ''
+		};
+		convertTermsAgreed = false;
+		convertOpen = true;
 	}
+
+	const convertCanSubmit = $derived(
+		convertForm.start_ship_date !== '' &&
+			convertForm.expected_ship_date !== '' &&
+			(!currentBrandTerms || convertTermsAgreed)
+	);
 
 	async function updateStatus(newStatus: OrderStatus) {
 		const res = await fetch(`/api/orders/${order.id}/status`, {
@@ -1079,9 +1145,7 @@
 					</div>
 				</div>
 				{#if canEdit}
-					<Button onclick={convertNoteToOrder} disabled={converting}>
-						{converting ? 'Converting…' : 'Convert to Order'}
-					</Button>
+					<Button onclick={openConvertModal} disabled={convertSubmitting}>Convert to Order</Button>
 				{/if}
 			</div>
 		</section>
@@ -2200,6 +2264,281 @@
 	}}
 	ondone={handleCatalogDone}
 />
+
+<!-- ══ Convert-to-Order Modal ════════════════════════════════════════════ -->
+<Dialog.Root bind:open={convertOpen}>
+	<Dialog.Portal>
+		<Dialog.Overlay
+			class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+		/>
+		<Dialog.Content
+			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
+		>
+			<form
+				method="POST"
+				action="?/convert"
+				use:enhance={() => {
+					convertSubmitting = true;
+					return async ({ result, update }) => {
+						convertSubmitting = false;
+						if (result.type === 'success') {
+							toast.success('Note converted to order');
+							convertOpen = false;
+							await update();
+							invalidateAll();
+						} else if (result.type === 'failure') {
+							const msg =
+								(result.data as { message?: string } | undefined)?.message ??
+								'Could not convert note.';
+							toast.error(msg);
+							await update({ reset: false });
+						} else if (result.type === 'error') {
+							toast.error(result.error?.message ?? 'Something went wrong.');
+						}
+					};
+				}}
+			>
+				<header class="flex items-start justify-between gap-4 border-b px-6 py-5">
+					<div class="min-w-0">
+						<Dialog.Title class="text-lg font-medium">Convert to order</Dialog.Title>
+						<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+							{order.accounts?.business_name ?? '—'}
+							{!isBrandOrg && order.brands?.name ? ` · ${order.brands.name}` : ''}
+							{#if seasonLabel() !== '—'}
+								· {seasonLabel()}{/if} · {fmt.format(Number(order.total_amount))}
+						</Dialog.Description>
+					</div>
+					<Dialog.Close
+						class="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+						aria-label="Close"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="18"
+							height="18"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.75"
+						>
+							<path d="M18 6 6 18M6 6l12 12" />
+						</svg>
+					</Dialog.Close>
+				</header>
+
+				<div class="max-h-[calc(90vh-11rem)] space-y-5 overflow-y-auto px-6 py-5">
+					<!-- Ship window -->
+					<div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ship window</div>
+						<div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+							<div>
+								<DateSelect
+									value={convertForm.start_ship_date}
+									onchange={(v) => (convertForm.start_ship_date = v ?? '')}
+								/>
+								<div class="mt-1 text-sm text-muted-foreground">Start ship</div>
+								<input type="hidden" name="start_ship_date" value={convertForm.start_ship_date} />
+							</div>
+							<div>
+								<DateSelect
+									value={convertForm.expected_ship_date}
+									onchange={(v) => (convertForm.expected_ship_date = v ?? '')}
+								/>
+								<div class="mt-1 text-sm text-muted-foreground">Complete ship</div>
+								<input
+									type="hidden"
+									name="expected_ship_date"
+									value={convertForm.expected_ship_date}
+								/>
+							</div>
+						</div>
+					</div>
+
+					<!-- Ship to / Bill to -->
+					<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+						<div>
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ship to</div>
+							{#if convertLocationItems.length > 0}
+								<div class="mt-2">
+									<SelectField
+										value={convertForm.location_id}
+										items={convertLocationItems}
+										placeholder="Select address"
+										class="w-full"
+										onValueChange={(v) => (convertForm.location_id = v)}
+									/>
+								</div>
+								<input type="hidden" name="location_id" value={convertForm.location_id} />
+							{:else}
+								<div class="mt-2 text-sm text-muted-foreground">No addresses on file.</div>
+							{/if}
+						</div>
+						<div>
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Bill to</div>
+							<div class="mt-2">
+								<SelectField
+									value={convertForm.bill_to_location_id}
+									items={convertBillToItems}
+									placeholder="Same as ship to"
+									class="w-full"
+									onValueChange={(v) => (convertForm.bill_to_location_id = v)}
+								/>
+							</div>
+							<input
+								type="hidden"
+								name="bill_to_location_id"
+								value={convertForm.bill_to_location_id}
+							/>
+						</div>
+					</div>
+
+					<!-- Payment / Terms / Shipping method -->
+					<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+						<div>
+							<div class="text-sm text-muted-foreground">Payment</div>
+							<div class="mt-1.5">
+								<SelectField
+									value={convertForm.payment_preference}
+									items={convertMethodItems}
+									placeholder="Select"
+									class="w-full"
+									onValueChange={(v) => (convertForm.payment_preference = v)}
+								/>
+							</div>
+							<input
+								type="hidden"
+								name="payment_preference"
+								value={convertForm.payment_preference}
+							/>
+						</div>
+						<div>
+							<div class="text-sm text-muted-foreground">Terms</div>
+							<div class="mt-1.5">
+								<SelectField
+									value={convertForm.payment_terms}
+									items={convertTermsItems}
+									placeholder="Select"
+									class="w-full"
+									onValueChange={(v) => (convertForm.payment_terms = v)}
+								/>
+							</div>
+							<input type="hidden" name="payment_terms" value={convertForm.payment_terms} />
+						</div>
+						<div>
+							<div class="text-sm text-muted-foreground">Ship method</div>
+							<div class="mt-1.5">
+								<SelectField
+									value={convertForm.shipping_method}
+									items={convertShippingItems}
+									placeholder="Select"
+									class="w-full"
+									onValueChange={(v) => (convertForm.shipping_method = v)}
+								/>
+							</div>
+							<input type="hidden" name="shipping_method" value={convertForm.shipping_method} />
+						</div>
+					</div>
+
+					<!-- PO -->
+					<div>
+						<label for="convert-po" class="text-sm text-muted-foreground">
+							PO / Customer ref <span class="text-muted-foreground/70">(optional)</span>
+						</label>
+						<input
+							id="convert-po"
+							name="po_number"
+							type="text"
+							maxlength={64}
+							placeholder="—"
+							bind:value={convertForm.po_number}
+							class="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+						/>
+					</div>
+
+					<!-- Buyer terms gate -->
+					{#if currentBrandTerms}
+						<div class="border-t pt-4">
+							<label class="flex cursor-pointer items-start gap-3">
+								<Checkbox
+									checked={convertTermsAgreed}
+									onCheckedChange={(v) => (convertTermsAgreed = v === true)}
+								/>
+								<span class="text-sm">
+									Buyer has agreed to <strong class="font-medium"
+										>{order.brands?.name ?? 'the brand'}'s</strong
+									>
+									terms.
+									<span class="mt-1 block text-sm text-muted-foreground/70">
+										Your name, timestamp, and the terms version are recorded on the order. The buyer
+										receives a copy with their confirmation email.
+										<Dialog.Root>
+											<Dialog.Trigger
+												class="ml-1 underline underline-offset-2 transition-colors hover:text-foreground"
+												onclick={(e: MouseEvent) => e.stopPropagation()}
+											>
+												View terms
+											</Dialog.Trigger>
+											<Dialog.Portal>
+												<Dialog.Overlay
+													class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[60] bg-black/50"
+												/>
+												<Dialog.Content
+													class="fixed top-[50%] left-[50%] z-[60] max-h-[80vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-auto rounded-lg border bg-background p-6 shadow-lg"
+												>
+													<Dialog.Title class="text-base font-semibold">
+														{currentBrandTerms.title}
+													</Dialog.Title>
+													<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+														{order.brands?.name ?? 'Brand'} · v{currentBrandTerms.version}
+													</Dialog.Description>
+													<div class="mt-5 text-sm whitespace-pre-wrap">
+														{currentBrandTerms.body}
+													</div>
+													<div class="mt-6 flex justify-end">
+														<Dialog.Close
+															class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
+														>
+															Close
+														</Dialog.Close>
+													</div>
+												</Dialog.Content>
+											</Dialog.Portal>
+										</Dialog.Root>
+									</span>
+								</span>
+							</label>
+							<input
+								type="hidden"
+								name="agreed_terms_id"
+								value={convertTermsAgreed ? currentBrandTerms.id : ''}
+							/>
+						</div>
+					{/if}
+				</div>
+
+				<footer class="flex flex-wrap items-center gap-3 border-t px-6 py-4">
+					{#if currentBrandTerms && !convertTermsAgreed}
+						<span class="mr-auto text-sm text-muted-foreground/70">
+							Agree to the buyer terms to continue
+						</span>
+					{:else if convertCanSubmit}
+						<span class="mr-auto text-sm text-muted-foreground/70">Ready to convert.</span>
+					{:else}
+						<span class="mr-auto text-sm text-muted-foreground/70">
+							Set the ship window to continue
+						</span>
+					{/if}
+					<Dialog.Close class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
+						Cancel
+					</Dialog.Close>
+					<Button type="submit" disabled={!convertCanSubmit || convertSubmitting}>
+						{convertSubmitting ? 'Converting…' : 'Convert to order'}
+					</Button>
+				</footer>
+			</form>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
 
 <!-- Cancel Order Modal -->
 {#if cancelOpen}

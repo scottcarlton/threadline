@@ -258,6 +258,42 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 
 	const canEditOrder = !!organization && orderResult.data.organization_id === organization.id;
 
+	// For notes, preload everything the Convert-to-Order modal needs: all
+	// account locations (ship-to / bill-to pickers) and the current brand_terms
+	// (terms gate). Orders don't need either — saves a round-trip.
+	type AccountLocation = {
+		id: string;
+		label: string | null;
+		is_default: boolean | null;
+		address_line1: string | null;
+		address_line2: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
+	};
+	type CurrentBrandTerms = { id: string; title: string; body: string; version: number };
+	let accountLocations: AccountLocation[] = [];
+	let currentBrandTerms: CurrentBrandTerms | null = null;
+	if (orderResult.data.order_type === 'note' && canEditOrder) {
+		const [locRes, termsRes] = await Promise.all([
+			orderResult.data.account_id
+				? supabaseAdmin
+						.from('account_locations')
+						.select('id, label, is_default, address_line1, address_line2, city, state, zip')
+						.eq('account_id', orderResult.data.account_id)
+						.order('is_default', { ascending: false })
+				: Promise.resolve({ data: [] as AccountLocation[], error: null }),
+			supabaseAdmin
+				.from('brand_terms')
+				.select('id, title, body, version')
+				.eq('brand_id', orderResult.data.brand_id)
+				.eq('is_current', true)
+				.maybeSingle()
+		]);
+		accountLocations = (locRes.data ?? []) as AccountLocation[];
+		currentBrandTerms = (termsRes.data as CurrentBrandTerms | null) ?? null;
+	}
+
 	return {
 		order: orderResult.data,
 		lines: linesResult.data ?? [],
@@ -293,7 +329,9 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		canEditOrder,
 		acceptedPaymentMethods: canEditOrder
 			? ((organization.accepted_payment_methods ?? []) as string[])
-			: ([] as string[])
+			: ([] as string[]),
+		accountLocations,
+		currentBrandTerms
 	};
 };
 
@@ -328,6 +366,106 @@ export const actions: Actions = {
 			? baseUpdate.eq('id', params.id)
 			: baseUpdate.eq('order_number', params.id));
 		if (updErr) return fail(500, { message: updErr.message });
+		return { ok: true };
+	},
+
+	// Convert a note to a submitted order. Collects the Finalize fields
+	// (ship window, ship-to / bill-to, payment, terms, PO) in one atomic
+	// update — flips order_type note → order, status → submitted, and
+	// records the terms agreement when the brand has current terms.
+	convert: async ({ request, locals, params }) => {
+		const { organization, membership, session, user } = locals;
+		if (!session || !organization || !user) {
+			return fail(401, { message: 'Not authenticated' });
+		}
+		const role = membership?.role ?? '';
+		if (!['admin', 'owner', 'member', 'sales'].includes(role)) {
+			return fail(403, { message: 'You do not have permission to convert this note.' });
+		}
+
+		const fd = await request.formData();
+		const get = (k: string) => {
+			const v = fd.get(k);
+			return v === null ? '' : String(v).trim();
+		};
+		const startShip = get('start_ship_date');
+		const expectedShip = get('expected_ship_date');
+		const locationId = get('location_id') || null;
+		const billToLocationId = get('bill_to_location_id') || null;
+		const paymentPreference = get('payment_preference') || null;
+		const paymentTerms = get('payment_terms') || null;
+		const shippingMethod = get('shipping_method') || null;
+		const poNumber = get('po_number') || null;
+		const agreedTermsId = get('agreed_terms_id') || null;
+
+		if (!startShip || !expectedShip) {
+			return fail(400, { message: 'Start and complete ship dates are required.' });
+		}
+		if (paymentPreference && !isPaymentPreferenceCode(paymentPreference)) {
+			return fail(400, { message: 'Invalid payment preference.' });
+		}
+
+		// Resolve order by UUID or order_number.
+		const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+		const baseOrder = supabaseAdmin
+			.from('orders')
+			.select('id, organization_id, order_type, brand_id, account_id');
+		const orderRes = await (UUID_RE.test(params.id)
+			? baseOrder.eq('id', params.id).single()
+			: baseOrder.eq('order_number', params.id).single());
+		if (orderRes.error || !orderRes.data) return fail(404, { message: 'Note not found.' });
+		const row = orderRes.data as {
+			id: string;
+			organization_id: string;
+			order_type: string;
+			brand_id: string;
+			account_id: string | null;
+		};
+		if (row.organization_id !== organization.id) {
+			return fail(403, { message: 'Not your note.' });
+		}
+		if (row.order_type !== 'note') {
+			return fail(409, { message: 'This is already an order.' });
+		}
+
+		// Terms gate: if the brand has current terms, require the client to
+		// have agreed with a matching ID. If no current terms exist, skip.
+		const { data: brandTerms } = await supabaseAdmin
+			.from('brand_terms')
+			.select('id')
+			.eq('brand_id', row.brand_id)
+			.eq('is_current', true)
+			.maybeSingle();
+		if (brandTerms && brandTerms.id !== agreedTermsId) {
+			return fail(400, {
+				message: 'Buyer terms must be agreed to before converting.'
+			});
+		}
+
+		const now = new Date().toISOString();
+		const update: Record<string, unknown> = {
+			order_type: 'order',
+			status: 'submitted',
+			start_ship_date: startShip,
+			expected_ship_date: expectedShip,
+			location_id: locationId,
+			bill_to_location_id: billToLocationId,
+			payment_preference: paymentPreference,
+			payment_terms: paymentTerms,
+			shipping_method: shippingMethod,
+			po_number: poNumber,
+			submitted_at: now,
+			updated_at: now
+		};
+		if (brandTerms) {
+			update.terms_id = brandTerms.id;
+			update.terms_agreed_by = user.id;
+			update.terms_agreed_at = now;
+		}
+
+		const { error: updErr } = await supabaseAdmin.from('orders').update(update).eq('id', row.id);
+		if (updErr) return fail(500, { message: updErr.message });
+
 		return { ok: true };
 	}
 };
