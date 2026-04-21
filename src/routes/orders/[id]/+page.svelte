@@ -825,79 +825,19 @@
 		}
 	}
 
-	// ── History / audit trail ────────────────────────────────────────────────
-	type AuditRow = {
+	// Humanized, aggregated activity entries shaped by the server helper at
+	// src/lib/server/orders/activity.ts. Consecutive `line_added` events from
+	// the same actor collapse into a single "N lines added" row.
+	type ActivityEntry = {
 		id: string;
-		order_id: string;
-		actor_id: string | null;
-		event_type:
-			| 'order_created'
-			| 'status_changed'
-			| 'order_cancelled'
-			| 'field_changed'
-			| 'line_added'
-			| 'line_removed'
-			| 'line_changed';
-		field: string | null;
-		before_value: unknown;
-		after_value: unknown;
-		created_at: string;
-		actor?: { display_name: string | null } | null;
+		kind: 'status' | 'content';
+		title: string;
+		subtitle: string | null;
+		actor_name: string | null;
+		at: string;
+		event_count: number;
 	};
-	const audits = $derived((data.audits ?? []) as AuditRow[]);
-
-	const fieldLabels: Record<string, string> = {
-		status: 'Status',
-		expected_ship_date: 'Complete ship',
-		start_ship_date: 'Start ship',
-		delivery_id: 'Delivery',
-		location_id: 'Location',
-		account_id: 'Account',
-		notes: 'Notes',
-		cancelled_reason: 'Cancel reason'
-	};
-
-	function formatAuditValue(v: unknown): string {
-		if (v === null || v === undefined) return '—';
-		if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
-		if (typeof v === 'object') {
-			const o = v as Record<string, unknown>;
-			// Line snapshot
-			if ('style_number' in o || 'qty' in o) {
-				const parts: string[] = [];
-				if (o.style_number) parts.push(String(o.style_number));
-				const variant = [o.color, o.size].filter(Boolean).join(' / ');
-				if (variant) parts.push(variant);
-				if (typeof o.qty === 'number') parts.push(`qty ${o.qty}`);
-				if (typeof o.unit_price === 'number' && o.unit_price > 0)
-					parts.push(`$${Number(o.unit_price).toFixed(2)}`);
-				return parts.join(' · ') || '—';
-			}
-			return JSON.stringify(o);
-		}
-		return '—';
-	}
-
-	function auditTitle(a: AuditRow): string {
-		switch (a.event_type) {
-			case 'order_created':
-				return 'Order created';
-			case 'order_cancelled':
-				return 'Order cancelled';
-			case 'status_changed':
-				return `Status → ${formatAuditValue(a.after_value)}`;
-			case 'field_changed': {
-				const label = a.field ? (fieldLabels[a.field] ?? a.field) : 'Field';
-				return `${label} updated`;
-			}
-			case 'line_added':
-				return 'Line added';
-			case 'line_removed':
-				return 'Line removed';
-			case 'line_changed':
-				return 'Line changed';
-		}
-	}
+	const activity = $derived((data.activity ?? []) as ActivityEntry[]);
 
 	// Comments
 	type Comment = {
@@ -2026,6 +1966,169 @@
 					{/if}
 				</CardContent>
 			</Card>
+
+			<!-- ── Notes + Activity (side-by-side) ────────────────────── -->
+			<section class="grid gap-4 md:grid-cols-2">
+				<!-- Notes & comments -->
+				<div class="rounded-lg border bg-muted/30 p-5">
+					<div class="flex items-center justify-between">
+						<div class="text-sm font-medium">Notes & comments</div>
+						<div class="text-xs text-muted-foreground/70">Internal only</div>
+					</div>
+
+					{#if canEdit}
+						{@const viewerEmail =
+							(data.user as { email?: string | null } | null | undefined)?.email ?? ''}
+						{@const viewerInitial = viewerEmail ? viewerEmail.charAt(0).toUpperCase() : '?'}
+						<div class="mt-3 flex gap-3">
+							<span
+								class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-sm"
+							>
+								{viewerInitial}
+							</span>
+							<div class="flex-1">
+								<textarea
+									rows="2"
+									placeholder="Add a note…"
+									bind:value={commentBody}
+									onkeydown={(e) => {
+										if (e.key === 'Enter' && !e.shiftKey) {
+											e.preventDefault();
+											postComment();
+										}
+									}}
+									class="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+								></textarea>
+								<div class="mt-1.5 flex items-center justify-between">
+									<span class="text-xs text-muted-foreground/70">Visible to your org only</span>
+									<Button
+										size="sm"
+										onclick={postComment}
+										disabled={postingComment || !commentBody.trim()}
+									>
+										{postingComment ? 'Posting…' : 'Post'}
+									</Button>
+								</div>
+								{#if commentError}
+									<p class="mt-1 text-sm text-destructive">{commentError}</p>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
+					{#if comments.length > 0}
+						<div class="{canEdit ? 'mt-4 border-t pt-4' : 'mt-3'} space-y-4">
+							{#each comments as comment (comment.id)}
+								<div class="flex gap-3">
+									<span
+										class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-sm"
+									>
+										{(comment.profiles?.display_name ?? '?')[0].toUpperCase()}
+									</span>
+									<div class="min-w-0 flex-1">
+										<div class="flex items-baseline gap-2">
+											<span class="text-sm font-medium">
+												{comment.profiles?.display_name ?? 'Unknown'}
+											</span>
+											{#if comment.source_org?.name}
+												<span
+													class="rounded-full border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground"
+												>
+													{comment.source_org.name}
+												</span>
+											{/if}
+											<span class="text-xs text-muted-foreground/70">
+												{new Date(comment.created_at).toLocaleDateString('en-US', {
+													month: 'short',
+													day: 'numeric',
+													hour: 'numeric',
+													minute: '2-digit'
+												})}
+											</span>
+											{#if comment.author_id === data.user?.id}
+												<button
+													type="button"
+													aria-label="Delete comment"
+													class="ml-auto text-muted-foreground transition-colors hover:text-destructive"
+													onclick={() => deleteComment(comment.id)}
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="h-3.5 w-3.5"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor"
+														stroke-width="2"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															d="M6 18L18 6M6 6l12 12"
+														/>
+													</svg>
+												</button>
+											{/if}
+										</div>
+										<p class="mt-0.5 text-sm text-muted-foreground">{comment.body}</p>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{:else if !canEdit}
+						<p class="mt-3 text-sm text-muted-foreground">No notes yet.</p>
+					{/if}
+				</div>
+
+				<!-- Activity timeline -->
+				<div class="rounded-lg border bg-muted/30 p-5">
+					<div class="flex items-center justify-between">
+						<div class="text-sm font-medium">Activity</div>
+					</div>
+
+					{#if activity.length === 0}
+						<p class="mt-3 text-sm text-muted-foreground">
+							No activity yet. Status changes, line edits, and notes will show up here.
+						</p>
+					{:else}
+						<ol class="relative mt-3">
+							<span aria-hidden="true" class="absolute top-1 bottom-1 left-[13px] w-px bg-border"
+							></span>
+							{#each activity as entry (entry.id)}
+								<li class="relative py-2 pl-9">
+									<span class="absolute top-2.5 left-0 flex w-[27px] justify-center">
+										<span
+											class="h-2 w-2 rounded-full {entry.kind === 'status'
+												? 'bg-emerald-500 ring-4 ring-emerald-500/20'
+												: 'bg-muted-foreground/50'}"
+										></span>
+									</span>
+									<div class="flex items-baseline justify-between gap-3">
+										<div class="min-w-0 text-sm">
+											<span class="font-medium">{entry.title}</span>
+											{#if entry.actor_name}
+												<span class="text-muted-foreground">
+													by {entry.actor_name}
+												</span>
+											{/if}
+										</div>
+										<span class="shrink-0 text-xs text-muted-foreground/70">
+											{new Date(entry.at).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric',
+												hour: 'numeric',
+												minute: '2-digit'
+											})}
+										</span>
+									</div>
+									{#if entry.subtitle}
+										<div class="mt-0.5 text-sm text-muted-foreground">{entry.subtitle}</div>
+									{/if}
+								</li>
+							{/each}
+						</ol>
+					{/if}
+				</div>
+			</section>
 		</div>
 		<!-- ─── Right rail: Totals + Terms record ─── -->
 		<aside class="space-y-4 self-start lg:sticky lg:top-6">
@@ -2136,152 +2239,6 @@
 	}}
 	ondone={handleCatalogDone}
 />
-
-<!-- Comments -->
-<Card>
-	<CardHeader>
-		<CardTitle class="text-base">Notes & Comments</CardTitle>
-	</CardHeader>
-	<CardContent>
-		{#if comments.length > 0}
-			<div class="mb-4 space-y-3">
-				{#each comments as comment (comment.id)}
-					<div class="flex items-start gap-3">
-						<div
-							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
-						>
-							{(comment.profiles?.display_name ?? '?')[0].toUpperCase()}
-						</div>
-						<div class="min-w-0 flex-1">
-							<div class="flex items-center gap-2">
-								<span class="text-sm font-medium"
-									>{comment.profiles?.display_name ?? 'Unknown'}</span
-								>
-								{#if comment.source_org?.name}
-									<span
-										class="inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
-										>{comment.source_org.name}</span
-									>
-								{/if}
-								<span class="text-sm text-muted-foreground"
-									>{new Date(comment.created_at).toLocaleDateString('en-US', {
-										month: 'short',
-										day: 'numeric',
-										hour: 'numeric',
-										minute: '2-digit'
-									})}</span
-								>
-								{#if comment.author_id === data.user?.id}
-									<button
-										type="button"
-										aria-label="Delete comment"
-										class="text-sm text-muted-foreground hover:text-destructive"
-										onclick={() => deleteComment(comment.id)}
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-3.5 w-3.5"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M6 18L18 6M6 6l12 12"
-											/>
-										</svg>
-									</button>
-								{/if}
-							</div>
-							<p class="mt-0.5 text-sm text-foreground">{comment.body}</p>
-						</div>
-					</div>
-				{/each}
-			</div>
-		{/if}
-
-		{#if canEdit}
-			<div class="flex gap-2">
-				<Input
-					class="flex-1"
-					placeholder="Add a note..."
-					bind:value={commentBody}
-					onkeydown={(e) => {
-						if (e.key === 'Enter' && !e.shiftKey) {
-							e.preventDefault();
-							postComment();
-						}
-					}}
-				/>
-				<Button size="sm" onclick={postComment} disabled={postingComment || !commentBody.trim()}>
-					{postingComment ? 'Posting...' : 'Post'}
-				</Button>
-			</div>
-			{#if commentError}
-				<p class="mt-2 text-sm text-destructive">{commentError}</p>
-			{/if}
-		{/if}
-	</CardContent>
-</Card>
-
-<!-- History / audit trail -->
-<Card>
-	<CardHeader>
-		<CardTitle class="text-base">History</CardTitle>
-	</CardHeader>
-	<CardContent>
-		{#if audits.length === 0}
-			<p class="text-sm text-muted-foreground">
-				No changes recorded yet. Updates to status, line items, and ship windows show up here.
-			</p>
-		{:else}
-			<ul class="space-y-3">
-				{#each audits as a (a.id)}
-					<li class="flex items-start gap-3">
-						<div
-							class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
-						>
-							{(a.actor?.display_name ?? '?')[0].toUpperCase()}
-						</div>
-						<div class="min-w-0 flex-1">
-							<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-								<span class="text-sm font-medium">{auditTitle(a)}</span>
-								<span class="text-sm text-muted-foreground">
-									{a.actor?.display_name ?? 'Unknown'}
-								</span>
-								<span class="text-sm text-muted-foreground">
-									{new Date(a.created_at).toLocaleString('en-US', {
-										month: 'short',
-										day: 'numeric',
-										hour: 'numeric',
-										minute: '2-digit'
-									})}
-								</span>
-							</div>
-							{#if a.event_type === 'field_changed' || a.event_type === 'line_changed'}
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									<span class="line-through">{formatAuditValue(a.before_value)}</span>
-									<span class="mx-1">→</span>
-									<span>{formatAuditValue(a.after_value)}</span>
-								</p>
-							{:else if a.event_type === 'line_added'}
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									{formatAuditValue(a.after_value)}
-								</p>
-							{:else if a.event_type === 'line_removed'}
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									{formatAuditValue(a.before_value)}
-								</p>
-							{/if}
-						</div>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</CardContent>
-</Card>
 
 <!-- Cancel Order Modal -->
 {#if cancelOpen}
