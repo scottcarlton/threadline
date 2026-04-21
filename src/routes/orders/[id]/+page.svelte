@@ -1804,29 +1804,70 @@
 												<div class="mt-3 grid grid-cols-6 gap-2">
 													{#each sizesToShow as size (size)}
 														{@const qty = draft.qty_by_size[size] ?? 0}
-														<label
-															class="block cursor-text rounded-md border bg-muted/40 px-2 py-1.5 text-center transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
+														<div
+															role="group"
+															aria-label="{draft.name} size {size} quantity"
+															class="rounded-md border bg-muted/40 px-2 py-2 text-center transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
 															0
 																? 'border-dashed opacity-60'
 																: ''}"
 														>
-															<span class="block text-sm text-muted-foreground">{size}</span>
-															<input
-																type="number"
-																min="0"
-																value={qty}
-																oninput={(e) => {
-																	const n = parseInt(
-																		(e.currentTarget as HTMLInputElement).value,
-																		10
-																	);
-																	draftRows[idx].qty_by_size[size] = Number.isNaN(n)
-																		? 0
-																		: Math.max(0, n);
-																}}
-																class="mt-0.5 block w-full bg-transparent text-center font-mono text-sm outline-none"
-															/>
-														</label>
+															<div class="text-xs text-muted-foreground">{size}</div>
+															<div class="mt-0.5 flex h-5 items-center justify-center gap-1">
+																<button
+																	type="button"
+																	aria-label="Decrease {size}"
+																	class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-30"
+																	disabled={qty === 0}
+																	onclick={() => {
+																		draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
+																	}}
+																>
+																	−
+																</button>
+																<input
+																	type="text"
+																	inputmode="numeric"
+																	pattern="[0-9]*"
+																	aria-label="{size} quantity"
+																	value={qty}
+																	oninput={(e) => {
+																		const raw = (e.currentTarget as HTMLInputElement).value.replace(
+																			/[^0-9]/g,
+																			''
+																		);
+																		const n = raw === '' ? 0 : parseInt(raw, 10);
+																		draftRows[idx].qty_by_size[size] = Number.isNaN(n)
+																			? 0
+																			: Math.max(0, n);
+																	}}
+																	onkeydown={(e) => {
+																		// Arrow keys step qty up/down; Enter blurs to commit.
+																		if (e.key === 'ArrowUp') {
+																			e.preventDefault();
+																			draftRows[idx].qty_by_size[size] = qty + 1;
+																		} else if (e.key === 'ArrowDown') {
+																			e.preventDefault();
+																			draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
+																		} else if (e.key === 'Enter') {
+																			e.preventDefault();
+																			(e.currentTarget as HTMLInputElement).blur();
+																		}
+																	}}
+																	class="w-8 bg-transparent text-center font-mono text-sm outline-none"
+																/>
+																<button
+																	type="button"
+																	aria-label="Increase {size}"
+																	class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none"
+																	onclick={() => {
+																		draftRows[idx].qty_by_size[size] = qty + 1;
+																	}}
+																>
+																	+
+																</button>
+															</div>
+														</div>
 													{/each}
 												</div>
 											{:else}
@@ -1930,12 +1971,14 @@
 													{@const sizeLine = row.lines.find((l) => (l.size ?? '') === size)}
 													{@const qty = sizeLine?.qty ?? 0}
 													<div
-														class="rounded-md border bg-muted/40 py-2 text-center {qty === 0
+														class="rounded-md border bg-muted/40 px-2 py-2 text-center {qty === 0
 															? 'opacity-40'
 															: ''}"
 													>
-														<div class="text-sm text-muted-foreground">{size}</div>
-														<div class="mt-0.5 font-mono text-sm">
+														<div class="text-xs text-muted-foreground">{size}</div>
+														<div
+															class="mt-0.5 flex h-5 items-center justify-center font-mono text-sm"
+														>
 															{qty > 0 ? qty : '—'}
 														</div>
 													</div>
