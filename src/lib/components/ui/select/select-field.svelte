@@ -50,7 +50,7 @@
 	</Select.Trigger>
 	<Select.Portal>
 		<Select.Content
-			class="animate-in fade-in-0 zoom-in-95 z-50 w-[var(--bits-select-trigger-width)] min-w-[var(--bits-select-trigger-width)] overflow-hidden rounded-md border bg-background shadow-lg"
+			class="animate-in fade-in-0 zoom-in-95 z-50 w-[var(--bits-select-anchor-width)] min-w-[var(--bits-select-anchor-width)] overflow-hidden rounded-md border bg-background shadow-lg"
 			sideOffset={4}
 		>
 			<Select.Viewport class="p-1">
