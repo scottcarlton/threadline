@@ -357,13 +357,27 @@
 		// the admin-fetched repDisplayName from +page.server.ts.
 		const actor =
 			(order.profiles?.display_name as string | undefined) ?? federation?.repDisplayName ?? null;
+		// Brand-side viewers (own-brand OR federated-target BOA) read
+		// "your confirmation" / "leaves your warehouse" — not the rep
+		// perspective "brand confirmation" / "leaves the brand".
+		const isBrandSide = isBrandOrg || federation?.isFederatedView === true;
 		switch (order.status) {
 			case 'draft':
 				return "Draft — not yet sent to the brand. Submit when you're ready.";
-			case 'submitted':
-				return `Submitted${actor ? ` by ${actor}` : ''}${order.submitted_at ? ` · ${longDate(order.submitted_at as string)}` : ''}. Awaiting brand confirmation — move to Confirmed when the brand accepts.`;
-			case 'confirmed':
-				return `Confirmed${order.confirmed_at ? ` · ${longDate(order.confirmed_at as string)}` : ''}. Move to Shipped when the order leaves the brand.`;
+			case 'submitted': {
+				const head = `Submitted${actor ? ` by ${actor}` : ''}${order.submitted_at ? ` · ${longDate(order.submitted_at as string)}` : ''}.`;
+				const tail = isBrandSide
+					? 'Awaiting your confirmation — move to Confirmed when you accept.'
+					: 'Awaiting brand confirmation — move to Confirmed when the brand accepts.';
+				return `${head} ${tail}`;
+			}
+			case 'confirmed': {
+				const head = `Confirmed${order.confirmed_at ? ` · ${longDate(order.confirmed_at as string)}` : ''}.`;
+				const tail = isBrandSide
+					? 'Move to Shipped when the order leaves your warehouse.'
+					: 'Move to Shipped when the order leaves the brand.';
+				return `${head} ${tail}`;
+			}
 			case 'shipped':
 				return `Shipped${order.shipped_at ? ` · ${longDate(order.shipped_at as string)}` : ''}. Move to Delivered once the buyer receives it.`;
 			case 'delivered':
