@@ -12,7 +12,8 @@ import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import { notifyBrandAdmins } from '$lib/server/notifications.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-import { isPaymentMethodCode } from '$lib/payment-methods';
+import { isPaymentPreferenceCode } from '$lib/payment-methods';
+import { finalizeSchema, type FinalizeInput } from '$lib/schemas/order-finalize';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { organization, user } = locals;
@@ -25,12 +26,22 @@ export const load: PageServerLoad = async ({ locals }) => {
 			seasons: [],
 			deliveries: [],
 			reps: [],
+			sourceTypes: [] as Array<{ id: string; name: string; sort_order: number | null }>,
+			brandTerms: [] as Array<{
+				id: string;
+				brand_id: string;
+				title: string;
+				body: string;
+				version: number;
+			}>,
 			currentUser: null,
 			isBuyer: locals.isBuyer ?? false,
 			isBrandOrg: false,
 			selfBrandId: null as string | null,
 			acceptedPaymentMethods: [] as string[],
-			defaultPaymentMethod: null as string | null
+			defaultPaymentMethod: null as string | null,
+			defaultPaymentTerms: null as string | null,
+			defaultShippingMethod: null as string | null
 		};
 	}
 
@@ -51,52 +62,66 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 	const visibleOrgIds = Array.from(visibleOrgIdSet);
 
-	const [accountsRes, locationsRes, brandsRes, seasonsRes, deliveriesRes, membersRes] =
-		await Promise.all([
-			(() => {
-				let q = supabaseAdmin
-					.from('accounts')
-					.select(
-						'id, business_name, contact_email, address_line1, address_line2, city, state, zip, payment_preference'
-					);
-				if (buyerAccountIds)
-					q = q.in('id', buyerAccountIds.length ? buyerAccountIds : ['__none__']);
-				else
-					q = q.in('organization_id', visibleOrgIds).eq('is_active', true).is('archived_at', null);
-				return q.order('business_name');
-			})(),
-			supabaseAdmin
-				.from('account_locations')
+	const [
+		accountsRes,
+		locationsRes,
+		brandsRes,
+		seasonsRes,
+		deliveriesRes,
+		membersRes,
+		sourceTypesRes,
+		brandTermsRes
+	] = await Promise.all([
+		(() => {
+			let q = supabaseAdmin
+				.from('accounts')
 				.select(
-					'id, account_id, label, contact_email, address_line1, address_line2, city, state, zip, is_default, sort_order'
-				)
-				.in('organization_id', visibleOrgIds)
-				.order('sort_order'),
-			(() => {
-				let q = supabaseAdmin
-					.from('brands')
-					.select('id, name, is_self_brand')
-					.eq('is_active', true);
-				if (buyerBrandIds) q = q.in('id', buyerBrandIds.length ? buyerBrandIds : ['__none__']);
-				else q = q.in('organization_id', visibleOrgIds);
-				return q.order('name');
-			})(),
-			supabaseAdmin
-				.from('seasons')
-				.select('id, name, sort_order')
-				.in('organization_id', visibleOrgIds)
-				.eq('is_active', true)
-				.order('sort_order'),
-			supabaseAdmin
-				.from('season_deliveries')
-				.select('id, season_id, label, delivery_month, delivery_day, sort_order')
-				.order('delivery_month')
-				.order('delivery_day'),
-			supabaseAdmin
-				.from('organization_members')
-				.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
-				.eq('organization_id', organization.id)
-		]);
+					'id, business_name, contact_email, address_line1, address_line2, city, state, zip, payment_preference, payment_terms, shipping_method'
+				);
+			if (buyerAccountIds) q = q.in('id', buyerAccountIds.length ? buyerAccountIds : ['__none__']);
+			else q = q.in('organization_id', visibleOrgIds).eq('is_active', true).is('archived_at', null);
+			return q.order('business_name');
+		})(),
+		supabaseAdmin
+			.from('account_locations')
+			.select(
+				'id, account_id, label, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, is_default, sort_order'
+			)
+			.in('organization_id', visibleOrgIds)
+			.order('sort_order'),
+		(() => {
+			let q = supabaseAdmin.from('brands').select('id, name, is_self_brand').eq('is_active', true);
+			if (buyerBrandIds) q = q.in('id', buyerBrandIds.length ? buyerBrandIds : ['__none__']);
+			else q = q.in('organization_id', visibleOrgIds);
+			return q.order('name');
+		})(),
+		supabaseAdmin
+			.from('seasons')
+			.select('id, name, sort_order')
+			.in('organization_id', visibleOrgIds)
+			.eq('is_active', true)
+			.order('sort_order'),
+		supabaseAdmin
+			.from('season_deliveries')
+			.select('id, season_id, label, delivery_month, delivery_day, sort_order')
+			.order('delivery_month')
+			.order('delivery_day'),
+		supabaseAdmin
+			.from('organization_members')
+			.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
+			.eq('organization_id', organization.id),
+		supabaseAdmin
+			.from('source_types')
+			.select('id, name, sort_order')
+			.eq('organization_id', organization.id)
+			.eq('is_active', true)
+			.order('sort_order'),
+		supabaseAdmin
+			.from('brand_terms')
+			.select('id, brand_id, title, body, version')
+			.in('organization_id', visibleOrgIds)
+			.eq('is_current', true)
+	]);
 
 	type RawMember = {
 		profile_id: string;
@@ -116,6 +141,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		? (brands.find((b) => (b as { is_self_brand?: boolean }).is_self_brand)?.id ?? null)
 		: null;
 
+	const orgRow = organization as typeof organization & {
+		default_payment_terms?: string | null;
+		default_shipping_method?: string | null;
+	};
+
 	return {
 		accounts: accountsRes.data ?? [],
 		locations: locationsRes.data ?? [],
@@ -123,12 +153,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 		seasons: seasonsRes.data ?? [],
 		deliveries: deliveriesRes.data ?? [],
 		reps,
+		sourceTypes: sourceTypesRes.data ?? [],
+		brandTerms: brandTermsRes.data ?? [],
 		currentUser: user ? { id: user.id } : null,
 		isBuyer,
 		isBrandOrg,
 		selfBrandId,
 		acceptedPaymentMethods: (organization.accepted_payment_methods ?? []) as string[],
-		defaultPaymentMethod: (organization.default_payment_method ?? null) as string | null
+		defaultPaymentMethod: (organization.default_payment_method ?? null) as string | null,
+		defaultPaymentTerms: (orgRow.default_payment_terms ?? null) as string | null,
+		defaultShippingMethod: (orgRow.default_shipping_method ?? null) as string | null
 	};
 };
 
@@ -159,6 +193,10 @@ type SubmitPayload = {
 		delivery: DeliveryChoice | null;
 		location_id: string | null;
 	}>;
+	// Finalize-step payload. Present when the client has collected per-order
+	// overrides + shared rep/source + brand agreements. Absent on older client
+	// code paths (back-compat).
+	finalize?: FinalizeInput | null;
 };
 
 export const actions: Actions = {
@@ -269,10 +307,74 @@ export const actions: Actions = {
 
 		const acceptedMethods = (organization.accepted_payment_methods ?? []) as string[];
 		const rawPref = (payload.payment_preference ?? '').toString().trim();
-		const paymentPrefValue =
-			rawPref && isPaymentMethodCode(rawPref) && acceptedMethods.includes(rawPref) ? rawPref : null;
+		const legacyPaymentPrefValue =
+			rawPref && isPaymentPreferenceCode(rawPref) && acceptedMethods.includes(rawPref)
+				? rawPref
+				: null;
+
+		// Validate + apply the finalize payload if present. The schema enforces
+		// the terms-agreed gate for submit_mode === 'order' and rejects
+		// freeform + submit. Any failure bails out before any INSERTs.
+		let finalizeData: FinalizeInput | null = null;
+		if (payload.finalize) {
+			const parsed = finalizeSchema.safeParse(payload.finalize);
+			if (!parsed.success) {
+				const first = parsed.error.issues[0];
+				return fail(400, {
+					message: first?.message ?? 'Finalize payload failed validation'
+				});
+			}
+			finalizeData = parsed.data;
+		}
+
+		// Build a per-group override lookup keyed by (brand_id, season_id).
+		const overrideByKey = new Map<string, FinalizeInput['orders'][number]>();
+		if (finalizeData) {
+			for (const o of finalizeData.orders) {
+				const key = `${o.brand_id}::${o.season_id ?? ''}`;
+				overrideByKey.set(key, o);
+			}
+		}
+		const overrideFor = (brand_id: string, season_id: string | null) =>
+			overrideByKey.get(`${brand_id}::${season_id ?? ''}`) ?? null;
+
+		// Pre-index current brand_terms for the brands in the cart so we can
+		// stamp terms_id on each submitted (non-note) order. Only brands where
+		// the user agreed are eligible.
+		const agreedByBrand = new Map<string, { terms_id: string | null; agreed: boolean }>();
+		if (finalizeData) {
+			for (const ba of finalizeData.brand_agreements) {
+				agreedByBrand.set(ba.brand_id, { terms_id: ba.terms_id, agreed: ba.agreed });
+			}
+		}
 
 		for (const o of newOrders) {
+			const ov = overrideFor(o.brand_id, o.season_id);
+
+			// Per-order override → cart-wide legacy payment_preference → null
+			const paymentPrefValue =
+				(ov?.payment_preference && acceptedMethods.includes(ov.payment_preference)
+					? ov.payment_preference
+					: null) ?? legacyPaymentPrefValue;
+
+			const paymentTermsValue =
+				ov?.payment_terms && acceptedMethods.includes(ov.payment_terms) ? ov.payment_terms : null;
+
+			const shippingMethodValue = ov?.shipping_method ?? null;
+			const poNumberValue = ov?.po_number ?? null;
+			const internalNoteValue = ov?.internal_note ?? null;
+			const shipToLocationId = ov?.ship_to_location_id ?? o.location_id;
+			const billToLocationId = ov?.bill_to_location_id ?? null;
+
+			const ba = agreedByBrand.get(o.brand_id);
+			const canStampTerms = Boolean(
+				finalizeData &&
+				finalizeData.submit_mode === 'order' &&
+				o.status === 'submitted' &&
+				ba?.agreed &&
+				ba.terms_id
+			);
+
 			const { data: orderRow, error: orderErr } = await supabase
 				.from('orders')
 				.insert({
@@ -280,7 +382,8 @@ export const actions: Actions = {
 					order_type: o.order_type,
 					account_id: o.account_id,
 					freeform_name: o.freeform_name,
-					location_id: o.location_id,
+					location_id: shipToLocationId,
+					bill_to_location_id: billToLocationId,
 					brand_id: o.brand_id,
 					season_id: o.season_id,
 					order_year: o.order_year,
@@ -290,6 +393,15 @@ export const actions: Actions = {
 					status: o.status,
 					total_amount: o.total_amount,
 					payment_preference: paymentPrefValue,
+					payment_terms: paymentTermsValue,
+					shipping_method: shippingMethodValue,
+					po_number: poNumberValue,
+					notes: internalNoteValue,
+					rep_user_id: finalizeData?.rep_user_id ?? null,
+					source_type_id: finalizeData?.source_type_id ?? null,
+					terms_id: canStampTerms ? ba!.terms_id : null,
+					terms_agreed_by: canStampTerms ? user.id : null,
+					terms_agreed_at: canStampTerms ? new Date().toISOString() : null,
 					created_by: user.id,
 					submitted_at: o.status === 'submitted' ? new Date().toISOString() : null
 				})

@@ -2,7 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-import { isPaymentMethodCode } from '$lib/payment-methods';
+import { isPaymentPreferenceCode } from '$lib/payment-methods';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	depends('data:accounts');
@@ -401,7 +401,7 @@ export const actions: Actions = {
 
 		let next: string | null = null;
 		if (raw) {
-			if (!isPaymentMethodCode(raw) || !accepted.includes(raw)) {
+			if (!isPaymentPreferenceCode(raw) || !accepted.includes(raw)) {
 				return fail(400, { message: 'That payment method is not accepted by your organization.' });
 			}
 			next = raw;
