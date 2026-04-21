@@ -401,8 +401,23 @@
 		state: string | null;
 		shows: { name: string | null } | null;
 	};
-	const showDateData = $derived(order.show_dates as ShowDateJoin | null);
-	const sourceDisplay = $derived(showDateData?.shows?.name ?? order.source_types?.name ?? null);
+	// Supabase can return embedded joins as either an object or a single-element
+	// array depending on the relationship's cardinality inference. Normalize so
+	// `order.show_dates` and `order.source_types` render the same either way.
+	function firstOrObject<T>(v: T | T[] | null | undefined): T | null {
+		if (!v) return null;
+		if (Array.isArray(v)) return v[0] ?? null;
+		return v;
+	}
+	const showDateData = $derived(
+		firstOrObject(order.show_dates as ShowDateJoin | ShowDateJoin[] | null | undefined)
+	);
+	const sourceTypeData = $derived(
+		firstOrObject(
+			order.source_types as { name?: string | null } | { name?: string | null }[] | null | undefined
+		)
+	);
+	const sourceDisplay = $derived(showDateData?.shows?.name ?? sourceTypeData?.name ?? null);
 	const sourceLocation = $derived.by(() => {
 		if (!showDateData) return null;
 		const parts = [showDateData.city, showDateData.state].filter(Boolean);
