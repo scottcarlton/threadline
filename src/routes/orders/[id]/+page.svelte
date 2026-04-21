@@ -1176,9 +1176,7 @@
 									aria-hidden="true"
 									class="h-px w-6 sm:w-10 {isComplete && timeline[i + 1].date !== null
 										? 'bg-foreground'
-										: isCurrent
-											? 'bg-gradient-to-r from-foreground to-border'
-											: 'bg-border'}"
+										: 'bg-border'}"
 								></li>
 							{/if}
 						{/each}
