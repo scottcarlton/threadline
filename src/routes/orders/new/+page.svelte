@@ -703,6 +703,8 @@
 	let submitStatus = $state<'draft' | 'submitted'>('draft');
 	let finalizeExpandedKey = $state<string | null>(null);
 	let finalizeExpandAll = $state(false);
+	let shipEditOpen = $state(false);
+	let billEditOpen = $state(false);
 
 	// Default the shared source to the org's first source type when the user
 	// first arrives at Finalize; manual picks override.
@@ -1473,140 +1475,499 @@
 			account?.business_name ||
 			cart.freeform_name ||
 			'—'}
+		{@const singleOrder = groups.length === 1}
+		{@const firstGroup = groups[0]}
+		{@const firstMeta = firstGroup ? getMeta(firstGroup.brand_id, firstGroup.season_id) : null}
+		{@const firstStyleCount = firstGroup ? firstGroup.items.length : 0}
+		{@const firstSkuCount = firstGroup
+			? firstGroup.items.reduce(
+					(sum, it) => sum + Object.values(it.size_qtys).filter((q) => (q ?? 0) > 0).length,
+					0
+				)
+			: 0}
+		{@const seasonCount = new Set(groups.map((g) => g.season_id ?? NO_SEASON)).size}
+		{@const termsBlockedBrands = distinctBrandsInCart.filter((b) => termsForBrand(b.id) !== null)}
 		<div class="space-y-6">
-			<!-- Hero: aggregate summary + totals -->
-			<div class="rounded-lg border bg-card">
-				<div class="grid gap-0 sm:grid-cols-[1fr_320px]">
-					<div class="space-y-4 p-6">
-						<div class="flex items-start justify-between gap-4">
-							<div>
-								<div class="text-sm text-muted-foreground">
-									{#if groups.length > 1}
-										{groups.length} orders will be created
-									{:else}
-										1 order will be created
-									{/if}
-								</div>
-								<div class="mt-2 font-mono text-3xl font-semibold">{fmt.format(grandTotal)}</div>
-								<div class="mt-1 text-sm text-muted-foreground">
-									{grandUnits} units total · {distinctBrandsInCart.length} brand{distinctBrandsInCart.length ===
-									1
-										? ''
-										: 's'}
-								</div>
-							</div>
-						</div>
-						{#if groups.length > 1}
-							<ul class="divide-y border-t">
-								{#each groups as g, i (groupKey(g.brand_id, g.season_id))}
-									{@const meta = getMeta(g.brand_id, g.season_id)}
-									<li class="flex items-center justify-between py-3 text-sm">
-										<div class="flex items-center gap-3">
-											<span class="font-mono text-muted-foreground">{i + 1}</span>
-											<div>
-												<div class="font-medium">
-													{brandName(g.brand_id)} · {seasonLabel(g.season_id, g.product_year)}
-												</div>
-												<div class="text-sm text-muted-foreground">
-													{g.units} units · {describeDelivery(meta)}
-												</div>
-											</div>
-										</div>
-										<div class="font-mono">{fmt.format(g.total)}</div>
-									</li>
-								{/each}
-							</ul>
+			<!-- ─────── Hero ─────── -->
+			<section class="overflow-hidden rounded-lg border bg-muted/30">
+				<div
+					class="flex items-center justify-between gap-4 border-b px-6 py-4 text-sm text-muted-foreground"
+				>
+					<div>
+						{#if singleOrder}
+							1 order will be created
+						{:else}
+							<span class="font-medium text-foreground">{groups.length} orders</span> will be created
 						{/if}
 					</div>
-					<div class="space-y-3 border-t bg-muted/30 p-6 sm:border-t-0 sm:border-l">
-						<div class="text-sm font-medium">Totals</div>
-						<dl class="space-y-2 text-sm">
+					<div class="font-mono text-xs text-muted-foreground/70">
+						{#if singleOrder}
+							draft → pending submission
+						{:else}
+							{distinctBrandsInCart.length} brand{distinctBrandsInCart.length === 1 ? '' : 's'} · {seasonCount}
+							season{seasonCount === 1 ? '' : 's'} · {grandUnits} units
+						{/if}
+					</div>
+				</div>
+				<div class="grid grid-cols-1 md:grid-cols-[1fr_320px]">
+					<div class="px-6 py-6">
+						{#if singleOrder && firstGroup}
+							<div class="text-sm text-muted-foreground">
+								{brandName(firstGroup.brand_id)} · {seasonLabel(
+									firstGroup.season_id,
+									firstGroup.product_year
+								)}
+							</div>
+							<div class="mt-1 font-mono text-3xl font-medium tracking-tight">
+								{fmt.format(grandTotal)}
+							</div>
+							<div class="mt-1 font-mono text-sm text-muted-foreground/70">
+								{firstGroup.units} units · avg {fmt.format(grandTotal / firstGroup.units)}/unit
+							</div>
+							<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+								<div>
+									<div class="text-sm text-muted-foreground">Ship window</div>
+									<div class="mt-0.5 text-sm">{describeDelivery(firstMeta ?? undefined)}</div>
+								</div>
+								<div>
+									<div class="text-sm text-muted-foreground">Season</div>
+									<div class="mt-0.5 text-sm">
+										{seasonLabel(firstGroup.season_id, firstGroup.product_year)}
+									</div>
+								</div>
+								<div>
+									<div class="text-sm text-muted-foreground">Styles · SKUs</div>
+									<div class="mt-0.5 text-sm">
+										{firstStyleCount} style{firstStyleCount === 1 ? '' : 's'} · {firstSkuCount} SKU{firstSkuCount ===
+										1
+											? ''
+											: 's'}
+									</div>
+								</div>
+							</div>
+						{:else}
+							<div class="text-sm text-muted-foreground">
+								Across {distinctBrandsInCart.length} brand{distinctBrandsInCart.length === 1
+									? ''
+									: 's'}
+							</div>
+							<div class="mt-1 font-mono text-3xl font-medium tracking-tight">
+								{fmt.format(grandTotal)}
+							</div>
+							<div class="mt-1 font-mono text-sm text-muted-foreground/70">
+								{grandUnits} units total
+							</div>
+							<div class="mt-6 space-y-2.5">
+								{#each groups as g, i (groupKey(g.brand_id, g.season_id))}
+									{@const meta = getMeta(g.brand_id, g.season_id)}
+									<div class="flex items-center justify-between gap-4 text-sm">
+										<div class="flex min-w-0 items-center gap-3">
+											<span class="w-4 font-mono text-sm text-muted-foreground/70">{i + 1}</span>
+											<span class="truncate">
+												{brandName(g.brand_id)} · {seasonLabel(g.season_id, g.product_year)}
+											</span>
+											<span
+												class="hidden truncate font-mono text-sm text-muted-foreground/70 sm:inline"
+											>
+												{g.units} units · {describeDelivery(meta)}
+											</span>
+										</div>
+										<span class="shrink-0 font-mono">{fmt.format(g.total)}</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+					<div class="border-t bg-muted/30 px-6 py-6 md:border-t-0 md:border-l">
+						<div class="text-xs tracking-wider text-muted-foreground uppercase">Totals</div>
+						<dl class="mt-3 space-y-2 text-sm">
 							<div class="flex justify-between">
 								<dt class="text-muted-foreground">Wholesale subtotal</dt>
 								<dd class="font-mono">{fmt.format(grandTotal)}</dd>
 							</div>
 							<div class="flex justify-between">
 								<dt class="text-muted-foreground">Order discount</dt>
-								<dd class="font-mono text-muted-foreground">—</dd>
+								<dd class="font-mono text-muted-foreground/70">—</dd>
 							</div>
 							<div class="flex justify-between">
 								<dt class="text-muted-foreground">Shipping</dt>
-								<dd class="font-mono text-muted-foreground">Calc. at ship</dd>
+								<dd class="font-mono text-muted-foreground/70">Calc. at ship</dd>
 							</div>
 							<div class="flex justify-between">
 								<dt class="text-muted-foreground">Tax</dt>
-								<dd class="font-mono text-muted-foreground">—</dd>
-							</div>
-							<div class="flex justify-between border-t pt-2 font-semibold">
-								<dt>Total</dt>
-								<dd class="font-mono">{fmt.format(grandTotal)}</dd>
+								<dd class="font-mono text-muted-foreground/70">—</dd>
 							</div>
 						</dl>
+						<div class="mt-4 flex items-baseline justify-between border-t pt-3">
+							<span class="text-sm">Total</span>
+							<span class="font-mono text-lg font-medium">{fmt.format(grandTotal)}</span>
+						</div>
 					</div>
 				</div>
-			</div>
+			</section>
 
-			<!-- Account + Contact -->
-			<div class="rounded-lg border p-5">
-				<div class="grid gap-6 sm:grid-cols-2">
-					<div>
-						<div class="text-sm text-muted-foreground">Account</div>
-						<div class="mt-1 text-base font-semibold">
-							{account ? account.business_name : (cart.freeform_name ?? '—')}
-						</div>
-						{#if isFreeform && !hasFreeformDetails}
-							<div class="mt-1 text-sm text-amber-700">
-								No account details — orders will be saved as drafts.
+			{#if isFreeform && !hasFreeformDetails}
+				<div class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+					No account details — orders will be saved as drafts.
+				</div>
+			{/if}
+
+			<!-- ─────── Applies to all orders ─────── -->
+			<section class="space-y-3">
+				<div class="flex items-baseline justify-between">
+					<div class="text-xs tracking-wider text-muted-foreground uppercase">
+						Applies to all orders
+					</div>
+					{#if !singleOrder}
+						<div class="text-sm text-muted-foreground">Override per order below if needed</div>
+					{/if}
+				</div>
+
+				{#if singleOrder}
+					<!-- Single-order: Account card + Rep/Source card side-by-side -->
+					<div class="grid gap-4 md:grid-cols-2">
+						<!-- Account + Contact -->
+						<div class="rounded-lg border bg-muted/30 p-5">
+							<div class="text-xs tracking-wider text-muted-foreground uppercase">Account</div>
+							<div class="mt-2 text-base font-semibold">
+								{account ? account.business_name : (cart.freeform_name ?? '—')}
 							</div>
-						{/if}
-					</div>
-					<div>
-						<div class="text-sm text-muted-foreground">Contact</div>
-						<div class="mt-1 text-base font-semibold">{contactName}</div>
-						{#if accountEmail}
-							<div class="text-sm text-muted-foreground">{accountEmail}</div>
-						{/if}
-					</div>
-				</div>
-			</div>
+							<div class="mt-4 border-t pt-4">
+								<div class="flex items-center justify-between">
+									<div class="text-xs tracking-wider text-muted-foreground uppercase">
+										Contact for this order
+									</div>
+									<button
+										type="button"
+										class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+									>
+										Change
+									</button>
+								</div>
+								<div class="mt-2 text-sm">{contactName}</div>
+								{#if accountEmail}
+									<div class="text-sm text-muted-foreground">{accountEmail}</div>
+								{/if}
+							</div>
+						</div>
 
-			<!-- Shared fields: Rep + Source -->
-			<div class="rounded-lg border p-5">
-				<div class="text-sm font-medium">Applies to all orders</div>
-				<div class="mt-1 text-sm text-muted-foreground">Override per order below if needed.</div>
-				<div class="mt-4 grid gap-4 sm:grid-cols-2">
-					{#if repItems.length > 0}
+						<!-- Rep + Source -->
+						<div class="rounded-lg border bg-muted/30 p-5">
+							<div class="grid gap-5 sm:grid-cols-2">
+								<div class="space-y-2">
+									<Label for="rep-select">
+										<span class="text-xs tracking-wider text-muted-foreground uppercase"
+											>Sales Rep</span
+										>
+									</Label>
+									{#if repItems.length > 0}
+										<SelectField
+											value={cart.rep_user_id ?? ''}
+											items={repItems}
+											placeholder="Select a sales rep"
+											class="w-full"
+											onValueChange={(v) => (cart.rep_user_id = v || null)}
+										/>
+									{:else}
+										<div class="text-sm text-muted-foreground">No sales reps available</div>
+									{/if}
+								</div>
+								<div class="space-y-2">
+									<Label for="source-select">
+										<span class="text-xs tracking-wider text-muted-foreground uppercase"
+											>Source</span
+										>
+									</Label>
+									{#if sourceTypeItems.length > 0}
+										<SelectField
+											value={cart.source_type_id ?? ''}
+											items={sourceTypeItems}
+											placeholder="Select a source"
+											class="w-full"
+											onValueChange={(v) => (cart.source_type_id = v || null)}
+										/>
+									{:else}
+										<div class="text-sm text-muted-foreground">No source types configured</div>
+									{/if}
+								</div>
+							</div>
+						</div>
+					</div>
+				{:else}
+					<!-- Multi-order: single 4-col card -->
+					<div class="grid gap-5 rounded-lg border bg-muted/30 p-5 md:grid-cols-4">
+						<div>
+							<div class="text-sm text-muted-foreground">Account</div>
+							<div class="mt-1.5 text-sm font-medium">
+								{account ? account.business_name : (cart.freeform_name ?? '—')}
+							</div>
+						</div>
+						<div class="min-w-0">
+							<div class="text-sm text-muted-foreground">Contact</div>
+							<div class="mt-1.5 text-sm">{contactName}</div>
+							{#if accountEmail}
+								<div class="truncate text-sm text-muted-foreground/70">{accountEmail}</div>
+							{/if}
+						</div>
+						<div class="space-y-1.5">
+							<Label for="rep-select-multi">
+								<span class="text-sm text-muted-foreground">Sales Rep</span>
+							</Label>
+							{#if repItems.length > 0}
+								<SelectField
+									value={cart.rep_user_id ?? ''}
+									items={repItems}
+									placeholder="Select a sales rep"
+									class="w-full"
+									onValueChange={(v) => (cart.rep_user_id = v || null)}
+								/>
+							{:else}
+								<div class="text-sm text-muted-foreground">—</div>
+							{/if}
+						</div>
+						<div class="space-y-1.5">
+							<Label for="source-select-multi">
+								<span class="text-sm text-muted-foreground">Source</span>
+							</Label>
+							{#if sourceTypeItems.length > 0}
+								<SelectField
+									value={cart.source_type_id ?? ''}
+									items={sourceTypeItems}
+									placeholder="Select a source"
+									class="w-full"
+									onValueChange={(v) => (cart.source_type_id = v || null)}
+								/>
+							{:else}
+								<div class="text-sm text-muted-foreground">—</div>
+							{/if}
+						</div>
+					</div>
+				{/if}
+			</section>
+
+			{#if singleOrder && firstGroup}
+				{@const g = firstGroup}
+				{@const meta = firstMeta!}
+				{@const locsForAccount = accountLocations.filter(
+					(l) => account && l.account_id === account.id
+				)}
+				{@const selectedShipLoc =
+					locsForAccount.find((l) => l.id === meta.location_id) ?? defaultLocation}
+				{@const selectedBillLoc = meta.bill_to_location_id
+					? locsForAccount.find((l) => l.id === meta.bill_to_location_id)
+					: selectedShipLoc}
+				{@const isShipDefault = !meta.location_id || selectedShipLoc?.is_default}
+				{@const isBillSameAsShip = !meta.bill_to_location_id}
+
+				<!-- ─────── Ship To / Bill To (single-order top-level) ─────── -->
+				{#if locsForAccount.length > 0}
+					<section class="grid gap-4 md:grid-cols-2">
+						<!-- Ship To -->
+						<div class="rounded-lg border bg-muted/30 p-5">
+							<div class="flex items-center justify-between">
+								<div class="text-xs tracking-wider text-muted-foreground uppercase">Ship To</div>
+								<button
+									type="button"
+									class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+									disabled={locsForAccount.length < 2}
+									onclick={() => (shipEditOpen = !shipEditOpen)}
+								>
+									{shipEditOpen ? 'Done' : 'Edit for this order'}
+								</button>
+							</div>
+							{#if shipEditOpen && locsForAccount.length > 0}
+								<div class="mt-3">
+									<SelectField
+										value={meta.location_id ?? ''}
+										items={locsForAccount.map((l) => ({
+											value: l.id,
+											label: `${l.label}${l.is_default ? ' · default' : ''}`
+										}))}
+										placeholder="Select ship-to address"
+										class="w-full"
+										onValueChange={(v) =>
+											setMeta(g.brand_id, g.season_id, { location_id: v || null })}
+									/>
+								</div>
+							{:else if selectedShipLoc}
+								<div class="mt-3">
+									<div class="text-sm font-medium">
+										{selectedShipLoc.label}
+										{#if isShipDefault}
+											<span class="ml-1 text-sm font-normal text-muted-foreground/70">
+												(account default)
+											</span>
+										{/if}
+									</div>
+									<div class="mt-1 text-sm leading-relaxed text-muted-foreground">
+										{selectedShipLoc.address_line1 ?? '—'}
+										{#if selectedShipLoc.address_line2}<br />{selectedShipLoc.address_line2}{/if}
+										{#if selectedShipLoc.city || selectedShipLoc.state || selectedShipLoc.zip}
+											<br />
+											{[
+												selectedShipLoc.city,
+												[selectedShipLoc.state, selectedShipLoc.zip].filter(Boolean).join(' ')
+											]
+												.filter(Boolean)
+												.join(', ')}
+										{/if}
+									</div>
+								</div>
+							{:else}
+								<div class="mt-3 text-sm text-muted-foreground">No ship-to address on file.</div>
+							{/if}
+						</div>
+
+						<!-- Bill To -->
+						<div class="rounded-lg border bg-muted/30 p-5">
+							<div class="flex items-center justify-between">
+								<div class="text-xs tracking-wider text-muted-foreground uppercase">Bill To</div>
+								<button
+									type="button"
+									class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+									disabled={locsForAccount.length < 1}
+									onclick={() => (billEditOpen = !billEditOpen)}
+								>
+									{billEditOpen ? 'Done' : 'Edit for this order'}
+								</button>
+							</div>
+							{#if billEditOpen && locsForAccount.length > 0}
+								<div class="mt-3">
+									<SelectField
+										value={meta.bill_to_location_id ?? ''}
+										items={[
+											{ value: '', label: 'Same as ship-to' },
+											...locsForAccount.map((l) => ({
+												value: l.id,
+												label: `${l.label}${l.is_default ? ' · default' : ''}`
+											}))
+										]}
+										placeholder="Same as ship-to"
+										class="w-full"
+										onValueChange={(v) =>
+											setMeta(g.brand_id, g.season_id, { bill_to_location_id: v || null })}
+									/>
+								</div>
+							{:else if selectedBillLoc}
+								<div class="mt-3">
+									<div class="text-sm font-medium">
+										{selectedBillLoc.label}
+										{#if isBillSameAsShip}
+											<span class="ml-1 text-sm font-normal text-muted-foreground/70">
+												(same as ship-to)
+											</span>
+										{:else if selectedBillLoc.is_default}
+											<span class="ml-1 text-sm font-normal text-muted-foreground/70">
+												(account default)
+											</span>
+										{/if}
+									</div>
+									<div class="mt-1 text-sm leading-relaxed text-muted-foreground">
+										{selectedBillLoc.address_line1 ?? '—'}
+										{#if selectedBillLoc.address_line2}<br />{selectedBillLoc.address_line2}{/if}
+										{#if selectedBillLoc.city || selectedBillLoc.state || selectedBillLoc.zip}
+											<br />
+											{[
+												selectedBillLoc.city,
+												[selectedBillLoc.state, selectedBillLoc.zip].filter(Boolean).join(' ')
+											]
+												.filter(Boolean)
+												.join(', ')}
+										{/if}
+									</div>
+								</div>
+							{:else}
+								<div class="mt-3 text-sm text-muted-foreground">No bill-to address on file.</div>
+							{/if}
+						</div>
+					</section>
+				{/if}
+
+				<!-- ─────── Payment & Logistics (single-order) ─────── -->
+				<section class="rounded-lg border bg-muted/30 p-5">
+					<div class="text-xs tracking-wider text-muted-foreground uppercase">
+						Payment & logistics
+					</div>
+					<div class="mt-4 grid gap-4 sm:grid-cols-2 md:grid-cols-4">
 						<div class="space-y-2">
-							<Label for="rep-select">Rep</Label>
+							<Label>Payment preference</Label>
 							<SelectField
-								value={cart.rep_user_id ?? ''}
-								items={repItems}
-								placeholder="Select a rep"
+								value={meta.payment_preference ?? cart.payment_preference ?? ''}
+								items={methodOnlyItems}
+								placeholder="Inherit from account"
 								class="w-full"
-								onValueChange={(v) => (cart.rep_user_id = v || null)}
+								onValueChange={(v) =>
+									setMeta(g.brand_id, g.season_id, { payment_preference: v || null })}
 							/>
 						</div>
-					{/if}
-					{#if sourceTypeItems.length > 0}
 						<div class="space-y-2">
-							<Label for="source-select">Source</Label>
+							<Label>Payment terms</Label>
 							<SelectField
-								value={cart.source_type_id ?? ''}
-								items={sourceTypeItems}
-								placeholder="Select a source"
+								value={meta.payment_terms ?? ''}
+								items={termsOnlyItems}
+								placeholder="Inherit from account"
 								class="w-full"
-								onValueChange={(v) => (cart.source_type_id = v || null)}
+								onValueChange={(v) =>
+									setMeta(g.brand_id, g.season_id, { payment_terms: v || null })}
 							/>
 						</div>
-					{/if}
-				</div>
-			</div>
+						<div class="space-y-2">
+							<Label>Shipping method</Label>
+							<SelectField
+								value={meta.shipping_method ?? ''}
+								items={shippingMethodItems}
+								placeholder="Inherit from account"
+								class="w-full"
+								onValueChange={(v) =>
+									setMeta(g.brand_id, g.season_id, { shipping_method: v || null })}
+							/>
+						</div>
+						<div class="space-y-2">
+							<Label for="po-single">
+								PO / Customer ref
+								<span class="text-muted-foreground/70">(optional)</span>
+							</Label>
+							<Input
+								id="po-single"
+								maxlength={64}
+								placeholder="—"
+								value={meta.po_number ?? ''}
+								oninput={(e) =>
+									setMeta(g.brand_id, g.season_id, {
+										po_number: (e.currentTarget as HTMLInputElement).value || null
+									})}
+							/>
+						</div>
+					</div>
+					<p class="mt-3 text-sm text-muted-foreground/70">
+						Pre-filled from the account where available. Changes here apply only to this order.
+					</p>
+				</section>
 
-			<!-- Per-order cards -->
-			<div class="space-y-3">
-				<div class="flex items-center justify-between">
-					<div class="text-sm font-medium">Per order</div>
-					{#if groups.length > 1}
+				<!-- ─────── Internal notes (single-order) ─────── -->
+				<section class="rounded-lg border bg-muted/30 p-5">
+					<div class="flex items-center justify-between">
+						<div class="text-xs tracking-wider text-muted-foreground uppercase">Internal notes</div>
+						<div class="text-sm text-muted-foreground/70">Visible to your org only</div>
+					</div>
+					<textarea
+						id="note-single"
+						rows={2}
+						maxlength={2000}
+						class="mt-3 flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+						placeholder="Context for fulfillment, follow-ups, anything the buyer won't see…"
+						value={meta.internal_note ?? ''}
+						oninput={(e) =>
+							setMeta(g.brand_id, g.season_id, {
+								internal_note: (e.currentTarget as HTMLTextAreaElement).value || null
+							})}
+					></textarea>
+				</section>
+			{:else}
+				<!-- ─────── Per-order (multi) ─────── -->
+				<section class="space-y-3">
+					<div class="flex items-baseline justify-between">
+						<div class="text-xs tracking-wider text-muted-foreground uppercase">Per order</div>
 						<button
 							type="button"
 							class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
@@ -1614,16 +1975,12 @@
 						>
 							{finalizeExpandAll ? 'Collapse all' : 'Expand all'}
 						</button>
-					{/if}
-				</div>
-				{#each groups as g, i (groupKey(g.brand_id, g.season_id))}
-					{@const key = groupKey(g.brand_id, g.season_id)}
-					{@const meta = getMeta(g.brand_id, g.season_id)}
-					{@const isOpen =
-						groups.length === 1 ||
-						finalizeExpandAll ||
-						finalizeExpandedKey === key ||
-						Boolean(
+					</div>
+
+					{#each groups as g, i (groupKey(g.brand_id, g.season_id))}
+						{@const key = groupKey(g.brand_id, g.season_id)}
+						{@const meta = getMeta(g.brand_id, g.season_id)}
+						{@const hasOverrides = Boolean(
 							meta.bill_to_location_id ||
 							meta.payment_preference ||
 							meta.payment_terms ||
@@ -1631,245 +1988,286 @@
 							meta.po_number ||
 							meta.internal_note
 						)}
-					{@const locsForAccount = accountLocations.filter(
-						(l) => account && l.account_id === account.id
-					)}
-					<div class="rounded-lg border">
-						<button
-							type="button"
-							class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
-							onclick={() => (finalizeExpandedKey = isOpen ? null : key)}
-						>
-							<div class="flex items-center gap-3">
-								<span class="font-mono text-sm text-muted-foreground">{i + 1}</span>
-								<div>
-									<div class="text-sm font-medium">
-										{brandName(g.brand_id)} · {seasonLabel(g.season_id, g.product_year)}
-									</div>
-									<div class="text-sm text-muted-foreground">
-										{g.units} units · {describeDelivery(meta)}
-									</div>
-								</div>
-							</div>
-							<div class="flex items-center gap-3">
-								{#if !isOpen}
-									{@const prevBrandId = i > 0 ? groups[i - 1].brand_id : null}
-									{@const hasOverrides = Boolean(
-										meta.bill_to_location_id ||
-										meta.payment_preference ||
-										meta.payment_terms ||
-										meta.shipping_method ||
-										meta.po_number ||
-										meta.internal_note
-									)}
-									{#if prevBrandId !== null && prevBrandId !== g.brand_id}
-										<span
-											class="rounded-full border bg-muted/40 px-2 py-0.5 text-sm text-muted-foreground"
-											>Different brand</span
-										>
-									{:else if !hasOverrides}
-										<span
-											class="rounded-full border bg-muted/40 px-2 py-0.5 text-sm text-muted-foreground"
-											>Defaults from account</span
-										>
-									{/if}
-								{/if}
-								<span class="font-mono text-sm">{fmt.format(g.total)}</span>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4 text-muted-foreground transition-transform {isOpen
-										? 'rotate-180'
-										: ''}"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-									/>
-								</svg>
-							</div>
-						</button>
-						{#if isOpen}
-							<div class="space-y-5 border-t px-5 py-4">
-								<!-- Ship / Bill to pickers -->
-								{#if locsForAccount.length > 0}
-									<div class="grid gap-4 sm:grid-cols-2">
-										<div class="space-y-2">
-											<Label>Ship to</Label>
-											<SelectField
-												value={meta.location_id ?? ''}
-												items={locsForAccount.map((l) => ({
-													value: l.id,
-													label: `${l.label}${l.is_default ? ' · default' : ''}`
-												}))}
-												placeholder="Select ship-to address"
-												class="w-full"
-												onValueChange={(v) =>
-													setMeta(g.brand_id, g.season_id, { location_id: v || null })}
-											/>
+						{@const isOpen =
+							finalizeExpandAll || finalizeExpandedKey === key || hasOverrides || i === 0}
+						{@const prevBrandId = i > 0 ? groups[i - 1].brand_id : null}
+						{@const isDifferentBrand = prevBrandId !== null && prevBrandId !== g.brand_id}
+						{@const locsForAccount = accountLocations.filter(
+							(l) => account && l.account_id === account.id
+						)}
+
+						<article class="rounded-lg border bg-muted/30">
+							<button
+								type="button"
+								class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+								onclick={() => (finalizeExpandedKey = isOpen ? null : key)}
+							>
+								<div class="flex min-w-0 items-center gap-4">
+									<span class="w-4 font-mono text-sm text-muted-foreground/70">{i + 1}</span>
+									<div class="min-w-0">
+										<div class="text-sm font-medium">
+											{brandName(g.brand_id)} · {seasonLabel(g.season_id, g.product_year)}
 										</div>
-										<div class="space-y-2">
-											<Label>Bill to</Label>
-											<SelectField
-												value={meta.bill_to_location_id ?? ''}
-												items={[
-													{ value: '', label: 'Same as ship-to' },
-													...locsForAccount.map((l) => ({
+										<div class="font-mono text-sm text-muted-foreground/70">
+											{g.units} units · {describeDelivery(meta)}
+										</div>
+									</div>
+									{#if !isOpen}
+										{#if isDifferentBrand}
+											<span
+												class="rounded-full border bg-muted/40 px-2 py-0.5 text-sm text-muted-foreground"
+												>Different brand</span
+											>
+										{:else if !hasOverrides}
+											<span
+												class="rounded-full border bg-muted/40 px-2 py-0.5 text-sm text-muted-foreground"
+												>Defaults from account</span
+											>
+										{/if}
+									{/if}
+								</div>
+								<div class="flex items-center gap-4">
+									<span class="font-mono text-sm">{fmt.format(g.total)}</span>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4 text-muted-foreground transition-transform {isOpen
+											? 'rotate-180'
+											: ''}"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+										/>
+									</svg>
+								</div>
+							</button>
+							{#if isOpen}
+								<div class="space-y-4 border-t px-5 pt-4 pb-5">
+									<!-- Ship / Bill pickers as cards (inside detail) -->
+									{#if locsForAccount.length > 0}
+										<div class="grid gap-4 md:grid-cols-2">
+											<div class="space-y-2 rounded-md border bg-muted/30 p-4">
+												<Label>
+													<span class="text-xs tracking-wider text-muted-foreground uppercase">
+														Ship to
+													</span>
+												</Label>
+												<SelectField
+													value={meta.location_id ?? ''}
+													items={locsForAccount.map((l) => ({
 														value: l.id,
 														label: `${l.label}${l.is_default ? ' · default' : ''}`
-													}))
-												]}
-												placeholder="Same as ship-to"
+													}))}
+													placeholder="Account default"
+													class="w-full"
+													onValueChange={(v) =>
+														setMeta(g.brand_id, g.season_id, { location_id: v || null })}
+												/>
+											</div>
+											<div class="space-y-2 rounded-md border bg-muted/30 p-4">
+												<Label>
+													<span class="text-xs tracking-wider text-muted-foreground uppercase">
+														Bill to
+													</span>
+												</Label>
+												<SelectField
+													value={meta.bill_to_location_id ?? ''}
+													items={[
+														{ value: '', label: 'Same as ship-to' },
+														...locsForAccount.map((l) => ({
+															value: l.id,
+															label: `${l.label}${l.is_default ? ' · default' : ''}`
+														}))
+													]}
+													placeholder="Same as ship-to"
+													class="w-full"
+													onValueChange={(v) =>
+														setMeta(g.brand_id, g.season_id, {
+															bill_to_location_id: v || null
+														})}
+												/>
+											</div>
+										</div>
+									{/if}
+
+									<!-- Payment / shipping / PO -->
+									<div class="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+										<div class="space-y-2">
+											<Label>Payment</Label>
+											<SelectField
+												value={meta.payment_preference ?? cart.payment_preference ?? ''}
+												items={methodOnlyItems}
+												placeholder="Inherit"
 												class="w-full"
 												onValueChange={(v) =>
-													setMeta(g.brand_id, g.season_id, { bill_to_location_id: v || null })}
+													setMeta(g.brand_id, g.season_id, {
+														payment_preference: v || null
+													})}
+											/>
+										</div>
+										<div class="space-y-2">
+											<Label>Terms</Label>
+											<SelectField
+												value={meta.payment_terms ?? ''}
+												items={termsOnlyItems}
+												placeholder="Inherit"
+												class="w-full"
+												onValueChange={(v) =>
+													setMeta(g.brand_id, g.season_id, { payment_terms: v || null })}
+											/>
+										</div>
+										<div class="space-y-2">
+											<Label>Ship method</Label>
+											<SelectField
+												value={meta.shipping_method ?? ''}
+												items={shippingMethodItems}
+												placeholder="Inherit"
+												class="w-full"
+												onValueChange={(v) =>
+													setMeta(g.brand_id, g.season_id, {
+														shipping_method: v || null
+													})}
+											/>
+										</div>
+										<div class="space-y-2">
+											<Label for={`po-${key}`}>
+												PO
+												<span class="text-muted-foreground/70">(optional)</span>
+											</Label>
+											<Input
+												id={`po-${key}`}
+												maxlength={64}
+												placeholder="—"
+												value={meta.po_number ?? ''}
+												oninput={(e) =>
+													setMeta(g.brand_id, g.season_id, {
+														po_number: (e.currentTarget as HTMLInputElement).value || null
+													})}
 											/>
 										</div>
 									</div>
-								{/if}
 
-								<!-- Payment / shipping / PO -->
-								<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+									<!-- Internal note -->
 									<div class="space-y-2">
-										<Label>Payment preference</Label>
-										<SelectField
-											value={meta.payment_preference ?? cart.payment_preference ?? ''}
-											items={methodOnlyItems}
-											placeholder="Inherit from account"
-											class="w-full"
-											onValueChange={(v) =>
-												setMeta(g.brand_id, g.season_id, { payment_preference: v || null })}
-										/>
-									</div>
-									<div class="space-y-2">
-										<Label>Payment terms</Label>
-										<SelectField
-											value={meta.payment_terms ?? ''}
-											items={termsOnlyItems}
-											placeholder="Inherit from account"
-											class="w-full"
-											onValueChange={(v) =>
-												setMeta(g.brand_id, g.season_id, { payment_terms: v || null })}
-										/>
-									</div>
-									<div class="space-y-2">
-										<Label>Shipping method</Label>
-										<SelectField
-											value={meta.shipping_method ?? ''}
-											items={shippingMethodItems}
-											placeholder="Inherit from account"
-											class="w-full"
-											onValueChange={(v) =>
-												setMeta(g.brand_id, g.season_id, { shipping_method: v || null })}
-										/>
-									</div>
-									<div class="space-y-2">
-										<Label for={`po-${key}`}>PO / customer ref</Label>
-										<Input
-											id={`po-${key}`}
-											maxlength={64}
-											placeholder="Optional"
-											value={meta.po_number ?? ''}
+										<Label for={`note-${key}`}>
+											Internal note
+											<span class="text-muted-foreground/70">(optional, your org only)</span>
+										</Label>
+										<textarea
+											id={`note-${key}`}
+											rows={2}
+											maxlength={2000}
+											class="flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+											placeholder="Anything for fulfillment…"
+											value={meta.internal_note ?? ''}
 											oninput={(e) =>
 												setMeta(g.brand_id, g.season_id, {
-													po_number: (e.currentTarget as HTMLInputElement).value || null
+													internal_note: (e.currentTarget as HTMLTextAreaElement).value || null
 												})}
-										/>
+										></textarea>
 									</div>
 								</div>
+							{/if}
+						</article>
+					{/each}
+				</section>
+			{/if}
 
-								<!-- Internal note -->
-								<div class="space-y-2">
-									<Label for={`note-${key}`}>Internal note</Label>
-									<textarea
-										id={`note-${key}`}
-										rows={2}
-										maxlength={2000}
-										class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-										placeholder="Add fulfillment context for the warehouse."
-										value={meta.internal_note ?? ''}
-										oninput={(e) =>
-											setMeta(g.brand_id, g.season_id, {
-												internal_note: (e.currentTarget as HTMLTextAreaElement).value || null
-											})}
-									></textarea>
-								</div>
-							</div>
-						{/if}
-					</div>
-				{/each}
-			</div>
+			<!-- ─────── Buyer terms ─────── -->
+			{#if distinctBrandsInCart.length > 0}
+				<section class="space-y-2">
+					<div class="text-xs tracking-wider text-muted-foreground uppercase">Buyer terms</div>
 
-			<!-- Terms block -->
-			{#if brandsRequiringAgreement.length > 0}
-				<div class="rounded-lg border">
-					<div class="border-b px-5 py-3 text-sm font-medium">Buyer terms</div>
-					<ul class="divide-y">
-						{#each brandsRequiringAgreement as b (b.id)}
-							{@const terms = termsForBrand(b.id)!}
+					<div class="divide-y rounded-lg border bg-muted/30">
+						{#each distinctBrandsInCart as b (b.id)}
+							{@const terms = termsForBrand(b.id)}
 							{@const coveredOrders = groups
 								.map((g, i) => (g.brand_id === b.id ? i + 1 : null))
 								.filter((n): n is number => n !== null)}
-							<li class="flex items-start justify-between gap-4 px-5 py-4">
-								<label class="flex cursor-pointer gap-3">
-									<Checkbox
-										checked={cart.termsAgreedByBrand[b.id] === true}
-										onCheckedChange={(v) => (cart.termsAgreedByBrand[b.id] = v === true)}
-									/>
-									<div>
-										<span class="text-sm">
-											Buyer agreed to <strong>{b.name}'s</strong> terms.
-										</span>
-										<p class="mt-1 text-sm text-muted-foreground">
-											{#if coveredOrders.length === 1}
-												Covers order {coveredOrders[0]}.
-											{:else if coveredOrders.length > 1}
-												Covers orders {coveredOrders.join(', ')}.
-											{/if}
-										</p>
-									</div>
-								</label>
-								<Dialog.Root>
-									<Dialog.Trigger
-										class="shrink-0 rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-muted"
-										>View</Dialog.Trigger
-									>
-									<Dialog.Portal>
-										<Dialog.Overlay
-											class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
-										/>
-										<Dialog.Content
-											class="fixed top-[50%] left-[50%] z-50 max-h-[80vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-auto rounded-lg border bg-background p-6 shadow-lg"
-										>
-											<Dialog.Title class="text-base font-semibold">{terms.title}</Dialog.Title>
-											<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-												{b.name} · v{terms.version}
-											</Dialog.Description>
-											<div class="mt-5 text-sm whitespace-pre-wrap">{terms.body}</div>
-											<div class="mt-6 flex justify-end">
-												<Dialog.Close
-													class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
-													>Close</Dialog.Close
+							<div class="px-5 py-4">
+								{#if terms}
+									<div class="flex items-start justify-between gap-4">
+										<label class="flex flex-1 cursor-pointer items-start gap-3">
+											<Checkbox
+												checked={cart.termsAgreedByBrand[b.id] === true}
+												onCheckedChange={(v) => (cart.termsAgreedByBrand[b.id] = v === true)}
+											/>
+											<span class="text-sm">
+												Buyer agreed to <strong class="font-medium">{b.name}'s</strong> terms.
+												<span class="mt-0.5 block text-sm text-muted-foreground/70">
+													{#if singleOrder}
+														{terms.title} · v{terms.version}
+													{:else if coveredOrders.length === 1}
+														Covers order {coveredOrders[0]}.
+													{:else if coveredOrders.length > 1}
+														Covers orders {coveredOrders.join(', ')}.
+													{/if}
+												</span>
+											</span>
+										</label>
+										<Dialog.Root>
+											<Dialog.Trigger
+												class="shrink-0 text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+												>View</Dialog.Trigger
+											>
+											<Dialog.Portal>
+												<Dialog.Overlay
+													class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+												/>
+												<Dialog.Content
+													class="fixed top-[50%] left-[50%] z-50 max-h-[80vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-auto rounded-lg border bg-background p-6 shadow-lg"
 												>
-											</div>
-										</Dialog.Content>
-									</Dialog.Portal>
-								</Dialog.Root>
-							</li>
+													<Dialog.Title class="text-base font-semibold">
+														{terms.title}
+													</Dialog.Title>
+													<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+														{b.name} · v{terms.version}
+													</Dialog.Description>
+													<div class="mt-5 text-sm whitespace-pre-wrap">{terms.body}</div>
+													<div class="mt-6 flex justify-end">
+														<Dialog.Close
+															class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
+															>Close</Dialog.Close
+														>
+													</div>
+												</Dialog.Content>
+											</Dialog.Portal>
+										</Dialog.Root>
+									</div>
+								{:else}
+									<div class="flex items-start justify-between gap-4">
+										<div class="text-sm">
+											<span class="font-medium">{b.name}</span>
+											<span class="text-muted-foreground"> — no terms on file.</span>
+											<span class="mt-0.5 block text-sm text-muted-foreground/70">
+												{#if isBrandOrg}
+													Add them in Organization settings → Terms.
+												{:else}
+													Submission won't require a signature.
+												{/if}
+											</span>
+										</div>
+									</div>
+								{/if}
+							</div>
 						{/each}
-					</ul>
-					<p class="border-t px-5 py-3 text-sm text-muted-foreground">
-						One checkbox per brand. Your name, timestamp, and terms version are recorded on each
-						submitted order.
-					</p>
-				</div>
+					</div>
+
+					{#if termsBlockedBrands.length > 0}
+						<p class="text-sm text-muted-foreground/70">
+							One checkbox per brand. Your name, timestamp, and the terms version are recorded on
+							each submitted order.
+						</p>
+					{/if}
+				</section>
 			{/if}
 
-			<!-- Action bar -->
+			<!-- ─────── Actions ─────── -->
 			<form
 				method="POST"
 				action="?/submit"
@@ -1879,8 +2277,6 @@
 						submitting = false;
 						if (result.type === 'failure') {
 							toast.error((result.data as { message?: string })?.message ?? 'Could not save order');
-						} else if (result.type === 'redirect') {
-							toast.success(submitStatus === 'submitted' ? 'Order submitted' : 'Notes saved');
 						} else if (result.type === 'error') {
 							toast.error(result.error?.message ?? 'Something went wrong. Please try again.');
 						}
@@ -1901,17 +2297,19 @@
 					>
 						{groups.length > 1 ? `Save ${groups.length} Notes` : 'Save as Note'}
 					</Button>
-					<div class="flex items-center gap-3">
-						{#if brandsRequiringAgreement.length > 0 && !allBrandTermsAgreed}
-							<span class="text-sm text-muted-foreground">
-								Agree to each brand's terms to submit.
+					<div class="flex items-center gap-4">
+						{#if termsBlockedBrands.length > 0 && !allBrandTermsAgreed}
+							<span class="text-sm text-muted-foreground/70">
+								{termsBlockedBrands.length === 1
+									? 'Check the terms box to submit'
+									: `Agree to each brand's terms to submit`}
 							</span>
 						{/if}
 						<Button
 							type="submit"
 							disabled={submitting ||
 								(isFreeform && !hasFreeformDetails) ||
-								(brandsRequiringAgreement.length > 0 && !allBrandTermsAgreed)}
+								(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
 							onclick={() => {
 								cart.type = 'order';
 								submitStatus = 'submitted';
