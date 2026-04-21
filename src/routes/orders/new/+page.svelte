@@ -1879,11 +1879,11 @@
 						submitting = false;
 						if (result.type === 'failure') {
 							toast.error((result.data as { message?: string })?.message ?? 'Could not save order');
-						} else if (result.type === 'redirect') {
-							toast.success(submitStatus === 'submitted' ? 'Order submitted' : 'Notes saved');
 						} else if (result.type === 'error') {
 							toast.error(result.error?.message ?? 'Something went wrong. Please try again.');
 						}
+						// Success: the server redirects to /orders/confirmation, which is the
+						// success state. No toast needed.
 						await update({ reset: false });
 					};
 				}}

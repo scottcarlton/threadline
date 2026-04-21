@@ -304,6 +304,7 @@ export const actions: Actions = {
 		);
 
 		const createdIds: string[] = [];
+		const createdNumbers: string[] = [];
 
 		const acceptedMethods = (organization.accepted_payment_methods ?? []) as string[];
 		const rawPref = (payload.payment_preference ?? '').toString().trim();
@@ -472,8 +473,16 @@ export const actions: Actions = {
 			}
 
 			createdIds.push(orderRow.id);
+			createdNumbers.push(orderRow.order_number);
 		}
 
-		throw redirect(303, `/orders`);
+		if (createdNumbers.length === 0) {
+			// Defensive: Zod validation prevents empty orders[], but fall back
+			// to the list view rather than landing on a 404 confirmation.
+			throw redirect(303, '/orders');
+		}
+
+		const ids = createdNumbers.slice(0, 10).join(',');
+		throw redirect(303, `/orders/confirmation?ids=${ids}`);
 	}
 };
