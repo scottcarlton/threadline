@@ -21,6 +21,7 @@
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { Dialog } from 'bits-ui';
 	import { acceptedPaymentMethods, paymentMethodLabel } from '$lib/payment-methods';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
@@ -187,7 +188,6 @@
 			(data.federation as { repDisplayName?: string | null } | undefined)?.repDisplayName ??
 			null
 	);
-	const repEmail = $derived(data.repEmail as string | null);
 
 	const canEditPayment = $derived(canEdit && data.canEditOrder === true);
 	const paymentItems = $derived(
@@ -243,11 +243,12 @@
 	);
 	const isFederatedView = $derived(federation?.isFederatedView === true);
 
-	// Brand-side federated view only supports confirming a submitted order; cancel/cancel-rep-only
-	// transitions stay with the rep side. Ship/deliver are also brand-side actions though.
+	// Brand-side federated view: BOA can advance status at every step AND can
+	// cancel before the order ships. After ship, cancellation is reconciled
+	// differently (via return/credit), so it's removed from the allowed set.
 	const brandAllowedNext: Record<string, OrderStatus[]> = {
-		submitted: ['confirmed'],
-		confirmed: ['shipped'],
+		submitted: ['confirmed', 'cancelled'],
+		confirmed: ['shipped', 'cancelled'],
 		shipped: ['delivered']
 	};
 	const nextStatuses = $derived(
@@ -314,6 +315,140 @@
 	const repCommissionOnShipped = $derived(
 		order.shipped_amount != null ? (Number(order.shipped_amount) * repCommissionRate) / 100 : null
 	);
+
+	// ── Ship-window derived values for the StatusCard band 2 ──────────────
+	function daysBetween(start: string | null | undefined, end: string | null | undefined) {
+		if (!start || !end) return null;
+		const a = new Date(`${start}T00:00:00`).getTime();
+		const b = new Date(`${end}T00:00:00`).getTime();
+		return Math.round((b - a) / 86_400_000);
+	}
+	const shipWindowLength = $derived(daysBetween(order.start_ship_date, order.expected_ship_date));
+	const shipsInDays = $derived.by(() => {
+		if (!order.start_ship_date) return null;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient local value
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const start = new Date(`${order.start_ship_date}T00:00:00`).getTime();
+		return Math.round((start - today.getTime()) / 86_400_000);
+	});
+	const shortDate = (s: string | null | undefined) => {
+		if (!s) return '—';
+		const d = new Date(`${s}T00:00:00`);
+		return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+	};
+	const longDate = (s: string | null | undefined) => {
+		if (!s) return '—';
+		const d = new Date(s);
+		return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	};
+	const prettify = (code: string | null | undefined) => {
+		if (!code) return null;
+		return code
+			.split('_')
+			.map((p) => (p.length > 0 ? p[0].toUpperCase() + p.slice(1) : p))
+			.join(' ');
+	};
+
+	// ── Status context copy shown under the stepper ───────────────────────
+	const statusContext = $derived.by(() => {
+		const actor = (order.profiles?.display_name as string | undefined) ?? null;
+		switch (order.status) {
+			case 'draft':
+				return "Draft — not yet sent to the brand. Submit when you're ready.";
+			case 'submitted':
+				return `Submitted${actor ? ` by ${actor}` : ''}${order.submitted_at ? ` · ${longDate(order.submitted_at as string)}` : ''}. Awaiting brand confirmation — move to Confirmed when the brand accepts.`;
+			case 'confirmed':
+				return `Confirmed${order.confirmed_at ? ` · ${longDate(order.confirmed_at as string)}` : ''}. Move to Shipped when the order leaves the brand.`;
+			case 'shipped':
+				return `Shipped${order.shipped_at ? ` · ${longDate(order.shipped_at as string)}` : ''}. Move to Delivered once the buyer receives it.`;
+			case 'delivered':
+				return `Delivered${order.delivered_at ? ` · ${longDate(order.delivered_at as string)}` : ''}.`;
+			case 'cancelled':
+				return `Cancelled${order.cancelled_at ? ` · ${longDate(order.cancelled_at as string)}` : ''}.`;
+			default:
+				return null;
+		}
+	});
+
+	// ── Copy for the primary "advance to next" action button ─────────────
+	const advanceActionLabel: Record<string, string> = {
+		submitted: 'Submit',
+		confirmed: 'Mark confirmed',
+		shipped: 'Mark shipped',
+		delivered: 'Mark delivered'
+	};
+
+	// ── Meta strip source data (extracted from the old OrderDetails card) ─
+	const monthNames = [
+		'Jan',
+		'Feb',
+		'Mar',
+		'Apr',
+		'May',
+		'Jun',
+		'Jul',
+		'Aug',
+		'Sep',
+		'Oct',
+		'Nov',
+		'Dec'
+	];
+	type ShowDateJoin = {
+		year: number | null;
+		month: number | null;
+		city: string | null;
+		state: string | null;
+		shows: { name: string | null } | null;
+	};
+	const showDateData = $derived(order.show_dates as ShowDateJoin | null);
+	const sourceDisplay = $derived(showDateData?.shows?.name ?? order.source_types?.name ?? null);
+	const sourceLocation = $derived.by(() => {
+		if (!showDateData) return null;
+		const parts = [showDateData.city, showDateData.state].filter(Boolean);
+		return parts.length > 0 ? parts.join(', ') : null;
+	});
+	const createdByName = $derived(order.profiles?.display_name ?? null);
+
+	// Bill-to location join (nullable — falls back to the account address for display).
+	type BillToLocation = {
+		label: string | null;
+		address_line1: string | null;
+		address_line2: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
+	};
+	const billToLocation = $derived(
+		(order as typeof order & { bill_to_location?: BillToLocation | null }).bill_to_location ?? null
+	);
+
+	// Terms agreement summary (for the right-rail TermsRecord panel).
+	type TermsJoin = {
+		brand_terms?: { id: string; title: string; body: string; version: number } | null;
+		terms_agreed_profile?: { display_name: string | null } | null;
+	};
+	const termsAgreedInfo = $derived.by(() => {
+		if (!order.terms_id) return null;
+		const o = order as typeof order & TermsJoin;
+		return {
+			brand_terms: o.brand_terms ?? null,
+			agreed_by: o.terms_agreed_profile?.display_name ?? null,
+			agreed_at: order.terms_agreed_at ?? null
+		};
+	});
+
+	// Totals panel aggregates — subtotal matches total_amount today (no discounts yet).
+	const totalUnits = $derived(activeLines.reduce((s, l) => s + (l.qty ?? 0), 0));
+	const totalStyles = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient counting set
+		const set = new Set<string>();
+		for (const l of activeLines) {
+			const pid = (l as { product_id?: string | null }).product_id;
+			if (pid) set.add(pid);
+		}
+		return set.size;
+	});
 
 	// Ship window dates
 	let editingShipDate = $state(false);
@@ -886,10 +1021,12 @@
 	}
 </script>
 
-<div class="space-y-4">
-	<!-- Toolbar -->
+<div class="w-full space-y-6 p-6">
+	<!-- ── Top bar ─────────────────────────────────────────────────────── -->
 	<div class="flex items-center justify-between">
-		<Button variant="ghost" size="sm" href="/orders"><LongArrow direction="left" /> Back</Button>
+		<Button variant="ghost" size="sm" href="/orders"
+			><LongArrow direction="left" /> Back to orders</Button
+		>
 		<div class="flex gap-2">
 			<Button variant="outline" size="sm" onclick={handleCloneOrder} disabled={cloning}>
 				{#if cloning}
@@ -962,377 +1099,419 @@
 		</div>
 	</div>
 
-	<!-- Title row: order number + status on the left, inline progress on the right -->
-	<div class="flex flex-wrap items-center justify-between gap-4">
-		<div class="flex items-center gap-3">
-			<div>
-				<a
-					href={resolve(`/accounts/${order.account_id}`)}
-					class="text-sm text-muted-foreground hover:underline">{order.accounts?.business_name}</a
-				>
-				<h1 class="font-mono text-3xl">{order.order_number}</h1>
-				<p class="text-sm text-muted-foreground">
-					{!isBrandOrg && order.brands?.name ? `${order.brands.name} · ` : ''}{seasonLabel()}
-				</p>
-			</div>
+	<!-- ── Header: account · order# + pill · brand·season ───────────────── -->
+	<header>
+		{#if order.accounts?.business_name}
+			<a
+				href={resolve(`/accounts/${order.account_id}`)}
+				class="text-sm text-muted-foreground hover:underline">{order.accounts.business_name}</a
+			>
+		{/if}
+		<div class="mt-1 flex flex-wrap items-center gap-3">
+			<h1 class="font-mono text-4xl font-medium tracking-tight">{order.order_number}</h1>
 			{#if order.order_type === 'note'}
-				<Badge class="mt-2" variant="outline">Note</Badge>
+				<Badge variant="outline">Note</Badge>
 			{:else}
-				<Badge class="mt-2" variant={statusColors[order.status] ?? 'secondary'}
+				<Badge variant={statusColors[order.status] ?? 'secondary'}
 					>{statusLabels[order.status] ?? order.status}</Badge
 				>
 			{/if}
 		</div>
+		<div class="mt-1 text-sm text-muted-foreground">
+			{!isBrandOrg && order.brands?.name ? `${order.brands.name} · ` : ''}{seasonLabel()}
+		</div>
+	</header>
 
-		{#if order.order_type !== 'note' && order.status !== 'cancelled'}
-			<div class="flex items-center gap-12">
-				{#each timeline as step (step.status)}
-					{@const isComplete = step.date !== null}
-					{@const isCurrent = step.status === order.status}
-					<div class="flex items-center gap-2">
-						<div
-							class="flex h-4 w-4 items-center justify-center rounded-full transition-colors {isComplete
-								? 'bg-primary text-primary-foreground'
-								: isCurrent
-									? 'bg-background ring-2 ring-primary ring-offset-2 ring-offset-background'
-									: 'border border-muted-foreground/20 bg-muted/40'}"
-							aria-label={step.label}
-						>
-							{#if isComplete}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-2.5 w-2.5"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
+	<!-- ── Note card (note-only) ─────────────────────────────────────────── -->
+	{#if order.order_type === 'note'}
+		<section class="rounded-lg border bg-muted/30 px-6 py-5">
+			<div class="flex flex-wrap items-center justify-between gap-4">
+				<div class="min-w-0">
+					<div class="text-sm">This is a Note — nothing has been committed yet.</div>
+					<div class="mt-1 text-sm text-muted-foreground/70">
+						Created {longDate(order.created_at)}
+						{#if (order.profiles?.display_name as string | undefined) ?? null}
+							· by {order.profiles?.display_name}
+						{/if}
+					</div>
+				</div>
+				{#if canEdit}
+					<Button onclick={convertNoteToOrder} disabled={converting}>
+						{converting ? 'Converting…' : 'Convert to Order'}
+					</Button>
+				{/if}
+			</div>
+		</section>
+	{:else}
+		<!-- ── Status + Ship window card (order-only) ─────────────────────── -->
+		<section class="overflow-hidden rounded-lg border bg-muted/30">
+			<!-- Band 1: stepper + contextual action + context copy -->
+			<div class="px-6 py-5">
+				<div class="flex flex-wrap items-center justify-between gap-4">
+					<ol class="flex min-w-0 flex-1 items-center gap-3">
+						{#each timeline as step, i (step.status)}
+							{@const isComplete = step.date !== null}
+							{@const isCurrent = step.status === order.status}
+							<li class="flex items-center gap-2">
+								<span
+									aria-hidden="true"
+									class="h-2 w-2 rounded-full {isCurrent
+										? 'bg-foreground ring-4 ring-foreground/20'
+										: isComplete
+											? 'bg-foreground'
+											: 'border border-muted-foreground/30'}"
+								></span>
+								<span
+									class="text-sm {isCurrent
+										? 'font-medium text-foreground'
+										: isComplete
+											? 'text-foreground'
+											: 'text-muted-foreground'}"
 								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-								</svg>
+									{step.label}
+								</span>
+							</li>
+							{#if i < timeline.length - 1}
+								<li
+									aria-hidden="true"
+									class="h-px w-6 sm:w-10 {isComplete && timeline[i + 1].date !== null
+										? 'bg-foreground'
+										: isCurrent
+											? 'bg-gradient-to-r from-foreground to-border'
+											: 'bg-border'}"
+								></li>
+							{/if}
+						{/each}
+					</ol>
+					{#if canEdit && nextStatuses.length > 0 && order.status !== 'cancelled'}
+						<div class="flex items-center gap-2 border-l pl-4">
+							{#each nextStatuses.filter((s) => s !== 'cancelled') as nextStatus (nextStatus)}
+								<Button size="sm" onclick={() => updateStatus(nextStatus)}>
+									{advanceActionLabel[nextStatus] ?? statusLabels[nextStatus] ?? nextStatus}
+								</Button>
+							{/each}
+							{#if nextStatuses.includes('cancelled')}
+								<button
+									type="button"
+									class="px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+									onclick={() => (cancelOpen = true)}
+								>
+									Cancel order
+								</button>
 							{/if}
 						</div>
-						<span
-							class="text-sm {isCurrent
-								? 'font-medium text-foreground'
-								: isComplete
-									? 'text-foreground'
-									: 'text-muted-foreground'}"
-						>
-							{step.label}
-						</span>
-					</div>
-				{/each}
+					{/if}
+				</div>
+				{#if statusContext}
+					<div class="mt-3 text-sm text-muted-foreground">{statusContext}</div>
+				{/if}
 			</div>
-		{/if}
-	</div>
 
-	<!-- Order details -->
-	<div class="grid gap-4 sm:grid-cols-2">
-		<Card>
-			<CardHeader>
-				<CardTitle class="text-base">Order Details</CardTitle>
-			</CardHeader>
-			<CardContent>
-				{@const monthNames = [
-					'Jan',
-					'Feb',
-					'Mar',
-					'Apr',
-					'May',
-					'Jun',
-					'Jul',
-					'Aug',
-					'Sep',
-					'Oct',
-					'Nov',
-					'Dec'
-				]}
-				{@const showDateData = order.show_dates}
-				{@const sourceDisplay = showDateData?.shows?.name ?? order.source_types?.name ?? null}
-				{@const sourceLocation = showDateData
-					? [showDateData.city, showDateData.state].filter(Boolean).join(', ')
-					: null}
-				{@const createdByName = order.profiles?.display_name ?? null}
-				<dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+			<!-- Band 2: Ship window -->
+			<div
+				class="flex flex-wrap items-center justify-between gap-4 border-t bg-background/40 px-6 py-4"
+			>
+				<div class="flex flex-wrap items-center gap-10">
 					<div>
-						<dt class="text-sm text-muted-foreground">Source</dt>
-						<dd class="mt-0.5">
-							{#if sourceDisplay}
-								<span>{sourceDisplay}</span>
-								{#if showDateData}
-									<p class="font-mono text-sm text-muted-foreground">
-										{monthNames[(showDateData.month ?? 1) - 1]} · {sourceLocation}
-									</p>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ship window</div>
+						<div class="mt-1.5 flex items-center gap-3">
+							<span class="font-mono text-xl font-medium">
+								{shortDate(order.start_ship_date)}
+							</span>
+							<svg
+								aria-hidden="true"
+								class="h-4 w-4 text-muted-foreground/70"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path d="M5 12h14M13 5l7 7-7 7" />
+							</svg>
+							<span class="font-mono text-xl font-medium">
+								{shortDate(order.expected_ship_date)}
+							</span>
+							{#if shipWindowLength !== null}
+								<span class="ml-1 text-sm text-muted-foreground/70">
+									{shipWindowLength}-day window
+								</span>
+							{/if}
+						</div>
+					</div>
+					{#if shipsInDays !== null}
+						<div>
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ships in</div>
+							<div class="mt-1.5 text-sm">
+								{#if shipsInDays > 0}
+									{shipsInDays} day{shipsInDays === 1 ? '' : 's'}
+								{:else if shipsInDays === 0}
+									Today
+								{:else}
+									{Math.abs(shipsInDays)} day{Math.abs(shipsInDays) === 1 ? '' : 's'} ago
 								{/if}
+							</div>
+						</div>
+					{/if}
+					{#if order.shipping_method}
+						<div>
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Method</div>
+							<div class="mt-1.5 text-sm">{prettify(order.shipping_method)}</div>
+						</div>
+					{/if}
+				</div>
+				{#if canEdit && !editingShipDate}
+					<button
+						type="button"
+						class="rounded-md border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+						onclick={startEditShipDate}
+					>
+						Edit window
+					</button>
+				{/if}
+			</div>
+
+			<!-- Inline ship-window editor (when editingShipDate) -->
+			{#if editingShipDate}
+				<div class="border-t bg-muted/30 px-6 py-4">
+					<div class="grid gap-3 sm:grid-cols-2">
+						<div>
+							<div class="mb-1 text-sm text-muted-foreground">Start ship</div>
+							<DateSelect value={startShipValue} onchange={(v) => (startShipValue = v)} />
+						</div>
+						<div>
+							<div class="mb-1 text-sm text-muted-foreground">Complete ship</div>
+							<DateSelect value={shipDateValue} onchange={(v) => (shipDateValue = v)} />
+						</div>
+					</div>
+					<div class="mt-3 flex justify-end gap-2">
+						<Button variant="outline" size="sm" onclick={() => (editingShipDate = false)}>
+							Cancel
+						</Button>
+						<Button size="sm" onclick={saveShipDate} disabled={savingShipDate}>
+							{savingShipDate ? 'Saving…' : 'Save'}
+						</Button>
+					</div>
+				</div>
+			{/if}
+		</section>
+	{/if}
+
+	<!-- ── Cancel reason banner (when cancelled) ─────────────────────────── -->
+	{#if order.status === 'cancelled' && order.cancelled_reason}
+		<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-5 py-4">
+			<div class="text-sm font-medium text-destructive">Cancellation reason</div>
+			<div class="mt-1 text-sm">{order.cancelled_reason}</div>
+		</div>
+	{/if}
+
+	<!-- ── Main two-column grid ─────────────────────────────────────────── -->
+	<div class="grid gap-6 lg:grid-cols-[1fr_340px]">
+		<!-- ─── Left column ─── -->
+		<div class="space-y-6">
+			<!-- ── Meta strip: Source · Contact · Rep ────────────────────── -->
+			<section class="rounded-lg border bg-muted/30 p-5">
+				<div class="grid gap-5 sm:grid-cols-3">
+					<div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Source</div>
+						{#if sourceDisplay}
+							<div class="mt-1.5 text-sm">{sourceDisplay}</div>
+							{#if showDateData && showDateData.month}
+								<div class="font-mono text-sm text-muted-foreground/70">
+									{monthNames[showDateData.month - 1]}{sourceLocation ? ` · ${sourceLocation}` : ''}
+								</div>
+							{/if}
+						{:else}
+							<div class="mt-1.5 text-sm text-muted-foreground/50">—</div>
+						{/if}
+					</div>
+					<div class="min-w-0">
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Contact</div>
+						<div class="mt-1.5 text-sm">
+							{#if accountAddress?.contact_first_name || accountAddress?.contact_last_name}
+								{[accountAddress.contact_first_name, accountAddress.contact_last_name]
+									.filter(Boolean)
+									.join(' ')}
 							{:else}
 								<span class="text-muted-foreground/50">—</span>
 							{/if}
-						</dd>
-					</div>
-					<div class="col-span-2">
-						<dt class="text-sm text-muted-foreground">Ship Window</dt>
-						<dd class="mt-2">
-							<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-								<div class="rounded-lg bg-muted/60 px-4 py-3">
-									{#if editingShipDate}
-										<p class="mb-1 text-sm text-muted-foreground">Start Ship</p>
-										<DateSelect value={startShipValue} onchange={(v) => (startShipValue = v)} />
-									{:else}
-										<p class="text-lg font-semibold tabular-nums">
-											{#if order.start_ship_date}
-												{new Date(order.start_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
-													month: 'numeric',
-													day: 'numeric'
-												})}
-											{:else}
-												<span class="text-muted-foreground/40">—</span>
-											{/if}
-										</p>
-										<p class="text-sm text-muted-foreground">Start Ship</p>
-									{/if}
-								</div>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground/50"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-									/>
-								</svg>
-								<div class="rounded-lg bg-muted/60 px-4 py-3">
-									{#if editingShipDate}
-										<p class="mb-1 text-sm text-muted-foreground">Complete Ship</p>
-										<DateSelect value={shipDateValue} onchange={(v) => (shipDateValue = v)} />
-									{:else}
-										<p class="text-lg font-semibold tabular-nums">
-											{#if order.expected_ship_date}
-												{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString(
-													'en-US',
-													{ month: 'numeric', day: 'numeric' }
-												)}
-											{:else}
-												<span class="text-muted-foreground/40">—</span>
-											{/if}
-										</p>
-										<p class="text-sm text-muted-foreground">Complete Ship</p>
-									{/if}
-								</div>
-							</div>
-							{#if editingShipDate}
-								<div class="mt-3 flex justify-end gap-2">
-									<Button variant="outline" size="sm" onclick={() => (editingShipDate = false)}
-										>Cancel</Button
-									>
-									<Button size="sm" onclick={saveShipDate} disabled={savingShipDate}>
-										{savingShipDate ? 'Saving…' : 'Save'}
-									</Button>
-								</div>
-							{:else if canEdit}
-								<button
-									class="mt-3 w-full rounded-lg bg-muted/40 py-2 text-center text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-									onclick={startEditShipDate}
-								>
-									Edit
-								</button>
-							{/if}
-						</dd>
-					</div>
-					<div class="col-span-2 grid grid-cols-2 gap-x-6 border-t pt-3">
-						<div>
-							<dt class="text-sm text-muted-foreground">Contact</dt>
-							<dd class="mt-0.5">
-								{#if accountAddress?.contact_first_name || accountAddress?.contact_last_name}
-									<p>
-										{[accountAddress.contact_first_name, accountAddress.contact_last_name]
-											.filter(Boolean)
-											.join(' ')}
-									</p>
-								{/if}
-								{#if accountAddress?.contact_email}
-									<a
-										href="mailto:{accountAddress.contact_email}"
-										class="text-sm text-muted-foreground hover:underline"
-										>{accountAddress.contact_email}</a
-									>
-								{/if}
-							</dd>
 						</div>
-						<div>
-							<dt class="text-sm text-muted-foreground">Phone</dt>
-							<dd class="mt-0.5">
-								{#if accountAddress?.contact_phone || accountAddress?.phone}
-									<a
-										href="tel:{accountAddress.contact_phone ?? accountAddress.phone}"
-										class="hover:underline"
-										>{accountAddress.contact_phone ?? accountAddress.phone}</a
-									>
-								{:else}
-									<span class="text-muted-foreground/50">—</span>
-								{/if}
-							</dd>
-						</div>
-					</div>
-					<div class="col-span-2 grid grid-cols-2 gap-x-6 border-t pt-3">
-						<div>
-							<dt class="text-sm text-muted-foreground">Rep</dt>
-							<dd class="mt-0.5">
-								<p>{repName ?? '—'}</p>
-								{#if repEmail}
-									<a href="mailto:{repEmail}" class="text-sm text-muted-foreground hover:underline"
-										>{repEmail}</a
-									>
-								{/if}
-							</dd>
-						</div>
-						<div>
-							<dt class="text-sm text-muted-foreground">Created</dt>
-							<dd class="mt-0.5">
-								{#if isFederatedView}
-									<span>{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}</span>
-								{:else if createdByName}
-									<span>{createdByName}</span>
-								{/if}
-								<p class="font-mono text-sm text-muted-foreground">
-									{new Date(order.created_at).toLocaleDateString('en-US', {
-										month: 'short',
-										day: 'numeric',
-										year: 'numeric'
-									})}
-								</p>
-							</dd>
-						</div>
-					</div>
-				</dl>
-			</CardContent>
-		</Card>
-
-		<Card>
-			<CardHeader>
-				<div class="flex items-start justify-between">
-					<CardTitle class="font-mono text-base">Summary</CardTitle>
-					{#if canEdit && order.order_type !== 'note' && nextStatuses.length > 0}
-						<div class="flex flex-wrap gap-2">
-							{#each nextStatuses as nextStatus (nextStatus)}
-								{#if nextStatus === 'cancelled'}
-									<Button size="sm" variant="destructive" onclick={() => (cancelOpen = true)}>
-										Cancel
-									</Button>
-								{:else}
-									<Button size="sm" onclick={() => updateStatus(nextStatus)}>
-										{nextStatus === 'submitted'
-											? 'Submit'
-											: nextStatus === 'confirmed'
-												? 'Confirm'
-												: nextStatus === 'shipped'
-													? 'Ship'
-													: 'Mark Delivered'}
-									</Button>
-								{/if}
-							{/each}
-						</div>
-					{/if}
-				</div>
-			</CardHeader>
-			<CardContent>
-				<p class="font-mono text-3xl font-bold">{fmt.format(Number(order.total_amount))}</p>
-				<p class="mt-1 text-sm text-muted-foreground">
-					{activeLines.length} line item{activeLines.length !== 1 ? 's' : ''}
-				</p>
-
-				<!-- Payment -->
-				<div class="mt-4 flex items-center justify-between">
-					<span class="text-sm text-muted-foreground">Payment</span>
-					{#if canEditPayment && paymentItems.length > 0}
-						<form
-							bind:this={paymentPrefForm}
-							method="POST"
-							action="?/updatePaymentPreference"
-							use:enhance={() => {
-								return async ({ result, update }) => {
-									if (result.type === 'success') {
-										toast.success('Payment preference updated');
-									} else if (result.type === 'failure') {
-										const msg =
-											(result.data as { message?: string } | undefined)?.message ??
-											'Could not update payment preference.';
-										toast.error(msg);
-										paymentPrefValue = order.payment_preference ?? '';
-									}
-									await update();
-								};
-							}}
-						>
-							<input type="hidden" name="code" value={paymentPrefValue} />
-							<SelectField
-								bind:value={paymentPrefValue}
-								items={paymentItems}
-								placeholder="Not set"
-								class="min-w-[200px]"
-								onValueChange={(v) => {
-									paymentPrefValue = v;
-									queueMicrotask(() => paymentPrefForm?.requestSubmit());
-								}}
-							/>
-						</form>
-					{:else}
-						<span class="text-sm">{paymentMethodLabel(order.payment_preference)}</span>
-					{/if}
-				</div>
-
-				<!-- Terms agreement -->
-				{#if order.terms_id}
-					{@const termsJoin = order as typeof order & {
-						brand_terms?: { id: string; title: string; version: number } | null;
-						terms_agreed_profile?: { display_name: string | null } | null;
-					}}
-					{@const termsRow = termsJoin.brand_terms}
-					{@const agreedBy = termsJoin.terms_agreed_profile?.display_name ?? null}
-					{@const agreedAt = order.terms_agreed_at
-						? new Date(order.terms_agreed_at as string)
-						: null}
-					<div class="mt-3 rounded-md border bg-muted/20 p-3">
-						<div class="flex items-center justify-between">
-							<span class="text-sm font-medium text-muted-foreground">Terms agreed</span>
-							{#if termsRow}
-								<span class="text-sm">
-									{termsRow.title} · v{termsRow.version}
-								</span>
-							{/if}
-						</div>
-						{#if agreedBy || agreedAt}
-							<p class="mt-1 text-sm text-muted-foreground">
-								{#if agreedBy}{agreedBy}{/if}{#if agreedBy && agreedAt}
-									·
-								{/if}{#if agreedAt}{agreedAt.toLocaleString()}{/if}
-							</p>
+						{#if accountAddress?.contact_email}
+							<a
+								href="mailto:{accountAddress.contact_email}"
+								class="block truncate text-sm text-muted-foreground/70 hover:underline"
+							>
+								{accountAddress.contact_email}
+							</a>
+						{/if}
+						{#if accountAddress?.contact_phone || accountAddress?.phone}
+							<a
+								href="tel:{accountAddress.contact_phone ?? accountAddress.phone}"
+								class="text-sm text-muted-foreground/70 hover:underline"
+							>
+								{accountAddress.contact_phone ?? accountAddress.phone}
+							</a>
 						{/if}
 					</div>
-				{/if}
+					<div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Rep</div>
+						<div class="mt-1.5 text-sm">
+							{#if isFederatedView}
+								{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}
+							{:else}
+								{repName ?? createdByName ?? '—'}
+							{/if}
+						</div>
+						<div class="text-sm text-muted-foreground/70">
+							Created {new Date(order.created_at).toLocaleDateString('en-US', {
+								month: 'short',
+								day: 'numeric',
+								year: 'numeric'
+							})}
+						</div>
+					</div>
+				</div>
+			</section>
 
-				<!-- Commission -->
-				<div class="mt-4 space-y-3">
-					{#if repCommissionRate > 0}
-						<div class="space-y-2 rounded-md border p-3">
-							<div class="flex items-center justify-between">
-								<span class="text-sm font-medium text-muted-foreground">
-									Commission ({repCommissionRate}%){repName ? ` — ${repName}` : ''}
-								</span>
-								<span class="text-sm font-medium">{fmt.format(repCommissionOnTotal)}</span>
+			<!-- ── Ship to / Bill to / Payment (order-only) ────────────── -->
+			{#if order.order_type !== 'note'}
+				<section class="grid gap-4 md:grid-cols-3">
+					<!-- Ship to -->
+					<div class="rounded-lg border bg-muted/30 p-5">
+						<div class="flex items-center justify-between">
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ship to</div>
+							{#if orderLocation?.label}
+								<span class="text-xs text-muted-foreground/70">{orderLocation.label}</span>
+							{/if}
+						</div>
+						{#if orderLocation}
+							{#if order.accounts?.business_name}
+								<div class="mt-2 text-sm">{order.accounts.business_name}</div>
+							{/if}
+							<div class="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+								{#if orderLocation.address_line1}{orderLocation.address_line1}{/if}
+								{#if orderLocation.address_line2}<br />{orderLocation.address_line2}{/if}
+								{#if orderLocation.city || orderLocation.state || orderLocation.zip}
+									<br />{[orderLocation.city, orderLocation.state]
+										.filter(Boolean)
+										.join(', ')}{orderLocation.zip ? ` ${orderLocation.zip}` : ''}
+								{/if}
 							</div>
+						{:else}
+							<div class="mt-2 text-sm text-muted-foreground/50">—</div>
+						{/if}
+					</div>
+					<!-- Bill to -->
+					<div class="rounded-lg border bg-muted/30 p-5">
+						<div class="flex items-center justify-between">
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Bill to</div>
+							{#if billToLocation?.label}
+								<span class="text-xs text-muted-foreground/70">{billToLocation.label}</span>
+							{:else if !billToLocation && orderLocation}
+								<span class="text-xs text-muted-foreground/70">Same as ship to</span>
+							{/if}
+						</div>
+						{#if billToLocation}
+							{#if order.accounts?.business_name}
+								<div class="mt-2 text-sm">{order.accounts.business_name}</div>
+							{/if}
+							<div class="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+								{#if billToLocation.address_line1}{billToLocation.address_line1}{/if}
+								{#if billToLocation.address_line2}<br />{billToLocation.address_line2}{/if}
+								{#if billToLocation.city || billToLocation.state || billToLocation.zip}
+									<br />{[billToLocation.city, billToLocation.state]
+										.filter(Boolean)
+										.join(', ')}{billToLocation.zip ? ` ${billToLocation.zip}` : ''}
+								{/if}
+							</div>
+						{:else if accountAddress?.address_line1}
+							{#if order.accounts?.business_name}
+								<div class="mt-2 text-sm">{order.accounts.business_name}</div>
+							{/if}
+							<div class="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+								{accountAddress.address_line1}
+								{#if accountAddress.address_line2}<br />{accountAddress.address_line2}{/if}
+								{#if accountAddress.city || accountAddress.state || accountAddress.zip}
+									<br />{[accountAddress.city, accountAddress.state]
+										.filter(Boolean)
+										.join(', ')}{accountAddress.zip ? ` ${accountAddress.zip}` : ''}
+								{/if}
+							</div>
+						{:else}
+							<div class="mt-2 text-sm text-muted-foreground/50">—</div>
+						{/if}
+					</div>
+					<!-- Payment -->
+					<div class="rounded-lg border bg-muted/30 p-5">
+						<div class="flex items-center justify-between">
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Payment</div>
+						</div>
+						{#if canEditPayment && paymentItems.length > 0}
+							<form
+								bind:this={paymentPrefForm}
+								method="POST"
+								action="?/updatePaymentPreference"
+								use:enhance={() => {
+									return async ({ result, update }) => {
+										if (result.type === 'success') {
+											toast.success('Payment preference updated');
+										} else if (result.type === 'failure') {
+											const msg =
+												(result.data as { message?: string } | undefined)?.message ??
+												'Could not update payment preference.';
+											toast.error(msg);
+											paymentPrefValue = order.payment_preference ?? '';
+										}
+										await update();
+									};
+								}}
+								class="mt-2"
+							>
+								<input type="hidden" name="code" value={paymentPrefValue} />
+								<SelectField
+									bind:value={paymentPrefValue}
+									items={paymentItems}
+									placeholder="Not set"
+									class="w-full"
+									onValueChange={(v) => {
+										paymentPrefValue = v;
+										queueMicrotask(() => paymentPrefForm?.requestSubmit());
+									}}
+								/>
+							</form>
+						{:else}
+							<div class="mt-2 text-sm">{paymentMethodLabel(order.payment_preference)}</div>
+						{/if}
+						{#if order.payment_terms || order.shipping_method}
+							<div class="mt-1 text-sm text-muted-foreground/70">
+								{[
+									prettify(order.payment_terms),
+									order.shipping_method ? `${prettify(order.shipping_method)} shipping` : null
+								]
+									.filter(Boolean)
+									.join(' · ')}
+							</div>
+						{/if}
+					</div>
+				</section>
+			{/if}
+
+			<!-- ── Commission + Shipped amount (conditional) ───────────── -->
+			{#if repCommissionRate > 0 || isShippedOrDelivered}
+				<section class="space-y-3 rounded-lg border bg-muted/30 p-5">
+					{#if repCommissionRate > 0}
+						<div class="flex items-center justify-between">
+							<span class="text-sm">
+								Commission ({repCommissionRate}%){repName ? ` — ${repName}` : ''}
+							</span>
+							<span class="font-mono text-sm font-medium">
+								{fmt.format(repCommissionOnTotal)}
+							</span>
 						</div>
 					{/if}
-
-					<!-- Shipped amount -->
 					{#if isShippedOrDelivered}
-						<div class="space-y-2 rounded-md border p-3">
+						<div class:border-t={repCommissionRate > 0} class:pt-3={repCommissionRate > 0}>
 							<div class="flex items-center justify-between">
-								<span class="text-sm font-medium text-muted-foreground">Shipped Amount</span>
+								<span class="text-sm">Shipped amount</span>
 								{#if canEdit}
 									<div class="flex items-center gap-2">
 										<input
@@ -1345,519 +1524,566 @@
 												shippedAmountInput = (e.target as HTMLInputElement).value;
 											}}
 										/>
-										<button
-											type="button"
-											class="cursor-pointer rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-											onclick={saveShippedAmount}
-											disabled={savingShipped}
-										>
-											{savingShipped ? 'Saving...' : 'Save'}
-										</button>
+										<Button size="sm" onclick={saveShippedAmount} disabled={savingShipped}>
+											{savingShipped ? 'Saving…' : 'Save'}
+										</Button>
 									</div>
 								{/if}
 							</div>
 							{#if order.shipped_amount != null}
-								<p class="text-sm text-muted-foreground">
-									Ordered: {fmt.format(Number(order.total_amount))} → Shipped: {fmt.format(
+								<div class="mt-1 text-sm text-muted-foreground">
+									Ordered {fmt.format(Number(order.total_amount))} → Shipped {fmt.format(
 										Number(order.shipped_amount)
 									)}
-								</p>
+								</div>
 								{#if repCommissionRate > 0}
-									<p class="text-sm font-medium">
-										Commission: {fmt.format(repCommissionOnShipped ?? 0)}
-									</p>
+									<div class="mt-0.5 text-sm font-medium">
+										Commission on shipped: {fmt.format(repCommissionOnShipped ?? 0)}
+									</div>
 								{/if}
 							{/if}
 						</div>
 					{/if}
-				</div>
+				</section>
+			{/if}
 
-				<!-- Ship To / Bill To -->
-				<div class="mt-4 grid grid-cols-2 gap-4 border-t pt-4">
-					<div>
-						<p class="text-sm font-medium text-muted-foreground">Ship To</p>
-						{#if orderLocation}
-							<div class="mt-1 text-sm">
-								{#if orderLocation.address_line1}
-									<p>{orderLocation.address_line1}</p>
-								{/if}
-								{#if orderLocation.address_line2}
-									<p>{orderLocation.address_line2}</p>
-								{/if}
-								{#if orderLocation.city || orderLocation.state || orderLocation.zip}
-									<p>
-										{[orderLocation.city, orderLocation.state]
-											.filter(Boolean)
-											.join(', ')}{orderLocation.zip ? ` ${orderLocation.zip}` : ''}
-									</p>
+			<!-- Line items card (existing markup continues below, still inside the left column) -->
+
+			<!-- Line items -->
+			<Card>
+				<CardHeader>
+					<div class="flex items-center justify-between">
+						<CardTitle class="text-base">Line Items</CardTitle>
+						{#if canModify}
+							<div class="flex gap-2">
+								{#if editMode}
+									<Button variant="ghost" size="sm" onclick={cancelEdit} disabled={savingEdits}>
+										Cancel
+									</Button>
+									<Button size="sm" onclick={saveEdits} disabled={savingEdits}>
+										{savingEdits ? 'Saving…' : 'Save Items'}
+									</Button>
+								{:else}
+									{#if lineRows.length > 0 || customLines.length > 0}
+										<Button variant="outline" size="sm" onclick={enterEditMode}>Edit Items</Button>
+									{/if}
+									<Button variant="outline" size="sm" onclick={openCatalogPicker}>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2.25"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											class="h-3 w-3"
+										>
+											<path d="M12 5v14" />
+											<path d="M5 12h14" />
+										</svg>
+										Add Item
+									</Button>
 								{/if}
 							</div>
-						{:else}
-							<p class="mt-1 text-sm text-muted-foreground/50">—</p>
 						{/if}
 					</div>
-					<div>
-						<p class="text-sm font-medium text-muted-foreground">Bill To</p>
-						{#if accountAddress?.address_line1}
-							<div class="mt-1 text-sm">
-								<p>{accountAddress.address_line1}</p>
-								{#if accountAddress.address_line2}
-									<p>{accountAddress.address_line2}</p>
-								{/if}
-								{#if accountAddress.city || accountAddress.state || accountAddress.zip}
-									<p>
-										{[accountAddress.city, accountAddress.state]
-											.filter(Boolean)
-											.join(', ')}{accountAddress.zip ? ` ${accountAddress.zip}` : ''}
-									</p>
-								{/if}
-							</div>
-						{:else}
-							<p class="mt-1 text-sm text-muted-foreground/50">—</p>
-						{/if}
-					</div>
-				</div>
-
-				<!-- Cancel reason -->
-				{#if order.status === 'cancelled' && order.cancelled_reason}
-					<div class="mt-4 rounded-md border border-destructive/20 bg-destructive/5 p-3">
-						<p class="text-sm font-medium text-destructive">Cancellation Reason</p>
-						<p class="mt-1 text-sm">{order.cancelled_reason}</p>
-					</div>
-				{/if}
-			</CardContent>
-		</Card>
-	</div>
-
-	<!-- Line items -->
-	<Card>
-		<CardHeader>
-			<div class="flex items-center justify-between">
-				<CardTitle class="text-base">Line Items</CardTitle>
-				{#if canModify}
-					<div class="flex gap-2">
-						{#if editMode}
-							<Button variant="ghost" size="sm" onclick={cancelEdit} disabled={savingEdits}>
-								Cancel
-							</Button>
-							<Button size="sm" onclick={saveEdits} disabled={savingEdits}>
-								{savingEdits ? 'Saving…' : 'Save Items'}
-							</Button>
-						{:else}
-							{#if lineRows.length > 0 || customLines.length > 0}
-								<Button variant="outline" size="sm" onclick={enterEditMode}>Edit Items</Button>
-							{/if}
-							<Button variant="outline" size="sm" onclick={openCatalogPicker}>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2.25"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									class="h-3 w-3"
-								>
-									<path d="M12 5v14" />
-									<path d="M5 12h14" />
-								</svg>
-								Add Item
-							</Button>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		</CardHeader>
-		<CardContent>
-			{#if lineRows.length === 0 && customLines.length === 0 && removedLines.length === 0 && !editMode}
-				<p class="text-sm text-muted-foreground">No line items.</p>
-			{:else}
-				<div class="rounded-md border">
-					<table class="w-full">
-						<thead class="bg-muted/50">
-							<tr class="border-b">
-								<th class="w-20 px-3 py-2 text-left text-sm font-medium"></th>
-								<th class="w-72 px-3 py-2 text-left text-sm font-medium">Item</th>
-								<th class="px-3 py-2 text-center text-sm font-medium">Color</th>
-								<th class="px-3 py-2 text-left text-sm font-medium">Sizes / Qty</th>
-								<th class="px-3 py-2 text-right text-sm font-medium">Unit Price</th>
-								<th class="px-3 py-2 text-right text-sm font-medium">Total</th>
-								{#if canModify}
-									<th class="w-px px-2 py-2 whitespace-nowrap"></th>
-								{/if}
-							</tr>
-						</thead>
-						<tbody>
-							{#if editMode}
-								{#each draftRows as draft, idx (draft.key)}
-									{@const usedColors = draftRows
-										.filter(
-											(r, i) => i !== idx && r.product_id === draft.product_id && !r.to_remove
-										)
-										.map((r) => r.color_edit)
-										.filter((c): c is string => !!c)}
-									{@const rowUnits = Object.values(draft.qty_by_size).reduce(
-										(s, q) => s + (q || 0),
-										0
-									)}
-									{@const rowTotal = rowUnits * draft.unit_price}
-									<tr class="group border-b align-top {draft.to_remove ? 'opacity-40' : ''}">
-										<td class="px-3 py-3">
-											{#if draft.image_id}
-												<img
-													src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
-													alt=""
-													class="h-14 w-14 rounded-md object-cover"
-												/>
-											{:else}
-												<div
-													class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
-												>
-													<svg
-														xmlns="http://www.w3.org/2000/svg"
-														viewBox="0 0 24 24"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.5"
-														class="h-6 w-6"
-													>
-														<rect x="3" y="3" width="18" height="18" rx="2" />
-														<circle cx="8.5" cy="8.5" r="1.5" />
-														<path d="M21 15l-5-5L5 21" />
-													</svg>
-												</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3">
-											<div class="font-mono text-sm">{draft.style_number}</div>
-											<div class="text-sm font-medium">{draft.name}</div>
-											{#if !isBrandOrg && order.brands?.name}
-												<div class="text-sm text-muted-foreground">
-													{order.brands.name}{draft.season_label ? ` · ${draft.season_label}` : ''}
-												</div>
-											{:else if draft.season_label}
-												<div class="text-sm text-muted-foreground">{draft.season_label}</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3 text-center align-middle">
-											{#if draft.available_colors && draft.available_colors.length > 0}
-												<ColorSwatchPicker
-													value={draft.color_edit}
-													options={draft.available_colors}
-													disabledColors={usedColors}
-													onChange={(c) => (draftRows[idx].color_edit = c)}
-													disabled={draft.to_remove}
-												/>
-											{:else}
-												<div class="flex items-center justify-center gap-2 text-sm">
-													<ColorSwatch color={draft.color_edit} size={28} />
-													{#if draft.color_edit}
-														<span>{draft.color_edit}</span>
+				</CardHeader>
+				<CardContent>
+					{#if lineRows.length === 0 && customLines.length === 0 && removedLines.length === 0 && !editMode}
+						<p class="text-sm text-muted-foreground">No line items.</p>
+					{:else}
+						<div class="rounded-md border">
+							<table class="w-full">
+								<thead class="bg-muted/50">
+									<tr class="border-b">
+										<th class="w-20 px-3 py-2 text-left text-sm font-medium"></th>
+										<th class="w-72 px-3 py-2 text-left text-sm font-medium">Item</th>
+										<th class="px-3 py-2 text-center text-sm font-medium">Color</th>
+										<th class="px-3 py-2 text-left text-sm font-medium">Sizes / Qty</th>
+										<th class="px-3 py-2 text-right text-sm font-medium">Unit Price</th>
+										<th class="px-3 py-2 text-right text-sm font-medium">Total</th>
+										{#if canModify}
+											<th class="w-px px-2 py-2 whitespace-nowrap"></th>
+										{/if}
+									</tr>
+								</thead>
+								<tbody>
+									{#if editMode}
+										{#each draftRows as draft, idx (draft.key)}
+											{@const usedColors = draftRows
+												.filter(
+													(r, i) => i !== idx && r.product_id === draft.product_id && !r.to_remove
+												)
+												.map((r) => r.color_edit)
+												.filter((c): c is string => !!c)}
+											{@const rowUnits = Object.values(draft.qty_by_size).reduce(
+												(s, q) => s + (q || 0),
+												0
+											)}
+											{@const rowTotal = rowUnits * draft.unit_price}
+											<tr class="group border-b align-top {draft.to_remove ? 'opacity-40' : ''}">
+												<td class="px-3 py-3">
+													{#if draft.image_id}
+														<img
+															src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
+															alt=""
+															class="h-14 w-14 rounded-md object-cover"
+														/>
+													{:else}
+														<div
+															class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
+														>
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="none"
+																stroke="currentColor"
+																stroke-width="1.5"
+																class="h-6 w-6"
+															>
+																<rect x="3" y="3" width="18" height="18" rx="2" />
+																<circle cx="8.5" cy="8.5" r="1.5" />
+																<path d="M21 15l-5-5L5 21" />
+															</svg>
+														</div>
 													{/if}
-												</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3 align-middle">
-											{#if draft.available_sizes.length > 0}
-												<div class="flex flex-wrap gap-2">
-													{#each draft.available_sizes as size (size)}
-														<label class="flex flex-col items-center gap-1">
-															<span class="text-sm text-muted-foreground">{size}</span>
+												</td>
+												<td class="px-3 py-3">
+													<div class="font-mono text-sm">{draft.style_number}</div>
+													<div class="text-sm font-medium">{draft.name}</div>
+													{#if !isBrandOrg && order.brands?.name}
+														<div class="text-sm text-muted-foreground">
+															{order.brands.name}{draft.season_label
+																? ` · ${draft.season_label}`
+																: ''}
+														</div>
+													{:else if draft.season_label}
+														<div class="text-sm text-muted-foreground">{draft.season_label}</div>
+													{/if}
+												</td>
+												<td class="px-3 py-3 text-center align-middle">
+													{#if draft.available_colors && draft.available_colors.length > 0}
+														<ColorSwatchPicker
+															value={draft.color_edit}
+															options={draft.available_colors}
+															disabledColors={usedColors}
+															onChange={(c) => (draftRows[idx].color_edit = c)}
+															disabled={draft.to_remove}
+														/>
+													{:else}
+														<div class="flex items-center justify-center gap-2 text-sm">
+															<ColorSwatch color={draft.color_edit} size={28} />
+															{#if draft.color_edit}
+																<span>{draft.color_edit}</span>
+															{/if}
+														</div>
+													{/if}
+												</td>
+												<td class="px-3 py-3 align-middle">
+													{#if draft.available_sizes.length > 0}
+														<div class="flex flex-wrap gap-2">
+															{#each draft.available_sizes as size (size)}
+																<label class="flex flex-col items-center gap-1">
+																	<span class="text-sm text-muted-foreground">{size}</span>
+																	<input
+																		type="number"
+																		min="0"
+																		value={draft.qty_by_size[size] ?? 0}
+																		disabled={draft.to_remove}
+																		oninput={(e) => {
+																			const n = parseInt((e.target as HTMLInputElement).value, 10);
+																			draftRows[idx].qty_by_size[size] = Number.isNaN(n)
+																				? 0
+																				: Math.max(0, n);
+																		}}
+																		class="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm"
+																	/>
+																</label>
+															{/each}
+														</div>
+													{:else}
+														<div class="flex items-center gap-2">
+															<span class="text-sm text-muted-foreground">Qty</span>
 															<input
 																type="number"
 																min="0"
-																value={draft.qty_by_size[size] ?? 0}
+																value={draft.qty_by_size[''] ?? 0}
 																disabled={draft.to_remove}
 																oninput={(e) => {
 																	const n = parseInt((e.target as HTMLInputElement).value, 10);
-																	draftRows[idx].qty_by_size[size] = Number.isNaN(n)
+																	draftRows[idx].qty_by_size[''] = Number.isNaN(n)
 																		? 0
 																		: Math.max(0, n);
 																}}
-																class="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm"
+																class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center text-sm"
 															/>
-														</label>
-													{/each}
-												</div>
-											{:else}
-												<div class="flex items-center gap-2">
-													<span class="text-sm text-muted-foreground">Qty</span>
-													<input
-														type="number"
-														min="0"
-														value={draft.qty_by_size[''] ?? 0}
-														disabled={draft.to_remove}
-														oninput={(e) => {
-															const n = parseInt((e.target as HTMLInputElement).value, 10);
-															draftRows[idx].qty_by_size[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
-														}}
-														class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center text-sm"
-													/>
-												</div>
-											{/if}
-										</td>
-										<td class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm">
-											{fmt.format(draft.unit_price)}
-										</td>
-										<td
-											class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
-										>
-											<div>{fmt.format(rowTotal)}</div>
-											<div class="text-sm font-normal text-muted-foreground">
-												{rowUnits}
-												{rowUnits === 1 ? 'unit' : 'units'}
-											</div>
-										</td>
-										<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
-											<div class="flex items-center justify-end gap-1">
-												{#if !draft.to_remove && draft.available_colors && draft.available_colors.length > 1}
-													{@const unused = draft.available_colors.filter(
-														(c) =>
-															!draftRows.some(
-																(r) =>
-																	!r.to_remove &&
-																	r.product_id === draft.product_id &&
-																	r.color_edit === c
-															)
-													)}
-													{#if unused.length > 0}
-														<ColorSwatchPicker
-															value={null}
-															options={unused}
-															onChange={(c) => c && addColorFor(idx, c)}
-															triggerLabel="+ color"
-														/>
-													{/if}
-												{/if}
-												{#if draft.to_remove}
-													<Button size="sm" variant="outline" onclick={() => restoreDraftRow(idx)}>
-														Undo
-													</Button>
-												{:else}
-													<button
-														type="button"
-														aria-label="Remove row"
-														class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-														onclick={() => removeDraftRow(idx)}
-													>
-														<svg
-															xmlns="http://www.w3.org/2000/svg"
-															viewBox="0 0 24 24"
-															fill="none"
-															stroke="currentColor"
-															stroke-width="1.75"
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															class="h-4 w-4"
-														>
-															<path d="M3 6h18" />
-															<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-															<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-															<path d="M10 11v6" />
-															<path d="M14 11v6" />
-														</svg>
-													</button>
-												{/if}
-											</div>
-										</td>
-									</tr>
-								{/each}
-							{:else}
-								{#each lineRows as row (row.key)}
-									{@const visibleLines = row.lines
-										.filter((l) => l.qty > 0)
-										.sort((a, b) => {
-											const ai = row.available_sizes.indexOf(a.size ?? '');
-											const bi = row.available_sizes.indexOf(b.size ?? '');
-											return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
-										})}
-									{@const rowUnits = row.lines.reduce((s, l) => s + l.qty, 0)}
-									{@const rowTotal = rowUnits * row.unit_price}
-									<tr class="group border-b align-top">
-										<td class="px-3 py-3">
-											{#if row.image_id}
-												<img
-													src={`/api/products/${row.product_id}/images/${row.image_id}`}
-													alt=""
-													class="h-14 w-14 rounded-md object-cover"
-												/>
-											{:else}
-												<div
-													class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
-												>
-													<svg
-														xmlns="http://www.w3.org/2000/svg"
-														viewBox="0 0 24 24"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.5"
-														class="h-6 w-6"
-													>
-														<rect x="3" y="3" width="18" height="18" rx="2" />
-														<circle cx="8.5" cy="8.5" r="1.5" />
-														<path d="M21 15l-5-5L5 21" />
-													</svg>
-												</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3">
-											<div class="font-mono text-sm">{row.style_number}</div>
-											<div class="text-sm font-medium">{row.name}</div>
-											{#if !isBrandOrg && order.brands?.name}
-												<div class="text-sm text-muted-foreground">
-													{order.brands.name}{row.season_label ? ` · ${row.season_label}` : ''}
-												</div>
-											{:else if row.season_label}
-												<div class="text-sm text-muted-foreground">{row.season_label}</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3 text-center align-middle">
-											<div class="flex items-center justify-center gap-2 text-sm">
-												<ColorSwatch color={row.color} size={28} />
-												{#if row.color}
-													<span>{row.color}</span>
-												{/if}
-											</div>
-										</td>
-										<td class="px-3 py-3 align-middle">
-											{#if visibleLines.length > 0}
-												<div class="flex flex-wrap gap-x-6 gap-y-2">
-													{#each visibleLines as l (l.id)}
-														<div class="flex flex-col items-center">
-															<span class="text-sm text-muted-foreground">{l.size ?? '—'}</span>
-															<span class="text-sm">{l.qty}</span>
 														</div>
-													{/each}
-												</div>
-											{:else}
-												<span class="text-sm text-muted-foreground">—</span>
-											{/if}
-										</td>
-										<td class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm">
-											{fmt.format(row.unit_price)}
-										</td>
-										<td
-											class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
-										>
-											<div>{fmt.format(rowTotal)}</div>
-											<div class="text-sm font-normal text-muted-foreground">
-												{rowUnits}
-												{rowUnits === 1 ? 'unit' : 'units'}
-											</div>
-										</td>
-										{#if canModify}
-											<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
-												<button
-													type="button"
-													aria-label="Remove row"
-													disabled={removingRowKey === row.key}
-													class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-40"
-													onclick={() => removeLineRow(row)}
+													{/if}
+												</td>
+												<td
+													class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm"
 												>
-													<svg
-														xmlns="http://www.w3.org/2000/svg"
-														viewBox="0 0 24 24"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.75"
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														class="h-4 w-4"
-													>
-														<path d="M3 6h18" />
-														<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-														<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-														<path d="M10 11v6" />
-														<path d="M14 11v6" />
-													</svg>
-												</button>
-											</td>
-										{/if}
-									</tr>
-								{/each}
-								{#each customLines as line (line.id)}
-									<tr class="border-b align-top text-sm">
-										<td class="px-3 py-3"></td>
-										<td class="px-3 py-3">
-											<div class="font-mono">{line.style_number ?? '—'}</div>
-											{#if line.description}
-												<div class="text-muted-foreground">{line.description}</div>
-											{/if}
+													{fmt.format(draft.unit_price)}
+												</td>
+												<td
+													class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
+												>
+													<div>{fmt.format(rowTotal)}</div>
+													<div class="text-sm font-normal text-muted-foreground">
+														{rowUnits}
+														{rowUnits === 1 ? 'unit' : 'units'}
+													</div>
+												</td>
+												<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
+													<div class="flex items-center justify-end gap-1">
+														{#if !draft.to_remove && draft.available_colors && draft.available_colors.length > 1}
+															{@const unused = draft.available_colors.filter(
+																(c) =>
+																	!draftRows.some(
+																		(r) =>
+																			!r.to_remove &&
+																			r.product_id === draft.product_id &&
+																			r.color_edit === c
+																	)
+															)}
+															{#if unused.length > 0}
+																<ColorSwatchPicker
+																	value={null}
+																	options={unused}
+																	onChange={(c) => c && addColorFor(idx, c)}
+																	triggerLabel="+ color"
+																/>
+															{/if}
+														{/if}
+														{#if draft.to_remove}
+															<Button
+																size="sm"
+																variant="outline"
+																onclick={() => restoreDraftRow(idx)}
+															>
+																Undo
+															</Button>
+														{:else}
+															<button
+																type="button"
+																aria-label="Remove row"
+																class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+																onclick={() => removeDraftRow(idx)}
+															>
+																<svg
+																	xmlns="http://www.w3.org/2000/svg"
+																	viewBox="0 0 24 24"
+																	fill="none"
+																	stroke="currentColor"
+																	stroke-width="1.75"
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																	class="h-4 w-4"
+																>
+																	<path d="M3 6h18" />
+																	<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+																	<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+																	<path d="M10 11v6" />
+																	<path d="M14 11v6" />
+																</svg>
+															</button>
+														{/if}
+													</div>
+												</td>
+											</tr>
+										{/each}
+									{:else}
+										{#each lineRows as row (row.key)}
+											{@const visibleLines = row.lines
+												.filter((l) => l.qty > 0)
+												.sort((a, b) => {
+													const ai = row.available_sizes.indexOf(a.size ?? '');
+													const bi = row.available_sizes.indexOf(b.size ?? '');
+													return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+												})}
+											{@const rowUnits = row.lines.reduce((s, l) => s + l.qty, 0)}
+											{@const rowTotal = rowUnits * row.unit_price}
+											<tr class="group border-b align-top">
+												<td class="px-3 py-3">
+													{#if row.image_id}
+														<img
+															src={`/api/products/${row.product_id}/images/${row.image_id}`}
+															alt=""
+															class="h-14 w-14 rounded-md object-cover"
+														/>
+													{:else}
+														<div
+															class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
+														>
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="none"
+																stroke="currentColor"
+																stroke-width="1.5"
+																class="h-6 w-6"
+															>
+																<rect x="3" y="3" width="18" height="18" rx="2" />
+																<circle cx="8.5" cy="8.5" r="1.5" />
+																<path d="M21 15l-5-5L5 21" />
+															</svg>
+														</div>
+													{/if}
+												</td>
+												<td class="px-3 py-3">
+													<div class="font-mono text-sm">{row.style_number}</div>
+													<div class="text-sm font-medium">{row.name}</div>
+													{#if !isBrandOrg && order.brands?.name}
+														<div class="text-sm text-muted-foreground">
+															{order.brands.name}{row.season_label ? ` · ${row.season_label}` : ''}
+														</div>
+													{:else if row.season_label}
+														<div class="text-sm text-muted-foreground">{row.season_label}</div>
+													{/if}
+												</td>
+												<td class="px-3 py-3 text-center align-middle">
+													<div class="flex items-center justify-center gap-2 text-sm">
+														<ColorSwatch color={row.color} size={28} />
+														{#if row.color}
+															<span>{row.color}</span>
+														{/if}
+													</div>
+												</td>
+												<td class="px-3 py-3 align-middle">
+													{#if visibleLines.length > 0}
+														<div class="flex flex-wrap gap-x-6 gap-y-2">
+															{#each visibleLines as l (l.id)}
+																<div class="flex flex-col items-center">
+																	<span class="text-sm text-muted-foreground">{l.size ?? '—'}</span>
+																	<span class="text-sm">{l.qty}</span>
+																</div>
+															{/each}
+														</div>
+													{:else}
+														<span class="text-sm text-muted-foreground">—</span>
+													{/if}
+												</td>
+												<td
+													class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm"
+												>
+													{fmt.format(row.unit_price)}
+												</td>
+												<td
+													class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
+												>
+													<div>{fmt.format(rowTotal)}</div>
+													<div class="text-sm font-normal text-muted-foreground">
+														{rowUnits}
+														{rowUnits === 1 ? 'unit' : 'units'}
+													</div>
+												</td>
+												{#if canModify}
+													<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
+														<button
+															type="button"
+															aria-label="Remove row"
+															disabled={removingRowKey === row.key}
+															class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-40"
+															onclick={() => removeLineRow(row)}
+														>
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="none"
+																stroke="currentColor"
+																stroke-width="1.75"
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																class="h-4 w-4"
+															>
+																<path d="M3 6h18" />
+																<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+																<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+																<path d="M10 11v6" />
+																<path d="M14 11v6" />
+															</svg>
+														</button>
+													</td>
+												{/if}
+											</tr>
+										{/each}
+										{#each customLines as line (line.id)}
+											<tr class="border-b align-top text-sm">
+												<td class="px-3 py-3"></td>
+												<td class="px-3 py-3">
+													<div class="font-mono">{line.style_number ?? '—'}</div>
+													{#if line.description}
+														<div class="text-muted-foreground">{line.description}</div>
+													{/if}
+												</td>
+												<td class="px-3 py-3">{line.color ?? '—'}</td>
+												<td class="px-3 py-3">
+													<div class="flex flex-col items-center">
+														<span class="text-muted-foreground">{line.size ?? '—'}</span>
+														<span class="font-semibold">{line.qty}</span>
+													</div>
+												</td>
+												<td class="px-3 py-3 text-right font-mono">
+													{fmt.format(Number(line.unit_price))}
+												</td>
+												<td class="px-3 py-3 text-right font-mono font-medium">
+													{fmt.format(Number(line.line_total))}
+												</td>
+												{#if canModify}
+													<td class="w-px px-2 py-3 whitespace-nowrap"></td>
+												{/if}
+											</tr>
+										{/each}
+									{/if}
+								</tbody>
+								<tfoot class="bg-muted/50">
+									<tr class="align-top">
+										<td colspan="5" class="px-3 py-2 text-right font-mono text-sm font-medium">
+											Order Total
 										</td>
-										<td class="px-3 py-3">{line.color ?? '—'}</td>
-										<td class="px-3 py-3">
-											<div class="flex flex-col items-center">
-												<span class="text-muted-foreground">{line.size ?? '—'}</span>
-												<span class="font-semibold">{line.qty}</span>
+										<td class="px-3 py-2 text-right font-mono text-sm font-bold">
+											<div>
+												{fmt.format(editMode ? projectedOrderTotal : Number(order.total_amount))}
+											</div>
+											<div class="text-sm font-normal text-muted-foreground">
+												{editMode ? projectedOrderUnits : savedOrderUnits}
+												{(editMode ? projectedOrderUnits : savedOrderUnits) === 1
+													? 'unit'
+													: 'units'}
 											</div>
 										</td>
-										<td class="px-3 py-3 text-right font-mono">
-											{fmt.format(Number(line.unit_price))}
-										</td>
-										<td class="px-3 py-3 text-right font-mono font-medium">
-											{fmt.format(Number(line.line_total))}
-										</td>
 										{#if canModify}
-											<td class="w-px px-2 py-3 whitespace-nowrap"></td>
+											<td class="px-3 py-2"></td>
 										{/if}
 									</tr>
-								{/each}
-							{/if}
-						</tbody>
-						<tfoot class="bg-muted/50">
-							<tr class="align-top">
-								<td colspan="5" class="px-3 py-2 text-right font-mono text-sm font-medium">
-									Order Total
-								</td>
-								<td class="px-3 py-2 text-right font-mono text-sm font-bold">
-									<div>
-										{fmt.format(editMode ? projectedOrderTotal : Number(order.total_amount))}
-									</div>
-									<div class="text-sm font-normal text-muted-foreground">
-										{editMode ? projectedOrderUnits : savedOrderUnits}
-										{(editMode ? projectedOrderUnits : savedOrderUnits) === 1 ? 'unit' : 'units'}
-									</div>
-								</td>
-								{#if canModify}
-									<td class="px-3 py-2"></td>
-								{/if}
-							</tr>
-						</tfoot>
-					</table>
-				</div>
-			{/if}
+								</tfoot>
+							</table>
+						</div>
+					{/if}
 
-			<!-- Removed lines -->
-			{#if removedLines.length > 0}
-				<div class="mt-4">
-					<p class="mb-2 text-sm font-medium tracking-wider text-muted-foreground uppercase">
-						Removed Items
-					</p>
-					<div class="rounded-md border border-dashed">
-						<table class="w-full">
-							<tbody>
-								{#each removedLines as line (line.id)}
-									<tr class="border-b opacity-60 last:border-0">
-										<td class="px-3 py-2 line-through">
-											<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
-											{#if line.description}
-												<p class="text-sm text-muted-foreground">{line.description}</p>
-											{/if}
-										</td>
-										<td class="px-3 py-2 text-sm">{line.color ?? '—'} / {line.size ?? '—'}</td>
-										<td class="px-3 py-2 text-right text-sm"
-											>{line.qty} x {fmt.format(Number(line.unit_price))}</td
-										>
-										<td class="px-3 py-2 text-sm text-muted-foreground">{line.removed_reason}</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
+					<!-- Removed lines -->
+					{#if removedLines.length > 0}
+						<div class="mt-4">
+							<p class="mb-2 text-sm font-medium tracking-wider text-muted-foreground uppercase">
+								Removed Items
+							</p>
+							<div class="rounded-md border border-dashed">
+								<table class="w-full">
+									<tbody>
+										{#each removedLines as line (line.id)}
+											<tr class="border-b opacity-60 last:border-0">
+												<td class="px-3 py-2 line-through">
+													<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
+													{#if line.description}
+														<p class="text-sm text-muted-foreground">{line.description}</p>
+													{/if}
+												</td>
+												<td class="px-3 py-2 text-sm">{line.color ?? '—'} / {line.size ?? '—'}</td>
+												<td class="px-3 py-2 text-right text-sm"
+													>{line.qty} x {fmt.format(Number(line.unit_price))}</td
+												>
+												<td class="px-3 py-2 text-sm text-muted-foreground"
+													>{line.removed_reason}</td
+												>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
+		</div>
+		<!-- ─── Right rail: Totals + Terms record ─── -->
+		<aside class="space-y-4 self-start lg:sticky lg:top-6">
+			<div class="overflow-hidden rounded-lg border bg-muted/30">
+				<div class="border-b px-5 py-4">
+					<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Total</div>
+					<div class="mt-1 font-mono text-3xl font-medium tracking-tight">
+						{fmt.format(Number(order.total_amount))}
+					</div>
+					<div class="mt-1 font-mono text-sm text-muted-foreground/70">
+						{totalUnits} unit{totalUnits === 1 ? '' : 's'} · {totalStyles} style{totalStyles === 1
+							? ''
+							: 's'}
 					</div>
 				</div>
+				<dl class="space-y-2 px-5 py-4 text-sm">
+					<div class="flex justify-between">
+						<dt class="text-muted-foreground">Subtotal</dt>
+						<dd class="font-mono">{fmt.format(Number(order.total_amount))}</dd>
+					</div>
+					<div class="flex justify-between">
+						<dt class="text-muted-foreground">Discount</dt>
+						<dd class="font-mono text-muted-foreground/70">—</dd>
+					</div>
+					<div class="flex justify-between">
+						<dt class="text-muted-foreground">Shipping</dt>
+						<dd class="font-mono text-muted-foreground/70">Calc. at ship</dd>
+					</div>
+					<div class="flex justify-between">
+						<dt class="text-muted-foreground">Tax</dt>
+						<dd class="font-mono text-muted-foreground/70">—</dd>
+					</div>
+				</dl>
+			</div>
+
+			{#if order.order_type !== 'note' && termsAgreedInfo}
+				<div class="rounded-lg border bg-muted/30 p-5">
+					<div class="flex items-center justify-between">
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Terms</div>
+						{#if termsAgreedInfo.brand_terms}
+							<Dialog.Root>
+								<Dialog.Trigger
+									class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+									>View</Dialog.Trigger
+								>
+								<Dialog.Portal>
+									<Dialog.Overlay
+										class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+									/>
+									<Dialog.Content
+										class="fixed top-[50%] left-[50%] z-50 max-h-[80vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-auto rounded-lg border bg-background p-6 shadow-lg"
+									>
+										<Dialog.Title class="text-base font-semibold">
+											{termsAgreedInfo.brand_terms.title}
+										</Dialog.Title>
+										<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+											{order.brands?.name ?? 'Brand'} · v{termsAgreedInfo.brand_terms.version}
+										</Dialog.Description>
+										<div class="mt-5 text-sm whitespace-pre-wrap">
+											{termsAgreedInfo.brand_terms.body}
+										</div>
+										<div class="mt-6 flex justify-end">
+											<Dialog.Close
+												class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
+												>Close</Dialog.Close
+											>
+										</div>
+									</Dialog.Content>
+								</Dialog.Portal>
+							</Dialog.Root>
+						{/if}
+					</div>
+					<div class="mt-2 text-sm">
+						{order.brands?.name ?? 'Brand'} · {seasonLabel()}{termsAgreedInfo.brand_terms
+							? ` v${termsAgreedInfo.brand_terms.version}`
+							: ''}
+					</div>
+					{#if termsAgreedInfo.agreed_by || termsAgreedInfo.agreed_at}
+						<div class="mt-0.5 text-sm text-muted-foreground/70">
+							Agreed
+							{#if termsAgreedInfo.agreed_by}
+								by {termsAgreedInfo.agreed_by}{/if}
+							{#if termsAgreedInfo.agreed_at}
+								· {longDate(termsAgreedInfo.agreed_at as string)}{/if}
+						</div>
+					{/if}
+				</div>
 			{/if}
-		</CardContent>
-	</Card>
+		</aside>
+	</div>
 </div>
 
 <!-- Catalog picker modal for adding items -->
