@@ -63,8 +63,9 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 			qty: number | null;
 			unit_price: number | null;
 		};
-		const { error: lineErr } = await supabaseAdmin.from('order_lines').insert(
-			(lines as OrderLine[]).map((l, i: number) => ({
+		const { error: lineErr } = await supabaseAdmin.rpc('insert_order_lines_with_actor', {
+			actor: locals.user.id,
+			lines: (lines as OrderLine[]).map((l, i: number) => ({
 				order_id: newOrder.id,
 				product_id: l.product_id,
 				variant_id: l.variant_id,
@@ -76,7 +77,7 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 				unit_price: l.unit_price,
 				sort_order: i
 			}))
-		);
+		});
 
 		if (lineErr) {
 			await supabaseAdmin.from('orders').delete().eq('id', newOrder.id);

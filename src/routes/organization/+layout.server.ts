@@ -21,11 +21,13 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				.select('id', { count: 'exact', head: true })
 				.eq('organization_id', organization!.id)
 				.not('contact_email', 'is', null),
-			supabase
-				.from('brands')
-				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', organization!.id)
-				.not('contact_email', 'is', null),
+			isBrandOrg
+				? Promise.resolve({ count: 0 })
+				: supabase
+						.from('brands')
+						.select('id', { count: 'exact', head: true })
+						.eq('organization_id', organization!.id)
+						.not('contact_email', 'is', null),
 			supabase
 				.from('show_dates')
 				.select('id', { count: 'exact', head: true })

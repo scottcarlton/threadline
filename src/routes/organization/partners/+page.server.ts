@@ -77,12 +77,25 @@ export const actions: Actions = {
 			return fail(401, { form, message: 'Not signed in' });
 		}
 
-		const invite = await getOrCreateConnectInvite(
-			supabaseAdmin,
-			locals.organization.id,
-			locals.session.user.id
-		);
-		const inviteUrl = `${url.origin}/connect/${invite.code}`;
+		let inviteCode: string | null = null;
+		if (form.data.code) {
+			const { data: scoped } = await supabaseAdmin
+				.from('connection_invites')
+				.select('code')
+				.eq('code', form.data.code)
+				.eq('brand_org_id', locals.organization.id)
+				.maybeSingle();
+			if (scoped?.code) inviteCode = scoped.code;
+		}
+		if (!inviteCode) {
+			const invite = await getOrCreateConnectInvite(
+				supabaseAdmin,
+				locals.organization.id,
+				locals.session.user.id
+			);
+			inviteCode = invite.code;
+		}
+		const inviteUrl = `${url.origin}/connect/${inviteCode}`;
 
 		const result = await sendInviteEmailFromOrg({
 			to: form.data.recipient_email,

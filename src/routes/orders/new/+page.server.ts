@@ -320,7 +320,13 @@ export const actions: Actions = {
 					unit_price: l.unit_price,
 					sort_order: i
 				}));
-				const { error: lineErr } = await supabase.from('order_lines').insert(linesInsert);
+				// Routed through insert_order_lines_with_actor so the line-audit
+				// trigger sees the acting user (auth.uid() is null on service-role
+				// writes, which would otherwise leave actor_id null → "Unknown").
+				const { error: lineErr } = await supabase.rpc('insert_order_lines_with_actor', {
+					actor: user.id,
+					lines: linesInsert
+				});
 				if (lineErr) {
 					console.error('[orders/new submit] order_lines insert failed', {
 						order_id: orderRow.id,
