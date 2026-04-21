@@ -1181,9 +1181,13 @@
 			<div
 				class="flex flex-wrap items-center justify-between gap-4 border-t bg-background/40 px-6 py-4"
 			>
-				<div class="flex flex-wrap items-center gap-10">
+				<div class="flex flex-wrap gap-10">
 					<div>
-						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ship window</div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">
+							Ship window{#if shipWindowLength !== null}{' '}<span class="normal-case"
+									>({shipWindowLength}-day window)</span
+								>{/if}
+						</div>
 						<div class="mt-1.5 flex items-center gap-3">
 							<span class="font-mono text-xl font-medium">
 								{shortDate(order.start_ship_date)}
@@ -1201,17 +1205,12 @@
 							<span class="font-mono text-xl font-medium">
 								{shortDate(order.expected_ship_date)}
 							</span>
-							{#if shipWindowLength !== null}
-								<span class="ml-1 text-sm text-muted-foreground/70">
-									{shipWindowLength}-day window
-								</span>
-							{/if}
 						</div>
 					</div>
 					{#if shipsInDays !== null}
 						<div>
 							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ships in</div>
-							<div class="mt-1.5 text-sm">
+							<div class="mt-2.5 text-sm">
 								{#if shipsInDays > 0}
 									{shipsInDays} day{shipsInDays === 1 ? '' : 's'}
 								{:else if shipsInDays === 0}
