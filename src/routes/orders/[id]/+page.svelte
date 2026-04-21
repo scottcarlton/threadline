@@ -87,7 +87,6 @@
 	});
 	const allLines = $derived(data.lines as OrderLine[]);
 	const activeLines = $derived(allLines.filter((l) => !l.removed_at));
-	const removedLines = $derived(allLines.filter((l) => l.removed_at));
 
 	type ProductMeta = {
 		primary_image_id: string | null;
@@ -612,34 +611,6 @@
 			to_remove: false,
 			added_here: true
 		});
-	}
-
-	// Soft-remove every line in a (product, color) row without entering edit
-	// mode. Mirrors the saveEdits soft_remove op path. Used by the trash icon
-	// on read-only rows.
-	let removingRowKey = $state<string | null>(null);
-	async function removeLineRow(row: LineRow) {
-		if (row.lines.length === 0) return;
-		removingRowKey = row.key;
-		const now = new Date().toISOString();
-		let failures = 0;
-		for (const l of row.lines) {
-			const { error } = await supabase
-				.from('order_lines')
-				.update({ removed_at: now, removed_reason: null })
-				.eq('id', l.id);
-			if (error) {
-				console.error('[orders/[id] removeLineRow]', error);
-				failures++;
-			}
-		}
-		removingRowKey = null;
-		if (failures > 0) {
-			toast.error(`${failures} line${failures === 1 ? '' : 's'} failed to remove.`);
-		} else {
-			toast.success(row.lines.length === 1 ? 'Line removed' : 'Lines removed');
-		}
-		invalidateAll();
 	}
 
 	async function saveEdits() {
