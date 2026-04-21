@@ -10,6 +10,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { Order, OrderLine, OrderStatus, BrandAsset } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
+	import DateSelect from '$lib/components/ui/date-select.svelte';
 	import { entityContext } from '$lib/stores/entityContext.js';
 	import { fetchOrderAttentionCount } from '$lib/stores/orderAttention.js';
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
@@ -55,6 +56,21 @@
 				} | null;
 			}
 		).account_locations ?? null
+	);
+	const accountAddress = $derived(
+		(order.accounts as {
+			business_name?: string;
+			contact_first_name?: string | null;
+			contact_last_name?: string | null;
+			contact_email?: string | null;
+			contact_phone?: string | null;
+			phone?: string | null;
+			address_line1?: string | null;
+			address_line2?: string | null;
+			city?: string | null;
+			state?: string | null;
+			zip?: string | null;
+		} | null) ?? null
 	);
 
 	$effect(() => {
@@ -166,7 +182,12 @@
 		canEdit && order.status !== 'cancelled' && order.status !== 'delivered'
 	);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
-	const repName = $derived(data.repName as string | null);
+	const repName = $derived(
+		(data.repName as string | null) ??
+			(data.federation as { repDisplayName?: string | null } | undefined)?.repDisplayName ??
+			null
+	);
+	const repEmail = $derived(data.repEmail as string | null);
 
 	const canEditPayment = $derived(canEdit && data.canEditOrder === true);
 	const paymentItems = $derived(
@@ -294,12 +315,14 @@
 		order.shipped_amount != null ? (Number(order.shipped_amount) * repCommissionRate) / 100 : null
 	);
 
-	// Expected ship date
+	// Ship window dates
 	let editingShipDate = $state(false);
+	let startShipValue = $state('');
 	let shipDateValue = $state('');
 	let savingShipDate = $state(false);
 
 	function startEditShipDate() {
+		startShipValue = order.start_ship_date ?? '';
 		shipDateValue = order.expected_ship_date ?? '';
 		editingShipDate = true;
 	}
@@ -308,31 +331,14 @@
 		savingShipDate = true;
 		await supabase
 			.from('orders')
-			.update({ expected_ship_date: shipDateValue || null, updated_at: new Date().toISOString() })
+			.update({
+				start_ship_date: startShipValue || null,
+				expected_ship_date: shipDateValue || null,
+				updated_at: new Date().toISOString()
+			})
 			.eq('id', order.id);
 		savingShipDate = false;
 		editingShipDate = false;
-		invalidateAll();
-	}
-
-	// Notes editing
-	let editingNotes = $state(false);
-	let notesValue = $state('');
-	let savingNotes = $state(false);
-
-	function startEditNotes() {
-		notesValue = order.notes ?? '';
-		editingNotes = true;
-	}
-
-	async function saveNotes() {
-		savingNotes = true;
-		await supabase
-			.from('orders')
-			.update({ notes: notesValue || null, updated_at: new Date().toISOString() })
-			.eq('id', order.id);
-		savingNotes = false;
-		editingNotes = false;
 		invalidateAll();
 	}
 
@@ -959,11 +965,20 @@
 	<!-- Title row: order number + status on the left, inline progress on the right -->
 	<div class="flex flex-wrap items-center justify-between gap-4">
 		<div class="flex items-center gap-3">
-			<h1 class="font-mono text-3xl">{order.order_number}</h1>
+			<div>
+				<a
+					href={resolve(`/accounts/${order.account_id}`)}
+					class="text-sm text-muted-foreground hover:underline">{order.accounts?.business_name}</a
+				>
+				<h1 class="font-mono text-3xl">{order.order_number}</h1>
+				<p class="text-sm text-muted-foreground">
+					{!isBrandOrg && order.brands?.name ? `${order.brands.name} · ` : ''}{seasonLabel()}
+				</p>
+			</div>
 			{#if order.order_type === 'note'}
-				<Badge variant="outline">Note</Badge>
+				<Badge class="mt-2" variant="outline">Note</Badge>
 			{:else}
-				<Badge variant={statusColors[order.status] ?? 'secondary'}
+				<Badge class="mt-2" variant={statusColors[order.status] ?? 'secondary'}
 					>{statusLabels[order.status] ?? order.status}</Badge
 				>
 			{/if}
@@ -1037,79 +1052,8 @@
 				{@const sourceLocation = showDateData
 					? [showDateData.city, showDateData.state].filter(Boolean).join(', ')
 					: null}
-				{@const deliveryData = order.season_deliveries}
 				{@const createdByName = order.profiles?.display_name ?? null}
 				<dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
-					<div>
-						<dt class="text-sm text-muted-foreground">Account</dt>
-						<dd class="mt-0.5">
-							<a href={resolve(`/accounts/${order.account_id}`)} class="hover:underline"
-								>{order.accounts?.business_name}</a
-							>
-						</dd>
-					</div>
-					{#if orderLocation}
-						<div>
-							<dt class="text-sm text-muted-foreground">Ship To</dt>
-							<dd class="mt-0.5">
-								<div class="font-medium">{orderLocation.label}</div>
-							</dd>
-						</div>
-					{/if}
-					<div>
-						<dt class="text-sm text-muted-foreground">Payment</dt>
-						<dd class="mt-0.5">
-							{#if canEditPayment && paymentItems.length > 0}
-								<form
-									bind:this={paymentPrefForm}
-									method="POST"
-									action="?/updatePaymentPreference"
-									use:enhance={() => {
-										return async ({ result, update }) => {
-											if (result.type === 'success') {
-												toast.success('Payment preference updated');
-											} else if (result.type === 'failure') {
-												const msg =
-													(result.data as { message?: string } | undefined)?.message ??
-													'Could not update payment preference.';
-												toast.error(msg);
-												paymentPrefValue = order.payment_preference ?? '';
-											}
-											await update();
-										};
-									}}
-								>
-									<input type="hidden" name="code" value={paymentPrefValue} />
-									<SelectField
-										bind:value={paymentPrefValue}
-										items={paymentItems}
-										placeholder="Not set"
-										class="min-w-[200px]"
-										onValueChange={(v) => {
-											paymentPrefValue = v;
-											queueMicrotask(() => paymentPrefForm?.requestSubmit());
-										}}
-									/>
-								</form>
-							{:else}
-								<span>{paymentMethodLabel(order.payment_preference)}</span>
-							{/if}
-						</dd>
-					</div>
-					{#if !isBrandOrg}
-						<div>
-							<dt class="text-sm text-muted-foreground">Brand</dt>
-							<dd class="mt-0.5">
-								<a href={resolve(`/brands/${order.brand_id}`)} class="hover:underline"
-									>{order.brands?.name}</a
-								>
-							</dd>
-						</div>
-					{/if}
-					<div>
-						<dt class="text-sm text-muted-foreground">Season</dt>
-						<dd class="mt-0.5">{seasonLabel()}</dd>
-					</div>
 					<div>
 						<dt class="text-sm text-muted-foreground">Source</dt>
 						<dd class="mt-0.5">
@@ -1125,94 +1069,144 @@
 							{/if}
 						</dd>
 					</div>
-					<div>
+					<div class="col-span-2">
 						<dt class="text-sm text-muted-foreground">Ship Window</dt>
-						<dd class="mt-0.5">
-							{#if deliveryData?.delivery_month}
-								{monthNames[deliveryData.delivery_month - 1]} 1 — {order.expected_ship_date
-									? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
-									: '—'}
-							{:else if order.start_ship_date || order.expected_ship_date}
-								{#if order.start_ship_date}
-									{new Date(order.start_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
-										month: 'short',
-										day: 'numeric',
-										year: 'numeric'
-									})}
-								{:else}
-									—
-								{/if}
-								<span class="mx-1 text-muted-foreground">→</span>
-								{#if order.expected_ship_date}
-									{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
-										month: 'short',
-										day: 'numeric',
-										year: 'numeric'
-									})}
-								{:else}
-									—
-								{/if}
-							{:else}
-								<span class="text-muted-foreground/50">—</span>
-							{/if}
-							{#if canEdit}
+						<dd class="mt-2">
+							<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+								<div class="rounded-lg bg-muted/60 px-4 py-3">
+									{#if editingShipDate}
+										<p class="mb-1 text-sm text-muted-foreground">Start Ship</p>
+										<DateSelect value={startShipValue} onchange={(v) => (startShipValue = v)} />
+									{:else}
+										<p class="text-lg font-semibold tabular-nums">
+											{#if order.start_ship_date}
+												{new Date(order.start_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
+													month: 'numeric',
+													day: 'numeric'
+												})}
+											{:else}
+												<span class="text-muted-foreground/40">—</span>
+											{/if}
+										</p>
+										<p class="text-sm text-muted-foreground">Start Ship</p>
+									{/if}
+								</div>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5 text-muted-foreground/50"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="1.5"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
+									/>
+								</svg>
+								<div class="rounded-lg bg-muted/60 px-4 py-3">
+									{#if editingShipDate}
+										<p class="mb-1 text-sm text-muted-foreground">Complete Ship</p>
+										<DateSelect value={shipDateValue} onchange={(v) => (shipDateValue = v)} />
+									{:else}
+										<p class="text-lg font-semibold tabular-nums">
+											{#if order.expected_ship_date}
+												{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString(
+													'en-US',
+													{ month: 'numeric', day: 'numeric' }
+												)}
+											{:else}
+												<span class="text-muted-foreground/40">—</span>
+											{/if}
+										</p>
+										<p class="text-sm text-muted-foreground">Complete Ship</p>
+									{/if}
+								</div>
+							</div>
+							{#if editingShipDate}
+								<div class="mt-3 flex justify-end gap-2">
+									<Button variant="outline" size="sm" onclick={() => (editingShipDate = false)}
+										>Cancel</Button
+									>
+									<Button size="sm" onclick={saveShipDate} disabled={savingShipDate}>
+										{savingShipDate ? 'Saving…' : 'Save'}
+									</Button>
+								</div>
+							{:else if canEdit}
 								<button
-									class="ml-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+									class="mt-3 w-full rounded-lg bg-muted/40 py-2 text-center text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 									onclick={startEditShipDate}
 								>
-									{order.expected_ship_date ? 'Edit' : 'Set'}
+									Edit
 								</button>
 							{/if}
-							{#if editingShipDate}
-								<div class="mt-1 flex items-center gap-2">
-									<input
-										type="date"
-										bind:value={shipDateValue}
-										class="h-8 rounded-md border border-input bg-background px-2 text-sm"
-									/>
-									<button
-										class="text-sm text-primary hover:underline"
-										onclick={saveShipDate}
-										disabled={savingShipDate}>{savingShipDate ? '...' : 'Save'}</button
-									>
-									<button
+						</dd>
+					</div>
+					<div class="col-span-2 grid grid-cols-2 gap-x-6 border-t pt-3">
+						<div>
+							<dt class="text-sm text-muted-foreground">Contact</dt>
+							<dd class="mt-0.5">
+								{#if accountAddress?.contact_first_name || accountAddress?.contact_last_name}
+									<p>
+										{[accountAddress.contact_first_name, accountAddress.contact_last_name]
+											.filter(Boolean)
+											.join(' ')}
+									</p>
+								{/if}
+								{#if accountAddress?.contact_email}
+									<a
+										href="mailto:{accountAddress.contact_email}"
 										class="text-sm text-muted-foreground hover:underline"
-										onclick={() => (editingShipDate = false)}>Cancel</button
+										>{accountAddress.contact_email}</a
 									>
-								</div>
-							{/if}
-						</dd>
+								{/if}
+							</dd>
+						</div>
+						<div>
+							<dt class="text-sm text-muted-foreground">Phone</dt>
+							<dd class="mt-0.5">
+								{#if accountAddress?.contact_phone || accountAddress?.phone}
+									<a
+										href="tel:{accountAddress.contact_phone ?? accountAddress.phone}"
+										class="hover:underline"
+										>{accountAddress.contact_phone ?? accountAddress.phone}</a
+									>
+								{:else}
+									<span class="text-muted-foreground/50">—</span>
+								{/if}
+							</dd>
+						</div>
 					</div>
-					<div>
-						<dt class="text-sm text-muted-foreground">Shipped</dt>
-						<dd class="mt-0.5">
-							{#if order.shipped_at}
-								{new Date(order.shipped_at).toLocaleDateString('en-US', {
-									month: 'short',
-									day: 'numeric',
-									year: 'numeric'
-								})}
-							{:else}
-								<span class="text-muted-foreground/50">—</span>
-							{/if}
-						</dd>
-					</div>
-					<div class="col-span-2 border-t pt-3">
-						<dt class="text-sm text-muted-foreground">Created</dt>
-						<dd class="mt-0.5">
-							{#if isFederatedView}
-								<span>{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}</span>
-							{:else if createdByName}
-								<span>{createdByName}</span>
-							{/if}
-							<p class="font-mono text-sm text-muted-foreground">
-								{new Date(order.created_at).toLocaleDateString('en-US', {
-									month: 'short',
-									day: 'numeric',
-									year: 'numeric'
-								})}
-							</p>
-						</dd>
+					<div class="col-span-2 grid grid-cols-2 gap-x-6 border-t pt-3">
+						<div>
+							<dt class="text-sm text-muted-foreground">Rep</dt>
+							<dd class="mt-0.5">
+								<p>{repName ?? '—'}</p>
+								{#if repEmail}
+									<a href="mailto:{repEmail}" class="text-sm text-muted-foreground hover:underline"
+										>{repEmail}</a
+									>
+								{/if}
+							</dd>
+						</div>
+						<div>
+							<dt class="text-sm text-muted-foreground">Created</dt>
+							<dd class="mt-0.5">
+								{#if isFederatedView}
+									<span>{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}</span>
+								{:else if createdByName}
+									<span>{createdByName}</span>
+								{/if}
+								<p class="font-mono text-sm text-muted-foreground">
+									{new Date(order.created_at).toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								</p>
+							</dd>
+						</div>
 					</div>
 				</dl>
 			</CardContent>
@@ -1250,6 +1244,76 @@
 				<p class="mt-1 text-sm text-muted-foreground">
 					{activeLines.length} line item{activeLines.length !== 1 ? 's' : ''}
 				</p>
+
+				<!-- Payment -->
+				<div class="mt-4 flex items-center justify-between">
+					<span class="text-sm text-muted-foreground">Payment</span>
+					{#if canEditPayment && paymentItems.length > 0}
+						<form
+							bind:this={paymentPrefForm}
+							method="POST"
+							action="?/updatePaymentPreference"
+							use:enhance={() => {
+								return async ({ result, update }) => {
+									if (result.type === 'success') {
+										toast.success('Payment preference updated');
+									} else if (result.type === 'failure') {
+										const msg =
+											(result.data as { message?: string } | undefined)?.message ??
+											'Could not update payment preference.';
+										toast.error(msg);
+										paymentPrefValue = order.payment_preference ?? '';
+									}
+									await update();
+								};
+							}}
+						>
+							<input type="hidden" name="code" value={paymentPrefValue} />
+							<SelectField
+								bind:value={paymentPrefValue}
+								items={paymentItems}
+								placeholder="Not set"
+								class="min-w-[200px]"
+								onValueChange={(v) => {
+									paymentPrefValue = v;
+									queueMicrotask(() => paymentPrefForm?.requestSubmit());
+								}}
+							/>
+						</form>
+					{:else}
+						<span class="text-sm">{paymentMethodLabel(order.payment_preference)}</span>
+					{/if}
+				</div>
+
+				<!-- Terms agreement -->
+				{#if order.terms_id}
+					{@const termsJoin = order as typeof order & {
+						brand_terms?: { id: string; title: string; version: number } | null;
+						terms_agreed_profile?: { display_name: string | null } | null;
+					}}
+					{@const termsRow = termsJoin.brand_terms}
+					{@const agreedBy = termsJoin.terms_agreed_profile?.display_name ?? null}
+					{@const agreedAt = order.terms_agreed_at
+						? new Date(order.terms_agreed_at as string)
+						: null}
+					<div class="mt-3 rounded-md border bg-muted/20 p-3">
+						<div class="flex items-center justify-between">
+							<span class="text-sm font-medium text-muted-foreground">Terms agreed</span>
+							{#if termsRow}
+								<span class="text-sm">
+									{termsRow.title} · v{termsRow.version}
+								</span>
+							{/if}
+						</div>
+						{#if agreedBy || agreedAt}
+							<p class="mt-1 text-sm text-muted-foreground">
+								{#if agreedBy}{agreedBy}{/if}{#if agreedBy && agreedAt}
+									·
+								{/if}{#if agreedAt}{agreedAt.toLocaleString()}{/if}
+							</p>
+						{/if}
+					</div>
+				{/if}
 
 				<!-- Commission -->
 				<div class="mt-4 space-y-3">
@@ -1308,45 +1372,50 @@
 					{/if}
 				</div>
 
-				<!-- Notes -->
-				<div class="mt-4">
-					{#if editingNotes}
-						<div class="space-y-2">
-							<textarea
-								bind:value={notesValue}
-								rows="3"
-								class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-								placeholder="Add notes..."
-							></textarea>
-							<div class="flex justify-end gap-2">
-								<Button variant="outline" size="sm" onclick={() => (editingNotes = false)}
-									>Cancel</Button
-								>
-								<Button size="sm" onclick={saveNotes} disabled={savingNotes}>
-									{savingNotes ? 'Saving...' : 'Save'}
-								</Button>
-							</div>
-						</div>
-					{:else}
-						<div class="rounded-md bg-muted p-3">
-							<div class="flex items-center justify-between">
-								<p class="text-sm font-medium text-muted-foreground">Notes</p>
-								{#if canEdit}
-									<button
-										class="text-sm text-muted-foreground transition-colors hover:text-foreground"
-										onclick={startEditNotes}
-									>
-										{order.notes ? 'Edit' : 'Add'}
-									</button>
+				<!-- Ship To / Bill To -->
+				<div class="mt-4 grid grid-cols-2 gap-4 border-t pt-4">
+					<div>
+						<p class="text-sm font-medium text-muted-foreground">Ship To</p>
+						{#if orderLocation}
+							<div class="mt-1 text-sm">
+								{#if orderLocation.address_line1}
+									<p>{orderLocation.address_line1}</p>
+								{/if}
+								{#if orderLocation.address_line2}
+									<p>{orderLocation.address_line2}</p>
+								{/if}
+								{#if orderLocation.city || orderLocation.state || orderLocation.zip}
+									<p>
+										{[orderLocation.city, orderLocation.state]
+											.filter(Boolean)
+											.join(', ')}{orderLocation.zip ? ` ${orderLocation.zip}` : ''}
+									</p>
 								{/if}
 							</div>
-							{#if order.notes}
-								<p class="mt-1 text-sm whitespace-pre-wrap">{order.notes}</p>
-							{:else}
-								<p class="mt-1 text-sm text-muted-foreground">No notes</p>
-							{/if}
-						</div>
-					{/if}
+						{:else}
+							<p class="mt-1 text-sm text-muted-foreground/50">—</p>
+						{/if}
+					</div>
+					<div>
+						<p class="text-sm font-medium text-muted-foreground">Bill To</p>
+						{#if accountAddress?.address_line1}
+							<div class="mt-1 text-sm">
+								<p>{accountAddress.address_line1}</p>
+								{#if accountAddress.address_line2}
+									<p>{accountAddress.address_line2}</p>
+								{/if}
+								{#if accountAddress.city || accountAddress.state || accountAddress.zip}
+									<p>
+										{[accountAddress.city, accountAddress.state]
+											.filter(Boolean)
+											.join(', ')}{accountAddress.zip ? ` ${accountAddress.zip}` : ''}
+									</p>
+								{/if}
+							</div>
+						{:else}
+							<p class="mt-1 text-sm text-muted-foreground/50">—</p>
+						{/if}
+					</div>
 				</div>
 
 				<!-- Cancel reason -->

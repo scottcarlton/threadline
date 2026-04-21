@@ -287,6 +287,14 @@ export interface Order {
 	cancelled_reason: string | null;
 	connection_id: string | null;
 	payment_preference: string | null;
+	payment_terms: string | null;
+	shipping_method: string | null;
+	po_number: string | null;
+	bill_to_location_id: string | null;
+	rep_user_id: string | null;
+	terms_id: string | null;
+	terms_agreed_by: string | null;
+	terms_agreed_at: string | null;
 	created_at: string;
 	updated_at: string;
 	brands?: Brand;

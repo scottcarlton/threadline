@@ -109,16 +109,6 @@
 				{/if}
 			</p>
 
-			{#if data.commissionRate > 0}
-				<div class="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-6 text-center">
-					<p class="text-sm text-muted-foreground">
-						{data.brand?.name ?? 'This brand'} is offering
-					</p>
-					<p class="mt-1 text-3xl font-semibold">{data.commissionRate}%</p>
-					<p class="mt-1 text-sm text-muted-foreground">commission on shipped orders</p>
-				</div>
-			{/if}
-
 			{#if !data.isLoggedIn}
 				<div class="mt-6 rounded border p-4 text-sm">
 					Sign in to accept this invite.

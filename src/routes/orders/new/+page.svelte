@@ -21,7 +21,10 @@
 		TooltipTrigger
 	} from '$lib/components/ui/tooltip/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
-	import { acceptedPaymentMethods } from '$lib/payment-methods';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import { Dialog } from 'bits-ui';
+	import { acceptedMethodsOnly, acceptedTermsOnly } from '$lib/payment-methods';
+	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
 
 	type Brand = { id: string; name: string };
 	type Season = { id: string; name: string; sort_order: number | null };
@@ -48,7 +51,10 @@
 		id: string;
 		account_id: string;
 		label: string;
+		contact_first_name: string | null;
+		contact_last_name: string | null;
 		contact_email: string | null;
+		phone: string | null;
 		address_line1: string | null;
 		address_line2: string | null;
 		city: string | null;
@@ -84,7 +90,6 @@
 	const selfBrandId = $derived(data.selfBrandId ?? null);
 	const reps = $derived((data.reps ?? []) as Rep[]);
 	const currentUserId = $derived((data.currentUser?.id as string | undefined) ?? null);
-	const orgAcceptedMethods = $derived((data.acceptedPaymentMethods ?? []) as string[]);
 	const orgDefaultMethod = $derived((data.defaultPaymentMethod ?? null) as string | null);
 
 	const monthAbbrev = [
@@ -104,17 +109,30 @@
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 	// ── Cart state ──────────────────────────────────────────────────────────
+	type GroupMeta = {
+		delivery: DeliveryChoice | null;
+		location_id: string | null;
+		bill_to_location_id: string | null;
+		payment_preference: string | null;
+		payment_terms: string | null;
+		shipping_method: string | null;
+		po_number: string | null;
+		internal_note: string | null;
+	};
 	const cart = $state<{
 		type: OrderType | null;
 		brandFilter: 'all' | string[];
 		items: OrderItem[];
-		groupMeta: Record<string, { delivery: DeliveryChoice | null; location_id: string | null }>;
+		groupMeta: Record<string, GroupMeta>;
 		account_id: string | null;
 		freeform_name: string | null;
+		contact_location_id: string | null;
 		order_year: number;
 		rep_user_id: string | null;
+		source_type_id: string | null;
 		payment_preference: string;
 		payment_preference_touched: boolean;
+		termsAgreedByBrand: Record<string, boolean>;
 		freeformDetails: {
 			business_name: string;
 			contact_first_name: string;
@@ -133,10 +151,13 @@
 		groupMeta: {},
 		account_id: null,
 		freeform_name: null,
+		contact_location_id: null,
 		order_year: new Date().getFullYear(),
 		rep_user_id: null,
+		source_type_id: null,
 		payment_preference: '',
 		payment_preference_touched: false,
+		termsAgreedByBrand: {},
 		freeformDetails: {
 			business_name: '',
 			contact_first_name: '',
@@ -397,21 +418,23 @@
 		);
 	}
 
-	const EMPTY_META: { delivery: DeliveryChoice | null; location_id: string | null } = {
+	const EMPTY_META: GroupMeta = {
 		delivery: null,
-		location_id: null
+		location_id: null,
+		bill_to_location_id: null,
+		payment_preference: null,
+		payment_terms: null,
+		shipping_method: null,
+		po_number: null,
+		internal_note: null
 	};
 	// Pure read — never mutate during render. Initialization happens in the $effect below.
 	function getMeta(brand_id: string, season_id: string | null) {
 		return cart.groupMeta[groupKey(brand_id, season_id)] ?? EMPTY_META;
 	}
-	function setMeta(
-		brand_id: string,
-		season_id: string | null,
-		patch: Partial<{ delivery: DeliveryChoice | null; location_id: string | null }>
-	) {
+	function setMeta(brand_id: string, season_id: string | null, patch: Partial<GroupMeta>) {
 		const key = groupKey(brand_id, season_id);
-		const current = cart.groupMeta[key] ?? { delivery: null, location_id: null };
+		const current = cart.groupMeta[key] ?? { ...EMPTY_META };
 		cart.groupMeta[key] = { ...current, ...patch };
 	}
 
@@ -527,7 +550,7 @@
 		for (const g of groups) {
 			const key = groupKey(g.brand_id, g.season_id);
 			validKeys.add(key);
-			if (!cart.groupMeta[key]) cart.groupMeta[key] = { delivery: null, location_id: null };
+			if (!cart.groupMeta[key]) cart.groupMeta[key] = { ...EMPTY_META };
 		}
 		for (const k of Object.keys(cart.groupMeta)) {
 			if (!validKeys.has(k)) delete cart.groupMeta[k];
@@ -542,13 +565,6 @@
 		const seeded = acc?.payment_preference ?? orgDefaultMethod ?? '';
 		cart.payment_preference = seeded;
 	});
-
-	const paymentMethodItems = $derived(
-		acceptedPaymentMethods(orgAcceptedMethods, cart.payment_preference || null).map((m) => ({
-			value: m.code,
-			label: m.label
-		}))
-	);
 
 	// Default the rep to the current user on mount.
 	$effect(() => {
@@ -685,6 +701,94 @@
 	// ── Submit ──────────────────────────────────────────────────────────────
 	let submitting = $state(false);
 	let submitStatus = $state<'draft' | 'submitted'>('draft');
+	let finalizeExpandedKey = $state<string | null>(null);
+	let finalizeExpandAll = $state(false);
+
+	// Default the shared source to the org's first source type when the user
+	// first arrives at Finalize; manual picks override.
+	$effect(() => {
+		if (!cart.source_type_id && sourceTypes.length > 0) {
+			cart.source_type_id = sourceTypes[0].id;
+		}
+	});
+
+	// ── Finalize step helpers ─────────────────────────────────────────────
+	const brandTerms = $derived(
+		(data.brandTerms ?? []) as Array<{
+			id: string;
+			brand_id: string;
+			title: string;
+			body: string;
+			version: number;
+		}>
+	);
+	const sourceTypes = $derived(
+		(data.sourceTypes ?? []) as Array<{ id: string; name: string; sort_order: number | null }>
+	);
+	const distinctBrandsInCart = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const seen = new Set<string>();
+		const out: Array<{ id: string; name: string }> = [];
+		for (const g of groups) {
+			if (seen.has(g.brand_id)) continue;
+			seen.add(g.brand_id);
+			out.push({ id: g.brand_id, name: brandName(g.brand_id) });
+		}
+		return out;
+	});
+	function termsForBrand(brand_id: string) {
+		return brandTerms.find((t) => t.brand_id === brand_id) ?? null;
+	}
+	const brandsRequiringAgreement = $derived(
+		distinctBrandsInCart.filter((b) => termsForBrand(b.id) !== null)
+	);
+	const allBrandTermsAgreed = $derived(
+		brandsRequiringAgreement.every((b) => cart.termsAgreedByBrand[b.id] === true)
+	);
+
+	const grandTotal = $derived(groups.reduce((sum, g) => sum + g.total, 0));
+	const grandUnits = $derived(groups.reduce((sum, g) => sum + g.units, 0));
+
+	const sourceTypeItems = $derived(sourceTypes.map((s) => ({ value: s.id, label: s.name })));
+	const repItems = $derived(reps.map((r) => ({ value: r.user_id, label: r.name })));
+	const shippingMethodItems = SHIPPING_METHODS.map((s) => ({
+		value: s,
+		label: s.charAt(0).toUpperCase() + s.slice(1)
+	}));
+	const methodOnlyItems = $derived(
+		acceptedMethodsOnly(data.acceptedPaymentMethods).map((m) => ({ value: m.code, label: m.label }))
+	);
+	const termsOnlyItems = $derived(
+		acceptedTermsOnly(data.acceptedPaymentMethods).map((t) => ({ value: t.code, label: t.label }))
+	);
+
+	const finalizePayload = $derived({
+		submit_mode: (cart.type === 'note' ? 'note' : 'order') as 'note' | 'order',
+		account_id: cart.account_id,
+		freeform_name: cart.freeform_name ?? undefined,
+		contact_location_id: cart.contact_location_id,
+		rep_user_id: cart.rep_user_id ?? '',
+		source_type_id: cart.source_type_id,
+		orders: groups.map((g) => {
+			const meta = getMeta(g.brand_id, g.season_id);
+			return {
+				brand_id: g.brand_id,
+				season_id: g.season_id,
+				ship_to_location_id: meta.location_id,
+				bill_to_location_id: meta.bill_to_location_id,
+				payment_preference: meta.payment_preference,
+				payment_terms: meta.payment_terms,
+				shipping_method: meta.shipping_method,
+				po_number: meta.po_number ?? undefined,
+				internal_note: meta.internal_note ?? undefined
+			};
+		}),
+		brand_agreements: distinctBrandsInCart.map((b) => ({
+			brand_id: b.id,
+			terms_id: termsForBrand(b.id)?.id ?? null,
+			agreed: cart.termsAgreedByBrand[b.id] === true
+		}))
+	});
 
 	const payload = $derived({
 		type: cart.type ?? 'order',
@@ -700,7 +804,8 @@
 			season_id: g.season_id,
 			delivery: getMeta(g.brand_id, g.season_id).delivery,
 			location_id: getMeta(g.brand_id, g.season_id).location_id
-		}))
+		})),
+		finalize: finalizePayload
 	});
 </script>
 
@@ -1359,134 +1464,412 @@
 	{#if stepName === 'Finalize'}
 		{@const defaultLocation =
 			accountLocations.find((l) => l.is_default) ?? accountLocations[0] ?? null}
-		{@const shipFrom =
-			defaultLocation ??
-			(account
-				? {
-						label: account.business_name,
-						address_line1: account.address_line1,
-						address_line2: account.address_line2,
-						city: account.city,
-						state: account.state,
-						zip: account.zip
-					}
-				: null)}
 		{@const accountEmail = defaultLocation?.contact_email ?? account?.contact_email ?? null}
-		<div class="space-y-4">
-			<!-- Account -->
-			<div class="rounded-lg border p-4">
-				<div class="text-sm text-muted-foreground">Account</div>
-				<div class="text-lg font-semibold">
-					{account ? account.business_name : (cart.freeform_name ?? '—')}
-				</div>
-				{#if accountEmail}
-					<div class="text-sm text-muted-foreground">{accountEmail}</div>
-				{/if}
-				{#if isFreeform && !hasFreeformDetails}
-					<div class="mt-1 text-sm text-amber-700">
-						No account details — orders will be saved as drafts.
+		{@const contactName =
+			(defaultLocation &&
+				[defaultLocation.contact_first_name, defaultLocation.contact_last_name]
+					.filter(Boolean)
+					.join(' ')) ||
+			account?.business_name ||
+			cart.freeform_name ||
+			'—'}
+		<div class="space-y-6">
+			<!-- Hero: aggregate summary + totals -->
+			<div class="rounded-lg border bg-card">
+				<div class="grid gap-0 sm:grid-cols-[1fr_320px]">
+					<div class="space-y-4 p-6">
+						<div class="flex items-start justify-between gap-4">
+							<div>
+								<div class="text-sm text-muted-foreground">
+									{#if groups.length > 1}
+										{groups.length} orders will be created
+									{:else}
+										1 order will be created
+									{/if}
+								</div>
+								<div class="mt-2 font-mono text-3xl font-semibold">{fmt.format(grandTotal)}</div>
+								<div class="mt-1 text-sm text-muted-foreground">
+									{grandUnits} units total · {distinctBrandsInCart.length} brand{distinctBrandsInCart.length ===
+									1
+										? ''
+										: 's'}
+								</div>
+							</div>
+						</div>
+						{#if groups.length > 1}
+							<ul class="divide-y border-t">
+								{#each groups as g, i (groupKey(g.brand_id, g.season_id))}
+									{@const meta = getMeta(g.brand_id, g.season_id)}
+									<li class="flex items-center justify-between py-3 text-sm">
+										<div class="flex items-center gap-3">
+											<span class="font-mono text-muted-foreground">{i + 1}</span>
+											<div>
+												<div class="font-medium">
+													{brandName(g.brand_id)} · {seasonLabel(g.season_id, g.product_year)}
+												</div>
+												<div class="text-sm text-muted-foreground">
+													{g.units} units · {describeDelivery(meta)}
+												</div>
+											</div>
+										</div>
+										<div class="font-mono">{fmt.format(g.total)}</div>
+									</li>
+								{/each}
+							</ul>
+						{/if}
 					</div>
-				{/if}
+					<div class="space-y-3 border-t bg-muted/30 p-6 sm:border-t-0 sm:border-l">
+						<div class="text-sm font-medium">Totals</div>
+						<dl class="space-y-2 text-sm">
+							<div class="flex justify-between">
+								<dt class="text-muted-foreground">Wholesale subtotal</dt>
+								<dd class="font-mono">{fmt.format(grandTotal)}</dd>
+							</div>
+							<div class="flex justify-between">
+								<dt class="text-muted-foreground">Order discount</dt>
+								<dd class="font-mono text-muted-foreground">—</dd>
+							</div>
+							<div class="flex justify-between">
+								<dt class="text-muted-foreground">Shipping</dt>
+								<dd class="font-mono text-muted-foreground">Calc. at ship</dd>
+							</div>
+							<div class="flex justify-between">
+								<dt class="text-muted-foreground">Tax</dt>
+								<dd class="font-mono text-muted-foreground">—</dd>
+							</div>
+							<div class="flex justify-between border-t pt-2 font-semibold">
+								<dt>Total</dt>
+								<dd class="font-mono">{fmt.format(grandTotal)}</dd>
+							</div>
+						</dl>
+					</div>
+				</div>
 			</div>
 
-			<!-- Ship To / Bill To (defaults to the account's default address) -->
-			{#if shipFrom}
-				<div class="grid gap-4 sm:grid-cols-2">
-					<div class="rounded-lg border p-4">
-						<div class="text-sm text-muted-foreground">Ship To</div>
-						<div class="mt-1 font-semibold">{shipFrom.label ?? account?.business_name ?? '—'}</div>
-						{#if shipFrom.address_line1}
-							<div class="text-sm text-muted-foreground">{shipFrom.address_line1}</div>
-						{/if}
-						{#if shipFrom.address_line2}
-							<div class="text-sm text-muted-foreground">{shipFrom.address_line2}</div>
-						{/if}
-						{#if shipFrom.city || shipFrom.state || shipFrom.zip}
-							<div class="text-sm text-muted-foreground">
-								{[shipFrom.city, shipFrom.state].filter(Boolean).join(', ')}
-								{shipFrom.zip ?? ''}
+			<!-- Account + Contact -->
+			<div class="rounded-lg border p-5">
+				<div class="grid gap-6 sm:grid-cols-2">
+					<div>
+						<div class="text-sm text-muted-foreground">Account</div>
+						<div class="mt-1 text-base font-semibold">
+							{account ? account.business_name : (cart.freeform_name ?? '—')}
+						</div>
+						{#if isFreeform && !hasFreeformDetails}
+							<div class="mt-1 text-sm text-amber-700">
+								No account details — orders will be saved as drafts.
 							</div>
 						{/if}
 					</div>
-					<div class="rounded-lg border p-4">
-						<div class="text-sm text-muted-foreground">Bill To</div>
-						<div class="mt-1 font-semibold">{shipFrom.label ?? account?.business_name ?? '—'}</div>
-						{#if shipFrom.address_line1}
-							<div class="text-sm text-muted-foreground">{shipFrom.address_line1}</div>
-						{/if}
-						{#if shipFrom.address_line2}
-							<div class="text-sm text-muted-foreground">{shipFrom.address_line2}</div>
-						{/if}
-						{#if shipFrom.city || shipFrom.state || shipFrom.zip}
-							<div class="text-sm text-muted-foreground">
-								{[shipFrom.city, shipFrom.state].filter(Boolean).join(', ')}
-								{shipFrom.zip ?? ''}
-							</div>
+					<div>
+						<div class="text-sm text-muted-foreground">Contact</div>
+						<div class="mt-1 text-base font-semibold">{contactName}</div>
+						{#if accountEmail}
+							<div class="text-sm text-muted-foreground">{accountEmail}</div>
 						{/if}
 					</div>
 				</div>
-			{/if}
+			</div>
 
-			<!-- Rep -->
-			{#if reps.length > 0}
-				<div class="rounded-lg border p-4">
-					<Label for="rep-select" class="text-sm text-muted-foreground">Rep</Label>
-					<select
-						id="rep-select"
-						class="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
-						bind:value={cart.rep_user_id}
-					>
-						{#each reps as r (r.user_id)}
-							<option value={r.user_id}>{r.name}</option>
+			<!-- Shared fields: Rep + Source -->
+			<div class="rounded-lg border p-5">
+				<div class="text-sm font-medium">Applies to all orders</div>
+				<div class="mt-1 text-sm text-muted-foreground">Override per order below if needed.</div>
+				<div class="mt-4 grid gap-4 sm:grid-cols-2">
+					{#if repItems.length > 0}
+						<div class="space-y-2">
+							<Label for="rep-select">Rep</Label>
+							<SelectField
+								value={cart.rep_user_id ?? ''}
+								items={repItems}
+								placeholder="Select a rep"
+								class="w-full"
+								onValueChange={(v) => (cart.rep_user_id = v || null)}
+							/>
+						</div>
+					{/if}
+					{#if sourceTypeItems.length > 0}
+						<div class="space-y-2">
+							<Label for="source-select">Source</Label>
+							<SelectField
+								value={cart.source_type_id ?? ''}
+								items={sourceTypeItems}
+								placeholder="Select a source"
+								class="w-full"
+								onValueChange={(v) => (cart.source_type_id = v || null)}
+							/>
+						</div>
+					{/if}
+				</div>
+			</div>
+
+			<!-- Per-order cards -->
+			<div class="space-y-3">
+				<div class="flex items-center justify-between">
+					<div class="text-sm font-medium">Per order</div>
+					{#if groups.length > 1}
+						<button
+							type="button"
+							class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+							onclick={() => (finalizeExpandAll = !finalizeExpandAll)}
+						>
+							{finalizeExpandAll ? 'Collapse all' : 'Expand all'}
+						</button>
+					{/if}
+				</div>
+				{#each groups as g, i (groupKey(g.brand_id, g.season_id))}
+					{@const key = groupKey(g.brand_id, g.season_id)}
+					{@const meta = getMeta(g.brand_id, g.season_id)}
+					{@const isOpen =
+						groups.length === 1 ||
+						finalizeExpandAll ||
+						finalizeExpandedKey === key ||
+						Boolean(
+							meta.bill_to_location_id ||
+							meta.payment_preference ||
+							meta.payment_terms ||
+							meta.shipping_method ||
+							meta.po_number ||
+							meta.internal_note
+						)}
+					{@const locsForAccount = accountLocations.filter(
+						(l) => account && l.account_id === account.id
+					)}
+					<div class="rounded-lg border">
+						<button
+							type="button"
+							class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+							onclick={() => (finalizeExpandedKey = isOpen ? null : key)}
+						>
+							<div class="flex items-center gap-3">
+								<span class="font-mono text-sm text-muted-foreground">{i + 1}</span>
+								<div>
+									<div class="text-sm font-medium">
+										{brandName(g.brand_id)} · {seasonLabel(g.season_id, g.product_year)}
+									</div>
+									<div class="text-sm text-muted-foreground">
+										{g.units} units · {describeDelivery(meta)}
+									</div>
+								</div>
+							</div>
+							<div class="flex items-center gap-3">
+								{#if !isOpen}
+									{@const prevBrandId = i > 0 ? groups[i - 1].brand_id : null}
+									{@const hasOverrides = Boolean(
+										meta.bill_to_location_id ||
+										meta.payment_preference ||
+										meta.payment_terms ||
+										meta.shipping_method ||
+										meta.po_number ||
+										meta.internal_note
+									)}
+									{#if prevBrandId !== null && prevBrandId !== g.brand_id}
+										<span
+											class="rounded-full border bg-muted/40 px-2 py-0.5 text-sm text-muted-foreground"
+											>Different brand</span
+										>
+									{:else if !hasOverrides}
+										<span
+											class="rounded-full border bg-muted/40 px-2 py-0.5 text-sm text-muted-foreground"
+											>Defaults from account</span
+										>
+									{/if}
+								{/if}
+								<span class="font-mono text-sm">{fmt.format(g.total)}</span>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4 text-muted-foreground transition-transform {isOpen
+										? 'rotate-180'
+										: ''}"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+									/>
+								</svg>
+							</div>
+						</button>
+						{#if isOpen}
+							<div class="space-y-5 border-t px-5 py-4">
+								<!-- Ship / Bill to pickers -->
+								{#if locsForAccount.length > 0}
+									<div class="grid gap-4 sm:grid-cols-2">
+										<div class="space-y-2">
+											<Label>Ship to</Label>
+											<SelectField
+												value={meta.location_id ?? ''}
+												items={locsForAccount.map((l) => ({
+													value: l.id,
+													label: `${l.label}${l.is_default ? ' · default' : ''}`
+												}))}
+												placeholder="Select ship-to address"
+												class="w-full"
+												onValueChange={(v) =>
+													setMeta(g.brand_id, g.season_id, { location_id: v || null })}
+											/>
+										</div>
+										<div class="space-y-2">
+											<Label>Bill to</Label>
+											<SelectField
+												value={meta.bill_to_location_id ?? ''}
+												items={[
+													{ value: '', label: 'Same as ship-to' },
+													...locsForAccount.map((l) => ({
+														value: l.id,
+														label: `${l.label}${l.is_default ? ' · default' : ''}`
+													}))
+												]}
+												placeholder="Same as ship-to"
+												class="w-full"
+												onValueChange={(v) =>
+													setMeta(g.brand_id, g.season_id, { bill_to_location_id: v || null })}
+											/>
+										</div>
+									</div>
+								{/if}
+
+								<!-- Payment / shipping / PO -->
+								<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+									<div class="space-y-2">
+										<Label>Payment preference</Label>
+										<SelectField
+											value={meta.payment_preference ?? cart.payment_preference ?? ''}
+											items={methodOnlyItems}
+											placeholder="Inherit from account"
+											class="w-full"
+											onValueChange={(v) =>
+												setMeta(g.brand_id, g.season_id, { payment_preference: v || null })}
+										/>
+									</div>
+									<div class="space-y-2">
+										<Label>Payment terms</Label>
+										<SelectField
+											value={meta.payment_terms ?? ''}
+											items={termsOnlyItems}
+											placeholder="Inherit from account"
+											class="w-full"
+											onValueChange={(v) =>
+												setMeta(g.brand_id, g.season_id, { payment_terms: v || null })}
+										/>
+									</div>
+									<div class="space-y-2">
+										<Label>Shipping method</Label>
+										<SelectField
+											value={meta.shipping_method ?? ''}
+											items={shippingMethodItems}
+											placeholder="Inherit from account"
+											class="w-full"
+											onValueChange={(v) =>
+												setMeta(g.brand_id, g.season_id, { shipping_method: v || null })}
+										/>
+									</div>
+									<div class="space-y-2">
+										<Label for={`po-${key}`}>PO / customer ref</Label>
+										<Input
+											id={`po-${key}`}
+											maxlength={64}
+											placeholder="Optional"
+											value={meta.po_number ?? ''}
+											oninput={(e) =>
+												setMeta(g.brand_id, g.season_id, {
+													po_number: (e.currentTarget as HTMLInputElement).value || null
+												})}
+										/>
+									</div>
+								</div>
+
+								<!-- Internal note -->
+								<div class="space-y-2">
+									<Label for={`note-${key}`}>Internal note</Label>
+									<textarea
+										id={`note-${key}`}
+										rows={2}
+										maxlength={2000}
+										class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+										placeholder="Add fulfillment context for the warehouse."
+										value={meta.internal_note ?? ''}
+										oninput={(e) =>
+											setMeta(g.brand_id, g.season_id, {
+												internal_note: (e.currentTarget as HTMLTextAreaElement).value || null
+											})}
+									></textarea>
+								</div>
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+
+			<!-- Terms block -->
+			{#if brandsRequiringAgreement.length > 0}
+				<div class="rounded-lg border">
+					<div class="border-b px-5 py-3 text-sm font-medium">Buyer terms</div>
+					<ul class="divide-y">
+						{#each brandsRequiringAgreement as b (b.id)}
+							{@const terms = termsForBrand(b.id)!}
+							{@const coveredOrders = groups
+								.map((g, i) => (g.brand_id === b.id ? i + 1 : null))
+								.filter((n): n is number => n !== null)}
+							<li class="flex items-start justify-between gap-4 px-5 py-4">
+								<label class="flex cursor-pointer gap-3">
+									<Checkbox
+										checked={cart.termsAgreedByBrand[b.id] === true}
+										onCheckedChange={(v) => (cart.termsAgreedByBrand[b.id] = v === true)}
+									/>
+									<div>
+										<span class="text-sm">
+											Buyer agreed to <strong>{b.name}'s</strong> terms.
+										</span>
+										<p class="mt-1 text-sm text-muted-foreground">
+											{#if coveredOrders.length === 1}
+												Covers order {coveredOrders[0]}.
+											{:else if coveredOrders.length > 1}
+												Covers orders {coveredOrders.join(', ')}.
+											{/if}
+										</p>
+									</div>
+								</label>
+								<Dialog.Root>
+									<Dialog.Trigger
+										class="shrink-0 rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-muted"
+										>View</Dialog.Trigger
+									>
+									<Dialog.Portal>
+										<Dialog.Overlay
+											class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+										/>
+										<Dialog.Content
+											class="fixed top-[50%] left-[50%] z-50 max-h-[80vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-auto rounded-lg border bg-background p-6 shadow-lg"
+										>
+											<Dialog.Title class="text-base font-semibold">{terms.title}</Dialog.Title>
+											<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+												{b.name} · v{terms.version}
+											</Dialog.Description>
+											<div class="mt-5 text-sm whitespace-pre-wrap">{terms.body}</div>
+											<div class="mt-6 flex justify-end">
+												<Dialog.Close
+													class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
+													>Close</Dialog.Close
+												>
+											</div>
+										</Dialog.Content>
+									</Dialog.Portal>
+								</Dialog.Root>
+							</li>
 						{/each}
-					</select>
-				</div>
-			{/if}
-
-			<!-- Payment preference -->
-			{#if paymentMethodItems.length > 0}
-				<div class="rounded-lg border p-4">
-					<Label class="text-sm text-muted-foreground">Payment preference</Label>
-					<div class="mt-1">
-						<SelectField
-							bind:value={cart.payment_preference}
-							items={paymentMethodItems}
-							placeholder="Select a payment preference"
-							class="w-full"
-							onValueChange={() => (cart.payment_preference_touched = true)}
-						/>
-					</div>
-					<p class="mt-2 text-sm text-muted-foreground">
-						Pre-filled from the account. Changing it here only affects these orders.
+					</ul>
+					<p class="border-t px-5 py-3 text-sm text-muted-foreground">
+						One checkbox per brand. Your name, timestamp, and terms version are recorded on each
+						submitted order.
 					</p>
 				</div>
 			{/if}
 
-			<!-- Orders summary -->
-			<div class="rounded-lg border p-4">
-				<div class="mb-2 text-sm text-muted-foreground">
-					{groups.length} order{groups.length === 1 ? '' : 's'} will be created
-				</div>
-				<ul class="divide-y">
-					{#each groups as g (groupKey(g.brand_id, g.season_id))}
-						{@const meta = getMeta(g.brand_id, g.season_id)}
-						<li class="py-3">
-							<div class="flex items-center justify-between">
-								<div class="font-medium">
-									{brandName(g.brand_id)} · {seasonLabel(g.season_id, g.product_year)}
-								</div>
-								<div class="text-sm text-muted-foreground">
-									{g.units} unit{g.units === 1 ? '' : 's'} · {fmt.format(g.total)}
-								</div>
-							</div>
-							<div class="text-sm text-muted-foreground">
-								Ship: {describeDelivery(meta)}
-							</div>
-						</li>
-					{/each}
-				</ul>
-			</div>
-
+			<!-- Action bar -->
 			<form
 				method="POST"
 				action="?/submit"
@@ -1506,7 +1889,7 @@
 				}}
 			>
 				<input type="hidden" name="payload" value={JSON.stringify(payload)} />
-				<div class="flex gap-3">
+				<div class="flex items-center justify-between gap-3">
 					<Button
 						type="submit"
 						variant="outline"
@@ -1516,18 +1899,27 @@
 							submitStatus = 'submitted';
 						}}
 					>
-						{groups.length > 1 ? 'Save Notes' : 'Save Note'}
+						{groups.length > 1 ? `Save ${groups.length} Notes` : 'Save as Note'}
 					</Button>
-					<Button
-						type="submit"
-						disabled={submitting || (isFreeform && !hasFreeformDetails)}
-						onclick={() => {
-							cart.type = 'order';
-							submitStatus = 'submitted';
-						}}
-					>
-						{groups.length > 1 ? 'Submit Orders' : 'Submit Order'}
-					</Button>
+					<div class="flex items-center gap-3">
+						{#if brandsRequiringAgreement.length > 0 && !allBrandTermsAgreed}
+							<span class="text-sm text-muted-foreground">
+								Agree to each brand's terms to submit.
+							</span>
+						{/if}
+						<Button
+							type="submit"
+							disabled={submitting ||
+								(isFreeform && !hasFreeformDetails) ||
+								(brandsRequiringAgreement.length > 0 && !allBrandTermsAgreed)}
+							onclick={() => {
+								cart.type = 'order';
+								submitStatus = 'submitted';
+							}}
+						>
+							{groups.length > 1 ? `Submit ${groups.length} Orders` : 'Submit Order'}
+						</Button>
+					</div>
 				</div>
 			</form>
 		</div>

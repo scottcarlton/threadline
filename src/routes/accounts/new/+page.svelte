@@ -53,7 +53,7 @@
 	const steps = [
 		{ n: 1, label: 'Business' },
 		{ n: 2, label: 'Contact' },
-		{ n: 3, label: 'Notes' }
+		{ n: 3, label: 'Payment & notes' }
 	] as const;
 
 	const paymentMethodItems = $derived(
@@ -157,7 +157,7 @@
 	<Card>
 		<CardHeader>
 			<CardTitle>
-				{step === 1 ? 'Business details' : step === 2 ? 'Primary contact' : 'Notes'}
+				{step === 1 ? 'Business details' : step === 2 ? 'Primary contact' : 'Payment & notes'}
 			</CardTitle>
 		</CardHeader>
 		<CardContent>
