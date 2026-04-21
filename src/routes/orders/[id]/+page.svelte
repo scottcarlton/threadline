@@ -1155,8 +1155,8 @@
 				<div class="flex flex-wrap gap-10">
 					<div>
 						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">
-							Ship window{#if shipWindowLength !== null}{' '}<span class="normal-case"
-									>({shipWindowLength}-day window)</span
+							Ship window{#if shipWindowLength !== null}<span class="normal-case"
+									>&nbsp;({shipWindowLength}-day window)</span
 								>{/if}
 						</div>
 						<div class="mt-1.5 flex items-center gap-3">
