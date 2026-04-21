@@ -352,11 +352,18 @@
 
 	// ── Status context copy shown under the stepper ───────────────────────
 	const statusContext = $derived.by(() => {
-		// On federated (BOA) views, the profiles join on orders is gated by
-		// profiles RLS that the BOA org can't satisfy, so we fall back to
-		// the admin-fetched repDisplayName from +page.server.ts.
-		const actor =
-			(order.profiles?.display_name as string | undefined) ?? federation?.repDisplayName ?? null;
+		// If the viewer created the order, collapse to "You" — first-person
+		// reads more naturally than seeing your own name on your own work.
+		// Otherwise: `order.profiles.display_name` resolves the creator's name;
+		// on federated views that join is RLS-gated, so fall back to the
+		// admin-fetched `federation.repDisplayName`.
+		const viewerIsCreator =
+			(data.user?.id as string | undefined) !== undefined && data.user?.id === order.created_by;
+		const actor = viewerIsCreator
+			? 'You'
+			: ((order.profiles?.display_name as string | undefined) ??
+				federation?.repDisplayName ??
+				null);
 		// Brand-side viewers (own-brand OR federated-target BOA) read
 		// "your confirmation" / "leaves your warehouse" — not the rep
 		// perspective "brand confirmation" / "leaves the brand".
