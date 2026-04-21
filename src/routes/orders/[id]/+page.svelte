@@ -17,7 +17,7 @@
 	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
-	import { diffLineEdits, type DraftRowInput } from '$lib/utils/order-line-diff.js';
+	import type { DraftRowInput } from '$lib/utils/order-line-diff.js';
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import { SelectField } from '$lib/components/ui/select/index.js';
@@ -615,57 +615,50 @@
 
 	async function saveEdits() {
 		savingEdits = true;
-		const ops = diffLineEdits(draftRows);
-		if (ops.length === 0) {
-			savingEdits = false;
-			editMode = false;
-			draftRows = [];
-			return;
-		}
-
-		let maxSort = activeLines.reduce((max, l) => Math.max(max, l.sort_order), 0);
-		let failures = 0;
-
-		for (const op of ops) {
-			if (op.kind === 'insert') {
-				maxSort++;
-				const { error } = await supabase.from('order_lines').insert({
-					order_id: order.id,
-					...op.row,
-					sort_order: maxSort
-				});
-				if (error) {
-					console.error('[orders/[id] saveEdits insert]', error);
-					failures++;
-				}
-			} else if (op.kind === 'update') {
-				const { error } = await supabase.from('order_lines').update(op.patch).eq('id', op.id);
-				if (error) {
-					console.error('[orders/[id] saveEdits update]', error);
-					failures++;
-				}
-			} else if (op.kind === 'soft_remove') {
-				const { error } = await supabase
-					.from('order_lines')
-					.update({ removed_at: new Date().toISOString(), removed_reason: null })
-					.eq('id', op.id);
-				if (error) {
-					console.error('[orders/[id] saveEdits remove]', error);
-					failures++;
-				}
+		try {
+			// Send the client's desired row state to the server endpoint; server
+			// runs diffLineEdits against fresh DB rows and applies ops with
+			// status + role gating. Single round-trip replaces the previous
+			// per-op client loop.
+			const rows = draftRows.map(({ lines: _lines, ...rest }) => {
+				void _lines;
+				return rest;
+			});
+			const res = await fetch(`/api/orders/${order.id}/lines`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ rows })
+			});
+			if (!res.ok) {
+				const body = (await res.json().catch(() => null)) as { message?: string } | null;
+				toast.error(body?.message ?? 'Could not save changes');
+				return;
 			}
-		}
-
-		savingEdits = false;
-
-		if (failures > 0) {
-			toast.error(`${failures} change${failures === 1 ? '' : 's'} failed to save.`);
-		} else {
+			const result = (await res.json()) as {
+				ok: boolean;
+				applied: number;
+				failed: number;
+			};
+			if (!result.ok) {
+				toast.error(
+					result.failed === 1
+						? '1 change failed to save.'
+						: `${result.failed} changes failed to save.`
+				);
+				return;
+			}
+			if (result.applied === 0) {
+				editMode = false;
+				draftRows = [];
+				return;
+			}
 			toast.success('Order updated');
 			editMode = false;
 			draftRows = [];
+		} finally {
+			savingEdits = false;
+			invalidateAll();
 		}
-		invalidateAll();
 	}
 
 	// ── Add items via catalog picker ─────────────────────────────────────────
