@@ -21,7 +21,15 @@
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import { SelectField } from '$lib/components/ui/select/index.js';
-	import { acceptedPaymentMethods, paymentMethodLabel } from '$lib/payment-methods';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import { Dialog } from 'bits-ui';
+	import {
+		acceptedPaymentMethods,
+		acceptedMethodsOnly,
+		acceptedTermsOnly,
+		paymentMethodLabel
+	} from '$lib/payment-methods';
+	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
 	// just marked the order viewed; status changes below also call this.
@@ -86,7 +94,6 @@
 	});
 	const allLines = $derived(data.lines as OrderLine[]);
 	const activeLines = $derived(allLines.filter((l) => !l.removed_at));
-	const removedLines = $derived(allLines.filter((l) => l.removed_at));
 
 	type ProductMeta = {
 		primary_image_id: string | null;
@@ -187,7 +194,6 @@
 			(data.federation as { repDisplayName?: string | null } | undefined)?.repDisplayName ??
 			null
 	);
-	const repEmail = $derived(data.repEmail as string | null);
 
 	const canEditPayment = $derived(canEdit && data.canEditOrder === true);
 	const paymentItems = $derived(
@@ -243,11 +249,12 @@
 	);
 	const isFederatedView = $derived(federation?.isFederatedView === true);
 
-	// Brand-side federated view only supports confirming a submitted order; cancel/cancel-rep-only
-	// transitions stay with the rep side. Ship/deliver are also brand-side actions though.
+	// Brand-side federated view: BOA can advance status at every step AND can
+	// cancel before the order ships. After ship, cancellation is reconciled
+	// differently (via return/credit), so it's removed from the allowed set.
 	const brandAllowedNext: Record<string, OrderStatus[]> = {
-		submitted: ['confirmed'],
-		confirmed: ['shipped'],
+		submitted: ['confirmed', 'cancelled'],
+		confirmed: ['shipped', 'cancelled'],
 		shipped: ['delivered']
 	};
 	const nextStatuses = $derived(
@@ -262,24 +269,108 @@
 		return '—';
 	}
 
-	let converting = $state(false);
-	async function convertNoteToOrder() {
-		if (!confirm('Convert this note to a draft order? You can submit it afterward.')) return;
-		converting = true;
-		try {
-			await supabase
-				.from('orders')
-				.update({
-					order_type: 'order',
-					status: 'draft',
-					updated_at: new Date().toISOString()
-				})
-				.eq('id', order.id);
-			invalidateAll();
-		} finally {
-			converting = false;
-		}
+	// ── Convert-to-Order modal ─────────────────────────────────────────────
+	type ConvertLocation = {
+		id: string;
+		label: string | null;
+		is_default: boolean | null;
+		address_line1: string | null;
+		address_line2: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
+	};
+	type ConvertBrandTerms = { id: string; title: string; body: string; version: number };
+	const noteAccountLocations = $derived((data.accountLocations ?? []) as ConvertLocation[]);
+	const currentBrandTerms = $derived((data.currentBrandTerms ?? null) as ConvertBrandTerms | null);
+
+	// Generic-terms fallback used when a brand hasn't configured its own. Buyers
+	// always agree to SOMETHING before a note converts or a submit lands, even
+	// if the brand hasn't published terms yet.
+	const GENERIC_TERMS = {
+		id: 'generic',
+		title: 'Standard wholesale terms',
+		version: 1,
+		body: `All sales subject to availability and credit approval.
+
+Cancellations require written notice 45+ days before the start-ship date; cancellations inside that window incur a 10% fee.
+
+No returns without written authorization from the brand.
+
+Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees are added to the invoice before charge.`
+	} as const;
+	// "Effective" terms: prefer the brand-specific row when the brand has one,
+	// otherwise the generic fallback. Non-null for every order.
+	const effectiveTerms = $derived(currentBrandTerms ?? GENERIC_TERMS);
+	const effectiveTermsIsGeneric = $derived(currentBrandTerms === null);
+	const convertMethodItems = $derived(
+		acceptedMethodsOnly((data.acceptedPaymentMethods ?? []) as string[]).map((m) => ({
+			value: m.code,
+			label: m.label
+		}))
+	);
+	const convertTermsItems = $derived(
+		acceptedTermsOnly((data.acceptedPaymentMethods ?? []) as string[]).map((t) => ({
+			value: t.code,
+			label: t.label
+		}))
+	);
+	const convertShippingItems = SHIPPING_METHODS.map((s) => ({
+		value: s,
+		label: s.charAt(0).toUpperCase() + s.slice(1)
+	}));
+	const convertLocationItems = $derived(
+		noteAccountLocations.map((l) => {
+			const addr = [l.address_line1, l.city].filter(Boolean).join(', ');
+			const base = l.label ?? 'Location';
+			return {
+				value: l.id,
+				label: addr ? `${base} — ${addr}` : base
+			};
+		})
+	);
+	const convertBillToItems = $derived([
+		{ value: '', label: 'Same as ship to' },
+		...convertLocationItems
+	]);
+
+	let convertOpen = $state(false);
+	let convertTermsViewOpen = $state(false);
+	let convertSubmitting = $state(false);
+	let convertTermsAgreed = $state(false);
+	let convertForm = $state({
+		start_ship_date: '',
+		expected_ship_date: '',
+		location_id: '',
+		bill_to_location_id: '',
+		payment_preference: '',
+		payment_terms: '',
+		shipping_method: '',
+		po_number: ''
+	});
+
+	function openConvertModal() {
+		// Seed defaults from the current note so the user starts close to done.
+		const defaultLoc = noteAccountLocations.find((l) => l.is_default) ?? noteAccountLocations[0];
+		convertForm = {
+			start_ship_date: (order.start_ship_date as string | null) ?? '',
+			expected_ship_date: (order.expected_ship_date as string | null) ?? '',
+			location_id: (order.location_id as string | null) ?? defaultLoc?.id ?? '',
+			bill_to_location_id: (order.bill_to_location_id as string | null) ?? '',
+			payment_preference: (order.payment_preference as string | null) ?? '',
+			payment_terms: (order.payment_terms as string | null) ?? '',
+			shipping_method: (order.shipping_method as string | null) ?? '',
+			po_number: (order.po_number as string | null) ?? ''
+		};
+		convertTermsAgreed = false;
+		convertOpen = true;
 	}
+
+	const convertCanSubmit = $derived(
+		convertForm.start_ship_date !== '' &&
+			convertForm.expected_ship_date !== '' &&
+			convertTermsAgreed
+	);
 
 	async function updateStatus(newStatus: OrderStatus) {
 		const res = await fetch(`/api/orders/${order.id}/status`, {
@@ -314,6 +405,180 @@
 	const repCommissionOnShipped = $derived(
 		order.shipped_amount != null ? (Number(order.shipped_amount) * repCommissionRate) / 100 : null
 	);
+
+	// ── Ship-window derived values for the StatusCard band 2 ──────────────
+	function daysBetween(start: string | null | undefined, end: string | null | undefined) {
+		if (!start || !end) return null;
+		const a = new Date(`${start}T00:00:00`).getTime();
+		const b = new Date(`${end}T00:00:00`).getTime();
+		return Math.round((b - a) / 86_400_000);
+	}
+	const shipWindowLength = $derived(daysBetween(order.start_ship_date, order.expected_ship_date));
+	const shipsInDays = $derived.by(() => {
+		if (!order.start_ship_date) return null;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient local value
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const start = new Date(`${order.start_ship_date}T00:00:00`).getTime();
+		return Math.round((start - today.getTime()) / 86_400_000);
+	});
+	const shortDate = (s: string | null | undefined) => {
+		if (!s) return '—';
+		const d = new Date(`${s}T00:00:00`);
+		return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+	};
+	const longDate = (s: string | null | undefined) => {
+		if (!s) return '—';
+		const d = new Date(s);
+		return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	};
+	const prettify = (code: string | null | undefined) => {
+		if (!code) return null;
+		return code
+			.split('_')
+			.map((p) => (p.length > 0 ? p[0].toUpperCase() + p.slice(1) : p))
+			.join(' ');
+	};
+
+	// ── Status context copy shown under the stepper ───────────────────────
+	const statusContext = $derived.by(() => {
+		// If the viewer created the order, collapse to "You" — first-person
+		// reads more naturally than seeing your own name on your own work.
+		// Otherwise: `order.profiles.display_name` resolves the creator's name;
+		// on federated views that join is RLS-gated, so fall back to the
+		// admin-fetched `federation.repDisplayName`.
+		const viewerIsCreator =
+			(data.user?.id as string | undefined) !== undefined && data.user?.id === order.created_by;
+		const actor = viewerIsCreator
+			? 'You'
+			: ((order.profiles?.display_name as string | undefined) ??
+				federation?.repDisplayName ??
+				null);
+		// Brand-side viewers (own-brand OR federated-target BOA) read
+		// "your confirmation" / "leaves your warehouse" — not the rep
+		// perspective "brand confirmation" / "leaves the brand".
+		const isBrandSide = isBrandOrg || federation?.isFederatedView === true;
+		switch (order.status) {
+			case 'draft':
+				return "Draft — not yet sent to the brand. Submit when you're ready.";
+			case 'submitted': {
+				const head = `Submitted${actor ? ` by ${actor}` : ''}${order.submitted_at ? ` · ${longDate(order.submitted_at as string)}` : ''}.`;
+				const tail = isBrandSide
+					? 'Awaiting your confirmation — move to Confirmed when you accept.'
+					: 'Awaiting brand confirmation — move to Confirmed when the brand accepts.';
+				return `${head} ${tail}`;
+			}
+			case 'confirmed': {
+				const head = `Confirmed${order.confirmed_at ? ` · ${longDate(order.confirmed_at as string)}` : ''}.`;
+				const tail = isBrandSide
+					? 'Move to Shipped when the order leaves your warehouse.'
+					: 'Move to Shipped when the order leaves the brand.';
+				return `${head} ${tail}`;
+			}
+			case 'shipped':
+				return `Shipped${order.shipped_at ? ` · ${longDate(order.shipped_at as string)}` : ''}. Move to Delivered once the buyer receives it.`;
+			case 'delivered':
+				return `Delivered${order.delivered_at ? ` · ${longDate(order.delivered_at as string)}` : ''}.`;
+			case 'cancelled':
+				return `Cancelled${order.cancelled_at ? ` · ${longDate(order.cancelled_at as string)}` : ''}.`;
+			default:
+				return null;
+		}
+	});
+
+	// ── Copy for the primary "advance to next" action button ─────────────
+	const advanceActionLabel: Record<string, string> = {
+		submitted: 'Submit',
+		confirmed: 'Mark confirmed',
+		shipped: 'Mark shipped',
+		delivered: 'Mark delivered'
+	};
+
+	// ── Meta strip source data (extracted from the old OrderDetails card) ─
+	const monthNames = [
+		'Jan',
+		'Feb',
+		'Mar',
+		'Apr',
+		'May',
+		'Jun',
+		'Jul',
+		'Aug',
+		'Sep',
+		'Oct',
+		'Nov',
+		'Dec'
+	];
+	type ShowDateJoin = {
+		year: number | null;
+		month: number | null;
+		city: string | null;
+		state: string | null;
+		shows: { name: string | null } | null;
+	};
+	// Supabase can return embedded joins as either an object or a single-element
+	// array depending on the relationship's cardinality inference. Normalize so
+	// `order.show_dates` and `order.source_types` render the same either way.
+	function firstOrObject<T>(v: T | T[] | null | undefined): T | null {
+		if (!v) return null;
+		if (Array.isArray(v)) return v[0] ?? null;
+		return v;
+	}
+	const showDateData = $derived(
+		firstOrObject(order.show_dates as ShowDateJoin | ShowDateJoin[] | null | undefined)
+	);
+	const sourceTypeData = $derived(
+		firstOrObject(
+			order.source_types as { name?: string | null } | { name?: string | null }[] | null | undefined
+		)
+	);
+	const sourceDisplay = $derived(showDateData?.shows?.name ?? sourceTypeData?.name ?? null);
+	const sourceLocation = $derived.by(() => {
+		if (!showDateData) return null;
+		const parts = [showDateData.city, showDateData.state].filter(Boolean);
+		return parts.length > 0 ? parts.join(', ') : null;
+	});
+	const createdByName = $derived(order.profiles?.display_name ?? null);
+
+	// Bill-to location join (nullable — falls back to the account address for display).
+	type BillToLocation = {
+		label: string | null;
+		address_line1: string | null;
+		address_line2: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
+	};
+	const billToLocation = $derived(
+		(order as typeof order & { bill_to_location?: BillToLocation | null }).bill_to_location ?? null
+	);
+
+	// Terms agreement summary (for the right-rail TermsRecord panel).
+	type TermsJoin = {
+		brand_terms?: { id: string; title: string; body: string; version: number } | null;
+		terms_agreed_profile?: { display_name: string | null } | null;
+	};
+	const termsAgreedInfo = $derived.by(() => {
+		if (!order.terms_id) return null;
+		const o = order as typeof order & TermsJoin;
+		return {
+			brand_terms: o.brand_terms ?? null,
+			agreed_by: o.terms_agreed_profile?.display_name ?? null,
+			agreed_at: order.terms_agreed_at ?? null
+		};
+	});
+
+	// Totals panel aggregates — subtotal matches total_amount today (no discounts yet).
+	const totalUnits = $derived(activeLines.reduce((s, l) => s + (l.qty ?? 0), 0));
+	const totalStyles = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient counting set
+		const set = new Set<string>();
+		for (const l of activeLines) {
+			const pid = (l as { product_id?: string | null }).product_id;
+			if (pid) set.add(pid);
+		}
+		return set.size;
+	});
 
 	// Ship window dates
 	let editingShipDate = $state(false);
@@ -357,6 +622,10 @@
 	let editMode = $state(false);
 	let draftRows = $state<DraftRow[]>([]);
 	let savingEdits = $state(false);
+
+	// Count of DB ops that would be generated if the user saves right now.
+	// Each size-cell change, color change, or removed style contributes one op.
+	const pendingChanges = $derived(editMode ? diffLineEdits(draftRows).length : 0);
 
 	function snapshotDrafts(): DraftRow[] {
 		return lineRows.map((row) => {
@@ -435,87 +704,52 @@
 		});
 	}
 
-	// Soft-remove every line in a (product, color) row without entering edit
-	// mode. Mirrors the saveEdits soft_remove op path. Used by the trash icon
-	// on read-only rows.
-	let removingRowKey = $state<string | null>(null);
-	async function removeLineRow(row: LineRow) {
-		if (row.lines.length === 0) return;
-		removingRowKey = row.key;
-		const now = new Date().toISOString();
-		let failures = 0;
-		for (const l of row.lines) {
-			const { error } = await supabase
-				.from('order_lines')
-				.update({ removed_at: now, removed_reason: null })
-				.eq('id', l.id);
-			if (error) {
-				console.error('[orders/[id] removeLineRow]', error);
-				failures++;
-			}
-		}
-		removingRowKey = null;
-		if (failures > 0) {
-			toast.error(`${failures} line${failures === 1 ? '' : 's'} failed to remove.`);
-		} else {
-			toast.success(row.lines.length === 1 ? 'Line removed' : 'Lines removed');
-		}
-		invalidateAll();
-	}
-
 	async function saveEdits() {
 		savingEdits = true;
-		const ops = diffLineEdits(draftRows);
-		if (ops.length === 0) {
-			savingEdits = false;
-			editMode = false;
-			draftRows = [];
-			return;
-		}
-
-		let maxSort = activeLines.reduce((max, l) => Math.max(max, l.sort_order), 0);
-		let failures = 0;
-
-		for (const op of ops) {
-			if (op.kind === 'insert') {
-				maxSort++;
-				const { error } = await supabase.from('order_lines').insert({
-					order_id: order.id,
-					...op.row,
-					sort_order: maxSort
-				});
-				if (error) {
-					console.error('[orders/[id] saveEdits insert]', error);
-					failures++;
-				}
-			} else if (op.kind === 'update') {
-				const { error } = await supabase.from('order_lines').update(op.patch).eq('id', op.id);
-				if (error) {
-					console.error('[orders/[id] saveEdits update]', error);
-					failures++;
-				}
-			} else if (op.kind === 'soft_remove') {
-				const { error } = await supabase
-					.from('order_lines')
-					.update({ removed_at: new Date().toISOString(), removed_reason: null })
-					.eq('id', op.id);
-				if (error) {
-					console.error('[orders/[id] saveEdits remove]', error);
-					failures++;
-				}
+		try {
+			// Send the client's desired row state to the server endpoint; server
+			// runs diffLineEdits against fresh DB rows and applies ops with
+			// status + role gating. Single round-trip replaces the previous
+			// per-op client loop.
+			const rows = draftRows.map(({ lines: _lines, ...rest }) => {
+				void _lines;
+				return rest;
+			});
+			const res = await fetch(`/api/orders/${order.id}/lines`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ rows })
+			});
+			if (!res.ok) {
+				const body = (await res.json().catch(() => null)) as { message?: string } | null;
+				toast.error(body?.message ?? 'Could not save changes');
+				return;
 			}
-		}
-
-		savingEdits = false;
-
-		if (failures > 0) {
-			toast.error(`${failures} change${failures === 1 ? '' : 's'} failed to save.`);
-		} else {
+			const result = (await res.json()) as {
+				ok: boolean;
+				applied: number;
+				failed: number;
+			};
+			if (!result.ok) {
+				toast.error(
+					result.failed === 1
+						? '1 change failed to save.'
+						: `${result.failed} changes failed to save.`
+				);
+				return;
+			}
+			if (result.applied === 0) {
+				editMode = false;
+				draftRows = [];
+				return;
+			}
 			toast.success('Order updated');
 			editMode = false;
 			draftRows = [];
+		} finally {
+			savingEdits = false;
+			invalidateAll();
 		}
-		invalidateAll();
 	}
 
 	// ── Add items via catalog picker ─────────────────────────────────────────
@@ -653,79 +887,19 @@
 		}
 	}
 
-	// ── History / audit trail ────────────────────────────────────────────────
-	type AuditRow = {
+	// Humanized, aggregated activity entries shaped by the server helper at
+	// src/lib/server/orders/activity.ts. Consecutive `line_added` events from
+	// the same actor collapse into a single "N lines added" row.
+	type ActivityEntry = {
 		id: string;
-		order_id: string;
-		actor_id: string | null;
-		event_type:
-			| 'order_created'
-			| 'status_changed'
-			| 'order_cancelled'
-			| 'field_changed'
-			| 'line_added'
-			| 'line_removed'
-			| 'line_changed';
-		field: string | null;
-		before_value: unknown;
-		after_value: unknown;
-		created_at: string;
-		actor?: { display_name: string | null } | null;
+		kind: 'status' | 'content';
+		title: string;
+		subtitle: string | null;
+		actor_name: string | null;
+		at: string;
+		event_count: number;
 	};
-	const audits = $derived((data.audits ?? []) as AuditRow[]);
-
-	const fieldLabels: Record<string, string> = {
-		status: 'Status',
-		expected_ship_date: 'Complete ship',
-		start_ship_date: 'Start ship',
-		delivery_id: 'Delivery',
-		location_id: 'Location',
-		account_id: 'Account',
-		notes: 'Notes',
-		cancelled_reason: 'Cancel reason'
-	};
-
-	function formatAuditValue(v: unknown): string {
-		if (v === null || v === undefined) return '—';
-		if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
-		if (typeof v === 'object') {
-			const o = v as Record<string, unknown>;
-			// Line snapshot
-			if ('style_number' in o || 'qty' in o) {
-				const parts: string[] = [];
-				if (o.style_number) parts.push(String(o.style_number));
-				const variant = [o.color, o.size].filter(Boolean).join(' / ');
-				if (variant) parts.push(variant);
-				if (typeof o.qty === 'number') parts.push(`qty ${o.qty}`);
-				if (typeof o.unit_price === 'number' && o.unit_price > 0)
-					parts.push(`$${Number(o.unit_price).toFixed(2)}`);
-				return parts.join(' · ') || '—';
-			}
-			return JSON.stringify(o);
-		}
-		return '—';
-	}
-
-	function auditTitle(a: AuditRow): string {
-		switch (a.event_type) {
-			case 'order_created':
-				return 'Order created';
-			case 'order_cancelled':
-				return 'Order cancelled';
-			case 'status_changed':
-				return `Status → ${formatAuditValue(a.after_value)}`;
-			case 'field_changed': {
-				const label = a.field ? (fieldLabels[a.field] ?? a.field) : 'Field';
-				return `${label} updated`;
-			}
-			case 'line_added':
-				return 'Line added';
-			case 'line_removed':
-				return 'Line removed';
-			case 'line_changed':
-				return 'Line changed';
-		}
-	}
+	const activity = $derived((data.activity ?? []) as ActivityEntry[]);
 
 	// Comments
 	type Comment = {
@@ -886,10 +1060,12 @@
 	}
 </script>
 
-<div class="space-y-4">
-	<!-- Toolbar -->
+<div class="w-full space-y-6 p-6">
+	<!-- ── Top bar ─────────────────────────────────────────────────────── -->
 	<div class="flex items-center justify-between">
-		<Button variant="ghost" size="sm" href="/orders"><LongArrow direction="left" /> Back</Button>
+		<Button variant="ghost" size="sm" href="/orders"
+			><LongArrow direction="left" /> Back to orders</Button
+		>
 		<div class="flex gap-2">
 			<Button variant="outline" size="sm" onclick={handleCloneOrder} disabled={cloning}>
 				{#if cloning}
@@ -954,385 +1130,418 @@
 				</svg>
 				Send to Account
 			</Button>
-			{#if canEdit && order.order_type === 'note'}
-				<Button size="sm" onclick={convertNoteToOrder} disabled={converting}>
-					{converting ? 'Converting…' : 'Convert to Order'}
-				</Button>
-			{/if}
 		</div>
 	</div>
 
-	<!-- Title row: order number + status on the left, inline progress on the right -->
-	<div class="flex flex-wrap items-center justify-between gap-4">
-		<div class="flex items-center gap-3">
-			<div>
-				<a
-					href={resolve(`/accounts/${order.account_id}`)}
-					class="text-sm text-muted-foreground hover:underline">{order.accounts?.business_name}</a
-				>
-				<h1 class="font-mono text-3xl">{order.order_number}</h1>
-				<p class="text-sm text-muted-foreground">
-					{!isBrandOrg && order.brands?.name ? `${order.brands.name} · ` : ''}{seasonLabel()}
-				</p>
-			</div>
+	<!-- ── Header: account · order# + pill · brand·season ───────────────── -->
+	<header>
+		{#if order.accounts?.business_name}
+			<a
+				href={resolve(`/accounts/${order.account_id}`)}
+				class="text-sm text-muted-foreground hover:underline">{order.accounts.business_name}</a
+			>
+		{/if}
+		<div class="mt-1 flex flex-wrap items-center gap-3">
+			<h1 class="font-mono text-4xl font-medium tracking-tight">{order.order_number}</h1>
 			{#if order.order_type === 'note'}
-				<Badge class="mt-2" variant="outline">Note</Badge>
+				<Badge variant="outline">Note</Badge>
 			{:else}
-				<Badge class="mt-2" variant={statusColors[order.status] ?? 'secondary'}
+				<Badge variant={statusColors[order.status] ?? 'secondary'}
 					>{statusLabels[order.status] ?? order.status}</Badge
 				>
 			{/if}
 		</div>
+		<div class="mt-1 text-sm text-muted-foreground">
+			{!isBrandOrg && order.brands?.name ? `${order.brands.name} · ` : ''}{seasonLabel()}
+		</div>
+	</header>
 
-		{#if order.order_type !== 'note' && order.status !== 'cancelled'}
-			<div class="flex items-center gap-12">
-				{#each timeline as step (step.status)}
-					{@const isComplete = step.date !== null}
-					{@const isCurrent = step.status === order.status}
-					<div class="flex items-center gap-2">
-						<div
-							class="flex h-4 w-4 items-center justify-center rounded-full transition-colors {isComplete
-								? 'bg-primary text-primary-foreground'
-								: isCurrent
-									? 'bg-background ring-2 ring-primary ring-offset-2 ring-offset-background'
-									: 'border border-muted-foreground/20 bg-muted/40'}"
-							aria-label={step.label}
-						>
-							{#if isComplete}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-2.5 w-2.5"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
+	<!-- ── Note card (note-only) ─────────────────────────────────────────── -->
+	{#if order.order_type === 'note'}
+		<section class="rounded-lg border bg-muted/30 px-6 py-5">
+			<div class="flex flex-wrap items-center justify-between gap-4">
+				<div class="min-w-0">
+					<div class="text-sm">This is a Note — nothing has been committed yet.</div>
+					<div class="mt-1 text-sm text-muted-foreground/70">
+						Created {longDate(
+							order.created_at
+						)}{#if (order.profiles?.display_name as string | undefined) ?? federation?.repDisplayName}
+							· by {(order.profiles?.display_name as string | undefined) ??
+								federation?.repDisplayName}{/if}
+					</div>
+				</div>
+				{#if canEdit}
+					<Button onclick={openConvertModal} disabled={convertSubmitting}>Convert to Order</Button>
+				{/if}
+			</div>
+		</section>
+	{:else}
+		<!-- ── Status + Ship window card (order-only) ─────────────────────── -->
+		<section class="overflow-hidden rounded-lg border bg-muted/30">
+			<!-- Band 1: stepper + contextual action + context copy -->
+			<div class="px-6 py-5">
+				<div class="flex flex-wrap items-center justify-between gap-4">
+					<ol class="flex min-w-0 flex-1 items-center gap-3">
+						{#each timeline as step, i (step.status)}
+							{@const isComplete = step.date !== null}
+							{@const isCurrent = step.status === order.status}
+							<li class="flex items-center gap-2">
+								<span
+									aria-hidden="true"
+									class="h-2 w-2 rounded-full {isCurrent
+										? 'bg-foreground ring-4 ring-foreground/20'
+										: isComplete
+											? 'bg-foreground'
+											: 'border border-muted-foreground/30'}"
+								></span>
+								<span
+									class="text-sm {isCurrent
+										? 'font-medium text-foreground'
+										: isComplete
+											? 'text-foreground'
+											: 'text-muted-foreground'}"
 								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-								</svg>
+									{step.label}
+								</span>
+							</li>
+							{#if i < timeline.length - 1}
+								<li
+									aria-hidden="true"
+									class="h-px w-6 sm:w-10 {isComplete && timeline[i + 1].date !== null
+										? 'bg-foreground'
+										: 'bg-border'}"
+								></li>
+							{/if}
+						{/each}
+					</ol>
+					{#if canEdit && nextStatuses.length > 0 && order.status !== 'cancelled'}
+						<div class="flex items-center gap-2 border-l pl-4">
+							{#each nextStatuses.filter((s) => s !== 'cancelled') as nextStatus (nextStatus)}
+								<Button size="sm" onclick={() => updateStatus(nextStatus)}>
+									{advanceActionLabel[nextStatus] ?? statusLabels[nextStatus] ?? nextStatus}
+								</Button>
+							{/each}
+							{#if nextStatuses.includes('cancelled')}
+								<button
+									type="button"
+									class="px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+									onclick={() => (cancelOpen = true)}
+								>
+									Cancel order
+								</button>
 							{/if}
 						</div>
-						<span
-							class="text-sm {isCurrent
-								? 'font-medium text-foreground'
-								: isComplete
-									? 'text-foreground'
-									: 'text-muted-foreground'}"
-						>
-							{step.label}
-						</span>
-					</div>
-				{/each}
+					{/if}
+				</div>
+				{#if statusContext}
+					<div class="mt-3 text-sm text-muted-foreground">{statusContext}</div>
+				{/if}
 			</div>
-		{/if}
-	</div>
 
-	<!-- Order details -->
-	<div class="grid gap-4 sm:grid-cols-2">
-		<Card>
-			<CardHeader>
-				<CardTitle class="text-base">Order Details</CardTitle>
-			</CardHeader>
-			<CardContent>
-				{@const monthNames = [
-					'Jan',
-					'Feb',
-					'Mar',
-					'Apr',
-					'May',
-					'Jun',
-					'Jul',
-					'Aug',
-					'Sep',
-					'Oct',
-					'Nov',
-					'Dec'
-				]}
-				{@const showDateData = order.show_dates}
-				{@const sourceDisplay = showDateData?.shows?.name ?? order.source_types?.name ?? null}
-				{@const sourceLocation = showDateData
-					? [showDateData.city, showDateData.state].filter(Boolean).join(', ')
-					: null}
-				{@const createdByName = order.profiles?.display_name ?? null}
-				<dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+			<!-- Band 2: Ship window -->
+			<div
+				class="flex flex-wrap items-center justify-between gap-4 border-t bg-background/40 px-6 py-4"
+			>
+				<div class="flex flex-wrap gap-10">
 					<div>
-						<dt class="text-sm text-muted-foreground">Source</dt>
-						<dd class="mt-0.5">
-							{#if sourceDisplay}
-								<span>{sourceDisplay}</span>
-								{#if showDateData}
-									<p class="font-mono text-sm text-muted-foreground">
-										{monthNames[(showDateData.month ?? 1) - 1]} · {sourceLocation}
-									</p>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">
+							Ship window{#if shipWindowLength !== null}<span class="normal-case"
+									>&nbsp;({shipWindowLength}-day window)</span
+								>{/if}
+						</div>
+						<div class="mt-1.5 flex items-center gap-3">
+							<span class="font-mono text-xl font-medium">
+								{shortDate(order.start_ship_date)}
+							</span>
+							<svg
+								aria-hidden="true"
+								class="h-4 w-4 text-muted-foreground/70"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path d="M5 12h14M13 5l7 7-7 7" />
+							</svg>
+							<span class="font-mono text-xl font-medium">
+								{shortDate(order.expected_ship_date)}
+							</span>
+						</div>
+					</div>
+					{#if shipsInDays !== null}
+						<div>
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ships in</div>
+							<div class="mt-2.5 text-sm">
+								{#if shipsInDays > 0}
+									{shipsInDays} day{shipsInDays === 1 ? '' : 's'}
+								{:else if shipsInDays === 0}
+									Today
+								{:else}
+									{Math.abs(shipsInDays)} day{Math.abs(shipsInDays) === 1 ? '' : 's'} ago
 								{/if}
+							</div>
+						</div>
+					{/if}
+					{#if order.shipping_method}
+						<div>
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Method</div>
+							<div class="mt-1.5 text-sm">{prettify(order.shipping_method)}</div>
+						</div>
+					{/if}
+				</div>
+				{#if canEdit && !editingShipDate}
+					<button
+						type="button"
+						class="rounded-md border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+						onclick={startEditShipDate}
+					>
+						Edit window
+					</button>
+				{/if}
+			</div>
+
+			<!-- Inline ship-window editor (when editingShipDate) -->
+			{#if editingShipDate}
+				<div class="border-t bg-muted/30 px-6 py-4">
+					<div class="grid gap-3 sm:grid-cols-2">
+						<div>
+							<div class="mb-1 text-sm text-muted-foreground">Start ship</div>
+							<DateSelect value={startShipValue} onchange={(v) => (startShipValue = v)} />
+						</div>
+						<div>
+							<div class="mb-1 text-sm text-muted-foreground">Complete ship</div>
+							<DateSelect value={shipDateValue} onchange={(v) => (shipDateValue = v)} />
+						</div>
+					</div>
+					<div class="mt-3 flex justify-end gap-2">
+						<Button variant="outline" size="sm" onclick={() => (editingShipDate = false)}>
+							Cancel
+						</Button>
+						<Button size="sm" onclick={saveShipDate} disabled={savingShipDate}>
+							{savingShipDate ? 'Saving…' : 'Save'}
+						</Button>
+					</div>
+				</div>
+			{/if}
+		</section>
+	{/if}
+
+	<!-- ── Cancel reason banner (when cancelled) ─────────────────────────── -->
+	{#if order.status === 'cancelled' && order.cancelled_reason}
+		<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-5 py-4">
+			<div class="text-sm font-medium text-destructive">Cancellation reason</div>
+			<div class="mt-1 text-sm">{order.cancelled_reason}</div>
+		</div>
+	{/if}
+
+	<!-- ── Main two-column grid ─────────────────────────────────────────── -->
+	<div class="grid gap-6 lg:grid-cols-[1fr_340px]">
+		<!-- ─── Left column ─── -->
+		<div class="space-y-6">
+			<!-- ── Meta strip: Source · Contact · Rep ────────────────────── -->
+			<section class="rounded-lg border bg-muted/30 p-5">
+				<div class="grid gap-5 sm:grid-cols-3">
+					<div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Source</div>
+						{#if sourceDisplay}
+							<div class="mt-1.5 text-sm">{sourceDisplay}</div>
+							{#if showDateData && showDateData.month}
+								<div class="font-mono text-sm text-muted-foreground/70">
+									{monthNames[showDateData.month - 1]}{sourceLocation ? ` · ${sourceLocation}` : ''}
+								</div>
+							{/if}
+						{:else}
+							<div class="mt-1.5 text-sm text-muted-foreground/50">—</div>
+						{/if}
+					</div>
+					<div class="min-w-0">
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Contact</div>
+						<div class="mt-1.5 text-sm">
+							{#if accountAddress?.contact_first_name || accountAddress?.contact_last_name}
+								{[accountAddress.contact_first_name, accountAddress.contact_last_name]
+									.filter(Boolean)
+									.join(' ')}
 							{:else}
 								<span class="text-muted-foreground/50">—</span>
 							{/if}
-						</dd>
-					</div>
-					<div class="col-span-2">
-						<dt class="text-sm text-muted-foreground">Ship Window</dt>
-						<dd class="mt-2">
-							<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-								<div class="rounded-lg bg-muted/60 px-4 py-3">
-									{#if editingShipDate}
-										<p class="mb-1 text-sm text-muted-foreground">Start Ship</p>
-										<DateSelect value={startShipValue} onchange={(v) => (startShipValue = v)} />
-									{:else}
-										<p class="text-lg font-semibold tabular-nums">
-											{#if order.start_ship_date}
-												{new Date(order.start_ship_date + 'T00:00:00').toLocaleDateString('en-US', {
-													month: 'numeric',
-													day: 'numeric'
-												})}
-											{:else}
-												<span class="text-muted-foreground/40">—</span>
-											{/if}
-										</p>
-										<p class="text-sm text-muted-foreground">Start Ship</p>
-									{/if}
-								</div>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground/50"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-									/>
-								</svg>
-								<div class="rounded-lg bg-muted/60 px-4 py-3">
-									{#if editingShipDate}
-										<p class="mb-1 text-sm text-muted-foreground">Complete Ship</p>
-										<DateSelect value={shipDateValue} onchange={(v) => (shipDateValue = v)} />
-									{:else}
-										<p class="text-lg font-semibold tabular-nums">
-											{#if order.expected_ship_date}
-												{new Date(order.expected_ship_date + 'T00:00:00').toLocaleDateString(
-													'en-US',
-													{ month: 'numeric', day: 'numeric' }
-												)}
-											{:else}
-												<span class="text-muted-foreground/40">—</span>
-											{/if}
-										</p>
-										<p class="text-sm text-muted-foreground">Complete Ship</p>
-									{/if}
-								</div>
-							</div>
-							{#if editingShipDate}
-								<div class="mt-3 flex justify-end gap-2">
-									<Button variant="outline" size="sm" onclick={() => (editingShipDate = false)}
-										>Cancel</Button
-									>
-									<Button size="sm" onclick={saveShipDate} disabled={savingShipDate}>
-										{savingShipDate ? 'Saving…' : 'Save'}
-									</Button>
-								</div>
-							{:else if canEdit}
-								<button
-									class="mt-3 w-full rounded-lg bg-muted/40 py-2 text-center text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-									onclick={startEditShipDate}
-								>
-									Edit
-								</button>
-							{/if}
-						</dd>
-					</div>
-					<div class="col-span-2 grid grid-cols-2 gap-x-6 border-t pt-3">
-						<div>
-							<dt class="text-sm text-muted-foreground">Contact</dt>
-							<dd class="mt-0.5">
-								{#if accountAddress?.contact_first_name || accountAddress?.contact_last_name}
-									<p>
-										{[accountAddress.contact_first_name, accountAddress.contact_last_name]
-											.filter(Boolean)
-											.join(' ')}
-									</p>
-								{/if}
-								{#if accountAddress?.contact_email}
-									<a
-										href="mailto:{accountAddress.contact_email}"
-										class="text-sm text-muted-foreground hover:underline"
-										>{accountAddress.contact_email}</a
-									>
-								{/if}
-							</dd>
 						</div>
-						<div>
-							<dt class="text-sm text-muted-foreground">Phone</dt>
-							<dd class="mt-0.5">
-								{#if accountAddress?.contact_phone || accountAddress?.phone}
-									<a
-										href="tel:{accountAddress.contact_phone ?? accountAddress.phone}"
-										class="hover:underline"
-										>{accountAddress.contact_phone ?? accountAddress.phone}</a
-									>
-								{:else}
-									<span class="text-muted-foreground/50">—</span>
-								{/if}
-							</dd>
-						</div>
-					</div>
-					<div class="col-span-2 grid grid-cols-2 gap-x-6 border-t pt-3">
-						<div>
-							<dt class="text-sm text-muted-foreground">Rep</dt>
-							<dd class="mt-0.5">
-								<p>{repName ?? '—'}</p>
-								{#if repEmail}
-									<a href="mailto:{repEmail}" class="text-sm text-muted-foreground hover:underline"
-										>{repEmail}</a
-									>
-								{/if}
-							</dd>
-						</div>
-						<div>
-							<dt class="text-sm text-muted-foreground">Created</dt>
-							<dd class="mt-0.5">
-								{#if isFederatedView}
-									<span>{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}</span>
-								{:else if createdByName}
-									<span>{createdByName}</span>
-								{/if}
-								<p class="font-mono text-sm text-muted-foreground">
-									{new Date(order.created_at).toLocaleDateString('en-US', {
-										month: 'short',
-										day: 'numeric',
-										year: 'numeric'
-									})}
-								</p>
-							</dd>
-						</div>
-					</div>
-				</dl>
-			</CardContent>
-		</Card>
-
-		<Card>
-			<CardHeader>
-				<div class="flex items-start justify-between">
-					<CardTitle class="font-mono text-base">Summary</CardTitle>
-					{#if canEdit && order.order_type !== 'note' && nextStatuses.length > 0}
-						<div class="flex flex-wrap gap-2">
-							{#each nextStatuses as nextStatus (nextStatus)}
-								{#if nextStatus === 'cancelled'}
-									<Button size="sm" variant="destructive" onclick={() => (cancelOpen = true)}>
-										Cancel
-									</Button>
-								{:else}
-									<Button size="sm" onclick={() => updateStatus(nextStatus)}>
-										{nextStatus === 'submitted'
-											? 'Submit'
-											: nextStatus === 'confirmed'
-												? 'Confirm'
-												: nextStatus === 'shipped'
-													? 'Ship'
-													: 'Mark Delivered'}
-									</Button>
-								{/if}
-							{/each}
-						</div>
-					{/if}
-				</div>
-			</CardHeader>
-			<CardContent>
-				<p class="font-mono text-3xl font-bold">{fmt.format(Number(order.total_amount))}</p>
-				<p class="mt-1 text-sm text-muted-foreground">
-					{activeLines.length} line item{activeLines.length !== 1 ? 's' : ''}
-				</p>
-
-				<!-- Payment -->
-				<div class="mt-4 flex items-center justify-between">
-					<span class="text-sm text-muted-foreground">Payment</span>
-					{#if canEditPayment && paymentItems.length > 0}
-						<form
-							bind:this={paymentPrefForm}
-							method="POST"
-							action="?/updatePaymentPreference"
-							use:enhance={() => {
-								return async ({ result, update }) => {
-									if (result.type === 'success') {
-										toast.success('Payment preference updated');
-									} else if (result.type === 'failure') {
-										const msg =
-											(result.data as { message?: string } | undefined)?.message ??
-											'Could not update payment preference.';
-										toast.error(msg);
-										paymentPrefValue = order.payment_preference ?? '';
-									}
-									await update();
-								};
-							}}
-						>
-							<input type="hidden" name="code" value={paymentPrefValue} />
-							<SelectField
-								bind:value={paymentPrefValue}
-								items={paymentItems}
-								placeholder="Not set"
-								class="min-w-[200px]"
-								onValueChange={(v) => {
-									paymentPrefValue = v;
-									queueMicrotask(() => paymentPrefForm?.requestSubmit());
-								}}
-							/>
-						</form>
-					{:else}
-						<span class="text-sm">{paymentMethodLabel(order.payment_preference)}</span>
-					{/if}
-				</div>
-
-				<!-- Terms agreement -->
-				{#if order.terms_id}
-					{@const termsJoin = order as typeof order & {
-						brand_terms?: { id: string; title: string; version: number } | null;
-						terms_agreed_profile?: { display_name: string | null } | null;
-					}}
-					{@const termsRow = termsJoin.brand_terms}
-					{@const agreedBy = termsJoin.terms_agreed_profile?.display_name ?? null}
-					{@const agreedAt = order.terms_agreed_at
-						? new Date(order.terms_agreed_at as string)
-						: null}
-					<div class="mt-3 rounded-md border bg-muted/20 p-3">
-						<div class="flex items-center justify-between">
-							<span class="text-sm font-medium text-muted-foreground">Terms agreed</span>
-							{#if termsRow}
-								<span class="text-sm">
-									{termsRow.title} · v{termsRow.version}
-								</span>
-							{/if}
-						</div>
-						{#if agreedBy || agreedAt}
-							<p class="mt-1 text-sm text-muted-foreground">
-								{#if agreedBy}{agreedBy}{/if}{#if agreedBy && agreedAt}
-									·
-								{/if}{#if agreedAt}{agreedAt.toLocaleString()}{/if}
-							</p>
+						{#if accountAddress?.contact_email}
+							<a
+								href="mailto:{accountAddress.contact_email}"
+								class="block truncate text-sm text-muted-foreground/70 hover:underline"
+							>
+								{accountAddress.contact_email}
+							</a>
+						{/if}
+						{#if accountAddress?.contact_phone || accountAddress?.phone}
+							<a
+								href="tel:{accountAddress.contact_phone ?? accountAddress.phone}"
+								class="text-sm text-muted-foreground/70 hover:underline"
+							>
+								{accountAddress.contact_phone ?? accountAddress.phone}
+							</a>
 						{/if}
 					</div>
-				{/if}
+					<div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Sales Rep</div>
+						<div class="mt-1.5 text-sm">
+							{#if isFederatedView}
+								{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}
+							{:else}
+								{repName ?? createdByName ?? '—'}
+							{/if}
+						</div>
+						<div class="text-sm text-muted-foreground/70">
+							Created {new Date(order.created_at).toLocaleDateString('en-US', {
+								month: 'short',
+								day: 'numeric',
+								year: 'numeric'
+							})}
+						</div>
+					</div>
+				</div>
+			</section>
 
-				<!-- Commission -->
-				<div class="mt-4 space-y-3">
-					{#if repCommissionRate > 0}
-						<div class="space-y-2 rounded-md border p-3">
-							<div class="flex items-center justify-between">
-								<span class="text-sm font-medium text-muted-foreground">
-									Commission ({repCommissionRate}%){repName ? ` — ${repName}` : ''}
-								</span>
-								<span class="text-sm font-medium">{fmt.format(repCommissionOnTotal)}</span>
+			<!-- ── Ship to / Bill to / Payment (order-only) ────────────── -->
+			{#if order.order_type !== 'note'}
+				<section class="grid gap-4 md:grid-cols-3">
+					<!-- Ship to -->
+					<div class="rounded-lg border bg-muted/30 p-5">
+						<div class="flex items-center justify-between">
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ship to</div>
+							{#if orderLocation?.label}
+								<span class="text-xs text-muted-foreground/70">{orderLocation.label}</span>
+							{/if}
+						</div>
+						{#if orderLocation}
+							{#if order.accounts?.business_name}
+								<div class="mt-2 text-sm">{order.accounts.business_name}</div>
+							{/if}
+							<div class="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+								{#if orderLocation.address_line1}{orderLocation.address_line1}{/if}
+								{#if orderLocation.address_line2}<br />{orderLocation.address_line2}{/if}
+								{#if orderLocation.city || orderLocation.state || orderLocation.zip}
+									<br />{[orderLocation.city, orderLocation.state]
+										.filter(Boolean)
+										.join(', ')}{orderLocation.zip ? ` ${orderLocation.zip}` : ''}
+								{/if}
 							</div>
+						{:else}
+							<div class="mt-2 text-sm text-muted-foreground/50">—</div>
+						{/if}
+					</div>
+					<!-- Bill to -->
+					<div class="rounded-lg border bg-muted/30 p-5">
+						<div class="flex items-center justify-between">
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Bill to</div>
+							{#if billToLocation?.label}
+								<span class="text-xs text-muted-foreground/70">{billToLocation.label}</span>
+							{:else if !billToLocation && orderLocation}
+								<span class="text-xs text-muted-foreground/70">Same as ship to</span>
+							{/if}
+						</div>
+						{#if billToLocation}
+							{#if order.accounts?.business_name}
+								<div class="mt-2 text-sm">{order.accounts.business_name}</div>
+							{/if}
+							<div class="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+								{#if billToLocation.address_line1}{billToLocation.address_line1}{/if}
+								{#if billToLocation.address_line2}<br />{billToLocation.address_line2}{/if}
+								{#if billToLocation.city || billToLocation.state || billToLocation.zip}
+									<br />{[billToLocation.city, billToLocation.state]
+										.filter(Boolean)
+										.join(', ')}{billToLocation.zip ? ` ${billToLocation.zip}` : ''}
+								{/if}
+							</div>
+						{:else if accountAddress?.address_line1}
+							{#if order.accounts?.business_name}
+								<div class="mt-2 text-sm">{order.accounts.business_name}</div>
+							{/if}
+							<div class="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+								{accountAddress.address_line1}
+								{#if accountAddress.address_line2}<br />{accountAddress.address_line2}{/if}
+								{#if accountAddress.city || accountAddress.state || accountAddress.zip}
+									<br />{[accountAddress.city, accountAddress.state]
+										.filter(Boolean)
+										.join(', ')}{accountAddress.zip ? ` ${accountAddress.zip}` : ''}
+								{/if}
+							</div>
+						{:else}
+							<div class="mt-2 text-sm text-muted-foreground/50">—</div>
+						{/if}
+					</div>
+					<!-- Payment -->
+					<div class="rounded-lg border bg-muted/30 p-5">
+						<div class="flex items-center justify-between">
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Payment</div>
+						</div>
+						{#if canEditPayment && paymentItems.length > 0}
+							<form
+								bind:this={paymentPrefForm}
+								method="POST"
+								action="?/updatePaymentPreference"
+								use:enhance={() => {
+									return async ({ result, update }) => {
+										if (result.type === 'success') {
+											toast.success('Payment preference updated');
+										} else if (result.type === 'failure') {
+											const msg =
+												(result.data as { message?: string } | undefined)?.message ??
+												'Could not update payment preference.';
+											toast.error(msg);
+											paymentPrefValue = order.payment_preference ?? '';
+										}
+										await update();
+									};
+								}}
+								class="mt-2"
+							>
+								<input type="hidden" name="code" value={paymentPrefValue} />
+								<SelectField
+									bind:value={paymentPrefValue}
+									items={paymentItems}
+									placeholder="Not set"
+									class="w-full"
+									onValueChange={(v) => {
+										paymentPrefValue = v;
+										queueMicrotask(() => paymentPrefForm?.requestSubmit());
+									}}
+								/>
+							</form>
+						{:else}
+							<div class="mt-2 text-sm">{paymentMethodLabel(order.payment_preference)}</div>
+						{/if}
+						{#if order.payment_terms || order.shipping_method}
+							<div class="mt-1 text-sm text-muted-foreground/70">
+								{[
+									prettify(order.payment_terms),
+									order.shipping_method ? `${prettify(order.shipping_method)} shipping` : null
+								]
+									.filter(Boolean)
+									.join(' · ')}
+							</div>
+						{/if}
+					</div>
+				</section>
+			{/if}
+
+			<!-- ── Commission + Shipped amount (conditional) ───────────── -->
+			{#if repCommissionRate > 0 || isShippedOrDelivered}
+				<section class="space-y-3 rounded-lg border bg-muted/30 p-5">
+					{#if repCommissionRate > 0}
+						<div class="flex items-center justify-between">
+							<span class="text-sm">
+								Commission ({repCommissionRate}%){repName ? ` — ${repName}` : ''}
+							</span>
+							<span class="font-mono text-sm font-medium">
+								{fmt.format(repCommissionOnTotal)}
+							</span>
 						</div>
 					{/if}
-
-					<!-- Shipped amount -->
 					{#if isShippedOrDelivered}
-						<div class="space-y-2 rounded-md border p-3">
+						<div class:border-t={repCommissionRate > 0} class:pt-3={repCommissionRate > 0}>
 							<div class="flex items-center justify-between">
-								<span class="text-sm font-medium text-muted-foreground">Shipped Amount</span>
+								<span class="text-sm">Shipped amount</span>
 								{#if canEdit}
 									<div class="flex items-center gap-2">
 										<input
@@ -1345,150 +1554,85 @@
 												shippedAmountInput = (e.target as HTMLInputElement).value;
 											}}
 										/>
-										<button
-											type="button"
-											class="cursor-pointer rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-											onclick={saveShippedAmount}
-											disabled={savingShipped}
-										>
-											{savingShipped ? 'Saving...' : 'Save'}
-										</button>
+										<Button size="sm" onclick={saveShippedAmount} disabled={savingShipped}>
+											{savingShipped ? 'Saving…' : 'Save'}
+										</Button>
 									</div>
 								{/if}
 							</div>
 							{#if order.shipped_amount != null}
-								<p class="text-sm text-muted-foreground">
-									Ordered: {fmt.format(Number(order.total_amount))} → Shipped: {fmt.format(
+								<div class="mt-1 text-sm text-muted-foreground">
+									Ordered {fmt.format(Number(order.total_amount))} → Shipped {fmt.format(
 										Number(order.shipped_amount)
 									)}
-								</p>
+								</div>
 								{#if repCommissionRate > 0}
-									<p class="text-sm font-medium">
-										Commission: {fmt.format(repCommissionOnShipped ?? 0)}
-									</p>
+									<div class="mt-0.5 text-sm font-medium">
+										Commission on shipped: {fmt.format(repCommissionOnShipped ?? 0)}
+									</div>
 								{/if}
 							{/if}
 						</div>
 					{/if}
-				</div>
+				</section>
+			{/if}
 
-				<!-- Ship To / Bill To -->
-				<div class="mt-4 grid grid-cols-2 gap-4 border-t pt-4">
-					<div>
-						<p class="text-sm font-medium text-muted-foreground">Ship To</p>
-						{#if orderLocation}
-							<div class="mt-1 text-sm">
-								{#if orderLocation.address_line1}
-									<p>{orderLocation.address_line1}</p>
-								{/if}
-								{#if orderLocation.address_line2}
-									<p>{orderLocation.address_line2}</p>
-								{/if}
-								{#if orderLocation.city || orderLocation.state || orderLocation.zip}
-									<p>
-										{[orderLocation.city, orderLocation.state]
-											.filter(Boolean)
-											.join(', ')}{orderLocation.zip ? ` ${orderLocation.zip}` : ''}
-									</p>
+			<!-- Line items card (existing markup continues below, still inside the left column) -->
+
+			<!-- Line items -->
+			<Card>
+				<CardHeader>
+					<div class="flex items-center justify-between">
+						<CardTitle class="text-base">Line Items</CardTitle>
+						{#if canModify}
+							<div class="flex items-center gap-2">
+								{#if editMode}
+									<span class="font-mono text-sm text-muted-foreground/70">
+										{pendingChanges}
+										{pendingChanges === 1 ? 'pending change' : 'pending changes'}
+									</span>
+									<Button variant="ghost" size="sm" onclick={cancelEdit} disabled={savingEdits}>
+										Cancel
+									</Button>
+									<Button
+										size="sm"
+										onclick={saveEdits}
+										disabled={savingEdits || pendingChanges === 0}
+									>
+										{savingEdits ? 'Saving…' : 'Save Items'}
+									</Button>
+								{:else}
+									{#if lineRows.length > 0 || customLines.length > 0}
+										<Button variant="outline" size="sm" onclick={enterEditMode}>Edit Items</Button>
+									{/if}
+									<Button variant="outline" size="sm" onclick={openCatalogPicker}>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2.25"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											class="h-3 w-3"
+										>
+											<path d="M12 5v14" />
+											<path d="M5 12h14" />
+										</svg>
+										Add Item
+									</Button>
 								{/if}
 							</div>
-						{:else}
-							<p class="mt-1 text-sm text-muted-foreground/50">—</p>
 						{/if}
 					</div>
-					<div>
-						<p class="text-sm font-medium text-muted-foreground">Bill To</p>
-						{#if accountAddress?.address_line1}
-							<div class="mt-1 text-sm">
-								<p>{accountAddress.address_line1}</p>
-								{#if accountAddress.address_line2}
-									<p>{accountAddress.address_line2}</p>
-								{/if}
-								{#if accountAddress.city || accountAddress.state || accountAddress.zip}
-									<p>
-										{[accountAddress.city, accountAddress.state]
-											.filter(Boolean)
-											.join(', ')}{accountAddress.zip ? ` ${accountAddress.zip}` : ''}
-									</p>
-								{/if}
-							</div>
-						{:else}
-							<p class="mt-1 text-sm text-muted-foreground/50">—</p>
-						{/if}
-					</div>
-				</div>
-
-				<!-- Cancel reason -->
-				{#if order.status === 'cancelled' && order.cancelled_reason}
-					<div class="mt-4 rounded-md border border-destructive/20 bg-destructive/5 p-3">
-						<p class="text-sm font-medium text-destructive">Cancellation Reason</p>
-						<p class="mt-1 text-sm">{order.cancelled_reason}</p>
-					</div>
-				{/if}
-			</CardContent>
-		</Card>
-	</div>
-
-	<!-- Line items -->
-	<Card>
-		<CardHeader>
-			<div class="flex items-center justify-between">
-				<CardTitle class="text-base">Line Items</CardTitle>
-				{#if canModify}
-					<div class="flex gap-2">
-						{#if editMode}
-							<Button variant="ghost" size="sm" onclick={cancelEdit} disabled={savingEdits}>
-								Cancel
-							</Button>
-							<Button size="sm" onclick={saveEdits} disabled={savingEdits}>
-								{savingEdits ? 'Saving…' : 'Save Items'}
-							</Button>
-						{:else}
-							{#if lineRows.length > 0 || customLines.length > 0}
-								<Button variant="outline" size="sm" onclick={enterEditMode}>Edit Items</Button>
-							{/if}
-							<Button variant="outline" size="sm" onclick={openCatalogPicker}>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2.25"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									class="h-3 w-3"
-								>
-									<path d="M12 5v14" />
-									<path d="M5 12h14" />
-								</svg>
-								Add Item
-							</Button>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		</CardHeader>
-		<CardContent>
-			{#if lineRows.length === 0 && customLines.length === 0 && removedLines.length === 0 && !editMode}
-				<p class="text-sm text-muted-foreground">No line items.</p>
-			{:else}
-				<div class="rounded-md border">
-					<table class="w-full">
-						<thead class="bg-muted/50">
-							<tr class="border-b">
-								<th class="w-20 px-3 py-2 text-left text-sm font-medium"></th>
-								<th class="w-72 px-3 py-2 text-left text-sm font-medium">Item</th>
-								<th class="px-3 py-2 text-center text-sm font-medium">Color</th>
-								<th class="px-3 py-2 text-left text-sm font-medium">Sizes / Qty</th>
-								<th class="px-3 py-2 text-right text-sm font-medium">Unit Price</th>
-								<th class="px-3 py-2 text-right text-sm font-medium">Total</th>
-								{#if canModify}
-									<th class="w-px px-2 py-2 whitespace-nowrap"></th>
-								{/if}
-							</tr>
-						</thead>
-						<tbody>
-							{#if editMode}
+				</CardHeader>
+				<CardContent>
+					{#if lineRows.length === 0 && customLines.length === 0 && !editMode}
+						<p class="text-sm text-muted-foreground">No line items.</p>
+					{:else if editMode}
+						<!-- ── Edit mode: card stack with editable size cells ── -->
+						<div class="overflow-hidden rounded-lg border">
+							<div class="divide-y">
 								{#each draftRows as draft, idx (draft.key)}
 									{@const usedColors = draftRows
 										.filter(
@@ -1501,142 +1645,131 @@
 										0
 									)}
 									{@const rowTotal = rowUnits * draft.unit_price}
-									<tr class="group border-b align-top {draft.to_remove ? 'opacity-40' : ''}">
-										<td class="px-3 py-3">
-											{#if draft.image_id}
-												<img
-													src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
-													alt=""
-													class="h-14 w-14 rounded-md object-cover"
-												/>
-											{:else}
-												<div
-													class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
-												>
-													<svg
-														xmlns="http://www.w3.org/2000/svg"
-														viewBox="0 0 24 24"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.5"
-														class="h-6 w-6"
-													>
-														<rect x="3" y="3" width="18" height="18" rx="2" />
-														<circle cx="8.5" cy="8.5" r="1.5" />
-														<path d="M21 15l-5-5L5 21" />
-													</svg>
-												</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3">
-											<div class="font-mono text-sm">{draft.style_number}</div>
-											<div class="text-sm font-medium">{draft.name}</div>
-											{#if !isBrandOrg && order.brands?.name}
-												<div class="text-sm text-muted-foreground">
-													{order.brands.name}{draft.season_label ? ` · ${draft.season_label}` : ''}
-												</div>
-											{:else if draft.season_label}
-												<div class="text-sm text-muted-foreground">{draft.season_label}</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3 text-center align-middle">
-											{#if draft.available_colors && draft.available_colors.length > 0}
-												<ColorSwatchPicker
-													value={draft.color_edit}
-													options={draft.available_colors}
-													disabledColors={usedColors}
-													onChange={(c) => (draftRows[idx].color_edit = c)}
-													disabled={draft.to_remove}
-												/>
-											{:else}
-												<div class="flex items-center justify-center gap-2 text-sm">
-													<ColorSwatch color={draft.color_edit} size={28} />
-													{#if draft.color_edit}
-														<span>{draft.color_edit}</span>
-													{/if}
-												</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3 align-middle">
-											{#if draft.available_sizes.length > 0}
-												<div class="flex flex-wrap gap-2">
-													{#each draft.available_sizes as size (size)}
-														<label class="flex flex-col items-center gap-1">
-															<span class="text-sm text-muted-foreground">{size}</span>
-															<input
-																type="number"
-																min="0"
-																value={draft.qty_by_size[size] ?? 0}
-																disabled={draft.to_remove}
-																oninput={(e) => {
-																	const n = parseInt((e.target as HTMLInputElement).value, 10);
-																	draftRows[idx].qty_by_size[size] = Number.isNaN(n)
-																		? 0
-																		: Math.max(0, n);
-																}}
-																class="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm"
-															/>
-														</label>
-													{/each}
-												</div>
-											{:else}
-												<div class="flex items-center gap-2">
-													<span class="text-sm text-muted-foreground">Qty</span>
-													<input
-														type="number"
-														min="0"
-														value={draft.qty_by_size[''] ?? 0}
-														disabled={draft.to_remove}
-														oninput={(e) => {
-															const n = parseInt((e.target as HTMLInputElement).value, 10);
-															draftRows[idx].qty_by_size[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
-														}}
-														class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center text-sm"
+									{@const fallbackSizes = Array.from(
+										new Set(draft.lines.map((l) => l.size ?? '').filter((s) => s.length > 0))
+									)}
+									{@const sizesToShow =
+										draft.available_sizes.length > 0 ? draft.available_sizes : fallbackSizes}
+									{@const unusedColors =
+										draft.available_colors && draft.available_colors.length > 1
+											? draft.available_colors.filter(
+													(c) =>
+														!draftRows.some(
+															(r) =>
+																!r.to_remove &&
+																r.product_id === draft.product_id &&
+																r.color_edit === c
+														)
+												)
+											: []}
+									<div class="px-6 py-4 {draft.to_remove ? 'bg-destructive/5' : ''}">
+										<div class="flex items-start justify-between gap-6">
+											<div class="flex min-w-0 items-center gap-4">
+												{#if draft.image_id}
+													<img
+														src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
+														alt=""
+														class="h-20 w-20 shrink-0 rounded-md border object-cover {draft.to_remove
+															? 'opacity-50'
+															: ''}"
 													/>
-												</div>
-											{/if}
-										</td>
-										<td class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm">
-											{fmt.format(draft.unit_price)}
-										</td>
-										<td
-											class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
-										>
-											<div>{fmt.format(rowTotal)}</div>
-											<div class="text-sm font-normal text-muted-foreground">
-												{rowUnits}
-												{rowUnits === 1 ? 'unit' : 'units'}
-											</div>
-										</td>
-										<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
-											<div class="flex items-center justify-end gap-1">
-												{#if !draft.to_remove && draft.available_colors && draft.available_colors.length > 1}
-													{@const unused = draft.available_colors.filter(
-														(c) =>
-															!draftRows.some(
-																(r) =>
-																	!r.to_remove &&
-																	r.product_id === draft.product_id &&
-																	r.color_edit === c
-															)
-													)}
-													{#if unused.length > 0}
-														<ColorSwatchPicker
-															value={null}
-															options={unused}
-															onChange={(c) => c && addColorFor(idx, c)}
-															triggerLabel="+ color"
-														/>
-													{/if}
+												{:else}
+													<div
+														class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40 text-muted-foreground/50 {draft.to_remove
+															? 'opacity-50'
+															: ''}"
+													>
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															viewBox="0 0 24 24"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.5"
+															class="h-7 w-7"
+														>
+															<rect x="3" y="3" width="18" height="18" rx="2" />
+															<circle cx="8.5" cy="8.5" r="1.5" />
+															<path d="M21 15l-5-5L5 21" />
+														</svg>
+													</div>
 												{/if}
+												<div class="min-w-0">
+													<div
+														class="truncate font-mono text-sm text-muted-foreground/70 {draft.to_remove
+															? 'line-through'
+															: ''}"
+													>
+														{draft.style_number}
+													</div>
+													<div
+														class="mt-0.5 truncate text-sm font-medium {draft.to_remove
+															? 'line-through'
+															: ''}"
+													>
+														{draft.name}
+													</div>
+													<div class="mt-1 flex items-center gap-2">
+														{#if draft.available_colors && draft.available_colors.length > 0 && !draft.to_remove}
+															<ColorSwatchPicker
+																value={draft.color_edit}
+																options={draft.available_colors}
+																disabledColors={usedColors}
+																onChange={(c) => (draftRows[idx].color_edit = c)}
+																disabled={draft.to_remove}
+															/>
+															{#if draft.color_edit}
+																<span class="text-sm text-muted-foreground">
+																	{draft.color_edit}
+																</span>
+															{/if}
+														{:else}
+															<ColorSwatch color={draft.color_edit} size={16} />
+															<span
+																class="text-sm {draft.color_edit
+																	? 'text-muted-foreground'
+																	: 'text-muted-foreground/50'}"
+															>
+																{draft.color_edit ?? '—'}
+															</span>
+														{/if}
+													</div>
+													{#if draft.to_remove}
+														<div class="mt-2 text-sm text-destructive">
+															Will be removed on save.
+														</div>
+													{/if}
+												</div>
+											</div>
+											<div class="flex shrink-0 items-start gap-3">
+												<div class="pt-1 text-right">
+													<div
+														class="font-mono text-sm {draft.to_remove
+															? 'text-muted-foreground line-through'
+															: ''}"
+													>
+														{fmt.format(rowTotal)}
+													</div>
+													<div class="font-mono text-sm text-muted-foreground/70">
+														{rowUnits}
+														{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(draft.unit_price)}/ea
+													</div>
+												</div>
 												{#if draft.to_remove}
 													<Button size="sm" variant="outline" onclick={() => restoreDraftRow(idx)}>
 														Undo
 													</Button>
 												{:else}
+													{#if unusedColors.length > 0}
+														<ColorSwatchPicker
+															value={null}
+															options={unusedColors}
+															onChange={(c) => c && addColorFor(idx, c)}
+															triggerLabel="+ color"
+														/>
+													{/if}
 													<button
 														type="button"
-														aria-label="Remove row"
+														aria-label="Remove style"
 														class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
 														onclick={() => removeDraftRow(idx)}
 													>
@@ -1659,205 +1792,494 @@
 													</button>
 												{/if}
 											</div>
-										</td>
-									</tr>
-								{/each}
-							{:else}
-								{#each lineRows as row (row.key)}
-									{@const visibleLines = row.lines
-										.filter((l) => l.qty > 0)
-										.sort((a, b) => {
-											const ai = row.available_sizes.indexOf(a.size ?? '');
-											const bi = row.available_sizes.indexOf(b.size ?? '');
-											return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
-										})}
-									{@const rowUnits = row.lines.reduce((s, l) => s + l.qty, 0)}
-									{@const rowTotal = rowUnits * row.unit_price}
-									<tr class="group border-b align-top">
-										<td class="px-3 py-3">
-											{#if row.image_id}
-												<img
-													src={`/api/products/${row.product_id}/images/${row.image_id}`}
-													alt=""
-													class="h-14 w-14 rounded-md object-cover"
-												/>
-											{:else}
-												<div
-													class="flex h-14 w-14 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
-												>
-													<svg
-														xmlns="http://www.w3.org/2000/svg"
-														viewBox="0 0 24 24"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.5"
-														class="h-6 w-6"
-													>
-														<rect x="3" y="3" width="18" height="18" rx="2" />
-														<circle cx="8.5" cy="8.5" r="1.5" />
-														<path d="M21 15l-5-5L5 21" />
-													</svg>
-												</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3">
-											<div class="font-mono text-sm">{row.style_number}</div>
-											<div class="text-sm font-medium">{row.name}</div>
-											{#if !isBrandOrg && order.brands?.name}
-												<div class="text-sm text-muted-foreground">
-													{order.brands.name}{row.season_label ? ` · ${row.season_label}` : ''}
-												</div>
-											{:else if row.season_label}
-												<div class="text-sm text-muted-foreground">{row.season_label}</div>
-											{/if}
-										</td>
-										<td class="px-3 py-3 text-center align-middle">
-											<div class="flex items-center justify-center gap-2 text-sm">
-												<ColorSwatch color={row.color} size={28} />
-												{#if row.color}
-													<span>{row.color}</span>
-												{/if}
-											</div>
-										</td>
-										<td class="px-3 py-3 align-middle">
-											{#if visibleLines.length > 0}
-												<div class="flex flex-wrap gap-x-6 gap-y-2">
-													{#each visibleLines as l (l.id)}
-														<div class="flex flex-col items-center">
-															<span class="text-sm text-muted-foreground">{l.size ?? '—'}</span>
-															<span class="text-sm">{l.qty}</span>
+										</div>
+
+										{#if !draft.to_remove}
+											{#if sizesToShow.length > 0}
+												<div class="mt-3 grid grid-cols-6 gap-2">
+													{#each sizesToShow as size (size)}
+														{@const qty = draft.qty_by_size[size] ?? 0}
+														<div
+															role="group"
+															aria-label="{draft.name} size {size} quantity"
+															class="rounded-md border bg-muted/40 px-2 py-2 text-center transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
+															0
+																? 'border-dashed opacity-60'
+																: ''}"
+														>
+															<div class="text-xs text-muted-foreground">{size}</div>
+															<div class="mt-0.5 flex h-5 items-center justify-center gap-1">
+																<button
+																	type="button"
+																	aria-label="Decrease {size}"
+																	class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-30"
+																	disabled={qty === 0}
+																	onclick={() => {
+																		draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
+																	}}
+																>
+																	−
+																</button>
+																<input
+																	type="text"
+																	inputmode="numeric"
+																	pattern="[0-9]*"
+																	aria-label="{size} quantity"
+																	value={qty}
+																	oninput={(e) => {
+																		const raw = (e.currentTarget as HTMLInputElement).value.replace(
+																			/[^0-9]/g,
+																			''
+																		);
+																		const n = raw === '' ? 0 : parseInt(raw, 10);
+																		draftRows[idx].qty_by_size[size] = Number.isNaN(n)
+																			? 0
+																			: Math.max(0, n);
+																	}}
+																	onkeydown={(e) => {
+																		// Arrow keys step qty up/down; Enter blurs to commit.
+																		if (e.key === 'ArrowUp') {
+																			e.preventDefault();
+																			draftRows[idx].qty_by_size[size] = qty + 1;
+																		} else if (e.key === 'ArrowDown') {
+																			e.preventDefault();
+																			draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
+																		} else if (e.key === 'Enter') {
+																			e.preventDefault();
+																			(e.currentTarget as HTMLInputElement).blur();
+																		}
+																	}}
+																	class="w-8 bg-transparent text-center font-mono text-sm outline-none"
+																/>
+																<button
+																	type="button"
+																	aria-label="Increase {size}"
+																	class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none"
+																	onclick={() => {
+																		draftRows[idx].qty_by_size[size] = qty + 1;
+																	}}
+																>
+																	+
+																</button>
+															</div>
 														</div>
 													{/each}
 												</div>
 											{:else}
-												<span class="text-sm text-muted-foreground">—</span>
+												<div class="mt-3 flex items-center gap-3">
+													<span class="text-sm text-muted-foreground">Qty</span>
+													<input
+														type="number"
+														min="0"
+														value={draft.qty_by_size[''] ?? 0}
+														oninput={(e) => {
+															const n = parseInt((e.currentTarget as HTMLInputElement).value, 10);
+															draftRows[idx].qty_by_size[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
+														}}
+														class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center font-mono text-sm"
+													/>
+												</div>
 											{/if}
-										</td>
-										<td class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm">
-											{fmt.format(row.unit_price)}
-										</td>
-										<td
-											class="px-3 pt-[calc(0.75rem+1.25rem)] pb-3 text-right font-mono text-sm font-medium"
-										>
-											<div>{fmt.format(rowTotal)}</div>
-											<div class="text-sm font-normal text-muted-foreground">
-												{rowUnits}
-												{rowUnits === 1 ? 'unit' : 'units'}
+										{/if}
+									</div>
+								{/each}
+							</div>
+							<div class="flex items-center justify-between border-t bg-muted/20 px-6 py-3">
+								<span class="font-mono text-sm text-muted-foreground">
+									{draftRows.filter((d) => !d.to_remove).length}
+									{draftRows.filter((d) => !d.to_remove).length === 1 ? 'Item' : 'Items'} · {projectedOrderUnits}
+									{projectedOrderUnits === 1 ? 'unit' : 'units'}
+								</span>
+								<span class="font-mono text-lg font-medium">
+									{fmt.format(projectedOrderTotal)}
+								</span>
+							</div>
+						</div>
+					{:else}
+						<!-- ── View mode: grouped size-matrix card stack ── -->
+						<div class="overflow-hidden rounded-lg border">
+							<div class="divide-y">
+								{#each lineRows as row (row.key)}
+									{@const visibleLines = row.lines.filter((l) => l.qty > 0)}
+									{@const rowUnits = row.lines.reduce((s, l) => s + l.qty, 0)}
+									{@const rowTotal = rowUnits * row.unit_price}
+									{@const fallbackSizes = Array.from(
+										new Set(row.lines.map((l) => l.size ?? '').filter((s) => s.length > 0))
+									)}
+									{@const sizesToShow =
+										row.available_sizes.length > 0 ? row.available_sizes : fallbackSizes}
+									<div class="px-6 py-4">
+										<div class="flex items-start justify-between gap-6">
+											<div class="flex min-w-0 items-center gap-4">
+												{#if row.image_id}
+													<img
+														src={`/api/products/${row.product_id}/images/${row.image_id}`}
+														alt=""
+														class="h-20 w-20 shrink-0 rounded-md border object-cover"
+													/>
+												{:else}
+													<div
+														class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40 text-muted-foreground/50"
+													>
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															viewBox="0 0 24 24"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.5"
+															class="h-7 w-7"
+														>
+															<rect x="3" y="3" width="18" height="18" rx="2" />
+															<circle cx="8.5" cy="8.5" r="1.5" />
+															<path d="M21 15l-5-5L5 21" />
+														</svg>
+													</div>
+												{/if}
+												<div class="min-w-0">
+													<div class="truncate font-mono text-sm text-muted-foreground/70">
+														{row.style_number}
+													</div>
+													<div class="mt-0.5 truncate text-sm font-medium">{row.name}</div>
+													<div class="mt-1 flex items-center gap-2">
+														<ColorSwatch color={row.color} size={16} />
+														<span
+															class="text-sm {row.color
+																? 'text-muted-foreground'
+																: 'text-muted-foreground/50'}"
+														>
+															{row.color ?? '—'}
+														</span>
+													</div>
+												</div>
 											</div>
-										</td>
-										{#if canModify}
-											<td class="w-px px-2 py-3 align-middle whitespace-nowrap">
+											<div class="shrink-0 pt-1 text-right">
+												<div class="font-mono text-sm">{fmt.format(rowTotal)}</div>
+												<div class="font-mono text-sm text-muted-foreground/70">
+													{rowUnits}
+													{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(row.unit_price)}/ea
+												</div>
+											</div>
+										</div>
+										{#if sizesToShow.length > 0}
+											<div class="mt-3 grid grid-cols-6 gap-2">
+												{#each sizesToShow as size (size)}
+													{@const sizeLine = row.lines.find((l) => (l.size ?? '') === size)}
+													{@const qty = sizeLine?.qty ?? 0}
+													<div
+														class="rounded-md border bg-muted/40 px-2 py-2 text-center {qty === 0
+															? 'opacity-40'
+															: ''}"
+													>
+														<div class="text-xs text-muted-foreground">{size}</div>
+														<div
+															class="mt-0.5 flex h-5 items-center justify-center font-mono text-sm"
+														>
+															{qty > 0 ? qty : '—'}
+														</div>
+													</div>
+												{/each}
+											</div>
+										{:else if visibleLines.length === 0}
+											<div class="mt-2 text-sm text-muted-foreground">No sizes.</div>
+										{/if}
+									</div>
+								{/each}
+
+								{#each customLines as line (line.id)}
+									<div class="flex items-start justify-between gap-6 px-6 py-4">
+										<div class="min-w-0">
+											<div class="font-mono text-sm">{line.style_number ?? '—'}</div>
+											{#if line.description}
+												<div class="text-sm text-muted-foreground">{line.description}</div>
+											{/if}
+											{#if line.color || line.size}
+												<div class="text-sm text-muted-foreground">
+													{[line.color, line.size].filter(Boolean).join(' · ')}
+												</div>
+											{/if}
+										</div>
+										<div class="shrink-0 text-right">
+											<div class="font-mono text-sm">{fmt.format(Number(line.line_total))}</div>
+											<div class="font-mono text-sm text-muted-foreground/70">
+												{line.qty} × {fmt.format(Number(line.unit_price))}
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+							<div class="flex items-center justify-between border-t bg-muted/20 px-6 py-3">
+								<span class="font-mono text-sm text-muted-foreground">
+									{lineRows.length + customLines.length}
+									{lineRows.length + customLines.length === 1 ? 'Item' : 'Items'} · {savedOrderUnits}
+									{savedOrderUnits === 1 ? 'unit' : 'units'}
+								</span>
+								<span class="font-mono text-lg font-medium">
+									{fmt.format(Number(order.total_amount))}
+								</span>
+							</div>
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
+
+			<!-- ── Notes + Activity (side-by-side) ────────────────────── -->
+			<section class="grid gap-4 md:grid-cols-2">
+				<!-- Notes & comments -->
+				<div class="rounded-lg border bg-muted/30 p-5">
+					<div class="flex items-center justify-between">
+						<div class="text-sm font-medium">Notes & comments</div>
+						<div class="text-xs text-muted-foreground/70">Internal only</div>
+					</div>
+
+					{#if canEdit}
+						{@const viewerName =
+							(data.user as { display_name?: string | null } | null | undefined)?.display_name ??
+							''}
+						{@const viewerInitial = viewerName.trim()
+							? viewerName.trim().charAt(0).toUpperCase()
+							: '?'}
+						<div class="mt-3 flex gap-3">
+							<span
+								class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-sm"
+							>
+								{viewerInitial}
+							</span>
+							<div class="flex-1">
+								<textarea
+									rows="2"
+									placeholder="Add a note…"
+									bind:value={commentBody}
+									onkeydown={(e) => {
+										if (e.key === 'Enter' && !e.shiftKey) {
+											e.preventDefault();
+											postComment();
+										}
+									}}
+									class="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+								></textarea>
+								<div class="mt-1.5 flex items-center justify-between">
+									<span class="text-xs text-muted-foreground/70">Visible to your org only</span>
+									<Button
+										size="sm"
+										onclick={postComment}
+										disabled={postingComment || !commentBody.trim()}
+									>
+										{postingComment ? 'Posting…' : 'Post'}
+									</Button>
+								</div>
+								{#if commentError}
+									<p class="mt-1 text-sm text-destructive">{commentError}</p>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
+					{#if comments.length > 0}
+						<div class="{canEdit ? 'mt-4 border-t pt-4' : 'mt-3'} space-y-4">
+							{#each comments as comment (comment.id)}
+								<div class="flex gap-3">
+									<span
+										class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-sm"
+									>
+										{(comment.profiles?.display_name ?? '?')[0].toUpperCase()}
+									</span>
+									<div class="min-w-0 flex-1">
+										<div class="flex items-baseline gap-2">
+											<span class="text-sm font-medium">
+												{comment.profiles?.display_name ?? 'Unknown'}
+											</span>
+											<span class="text-xs text-muted-foreground/70">
+												{new Date(comment.created_at).toLocaleDateString('en-US', {
+													month: 'short',
+													day: 'numeric',
+													hour: 'numeric',
+													minute: '2-digit'
+												})}
+											</span>
+											{#if comment.author_id === data.user?.id}
 												<button
 													type="button"
-													aria-label="Remove row"
-													disabled={removingRowKey === row.key}
-													class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-40"
-													onclick={() => removeLineRow(row)}
+													aria-label="Delete comment"
+													class="ml-auto text-muted-foreground transition-colors hover:text-destructive"
+													onclick={() => deleteComment(comment.id)}
 												>
 													<svg
 														xmlns="http://www.w3.org/2000/svg"
-														viewBox="0 0 24 24"
+														class="h-3.5 w-3.5"
 														fill="none"
+														viewBox="0 0 24 24"
 														stroke="currentColor"
-														stroke-width="1.75"
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														class="h-4 w-4"
+														stroke-width="2"
 													>
-														<path d="M3 6h18" />
-														<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-														<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-														<path d="M10 11v6" />
-														<path d="M14 11v6" />
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															d="M6 18L18 6M6 6l12 12"
+														/>
 													</svg>
 												</button>
-											</td>
-										{/if}
-									</tr>
-								{/each}
-								{#each customLines as line (line.id)}
-									<tr class="border-b align-top text-sm">
-										<td class="px-3 py-3"></td>
-										<td class="px-3 py-3">
-											<div class="font-mono">{line.style_number ?? '—'}</div>
-											{#if line.description}
-												<div class="text-muted-foreground">{line.description}</div>
 											{/if}
-										</td>
-										<td class="px-3 py-3">{line.color ?? '—'}</td>
-										<td class="px-3 py-3">
-											<div class="flex flex-col items-center">
-												<span class="text-muted-foreground">{line.size ?? '—'}</span>
-												<span class="font-semibold">{line.qty}</span>
-											</div>
-										</td>
-										<td class="px-3 py-3 text-right font-mono">
-											{fmt.format(Number(line.unit_price))}
-										</td>
-										<td class="px-3 py-3 text-right font-mono font-medium">
-											{fmt.format(Number(line.line_total))}
-										</td>
-										{#if canModify}
-											<td class="w-px px-2 py-3 whitespace-nowrap"></td>
-										{/if}
-									</tr>
-								{/each}
-							{/if}
-						</tbody>
-						<tfoot class="bg-muted/50">
-							<tr class="align-top">
-								<td colspan="5" class="px-3 py-2 text-right font-mono text-sm font-medium">
-									Order Total
-								</td>
-								<td class="px-3 py-2 text-right font-mono text-sm font-bold">
-									<div>
-										{fmt.format(editMode ? projectedOrderTotal : Number(order.total_amount))}
+										</div>
+										<p class="mt-0.5 text-sm text-muted-foreground">{comment.body}</p>
 									</div>
-									<div class="text-sm font-normal text-muted-foreground">
-										{editMode ? projectedOrderUnits : savedOrderUnits}
-										{(editMode ? projectedOrderUnits : savedOrderUnits) === 1 ? 'unit' : 'units'}
-									</div>
-								</td>
-								{#if canModify}
-									<td class="px-3 py-2"></td>
-								{/if}
-							</tr>
-						</tfoot>
-					</table>
+								</div>
+							{/each}
+						</div>
+					{:else if !canEdit}
+						<p class="mt-3 text-sm text-muted-foreground">No notes yet.</p>
+					{/if}
 				</div>
-			{/if}
 
-			<!-- Removed lines -->
-			{#if removedLines.length > 0}
-				<div class="mt-4">
-					<p class="mb-2 text-sm font-medium tracking-wider text-muted-foreground uppercase">
-						Removed Items
-					</p>
-					<div class="rounded-md border border-dashed">
-						<table class="w-full">
-							<tbody>
-								{#each removedLines as line (line.id)}
-									<tr class="border-b opacity-60 last:border-0">
-										<td class="px-3 py-2 line-through">
-											<span class="font-mono text-sm">{line.style_number ?? '—'}</span>
-											{#if line.description}
-												<p class="text-sm text-muted-foreground">{line.description}</p>
+				<!-- Activity timeline -->
+				<div class="rounded-lg border bg-muted/30 p-5">
+					<div class="flex items-center justify-between">
+						<div class="text-sm font-medium">Activity</div>
+					</div>
+
+					{#if activity.length === 0}
+						<p class="mt-3 text-sm text-muted-foreground">
+							No activity yet. Status changes, line edits, and notes will show up here.
+						</p>
+					{:else}
+						<ol class="relative mt-3">
+							<span aria-hidden="true" class="absolute top-1 bottom-1 left-[13px] w-px bg-border"
+							></span>
+							{#each activity as entry, i (entry.id)}
+								<li class="relative py-2 pl-9">
+									<span class="absolute top-2.5 left-0 flex w-[27px] justify-center">
+										<span
+											class="h-2 w-2 rounded-full {i === 0
+												? 'bg-foreground ring-4 ring-foreground/20'
+												: 'bg-muted-foreground/50'}"
+										></span>
+									</span>
+									<div class="flex items-baseline justify-between gap-3">
+										<div class="min-w-0 text-sm">
+											<span class="font-medium">{entry.title}</span>
+											{#if entry.actor_name}
+												<span class="text-muted-foreground">
+													by {entry.actor_name}
+												</span>
 											{/if}
-										</td>
-										<td class="px-3 py-2 text-sm">{line.color ?? '—'} / {line.size ?? '—'}</td>
-										<td class="px-3 py-2 text-right text-sm"
-											>{line.qty} x {fmt.format(Number(line.unit_price))}</td
-										>
-										<td class="px-3 py-2 text-sm text-muted-foreground">{line.removed_reason}</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
+										</div>
+										<span class="shrink-0 text-xs text-muted-foreground/70">
+											{new Date(entry.at).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric',
+												hour: 'numeric',
+												minute: '2-digit'
+											})}
+										</span>
+									</div>
+									{#if entry.subtitle}
+										<div class="mt-0.5 text-sm text-muted-foreground">{entry.subtitle}</div>
+									{/if}
+								</li>
+							{/each}
+						</ol>
+					{/if}
+				</div>
+			</section>
+		</div>
+		<!-- ─── Right rail: Totals + Terms record ─── -->
+		<aside class="space-y-4 self-start lg:sticky lg:top-6">
+			<div class="overflow-hidden rounded-lg border bg-muted/30">
+				<div class="border-b px-5 py-4">
+					<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Total</div>
+					<div class="mt-1 font-mono text-3xl font-medium tracking-tight">
+						{fmt.format(Number(order.total_amount))}
+					</div>
+					<div class="mt-1 font-mono text-sm text-muted-foreground/70">
+						{totalUnits} unit{totalUnits === 1 ? '' : 's'} · {totalStyles} style{totalStyles === 1
+							? ''
+							: 's'}
 					</div>
 				</div>
-			{/if}
-		</CardContent>
-	</Card>
+				<dl class="space-y-2 px-5 py-4 text-sm">
+					<div class="flex justify-between">
+						<dt class="text-muted-foreground">Subtotal</dt>
+						<dd class="font-mono">{fmt.format(Number(order.total_amount))}</dd>
+					</div>
+					<div class="flex justify-between">
+						<dt class="text-muted-foreground">Discount</dt>
+						<dd class="font-mono text-muted-foreground/70">—</dd>
+					</div>
+					<div class="flex justify-between">
+						<dt class="text-muted-foreground">Shipping</dt>
+						<dd class="font-mono text-muted-foreground/70">Calc. at ship</dd>
+					</div>
+					<div class="flex justify-between">
+						<dt class="text-muted-foreground">Tax</dt>
+						<dd class="font-mono text-muted-foreground/70">—</dd>
+					</div>
+				</dl>
+			</div>
+
+			<!-- Terms panel: always renders. Brand-specific when the order has
+				 agreed terms on file, brand-specific-current or generic otherwise. -->
+			<div class="rounded-lg border bg-muted/30 p-5">
+				<div class="flex items-center justify-between">
+					<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Terms</div>
+					<Dialog.Root>
+						<Dialog.Trigger
+							class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+							>View</Dialog.Trigger
+						>
+						<Dialog.Portal>
+							<Dialog.Overlay
+								class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+							/>
+							<Dialog.Content
+								class="fixed top-[50%] left-[50%] z-50 max-h-[80vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-auto rounded-lg border bg-background p-6 shadow-lg"
+							>
+								<Dialog.Title class="text-base font-semibold">
+									{termsAgreedInfo?.brand_terms?.title ?? effectiveTerms.title}
+								</Dialog.Title>
+								<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+									{effectiveTermsIsGeneric && !termsAgreedInfo?.brand_terms
+										? 'Generic'
+										: (order.brands?.name ?? 'Brand')} · v{termsAgreedInfo?.brand_terms?.version ??
+										effectiveTerms.version}
+								</Dialog.Description>
+								<div class="mt-5 text-sm whitespace-pre-wrap">
+									{termsAgreedInfo?.brand_terms?.body ?? effectiveTerms.body}
+								</div>
+								<div class="mt-6 flex justify-end">
+									<Dialog.Close
+										class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
+										>Close</Dialog.Close
+									>
+								</div>
+							</Dialog.Content>
+						</Dialog.Portal>
+					</Dialog.Root>
+				</div>
+				<div class="mt-2 text-sm">
+					{#if effectiveTermsIsGeneric && !termsAgreedInfo?.brand_terms}
+						Standard wholesale terms
+					{:else}
+						{order.brands?.name ?? 'Brand'} · {seasonLabel()} v{termsAgreedInfo?.brand_terms
+							?.version ?? effectiveTerms.version}
+					{/if}
+				</div>
+				{#if termsAgreedInfo && (termsAgreedInfo.agreed_by || termsAgreedInfo.agreed_at)}
+					<div class="mt-0.5 text-sm text-muted-foreground/70">
+						Agreed
+						{#if termsAgreedInfo.agreed_by}
+							by {termsAgreedInfo.agreed_by}{/if}
+						{#if termsAgreedInfo.agreed_at}
+							· {longDate(termsAgreedInfo.agreed_at as string)}{/if}
+					</div>
+				{:else}
+					<div class="mt-0.5 text-sm text-muted-foreground/70">
+						{order.order_type === 'note'
+							? 'Not yet agreed — buyer agrees on convert.'
+							: 'Not yet agreed.'}
+					</div>
+				{/if}
+			</div>
+		</aside>
+	</div>
 </div>
 
 <!-- Catalog picker modal for adding items -->
@@ -1879,151 +2301,272 @@
 	ondone={handleCatalogDone}
 />
 
-<!-- Comments -->
-<Card>
-	<CardHeader>
-		<CardTitle class="text-base">Notes & Comments</CardTitle>
-	</CardHeader>
-	<CardContent>
-		{#if comments.length > 0}
-			<div class="mb-4 space-y-3">
-				{#each comments as comment (comment.id)}
-					<div class="flex items-start gap-3">
-						<div
-							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
+<!-- ══ Convert-to-Order Modal ════════════════════════════════════════════ -->
+<Dialog.Root bind:open={convertOpen}>
+	<Dialog.Portal>
+		<Dialog.Overlay
+			class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+		/>
+		<Dialog.Content
+			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
+		>
+			<form
+				method="POST"
+				action="?/convert"
+				use:enhance={() => {
+					convertSubmitting = true;
+					return async ({ result, update }) => {
+						convertSubmitting = false;
+						if (result.type === 'success') {
+							toast.success('Note converted to order');
+							convertOpen = false;
+							await update();
+							invalidateAll();
+						} else if (result.type === 'failure') {
+							const msg =
+								(result.data as { message?: string } | undefined)?.message ??
+								'Could not convert note.';
+							toast.error(msg);
+							await update({ reset: false });
+						} else if (result.type === 'error') {
+							toast.error(result.error?.message ?? 'Something went wrong.');
+						}
+					};
+				}}
+			>
+				<header class="flex items-start justify-between gap-4 px-6 py-5">
+					<div class="min-w-0">
+						<Dialog.Title class="text-lg font-medium">Convert to order</Dialog.Title>
+						<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+							{order.accounts?.business_name ?? '—'}
+							{!isBrandOrg && order.brands?.name ? ` · ${order.brands.name}` : ''}
+							{#if seasonLabel() !== '—'}
+								· {seasonLabel()}{/if} · {fmt.format(Number(order.total_amount))}
+						</Dialog.Description>
+					</div>
+					<Dialog.Close
+						type="button"
+						class="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+						aria-label="Close"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="18"
+							height="18"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.75"
 						>
-							{(comment.profiles?.display_name ?? '?')[0].toUpperCase()}
-						</div>
-						<div class="min-w-0 flex-1">
-							<div class="flex items-center gap-2">
-								<span class="text-sm font-medium"
-									>{comment.profiles?.display_name ?? 'Unknown'}</span
-								>
-								{#if comment.source_org?.name}
-									<span
-										class="inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
-										>{comment.source_org.name}</span
-									>
-								{/if}
-								<span class="text-sm text-muted-foreground"
-									>{new Date(comment.created_at).toLocaleDateString('en-US', {
-										month: 'short',
-										day: 'numeric',
-										hour: 'numeric',
-										minute: '2-digit'
-									})}</span
-								>
-								{#if comment.author_id === data.user?.id}
-									<button
-										type="button"
-										aria-label="Delete comment"
-										class="text-sm text-muted-foreground hover:text-destructive"
-										onclick={() => deleteComment(comment.id)}
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-3.5 w-3.5"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M6 18L18 6M6 6l12 12"
-											/>
-										</svg>
-									</button>
-								{/if}
+							<path d="M18 6 6 18M6 6l12 12" />
+						</svg>
+					</Dialog.Close>
+				</header>
+
+				<div class="max-h-[calc(90vh-11rem)] space-y-5 overflow-y-auto px-6 py-5">
+					<!-- Ship window -->
+					<div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ship window</div>
+						<div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+							<div>
+								<DateSelect
+									value={convertForm.start_ship_date}
+									onchange={(v) => (convertForm.start_ship_date = v ?? '')}
+								/>
+								<div class="mt-1 text-sm text-muted-foreground">Start ship</div>
+								<input type="hidden" name="start_ship_date" value={convertForm.start_ship_date} />
 							</div>
-							<p class="mt-0.5 text-sm text-foreground">{comment.body}</p>
+							<div>
+								<DateSelect
+									value={convertForm.expected_ship_date}
+									onchange={(v) => (convertForm.expected_ship_date = v ?? '')}
+								/>
+								<div class="mt-1 text-sm text-muted-foreground">Complete ship</div>
+								<input
+									type="hidden"
+									name="expected_ship_date"
+									value={convertForm.expected_ship_date}
+								/>
+							</div>
 						</div>
 					</div>
-				{/each}
-			</div>
-		{/if}
 
-		{#if canEdit}
-			<div class="flex gap-2">
-				<Input
-					class="flex-1"
-					placeholder="Add a note..."
-					bind:value={commentBody}
-					onkeydown={(e) => {
-						if (e.key === 'Enter' && !e.shiftKey) {
-							e.preventDefault();
-							postComment();
-						}
-					}}
-				/>
-				<Button size="sm" onclick={postComment} disabled={postingComment || !commentBody.trim()}>
-					{postingComment ? 'Posting...' : 'Post'}
-				</Button>
-			</div>
-			{#if commentError}
-				<p class="mt-2 text-sm text-destructive">{commentError}</p>
-			{/if}
-		{/if}
-	</CardContent>
-</Card>
-
-<!-- History / audit trail -->
-<Card>
-	<CardHeader>
-		<CardTitle class="text-base">History</CardTitle>
-	</CardHeader>
-	<CardContent>
-		{#if audits.length === 0}
-			<p class="text-sm text-muted-foreground">
-				No changes recorded yet. Updates to status, line items, and ship windows show up here.
-			</p>
-		{:else}
-			<ul class="space-y-3">
-				{#each audits as a (a.id)}
-					<li class="flex items-start gap-3">
-						<div
-							class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
-						>
-							{(a.actor?.display_name ?? '?')[0].toUpperCase()}
-						</div>
-						<div class="min-w-0 flex-1">
-							<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-								<span class="text-sm font-medium">{auditTitle(a)}</span>
-								<span class="text-sm text-muted-foreground">
-									{a.actor?.display_name ?? 'Unknown'}
-								</span>
-								<span class="text-sm text-muted-foreground">
-									{new Date(a.created_at).toLocaleString('en-US', {
-										month: 'short',
-										day: 'numeric',
-										hour: 'numeric',
-										minute: '2-digit'
-									})}
-								</span>
-							</div>
-							{#if a.event_type === 'field_changed' || a.event_type === 'line_changed'}
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									<span class="line-through">{formatAuditValue(a.before_value)}</span>
-									<span class="mx-1">→</span>
-									<span>{formatAuditValue(a.after_value)}</span>
-								</p>
-							{:else if a.event_type === 'line_added'}
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									{formatAuditValue(a.after_value)}
-								</p>
-							{:else if a.event_type === 'line_removed'}
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									{formatAuditValue(a.before_value)}
-								</p>
+					<!-- Ship to / Bill to -->
+					<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+						<div>
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ship to</div>
+							{#if convertLocationItems.length > 0}
+								<div class="mt-2">
+									<SelectField
+										value={convertForm.location_id}
+										items={convertLocationItems}
+										placeholder="Select address"
+										class="w-full"
+										onValueChange={(v) => (convertForm.location_id = v)}
+									/>
+								</div>
+								<input type="hidden" name="location_id" value={convertForm.location_id} />
+							{:else}
+								<div class="mt-2 text-sm text-muted-foreground">No addresses on file.</div>
 							{/if}
 						</div>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</CardContent>
-</Card>
+						<div>
+							<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Bill to</div>
+							<div class="mt-2">
+								<SelectField
+									value={convertForm.bill_to_location_id}
+									items={convertBillToItems}
+									placeholder="Same as ship to"
+									class="w-full"
+									onValueChange={(v) => (convertForm.bill_to_location_id = v)}
+								/>
+							</div>
+							<input
+								type="hidden"
+								name="bill_to_location_id"
+								value={convertForm.bill_to_location_id}
+							/>
+						</div>
+					</div>
+
+					<!-- Payment / Terms / Shipping method -->
+					<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+						<div>
+							<div class="text-sm text-muted-foreground">Payment</div>
+							<div class="mt-1.5">
+								<SelectField
+									value={convertForm.payment_preference}
+									items={convertMethodItems}
+									placeholder="Select"
+									class="w-full"
+									onValueChange={(v) => (convertForm.payment_preference = v)}
+								/>
+							</div>
+							<input
+								type="hidden"
+								name="payment_preference"
+								value={convertForm.payment_preference}
+							/>
+						</div>
+						<div>
+							<div class="text-sm text-muted-foreground">Terms</div>
+							<div class="mt-1.5">
+								<SelectField
+									value={convertForm.payment_terms}
+									items={convertTermsItems}
+									placeholder="Select"
+									class="w-full"
+									onValueChange={(v) => (convertForm.payment_terms = v)}
+								/>
+							</div>
+							<input type="hidden" name="payment_terms" value={convertForm.payment_terms} />
+						</div>
+						<div>
+							<div class="text-sm text-muted-foreground">Ship method</div>
+							<div class="mt-1.5">
+								<SelectField
+									value={convertForm.shipping_method}
+									items={convertShippingItems}
+									placeholder="Select"
+									class="w-full"
+									onValueChange={(v) => (convertForm.shipping_method = v)}
+								/>
+							</div>
+							<input type="hidden" name="shipping_method" value={convertForm.shipping_method} />
+						</div>
+					</div>
+
+					<!-- PO -->
+					<div>
+						<label for="convert-po" class="text-sm text-muted-foreground">
+							PO / Customer ref <span class="text-muted-foreground/70">(optional)</span>
+						</label>
+						<input
+							id="convert-po"
+							name="po_number"
+							type="text"
+							maxlength={64}
+							placeholder="—"
+							bind:value={convertForm.po_number}
+							class="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+						/>
+					</div>
+
+					<!-- Buyer terms gate (always visible — brand-specific when configured,
+						 generic wholesale terms otherwise). -->
+					<div class="border-t pt-4">
+						<div class="flex items-start justify-between gap-4">
+							<label class="flex cursor-pointer items-start gap-3">
+								<Checkbox
+									checked={convertTermsAgreed}
+									onCheckedChange={(v) => (convertTermsAgreed = v === true)}
+								/>
+								<span class="text-sm">
+									Buyer has agreed to
+									{#if effectiveTermsIsGeneric}
+										<strong class="font-medium">standard wholesale terms</strong>.
+									{:else}
+										<strong class="font-medium">{order.brands?.name ?? 'the brand'}'s</strong> terms.
+									{/if}
+								</span>
+							</label>
+							<button
+								type="button"
+								class="shrink-0 text-sm text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+								onclick={() => (convertTermsViewOpen = !convertTermsViewOpen)}
+							>
+								{convertTermsViewOpen ? 'Hide terms' : 'View terms'}
+							</button>
+						</div>
+						<div class="mt-2 pl-7 text-sm text-muted-foreground/70">
+							Your name, timestamp, and the terms version are recorded on the order. The buyer
+							receives a copy with their confirmation email.
+						</div>
+						{#if convertTermsViewOpen}
+							<div class="mt-3 ml-7 rounded-md border bg-muted/30 p-4">
+								<div class="text-sm font-medium">{effectiveTerms.title}</div>
+								<div class="mt-0.5 text-sm text-muted-foreground/70">
+									{effectiveTermsIsGeneric ? 'Generic' : (order.brands?.name ?? 'Brand')} · v{effectiveTerms.version}
+								</div>
+								<div class="mt-3 max-h-64 overflow-auto text-sm whitespace-pre-wrap">
+									{effectiveTerms.body}
+								</div>
+							</div>
+						{/if}
+						<input
+							type="hidden"
+							name="agreed_terms_id"
+							value={convertTermsAgreed ? effectiveTerms.id : ''}
+						/>
+					</div>
+				</div>
+
+				<footer class="flex flex-wrap items-center gap-3 px-6 py-4">
+					{#if convertForm.start_ship_date === '' || convertForm.expected_ship_date === ''}
+						<span class="mr-auto text-sm text-muted-foreground/70">
+							Set the ship window to continue
+						</span>
+					{:else if !convertTermsAgreed}
+						<span class="mr-auto text-sm text-muted-foreground/70">
+							Agree to the buyer terms to continue
+						</span>
+					{:else}
+						<span class="mr-auto text-sm text-muted-foreground/70">Ready to convert.</span>
+					{/if}
+					<Dialog.Close
+						type="button"
+						class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+					>
+						Cancel
+					</Dialog.Close>
+					<Button type="submit" disabled={!convertCanSubmit || convertSubmitting}>
+						{convertSubmitting ? 'Converting…' : 'Convert to order'}
+					</Button>
+				</footer>
+			</form>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
 
 <!-- Cancel Order Modal -->
 {#if cancelOpen}
