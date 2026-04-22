@@ -274,7 +274,11 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	type CurrentBrandTerms = { id: string; title: string; body: string; version: number };
 	let accountLocations: AccountLocation[] = [];
 	let currentBrandTerms: CurrentBrandTerms | null = null;
-	if (orderResult.data.order_type === 'note' && canEditOrder) {
+	// Load Convert-to-Order modal data whenever the viewer is looking at a note,
+	// regardless of org — federated viewers (e.g. BOA on a rep's note) still
+	// need to see ship-to / bill-to options and the terms gate. Authz on the
+	// actual convert write stays on the ?/convert action.
+	if (orderResult.data.order_type === 'note') {
 		const [locRes, termsRes] = await Promise.all([
 			orderResult.data.account_id
 				? supabaseAdmin
@@ -422,23 +426,36 @@ export const actions: Actions = {
 			account_id: string | null;
 		};
 		if (row.organization_id !== organization.id) {
-			return fail(403, { message: 'Not your note.' });
+			// Cross-org: allow when there's an active federated_order_links row
+			// pointing at the caller's org. Mirrors the PATCH /lines endpoint —
+			// BOA acting on a federated rep-owned note can still convert it.
+			const { data: link } = await supabaseAdmin
+				.from('federated_order_links')
+				.select('id')
+				.eq('order_id', row.id)
+				.eq('target_org_id', organization.id)
+				.eq('status', 'active')
+				.maybeSingle();
+			if (!link) return fail(403, { message: 'Not your note.' });
 		}
 		if (row.order_type !== 'note') {
 			return fail(409, { message: 'This is already an order.' });
 		}
 
-		// Terms gate: if the brand has current terms, require the client to
-		// have agreed with a matching ID. If no current terms exist, skip.
+		// Terms gate: the buyer always agrees to SOMETHING — a brand-specific
+		// row when the brand has one, or a generic wholesale fallback.
+		if (!agreedTermsId) {
+			return fail(400, { message: 'Buyer terms must be agreed to before converting.' });
+		}
 		const { data: brandTerms } = await supabaseAdmin
 			.from('brand_terms')
 			.select('id')
 			.eq('brand_id', row.brand_id)
 			.eq('is_current', true)
 			.maybeSingle();
-		if (brandTerms && brandTerms.id !== agreedTermsId) {
+		if (brandTerms && agreedTermsId !== brandTerms.id && agreedTermsId !== 'generic') {
 			return fail(400, {
-				message: 'Buyer terms must be agreed to before converting.'
+				message: 'Buyer terms must be agreed to the current version.'
 			});
 		}
 
@@ -455,12 +472,15 @@ export const actions: Actions = {
 			shipping_method: shippingMethod,
 			po_number: poNumber,
 			submitted_at: now,
-			updated_at: now
+			updated_at: now,
+			terms_agreed_by: user.id,
+			terms_agreed_at: now
 		};
-		if (brandTerms) {
+		// Only set terms_id when the buyer agreed to the brand's specific row.
+		// Generic fallback leaves terms_id null; the audit trail still lives on
+		// terms_agreed_by / terms_agreed_at.
+		if (brandTerms && agreedTermsId === brandTerms.id) {
 			update.terms_id = brandTerms.id;
-			update.terms_agreed_by = user.id;
-			update.terms_agreed_at = now;
 		}
 
 		const { error: updErr } = await supabaseAdmin.from('orders').update(update).eq('id', row.id);

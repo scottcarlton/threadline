@@ -283,6 +283,26 @@
 	type ConvertBrandTerms = { id: string; title: string; body: string; version: number };
 	const noteAccountLocations = $derived((data.accountLocations ?? []) as ConvertLocation[]);
 	const currentBrandTerms = $derived((data.currentBrandTerms ?? null) as ConvertBrandTerms | null);
+
+	// Generic-terms fallback used when a brand hasn't configured its own. Buyers
+	// always agree to SOMETHING before a note converts or a submit lands, even
+	// if the brand hasn't published terms yet.
+	const GENERIC_TERMS = {
+		id: 'generic',
+		title: 'Standard wholesale terms',
+		version: 1,
+		body: `All sales subject to availability and credit approval.
+
+Cancellations require written notice 45+ days before the start-ship date; cancellations inside that window incur a 10% fee.
+
+No returns without written authorization from the brand.
+
+Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees are added to the invoice before charge.`
+	} as const;
+	// "Effective" terms: prefer the brand-specific row when the brand has one,
+	// otherwise the generic fallback. Non-null for every order.
+	const effectiveTerms = $derived(currentBrandTerms ?? GENERIC_TERMS);
+	const effectiveTermsIsGeneric = $derived(currentBrandTerms === null);
 	const convertMethodItems = $derived(
 		acceptedMethodsOnly((data.acceptedPaymentMethods ?? []) as string[]).map((m) => ({
 			value: m.code,
@@ -315,6 +335,7 @@
 	]);
 
 	let convertOpen = $state(false);
+	let convertTermsViewOpen = $state(false);
 	let convertSubmitting = $state(false);
 	let convertTermsAgreed = $state(false);
 	let convertForm = $state({
@@ -348,7 +369,7 @@
 	const convertCanSubmit = $derived(
 		convertForm.start_ship_date !== '' &&
 			convertForm.expected_ship_date !== '' &&
-			(!currentBrandTerms || convertTermsAgreed)
+			convertTermsAgreed
 	);
 
 	async function updateStatus(newStatus: OrderStatus) {
@@ -2194,59 +2215,69 @@
 				</dl>
 			</div>
 
-			{#if order.order_type !== 'note' && termsAgreedInfo}
-				<div class="rounded-lg border bg-muted/30 p-5">
-					<div class="flex items-center justify-between">
-						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Terms</div>
-						{#if termsAgreedInfo.brand_terms}
-							<Dialog.Root>
-								<Dialog.Trigger
-									class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-									>View</Dialog.Trigger
-								>
-								<Dialog.Portal>
-									<Dialog.Overlay
-										class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
-									/>
-									<Dialog.Content
-										class="fixed top-[50%] left-[50%] z-50 max-h-[80vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-auto rounded-lg border bg-background p-6 shadow-lg"
+			<!-- Terms panel: always renders. Brand-specific when the order has
+				 agreed terms on file, brand-specific-current or generic otherwise. -->
+			<div class="rounded-lg border bg-muted/30 p-5">
+				<div class="flex items-center justify-between">
+					<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Terms</div>
+					<Dialog.Root>
+						<Dialog.Trigger
+							class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+							>View</Dialog.Trigger
+						>
+						<Dialog.Portal>
+							<Dialog.Overlay
+								class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+							/>
+							<Dialog.Content
+								class="fixed top-[50%] left-[50%] z-50 max-h-[80vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-auto rounded-lg border bg-background p-6 shadow-lg"
+							>
+								<Dialog.Title class="text-base font-semibold">
+									{termsAgreedInfo?.brand_terms?.title ?? effectiveTerms.title}
+								</Dialog.Title>
+								<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+									{effectiveTermsIsGeneric && !termsAgreedInfo?.brand_terms
+										? 'Generic'
+										: (order.brands?.name ?? 'Brand')} · v{termsAgreedInfo?.brand_terms?.version ??
+										effectiveTerms.version}
+								</Dialog.Description>
+								<div class="mt-5 text-sm whitespace-pre-wrap">
+									{termsAgreedInfo?.brand_terms?.body ?? effectiveTerms.body}
+								</div>
+								<div class="mt-6 flex justify-end">
+									<Dialog.Close
+										class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
+										>Close</Dialog.Close
 									>
-										<Dialog.Title class="text-base font-semibold">
-											{termsAgreedInfo.brand_terms.title}
-										</Dialog.Title>
-										<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-											{order.brands?.name ?? 'Brand'} · v{termsAgreedInfo.brand_terms.version}
-										</Dialog.Description>
-										<div class="mt-5 text-sm whitespace-pre-wrap">
-											{termsAgreedInfo.brand_terms.body}
-										</div>
-										<div class="mt-6 flex justify-end">
-											<Dialog.Close
-												class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
-												>Close</Dialog.Close
-											>
-										</div>
-									</Dialog.Content>
-								</Dialog.Portal>
-							</Dialog.Root>
-						{/if}
-					</div>
-					<div class="mt-2 text-sm">
-						{order.brands?.name ?? 'Brand'} · {seasonLabel()}{termsAgreedInfo.brand_terms
-							? ` v${termsAgreedInfo.brand_terms.version}`
-							: ''}
-					</div>
-					{#if termsAgreedInfo.agreed_by || termsAgreedInfo.agreed_at}
-						<div class="mt-0.5 text-sm text-muted-foreground/70">
-							Agreed
-							{#if termsAgreedInfo.agreed_by}
-								by {termsAgreedInfo.agreed_by}{/if}
-							{#if termsAgreedInfo.agreed_at}
-								· {longDate(termsAgreedInfo.agreed_at as string)}{/if}
-						</div>
+								</div>
+							</Dialog.Content>
+						</Dialog.Portal>
+					</Dialog.Root>
+				</div>
+				<div class="mt-2 text-sm">
+					{#if effectiveTermsIsGeneric && !termsAgreedInfo?.brand_terms}
+						Standard wholesale terms
+					{:else}
+						{order.brands?.name ?? 'Brand'} · {seasonLabel()} v{termsAgreedInfo?.brand_terms
+							?.version ?? effectiveTerms.version}
 					{/if}
 				</div>
-			{/if}
+				{#if termsAgreedInfo && (termsAgreedInfo.agreed_by || termsAgreedInfo.agreed_at)}
+					<div class="mt-0.5 text-sm text-muted-foreground/70">
+						Agreed
+						{#if termsAgreedInfo.agreed_by}
+							by {termsAgreedInfo.agreed_by}{/if}
+						{#if termsAgreedInfo.agreed_at}
+							· {longDate(termsAgreedInfo.agreed_at as string)}{/if}
+					</div>
+				{:else}
+					<div class="mt-0.5 text-sm text-muted-foreground/70">
+						{order.order_type === 'note'
+							? 'Not yet agreed — buyer agrees on convert.'
+							: 'Not yet agreed.'}
+					</div>
+				{/if}
+			</div>
 		</aside>
 	</div>
 </div>
@@ -2314,6 +2345,7 @@
 						</Dialog.Description>
 					</div>
 					<Dialog.Close
+						type="button"
 						class="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 						aria-label="Close"
 					>
@@ -2460,80 +2492,71 @@
 						/>
 					</div>
 
-					<!-- Buyer terms gate -->
-					{#if currentBrandTerms}
-						<div class="border-t pt-4">
+					<!-- Buyer terms gate (always visible — brand-specific when configured,
+						 generic wholesale terms otherwise). -->
+					<div class="border-t pt-4">
+						<div class="flex items-start justify-between gap-4">
 							<label class="flex cursor-pointer items-start gap-3">
 								<Checkbox
 									checked={convertTermsAgreed}
 									onCheckedChange={(v) => (convertTermsAgreed = v === true)}
 								/>
 								<span class="text-sm">
-									Buyer has agreed to <strong class="font-medium"
-										>{order.brands?.name ?? 'the brand'}'s</strong
-									>
-									terms.
-									<span class="mt-1 block text-sm text-muted-foreground/70">
-										Your name, timestamp, and the terms version are recorded on the order. The buyer
-										receives a copy with their confirmation email.
-										<Dialog.Root>
-											<Dialog.Trigger
-												class="ml-1 underline underline-offset-2 transition-colors hover:text-foreground"
-												onclick={(e: MouseEvent) => e.stopPropagation()}
-											>
-												View terms
-											</Dialog.Trigger>
-											<Dialog.Portal>
-												<Dialog.Overlay
-													class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[60] bg-black/50"
-												/>
-												<Dialog.Content
-													class="fixed top-[50%] left-[50%] z-[60] max-h-[80vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-auto rounded-lg border bg-background p-6 shadow-lg"
-												>
-													<Dialog.Title class="text-base font-semibold">
-														{currentBrandTerms.title}
-													</Dialog.Title>
-													<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-														{order.brands?.name ?? 'Brand'} · v{currentBrandTerms.version}
-													</Dialog.Description>
-													<div class="mt-5 text-sm whitespace-pre-wrap">
-														{currentBrandTerms.body}
-													</div>
-													<div class="mt-6 flex justify-end">
-														<Dialog.Close
-															class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
-														>
-															Close
-														</Dialog.Close>
-													</div>
-												</Dialog.Content>
-											</Dialog.Portal>
-										</Dialog.Root>
-									</span>
+									Buyer has agreed to
+									{#if effectiveTermsIsGeneric}
+										<strong class="font-medium">standard wholesale terms</strong>.
+									{:else}
+										<strong class="font-medium">{order.brands?.name ?? 'the brand'}'s</strong> terms.
+									{/if}
 								</span>
 							</label>
-							<input
-								type="hidden"
-								name="agreed_terms_id"
-								value={convertTermsAgreed ? currentBrandTerms.id : ''}
-							/>
+							<button
+								type="button"
+								class="shrink-0 text-sm text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+								onclick={() => (convertTermsViewOpen = !convertTermsViewOpen)}
+							>
+								{convertTermsViewOpen ? 'Hide terms' : 'View terms'}
+							</button>
 						</div>
-					{/if}
+						<div class="mt-2 pl-7 text-sm text-muted-foreground/70">
+							Your name, timestamp, and the terms version are recorded on the order. The buyer
+							receives a copy with their confirmation email.
+						</div>
+						{#if convertTermsViewOpen}
+							<div class="mt-3 ml-7 rounded-md border bg-muted/30 p-4">
+								<div class="text-sm font-medium">{effectiveTerms.title}</div>
+								<div class="mt-0.5 text-sm text-muted-foreground/70">
+									{effectiveTermsIsGeneric ? 'Generic' : (order.brands?.name ?? 'Brand')} · v{effectiveTerms.version}
+								</div>
+								<div class="mt-3 max-h-64 overflow-auto text-sm whitespace-pre-wrap">
+									{effectiveTerms.body}
+								</div>
+							</div>
+						{/if}
+						<input
+							type="hidden"
+							name="agreed_terms_id"
+							value={convertTermsAgreed ? effectiveTerms.id : ''}
+						/>
+					</div>
 				</div>
 
 				<footer class="flex flex-wrap items-center gap-3 px-6 py-4">
-					{#if currentBrandTerms && !convertTermsAgreed}
-						<span class="mr-auto text-sm text-muted-foreground/70">
-							Agree to the buyer terms to continue
-						</span>
-					{:else if convertCanSubmit}
-						<span class="mr-auto text-sm text-muted-foreground/70">Ready to convert.</span>
-					{:else}
+					{#if convertForm.start_ship_date === '' || convertForm.expected_ship_date === ''}
 						<span class="mr-auto text-sm text-muted-foreground/70">
 							Set the ship window to continue
 						</span>
+					{:else if !convertTermsAgreed}
+						<span class="mr-auto text-sm text-muted-foreground/70">
+							Agree to the buyer terms to continue
+						</span>
+					{:else}
+						<span class="mr-auto text-sm text-muted-foreground/70">Ready to convert.</span>
 					{/if}
-					<Dialog.Close class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
+					<Dialog.Close
+						type="button"
+						class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+					>
 						Cancel
 					</Dialog.Close>
 					<Button type="submit" disabled={!convertCanSubmit || convertSubmitting}>
