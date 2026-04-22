@@ -17,11 +17,6 @@
 						label: 'Partners',
 						href: '/organization/partners' as const,
 						badge: (data.partnersCount as number) ?? 0
-					},
-					{
-						label: 'Buyer terms',
-						href: '/organization/terms' as const,
-						badge: (data.termsCount as number) ?? 0
 					}
 				]
 			: []),
