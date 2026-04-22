@@ -8,12 +8,39 @@
 	import { PAYMENT_METHODS } from '$lib/payment-methods';
 	import { toast } from 'svelte-sonner';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { superForm } from 'sveltekit-superforms';
+	import { zod4Client } from 'sveltekit-superforms/adapters';
+	import { brandTermsSchema } from '$lib/schemas/brand-terms.js';
 
 	let { data } = $props();
 
 	const org = $derived(data.org);
 	const isBrandOrg = $derived(data.orgType === 'brand');
 	const selfBrand = $derived(data.selfBrand);
+	const canEditTerms = $derived(data.canEditTerms);
+	const currentTerms = $derived(data.currentTerms);
+	const termsHistory = $derived(data.termsHistory);
+
+	// svelte-ignore state_referenced_locally
+	const {
+		form: termsForm,
+		errors: termsErrors,
+		enhance: termsEnhance,
+		submitting: termsSubmitting
+	} = superForm(data.termsForm, {
+		validators: zod4Client(brandTermsSchema),
+		validationMethod: 'onblur',
+		onResult: ({ result }) => {
+			if (result.type === 'success') {
+				toast.success('Terms saved. The new version is now current.');
+			} else if (result.type === 'failure') {
+				const msg = (result.data as { message?: string } | undefined)?.message;
+				if (msg) toast.error(msg);
+			} else if (result.type === 'error') {
+				toast.error(result.error?.message ?? 'Failed to save terms');
+			}
+		}
+	});
 
 	let orgName = $state('');
 	let logoUrl = $state('');
@@ -234,7 +261,7 @@
 		</div>
 	</div>
 
-	<div class="border-b pb-6">
+	<div class={canEditTerms ? 'border-b pb-6' : ''}>
 		<div>
 			<h2 class="text-lg font-semibold">Payment methods</h2>
 			<p class="mt-0.5 text-sm text-muted-foreground">
@@ -276,4 +303,81 @@
 			</Button>
 		</div>
 	</div>
+
+	{#if canEditTerms}
+		<div>
+			<div>
+				<h2 class="text-lg font-semibold">Buyer terms</h2>
+				<p class="mt-0.5 text-sm text-muted-foreground">
+					Terms reps present to buyers at order submit. Saving creates a new version and records it
+					on every order that agrees.
+				</p>
+			</div>
+
+			<form method="POST" action="?/saveTerms" use:termsEnhance class="mt-6 space-y-5">
+				<input type="hidden" name="brand_id" bind:value={$termsForm.brand_id} />
+
+				<div class="space-y-2">
+					<Label for="terms-title">Title</Label>
+					<Input
+						id="terms-title"
+						name="title"
+						bind:value={$termsForm.title}
+						maxlength={120}
+						aria-invalid={$termsErrors.title ? 'true' : undefined}
+					/>
+					{#if $termsErrors.title}
+						<p class="text-sm text-destructive">{$termsErrors.title[0]}</p>
+					{/if}
+				</div>
+
+				<div class="space-y-2">
+					<Label for="terms-body">Body</Label>
+					<textarea
+						id="terms-body"
+						name="body"
+						rows={14}
+						maxlength={20000}
+						class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+						bind:value={$termsForm.body}
+						placeholder="Cancellations, returns, shipping, payment terms…"
+						aria-invalid={$termsErrors.body ? 'true' : undefined}
+					></textarea>
+					{#if $termsErrors.body}
+						<p class="text-sm text-destructive">{$termsErrors.body[0]}</p>
+					{/if}
+				</div>
+
+				<div class="flex items-center justify-between gap-3">
+					<p class="text-sm text-muted-foreground">
+						{#if currentTerms}
+							Current version: v{currentTerms.version}. Saving creates v{currentTerms.version + 1}
+							and marks prior versions as superseded.
+						{:else}
+							No terms on file. Saving creates v1.
+						{/if}
+					</p>
+					<Button type="submit" disabled={$termsSubmitting}>
+						{$termsSubmitting ? 'Saving…' : 'Save new version'}
+					</Button>
+				</div>
+			</form>
+
+			{#if termsHistory.length > 0}
+				<div class="mt-6 rounded-lg border">
+					<div class="border-b px-5 py-3 text-sm font-medium">Previous versions</div>
+					<ul class="divide-y">
+						{#each termsHistory as h (h.id)}
+							<li class="flex items-center justify-between px-5 py-3 text-sm">
+								<span>v{h.version} · {h.title}</span>
+								<span class="text-muted-foreground">
+									{h.created_at ? new Date(h.created_at).toLocaleDateString() : ''}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+		</div>
+	{/if}
 </div>
