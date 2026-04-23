@@ -9,6 +9,8 @@
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
+	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 	import type { Product } from '$lib/types/database.js';
 
 	import { goto } from '$app/navigation';
@@ -18,7 +20,14 @@
 	const PAGE_SIZE = 50;
 
 	type ProductRow = Product & {
-		product_variants: { id: string; color: string | null; size: string | null }[];
+		product_variants: {
+			id: string;
+			color: string | null;
+			size: string | null;
+			stock_qty: number | null;
+			stock_threshold: number | null;
+			shopify_variant_id: string | null;
+		}[];
 		product_images: { id: string; file_path: string; is_primary: boolean }[];
 	};
 
@@ -207,6 +216,18 @@
 		return { success, errors };
 	}
 
+	function aggregateStockStatus(
+		variants: { stock_qty: number | null; stock_threshold: number | null }[]
+	): StockStatus | null {
+		const statuses = variants
+			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
+			.filter((s): s is StockStatus => s !== null);
+		if (statuses.length === 0) return null;
+		if (statuses.includes('out')) return 'out';
+		if (statuses.includes('low')) return 'low';
+		return 'in';
+	}
+
 	function getVariantSummary(variants: { color: string | null; size: string | null }[]): string {
 		const colors = new Set(variants.map((v) => v.color).filter(Boolean));
 		const sizes = new Set(variants.map((v) => v.size).filter(Boolean));
@@ -367,6 +388,14 @@
 								>{getVariantSummary(product.product_variants ?? [])}</span
 							>
 						</div>
+						{#if product.ats}
+							{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
+							{#if stockAgg}
+								<div class="mt-2">
+									<StockPill status={stockAgg} qty={null} hideQty />
+								</div>
+							{/if}
+						{/if}
 						{#if product.category}
 							<span
 								class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"

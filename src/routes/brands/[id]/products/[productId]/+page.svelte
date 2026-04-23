@@ -14,6 +14,9 @@
 		CardFooter
 	} from '$lib/components/ui/card/index.js';
 	import type { Product, ProductVariant, ProductImage } from '$lib/types/database.js';
+	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import VariantStockEditor from '$lib/components/inventory/VariantStockEditor.svelte';
+	import { deriveStockStatus } from '$lib/inventory/status';
 
 	let { data } = $props();
 	const brand = $derived(data.brand as { id: string; name: string });
@@ -25,6 +28,12 @@
 		product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]
 	);
 	const canEdit = $derived(data.membership?.role !== 'guest');
+	const canEditStock = $derived(
+		canEdit &&
+			product.ats &&
+			product.organization_id === data.organization?.id &&
+			['admin', 'owner', 'member'].includes(data.membership?.role ?? '')
+	);
 	const velocity = $derived(
 		data.velocity as {
 			orders30d: number;
@@ -611,12 +620,30 @@
 											>
 										{/if}
 									</div>
-									{#if canEdit}
-										<button
-											class="text-xs text-muted-foreground transition-colors hover:text-destructive"
-											onclick={() => removeVariant(variant.id)}>Remove</button
-										>
-									{/if}
+									<div class="flex items-center gap-3">
+										{#if product.ats}
+											{@const stockStatus = deriveStockStatus(
+												variant.stock_qty,
+												variant.stock_threshold
+											)}
+											{#if stockStatus !== null}
+												<StockPill status={stockStatus} qty={variant.stock_qty} />
+											{/if}
+											{#if canEditStock}
+												<VariantStockEditor
+													variantId={variant.id}
+													stockQty={variant.stock_qty}
+													isShopifyManaged={variant.shopify_variant_id !== null}
+												/>
+											{/if}
+										{/if}
+										{#if canEdit}
+											<button
+												class="text-xs text-muted-foreground transition-colors hover:text-destructive"
+												onclick={() => removeVariant(variant.id)}>Remove</button
+											>
+										{/if}
+									</div>
 								</div>
 							{/each}
 						</div>
