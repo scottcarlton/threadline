@@ -190,8 +190,8 @@
 				class={cn(
 					'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 					isActive(item.href)
-						? 'bg-accent font-medium text-foreground'
-						: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+						? 'bg-ghost font-medium text-foreground'
+						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
 				)}
 			>
 				<svg
@@ -226,8 +226,8 @@
 						class={cn(
 							'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 							isActive(inboxNav.href)
-								? 'bg-accent font-medium text-foreground'
-								: 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+								? 'bg-ghost font-medium text-foreground'
+								: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
 						)}
 					>
 						<div class="relative shrink-0">
@@ -259,8 +259,8 @@
 					class={cn(
 						'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 						isActive(appointmentsNav.href)
-							? 'bg-accent font-medium text-foreground'
-							: 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+							? 'bg-ghost font-medium text-foreground'
+							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
 					)}
 				>
 					<svg
@@ -290,8 +290,8 @@
 					class={cn(
 						'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 						isActive('/workspace')
-							? 'bg-accent font-medium text-foreground'
-							: 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+							? 'bg-ghost font-medium text-foreground'
+							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
 					)}
 				>
 					<svg
@@ -315,8 +315,8 @@
 					class={cn(
 						'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 						isActive('/sheets')
-							? 'bg-accent font-medium text-foreground'
-							: 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+							? 'bg-ghost font-medium text-foreground'
+							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
 					)}
 				>
 					<svg
@@ -347,8 +347,8 @@
 				class={cn(
 					'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 					isActive('/account')
-						? 'bg-accent font-medium text-foreground'
-						: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+						? 'bg-ghost font-medium text-foreground'
+						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
 				)}
 			>
 				<svg
@@ -373,8 +373,8 @@
 				class={cn(
 					'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
 					isActive(brandLink)
-						? 'bg-accent font-medium text-foreground'
-						: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+						? 'bg-ghost font-medium text-foreground'
+						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
 				)}
 			>
 				<svg
@@ -393,7 +393,7 @@
 
 		<button
 			onclick={() => (showHelp = true)}
-			class="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-normal text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+			class="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-normal text-muted-foreground transition-colors hover:bg-ghost/50 hover:text-foreground"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -415,8 +415,7 @@
 		{#if showOrg}
 			<a
 				href={resolve('/organization/billing')}
-				class="mt-3 flex w-full items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
-				style="background-color: lab(92.1406% -20.4979 84.7726); color: #1a1a00;"
+				class="mt-3 flex w-full items-center justify-center rounded-lg bg-accent px-3 py-2.5 text-sm font-medium text-accent-foreground transition-colors"
 			>
 				Upgrade to Pro
 			</a>

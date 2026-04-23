@@ -67,7 +67,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="cursor-pointer border-2 border-dashed transition-colors {dragging
-		? 'border-foreground bg-accent/50'
+		? 'border-foreground bg-ghost/50'
 		: 'border-muted-foreground/20 hover:border-muted-foreground/40'} {compact
 		? 'p-4'
 		: 'p-6'} {disabled ? 'pointer-events-none opacity-50' : ''}"

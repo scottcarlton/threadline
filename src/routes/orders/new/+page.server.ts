@@ -48,19 +48,53 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const isBuyer = locals.isBuyer ?? false;
 	const buyerAccountIds = isBuyer ? (locals.buyerAccounts?.map((a) => a.account_id) ?? []) : null;
 	const buyerBrandIds = isBuyer ? (locals.buyerBrandIds ?? []) : null;
+	const isBrandOrg = locals.orgType === 'brand';
 
 	// Federation-aware org set: own org + active connections (both directions).
+	// Classify the other side of each connection so the rep picker can apply
+	// the right role filter (connected brand org → sales only (BLSR);
+	// connected rep org → admin or sales).
 	const { data: conns } = await supabaseAdmin
 		.from('org_connections')
 		.select('rep_org_id, brand_org_id')
 		.eq('status', 'active')
 		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
 	const visibleOrgIdSet = new Set<string>([organization.id]);
+	const connectedBrandOrgIds = new Set<string>();
+	const connectedRepOrgIds = new Set<string>();
 	for (const c of conns ?? []) {
 		if (c.rep_org_id && c.rep_org_id !== organization.id) visibleOrgIdSet.add(c.rep_org_id);
 		if (c.brand_org_id && c.brand_org_id !== organization.id) visibleOrgIdSet.add(c.brand_org_id);
+		if (c.rep_org_id === organization.id && c.brand_org_id) {
+			connectedBrandOrgIds.add(c.brand_org_id);
+		}
+		if (c.brand_org_id === organization.id && c.rep_org_id) {
+			connectedRepOrgIds.add(c.rep_org_id);
+		}
 	}
 	const visibleOrgIds = Array.from(visibleOrgIdSet);
+
+	// Rep-picker visibility is broader than the rest of this page: other rep
+	// orgs that share a brand partner with us should surface as assignable
+	// sales reps on an order, even though those rep orgs aren't directly
+	// connected to ours. Accounts / seasons / locations stay scoped to
+	// visibleOrgIds (own + direct connections).
+	const repVisibleOrgIdSet = new Set(visibleOrgIdSet);
+	if (connectedBrandOrgIds.size > 0) {
+		const { data: siblingConns } = await supabaseAdmin
+			.from('org_connections')
+			.select('rep_org_id, brand_org_id')
+			.eq('status', 'active')
+			.in('brand_org_id', Array.from(connectedBrandOrgIds))
+			.neq('rep_org_id', organization.id);
+		for (const sc of siblingConns ?? []) {
+			if (sc.rep_org_id) {
+				repVisibleOrgIdSet.add(sc.rep_org_id);
+				connectedRepOrgIds.add(sc.rep_org_id);
+			}
+		}
+	}
+	const repVisibleOrgIds = Array.from(repVisibleOrgIdSet);
 
 	const [
 		accountsRes,
@@ -108,8 +142,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.order('delivery_day'),
 		supabaseAdmin
 			.from('organization_members')
-			.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
-			.eq('organization_id', organization.id),
+			.select(
+				'profile_id, role, organization_id, profiles!organization_members_profile_id_fkey(display_name)'
+			)
+			.in('organization_id', repVisibleOrgIds),
 		supabaseAdmin
 			.from('source_types')
 			.select('id, name, sort_order')
@@ -125,9 +161,35 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	type RawMember = {
 		profile_id: string;
+		role: string;
+		organization_id: string;
 		profiles: { display_name: string | null } | null;
 	};
-	const reps = ((membersRes.data ?? []) as unknown as RawMember[])
+	const rawMembers = (membersRes.data ?? []) as unknown as RawMember[];
+	// Only three user types are valid sales reps on an order:
+	//   - BLSR   → role=sales in a connected brand org
+	//   - MBISR  → role=admin|owner in a rep org (own OR sibling via shared brand)
+	//   - MBLSR  → role=sales in a rep org (own OR sibling via shared brand)
+	// member/guest and brand-org admin/owner/member are excluded.
+	// Dedupe by profile_id so a user who's a member of multiple visible orgs shows once.
+	const REP_ROLES = new Set(['admin', 'owner', 'sales']); // MBISR + MBLSR
+	const seenProfileIds = new Set<string>();
+	const reps = rawMembers
+		.filter((m) => {
+			if (m.organization_id === organization.id) {
+				// Own org: BLSR (sales only) if we're a brand org;
+				// otherwise MBISR+MBLSR (admin/owner/sales).
+				return isBrandOrg ? m.role === 'sales' : REP_ROLES.has(m.role);
+			}
+			if (connectedBrandOrgIds.has(m.organization_id)) return m.role === 'sales';
+			if (connectedRepOrgIds.has(m.organization_id)) return REP_ROLES.has(m.role);
+			return false;
+		})
+		.filter((m) => {
+			if (seenProfileIds.has(m.profile_id)) return false;
+			seenProfileIds.add(m.profile_id);
+			return true;
+		})
 		.map((m) => ({
 			user_id: m.profile_id,
 			name: m.profiles?.display_name ?? 'Unknown'
@@ -135,8 +197,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.sort((a, b) => a.name.localeCompare(b.name));
 
 	const brands = brandsRes.data ?? [];
-	const isBrandOrg = locals.orgType === 'brand';
-
 	const selfBrandId = isBrandOrg
 		? (brands.find((b) => (b as { is_self_brand?: boolean }).is_self_brand)?.id ?? null)
 		: null;

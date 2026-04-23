@@ -1,6 +1,12 @@
 export type UserRole = 'admin' | 'owner' | 'member' | 'sales' | 'guest';
 export type OrgType = 'rep' | 'brand';
-export type IntegrationProvider = 'google_sheets' | 'slack' | 'notion' | 'microsoft' | 'discord';
+export type IntegrationProvider =
+	| 'google_sheets'
+	| 'slack'
+	| 'notion'
+	| 'microsoft'
+	| 'discord'
+	| 'shopify';
 export type OrderStatus =
 	| 'draft'
 	| 'submitted'
@@ -336,6 +342,7 @@ export interface Product {
 	season_id: string | null;
 	product_year: number | null;
 	ats: boolean;
+	shopify_product_id: string | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;
@@ -350,6 +357,10 @@ export interface ProductVariant {
 	sku: string | null;
 	barcode: string | null;
 	price_override: number | null;
+	stock_qty: number | null;
+	stock_threshold: number | null;
+	shopify_variant_id: string | null;
+	shopify_inventory_item_id: string | null;
 	is_active: boolean;
 	created_at: string;
 }

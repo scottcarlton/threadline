@@ -1355,7 +1355,7 @@
 								<div class="w-full shrink-0 px-4">
 									<div class="mx-auto max-w-md space-y-4 py-6">
 										<div
-											class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-accent"
+											class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-ghost"
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"

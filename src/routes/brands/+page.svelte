@@ -14,7 +14,7 @@
 	const federatedIds = $derived(
 		new Set(
 			data.organizationId
-				? (data.brands as Brand[])
+				? (data.brands as Array<Brand & { resolved_commission_rate?: number }>)
 						.filter((b) => b.organization_id !== data.organizationId)
 						.map((b) => b.id)
 				: []
@@ -61,7 +61,7 @@
 		if (success > 0) invalidateAll();
 		return { success, errors };
 	}
-	const brands = $derived(data.brands as Brand[]);
+	const brands = $derived(data.brands as Array<Brand & { resolved_commission_rate?: number }>);
 	const brandTotals = $derived((data.brandTotals ?? {}) as Record<string, number>);
 	const canEdit = $derived(
 		data.membership?.role === 'admin' ||
@@ -252,7 +252,9 @@
 							</td>
 							{#if isAdmin}
 								<td class="px-4 py-3 text-right">
-									<span class="text-sm">{brand.commission_rate ?? 0}%</span>
+									<span class="text-sm"
+										>{brand.resolved_commission_rate ?? brand.commission_rate ?? 0}%</span
+									>
 								</td>
 							{/if}
 							<td class="px-4 py-3 text-right font-mono">

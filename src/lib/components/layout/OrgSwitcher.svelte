@@ -40,7 +40,7 @@
 	<div class="relative px-5 pt-5 pb-3">
 		<button
 			onclick={() => (open = !open)}
-			class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent"
+			class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-ghost"
 		>
 			<div
 				class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground"
@@ -77,8 +77,8 @@
 						class={cn(
 							'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors',
 							m.organizations.id === currentOrg.id
-								? 'bg-accent text-foreground'
-								: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+								? 'bg-ghost text-foreground'
+								: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
 						)}
 					>
 						<div

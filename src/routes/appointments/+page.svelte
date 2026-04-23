@@ -814,7 +814,7 @@
 			<h2 class="text-base font-semibold">Appointment Details</h2>
 			<button
 				onclick={() => (selectedAppointment = null)}
-				class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+				class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-ghost hover:text-foreground"
 				aria-label="Close details"
 			>
 				<i class="ri-close-line text-lg"></i>
