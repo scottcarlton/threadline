@@ -205,7 +205,12 @@
 	let paymentPrefForm: HTMLFormElement | null = $state(null);
 	let paymentPrefValue = $state('');
 	$effect(() => {
-		paymentPrefValue = order.payment_preference ?? '';
+		const next = order.payment_preference ?? '';
+		// Guard against re-entry: writing the same value still bumps the reactive
+		// chain through SelectField's bind:value → Bits UI Select → bind:value,
+		// which can pile up into an effect_update_depth_exceeded under rapid
+		// `invalidate()` cycles (realtime + form submits).
+		if (paymentPrefValue !== next) paymentPrefValue = next;
 	});
 
 	const statusLabels: Record<string, string> = {
