@@ -3,6 +3,7 @@
 	import { Dialog } from 'bits-ui';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input';
+	import { toast } from 'svelte-sonner';
 	import type { IntegrationConnection, IntegrationProvider } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -92,6 +93,7 @@
 
 	let search = $state('');
 	let disconnecting = $state('');
+	let syncingShopify = $state(false);
 	let shopifyDialogOpen = $state(false);
 	let shopifyInput = $state('');
 
@@ -140,6 +142,30 @@
 			}
 		} finally {
 			disconnecting = '';
+		}
+	}
+
+	async function syncShopify() {
+		syncingShopify = true;
+		try {
+			const res = await fetch('/api/integrations/shopify/sync', { method: 'POST' });
+			if (!res.ok) {
+				const body = (await res.json().catch(() => ({}))) as { error?: string };
+				throw new Error(body.error ?? 'Sync failed');
+			}
+			const data = (await res.json()) as {
+				matched: number;
+				unmatched: number;
+				inventoryWrites: number;
+			};
+			toast.success(
+				`Synced — ${data.matched} matched, ${data.unmatched} unmatched, ${data.inventoryWrites} inventory updates`
+			);
+			await invalidateAll();
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Sync failed');
+		} finally {
+			syncingShopify = false;
 		}
 	}
 </script>
@@ -309,15 +335,38 @@
 				</div>
 
 				{#if conn?.status === 'active'}
-					<Button
-						variant="outline"
-						size="sm"
-						class="w-full border-destructive/50! text-destructive hover:bg-destructive/5 hover:text-destructive"
-						onclick={() => disconnect(integration.provider)}
-						disabled={disconnecting === integration.provider}
-					>
-						{disconnecting === integration.provider ? 'Disconnecting...' : 'Disconnect'}
-					</Button>
+					{#if integration.provider === 'shopify'}
+						<div class="space-y-2">
+							<Button
+								variant="outline"
+								size="sm"
+								class="w-full"
+								onclick={syncShopify}
+								disabled={syncingShopify}
+							>
+								{syncingShopify ? 'Syncing...' : 'Re-sync inventory'}
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								class="w-full border-destructive/50! text-destructive hover:bg-destructive/5 hover:text-destructive"
+								onclick={() => disconnect(integration.provider)}
+								disabled={disconnecting === integration.provider}
+							>
+								{disconnecting === integration.provider ? 'Disconnecting...' : 'Disconnect'}
+							</Button>
+						</div>
+					{:else}
+						<Button
+							variant="outline"
+							size="sm"
+							class="w-full border-destructive/50! text-destructive hover:bg-destructive/5 hover:text-destructive"
+							onclick={() => disconnect(integration.provider)}
+							disabled={disconnecting === integration.provider}
+						>
+							{disconnecting === integration.provider ? 'Disconnecting...' : 'Disconnect'}
+						</Button>
+					{/if}
 				{:else if integration.provider === 'shopify'}
 					<Button variant="outline" size="sm" class="w-full" onclick={openShopifyDialog}>
 						Connect
