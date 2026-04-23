@@ -134,3 +134,210 @@ export async function graphql<T>(
 	if (body.errors?.length) throw new Error(body.errors.map((e) => e.message).join('; '));
 	return body.data;
 }
+
+export type ShopifyVariantLink = {
+	shopifyVariantId: string;
+	sku: string | null;
+	inventoryItemId: string;
+};
+
+export type ShopifyProductPage = {
+	products: Array<{
+		shopifyProductId: string;
+		variants: ShopifyVariantLink[];
+	}>;
+	hasNextPage: boolean;
+	endCursor: string | null;
+};
+
+export async function pullProductsPage(
+	connection: IntegrationConnection,
+	cursor: string | null
+): Promise<ShopifyProductPage> {
+	const query = `
+		query PullProductsPage($cursor: String) {
+		  products(first: 50, after: $cursor) {
+		    edges {
+		      node {
+		        id
+		        variants(first: 100) {
+		          edges {
+		            node {
+		              id
+		              sku
+		              inventoryItem {
+		                id
+		              }
+		            }
+		          }
+		        }
+		      }
+		    }
+		    pageInfo {
+		      hasNextPage
+		      endCursor
+		    }
+		  }
+		}
+	`;
+	const data = await graphql<{
+		products: {
+			edges: Array<{
+				node: {
+					id: string;
+					variants: {
+						edges: Array<{
+							node: {
+								id: string;
+								sku: string | null;
+								inventoryItem: { id: string } | null;
+							};
+						}>;
+					};
+				};
+			}>;
+			pageInfo: { hasNextPage: boolean; endCursor: string | null };
+		};
+	}>(connection, query, { cursor });
+
+	return {
+		products: data.products.edges.map((e) => ({
+			shopifyProductId: e.node.id,
+			variants: e.node.variants.edges
+				.filter((v) => v.node.inventoryItem !== null)
+				.map((v) => ({
+					shopifyVariantId: v.node.id,
+					sku: v.node.sku,
+					inventoryItemId: v.node.inventoryItem!.id
+				}))
+		})),
+		hasNextPage: data.products.pageInfo.hasNextPage,
+		endCursor: data.products.pageInfo.endCursor
+	};
+}
+
+export async function registerInventoryWebhook(
+	connection: IntegrationConnection,
+	callbackUrl: string
+): Promise<{ registered: boolean; existingId: string | null }> {
+	const listQuery = `
+		query ListInventoryWebhooks {
+		  webhookSubscriptions(first: 50, topics: [INVENTORY_LEVELS_UPDATE]) {
+		    edges {
+		      node {
+		        id
+		        uri
+		      }
+		    }
+		  }
+		}
+	`;
+	const listData = await graphql<{
+		webhookSubscriptions: {
+			edges: Array<{
+				node: {
+					id: string;
+					uri: string | null;
+				};
+			}>;
+		};
+	}>(connection, listQuery);
+
+	const existing = listData.webhookSubscriptions.edges.find((e) => e.node.uri === callbackUrl);
+
+	if (existing) {
+		return { registered: false, existingId: existing.node.id };
+	}
+
+	const createMutation = `
+		mutation CreateInventoryWebhook($callbackUrl: String!) {
+		  webhookSubscriptionCreate(
+		    topic: INVENTORY_LEVELS_UPDATE
+		    webhookSubscription: { uri: $callbackUrl, format: JSON }
+		  ) {
+		    webhookSubscription {
+		      id
+		    }
+		    userErrors {
+		      field
+		      message
+		    }
+		  }
+		}
+	`;
+	const createData = await graphql<{
+		webhookSubscriptionCreate: {
+			webhookSubscription: { id: string } | null;
+			userErrors: Array<{ field: string[] | null; message: string }>;
+		};
+	}>(connection, createMutation, { callbackUrl });
+
+	if (createData.webhookSubscriptionCreate.userErrors.length) {
+		throw new Error(
+			createData.webhookSubscriptionCreate.userErrors
+				.map((e) => `${e.field?.join('.') ?? ''}: ${e.message}`)
+				.join('; ')
+		);
+	}
+
+	return {
+		registered: true,
+		existingId: createData.webhookSubscriptionCreate.webhookSubscription?.id ?? null
+	};
+}
+
+export async function pullInventoryLevels(
+	connection: IntegrationConnection,
+	inventoryItemIds: string[]
+): Promise<Record<string, number>> {
+	if (inventoryItemIds.length === 0) return {};
+
+	const query = `
+		query PullInventoryLevels($ids: [ID!]!) {
+		  nodes(ids: $ids) {
+		    ... on InventoryItem {
+		      id
+		      inventoryLevels(first: 50) {
+		        edges {
+		          node {
+		            quantities(names: ["available"]) {
+		              name
+		              quantity
+		            }
+		          }
+		        }
+		      }
+		    }
+		  }
+		}
+	`;
+	const BATCH = 100; // Admin "nodes" limit — chunk to be safe
+	const out: Record<string, number> = {};
+
+	for (let i = 0; i < inventoryItemIds.length; i += BATCH) {
+		const batch = inventoryItemIds.slice(i, i + BATCH);
+		const data = await graphql<{
+			nodes: Array<{
+				id: string;
+				inventoryLevels: {
+					edges: Array<{
+						node: {
+							quantities: Array<{ name: string; quantity: number | null }>;
+						};
+					}>;
+				};
+			} | null>;
+		}>(connection, query, { ids: batch });
+
+		for (const node of data.nodes) {
+			if (!node) continue;
+			const total = node.inventoryLevels.edges.reduce((sum, e) => {
+				const availableEntry = e.node.quantities.find((q) => q.name === 'available');
+				return sum + (availableEntry?.quantity ?? 0);
+			}, 0);
+			out[node.id] = total;
+		}
+	}
+
+	return out;
+}
