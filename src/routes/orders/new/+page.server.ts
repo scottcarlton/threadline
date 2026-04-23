@@ -50,15 +50,26 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const buyerBrandIds = isBuyer ? (locals.buyerBrandIds ?? []) : null;
 
 	// Federation-aware org set: own org + active connections (both directions).
+	// Classify the other side of each connection so the rep picker can apply
+	// the right role filter (connected brand org → sales only (BLSR);
+	// connected rep org → admin or sales).
 	const { data: conns } = await supabaseAdmin
 		.from('org_connections')
 		.select('rep_org_id, brand_org_id')
 		.eq('status', 'active')
 		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
 	const visibleOrgIdSet = new Set<string>([organization.id]);
+	const connectedBrandOrgIds = new Set<string>();
+	const connectedRepOrgIds = new Set<string>();
 	for (const c of conns ?? []) {
 		if (c.rep_org_id && c.rep_org_id !== organization.id) visibleOrgIdSet.add(c.rep_org_id);
 		if (c.brand_org_id && c.brand_org_id !== organization.id) visibleOrgIdSet.add(c.brand_org_id);
+		if (c.rep_org_id === organization.id && c.brand_org_id) {
+			connectedBrandOrgIds.add(c.brand_org_id);
+		}
+		if (c.brand_org_id === organization.id && c.rep_org_id) {
+			connectedRepOrgIds.add(c.rep_org_id);
+		}
 	}
 	const visibleOrgIds = Array.from(visibleOrgIdSet);
 
@@ -108,7 +119,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.order('delivery_day'),
 		supabaseAdmin
 			.from('organization_members')
-			.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
+			.select(
+				'profile_id, role, organization_id, profiles!organization_members_profile_id_fkey(display_name)'
+			)
 			.in('organization_id', visibleOrgIds),
 		supabaseAdmin
 			.from('source_types')
@@ -125,9 +138,29 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	type RawMember = {
 		profile_id: string;
+		role: string;
+		organization_id: string;
 		profiles: { display_name: string | null } | null;
 	};
-	const reps = ((membersRes.data ?? []) as unknown as RawMember[])
+	const rawMembers = (membersRes.data ?? []) as unknown as RawMember[];
+	// Own org: all roles (anyone on the team can be the rep on an order).
+	// Connected brand org: sales only (BLSR — brand-level sales reps).
+	// Connected rep org: admin or sales (MBISR admin/sales work accounts on both sides).
+	// Dedupe by profile_id so a user who's a member of multiple visible orgs shows once.
+	const seenProfileIds = new Set<string>();
+	const reps = rawMembers
+		.filter((m) => {
+			if (m.organization_id === organization.id) return true;
+			if (connectedBrandOrgIds.has(m.organization_id)) return m.role === 'sales';
+			if (connectedRepOrgIds.has(m.organization_id))
+				return m.role === 'admin' || m.role === 'sales';
+			return false;
+		})
+		.filter((m) => {
+			if (seenProfileIds.has(m.profile_id)) return false;
+			seenProfileIds.add(m.profile_id);
+			return true;
+		})
 		.map((m) => ({
 			user_id: m.profile_id,
 			name: m.profiles?.display_name ?? 'Unknown'
