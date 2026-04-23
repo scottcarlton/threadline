@@ -364,7 +364,7 @@
 							<button
 								class={cn(
 									'flex w-full flex-col gap-1 rounded-lg px-3 py-3 text-left transition-colors',
-									selectedEmailId === email.id ? 'bg-accent' : 'hover:bg-muted/50'
+									selectedEmailId === email.id ? 'bg-ghost' : 'hover:bg-muted/50'
 								)}
 								onclick={() => selectEmail(email)}
 							>

@@ -59,7 +59,7 @@
 	<div class="flex items-center gap-3">
 		<button
 			onclick={onsidebarToggle}
-			class="cursor-pointer rounded-lg p-1.5 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95"
+			class="cursor-pointer rounded-lg p-1.5 text-muted-foreground transition-all duration-200 hover:bg-ghost hover:text-foreground active:scale-95"
 			aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
 		>
 			<svg
@@ -100,7 +100,7 @@
 			onclick={() => {
 				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
 			}}
-			class="flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95"
+			class="flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-ghost hover:text-foreground active:scale-95"
 			aria-label="Search"
 		>
 			<svg
@@ -123,7 +123,7 @@
 		<div class="relative">
 			<button
 				onclick={() => (showNotifications = !showNotifications)}
-				class="relative flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95"
+				class="relative flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-ghost hover:text-foreground active:scale-95"
 				aria-label="Notifications"
 			>
 				<svg
@@ -211,7 +211,7 @@
 		{#if isBuyer}
 			<a
 				href={resolve('/shop/cart')}
-				class="relative flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95"
+				class="relative flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-ghost hover:text-foreground active:scale-95"
 				aria-label="Cart"
 			>
 				<svg
@@ -240,7 +240,7 @@
 		<div class="relative">
 			<button
 				onclick={() => (showUserMenu = !showUserMenu)}
-				class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-all duration-200 hover:bg-accent active:scale-[0.98]"
+				class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-all duration-200 hover:bg-ghost active:scale-[0.98]"
 			>
 				<Avatar class="h-8 w-8">
 					<AvatarFallback class="bg-primary text-[11px] font-semibold text-primary-foreground">
@@ -276,7 +276,7 @@
 				>
 					<a
 						href={resolve('/settings')}
-						class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-accent"
+						class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-ghost"
 						onclick={() => (showUserMenu = false)}
 					>
 						<svg
@@ -300,7 +300,7 @@
 					</a>
 					<div class="mx-2 my-1.5 h-px bg-border"></div>
 					<button
-						class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent"
+						class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-ghost"
 						onclick={signOut}
 					>
 						<svg

@@ -85,7 +85,7 @@
 		{#if !loading}
 			<button
 				onclick={refresh}
-				class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+				class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-ghost hover:text-foreground"
 				aria-label="Refresh briefing"
 			>
 				<svg
