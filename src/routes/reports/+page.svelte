@@ -94,7 +94,7 @@
 				class="group flex items-start gap-4 rounded-none border bg-card p-5 transition-all duration-200 hover:border-foreground/20 hover:shadow-md"
 			>
 				<div
-					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted transition-colors group-hover:bg-accent"
+					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted transition-colors group-hover:bg-ghost"
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"

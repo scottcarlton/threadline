@@ -82,6 +82,9 @@
 		}>
 	);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
+	const connectedBrands = $derived(
+		(data.connectedBrands ?? []) as { id: string; name: string; rate: number }[]
+	);
 	const memberEmails = $derived(data.memberEmails as Record<string, string>);
 	const currentUserId = $derived(data.user?.id);
 
@@ -603,7 +606,7 @@
 					<div class="h-px bg-border"></div>
 					<div class="space-y-3">
 						<h3 class="text-sm font-semibold">Commission Rates</h3>
-						{#if brands.length === 0}
+						{#if brands.length === 0 && connectedBrands.length === 0}
 							<p class="text-sm text-muted-foreground">No brands available.</p>
 						{:else}
 							<div class="space-y-1.5">
@@ -622,6 +625,18 @@
 													drawerUpdateCommission(brand.id, (e.target as HTMLInputElement).value)}
 												class="h-7 w-16 rounded-md border border-input bg-background px-2 text-right text-sm"
 											/>
+											<span class="text-xs text-muted-foreground">%</span>
+										</div>
+									</div>
+								{/each}
+								{#each connectedBrands as brand (brand.id)}
+									<div class="flex items-center justify-between rounded-lg border px-3 py-2">
+										<div class="flex items-center gap-2">
+											<span class="text-sm font-medium">{brand.name}</span>
+											<span class="text-xs text-muted-foreground">Connection rate</span>
+										</div>
+										<div class="flex items-center gap-1.5">
+											<span class="text-sm">{brand.rate}</span>
 											<span class="text-xs text-muted-foreground">%</span>
 										</div>
 									</div>

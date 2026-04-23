@@ -11,22 +11,53 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.eq('organization_id', organization.id)
 		.order('created_at');
 
-	const [invResult, brandsResult, commissionsResult, brandAccessResult] = await Promise.all([
-		supabase
-			.from('invitations')
-			.select('*')
-			.eq('organization_id', organization.id)
-			.is('accepted_at', null)
-			.order('created_at', { ascending: false }),
-		supabase
-			.from('brands')
-			.select('id, name')
-			.eq('organization_id', organization.id)
-			.eq('is_active', true)
-			.order('name'),
-		supabase.from('member_brand_commissions').select('*').eq('organization_id', organization.id),
-		supabase.from('member_brand_access').select('member_id')
-	]);
+	const [invResult, brandsResult, commissionsResult, brandAccessResult, connsResult] =
+		await Promise.all([
+			supabase
+				.from('invitations')
+				.select('*')
+				.eq('organization_id', organization.id)
+				.is('accepted_at', null)
+				.order('created_at', { ascending: false }),
+			supabase
+				.from('brands')
+				.select('id, name')
+				.eq('organization_id', organization.id)
+				.eq('is_active', true)
+				.order('name'),
+			supabase.from('member_brand_commissions').select('*').eq('organization_id', organization.id),
+			supabase.from('member_brand_access').select('member_id'),
+			supabase
+				.from('org_connections')
+				.select('brand_org_id, commission_rate')
+				.eq('rep_org_id', organization.id)
+				.eq('status', 'active')
+		]);
+
+	// Connected brands: commission is set at the connection (org) level, not per-member.
+	// Fetch brand rows for each connected brand org and merge the connection rate.
+	const connectionRateByBrandOrg = new Map<string, number>();
+	for (const c of connsResult.data ?? []) {
+		if (c.brand_org_id && c.commission_rate != null) {
+			connectionRateByBrandOrg.set(c.brand_org_id, Number(c.commission_rate));
+		}
+	}
+	const brandOrgIds = Array.from(connectionRateByBrandOrg.keys());
+	const connectedBrandsRaw = brandOrgIds.length
+		? (
+				await supabase
+					.from('brands')
+					.select('id, name, organization_id')
+					.in('organization_id', brandOrgIds)
+					.eq('is_active', true)
+					.order('name')
+			).data
+		: [];
+	const connectedBrands = (connectedBrandsRaw ?? []).map((b) => ({
+		id: b.id,
+		name: b.name,
+		rate: connectionRateByBrandOrg.get(b.organization_id) ?? 0
+	}));
 
 	// Members with brand access are brand-scoped (not sales reps)
 	const scopedMemberIds = new Set(
@@ -52,6 +83,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		members: members ?? [],
 		invitations: invResult.data ?? [],
 		brands: brandsResult.data ?? [],
+		connectedBrands,
 		memberBrandCommissions: commissionsResult.data ?? [],
 		scopedMemberIds: Array.from(scopedMemberIds),
 		memberEmails: emailMap,

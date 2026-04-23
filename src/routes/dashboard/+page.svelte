@@ -68,7 +68,7 @@
 		</a>
 		<a
 			href={resolve('/orders/new')}
-			class="inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+			class="inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-ghost"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -97,7 +97,7 @@
 				{#each buyerData.recentOrders as order (order.id)}
 					<a
 						href={resolve(`/orders/${order.id}`)}
-						class="flex items-center justify-between rounded-none border bg-card px-5 py-4 transition-colors hover:bg-accent/50"
+						class="flex items-center justify-between rounded-none border bg-card px-5 py-4 transition-colors hover:bg-ghost/50"
 					>
 						<div>
 							<p class="text-sm font-medium">{order.order_number}</p>
@@ -137,7 +137,7 @@
 				{#each buyerData.brands as brand (brand.id)}
 					<a
 						href={resolve(`/shop?brand=${brand.id}`)}
-						class="flex items-center gap-3 rounded-none border bg-card px-5 py-4 transition-colors hover:bg-accent/50"
+						class="flex items-center gap-3 rounded-none border bg-card px-5 py-4 transition-colors hover:bg-ghost/50"
 					>
 						{#if brand.logo_url}
 							<img
@@ -147,7 +147,7 @@
 							/>
 						{:else}
 							<div
-								class="flex h-10 w-10 items-center justify-center rounded-lg bg-accent text-sm font-bold"
+								class="flex h-10 w-10 items-center justify-center rounded-lg bg-ghost text-sm font-bold"
 							>
 								{brand.name.charAt(0)}
 							</div>

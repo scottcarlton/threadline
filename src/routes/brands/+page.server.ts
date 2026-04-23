@@ -32,16 +32,36 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 	// RLS handles visibility: own-org brands + connected brands via federation policy.
 	// No org_id filter — MBISR users see their own brands AND connected BOA brands.
 	// Orders query keeps org filter (own-org totals only).
-	const [brandsRes, ordersRes] = await Promise.all([
+	// Connection rates: connected brands store their commission on org_connections.commission_rate
+	// (org-level, per brand_org). Merge that onto each brand row so the UI has a single source.
+	const [brandsRes, ordersRes, connsRes] = await Promise.all([
 		supabase.from('brands').select('*').eq('is_active', true).order('name'),
 		supabase
 			.from('orders')
 			.select('brand_id, total_amount')
 			.eq('organization_id', organization.id)
-			.eq('order_year', currentYear)
+			.eq('order_year', currentYear),
+		supabase
+			.from('org_connections')
+			.select('brand_org_id, commission_rate')
+			.eq('rep_org_id', organization.id)
+			.eq('status', 'active')
 	]);
 
-	const brands = brandsRes.data ?? [];
+	const connectionRateByBrandOrg = new Map<string, number>();
+	for (const c of connsRes.data ?? []) {
+		if (c.brand_org_id && c.commission_rate != null) {
+			connectionRateByBrandOrg.set(c.brand_org_id, Number(c.commission_rate));
+		}
+	}
+
+	const brands = (brandsRes.data ?? []).map((brand) => ({
+		...brand,
+		resolved_commission_rate:
+			brand.organization_id !== organization.id
+				? (connectionRateByBrandOrg.get(brand.organization_id) ?? 0)
+				: (brand.commission_rate ?? 0)
+	}));
 
 	const totals: Record<string, number> = {};
 	for (const order of ordersRes.data ?? []) {
