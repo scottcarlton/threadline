@@ -772,7 +772,7 @@
 					<h2 class="text-lg font-semibold">What you'll be able to do</h2>
 					<div class="mt-4 grid gap-3 sm:grid-cols-2">
 						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									class="h-5 w-5 text-muted-foreground"
@@ -796,7 +796,7 @@
 							</div>
 						</div>
 						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									class="h-5 w-5 text-muted-foreground"
@@ -820,7 +820,7 @@
 							</div>
 						</div>
 						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									class="h-5 w-5 text-muted-foreground"
@@ -844,7 +844,7 @@
 							</div>
 						</div>
 						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									class="h-5 w-5 text-muted-foreground"
@@ -878,18 +878,18 @@
 					</p>
 					<div class="mt-4 flex flex-wrap gap-2">
 						<button
-							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-accent active:scale-[0.98]"
+							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-ghost active:scale-[0.98]"
 							onclick={() =>
 								handleShortcut(
 									"Help me draft a professional email. Who should I write to and what's the context?"
 								)}>Draft an email</button
 						>
 						<button
-							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-accent active:scale-[0.98]"
+							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-ghost active:scale-[0.98]"
 							onclick={() => handleShortcut('What can you help me with?')}>What can you do?</button
 						>
 						<button
-							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-accent active:scale-[0.98]"
+							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-ghost active:scale-[0.98]"
 							onclick={() =>
 								handleShortcut('Walk me through setting up my first brand and product catalog.')}
 							>Help me get started</button

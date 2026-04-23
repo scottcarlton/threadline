@@ -310,7 +310,7 @@
 		</div>
 		<button
 			onclick={ontoggle}
-			class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+			class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-ghost hover:text-foreground"
 			aria-label="Close assistant"
 		>
 			<svg
@@ -359,7 +359,7 @@
 				<div class="mt-2 flex w-full flex-col gap-1.5">
 					{#each currentPrompts as prompt (prompt)}
 						<button
-							class="rounded-lg border px-3 py-2 text-left text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							class="rounded-lg border px-3 py-2 text-left text-[12px] text-muted-foreground transition-colors hover:bg-ghost hover:text-foreground"
 							onclick={() => handleSend(prompt)}
 						>
 							{prompt}
@@ -539,7 +539,7 @@
 				<button
 					onclick={() => fileInput?.click()}
 					disabled={$loading}
-					class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+					class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-ghost hover:text-foreground disabled:opacity-50"
 					aria-label="Attach file"
 				>
 					<svg
