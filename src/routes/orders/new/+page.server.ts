@@ -48,6 +48,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const isBuyer = locals.isBuyer ?? false;
 	const buyerAccountIds = isBuyer ? (locals.buyerAccounts?.map((a) => a.account_id) ?? []) : null;
 	const buyerBrandIds = isBuyer ? (locals.buyerBrandIds ?? []) : null;
+	const isBrandOrg = locals.orgType === 'brand';
 
 	// Federation-aware org set: own org + active connections (both directions).
 	// Classify the other side of each connection so the rep picker can apply
@@ -175,7 +176,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const seenProfileIds = new Set<string>();
 	const reps = rawMembers
 		.filter((m) => {
-			if (m.organization_id === organization.id) return REP_ROLES.has(m.role);
+			if (m.organization_id === organization.id) {
+				// Own org: BLSR (sales only) if we're a brand org;
+				// otherwise MBISR+MBLSR (admin/owner/sales).
+				return isBrandOrg ? m.role === 'sales' : REP_ROLES.has(m.role);
+			}
 			if (connectedBrandOrgIds.has(m.organization_id)) return m.role === 'sales';
 			if (connectedRepOrgIds.has(m.organization_id)) return REP_ROLES.has(m.role);
 			return false;
@@ -192,8 +197,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.sort((a, b) => a.name.localeCompare(b.name));
 
 	const brands = brandsRes.data ?? [];
-	const isBrandOrg = locals.orgType === 'brand';
-
 	const selfBrandId = isBrandOrg
 		? (brands.find((b) => (b as { is_self_brand?: boolean }).is_self_brand)?.id ?? null)
 		: null;
