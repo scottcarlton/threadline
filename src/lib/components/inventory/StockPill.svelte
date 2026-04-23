@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { StockStatus } from '$lib/server/inventory/status';
+	import type { StockStatus } from '$lib/inventory/status';
 
 	type Props = {
 		status: StockStatus | null;

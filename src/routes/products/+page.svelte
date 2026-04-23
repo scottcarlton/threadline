@@ -10,7 +10,7 @@
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
-	import { deriveStockStatus, type StockStatus } from '$lib/server/inventory/status';
+	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 	import type { Product } from '$lib/types/database.js';
 
 	import { goto } from '$app/navigation';

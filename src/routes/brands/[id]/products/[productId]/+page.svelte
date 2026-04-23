@@ -16,7 +16,7 @@
 	import type { Product, ProductVariant, ProductImage } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import VariantStockEditor from '$lib/components/inventory/VariantStockEditor.svelte';
-	import { deriveStockStatus } from '$lib/server/inventory/status';
+	import { deriveStockStatus } from '$lib/inventory/status';
 
 	let { data } = $props();
 	const brand = $derived(data.brand as { id: string; name: string });
