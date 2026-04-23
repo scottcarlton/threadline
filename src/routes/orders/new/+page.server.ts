@@ -109,7 +109,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		supabaseAdmin
 			.from('organization_members')
 			.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
-			.eq('organization_id', organization.id),
+			.in('organization_id', visibleOrgIds),
 		supabaseAdmin
 			.from('source_types')
 			.select('id, name, sort_order')
