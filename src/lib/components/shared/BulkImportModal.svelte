@@ -295,7 +295,7 @@
 					</p>
 				</div>
 				<button
-					class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-ghost hover:text-foreground"
 					onclick={ontoggle}
 					aria-label="Close"
 				>
