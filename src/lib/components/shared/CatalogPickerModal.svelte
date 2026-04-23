@@ -6,7 +6,9 @@
 	import Switch from '$lib/components/ui/switch.svelte';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
-	import type { CatalogProduct, CatalogCartItem } from './catalog-picker-types.js';
+	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
+	import type { CatalogProduct, CatalogCartItem, ProductVariant } from './catalog-picker-types.js';
 	import {
 		primaryImageId,
 		productColors,
@@ -200,6 +202,34 @@
 		return items.find((it) => it.product_id === product_id);
 	}
 
+	function aggregateStockStatus(
+		variants: { stock_qty: number | null; stock_threshold: number | null }[]
+	): StockStatus | null {
+		const statuses = variants
+			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
+			.filter((s): s is StockStatus => s !== null);
+		if (statuses.length === 0) return null;
+		if (statuses.includes('out')) return 'out';
+		if (statuses.includes('low')) return 'low';
+		return 'in';
+	}
+
+	function findVariant(
+		product: CatalogProduct,
+		color: string | null,
+		size: string | null
+	): ProductVariant | null {
+		return (
+			product.product_variants.find(
+				(v) => (v.color ?? null) === (color ?? null) && (v.size ?? null) === (size ?? null)
+			) ?? null
+		);
+	}
+
+	function productForItem(it: CatalogCartItem): CatalogProduct | null {
+		return modalProducts.find((p) => p.id === it.product_id) ?? null;
+	}
+
 	function handleDone() {
 		ondone(items);
 		onclose();
@@ -336,6 +366,14 @@
 												: ''}
 										</div>
 										<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
+										{#if p.ats}
+											{@const agg = aggregateStockStatus(p.product_variants ?? [])}
+											{#if agg}
+												<div class="mt-1">
+													<StockPill status={agg} qty={null} hideQty />
+												</div>
+											{/if}
+										{/if}
 										<div class="mt-auto grid grid-cols-2 gap-2 pt-3">
 											{#if added}
 												{#if locked}
@@ -423,6 +461,7 @@
 								<div class="flex flex-wrap gap-3">
 									{#each it.available_sizes as size (size)}
 										{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
+										{@const prod = productForItem(it)}
 										<div class="flex flex-col items-center gap-1">
 											<span class="text-sm text-muted-foreground">{size}</span>
 											<input
@@ -435,6 +474,18 @@
 													items[idx].size_qtys[size] = Number.isNaN(n) ? 0 : Math.max(0, n);
 												}}
 											/>
+											{#if prod?.ats}
+												{@const variant = findVariant(prod, it.selected_color, size)}
+												{#if variant}
+													{@const stat = deriveStockStatus(
+														variant.stock_qty,
+														variant.stock_threshold
+													)}
+													{#if stat}
+														<StockPill status={stat} qty={variant.stock_qty} />
+													{/if}
+												{/if}
+											{/if}
 										</div>
 									{/each}
 								</div>
