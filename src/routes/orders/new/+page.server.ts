@@ -165,18 +165,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 		profiles: { display_name: string | null } | null;
 	};
 	const rawMembers = (membersRes.data ?? []) as unknown as RawMember[];
-	// Own org: all roles (anyone on the team can be the rep on an order).
-	// Connected brand org: sales only (BLSR — brand-level sales reps).
-	// Connected rep org (direct OR a rep org that shares a brand partner with
-	// us — see repVisibleOrgIds above): admin or sales.
+	// Only three user types are valid sales reps on an order:
+	//   - BLSR   → role=sales in a connected brand org
+	//   - MBISR  → role=admin|owner in a rep org (own OR sibling via shared brand)
+	//   - MBLSR  → role=sales in a rep org (own OR sibling via shared brand)
+	// member/guest and brand-org admin/owner/member are excluded.
 	// Dedupe by profile_id so a user who's a member of multiple visible orgs shows once.
+	const REP_ROLES = new Set(['admin', 'owner', 'sales']); // MBISR + MBLSR
 	const seenProfileIds = new Set<string>();
 	const reps = rawMembers
 		.filter((m) => {
-			if (m.organization_id === organization.id) return true;
+			if (m.organization_id === organization.id) return REP_ROLES.has(m.role);
 			if (connectedBrandOrgIds.has(m.organization_id)) return m.role === 'sales';
-			if (connectedRepOrgIds.has(m.organization_id))
-				return m.role === 'admin' || m.role === 'sales';
+			if (connectedRepOrgIds.has(m.organization_id)) return REP_ROLES.has(m.role);
 			return false;
 		})
 		.filter((m) => {
