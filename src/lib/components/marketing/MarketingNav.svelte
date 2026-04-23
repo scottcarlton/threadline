@@ -1,50 +1,44 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { resolve } from '$app/paths';
-	import { onMount } from 'svelte';
 
 	const isAuthenticated = $derived(!!$page.data.session);
-	let navScrolled = $state(false);
-
-	onMount(() => {
-		const handler = () => {
-			navScrolled = window.scrollY > 40;
-		};
-		window.addEventListener('scroll', handler, { passive: true });
-		return () => window.removeEventListener('scroll', handler);
-	});
 </script>
 
 <header>
 	<div class="w-full px-8 lg:px-12">
 		<nav
-			class="fixed top-6 z-99 grid grid-cols-3 items-center bg-background py-6 transition-all duration-500 ease-in-out {navScrolled
-				? 'w-[calc(100vw-96px)] px-6 shadow-sm'
-				: 'w-[calc(100vw-96px)] px-0'}"
+			class="fixed z-99 grid w-[calc(100vw-96px)] grid-cols-[auto_1fr_auto] items-center bg-background py-6 transition-all duration-500 ease-in-out"
 		>
-			<a class="text-2xl font-semibold tracking-tight text-foreground" href={resolve('/')}
-				>/Threadline</a
+			<a
+				class="flex items-center text-2xl font-semibold tracking-tight text-foreground"
+				href={resolve('/')}><span class="-mt-0.5 flex">/</span>Threadline</a
 			>
 
 			<div class="flex items-center justify-center gap-8 font-mono">
 				<a
 					href={resolve('/features')}
-					class="px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
 					>Features</a
 				>
 				<a
 					href={resolve('/intelligence')}
-					class="px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
 					>Intelligence</a
 				>
 				<a
 					href={resolve('/solutions')}
-					class="px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
 					>Solutions</a
 				>
 				<a
+					href={resolve('/resources')}
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					>Resources</a
+				>
+				<a
 					href={resolve('/pricing')}
-					class="px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
 					>Pricing</a
 				>
 			</div>
@@ -61,8 +55,8 @@
 						class="hidden text-sm transition-colors hover:text-foreground sm:block">Log In</a
 					>
 					<a
-						class="bg-foreground px-5 py-2.5 text-sm text-primary-foreground"
-						href={resolve('/signup')}>Early Access</a
+						class="rounded-lg bg-foreground px-5 py-2.5 text-sm text-primary-foreground"
+						href={resolve('/signup')}>Join Beta</a
 					>
 				{/if}
 			</div>

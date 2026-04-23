@@ -1,6 +1,12 @@
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ locals }) => {
+export const load: LayoutServerLoad = async ({ locals, depends }) => {
+	// Root layout load only reads from `locals` — without a dependency, SvelteKit
+	// reuses its cached output across client-side navigations and the navbar ends
+	// up stuck on whatever user/org state was set when this first ran (notably
+	// null on public routes like /connect/[code]). Invalidate via `app:auth`.
+	depends('app:auth');
+
 	let agents: { id: string; name: string; slug: string; description: string | null }[] = [];
 
 	if (locals.organization && locals.session) {

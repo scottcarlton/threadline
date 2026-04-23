@@ -97,6 +97,7 @@
 			$page.url.pathname.startsWith('/features') ||
 			$page.url.pathname.startsWith('/intelligence') ||
 			$page.url.pathname.startsWith('/solutions') ||
+			$page.url.pathname.startsWith('/resources') ||
 			$page.url.pathname.startsWith('/pricing')
 	);
 

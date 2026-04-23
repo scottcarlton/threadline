@@ -2,7 +2,6 @@
 	// import { resolve } from '$app/paths';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
-
 	let faqOpen = $state<number | null>(null);
 
 	function toggleFaq(index: number) {
@@ -11,7 +10,7 @@
 </script>
 
 <svelte:head>
-	<title>Features — Threadline</title>
+	<title>Resources — Threadline</title>
 </svelte:head>
 
 <div>
@@ -19,20 +18,19 @@
 	<main>
 		<div>
 			<section data-section="hero">
-				<div class="grid grid-cols-12 gap-6 px-12 pt-32">
-					<div class="col-span-6 grid pt-42">
+				<div class="grid grid-cols-12 gap-6 px-12 pt-42">
+					<div class="col-span-6 col-start-4 grid justify-center text-center">
 						<div>
 							<div class="mb-8 space-y-2">
-								<h1 class="h-reveal text-5xl leading-14 text-balance">
-									Built for how you need work
+								<h1 class="text-5xl leading-14 text-balance">
+									Switch to Threadline today. Accelerate tomorrow.
 								</h1>
-								<p class="h-reveal max-w-xl text-neutral-700">
-									Insight briefings, account health monitoring, style velocity tracking, and a full
-									order pipeline into one platform built for your business.
+								<p class="text-balance text-neutral-700">
+									Most wholesale software takes months to implement. Threadline only takes days.
 								</p>
 							</div>
 							<form
-								class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
+								class="mx-auto grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
 							>
 								<input
 									class="border-0 px-4 py-2 text-base outline-none"
@@ -43,95 +41,52 @@
 							</form>
 						</div>
 					</div>
-					<div class="col-span-7 col-start-7 h-100 min-h-140 rounded-lg bg-neutral-200 p-12"></div>
+					<!-- <div class="col-span-7 col-start-7 h-100 min-h-140 rounded-lg bg-neutral-200 p-12"></div> -->
 				</div>
 			</section>
 			<section>
-				<div class="mb-32 grid grid-cols-12 gap-12 px-12 pt-32">
+				<div class="grid grid-cols-12 gap-12 px-12 pt-32">
 					<div class="col-span-12 text-center">
-						<h2 class="text-4xl">Features that actually work for you.</h2>
+						<h2 class="text-4xl">Learn to use Threadline</h2>
 					</div>
 					<ul class="col-span-12 grid grid-cols-12 gap-6">
-						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
+						<li class="col-span-3 h-48 rounded-lg bg-neutral-200 p-4">
 							<div>
-								<h3 class="text-xl">Insight Briefings</h3>
+								<h3 class="text-xl">Brand Admins</h3>
 								<p class="text-balance text-foreground/60">
-									Start every morning knowing which accounts need attention, what's trending, and
-									where revenue is at risk.
+									Reorder predictions, churn risk detection, and buyer engagement scoring — before
+									you ask.
 								</p>
 							</div>
 						</li>
-						<li class="col-span-4 rounded-lg bg-neutral-200 p-4">
+						<li class="col-span-3 rounded-lg bg-neutral-200 p-4">
 							<div>
-								<h3 class="text-xl">Account Health</h3>
+								<h3 class="text-xl">Independent Sales Admins</h3>
 								<p class="text-balance text-foreground/60">
-									Health scores, reorder patterns, and churn risk — synthesized automatically from
-									buyer behavior.
+									Surfaces cross-brand patterns, buyer behavior, and territory opportunities unique
+									to your portfolio.
 								</p>
 							</div>
 						</li>
-						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
+						<li class="col-span-3 h-48 rounded-lg bg-neutral-200 p-4">
 							<div>
-								<h3 class="text-xl">Style Velocity</h3>
+								<h3 class="text-xl">Connected Partners</h3>
 								<p class="text-balance text-foreground/60">
-									Real-time sell-through across accounts. Spot which SKUs are accelerating before
-									you stock out.
+									Ask anything about your business in plain English. Revenue breakdowns, account
+									health, follow-up suggestions.
 								</p>
 							</div>
 						</li>
-						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
+						<li class="col-span-3 h-48 rounded-lg bg-neutral-200 p-4">
 							<div>
-								<h3 class="text-xl">Order Pipeline</h3>
+								<h3 class="text-xl">Members</h3>
 								<p class="text-balance text-foreground/60">
-									Full pipeline from draft to delivery. Track status, commissions, and ship dates in
-									one place.
-								</p>
-							</div>
-						</li>
-						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
-							<div>
-								<h3 class="text-xl">Commission Tracking</h3>
-								<p class="text-balance text-foreground/60">
-									Set rate structures per brand, define splits, and Threadline calculates everything
-									automatically.
-								</p>
-							</div>
-						</li>
-						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
-							<div>
-								<h3 class="text-xl">Buyer Portal</h3>
-								<p class="text-balance text-foreground/60">
-									Buyers browse products, place orders, and track deliveries on their own terms.
+									Ask anything about your business in plain English. Revenue breakdowns, account
+									health, follow-up suggestions.
 								</p>
 							</div>
 						</li>
 					</ul>
-				</div>
-			</section>
-			<section>
-				<div class="grid grid-cols-12 gap-12 bg-foreground px-12 py-32 text-background">
-					<div class="col-span-12 text-center">
-						<h2 class="text-4xl">From raw data to actionable decisions</h2>
-					</div>
-					<div class="col-span-6 grid gap-6">
-						<div class="aspect-square rounded-xl bg-background/20"></div>
-						<div>
-							<h3 class="text-xl">Built-in Workers</h3>
-							<p class="text-balance text-white/60">
-								Commission tracking, reorder alerts, buyer follow-ups — handled automatically in the
-								background.
-							</p>
-						</div>
-					</div>
-					<div class="col-span-6 grid gap-6">
-						<div class="aspect-square rounded-xl bg-background/20"></div>
-						<div>
-							<h3 class="text-xl">Custom Workers</h3>
-							<p class="text-balance text-white/60">
-								Build your own automations for the signals only you care about. No code required.
-							</p>
-						</div>
-					</div>
 				</div>
 			</section>
 			<section data-section="faq">
@@ -177,21 +132,6 @@
 							{/each}
 						</ul>
 					</div>
-				</div>
-			</section>
-			<section data-section="cta">
-				<div class="grid justify-center space-y-6 px-12 py-24">
-					<h2 class="text-4xl">Get early access to Threadline</h2>
-					<form
-						class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
-					>
-						<input
-							class="border-0 px-4 py-2 text-base outline-none"
-							type="email"
-							placeholder="Enter your email"
-						/>
-						<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
-					</form>
 				</div>
 			</section>
 		</div>
