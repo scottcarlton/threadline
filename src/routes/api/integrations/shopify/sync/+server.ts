@@ -5,10 +5,11 @@ import {
 	getActiveConnection,
 	matchVariantBySku,
 	pullProductsPage,
-	pullInventoryLevels
+	pullInventoryLevels,
+	registerInventoryWebhook
 } from '$lib/server/integrations/shopify';
 
-export const POST: RequestHandler = async ({ locals }) => {
+export const POST: RequestHandler = async ({ locals, url }) => {
 	if (!locals.session || !locals.user || !locals.organization) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
@@ -19,6 +20,23 @@ export const POST: RequestHandler = async ({ locals }) => {
 	const connection = await getActiveConnection(locals.organization.id);
 	if (!connection) {
 		return json({ error: 'Shopify not connected' }, { status: 409 });
+	}
+
+	// Idempotent: registers the inventory webhook if not already subscribed.
+	// Derive origin from the URL of this request so prod/staging/dev all get distinct endpoints.
+	// Failure is non-fatal — we log but don't abort sync; user can re-sync to retry.
+	try {
+		const callbackUrl = `${url.origin}/api/integrations/shopify/webhook`;
+		await registerInventoryWebhook(connection, callbackUrl);
+	} catch (err) {
+		await supabaseAdmin.from('integration_sync_log').insert({
+			organization_id: locals.organization.id,
+			connection_id: connection.id,
+			action: 'shopify.webhook.register',
+			status: 'error',
+			error_message: err instanceof Error ? err.message : 'Unknown error'
+		});
+		// Continue with sync anyway.
 	}
 
 	// Load own-org variants with non-null SKUs via products join (scopes correctly).

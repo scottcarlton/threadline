@@ -216,6 +216,76 @@ export async function pullProductsPage(
 	};
 }
 
+export async function registerInventoryWebhook(
+	connection: IntegrationConnection,
+	callbackUrl: string
+): Promise<{ registered: boolean; existingId: string | null }> {
+	const listQuery = `
+		query ListInventoryWebhooks {
+		  webhookSubscriptions(first: 50, topics: [INVENTORY_LEVELS_UPDATE]) {
+		    edges {
+		      node {
+		        id
+		        uri
+		      }
+		    }
+		  }
+		}
+	`;
+	const listData = await graphql<{
+		webhookSubscriptions: {
+			edges: Array<{
+				node: {
+					id: string;
+					uri: string | null;
+				};
+			}>;
+		};
+	}>(connection, listQuery);
+
+	const existing = listData.webhookSubscriptions.edges.find((e) => e.node.uri === callbackUrl);
+
+	if (existing) {
+		return { registered: false, existingId: existing.node.id };
+	}
+
+	const createMutation = `
+		mutation CreateInventoryWebhook($callbackUrl: String!) {
+		  webhookSubscriptionCreate(
+		    topic: INVENTORY_LEVELS_UPDATE
+		    webhookSubscription: { uri: $callbackUrl, format: JSON }
+		  ) {
+		    webhookSubscription {
+		      id
+		    }
+		    userErrors {
+		      field
+		      message
+		    }
+		  }
+		}
+	`;
+	const createData = await graphql<{
+		webhookSubscriptionCreate: {
+			webhookSubscription: { id: string } | null;
+			userErrors: Array<{ field: string[] | null; message: string }>;
+		};
+	}>(connection, createMutation, { callbackUrl });
+
+	if (createData.webhookSubscriptionCreate.userErrors.length) {
+		throw new Error(
+			createData.webhookSubscriptionCreate.userErrors
+				.map((e) => `${e.field?.join('.') ?? ''}: ${e.message}`)
+				.join('; ')
+		);
+	}
+
+	return {
+		registered: true,
+		existingId: createData.webhookSubscriptionCreate.webhookSubscription?.id ?? null
+	};
+}
+
 export async function pullInventoryLevels(
 	connection: IntegrationConnection,
 	inventoryItemIds: string[]
