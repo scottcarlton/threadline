@@ -22,12 +22,24 @@
 	const termsHistory = $derived(data.termsHistory);
 
 	// svelte-ignore state_referenced_locally
+	// Stale client bundles (post-deploy, pre-reload) occasionally arrive before
+	// load returns the new `termsForm` shape — fall back to schema defaults so
+	// superForm doesn't throw and kill the rest of the page.
+	const termsFormInitial = data.termsForm ?? {
+		id: '',
+		valid: false,
+		posted: false,
+		errors: {},
+		data: { brand_id: '', title: 'Terms & Conditions', body: '' },
+		constraints: {}
+	};
+
 	const {
 		form: termsForm,
 		errors: termsErrors,
 		enhance: termsEnhance,
 		submitting: termsSubmitting
-	} = superForm(data.termsForm, {
+	} = superForm(termsFormInitial, {
 		validators: zod4Client(brandTermsSchema),
 		validationMethod: 'onblur',
 		onResult: ({ result }) => {
