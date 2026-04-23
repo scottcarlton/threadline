@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { Toaster } from 'svelte-sonner';
+	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { navigating } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -96,6 +97,7 @@
 			$page.url.pathname.startsWith('/features') ||
 			$page.url.pathname.startsWith('/intelligence') ||
 			$page.url.pathname.startsWith('/solutions') ||
+			$page.url.pathname.startsWith('/resources') ||
 			$page.url.pathname.startsWith('/pricing')
 	);
 
@@ -618,7 +620,11 @@
 
 <svelte:window onkeydown={handleGlobalKeydown} onmousemove={handleMouseMove} />
 
-<Toaster richColors position="top-center" />
+{#if browser}
+	<!-- Toaster is client-only — svelte-sonner calls setContext during child
+	     render, which throws `lifecycle_outside_component` during SvelteKit SSR. -->
+	<Toaster richColors position="top-center" />
+{/if}
 
 {#if $navigating}
 	<div class="fixed inset-x-0 top-0 z-[100] h-0.5">

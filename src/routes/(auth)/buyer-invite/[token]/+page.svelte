@@ -27,7 +27,8 @@
 		const { error: err } = await supabase.auth.signInWithOAuth({
 			provider: 'google',
 			options: {
-				redirectTo: `${window.location.origin}/auth/callback?next=/buyer-invite/${invitation.token}/accept`
+				redirectTo: `${window.location.origin}/auth/callback?next=/buyer-invite/${invitation.token}/accept`,
+				queryParams: { prompt: 'select_account' }
 			}
 		});
 		loading = false;

@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { Dialog } from 'bits-ui';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input';
+	import { toast } from 'svelte-sonner';
 	import type { IntegrationConnection, IntegrationProvider } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -55,6 +58,14 @@
 			category: 'Microsoft',
 			connectUrl: '/api/integrations/microsoft/connect',
 			icon: 'microsoft'
+		},
+		{
+			provider: 'shopify',
+			name: 'Shopify',
+			description: 'Live inventory sync from your Shopify store',
+			category: 'E-commerce',
+			connectUrl: null,
+			icon: 'shopify'
 		}
 	];
 
@@ -70,11 +81,6 @@
 			category: 'Accounting'
 		},
 		{
-			name: 'Shopify',
-			description: 'Import orders and sync inventory from your online store',
-			category: 'E-commerce'
-		},
-		{
 			name: 'Zapier',
 			description: 'Connect Threadline to thousands of other apps',
 			category: 'Automation'
@@ -87,6 +93,21 @@
 
 	let search = $state('');
 	let disconnecting = $state('');
+	let syncingShopify = $state(false);
+	let shopifyDialogOpen = $state(false);
+	let shopifyInput = $state('');
+
+	function openShopifyDialog() {
+		shopifyInput = '';
+		shopifyDialogOpen = true;
+	}
+
+	function submitShopifyConnect(e: Event) {
+		e.preventDefault();
+		const shop = shopifyInput.trim();
+		if (!shop) return;
+		window.location.href = `/api/integrations/shopify/connect?shop=${encodeURIComponent(shop)}`;
+	}
 
 	const allIntegrations = $derived([
 		...integrations.map((i) => ({ ...i, comingSoon: false })),
@@ -121,6 +142,30 @@
 			}
 		} finally {
 			disconnecting = '';
+		}
+	}
+
+	async function syncShopify() {
+		syncingShopify = true;
+		try {
+			const res = await fetch('/api/integrations/shopify/sync', { method: 'POST' });
+			if (!res.ok) {
+				const body = (await res.json().catch(() => ({}))) as { error?: string };
+				throw new Error(body.error ?? 'Sync failed');
+			}
+			const data = (await res.json()) as {
+				matched: number;
+				unmatched: number;
+				inventoryWrites: number;
+			};
+			toast.success(
+				`Synced — ${data.matched} matched, ${data.unmatched} unmatched, ${data.inventoryWrites} inventory updates`
+			);
+			await invalidateAll();
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Sync failed');
+		} finally {
+			syncingShopify = false;
 		}
 	}
 </script>
@@ -236,6 +281,17 @@
 									fill="currentColor"
 								/>
 							</svg>
+						{:else if integration.icon === 'shopify'}
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-7 w-7 text-[#95BF47]"
+								viewBox="0 0 24 24"
+								fill="currentColor"
+							>
+								<path
+									d="M15.337 3.54a.2.2 0 00-.14-.06c-.086 0-1.61.046-1.61.046s-1.268 1.232-1.408 1.37c-.141.141-.417.1-.523.068-.016-.005-.273-.083-.692-.21-.4-1.232-1.112-2.37-2.406-2.37h-.107C7.93 1.796 7.467 1.5 7.07 1.5c-3.06 0-4.52 3.83-4.98 5.78-1.188.367-2.032.63-2.135.66-.664.21-.685.23-.77.854-.065.475-1.802 14.02-1.802 14.02L12.116 24l7.803-1.688S15.36 3.62 15.338 3.54zM9.69 4.87c-.337.104-.72.222-1.137.353 0-.6-.082-1.435-.36-2.15.895.17 1.49 1.19 1.497 1.797zm-1.79-.55c.35.82.43 1.81.43 2.44-.63.19-1.3.4-1.98.61.38-1.46 1.1-2.17 1.55-2.47-.001 0-.001 0 0-.58zm-.72-.68c.08.2.04.57.04.57s-.01 0-.03.01c-.07.02-.17.05-.3.09-.03.01-.05.02-.08.03.1-.38.28-.7.37-.7zM2.72 23.34l-.88-.83L6.82 7.98s1.17-.36 2.78-.85c-.04 3.39.48 8.34 2.73 14.56l-9.61 1.65zm12.21-1.68s-2.57-6.12-2.3-13.58l1.87-.57.84 14.08-.41.07z"
+								/>
+							</svg>
 						{:else}
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -279,14 +335,41 @@
 				</div>
 
 				{#if conn?.status === 'active'}
-					<Button
-						variant="outline"
-						size="sm"
-						class="w-full border-destructive/50! text-destructive hover:bg-destructive/5 hover:text-destructive"
-						onclick={() => disconnect(integration.provider)}
-						disabled={disconnecting === integration.provider}
-					>
-						{disconnecting === integration.provider ? 'Disconnecting...' : 'Disconnect'}
+					{#if integration.provider === 'shopify'}
+						<div class="space-y-2">
+							<Button
+								variant="outline"
+								size="sm"
+								class="w-full"
+								onclick={syncShopify}
+								disabled={syncingShopify}
+							>
+								{syncingShopify ? 'Syncing...' : 'Re-sync inventory'}
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								class="w-full border-destructive/50! text-destructive hover:bg-destructive/5 hover:text-destructive"
+								onclick={() => disconnect(integration.provider)}
+								disabled={disconnecting === integration.provider}
+							>
+								{disconnecting === integration.provider ? 'Disconnecting...' : 'Disconnect'}
+							</Button>
+						</div>
+					{:else}
+						<Button
+							variant="outline"
+							size="sm"
+							class="w-full border-destructive/50! text-destructive hover:bg-destructive/5 hover:text-destructive"
+							onclick={() => disconnect(integration.provider)}
+							disabled={disconnecting === integration.provider}
+						>
+							{disconnecting === integration.provider ? 'Disconnecting...' : 'Disconnect'}
+						</Button>
+					{/if}
+				{:else if integration.provider === 'shopify'}
+					<Button variant="outline" size="sm" class="w-full" onclick={openShopifyDialog}>
+						Connect
 					</Button>
 				{:else if integration.connectUrl}
 					<Button variant="outline" size="sm" class="w-full" href={integration.connectUrl}>
@@ -323,3 +406,40 @@
 		{/each}
 	</div>
 </div>
+
+<Dialog.Root bind:open={shopifyDialogOpen}>
+	<Dialog.Portal>
+		<Dialog.Overlay
+			class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+		/>
+		<Dialog.Content
+			class="fixed top-[50%] left-[50%] z-50 w-full max-w-md translate-x-[-50%] translate-y-[-50%] rounded-lg border bg-background p-6 shadow-lg"
+		>
+			<Dialog.Title class="text-base font-semibold">Connect Shopify</Dialog.Title>
+			<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+				Enter your Shopify store's handle or full .myshopify.com domain.
+			</Dialog.Description>
+			<form onsubmit={submitShopifyConnect} class="mt-5 space-y-3">
+				<Input
+					type="text"
+					placeholder="acme or acme.myshopify.com"
+					bind:value={shopifyInput}
+					autocomplete="off"
+					required
+					aria-label="Shopify shop handle"
+				/>
+				<div class="flex justify-end gap-2">
+					<Dialog.Close class="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-muted"
+						>Cancel</Dialog.Close
+					>
+					<button
+						type="submit"
+						class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90"
+					>
+						Continue
+					</button>
+				</div>
+			</form>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
