@@ -29,9 +29,12 @@
 		}
 		autoApproved = Boolean(json.autoApproved);
 		success = true;
-		// Auto-redirect to connections after a brief success flash
+		// Auto-redirect to connections after a brief success flash.
+		// invalidateAll forces the root layout load to re-run so the navbar
+		// picks up the now-authenticated user/org state (connect/[code] is a
+		// public route where hooks skip populating them).
 		setTimeout(() => {
-			goto(resolve('/brands'));
+			goto(resolve('/brands'), { invalidateAll: true });
 		}, 1500);
 	}
 </script>

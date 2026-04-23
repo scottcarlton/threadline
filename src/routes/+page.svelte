@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
-	import { resolve } from '$app/paths';
+	// import { resolve } from '$app/paths';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
 
 	let faqOpen = $state<number | null>(null);
@@ -83,16 +83,36 @@
 	<MarketingNav />
 	<main>
 		<div>
-			<section>
-				<div class="px-8 pt-32">
-					<div
+			<section data-section="hero">
+				<div class="grid gap-12 px-12 pt-32">
+					<div class="grid grid-cols-2 pt-42">
+						<div>
+							<div class="mb-8 space-y-2">
+								<h1 class="h-reveal text-5xl leading-14 opacity-0">Decisions, not dashboards.</h1>
+								<p class="h-reveal max-w-xl text-neutral-700 opacity-0">
+									We unify how reps and brands see, understand, and act on their business, no matter
+									where the signal comes from.
+								</p>
+							</div>
+							<form
+								class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
+							>
+								<input
+									class="border-0 px-4 py-2 text-base outline-none"
+									type="email"
+									placeholder="Enter your email"
+								/>
+								<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
+							</form>
+						</div>
+					</div>
+					<div class="h-100 min-h-180 rounded-lg bg-neutral-200 p-12"></div>
+					<!-- <div
 						class="flex h-100 min-h-180 items-end rounded-4xl bg-black p-12"
 						style="background-image: url('https://images.unsplash.com/photo-1753029226995-74b05a344bb1?q=80&w=3087&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'); background-size: cover; background-position: center;"
 					>
 						<div class="grid grid-cols-[1.5fr_1fr] gap-12 text-white">
-							<div>
-								<h1 class="h-reveal text-6xl opacity-0">START WORKING IN THE AGE OF AI.</h1>
-							</div>
+
 							<div class="grid gap-4">
 								<a
 									class="h-reveal inline-flex w-fit bg-white px-12 py-2.5 text-base text-primary opacity-0"
@@ -105,14 +125,14 @@
 								</p>
 							</div>
 						</div>
-					</div>
+					</div> -->
 				</div>
 			</section>
-			<section>
-				<div class="px-8 pt-48 pb-24">
+			<section data-section="about-threadline">
+				<div class="px-12 pt-48 pb-24">
 					<div class="reveal grid grid-cols-[1fr_1.5fr] gap-4 opacity-0">
 						<div>
-							<span class="font-mono">About Threadline</span>
+							<span class="font-mono opacity-0">About Threadline</span>
 						</div>
 						<div class="grid gap-8">
 							<h2 class="text-4xl">
@@ -142,245 +162,149 @@
 					</div>
 				</div>
 			</section>
-			<section>
-				<div class="px-8 py-24">
-					<div class="grid gap-8">
-						<div class="reveal mx-auto grid max-w-220 gap-8 text-center opacity-0">
-							<span class="font-mono">What We Feature</span>
+			<section data-section="what-we-feature">
+				<div class="px-12 py-24">
+					<div class="grid gap-12">
+						<div class="reveal grid max-w-220 gap-2 opacity-0">
+							<span class="font-mono">[What We Feature]</span>
 							<h2 class="text-4xl">
-								Reliable Ways to Move Goods Using Modern Infrastructure And Intelligent Systems
+								Reliable Ways to Move Goods Using <span class="text-muted-foreground"
+									>Modern Infrastructure And Intelligent Systems</span
+								>
 							</h2>
 						</div>
-						<div
-							class="reveal h-140 rounded-4xl bg-black opacity-0"
-							style="background-image: url('https://images.unsplash.com/photo-1525562723836-dca67a71d5f1?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'); background-size: cover; background-position: center;"
-						></div>
-						<ul class="grid grid-cols-4 gap-4" data-stagger>
-							<li class="grid grid-rows-[16px_1fr_16px] opacity-0" data-s>
-								<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-									<div class="h-4 w-4 border-t border-l border-foreground"></div>
-									<div class="h-1 w-full border-t border-foreground"></div>
-									<div class="h-4 w-4 border-t border-r border-foreground"></div>
+						<ul class="grid grid-cols-12 gap-6" data-stagger>
+							<li
+								class="col-span-8 grid min-h-120 grid-cols-2 gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								data-s
+							>
+								<div>
+									<h3 class="mb-2 text-xl">Insight built around you.</h3>
+									<p class="text-neutral-600">
+										Stitches surfaces cross-brand patterns, buyer behavior, and territory
+										opportunities unique to your portfolio — intelligence no single-brand platform
+										can see.
+									</p>
 								</div>
-								<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-									<div class="h-[calc(100%-32px)] self-center border-l border-foreground"></div>
-									<div class="grid grid-rows-[48px_auto_1fr] items-start gap-4 p-4">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 24 24"
-											width="48"
-											height="48"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.25"
-											><path
-												d="M4 3.5H3.5V4V8H4.5V4.5H8V3.5H4ZM20 3.5H16V4.5H19.5V8H20.5V4C20.5 3.72386 20.2761 3.5 20 3.5ZM4.5 16V19.5H8V20.5H4C3.72386 20.5 3.5 20.2761 3.5 20V16H4.5ZM19.5 16V19.5H16V20.5H20C20.2761 20.5 20.5 20.2761 20.5 20V16H19.5ZM10 9.5C9.72386 9.5 9.5 9.72386 9.5 10V14C9.5 14.2761 9.72386 14.5 10 14.5H14C14.2761 14.5 14.5 14.2761 14.5 14V10C14.5 9.72386 14.2761 9.5 14 9.5H10Z"
-											></path></svg
-										>
-										<h3 class="text-2xl">Insight built around you.</h3>
-										<p>
-											Stitches surfaces cross-brand patterns, buyer behavior, and territory
-											opportunities unique to your portfolio — intelligence no single-brand platform
-											can see.
-										</p>
-									</div>
-									<div class="h-[calc(100%-32px)] self-center border-r border-foreground"></div>
-								</div>
-								<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-									<div class="h-4 w-4 border-b border-l border-foreground"></div>
-									<div class="h-full w-full border-b border-foreground"></div>
-									<div class="h-4 w-4 border-r border-b border-foreground"></div>
+								<div class="col-start-2 row-start-2">
+									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
 								</div>
 							</li>
-							<li class="grid grid-rows-[16px_1fr_16px] opacity-0" data-s>
-								<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-									<div class="h-4 w-4 border-t border-l border-foreground"></div>
-									<div class="h-1 w-full border-t border-foreground"></div>
-									<div class="h-4 w-4 border-t border-r border-foreground"></div>
+							<li
+								class="col-span-4 col-start-9 grid gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								data-s
+							>
+								<div>
+									<h3 class="mb-2 text-xl">Decisions, Not Guesses.</h3>
+									<p class="text-neutral-600">
+										Your tools show orders and line sheets. Threadline shows what's missing —
+										under-penetrated accounts, brands that should be paired together, and reorders
+										that should have happened last week.
+									</p>
 								</div>
-								<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-									<div class="h-[calc(100%-32px)] self-center border-l border-foreground"></div>
-									<div class="grid grid-rows-[48px_auto_1fr] items-start gap-4 p-4">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 24 24"
-											width="48"
-											height="48"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.25"
-											><path d="M12 2L21 7V17L12 22L3 17V7L12 2Z" /><path
-												d="M12 7.5L16 9.75V14.25L12 16.5L8 14.25V9.75L12 7.5Z"
-											/></svg
-										>
-										<h3 class="text-2xl">Decisions, Not Guesses.</h3>
-										<p>
-											Your tools show orders and line sheets. Threadline shows what's missing —
-											under-penetrated accounts, brands that should be paired together, and reorders
-											that should have happened last week.
-										</p>
-									</div>
-									<div class="h-[calc(100%-32px)] self-center border-r border-foreground"></div>
-								</div>
-								<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-									<div class="h-4 w-4 border-b border-l border-foreground"></div>
-									<div class="h-full w-full border-b border-foreground"></div>
-									<div class="h-4 w-4 border-r border-b border-foreground"></div>
+								<div class="row-start-2">
+									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
 								</div>
 							</li>
-							<li class="grid grid-rows-[16px_1fr_16px] opacity-0" data-s>
-								<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-									<div class="h-4 w-4 border-t border-l border-foreground"></div>
-									<div class="h-1 w-full border-t border-foreground"></div>
-									<div class="h-4 w-4 border-t border-r border-foreground"></div>
+							<li
+								class="col-span-4 grid min-h-120 gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								data-s
+							>
+								<div>
+									<h3 class="mb-2 text-xl">Act on real-time signals.</h3>
+									<p class="text-neutral-600">
+										Lead times have compressed to 102 days. Stitches integrates sell-through data
+										with social signals to trigger reorder recommendations and buyer alerts before
+										stock-outs happen.
+									</p>
 								</div>
-								<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-									<div class="h-[calc(100%-32px)] self-center border-l border-foreground"></div>
-									<div class="grid grid-rows-[48px_auto_1fr] items-start gap-4 p-4">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 24 24"
-											width="48"
-											height="48"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.25"
-											><path d="M13 2V6" /><path d="M18.364 4.636L15.536 7.464" /><path
-												d="M22 11H18"
-											/><path d="M18.364 18.364L15.536 15.536" /><path d="M13 22V18" /><path
-												d="M4.636 18.364L7.464 15.536"
-											/><path d="M2 11H6" /><path d="M4.636 4.636L7.464 7.464" /><circle
-												cx="12"
-												cy="12"
-												r="4"
-											/></svg
-										>
-										<h3 class="text-2xl">Act on real-time signals.</h3>
-										<p>
-											Lead times have compressed to 102 days. Stitches integrates sell-through data
-											with social signals to trigger reorder recommendations and buyer alerts before
-											stock-outs happen.
-										</p>
-									</div>
-									<div class="h-[calc(100%-32px)] self-center border-r border-foreground"></div>
-								</div>
-								<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-									<div class="h-4 w-4 border-b border-l border-foreground"></div>
-									<div class="h-full w-full border-b border-foreground"></div>
-									<div class="h-4 w-4 border-r border-b border-foreground"></div>
+								<div class="row-start-2">
+									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
 								</div>
 							</li>
-							<li class="grid grid-rows-[16px_1fr_16px] opacity-0" data-s>
-								<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-									<div class="h-4 w-4 border-t border-l border-foreground"></div>
-									<div class="h-1 w-full border-t border-foreground"></div>
-									<div class="h-4 w-4 border-t border-r border-foreground"></div>
+							<li
+								class="col-span-8 col-start-5 grid grid-cols-2 gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								data-s
+							>
+								<div>
+									<h3 class="mb-2 text-xl">Autonomous work.</h3>
+									<p class="text-neutral-600">
+										Workers handle commission splits, order tracking, and buyer follow-ups in the
+										background. Custom Workers let you build your own — watching for the signals
+										that matter to your book of business.
+									</p>
 								</div>
-								<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-									<div class="h-[calc(100%-32px)] self-center border-l border-foreground"></div>
-									<div class="grid grid-rows-[48px_auto_1fr] items-start gap-4 p-4">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 24 24"
-											width="48"
-											height="48"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.25"
-											><rect x="3" y="3" width="7" height="7" rx="1" /><rect
-												x="14"
-												y="3"
-												width="7"
-												height="7"
-												rx="1"
-											/><rect x="3" y="14" width="7" height="7" rx="1" /><rect
-												x="14"
-												y="14"
-												width="7"
-												height="7"
-												rx="1"
-											/><path d="M10 6.5H14" /><path d="M10 17.5H14" /><path d="M6.5 10V14" /><path
-												d="M17.5 10V14"
-											/></svg
-										>
-										<h3 class="text-2xl">Autonomous work.</h3>
-										<p>
-											Workers handle commission splits, order tracking, and buyer follow-ups in the
-											background. Custom Workers let you build your own — watching for the signals
-											that matter to your book of business.
-										</p>
-									</div>
-									<div class="h-[calc(100%-32px)] self-center border-r border-foreground"></div>
-								</div>
-								<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-									<div class="h-4 w-4 border-b border-l border-foreground"></div>
-									<div class="h-full w-full border-b border-foreground"></div>
-									<div class="h-4 w-4 border-r border-b border-foreground"></div>
+								<div class="col-start-2 row-start-2">
+									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
 								</div>
 							</li>
 						</ul>
 					</div>
 				</div>
 			</section>
-			<section>
-				<div class="grid gap-8 px-8 py-24">
-					<div class="mx-auto grid max-w-220 gap-8 text-center">
-						<span class="font-mono">How We Work</span>
-						<h2 class="text-4xl">Four Layers That Turn Data Into Decisions</h2>
+			<section data-section="how-we-work">
+				<div class="grid gap-24 px-12 py-24">
+					<div class="mx-auto grid max-w-220 gap-2 text-center">
+						<span class="font-mono">[How We Work]</span>
+						<h2 class="text-4xl">
+							Four Layers That <span class="text-muted-foreground">Turn Data Into Decisions</span>
+						</h2>
 					</div>
-					<div class="grid grid-cols-3 gap-8">
-						<div class="grid gap-8">
-							<div class="h-60 w-full rounded-2xl bg-neutral-900 p-8 text-white">
-								<div class="grid gap-3">
-									<h3 class="text-2xl">Gaps</h3>
-									<p class="text-lg">
-										Every application has blind spots — invisible fractures where data, context gets
-										lost. We find these gaps and reveal them.
-									</p>
-								</div>
+					<ul class="grid gap-24">
+						<li class="grid grid-cols-12 items-center gap-6">
+							<div class="col-span-4">
+								<h3 class="mb-3 text-2xl">Gaps</h3>
+								<p class="text-balance text-neutral-700">
+									Every application has blind spots — invisible fractures where data, context gets
+									lost. We find these gaps and reveal them.
+								</p>
 							</div>
-							<div class="h-60 w-full rounded-2xl bg-neutral-900 p-8 text-white">
-								<div class="grid gap-3">
-									<h3 class="text-2xl">Orchestration</h3>
-									<p class="text-lg">
-										Start directing outcomes. Orchestration means your systems anticipate,
-										coordinate, and adapt — so you focus on decisions, not mechanics.
-									</p>
-								</div>
+							<div class="col-span-7 col-start-6 h-120 w-full rounded-lg bg-neutral-200"></div>
+						</li>
+						<li class="grid grid-cols-12 items-center gap-6">
+							<div class="col-span-4 col-start-9">
+								<h3 class="mb-3 text-2xl">Orchestration</h3>
+								<p class="text-balance text-neutral-700">
+									Start directing outcomes. Orchestration means your systems anticipate, coordinate,
+									and adapt — so you focus on decisions, not mechanics.
+								</p>
 							</div>
-						</div>
-						<div
-							class="h-full w-full rounded-2xl bg-neutral-900 p-8"
-							style="background-image: url('https://images.unsplash.com/photo-1507206130118-b5907f817163?q=80&w=987&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'); background-size: cover; background-position: center;"
-						></div>
-						<div class="grid gap-8">
-							<div class="h-60 w-full rounded-2xl bg-neutral-900 p-8 text-white">
-								<div class="grid gap-3">
-									<h3 class="text-2xl">Stitches</h3>
-									<p class="text-lg">
-										We connect disparate signals into something actionable. A living, contextual
-										understanding that arrives before you ask for it.
-									</p>
-								</div>
+							<div
+								class="col-span-7 col-start-1 row-start-1 h-120 w-full rounded-lg bg-neutral-200"
+							></div>
+						</li>
+						<li class="grid grid-cols-12 items-center gap-6">
+							<div class="col-span-4">
+								<h3 class="mb-3 text-2xl">Stitches</h3>
+								<p class="text-balance text-neutral-700">
+									We connect disparate signals into something actionable. A living, contextual
+									understanding that arrives before you ask for it.
+								</p>
 							</div>
-							<div class="h-60 w-full rounded-2xl bg-neutral-900 p-8 text-white">
-								<div class="grid gap-3">
-									<h3 class="text-2xl">Workers</h3>
-									<p class="text-lg">
-										Workers handle the work you shouldn't have to. Custom Workers focus on what only
-										you would think to look for.
-									</p>
-								</div>
+							<div class="col-span-7 col-start-6 h-120 w-full rounded-lg bg-neutral-200"></div>
+						</li>
+						<li class="grid grid-cols-12 items-center gap-6">
+							<div class="col-span-4 col-start-9">
+								<h3 class="mb-3 text-2xl">Workers</h3>
+								<p class="text-balance text-neutral-700">
+									Workers handle the work you shouldn't have to. Custom Workers focus on what only
+									you would think to look for.
+								</p>
 							</div>
-						</div>
-					</div>
+							<div
+								class="col-span-7 col-start-1 row-start-1 h-120 w-full rounded-lg bg-neutral-200"
+							></div>
+						</li>
+					</ul>
 				</div>
 			</section>
-			<section>
-				<div class="grid gap-8 px-8 py-24">
-					<div class="mx-auto grid max-w-220 gap-8 text-center">
-						<span class="font-mono">FAQ's</span>
-						<h2 class="text-4xl">Common Questions, Clear Answers</h2>
+			<section data-section="faq">
+				<div class="grid gap-24 px-12 py-24">
+					<div class="mx-auto grid max-w-220 gap-2 text-center">
+						<span class="font-mono">[FAQ's]</span>
+						<h2 class="text-4xl">
+							Common Questions, <span class="text-muted-foreground">Clear Answers</span>
+						</h2>
 					</div>
 					<div class="mx-auto grid w-full max-w-280 grid-cols-2 items-start gap-8">
 						<ul class="grid items-start">
@@ -420,44 +344,35 @@
 					</div>
 				</div>
 			</section>
-			<section>
-				<div class="grid gap-8 px-8 py-24">
-					<div class="mx-auto grid max-w-220 gap-8 text-center">
+			<section data-section="clarity">
+				<div class="grid gap-8 px-12 py-24">
+					<div class="mx-auto grid max-w-220 space-y-2 text-center">
 						<h2 class="text-4xl">Clarity Starts With The Right Conversation</h2>
-						<p class="text-lg">
+						<p class="mx-auto max-w-8/12 text-balance text-neutral-700">
 							Threadline is building the intelligence layer fashion wholesale has been missing.
 							Let's talk about what it can do for your showroom.
 						</p>
 					</div>
-					<div class="mx-auto grid w-full max-w-280 grid-cols-5 items-end gap-4">
-						<div class="grid gap-4">
-							<div
-								class="h-50 w-full rounded-2xl bg-neutral-300"
-								style="background-image: url('https://mockuuups.studio/cdn-cgi/image/width=2000/render/mockup/2/50/transparent-macbook-pro-mockup-preview.jpg'); background-size: cover; background-position: left;"
-							></div>
-							<div class="h-30 w-full rounded-2xl bg-neutral-300"></div>
-							<div class="h-30 w-full rounded-2xl bg-neutral-300"></div>
-						</div>
-						<div class="grid gap-4">
-							<div class="h-50 w-full rounded-2xl bg-neutral-300"></div>
-							<div class="h-30 w-full rounded-2xl bg-neutral-300"></div>
-						</div>
-						<div class="grid gap-4">
-							<div
-								class="h-50 w-full rounded-2xl bg-neutral-300"
-								style="background-image: url('https://images.unsplash.com/photo-1633655442164-da26330e85b4?q=80&w=985&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'); background-size: cover; background-position: center;"
-							></div>
-						</div>
-						<div class="grid gap-4">
-							<div class="h-50 w-full rounded-2xl bg-neutral-300"></div>
-							<div class="h-30 w-full rounded-2xl bg-neutral-300"></div>
-						</div>
-						<div class="grid gap-4">
-							<div class="h-50 w-full rounded-2xl bg-neutral-300"></div>
-							<div class="h-30 w-full rounded-2xl bg-neutral-300"></div>
-							<div class="h-30 w-full rounded-2xl bg-neutral-300"></div>
-						</div>
-					</div>
+					<ul class="grid grid-cols-12 gap-6">
+						<li class="col-span-12 h-120 w-full rounded-lg bg-neutral-200"></li>
+						<li class="col-span-6 row-start-2 h-120 w-full rounded-lg bg-neutral-200"></li>
+						<li class="col-span-6 row-start-2 h-120 w-full rounded-lg bg-neutral-200"></li>
+					</ul>
+				</div>
+			</section>
+			<section data-section="cta">
+				<div class="grid justify-center space-y-6 px-12 py-24">
+					<h2 class="text-4xl">Get early access to Threadline</h2>
+					<form
+						class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
+					>
+						<input
+							class="border-0 px-4 py-2 text-base outline-none"
+							type="email"
+							placeholder="Enter your email"
+						/>
+						<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
+					</form>
 				</div>
 			</section>
 		</div>
