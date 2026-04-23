@@ -40,6 +40,7 @@ const PUBLIC_ROUTES = [
 	'/features',
 	'/intelligence',
 	'/solutions',
+	'/resources',
 	'/pricing'
 ];
 
