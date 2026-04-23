@@ -73,6 +73,28 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 	const visibleOrgIds = Array.from(visibleOrgIdSet);
 
+	// Rep-picker visibility is broader than the rest of this page: other rep
+	// orgs that share a brand partner with us should surface as assignable
+	// sales reps on an order, even though those rep orgs aren't directly
+	// connected to ours. Accounts / seasons / locations stay scoped to
+	// visibleOrgIds (own + direct connections).
+	const repVisibleOrgIdSet = new Set(visibleOrgIdSet);
+	if (connectedBrandOrgIds.size > 0) {
+		const { data: siblingConns } = await supabaseAdmin
+			.from('org_connections')
+			.select('rep_org_id, brand_org_id')
+			.eq('status', 'active')
+			.in('brand_org_id', Array.from(connectedBrandOrgIds))
+			.neq('rep_org_id', organization.id);
+		for (const sc of siblingConns ?? []) {
+			if (sc.rep_org_id) {
+				repVisibleOrgIdSet.add(sc.rep_org_id);
+				connectedRepOrgIds.add(sc.rep_org_id);
+			}
+		}
+	}
+	const repVisibleOrgIds = Array.from(repVisibleOrgIdSet);
+
 	const [
 		accountsRes,
 		locationsRes,
@@ -122,7 +144,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.select(
 				'profile_id, role, organization_id, profiles!organization_members_profile_id_fkey(display_name)'
 			)
-			.in('organization_id', visibleOrgIds),
+			.in('organization_id', repVisibleOrgIds),
 		supabaseAdmin
 			.from('source_types')
 			.select('id, name, sort_order')
@@ -145,7 +167,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const rawMembers = (membersRes.data ?? []) as unknown as RawMember[];
 	// Own org: all roles (anyone on the team can be the rep on an order).
 	// Connected brand org: sales only (BLSR — brand-level sales reps).
-	// Connected rep org: admin or sales (MBISR admin/sales work accounts on both sides).
+	// Connected rep org (direct OR a rep org that shares a brand partner with
+	// us — see repVisibleOrgIds above): admin or sales.
 	// Dedupe by profile_id so a user who's a member of multiple visible orgs shows once.
 	const seenProfileIds = new Set<string>();
 	const reps = rawMembers
