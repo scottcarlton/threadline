@@ -4,6 +4,8 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
+	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 
 	let { data } = $props();
 
@@ -15,10 +17,30 @@
 				color: string | null;
 				size: string | null;
 				sku: string | null;
+				stock_qty: number | null;
+				stock_threshold: number | null;
+				shopify_variant_id: string | null;
 			}[];
 			product_images: { id: string; file_path: string; is_primary: boolean; sort_order: number }[];
 		}
 	);
+
+	function aggregateStockStatus(
+		variants: { stock_qty: number | null; stock_threshold: number | null }[]
+	): StockStatus | null {
+		const statuses = variants
+			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
+			.filter((s): s is StockStatus => s !== null);
+		if (statuses.length === 0) return null;
+		if (statuses.includes('out')) return 'out';
+		if (statuses.includes('low')) return 'low';
+		return 'in';
+	}
+
+	const stockAgg = $derived(
+		product.ats ? aggregateStockStatus(product.product_variants ?? []) : null
+	);
+	const isOutOfStock = $derived(product.ats && stockAgg === 'out');
 
 	const images = $derived(product.product_images ?? []);
 	const primaryImage = $derived(images[0] ?? null);
@@ -171,6 +193,10 @@
 				<span class="text-base font-normal text-muted-foreground">wholesale</span>
 			</div>
 
+			{#if stockAgg}
+				<StockPill status={stockAgg} qty={null} hideQty />
+			{/if}
+
 			{#if product.description}
 				<p class="text-base leading-relaxed text-muted-foreground">{product.description}</p>
 			{/if}
@@ -222,6 +248,8 @@
 						</svg>
 						In Cart — Remove
 					</Button>
+				{:else if isOutOfStock}
+					<Button class="w-full" disabled>Out of stock</Button>
 				{:else}
 					<Button class="w-full" onclick={addToCart}>
 						<svg

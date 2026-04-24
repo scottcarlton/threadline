@@ -3,6 +3,9 @@ export type ProductVariant = {
 	color: string | null;
 	size: string | null;
 	price_override: number | null;
+	stock_qty: number | null;
+	stock_threshold: number | null;
+	shopify_variant_id: string | null;
 };
 
 export type ProductImage = {
@@ -20,6 +23,7 @@ export type CatalogProduct = {
 	name: string;
 	wholesale_price: number;
 	category: string | null;
+	ats: boolean;
 	product_variants: ProductVariant[];
 	product_images: ProductImage[];
 };
