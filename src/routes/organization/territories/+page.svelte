@@ -44,23 +44,26 @@
 		data.territories as Array<{
 			id: string;
 			name: string;
-			assigned_to: string | null;
 			notes: string | null;
-			organization_members: { profiles: { display_name: string } | null } | null;
+			organization_id: string;
+			brand_id: string | null;
 		}>
 	);
-	const members = $derived(
-		data.members as Array<{
-			id: string;
-			profiles: { display_name: string } | null;
-		}>
+	const territoryAssignees = $derived(
+		(data.territoryAssignees ?? {}) as Record<string, Array<{ id: string; name: string }>>
 	);
 	const accountCounts = $derived(data.accountCounts as Record<string, number>);
+	const brandNameById = $derived((data.brandNameById ?? {}) as Record<string, string>);
+	const ownOrgId = $derived(data.ownOrgId as string | undefined);
+
+	// Own-org brands are pickable when creating a brand-scoped territory.
+	// Use `data.brands` if present; otherwise derive from territories we own.
+	const ownBrands = $derived(Object.entries(brandNameById).map(([id, name]) => ({ id, name })));
 
 	let adding = $state(false);
 	let newName = $state('');
-	let newAssignedTo = $state('');
 	let newNotes = $state('');
+	let newBrandId = $state('');
 	let loading = $state(false);
 	let error = $state('');
 
@@ -71,19 +74,32 @@
 		const { error: err } = await supabase.from('territories').insert({
 			organization_id: data.organization?.id,
 			name: newName.trim(),
-			assigned_to: newAssignedTo || null,
-			notes: newNotes.trim() || null
+			notes: newNotes.trim() || null,
+			brand_id: newBrandId || null
 		});
 		loading = false;
 		if (err) {
 			error = err.message;
 		} else {
 			newName = '';
-			newAssignedTo = '';
 			newNotes = '';
+			newBrandId = '';
 			adding = false;
 			invalidateAll();
 		}
+	}
+
+	function assigneeLabel(territoryId: string): string {
+		const list = territoryAssignees[territoryId] ?? [];
+		if (list.length === 0) return '—';
+		if (list.length === 1) return list[0].name;
+		if (list.length === 2) return `${list[0].name}, ${list[1].name}`;
+		return `${list[0].name}, ${list[1].name} +${list.length - 2}`;
+	}
+
+	function sourceLabel(t: { brand_id: string | null; organization_id: string }): string {
+		if (!t.brand_id) return t.organization_id === ownOrgId ? 'Own org' : 'Connected';
+		return brandNameById[t.brand_id] ?? 'Brand';
 	}
 </script>
 
@@ -137,15 +153,15 @@
 							<Input id="name" bind:value={newName} required placeholder="e.g. West Coast" />
 						</div>
 						<div class="space-y-2">
-							<Label for="assigned-to">Assigned Rep</Label>
+							<Label for="brand">Brand (optional)</Label>
 							<select
-								id="assigned-to"
-								bind:value={newAssignedTo}
+								id="brand"
+								bind:value={newBrandId}
 								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 							>
-								<option value="">Unassigned</option>
-								{#each members as member (member.id)}
-									<option value={member.id}>{member.profiles?.display_name ?? 'Unknown'}</option>
+								<option value="">Org-wide (all brands)</option>
+								{#each ownBrands as brand (brand.id)}
+									<option value={brand.id}>{brand.name}</option>
 								{/each}
 							</select>
 						</div>
@@ -154,6 +170,9 @@
 						<Label for="notes">Notes</Label>
 						<Input id="notes" bind:value={newNotes} placeholder="Optional notes" />
 					</div>
+					<p class="text-sm text-muted-foreground">
+						Assign reps to this territory after creating it from its detail page.
+					</p>
 					<div class="flex gap-2">
 						<Button type="submit" size="sm" disabled={loading || !newName.trim()}>
 							{loading ? 'Creating...' : 'Create Territory'}
@@ -203,7 +222,11 @@
 						>
 						<th
 							class="px-4 py-2.5 text-left text-[12px] font-medium tracking-wider text-muted-foreground uppercase"
-							>Assigned Rep</th
+							>Source</th
+						>
+						<th
+							class="px-4 py-2.5 text-left text-[12px] font-medium tracking-wider text-muted-foreground uppercase"
+							>Assigned Reps</th
 						>
 						<th
 							class="px-4 py-2.5 text-right text-[12px] font-medium tracking-wider text-muted-foreground uppercase"
@@ -224,8 +247,11 @@
 								{/if}
 							</td>
 							<td class="px-4 py-3">
+								<span class="text-sm text-muted-foreground">{sourceLabel(territory)}</span>
+							</td>
+							<td class="px-4 py-3">
 								<span class="text-sm text-muted-foreground">
-									{territory.organization_members?.profiles?.display_name ?? '—'}
+									{assigneeLabel(territory.id)}
 								</span>
 							</td>
 							<td class="px-4 py-3 text-right">

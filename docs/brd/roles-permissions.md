@@ -166,6 +166,26 @@ A separate role managed through the `account_users` table rather than organizati
 - Separate invitation flow (`buyer_invitations`, not org invitations)
 - Redirected to onboarding if they have no org membership
 
+### 3.6 Manager capability (`manages_others`)
+
+Role-agnostic flag layered on top of Member and Sales. A member with `manages_others = true` can be set as another member's `manager_id` and, in exchange, sees rollup data (orders, reports) for their transitive reports. Admin/Owner are always implicitly eligible — the flag is irrelevant for them because they already see everything in the org.
+
+### 3.7 Territory assignment (Sales)
+
+A Sales member can be assigned to **one or more territories** via the `member_territories` join table (`organization_member_id`, `territory_id`). Each territory can also have multiple reps. The legacy single `territories.assigned_to` column was dropped in migration `20260423000002`; the join table is the sole source of truth.
+
+**Brand scope.** Territories are **optionally brand-scoped** via `territories.brand_id` (migration `20260423000003`). When NULL the territory is org-wide (rep's internal bucket); when set, the territory is owned by a specific brand and must live in the same org as that brand (enforced by trigger). Brand-scoped territories are **federated-readable** by connected orgs: a connected rep can see a brand's territory map and be assigned to it, but only the brand's admin/owner can define or delete those rows.
+
+**Assignment paths.** Admin/Owner manage assignments from two places: the territory detail page (`/organization/territories/[id]`) or the member drawer on `/organization/members`. Invites can also pre-assign territories via the `invitations.territory_ids uuid[]` column — populated from the Invite modal (Sales role only) and applied to `member_territories` on accept.
+
+**Cross-org assignment.** `member_territories.organization_member_id` may reference a member from a different org than the territory's owning org. The territory's brand/org admin is the one authorized to create the assignment (INSERT policy gated by role on `territories.organization_id`). The rep's admin can see the assignment via the "Member territories visible to either side" SELECT policy, so both sides can tell who's covering what.
+
+**Assignment.** Admin/Owner set `manages_others` via `/api/team/update-manages-others`. They set `manager_id` via `/api/team/update-manager-link`. Both are also honored by the invite flow: the inviter is auto-linked as manager when they themselves are an eligible manager and the invitee is a Member or Sales.
+
+**Invariants (DB triggers).** `manager_id` must reference a member in the **same** organization whose role is admin/owner OR who has `manages_others = true`. Cycles and self-reference are rejected. If a manager loses their authority (role demoted, flag toggled off), reports that pointed at them are detached (`manager_id` cleared). See `supabase/migrations/20260423000001_member_manager.sql`.
+
+**Visibility rollup.** For Sales (who are otherwise scoped to `created_by = self`), queries on `/orders` and `/reports/[slug]` union in `get_managed_profile_ids(viewer)` so a manager sees their own orders plus every transitive report's orders. Members with `manages_others = true` already see all own-org data — the flag only adds the "can own reports" capability for them.
+
 ---
 
 ## 4. Permission Matrix by Feature
@@ -378,7 +398,7 @@ Commissions are resolved in the following priority order (highest priority first
 
 - [ ] Should Sales role have a read-only view of the Brands page instead of a hard redirect?
 - [ ] Should Members be able to approve/reject expenses for brands they are scoped to?
-- [ ] Is there a need for a "Manager" role between Member and Owner with limited admin capabilities?
+- [x] ~~Is there a need for a "Manager" role between Member and Owner with limited admin capabilities?~~ — Resolved via the `manages_others` flag on Member/Sales (§3.6), not a new role.
 - [ ] Should brand scoping for the Guest role default to scoped (no brands) rather than unscoped (all brands)?
 - [ ] Should Buyers have access to view appointment schedules or show information?
 - [ ] Should the commission hierarchy support connection-level overrides for rep-to-brand relationships?

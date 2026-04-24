@@ -5,6 +5,8 @@
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
+	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 
 	let { data } = $props();
 
@@ -12,7 +14,14 @@
 	const products = $derived(
 		data.products as (Product & {
 			brands: { id: string; name: string } | null;
-			product_variants: { id: string; color: string | null; size: string | null }[];
+			product_variants: {
+				id: string;
+				color: string | null;
+				size: string | null;
+				stock_qty: number | null;
+				stock_threshold: number | null;
+				shopify_variant_id: string | null;
+			}[];
 			product_images: { id: string; file_path: string; is_primary: boolean }[];
 		})[]
 	);
@@ -35,6 +44,18 @@
 		});
 	}
 
+	function aggregateStockStatus(
+		variants: { stock_qty: number | null; stock_threshold: number | null }[]
+	): StockStatus | null {
+		const statuses = variants
+			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
+			.filter((s): s is StockStatus => s !== null);
+		if (statuses.length === 0) return null;
+		if (statuses.includes('out')) return 'out';
+		if (statuses.includes('low')) return 'low';
+		return 'in';
+	}
+
 	const filtered = $derived(
 		products.filter((p) => {
 			const matchesBrand = !brandFilter || p.brand_id === brandFilter;
@@ -44,7 +65,12 @@
 				p.style_number.toLowerCase().includes(search.toLowerCase()) ||
 				(p.category?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
 				(p.brands?.name.toLowerCase().includes(search.toLowerCase()) ?? false);
-			return matchesBrand && matchesSearch;
+			if (!matchesBrand || !matchesSearch) return false;
+			if (p.ats) {
+				const agg = aggregateStockStatus(p.product_variants ?? []);
+				if (agg === 'out') return false;
+			}
+			return true;
 		})
 	);
 
@@ -201,6 +227,14 @@
 										>{getVariantSummary(product.product_variants ?? [])}</span
 									>
 								</div>
+								{#if product.ats}
+									{@const agg = aggregateStockStatus(product.product_variants ?? [])}
+									{#if agg}
+										<div class="mt-2">
+											<StockPill status={agg} qty={null} hideQty />
+										</div>
+									{/if}
+								{/if}
 								{#if product.category}
 									<span
 										class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"

@@ -3,12 +3,16 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import Switch from '$lib/components/ui/switch.svelte';
 	import type { UserRole } from '$lib/types/database.js';
+
+	type TerritoryOption = { id: string; name: string; brand_name?: string | null };
 
 	type Props = {
 		open: boolean;
 		orgType: 'rep' | 'brand';
 		brands: { id: string; name: string }[];
+		territories?: TerritoryOption[];
 		selfBrandId?: string | null;
 		fixedRole?: UserRole | null;
 		onclose: () => void;
@@ -19,6 +23,7 @@
 		open,
 		orgType,
 		brands,
+		territories = [],
 		selfBrandId = null,
 		fixedRole = null,
 		onclose,
@@ -57,7 +62,9 @@
 	let selectedRole = $state<UserRole | ''>('');
 	let email = $state('');
 	let selectedBrandIds = $state<string[]>([]);
+	let selectedTerritoryIds = $state<string[]>([]);
 	let commissionRate = $state('');
+	let managesOthers = $state(false);
 	let submitting = $state(false);
 	let errorMsg = $state('');
 
@@ -67,7 +74,9 @@
 			selectedRole = initialRole || '';
 			email = '';
 			selectedBrandIds = [];
+			selectedTerritoryIds = [];
 			commissionRate = '';
+			managesOthers = false;
 			errorMsg = '';
 		}
 	});
@@ -79,6 +88,23 @@
 	);
 
 	const showCommission = $derived(selectedRole === 'sales');
+	const showManagesOthers = $derived(selectedRole === 'member' || selectedRole === 'sales');
+	const showTerritories = $derived(selectedRole === 'sales' && territories.length > 0);
+
+	$effect(() => {
+		if (!showManagesOthers && managesOthers) managesOthers = false;
+	});
+	$effect(() => {
+		if (!showTerritories && selectedTerritoryIds.length > 0) selectedTerritoryIds = [];
+	});
+
+	function toggleTerritory(territoryId: string) {
+		if (selectedTerritoryIds.includes(territoryId)) {
+			selectedTerritoryIds = selectedTerritoryIds.filter((id) => id !== territoryId);
+		} else {
+			selectedTerritoryIds = [...selectedTerritoryIds, territoryId];
+		}
+	}
 
 	function toggleBrand(brandId: string) {
 		if (selectedBrandIds.includes(brandId)) {
@@ -103,7 +129,9 @@
 				email: email.trim(),
 				role: selectedRole,
 				brandIds,
-				commissionRate: showCommission ? parseFloat(commissionRate) || 0 : undefined
+				territoryIds: showTerritories ? selectedTerritoryIds : [],
+				commissionRate: showCommission ? parseFloat(commissionRate) || 0 : undefined,
+				managesOthers: showManagesOthers ? managesOthers : false
 			})
 		});
 
@@ -250,6 +278,21 @@
 						</div>
 					</section>
 
+					<!-- Manages Others -->
+					{#if showManagesOthers}
+						<section class="space-y-3">
+							<label class="flex items-center justify-between gap-4">
+								<div>
+									<p class="text-sm font-medium">Manages others</p>
+									<p class="text-sm text-muted-foreground">
+										Let them invite teammates under them and see data for everyone they manage.
+									</p>
+								</div>
+								<Switch bind:checked={managesOthers} aria-label="Manages others" />
+							</label>
+						</section>
+					{/if}
+
 					<!-- Brand Access -->
 					{#if showBrandAccess}
 						<section class="space-y-3">
@@ -272,6 +315,33 @@
 										onclick={() => toggleBrand(brand.id)}
 									>
 										{brand.name}
+									</button>
+								{/each}
+							</div>
+						</section>
+					{/if}
+
+					<!-- Territories (Sales only) -->
+					{#if showTerritories}
+						<section class="space-y-3">
+							<div>
+								<h3 class="text-sm font-medium">Territories</h3>
+								<p class="text-sm text-muted-foreground">
+									Assign one or more territories. Leave empty to scope by brand alone.
+								</p>
+							</div>
+							<div class="flex flex-wrap gap-2">
+								{#each territories as territory (territory.id)}
+									<button
+										type="button"
+										class="rounded-lg border px-3 py-1.5 text-sm transition-all {selectedTerritoryIds.includes(
+											territory.id
+										)
+											? 'border-primary bg-primary text-primary-foreground'
+											: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
+										onclick={() => toggleTerritory(territory.id)}
+									>
+										{territory.name}{territory.brand_name ? ` — ${territory.brand_name}` : ''}
 									</button>
 								{/each}
 							</div>
