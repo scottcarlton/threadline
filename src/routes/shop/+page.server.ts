@@ -18,7 +18,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	let productsQuery = supabase
 		.from('products')
 		.select(
-			'*, brands(id, name), product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order)'
+			'*, brands(id, name), product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order)'
 		)
 		.eq('is_active', true)
 		.is('archived_at', null)
