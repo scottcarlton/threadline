@@ -31,7 +31,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		.from('accounts')
 		.select('*, territories(name)', { count: 'exact' })
 		.in('organization_id', visibleOrgIds)
-		.order('business_name')
+		.order('created_at', { ascending: false })
 		.range(offset, offset + limit - 1);
 
 	if (!showArchived) {

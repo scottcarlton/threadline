@@ -1,4 +1,5 @@
 import type { PageServerLoad } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, organization, orgType } = locals;
@@ -9,12 +10,30 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// orgs, whose `brands` table holds the partners they represent.
 	const includeBrandContacts = orgType === 'rep';
 
-	// RLS handles federation visibility — no admin client or connected org queries needed
+	// Federation view: accounts are contacts-of-record on both sides of an
+	// active org_connection (MBISR ↔ Brand). A rep connected to a brand should
+	// see contacts for that brand's accounts, and vice versa — the accounts are
+	// shared context between the two orgs. Scope by active connections; rely on
+	// supabaseAdmin for cross-org reads (authenticated SSR client can't reliably
+	// attach session to RLS in this version of @supabase/ssr).
+	const { data: conns } = await supabaseAdmin
+		.from('org_connections')
+		.select('rep_org_id, brand_org_id')
+		.eq('status', 'active')
+		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
+	const visibleOrgIdSet = new Set<string>([organization.id]);
+	for (const c of conns ?? []) {
+		if (c.rep_org_id && c.rep_org_id !== organization.id) visibleOrgIdSet.add(c.rep_org_id);
+		if (c.brand_org_id && c.brand_org_id !== organization.id) visibleOrgIdSet.add(c.brand_org_id);
+	}
+	const visibleOrgIds = Array.from(visibleOrgIdSet);
+
 	const [accountsRes, brandsRes, discoveredRes] = await Promise.all([
-		supabase
+		supabaseAdmin
 			.from('accounts')
 			.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone')
-			.eq('organization_id', organization.id)
+			.in('organization_id', visibleOrgIds)
+			.is('archived_at', null)
 			.not('contact_email', 'is', null)
 			.order('contact_first_name'),
 		includeBrandContacts

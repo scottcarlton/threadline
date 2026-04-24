@@ -39,7 +39,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		.select('*, territories(name)', { count: 'exact' })
 		.in('organization_id', visibleOrgIds)
 		.is('archived_at', null)
-		.order('business_name')
+		.order('created_at', { ascending: false })
 		.range(0, PAGE_SIZE - 1);
 
 	if (search) {

@@ -28,7 +28,7 @@
 	<input
 		type="text"
 		bind:value
-		class="flex min-h-[44px] w-full rounded-lg border border-input bg-background py-2 pr-3.5 pl-9 text-[0.875rem] transition-colors placeholder:text-muted-foreground/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+		class="flex min-h-[44px] w-full rounded-sm border border-input bg-background py-2 pr-3.5 pl-9 text-[0.875rem] transition-colors placeholder:text-muted-foreground/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
 		{...restProps}
 	/>
 </div>

@@ -27,6 +27,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 			deliveries: [],
 			reps: [],
 			sourceTypes: [] as Array<{ id: string; name: string; sort_order: number | null }>,
+			showDates: [] as Array<{
+				id: string;
+				show_id: string;
+				show_name: string;
+				year: number;
+				month: number;
+				city: string | null;
+				state: string | null;
+				venue: string | null;
+			}>,
 			brandTerms: [] as Array<{
 				id: string;
 				brand_id: string;
@@ -104,6 +114,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		deliveriesRes,
 		membersRes,
 		sourceTypesRes,
+		showDatesRes,
 		brandTermsRes
 	] = await Promise.all([
 		(() => {
@@ -152,6 +163,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.eq('organization_id', organization.id)
 			.eq('is_active', true)
 			.order('sort_order'),
+		supabaseAdmin
+			.from('show_dates')
+			.select('id, show_id, year, month, city, state, venue, shows!inner(name, is_active)')
+			.eq('organization_id', organization.id)
+			.eq('shows.is_active', true)
+			.order('year', { ascending: false })
+			.order('month', { ascending: false }),
 		supabaseAdmin
 			.from('brand_terms')
 			.select('id, brand_id, title, body, version')
@@ -214,6 +232,30 @@ export const load: PageServerLoad = async ({ locals }) => {
 		deliveries: deliveriesRes.data ?? [],
 		reps,
 		sourceTypes: sourceTypesRes.data ?? [],
+		showDates: (
+			(showDatesRes.data ?? []) as Array<{
+				id: string;
+				show_id: string;
+				year: number;
+				month: number;
+				city: string | null;
+				state: string | null;
+				venue: string | null;
+				shows: { name: string } | { name: string }[] | null;
+			}>
+		).map((sd) => {
+			const show = Array.isArray(sd.shows) ? sd.shows[0] : sd.shows;
+			return {
+				id: sd.id,
+				show_id: sd.show_id,
+				show_name: show?.name ?? 'Show',
+				year: sd.year,
+				month: sd.month,
+				city: sd.city,
+				state: sd.state,
+				venue: sd.venue
+			};
+		}),
 		brandTerms: brandTermsRes.data ?? [],
 		currentUser: user ? { id: user.id } : null,
 		isBuyer,
@@ -409,6 +451,18 @@ export const actions: Actions = {
 			}
 		}
 
+		// Resolve show_id from show_date_id (orders store both FKs; read side
+		// expects show_dates → shows to be joined, so we persist both).
+		let resolvedShowId: string | null = null;
+		if (finalizeData?.show_date_id) {
+			const { data: sd } = await supabase
+				.from('show_dates')
+				.select('show_id')
+				.eq('id', finalizeData.show_date_id)
+				.single();
+			resolvedShowId = sd?.show_id ?? null;
+		}
+
 		for (const o of newOrders) {
 			const ov = overrideFor(o.brand_id, o.season_id);
 
@@ -460,6 +514,8 @@ export const actions: Actions = {
 					notes: internalNoteValue,
 					rep_user_id: finalizeData?.rep_user_id ?? null,
 					source_type_id: finalizeData?.source_type_id ?? null,
+					show_date_id: finalizeData?.show_date_id ?? null,
+					show_id: resolvedShowId,
 					terms_id: canStampTerms ? ba!.terms_id : null,
 					terms_agreed_by: canStampTerms ? user.id : null,
 					terms_agreed_at: canStampTerms ? new Date().toISOString() : null,
