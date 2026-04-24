@@ -14,27 +14,54 @@ changes, the screenshots change — treat this directory like code.
 
 ## How it runs
 
-The workflow is: **you set up prerequisites manually, then tell Claude to
-reseed from these fixtures.**
+Two ways to run the seed:
 
-A Claude session would:
+### One-command (the fast path)
 
-1. Read `01-prerequisites.md` — verify orgs, users, memberships, active
-   connections, brand record, seasons, source types, and shows exist in
-   the DB. Bail if anything is missing.
-2. Read `02-accounts.md` — insert the 50 accounts under Elise Varga's
-   org. Derived fields (email, phone, zip, website, created_at) follow
-   the generation rules documented in that file.
-3. Read `03-products.md` — insert the 40 products + 200 variants under
-   Elise Varga brand. Variants follow the `XS/S/M/L/XL` rule with
-   deterministic SKUs and stock.
-4. Read `04-orders.md` — insert the 20 orders with their exact account
-   pairings, sources, seasons, lines, and terminal statuses (including
-   the 4 orders that start in `delivered`).
+```sh
+bun run seed           # seed against current (presumably empty) local DB
+bun run seed:reset     # reset the local DB + seed
+bun run dev:fresh      # reset + seed + launch dev server
+```
 
-Every table is keyed by human-readable identifiers (org name, user
-email, account business name, product style number). UUIDs differ per
-setup, so Claude looks them up at seed-time.
+The executable is `scripts/seed-demo.ts`. It handles everything —
+auth-user creation, orgs, memberships, show setup, connections, and
+all the data below — in one shot, typically under a second.
+
+Related scripts:
+
+```sh
+bun run reset          # bunx supabase db reset (no seeding)
+bun run migrate        # bunx supabase migration up (apply pending migrations to local DB)
+```
+
+### Claude-guided (the fallback)
+
+If you'd rather have Claude walk the seed step-by-step (e.g. to inspect
+state between phases, or because the script broke after a schema
+change), tell it "seed Threadline from `supabase/seed-fixtures/`" and
+it will:
+
+1. Verify the expected user / org / connection setup exists in the DB.
+2. Insert accounts (`02-accounts.md`).
+3. Insert products + variants (`03-products.md`).
+4. Insert orders + lines (`04-orders.md`).
+
+The prerequisites described in `01-prerequisites.md` are needed only
+for this fallback path — the `bun run seed` script creates them
+directly.
+
+## Source of truth
+
+`scripts/seed-demo.ts` is the **executable source of truth** — if the
+script and the markdown diverge, the script is right. The markdown
+files exist as human-readable reference docs so the team can see the
+dataset shape without reading TypeScript. When you change the dataset,
+update both (the script first, then the markdown to match).
+
+Identifiers in the fixtures are human-readable lookup keys (org name,
+user email, account business name, product style number) — UUIDs
+differ per setup, resolved at seed time.
 
 ## Order of operations (important)
 
