@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { loadManagerScope } from '$lib/server/scoping.js';
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('data:appointments');
@@ -44,9 +45,27 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			.order('business_name')
 	]);
 
-	// Load appointments, optionally filtered by show_date
-	// Sales reps only see their own appointments
+	// Load appointments, optionally filtered by show_date.
+	// Sales scope: widen "own appointments" to include appointments on accounts
+	// the rep (or their managed reports) cover via territory. Untagged accounts
+	// stay visible.
 	const isSales = locals.membership?.role === 'sales';
+	const salesScope =
+		isSales && locals.user?.id
+			? await loadManagerScope(supabaseAdmin, locals.user.id, locals.membership?.id ?? null)
+			: null;
+
+	let salesAccountIds: string[] | null = null;
+	if (salesScope?.hasTerritoryScope) {
+		const territoryIds = salesScope.visibleTerritoryIds.join(',');
+		const { data: rows } = await supabaseAdmin
+			.from('accounts')
+			.select('id')
+			.eq('organization_id', orgId)
+			.or(`territory_id.in.(${territoryIds}),territory_id.is.null`);
+		salesAccountIds = (rows ?? []).map((a: { id: string }) => a.id);
+	}
+
 	let apptQuery = supabaseAdmin
 		.from('appointments')
 		.select(
@@ -56,8 +75,15 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		.order('scheduled_date', { ascending: true })
 		.order('scheduled_time', { ascending: true });
 
-	if (isSales) {
-		apptQuery = apptQuery.eq('created_by', locals.user?.id);
+	if (salesScope) {
+		if (salesAccountIds && salesAccountIds.length > 0) {
+			const createdByClause = salesScope.createdByScope.join(',');
+			apptQuery = apptQuery.or(
+				`created_by.in.(${createdByClause}),account_id.in.(${salesAccountIds.join(',')})`
+			);
+		} else {
+			apptQuery = apptQuery.in('created_by', salesScope.createdByScope);
+		}
 	}
 
 	if (selectedShowDateId) {

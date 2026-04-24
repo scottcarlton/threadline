@@ -2,6 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { loadManagerScope } from '$lib/server/scoping.js';
 
 const PAGE_SIZE = 50;
 
@@ -31,6 +32,16 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	}
 	const visibleOrgIds = Array.from(connectedOrgIds);
 
+	// Sales scope: territory-based visibility. Untagged accounts remain visible
+	// (treated as "unclaimed") so orgs that haven't backfilled territories
+	// aren't stranded. Sales with no territory assignments (and no managed
+	// reports' territories) see today's full visible slice — no regression.
+	const isSales = locals.membership?.role === 'sales';
+	const salesScope =
+		isSales && locals.user?.id
+			? await loadManagerScope(supabaseAdmin, locals.user.id, locals.membership?.id ?? null)
+			: null;
+
 	// Admin client + explicit org scope (authenticated client can't reliably attach
 	// session to RLS in this version of @supabase/ssr).
 	// Build paginated accounts query with optional search
@@ -41,6 +52,11 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		.is('archived_at', null)
 		.order('business_name')
 		.range(0, PAGE_SIZE - 1);
+
+	if (salesScope?.hasTerritoryScope) {
+		const territoryIds = salesScope.visibleTerritoryIds.join(',');
+		accountsQuery = accountsQuery.or(`territory_id.in.(${territoryIds}),territory_id.is.null`);
+	}
 
 	if (search) {
 		const pattern = `%${search}%`;

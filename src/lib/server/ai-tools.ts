@@ -1124,13 +1124,20 @@ async function createTerritory(
 		.insert({
 			organization_id: ctx.organizationId,
 			name: input.name as string,
-			assigned_to: assignedTo,
 			notes: (input.notes as string) ?? null
 		})
 		.select()
 		.single();
 
 	if (error) return { success: false, error: error.message };
+
+	if (assignedTo && data?.id) {
+		const { error: assignErr } = await ctx.supabase
+			.from('member_territories')
+			.insert({ organization_member_id: assignedTo, territory_id: data.id });
+		if (assignErr) return { success: false, error: assignErr.message };
+	}
+
 	return { success: true, data };
 }
 
@@ -1141,6 +1148,10 @@ async function updateTerritory(
 	const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 	if (input.name) updates.name = input.name;
 	if (input.notes !== undefined) updates.notes = input.notes || null;
+
+	// assigned_to_name keeps the AI tool's single-assignee contract. Under the
+	// new multi-assign model, setting it replaces the territory's assignee set.
+	let reassignTo: string | null | undefined;
 	if (input.assigned_to_name !== undefined) {
 		if (input.assigned_to_name) {
 			const memberId = await resolveMember(input.assigned_to_name as string, ctx);
@@ -1149,9 +1160,9 @@ async function updateTerritory(
 					success: false,
 					error: `Team member not found matching "${input.assigned_to_name}"`
 				};
-			updates.assigned_to = memberId;
+			reassignTo = memberId;
 		} else {
-			updates.assigned_to = null;
+			reassignTo = null;
 		}
 	}
 
@@ -1164,6 +1175,17 @@ async function updateTerritory(
 		.single();
 
 	if (error) return { success: false, error: error.message };
+
+	if (reassignTo !== undefined && data?.id) {
+		await ctx.supabase.from('member_territories').delete().eq('territory_id', data.id);
+		if (reassignTo) {
+			const { error: assignErr } = await ctx.supabase
+				.from('member_territories')
+				.insert({ organization_member_id: reassignTo, territory_id: data.id });
+			if (assignErr) return { success: false, error: assignErr.message };
+		}
+	}
+
 	return { success: true, data };
 }
 

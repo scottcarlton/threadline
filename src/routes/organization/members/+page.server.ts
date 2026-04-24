@@ -11,28 +11,37 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.eq('organization_id', organization.id)
 		.order('created_at');
 
-	const [invResult, brandsResult, commissionsResult, brandAccessResult, connsResult] =
-		await Promise.all([
-			supabase
-				.from('invitations')
-				.select('*')
-				.eq('organization_id', organization.id)
-				.is('accepted_at', null)
-				.order('created_at', { ascending: false }),
-			supabase
-				.from('brands')
-				.select('id, name')
-				.eq('organization_id', organization.id)
-				.eq('is_active', true)
-				.order('name'),
-			supabase.from('member_brand_commissions').select('*').eq('organization_id', organization.id),
-			supabase.from('member_brand_access').select('member_id'),
-			supabase
-				.from('org_connections')
-				.select('brand_org_id, commission_rate')
-				.eq('rep_org_id', organization.id)
-				.eq('status', 'active')
-		]);
+	const [
+		invResult,
+		brandsResult,
+		commissionsResult,
+		brandAccessResult,
+		connsResult,
+		territoriesResult
+	] = await Promise.all([
+		supabase
+			.from('invitations')
+			.select('*')
+			.eq('organization_id', organization.id)
+			.is('accepted_at', null)
+			.order('created_at', { ascending: false }),
+		supabase
+			.from('brands')
+			.select('id, name')
+			.eq('organization_id', organization.id)
+			.eq('is_active', true)
+			.order('name'),
+		supabase.from('member_brand_commissions').select('*').eq('organization_id', organization.id),
+		supabase.from('member_brand_access').select('member_id'),
+		supabase
+			.from('org_connections')
+			.select('brand_org_id, commission_rate')
+			.eq('rep_org_id', organization.id)
+			.eq('status', 'active'),
+		// Territories: own-org via membership + connected-brand's brand-scoped via RLS.
+		// No .eq('organization_id', ...) here — we want the federated slice too.
+		supabase.from('territories').select('id, name, brand_id, organization_id').order('name')
+	]);
 
 	// Connected brands: commission is set at the connection (org) level, not per-member.
 	// Fetch brand rows for each connected brand org and merge the connection rate.
@@ -79,6 +88,44 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const isBrandOrg = locals.orgType === 'brand';
 	const isAdmin = ['admin', 'owner'].includes(locals.membership?.role ?? '');
 
+	// Eligible managers = anyone in the org allowed to own reports.
+	// Admins and owners always qualify; members/sales qualify only when
+	// manages_others is true. Used for the drawer's manager picker.
+	type MemberRow = {
+		id: string;
+		role: string;
+		manages_others: boolean;
+		profiles?: { display_name?: string | null } | { display_name?: string | null }[] | null;
+	};
+	const eligibleManagers = (members ?? [])
+		.filter((m: MemberRow) =>
+			m.role === 'admin' || m.role === 'owner' ? true : m.manages_others === true
+		)
+		.map((m: MemberRow) => {
+			const p = m.profiles;
+			const name = Array.isArray(p) ? p[0]?.display_name : p?.display_name;
+			return { id: m.id, name: name ?? '--', role: m.role };
+		});
+
+	// Brand name map for labeling brand-scoped territories in the picker.
+	// Union of own-org brands + connected-brand orgs' brands (already loaded above).
+	const brandNameById: Record<string, string> = {};
+	for (const b of brandsResult.data ?? []) brandNameById[b.id] = b.name;
+	for (const b of connectedBrandsRaw ?? []) brandNameById[b.id] = b.name;
+
+	type TerritoryRow = {
+		id: string;
+		name: string;
+		brand_id: string | null;
+		organization_id: string;
+	};
+	const territoriesWithBrand = ((territoriesResult.data ?? []) as TerritoryRow[]).map((t) => ({
+		id: t.id,
+		name: t.name,
+		brand_id: t.brand_id,
+		brand_name: t.brand_id ? (brandNameById[t.brand_id] ?? null) : null
+	}));
+
 	return {
 		members: members ?? [],
 		invitations: invResult.data ?? [],
@@ -87,6 +134,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		memberBrandCommissions: commissionsResult.data ?? [],
 		scopedMemberIds: Array.from(scopedMemberIds),
 		memberEmails: emailMap,
+		eligibleManagers,
+		territories: territoriesWithBrand,
 		isBrandOrg,
 		isAdmin
 	};
