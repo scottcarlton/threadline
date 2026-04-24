@@ -29,12 +29,14 @@ export const POST: RequestHandler = async ({ locals }) => {
 
 	// Territory scope: accounts the user is responsible for.
 	// If no territories are assigned, fall through to the org-wide view.
-	const { data: memberTerritories } = await supabase
-		.from('territories')
-		.select('id')
-		.eq('organization_id', orgId)
-		.eq('assigned_to', membership.id);
-	const territoryIds = (memberTerritories ?? []).map((t) => t.id);
+	const { data: memberTerritoryRows } = await supabase
+		.from('member_territories')
+		.select('territory_id, territories!inner(organization_id)')
+		.eq('organization_member_id', membership.id)
+		.eq('territories.organization_id', orgId);
+	const territoryIds = (memberTerritoryRows ?? []).map(
+		(r: { territory_id: string }) => r.territory_id
+	);
 	const hasTerritoryScope = territoryIds.length > 0;
 
 	const todayIso = new Date().toISOString().split('T')[0];

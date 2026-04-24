@@ -60,6 +60,8 @@ export interface OrganizationMember {
 	profile_id: string;
 	role: UserRole;
 	commission_rate: number;
+	manages_others: boolean;
+	manager_id: string | null;
 	invited_by: string | null;
 	invited_at: string;
 	accepted_at: string | null;
@@ -73,6 +75,9 @@ export interface Invitation {
 	email: string;
 	role: UserRole;
 	brand_ids: string[];
+	commission_rate: number | null;
+	manages_others: boolean;
+	manager_id: string | null;
 	token: string;
 	invited_by: string;
 	expires_at: string;
@@ -150,11 +155,17 @@ export interface AccountLocation {
 export interface Territory {
 	id: string;
 	organization_id: string;
+	brand_id: string | null;
 	name: string;
-	assigned_to: string | null;
 	notes: string | null;
 	created_at: string;
 	updated_at: string;
+}
+
+export interface MemberTerritory {
+	organization_member_id: string;
+	territory_id: string;
+	created_at: string;
 }
 
 export interface Season {

@@ -6,6 +6,8 @@
 	import { cn } from '$lib/utils.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
+	import Switch from '$lib/components/ui/switch.svelte';
+	import { SelectField } from '$lib/components/ui/select/index.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import InviteModal from '$lib/components/shared/InviteModal.svelte';
 
@@ -82,6 +84,14 @@
 		}>
 	);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
+	const territories = $derived(
+		(data.territories ?? []) as Array<{
+			id: string;
+			name: string;
+			brand_id: string | null;
+			brand_name: string | null;
+		}>
+	);
 	const connectedBrands = $derived(
 		(data.connectedBrands ?? []) as { id: string; name: string; rate: number }[]
 	);
@@ -166,12 +176,18 @@
 		updatingId = '';
 	}
 
+	const eligibleManagers = $derived(
+		(data.eligibleManagers ?? []) as Array<{ id: string; name: string; role: UserRole }>
+	);
+
 	// ── Drawer state ──
 	type DrawerMember = {
 		id: string;
 		role: UserRole;
 		profile_id: string;
 		created_at: string;
+		manages_others: boolean;
+		manager_id: string | null;
 		profiles?: { display_name?: string | null; email?: string | null } | null;
 	};
 	type DrawerCommission = { brand_id: string; rate: number; brands?: { name?: string } | null };
@@ -246,14 +262,30 @@
 				.single(),
 			supabase.from('member_brand_commissions').select('*, brands(name)').eq('member_id', memberId),
 			supabase.from('member_brand_access').select('*, brands(name)').eq('member_id', memberId),
-			supabase.from('territories').select('id, name').eq('assigned_to', memberId).order('name')
+			supabase
+				.from('member_territories')
+				.select('territory_id, territories(id, name)')
+				.eq('organization_member_id', memberId)
 		]);
+
+		type TerritoryJoinRow = {
+			territory_id: string;
+			territories?: { id: string; name: string } | { id: string; name: string }[] | null;
+		};
+		const territoryRows = (territoriesRes.data ?? []) as TerritoryJoinRow[];
+		const mappedTerritories: DrawerTerritory[] = territoryRows
+			.map((row) => {
+				const t = Array.isArray(row.territories) ? row.territories[0] : row.territories;
+				return t ? { id: t.id, name: t.name } : null;
+			})
+			.filter((t): t is DrawerTerritory => t !== null)
+			.sort((a, b) => a.name.localeCompare(b.name));
 
 		drawerData = {
 			member: memberRes.data as DrawerMember | null,
 			commissions: (commissionsRes.data ?? []) as DrawerCommission[],
 			brandAccess: (brandAccessRes.data ?? []) as DrawerBrandAccess[],
-			territories: (territoriesRes.data ?? []) as DrawerTerritory[]
+			territories: mappedTerritories
 		};
 		drawerLoading = false;
 	}
@@ -272,6 +304,87 @@
 	let drawerUpdatingRole = $state(false);
 	let drawerUpdatingCommission = $state('');
 	let drawerRemovingAccess = $state('');
+	let drawerUpdatingManagesOthers = $state(false);
+	let drawerUpdatingManager = $state(false);
+	let drawerUpdatingTerritory = $state(false);
+
+	const drawerAssignedTerritoryIds = $derived(new Set(drawerTerritories.map((t) => t.id)));
+	const drawerAvailableTerritories = $derived(
+		territories.filter((t) => !drawerAssignedTerritoryIds.has(t.id))
+	);
+	const drawerShowTerritories = $derived(drawerMember?.role === 'sales');
+
+	async function drawerAddTerritory(territoryId: string) {
+		if (!drawerMember) return;
+		drawerUpdatingTerritory = true;
+		const { error: err } = await supabase
+			.from('member_territories')
+			.insert({ organization_member_id: drawerMember.id, territory_id: territoryId });
+		drawerUpdatingTerritory = false;
+		if (!err) {
+			await invalidateAll();
+			await openDrawer(drawerMember.id);
+		}
+	}
+
+	async function drawerRemoveTerritory(territoryId: string) {
+		if (!drawerMember) return;
+		drawerUpdatingTerritory = true;
+		const { error: err } = await supabase
+			.from('member_territories')
+			.delete()
+			.eq('organization_member_id', drawerMember.id)
+			.eq('territory_id', territoryId);
+		drawerUpdatingTerritory = false;
+		if (!err) {
+			await invalidateAll();
+			await openDrawer(drawerMember.id);
+		}
+	}
+
+	const drawerShowManagementFields = $derived(
+		drawerMember && (drawerMember.role === 'member' || drawerMember.role === 'sales')
+	);
+	const drawerManagerOptions = $derived(
+		drawerMember
+			? [
+					{ value: '', label: 'No manager' },
+					...eligibleManagers
+						.filter((m) => m.id !== drawerMember.id)
+						.map((m) => ({ value: m.id, label: `${m.name} (${m.role})` }))
+				]
+			: [{ value: '', label: 'No manager' }]
+	);
+
+	async function drawerToggleManagesOthers(next: boolean) {
+		if (!drawerMember) return;
+		drawerUpdatingManagesOthers = true;
+		const res = await fetch('/api/team/update-manages-others', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ memberId: drawerMember.id, managesOthers: next })
+		});
+		drawerUpdatingManagesOthers = false;
+		if (res.ok) {
+			await invalidateAll();
+			await openDrawer(drawerMember.id);
+		}
+	}
+
+	async function drawerUpdateManager(managerId: string) {
+		if (!drawerMember) return;
+		drawerUpdatingManager = true;
+		const res = await fetch('/api/team/update-manager-link', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ memberId: drawerMember.id, managerId: managerId || null })
+		});
+		drawerUpdatingManager = false;
+		if (res.ok) {
+			await invalidateAll();
+			await openDrawer(drawerMember.id);
+		}
+	}
 
 	async function drawerHandleRoleChange(newRole: UserRole) {
 		if (!drawerMember) return;
@@ -583,21 +696,92 @@
 					</dl>
 				</div>
 
+				<!-- Management (member / sales only) -->
+				{#if drawerShowManagementFields && drawerCanEdit}
+					<div class="h-px bg-border"></div>
+					<div class="space-y-4">
+						<h3 class="text-sm font-semibold">Management</h3>
+
+						<label class="flex items-center justify-between gap-4">
+							<div>
+								<p class="text-sm font-medium">Manages others</p>
+								<p class="text-sm text-muted-foreground">
+									Let them invite teammates and see data for people under them.
+								</p>
+							</div>
+							<Switch
+								checked={drawerMember.manages_others}
+								disabled={drawerUpdatingManagesOthers}
+								onCheckedChange={(v) => drawerToggleManagesOthers(v)}
+								aria-label="Manages others"
+							/>
+						</label>
+
+						<div class="space-y-2">
+							<p class="text-sm font-medium">Manager</p>
+							<SelectField
+								items={drawerManagerOptions}
+								value={drawerMember.manager_id ?? ''}
+								placeholder="No manager"
+								onValueChange={(v) => drawerUpdateManager(v)}
+								class={drawerUpdatingManager ? 'opacity-60' : ''}
+							/>
+							<p class="text-sm text-muted-foreground">
+								Their manager sees their orders, accounts, and reports.
+							</p>
+						</div>
+					</div>
+				{/if}
+
 				<!-- Territories -->
-				{#if drawerTerritories.length > 0}
+				{#if drawerShowTerritories || drawerTerritories.length > 0}
 					<div class="h-px bg-border"></div>
 					<div class="space-y-3">
 						<h3 class="text-sm font-semibold">Territories</h3>
-						<div class="space-y-1.5">
-							{#each drawerTerritories as territory (territory.id)}
-								<div class="flex items-center rounded-lg border px-3 py-2">
-									<a
-										href={resolve(`/organization/territories/${territory.id}`)}
-										class="text-sm font-medium hover:underline">{territory.name}</a
-									>
-								</div>
-							{/each}
-						</div>
+						{#if drawerTerritories.length > 0}
+							<div class="space-y-1.5">
+								{#each drawerTerritories as territory (territory.id)}
+									<div class="flex items-center justify-between rounded-lg border px-3 py-2">
+										<a
+											href={resolve(`/organization/territories/${territory.id}`)}
+											class="text-sm font-medium hover:underline">{territory.name}</a
+										>
+										{#if drawerShowTerritories && drawerCanEdit}
+											<button
+												class="text-sm text-muted-foreground transition-colors hover:text-destructive"
+												disabled={drawerUpdatingTerritory}
+												onclick={() => drawerRemoveTerritory(territory.id)}
+												aria-label="Remove territory"
+											>
+												Remove
+											</button>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-sm text-muted-foreground">
+								No territories assigned. Add one to scope this rep's accounts and orders.
+							</p>
+						{/if}
+
+						{#if drawerShowTerritories && drawerCanEdit && drawerAvailableTerritories.length > 0}
+							<SelectField
+								items={[
+									{ value: '', label: 'Add territory…' },
+									...drawerAvailableTerritories.map((t) => ({
+										value: t.id,
+										label: t.brand_name ? `${t.name} — ${t.brand_name}` : t.name
+									}))
+								]}
+								value=""
+								placeholder="Add territory…"
+								onValueChange={(v) => {
+									if (v) drawerAddTerritory(v);
+								}}
+								class={drawerUpdatingTerritory ? 'opacity-60' : ''}
+							/>
+						{/if}
 					</div>
 				{/if}
 
@@ -731,6 +915,7 @@
 	open={showInviteModal}
 	orgType={isBrandOrg ? 'brand' : 'rep'}
 	{brands}
+	{territories}
 	onclose={() => (showInviteModal = false)}
 	oninvited={() => invalidateAll()}
 />
