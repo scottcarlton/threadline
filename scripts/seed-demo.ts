@@ -11,7 +11,7 @@
  * Only runs against a local Supabase instance (127.0.0.1). Refuses otherwise.
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -1100,7 +1100,7 @@ async function seedUsers(): Promise<Map<string, string>> {
 	return byEmail;
 }
 
-async function seedOrgs(userIds: Map<string, string>): Promise<Map<string, string>> {
+async function seedOrgs(): Promise<Map<string, string>> {
 	const byName = new Map<string, string>();
 	for (const o of ORGS) {
 		const { data, error } = await supa
@@ -1440,7 +1440,7 @@ async function main() {
 
 	console.log('\n◆ Phase 1: prerequisites');
 	const userIds = await seedUsers();
-	const orgIds = await seedOrgs(userIds);
+	const orgIds = await seedOrgs();
 	await seedMemberships(userIds, orgIds);
 	await seedShows(orgIds);
 	await seedConnections(orgIds, userIds);
