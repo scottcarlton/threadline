@@ -53,9 +53,6 @@
 		(data.territoryAssignees ?? {}) as Record<string, Array<{ id: string; name: string }>>
 	);
 	const accountCounts = $derived(data.accountCounts as Record<string, number>);
-	const brandNameById = $derived((data.brandNameById ?? {}) as Record<string, string>);
-	const ownOrgId = $derived(data.ownOrgId as string | undefined);
-
 	let adding = $state(false);
 	let newName = $state('');
 	let newNotes = $state('');
@@ -89,11 +86,6 @@
 		if (list.length === 1) return list[0].name;
 		if (list.length === 2) return `${list[0].name}, ${list[1].name}`;
 		return `${list[0].name}, ${list[1].name} +${list.length - 2}`;
-	}
-
-	function sourceLabel(t: { brand_id: string | null; organization_id: string }): string {
-		if (!t.brand_id) return t.organization_id === ownOrgId ? 'Own org' : 'Connected';
-		return brandNameById[t.brand_id] ?? 'Brand';
 	}
 </script>
 
@@ -201,10 +193,6 @@
 						>
 						<th
 							class="px-4 py-2.5 text-left text-[12px] font-medium tracking-wider text-muted-foreground uppercase"
-							>Source</th
-						>
-						<th
-							class="px-4 py-2.5 text-left text-[12px] font-medium tracking-wider text-muted-foreground uppercase"
 							>Assigned Reps</th
 						>
 						<th
@@ -224,9 +212,6 @@
 								{#if territory.notes}
 									<p class="text-sm text-muted-foreground">{territory.notes}</p>
 								{/if}
-							</td>
-							<td class="px-4 py-3">
-								<span class="text-sm text-muted-foreground">{sourceLabel(territory)}</span>
 							</td>
 							<td class="px-4 py-3">
 								<span class="text-sm text-muted-foreground">

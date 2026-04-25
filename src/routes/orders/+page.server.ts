@@ -3,9 +3,21 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listFederatedOrders } from '$lib/server/federation.js';
 import { resolveOrderSearch, applyOrderSearch } from '$lib/server/orders/search.js';
 import { loadManagerScope } from '$lib/server/scoping.js';
-import { incrementDate } from '$lib/utils/date-presets.js';
 
 const PAGE_SIZE = 50;
+
+// The /orders date filter sends from/to as YYYY-MM-DD computed from the
+// caller's LOCAL clock, but `created_at` is a UTC timestamp. Without a TZ
+// hint we'd compare against the UTC midnight, which drops orders the user
+// stamped on their local "today" but stored under tomorrow UTC. Widen the
+// window to the most-extreme TZ offsets (UTC+14 / UTC-12) so the filter
+// is inclusive across every caller TZ.
+function fromBoundary(yyyymmdd: string): string {
+	return `${yyyymmdd}T00:00:00+14:00`;
+}
+function toBoundary(yyyymmdd: string): string {
+	return `${yyyymmdd}T23:59:59.999-12:00`;
+}
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	// Hook for the AI conversation store's invalidate('data:orders') after
@@ -20,15 +32,35 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const seasonFilter = url.searchParams.get('season');
 	const year = url.searchParams.get('year');
 	const brandFilter = url.searchParams.get('brand');
-	const showDateId = url.searchParams.get('show');
+	// Source filter unifies "shows" (show_dates) and "source types". Value
+	// is prefixed: `show:<show_date_id>` or `srctype:<source_type_id>`.
+	// Falls back to the legacy `?show=<id>` param for old links.
+	const sourceParam = url.searchParams.get('source');
+	const legacyShow = url.searchParams.get('show');
+	const sourceKind = sourceParam?.startsWith('show:')
+		? 'show'
+		: sourceParam?.startsWith('srctype:')
+			? 'srctype'
+			: legacyShow
+				? 'show'
+				: null;
+	const sourceId = sourceParam
+		? sourceParam.split(':').slice(1).join(':') || null
+		: (legacyShow ?? null);
+	const showDateId = sourceKind === 'show' ? sourceId : null;
+	// Source-type filter is name-based (matches the season/brand pattern).
+	// Resolved to the set of matching source_type ids per branch below.
+	const sourceTypeName = sourceKind === 'srctype' ? sourceId : null;
 	const repOrgId = url.searchParams.get('rep');
 	const search = url.searchParams.get('search')?.trim() ?? '';
 	const from = url.searchParams.get('from');
 	const to = url.searchParams.get('to');
 	// Default the totals / pagination to orders-only; notes tab flips this.
 	const activeType = url.searchParams.get('type') ?? 'order';
-	// Exclusive upper bound so the `to` day is fully included in the window.
-	const toExclusive = to ? incrementDate(to) : null;
+	const fromTs = from ? fromBoundary(from) : null;
+	const toTs = to ? toBoundary(to) : null;
+	const toTsMs = toTs ? new Date(toTs).getTime() : null;
+	const fromTsMs = fromTs ? new Date(fromTs).getTime() : null;
 
 	// Buyer-scoped orders
 	if (locals.isBuyer) {
@@ -44,8 +76,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		if (status) query = query.eq('status', status);
 		if (brandFilter) query = query.eq('brand_id', brandFilter);
 		if (seasonFilter) query = query.eq('season_id', seasonFilter);
-		if (from) query = query.gte('created_at', from);
-		if (toExclusive) query = query.lt('created_at', toExclusive);
+		if (fromTs) query = query.gte('created_at', fromTs);
+		if (toTs) query = query.lte('created_at', toTs);
 		if (activeType !== 'all') query = query.eq('order_type', activeType);
 
 		const [ordersRes, brandsRes] = await Promise.all([
@@ -66,6 +98,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			seasons: [],
 			brands: brandsRes.data ?? [],
 			showDates: [],
+			sourceTypes: [] as Array<{ id: string; name: string }>,
 			reps: [] as Array<{ id: string; name: string }>,
 			isBrandOrg: false,
 			metrics: {
@@ -97,6 +130,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			seasons: [],
 			brands: [],
 			showDates: [],
+			sourceTypes: [] as Array<{ id: string; name: string }>,
 			reps: [] as Array<{ id: string; name: string }>,
 			isBrandOrg: false,
 			metrics: {
@@ -119,22 +153,74 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				? await loadManagerScope(supabaseAdmin, brandUserId, locals.membership?.id ?? null)
 				: null;
 
-		// Resolve name-based season/brand filters to matching IDs
-		let seasonIds: string[] | null = null;
-		if (seasonFilter) {
-			const { data: matchSeasons } = await supabaseAdmin
+		// Visible orgs for the BOA: own org + every connected rep org. Used to
+		// populate filter dropdowns with the full union of seasons/brands so
+		// they don't shrink when the user picks one as a filter.
+		const { data: brandConnections } = await supabaseAdmin
+			.from('org_connections')
+			.select('rep_org_id')
+			.eq('brand_org_id', organization.id)
+			.eq('status', 'active');
+		const boaVisibleOrgIds = Array.from(
+			new Set<string>([
+				organization.id,
+				...((brandConnections ?? []).map((c) => c.rep_org_id) as string[])
+			])
+		);
+
+		// Pre-load all seasons, brands, show_dates, and source_types across
+		// visible orgs so filter chip sources stay complete regardless of
+		// which filter is currently active.
+		const [allSeasonsRes, allBrandsRes, allShowDatesRes, allSourceTypesRes] = await Promise.all([
+			supabaseAdmin
 				.from('seasons')
 				.select('id, name')
-				.ilike('name', seasonFilter);
-			seasonIds = matchSeasons?.map((s) => s.id) ?? [];
+				.in('organization_id', boaVisibleOrgIds)
+				.eq('is_active', true)
+				.order('sort_order'),
+			supabaseAdmin
+				.from('brands')
+				.select('id, name')
+				.in('organization_id', boaVisibleOrgIds)
+				.eq('is_active', true)
+				.order('name'),
+			supabaseAdmin
+				.from('show_dates')
+				.select('id, show_id, year, month, city, state, shows(name)')
+				.in('organization_id', boaVisibleOrgIds)
+				.order('year')
+				.order('month'),
+			supabaseAdmin
+				.from('source_types')
+				.select('id, name')
+				.in('organization_id', boaVisibleOrgIds)
+				.eq('is_active', true)
+				.order('name')
+		]);
+		const allBoaSeasons = (allSeasonsRes.data ?? []) as Array<{ id: string; name: string }>;
+		const allBoaBrands = (allBrandsRes.data ?? []) as Array<{ id: string; name: string }>;
+		const allBoaShowDates = allShowDatesRes.data ?? [];
+		const allBoaSourceTypes = (allSourceTypesRes.data ?? []) as Array<{ id: string; name: string }>;
+
+		// Resolve name-based season/brand/source-type filters to matching IDs
+		// (scoped to visible orgs only so a user can't filter by something
+		// outside their reach).
+		let seasonIds: string[] | null = null;
+		if (seasonFilter) {
+			const key = seasonFilter.trim().toLowerCase();
+			seasonIds = allBoaSeasons.filter((s) => s.name.trim().toLowerCase() === key).map((s) => s.id);
 		}
 		let brandIds: string[] | null = null;
 		if (brandFilter) {
-			const { data: matchBrands } = await supabaseAdmin
-				.from('brands')
-				.select('id, name')
-				.ilike('name', brandFilter);
-			brandIds = matchBrands?.map((b) => b.id) ?? [];
+			const key = brandFilter.trim().toLowerCase();
+			brandIds = allBoaBrands.filter((b) => b.name.trim().toLowerCase() === key).map((b) => b.id);
+		}
+		let sourceTypeIds: string[] | null = null;
+		if (sourceTypeName) {
+			const key = sourceTypeName.trim().toLowerCase();
+			sourceTypeIds = allBoaSourceTypes
+				.filter((s) => s.name.trim().toLowerCase() === key)
+				.map((s) => s.id);
 		}
 
 		// 1. Direct orders owned by the brand org.
@@ -176,8 +262,10 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		if (year) directQuery = directQuery.eq('order_year', parseInt(year));
 		if (brandIds && brandIds.length > 0) directQuery = directQuery.in('brand_id', brandIds);
 		if (showDateId) directQuery = directQuery.eq('show_date_id', showDateId);
-		if (from) directQuery = directQuery.gte('created_at', from);
-		if (toExclusive) directQuery = directQuery.lt('created_at', toExclusive);
+		if (sourceTypeIds && sourceTypeIds.length > 0)
+			directQuery = directQuery.in('source_type_id', sourceTypeIds);
+		if (fromTs) directQuery = directQuery.gte('created_at', fromTs);
+		if (toTs) directQuery = directQuery.lte('created_at', toTs);
 		if (search) {
 			const resolved = await resolveOrderSearch(supabaseAdmin, search);
 			directQuery = applyOrderSearch(directQuery, search, resolved.accountIds, resolved.brandIds);
@@ -192,9 +280,12 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		// 2. Federated orders from connected rep orgs.
 		//    Brand sales reps don't see incoming federated orders (only their own work).
 		//    Admins and members see all federated orders.
-		let federatedOrders = brandIsSales
+		// Keep the pre-filter list so the rep filter dropdown stays populated
+		// with every connected rep regardless of which one is currently selected.
+		const allFederatedOrders = brandIsSales
 			? []
 			: await listFederatedOrders(supabaseAdmin, organization.id);
+		let federatedOrders = allFederatedOrders;
 		if (status) federatedOrders = federatedOrders.filter((o) => o.status === status);
 		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.rep_org_id === repOrgId);
 		if (seasonIds)
@@ -202,8 +293,21 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				(o) => o.season_id && seasonIds!.includes(o.season_id)
 			);
 		if (brandIds) federatedOrders = federatedOrders.filter((o) => brandIds!.includes(o.brand_id));
-		if (from) federatedOrders = federatedOrders.filter((o) => o.created_at >= from);
-		if (toExclusive) federatedOrders = federatedOrders.filter((o) => o.created_at < toExclusive);
+		if (showDateId) {
+			federatedOrders = federatedOrders.filter((o) => o.show_date?.id === showDateId);
+		}
+		if (sourceTypeIds && sourceTypeIds.length > 0) {
+			const allowed = new Set(sourceTypeIds);
+			federatedOrders = federatedOrders.filter(
+				(o) => o.source_type_id != null && allowed.has(o.source_type_id)
+			);
+		}
+		if (fromTsMs != null) {
+			federatedOrders = federatedOrders.filter((o) => new Date(o.created_at).getTime() >= fromTsMs);
+		}
+		if (toTsMs != null) {
+			federatedOrders = federatedOrders.filter((o) => new Date(o.created_at).getTime() <= toTsMs);
+		}
 		if (search) {
 			const q = search.toLowerCase();
 			federatedOrders = federatedOrders.filter(
@@ -340,19 +444,22 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		}
 		const ordersWithCommission = orders.map((o) => ({ ...o, rep_commission_rate: rateFor(o) }));
 
-		// Filter chip sources — union of direct + federated, deduped by name.
+		// Filter chip sources. Brand/season come from the pre-loaded
+		// allBoaSeasons/allBoaBrands so they don't shrink when the user picks
+		// one as a filter; reps come from the unfiltered federated list for
+		// the same reason.
 		const brandMap = new Map<string, { id: string; name: string }>();
 		const seasonMap = new Map<string, { id: string; name: string }>();
 		const repMap = new Map<string, { id: string; name: string }>();
-		for (const o of federatedOrders) {
-			if (o.brand_id && o.brand_name) {
-				const key = o.brand_name.trim().toLowerCase();
-				if (!brandMap.has(key)) brandMap.set(key, { id: o.brand_id, name: o.brand_name });
-			}
-			if (o.season_id && o.season_name) {
-				const key = o.season_name.trim().toLowerCase();
-				if (!seasonMap.has(key)) seasonMap.set(key, { id: o.season_id, name: o.season_name });
-			}
+		for (const b of allBoaBrands) {
+			const key = b.name.trim().toLowerCase();
+			if (!brandMap.has(key)) brandMap.set(key, b);
+		}
+		for (const s of allBoaSeasons) {
+			const key = s.name.trim().toLowerCase();
+			if (!seasonMap.has(key)) seasonMap.set(key, s);
+		}
+		for (const o of allFederatedOrders) {
 			// Display the rep's person name in the filter chip (falls back to org
 			// name only if the rep's profile isn't resolvable). The filter value
 			// is still rep_org_id, so multiple reps from one rep-org collapse to
@@ -362,18 +469,6 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 					id: o.rep_org_id,
 					name: o.created_by_name ?? o.rep_org_name
 				});
-			}
-		}
-		for (const o of directOrders) {
-			const b = (o.brands as { name?: string } | null)?.name;
-			if (b) {
-				const key = b.trim().toLowerCase();
-				if (!brandMap.has(key)) brandMap.set(key, { id: o.brand_id as string, name: b });
-			}
-			const s = (o.seasons as { name?: string } | null)?.name;
-			if (s) {
-				const key = s.trim().toLowerCase();
-				if (!seasonMap.has(key)) seasonMap.set(key, { id: o.season_id as string, name: s });
 			}
 		}
 
@@ -421,7 +516,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			seasons: [...seasonMap.values()],
 			brands: [...brandMap.values()],
 			reps: [...repMap.values()],
-			showDates: [],
+			showDates: allBoaShowDates,
+			sourceTypes: allBoaSourceTypes,
 			isBrandOrg: true,
 			metrics: {
 				pipelineValue,
@@ -468,9 +564,10 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	}
 	const visibleOrgIds = Array.from(visibleOrgIdSet);
 
-	// Filter dropdowns widen to include connected orgs' brands/seasons/shows.
-	// Fetch these first so we can resolve name-based filters to IDs.
-	const [seasonsResult, brandsResult, showDatesResult] = await Promise.all([
+	// Filter dropdowns widen to include connected orgs' brands/seasons/shows/sources.
+	// Fetch these first so we can resolve name-based filters to IDs (mirrors
+	// the season/brand resolution pattern).
+	const [seasonsResult, brandsResult, showDatesResult, sourceTypesResult] = await Promise.all([
 		supabaseAdmin
 			.from('seasons')
 			.select('*')
@@ -488,11 +585,18 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			.select('id, show_id, year, month, city, state, shows(name)')
 			.in('organization_id', visibleOrgIds)
 			.order('year')
-			.order('month')
+			.order('month'),
+		supabaseAdmin
+			.from('source_types')
+			.select('id, name')
+			.in('organization_id', visibleOrgIds)
+			.eq('is_active', true)
+			.order('name')
 	]);
 
 	const allSeasons = seasonsResult.data ?? [];
 	const allBrands = (brandsResult.data ?? []) as Array<{ id: string; name: string }>;
+	const allSourceTypes = (sourceTypesResult.data ?? []) as Array<{ id: string; name: string }>;
 
 	// Resolve name-based filters to matching IDs across all visible orgs
 	let seasonIds: string[] | null = null;
@@ -504,6 +608,13 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	if (brandFilter) {
 		const key = brandFilter.trim().toLowerCase();
 		brandIds = allBrands.filter((b) => b.name.trim().toLowerCase() === key).map((b) => b.id);
+	}
+	let sourceTypeIds: string[] | null = null;
+	if (sourceTypeName) {
+		const key = sourceTypeName.trim().toLowerCase();
+		sourceTypeIds = allSourceTypes
+			.filter((s) => s.name.trim().toLowerCase() === key)
+			.map((s) => s.id);
 	}
 
 	// Resolve search to matching account/brand IDs
@@ -545,8 +656,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		if (year) q = q.eq('order_year', parseInt(year));
 		if (brandIds && brandIds.length > 0) q = q.in('brand_id', brandIds);
 		if (showDateId) q = q.eq('show_date_id', showDateId);
-		if (from) q = q.gte('created_at', from);
-		if (toExclusive) q = q.lt('created_at', toExclusive);
+		if (sourceTypeIds && sourceTypeIds.length > 0) q = q.in('source_type_id', sourceTypeIds);
+		if (fromTs) q = q.gte('created_at', fromTs);
+		if (toTs) q = q.lte('created_at', toTs);
 		if (search) q = applyOrderSearch(q, search, searchAccountIds, searchBrandIds);
 		if (activeType !== 'all') q = q.eq('order_type', activeType);
 		return q;
@@ -673,6 +785,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		seasons: dedupedSeasons,
 		brands: dedupedBrands,
 		showDates: showDatesResult.data ?? [],
+		sourceTypes: (sourceTypesResult.data ?? []) as Array<{ id: string; name: string }>,
 		reps: [] as Array<{ id: string; name: string }>,
 		isBrandOrg: false,
 		metrics

@@ -1132,6 +1132,7 @@
 
 	<SearchDialog
 		isBrandOrg={data.orgType === 'brand'}
+		isBuyer={data.isBuyer === true}
 		onassistantToggle={() => {
 			const input = document.getElementById('ai-dock-input');
 			if (input) input.focus();

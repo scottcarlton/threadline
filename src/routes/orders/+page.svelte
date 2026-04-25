@@ -59,13 +59,21 @@
 
 	const seasons = $derived(data.seasons as Season[]);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
-	const showDates = $derived(data.showDates ?? []);
+	const showDates = $derived(
+		(data.showDates ?? []) as Array<{
+			id: string;
+			year: number | null;
+			month: number | null;
+			city: string | null;
+			shows: { name?: string } | { name?: string }[] | null;
+		}>
+	);
+	const sourceTypes = $derived((data.sourceTypes ?? []) as Array<{ id: string; name: string }>);
 	const reps = $derived((data.reps as { id: string; name: string }[] | undefined) ?? []);
-	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
-	const canCreate = $derived(data.membership?.role !== 'guest');
-	// Brand-level sales reps shouldn't export org-wide data.
-	const canExport = $derived(!(isBrandOrg && data.membership?.role === 'sales'));
-	const monthNames = [
+
+	// Combined options for the unified Source filter (shows + source_types).
+	// Values are prefixed so the server can route to the right column.
+	const monthAbbrev = [
 		'Jan',
 		'Feb',
 		'Mar',
@@ -79,6 +87,36 @@
 		'Nov',
 		'Dec'
 	];
+	// Dedupe source_types by name across visible orgs (BOA's view spans
+	// every connected rep org, so "Road" can appear once per rep). Shows
+	// are date-distinct (CALA Mar 2026 ≠ CALA Mar 2027) so they keep IDs.
+	const dedupedSourceTypes = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const seen = new Set<string>();
+		return sourceTypes.filter((st) => {
+			const key = st.name.trim().toLowerCase();
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
+	});
+	const sourceItems = $derived([
+		{ value: '', label: 'All Sources' },
+		...showDates.map((sd) => {
+			const shows = sd.shows;
+			const showName = Array.isArray(shows) ? (shows[0]?.name ?? 'Show') : (shows?.name ?? 'Show');
+			return {
+				value: `show:${sd.id}`,
+				label: `${showName} — ${monthAbbrev[(sd.month ?? 1) - 1]} ${sd.year}${sd.city ? `, ${sd.city}` : ''}`
+			};
+		}),
+		...dedupedSourceTypes.map((st) => ({ value: `srctype:${st.name}`, label: st.name }))
+	]);
+	const hasSourceOptions = $derived(showDates.length > 0 || sourceTypes.length > 0);
+	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
+	const canCreate = $derived(data.membership?.role !== 'guest');
+	// Brand-level sales reps shouldn't export org-wide data.
+	const canExport = $derived(!(isBrandOrg && data.membership?.role === 'sales'));
 	const metrics = $derived(
 		data.metrics as {
 			pipelineValue: number;
@@ -616,29 +654,20 @@
 					onValueChange={(v) => setFilter('status', v)}
 				/>
 			{/if}
-			{#if showDates.length > 0}
-				<SelectField
-					value={$page.url.searchParams.get('show') ?? ''}
-					items={[
-						{ value: '', label: 'All Shows' },
-						...showDates.map((sd) => {
-							const shows = sd.shows as { name?: string } | { name?: string }[] | null;
-							const showName = Array.isArray(shows)
-								? (shows[0]?.name ?? 'Show')
-								: (shows?.name ?? 'Show');
-							return {
-								value: sd.id,
-								label: `${showName} — ${monthNames[(sd.month ?? 1) - 1]} ${sd.year}${sd.city ? `, ${sd.city}` : ''}`
-							};
-						})
-					]}
-					placeholder="All Shows"
-					onValueChange={(v) => setFilter('show', v)}
-				/>
-			{/if}
+			<SelectField
+				class="min-w-[158px]"
+				value={$page.url.searchParams.get('season') ?? ''}
+				items={[
+					{ value: '', label: 'All Seasons' },
+					...seasons.map((s) => ({ value: s.name, label: s.name }))
+				]}
+				placeholder="All Seasons"
+				onValueChange={(v) => setFilter('season', v)}
+			/>
 			<div class="flex-1"></div>
 			{#if isBrandOrg && reps.length > 0}
 				<SelectField
+					class="min-w-[158px]"
 					value={$page.url.searchParams.get('rep') ?? ''}
 					items={[
 						{ value: '', label: 'All Reps' },
@@ -650,6 +679,7 @@
 			{/if}
 			{#if !isBrandOrg}
 				<SelectField
+					class="min-w-[158px]"
 					value={$page.url.searchParams.get('brand') ?? ''}
 					items={[
 						{ value: '', label: 'All Brands' },
@@ -659,7 +689,17 @@
 					onValueChange={(v) => setFilter('brand', v)}
 				/>
 			{/if}
+			{#if hasSourceOptions}
+				<SelectField
+					class="max-w-[240px] min-w-[158px]"
+					value={$page.url.searchParams.get('source') ?? ''}
+					items={sourceItems}
+					placeholder="All Sources"
+					onValueChange={(v) => setFilter('source', v)}
+				/>
+			{/if}
 			<SelectField
+				class="min-w-[158px]"
 				value={activeDatePreset}
 				items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
 				placeholder="All Time"
@@ -682,16 +722,6 @@
 					onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
 				/>
 			{/if}
-			<SelectField
-				class="min-w-[127px]"
-				value={$page.url.searchParams.get('season') ?? ''}
-				items={[
-					{ value: '', label: 'All Seasons' },
-					...seasons.map((s) => ({ value: s.name, label: s.name }))
-				]}
-				placeholder="All Seasons"
-				onValueChange={(v) => setFilter('season', v)}
-			/>
 		{/if}
 	</div>
 
@@ -844,24 +874,14 @@
 								</div>
 							</td>
 							<td class="px-4 py-3">
-								{#if isBrandOrg}
-									<p class="text-sm text-muted-foreground">
-										{order.accounts?.business_name ?? '—'}
-									</p>
-									<a
-										href={resolve(`/orders/${order.id}`)}
-										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
-									>
-									<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
-								{:else}
-									<a
-										href={resolve(`/orders/${order.id}`)}
-										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
-									>
-									<p class="text-sm text-muted-foreground">
-										{order.accounts?.business_name ?? '—'}
-									</p>
-								{/if}
+								<p class="text-sm text-muted-foreground">
+									{order.accounts?.business_name ?? '—'}
+								</p>
+								<a
+									href={resolve(`/orders/${order.id}`)}
+									class="font-mono text-base font-medium hover:underline">{order.order_number}</a
+								>
+								<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
 							</td>
 							<td class="px-4 py-3 text-center">
 								{#if order.order_type === 'note'}
@@ -879,7 +899,6 @@
 							{#if !isBrandOrg}
 								<td class="hidden px-4 py-3 sm:table-cell">
 									<span class="text-sm">{order.brands?.name ?? '—'}</span>
-									<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
 								</td>
 							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">

@@ -73,17 +73,6 @@
 	const allLocations = $derived(data.locations as LocationRow[]);
 	const brands = $derived(data.brands as Brand[]);
 	const seasons = $derived(data.seasons as Season[]);
-	// Deduplicated by name for dropdown display; full `seasons` used for ID resolution
-	const dedupedSeasons = $derived.by(() => {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation inside $derived
-		const seen = new Set<string>();
-		return seasons.filter((s) => {
-			const key = s.name.trim().toLowerCase();
-			if (seen.has(key)) return false;
-			seen.add(key);
-			return true;
-		});
-	});
 	const deliveries = $derived(data.deliveries as SeasonDeliveryRow[]);
 	const isBuyer = $derived(data.isBuyer === true);
 	const isBrandOrg = $derived(data.isBrandOrg === true);
@@ -316,8 +305,17 @@
 
 	// ── Steps ───────────────────────────────────────────────────────────────
 	// Brand orgs skip the 'Brand' step — their self-brand is auto-selected.
+	// Buyers always skip 'Brand' (they only shop the catalogs they have access
+	// to) and skip 'Account' when they have exactly one account (auto-seeded
+	// in the effect below).
 	const stepsAll = $derived.by(() => {
-		const s = isBrandOrg ? ['Account'] : ['Brand', 'Account'];
+		const s = isBuyer
+			? accounts.length > 1
+				? ['Account']
+				: []
+			: isBrandOrg
+				? ['Account']
+				: ['Brand', 'Account'];
 		if (needsAccountDetailsStep) s.push('Details');
 		s.push('Items', 'Delivery');
 		if (needsLocationStep) s.push('Location');
@@ -2403,7 +2401,7 @@
 	bind:items={cart.items}
 	brandIds={allowedBrandIds}
 	{brands}
-	seasons={dedupedSeasons}
+	{seasons}
 	showBrandFilter={cart.brandFilter === 'all' || (cart.brandFilter as string[]).length > 1}
 	onclose={closeAddItemsModal}
 	ondone={() => {}}

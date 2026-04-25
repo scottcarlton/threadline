@@ -231,6 +231,7 @@ export type FederatedOrderRow = {
 	account_name: string | null;
 	brand_name: string | null;
 	season_name: string | null;
+	source_type_id: string | null;
 	source_type_name: string | null;
 	show_date: {
 		id: string;
@@ -259,7 +260,7 @@ export async function listFederatedOrders(
 				'source_org_id',
 				'connection_id',
 				'source_org:source_org_id(id, name)',
-				'orders(id, order_number, order_type, status, total_amount, shipped_amount, shipped_at, created_at, expected_ship_date, start_ship_date, season_id, order_year, brand_id, account_id, freeform_name, connection_id, created_by, accounts(business_name), brands(name), seasons(name), source_types(name), show_dates(id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name))'
+				'orders(id, order_number, order_type, status, total_amount, shipped_amount, shipped_at, created_at, expected_ship_date, start_ship_date, season_id, order_year, brand_id, account_id, freeform_name, connection_id, created_by, source_type_id, accounts(business_name), brands(name), seasons(name), source_types(name), show_dates(id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name))'
 			].join(', ')
 		)
 		.eq('target_org_id', brandOrgId)
@@ -289,6 +290,7 @@ export async function listFederatedOrders(
 			freeform_name: string | null;
 			connection_id: string | null;
 			created_by: string | null;
+			source_type_id: string | null;
 			accounts: { business_name: string | null } | null;
 			brands: { name: string | null } | null;
 			seasons: { name: string | null } | null;
@@ -355,6 +357,7 @@ export async function listFederatedOrders(
 			account_name: r.orders.accounts?.business_name ?? null,
 			brand_name: r.orders.brands?.name ?? null,
 			season_name: r.orders.seasons?.name ?? null,
+			source_type_id: r.orders.source_type_id,
 			source_type_name: r.orders.source_types?.name ?? null,
 			show_date: r.orders.show_dates
 				? {

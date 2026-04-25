@@ -274,7 +274,7 @@
 					}}
 				/>
 			{/if}
-			{#if showBrandFilter}
+			{#if showBrandFilter && brands.length > 1}
 				<SelectField
 					value={modalBrand}
 					items={[

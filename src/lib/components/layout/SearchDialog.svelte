@@ -26,10 +26,11 @@
 
 	type Props = {
 		isBrandOrg?: boolean;
+		isBuyer?: boolean;
 		onassistantToggle?: () => void;
 	};
 
-	let { isBrandOrg = false, onassistantToggle }: Props = $props();
+	let { isBrandOrg = false, isBuyer = false, onassistantToggle }: Props = $props();
 
 	let open = $state(false);
 	let query = $state('');
@@ -55,52 +56,58 @@
 		keys?: string[];
 	};
 
-	const createItems = $derived<DefaultItem[]>([
-		{
-			kind: 'create',
-			label: 'New Order',
-			icon: 'M12 4v16m8-8H4',
-			keys: ['⌘', 'O'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/orders/new'));
-			}
-		},
-		{
-			kind: 'create',
-			label: 'New Account',
-			icon: 'M12 4v16m8-8H4',
-			keys: ['⌘', 'A'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/accounts/new'));
-			}
-		},
-		{
-			kind: 'create',
-			label: 'New Appointment',
-			icon: 'M12 4v16m8-8H4',
-			keys: ['Shift', '⌘', 'A'],
-			action: () => {
-				closeDialog();
-				goto(resolve('/appointments?new=true'));
-			}
-		},
-		...(!isBrandOrg
-			? [
+	const newOrderItem: DefaultItem = {
+		kind: 'create',
+		label: 'New Order',
+		icon: 'M12 4v16m8-8H4',
+		keys: ['⌘', 'O'],
+		action: () => {
+			closeDialog();
+			goto(resolve('/orders/new'));
+		}
+	};
+
+	const createItems = $derived<DefaultItem[]>(
+		isBuyer
+			? [newOrderItem]
+			: [
+					newOrderItem,
 					{
-						kind: 'create' as const,
-						label: 'New Brand',
+						kind: 'create',
+						label: 'New Account',
 						icon: 'M12 4v16m8-8H4',
-						keys: ['⌘', 'B'],
+						keys: ['⌘', 'A'],
 						action: () => {
 							closeDialog();
-							goto(resolve('/brands/new'));
+							goto(resolve('/accounts/new'));
 						}
-					}
+					},
+					{
+						kind: 'create',
+						label: 'New Appointment',
+						icon: 'M12 4v16m8-8H4',
+						keys: ['Shift', '⌘', 'A'],
+						action: () => {
+							closeDialog();
+							goto(resolve('/appointments?new=true'));
+						}
+					},
+					...(!isBrandOrg
+						? [
+								{
+									kind: 'create' as const,
+									label: 'New Brand',
+									icon: 'M12 4v16m8-8H4',
+									keys: ['⌘', 'B'],
+									action: () => {
+										closeDialog();
+										goto(resolve('/brands/new'));
+									}
+								}
+							]
+						: [])
 				]
-			: [])
-	]);
+	);
 
 	const navOrders: DefaultItem = {
 		kind: 'navigate',
@@ -171,6 +178,33 @@
 			goto(resolve('/settings'));
 		}
 	};
+	const navShop: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Shop',
+		icon: 'M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z',
+		action: () => {
+			closeDialog();
+			goto(resolve('/shop'));
+		}
+	};
+	const navCart: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Cart',
+		icon: 'M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z',
+		action: () => {
+			closeDialog();
+			goto(resolve('/shop/cart'));
+		}
+	};
+	const navAccount: DefaultItem = {
+		kind: 'navigate',
+		label: 'Go to Account',
+		icon: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z',
+		action: () => {
+			closeDialog();
+			goto(resolve('/account'));
+		}
+	};
 
 	const orderDocIcon =
 		'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z';
@@ -211,13 +245,15 @@
 	];
 
 	const navigateItems = $derived<DefaultItem[]>(
-		isBrandOrg
-			? [navOrders, navReports, navAccounts, navInbox, navAppointments, navSettings]
-			: [navOrders, navAccounts, navBrands, navInbox, navAppointments, navReports, navSettings]
+		isBuyer
+			? [navOrders, navShop, navCart, navAccount, navSettings]
+			: isBrandOrg
+				? [navOrders, navReports, navAccounts, navInbox, navAppointments, navSettings]
+				: [navOrders, navAccounts, navBrands, navInbox, navAppointments, navReports, navSettings]
 	);
 
 	const defaultItems = $derived([
-		...(isBrandOrg ? brandOrderLinks : []),
+		...(isBrandOrg && !isBuyer ? brandOrderLinks : []),
 		...createItems,
 		...navigateItems
 	]);
@@ -521,7 +557,7 @@
 			<div class="max-h-[60vh] overflow-y-auto">
 				{#if showDefaults}
 					<!-- Brand order links -->
-					{#if isBrandOrg}
+					{#if isBrandOrg && !isBuyer}
 						<div class="px-5 pt-3 pb-1">
 							<span class="text-xs font-semibold tracking-wider text-white/40 uppercase"
 								>Orders</span
@@ -556,7 +592,7 @@
 						<span class="text-xs font-semibold tracking-wider text-white/40 uppercase">Create</span>
 					</div>
 					{#each createItems as item, i (item.label)}
-						{@const idx = (isBrandOrg ? brandOrderLinks.length : 0) + i}
+						{@const idx = (isBrandOrg && !isBuyer ? brandOrderLinks.length : 0) + i}
 						<button
 							class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
 							selectedIndex
@@ -596,7 +632,8 @@
 						>
 					</div>
 					{#each navigateItems as item, i (item.label)}
-						{@const idx = (isBrandOrg ? brandOrderLinks.length : 0) + createItems.length + i}
+						{@const idx =
+							(isBrandOrg && !isBuyer ? brandOrderLinks.length : 0) + createItems.length + i}
 						<button
 							class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
 							selectedIndex

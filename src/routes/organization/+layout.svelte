@@ -31,11 +31,7 @@
 			badge: (data.showsCount as number) ?? 0
 		},
 		{ label: 'Seasons', href: '/organization/seasons' as const },
-		{
-			label: 'Territories',
-			href: '/organization/territories' as const,
-			badge: (data.territoriesCount as number) ?? 0
-		},
+		{ label: 'Territories', href: '/organization/territories' as const },
 		{ label: 'Billing', href: '/organization/billing' as const },
 		{ label: 'Agents (AI)', href: '/organization/agents' as const },
 		{ label: 'Integrations', href: '/organization/integrations' as const },
