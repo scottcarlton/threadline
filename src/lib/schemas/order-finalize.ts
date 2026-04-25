@@ -70,6 +70,7 @@ export const finalizeSchema = z
 		contact_location_id: uuidOrNull,
 		rep_user_id: z.string().uuid(),
 		source_type_id: uuidOrNull,
+		show_date_id: uuidOrNull,
 
 		// One override block per cart group.
 		orders: z.array(perOrderOverrideSchema).min(1, 'Cart must contain at least one order'),
@@ -89,6 +90,15 @@ export const finalizeSchema = z
 					break;
 				}
 			}
+		}
+
+		// Source is one-hot: either a source_type or a show_date, never both.
+		if (data.source_type_id && data.show_date_id) {
+			ctx.addIssue({
+				code: 'custom',
+				path: ['source_type_id'],
+				message: 'Pick either a source type or a show, not both.'
+			});
 		}
 
 		// Freeform (no-account) orders can only be saved as notes. DB-level

@@ -32,7 +32,7 @@
 >
 	<Select.Trigger
 		class={cn(
-			'inline-flex min-h-[44px] items-center justify-between gap-2 rounded-lg border border-input bg-background px-3.5 text-sm transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none',
+			'inline-flex min-h-[44px] items-center justify-between gap-2 rounded-xs border border-input bg-background px-3.5 text-sm transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none',
 			className
 		)}
 	>
@@ -50,7 +50,7 @@
 	</Select.Trigger>
 	<Select.Portal>
 		<Select.Content
-			class="animate-in fade-in-0 zoom-in-95 z-50 w-[var(--bits-select-anchor-width)] min-w-[var(--bits-select-anchor-width)] overflow-hidden rounded-md border bg-background shadow-lg"
+			class="animate-in fade-in-0 zoom-in-95 z-50 w-auto max-w-[min(90vw,22rem)] min-w-[var(--bits-select-anchor-width)] overflow-hidden rounded-md border bg-background shadow-lg"
 			sideOffset={4}
 		>
 			<Select.Viewport class="p-1">
@@ -58,7 +58,7 @@
 					<Select.Item
 						value={item.value}
 						disabled={item.disabled}
-						class="relative flex cursor-pointer items-center rounded-sm px-3 py-2 text-sm transition-colors select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[state=checked]:bg-muted data-[state=checked]:font-medium"
+						class="relative flex cursor-pointer items-center rounded-sm px-3 py-2 text-sm whitespace-nowrap transition-colors select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[state=checked]:bg-muted data-[state=checked]:font-medium"
 					>
 						{item.label}
 					</Select.Item>
