@@ -3,6 +3,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { supabase } from '$lib/supabase.js';
+	import { stripProtocol } from '$lib/utils/website';
 
 	let { data } = $props();
 	const existingOrg = $derived(data.organization);
@@ -222,7 +223,7 @@
 			contact_first_name: b.first_name || null,
 			contact_last_name: b.last_name || null,
 			contact_phone: b.phone || null,
-			website: b.website || null,
+			website: stripProtocol(b.website) || null,
 			is_active: true
 		}));
 

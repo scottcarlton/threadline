@@ -7,6 +7,7 @@
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
+	import { stripProtocol, withProtocol } from '$lib/utils/website';
 	import type { DiscoveredContact } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -674,11 +675,10 @@
 								<dt class="text-muted-foreground">Website</dt>
 								<dd>
 									<a
-										href={drawerContact.website}
+										href={withProtocol(drawerContact.website)}
 										target="_blank"
 										rel="external noopener noreferrer"
-										class="text-primary hover:underline"
-										>{drawerContact.website.replace(/^https?:\/\//, '')}</a
+										class="text-primary hover:underline">{stripProtocol(drawerContact.website)}</a
 									>
 								</dd>
 							</div>

@@ -5,6 +5,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
+	import { stripProtocol, withProtocol } from '$lib/utils/website';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import type { Brand } from '$lib/types/database.js';
@@ -49,7 +50,7 @@
 				contact_last_name: row.contact_last_name?.trim() || null,
 				contact_email: row.contact_email?.trim() || null,
 				contact_phone: row.contact_phone?.trim() || null,
-				website: row.website?.trim() || null
+				website: stripProtocol(row.website) || null
 			});
 			if (error) {
 				errors.push(`Row ${i + 1} (${row.name}): ${error.message}`);
@@ -215,11 +216,11 @@
 								{/if}
 								{#if brand.website}
 									<a
-										href={brand.website}
+										href={withProtocol(brand.website)}
 										target="_blank"
 										rel="external noopener noreferrer"
 										class="block font-mono text-sm text-muted-foreground hover:underline"
-										>{brand.website.replace(/^https?:\/\//, '')}</a
+										>{stripProtocol(brand.website)}</a
 									>
 								{/if}
 							</td>

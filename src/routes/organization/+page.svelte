@@ -11,6 +11,7 @@
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { brandTermsSchema } from '$lib/schemas/brand-terms.js';
+	import { stripProtocol } from '$lib/utils/website';
 
 	let { data } = $props();
 
@@ -73,7 +74,9 @@
 	$effect(() => {
 		orgName = data.org?.name ?? '';
 		logoUrl = data.org?.logo_url ?? '';
-		website = data.selfBrand?.website ?? '';
+		// Strip legacy protocols when loading existing values so the input
+		// always shows the clean domain form.
+		website = stripProtocol(data.selfBrand?.website);
 		contactEmail = data.selfBrand?.contact_email ?? '';
 		contactPhone = data.selfBrand?.contact_phone ?? '';
 		addressLine1 = data.org?.address_line1 ?? '';
@@ -152,10 +155,12 @@
 		}
 
 		if (isBrandOrg && selfBrand?.id) {
+			const cleanWebsite = stripProtocol(website);
+			website = cleanWebsite;
 			const { error: brandErr } = await supabase
 				.from('brands')
 				.update({
-					website: website || null,
+					website: cleanWebsite || null,
 					contact_email: contactEmail || null,
 					contact_phone: contactPhone || null
 				})
@@ -198,7 +203,7 @@
 			{#if isBrandOrg}
 				<div class="space-y-2">
 					<Label for="website">Website</Label>
-					<Input id="website" bind:value={website} placeholder="https://yourbrand.com" />
+					<Input id="website" bind:value={website} placeholder="yourbrand.com" />
 				</div>
 				<div class="space-y-2">
 					<Label for="contact-email">Contact email</Label>

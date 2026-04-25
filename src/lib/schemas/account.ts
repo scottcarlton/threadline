@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PHONE_REGEX } from '$lib/utils/phone';
+import { isValidWebsite, stripProtocol } from '$lib/utils/website';
 
 const optShortString = z.string().trim().max(255).default('');
 
@@ -14,8 +15,19 @@ const optEmail = z
 	.union([z.literal(''), z.string().trim().email('Enter a valid email address').max(255)])
 	.default('');
 
+// Website is stored protocol-less (`yourbrand.com`). Either form is accepted
+// from the user; the protocol is stripped before save and re-added at render
+// time via `withProtocol`.
 const optUrl = z
-	.union([z.literal(''), z.string().trim().url('Enter a valid URL (include https://)').max(500)])
+	.union([
+		z.literal(''),
+		z
+			.string()
+			.trim()
+			.max(500)
+			.transform((v) => stripProtocol(v))
+			.refine((v) => v === '' || isValidWebsite(v), 'Enter a valid website (e.g. yourbrand.com)')
+	])
 	.default('');
 
 const addressSchema = z.object({

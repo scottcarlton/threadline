@@ -192,8 +192,10 @@
 							{#each cells as cell (cell)}
 								<PinInput.Cell
 									{cell}
-									class="flex h-12 w-11 items-center justify-center rounded-lg border border-input bg-background text-center text-lg font-medium transition-colors data-[active]:border-ring data-[active]:ring-2 data-[active]:ring-ring/20"
-								/>
+									class="flex h-12 w-11 items-center justify-center rounded-lg border border-input bg-background text-center text-lg font-medium text-foreground transition-colors data-[active]:border-ring data-[active]:ring-2 data-[active]:ring-ring/20"
+								>
+									{cell.char ?? ''}
+								</PinInput.Cell>
 							{/each}
 						{/snippet}
 					</PinInput.Root>

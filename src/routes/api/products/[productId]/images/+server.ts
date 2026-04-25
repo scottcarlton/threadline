@@ -14,8 +14,15 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 	const file = formData.get('file') as File | null;
 	if (!file) return json({ error: 'Missing file' }, { status: 400 });
 
+	// Storage keys must avoid spaces and unsafe characters or the upload
+	// silently 400s with an opaque "Invalid key" message.
+	const safeName = (file.name || 'upload')
+		.normalize('NFKD')
+		.replace(/[^a-zA-Z0-9.\-_]/g, '-')
+		.replace(/-+/g, '-')
+		.toLowerCase();
 	const timestamp = Date.now();
-	const filePath = `${orgId}/products/${productId}/${timestamp}-${file.name}`;
+	const filePath = `${orgId}/products/${productId}/${timestamp}-${safeName}`;
 
 	const arrayBuffer = await file.arrayBuffer();
 	const buffer = Buffer.from(arrayBuffer);
@@ -24,7 +31,17 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 		.from('brand-assets')
 		.upload(filePath, buffer, { contentType: file.type, upsert: false });
 
-	if (uploadError) return json({ error: 'Upload failed: ' + uploadError.message }, { status: 500 });
+	if (uploadError) {
+		console.error('[products/images] storage upload failed', {
+			productId,
+			orgId,
+			filePath,
+			fileSize: file.size,
+			mime: file.type,
+			error: uploadError
+		});
+		return json({ error: 'Upload failed: ' + uploadError.message }, { status: 500 });
+	}
 
 	// Check if this is the first image (make it primary)
 	const { count } = await supabaseAdmin
@@ -43,6 +60,12 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 	});
 
 	if (dbError) {
+		console.error('[products/images] db insert failed', {
+			productId,
+			orgId,
+			filePath,
+			error: dbError
+		});
 		await supabaseAdmin.storage.from('brand-assets').remove([filePath]);
 		return json({ error: dbError.message }, { status: 500 });
 	}
