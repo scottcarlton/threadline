@@ -22,7 +22,8 @@ const TIMESTAMP_FIELD: Record<string, string> = {
 const EMAIL_EVENTS: Record<string, OrderEmailEvent> = {
 	submitted: 'submitted',
 	confirmed: 'confirmed',
-	shipped: 'shipped'
+	shipped: 'shipped',
+	delivered: 'delivered'
 };
 
 export const PATCH: RequestHandler = async ({ params, request, locals, url }) => {

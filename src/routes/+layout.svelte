@@ -19,10 +19,15 @@
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import { preferences } from '$lib/stores/preferences.js';
+	import { cart } from '$lib/stores/cart.js';
 
 	const { messages, loading } = conversation;
 
 	let { children, data } = $props();
+
+	$effect(() => {
+		if (data.isBuyer) cart.hydrate(data.cartItems ?? []);
+	});
 
 	// Apply appearance preference
 	$effect(() => {

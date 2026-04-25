@@ -16,7 +16,15 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		return json({ error: 'No organization found' }, { status: 400 });
 	}
 
-	const { email, role, brandIds, commissionRate } = await request.json();
+	const {
+		email,
+		role,
+		brandIds,
+		commissionRate,
+		managesOthers: rawManagesOthers,
+		managerId: rawManagerId,
+		territoryIds: rawTerritoryIds
+	} = await request.json();
 
 	if (!email || !role) {
 		return json({ error: 'Missing required fields' }, { status: 400 });
@@ -27,6 +35,9 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	}
 
 	const scopedBrandIds = Array.isArray(brandIds) ? (brandIds as string[]) : [];
+	// Territory assignments are sales-only; ignore for other roles.
+	const scopedTerritoryIds =
+		role === 'sales' && Array.isArray(rawTerritoryIds) ? (rawTerritoryIds as string[]) : [];
 
 	// Commission is only meaningful for sales members. Clamp to 0–100 and
 	// ignore for every other role so a stale client value can't slip in.
@@ -34,6 +45,24 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	if (role === 'sales' && commissionRate != null) {
 		const n = Number(commissionRate);
 		if (Number.isFinite(n)) commission = Math.min(100, Math.max(0, n));
+	}
+
+	// manages_others only applies to member/sales roles.
+	const manages_others = (role === 'member' || role === 'sales') && rawManagesOthers === true;
+
+	// manager_id: accept explicit client value; when omitted, auto-link to the
+	// inviter if they are eligible to manage (admin/owner OR manages_others=true)
+	// and the invitee is a member/sales.
+	const inviterEligibleAsManager =
+		membership.role === 'admin' ||
+		membership.role === 'owner' ||
+		membership.manages_others === true;
+	let manager_id: string | null;
+	if (rawManagerId === undefined) {
+		manager_id =
+			inviterEligibleAsManager && (role === 'member' || role === 'sales') ? membership.id : null;
+	} else {
+		manager_id = typeof rawManagerId === 'string' && rawManagerId.length > 0 ? rawManagerId : null;
 	}
 
 	// Look up any existing auth user for this email
@@ -60,6 +89,8 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 				profile_id: matchingUser.id,
 				role,
 				commission_rate: commission,
+				manages_others,
+				manager_id,
 				invited_by: membership.profile_id,
 				accepted_at: new Date().toISOString()
 			})
@@ -89,6 +120,14 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			}
 		}
 
+		if (scopedTerritoryIds.length > 0) {
+			const territoryRows = scopedTerritoryIds.map((territoryId) => ({
+				organization_member_id: inserted.id,
+				territory_id: territoryId
+			}));
+			await supabaseAdmin.from('member_territories').insert(territoryRows);
+		}
+
 		return json({ success: true, autoAdded: true });
 	}
 
@@ -116,7 +155,10 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			email,
 			role,
 			brand_ids: scopedBrandIds,
+			territory_ids: scopedTerritoryIds,
 			commission_rate: commission,
+			manages_others,
+			manager_id,
 			token,
 			invited_by: membership.profile_id,
 			expires_at: expiresAt.toISOString()

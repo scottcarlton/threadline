@@ -32,6 +32,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		profile_id: userId,
 		role: invitation.role,
 		commission_rate: invitation.commission_rate ?? 0,
+		manages_others: invitation.manages_others ?? false,
+		manager_id: invitation.manager_id ?? null,
 		invited_by: invitation.invited_by,
 		accepted_at: new Date().toISOString()
 	});
@@ -40,8 +42,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: memberError.message }, { status: 500 });
 	}
 
-	// If invitation specifies brand scoping, create brand access entries
-	if (invitation.brand_ids && invitation.brand_ids.length > 0) {
+	// If invitation specifies brand scoping or territory assignments, apply them.
+	const hasBrandIds = invitation.brand_ids && invitation.brand_ids.length > 0;
+	const hasTerritoryIds = invitation.territory_ids && invitation.territory_ids.length > 0;
+	if (hasBrandIds || hasTerritoryIds) {
 		// Get the member ID we just created
 		const { data: member } = await supabaseAdmin
 			.from('organization_members')
@@ -51,13 +55,22 @@ export const POST: RequestHandler = async ({ request }) => {
 			.single();
 
 		if (member) {
-			const brandAccessRows = invitation.brand_ids.map((brandId: string) => ({
-				member_id: member.id,
-				brand_id: brandId,
-				granted_by: invitation.invited_by
-			}));
+			if (hasBrandIds) {
+				const brandAccessRows = invitation.brand_ids.map((brandId: string) => ({
+					member_id: member.id,
+					brand_id: brandId,
+					granted_by: invitation.invited_by
+				}));
+				await supabaseAdmin.from('member_brand_access').insert(brandAccessRows);
+			}
 
-			await supabaseAdmin.from('member_brand_access').insert(brandAccessRows);
+			if (hasTerritoryIds) {
+				const territoryRows = invitation.territory_ids.map((territoryId: string) => ({
+					organization_member_id: member.id,
+					territory_id: territoryId
+				}));
+				await supabaseAdmin.from('member_territories').insert(territoryRows);
+			}
 		}
 	}
 

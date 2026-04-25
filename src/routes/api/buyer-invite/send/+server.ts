@@ -31,6 +31,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Account not found' }, { status: 404 });
 	}
 
+	// First buyer onboarded for an account becomes its buyer_admin so the
+	// account can self-serve team management going forward. Subsequent
+	// rep-side invites default to plain 'buyer'.
+	const { data: existingAdmins } = await supabaseAdmin
+		.from('account_users')
+		.select('id')
+		.eq('account_id', accountId)
+		.eq('role', 'buyer_admin')
+		.limit(1);
+	const assignedRole = existingAdmins && existingAdmins.length > 0 ? 'buyer' : 'buyer_admin';
+
 	// Check for existing pending buyer invitation
 	const { data: existingInvite } = await supabaseAdmin
 		.from('buyer_invitations')
@@ -63,7 +74,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		await supabaseAdmin.from('account_users').insert({
 			account_id: accountId,
 			profile_id: matchingUser.id,
-			role: 'buyer',
+			role: assignedRole,
 			invited_by: membership.profile_id,
 			accepted_at: new Date().toISOString()
 		});
@@ -91,7 +102,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			account_id: accountId,
 			organization_id: organization.id,
 			email,
-			invited_by: membership.profile_id
+			invited_by: membership.profile_id,
+			role: assignedRole
 		})
 		.select('token')
 		.single();

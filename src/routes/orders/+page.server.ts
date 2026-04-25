@@ -2,6 +2,7 @@ import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listFederatedOrders } from '$lib/server/federation.js';
 import { resolveOrderSearch, applyOrderSearch } from '$lib/server/orders/search.js';
+import { loadManagerScope } from '$lib/server/scoping.js';
 import { incrementDate } from '$lib/utils/date-presets.js';
 
 const PAGE_SIZE = 50;
@@ -113,6 +114,10 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	if (orgType === 'brand') {
 		const brandIsSales = locals.membership?.role === 'sales';
 		const brandUserId = locals.user?.id;
+		const brandSalesScope =
+			brandIsSales && brandUserId
+				? await loadManagerScope(supabaseAdmin, brandUserId, locals.membership?.id ?? null)
+				: null;
 
 		// Resolve name-based season/brand filters to matching IDs
 		let seasonIds: string[] | null = null;
@@ -141,7 +146,31 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			)
 			.eq('organization_id', organization.id)
 			.order('created_at', { ascending: false });
-		if (brandIsSales && brandUserId) directQuery = directQuery.eq('created_by', brandUserId);
+		// Sales visibility: widen from "own created_by" to include orders on accounts
+		// the viewer (or their managed reports) cover via territory. Untagged
+		// accounts remain visible so an org that hasn't backfilled territories
+		// isn't stranded.
+		if (brandSalesScope) {
+			const createdByClause = brandSalesScope.createdByScope.join(',');
+			if (brandSalesScope.hasTerritoryScope) {
+				const territoryIds = brandSalesScope.visibleTerritoryIds.join(',');
+				const { data: salesAccountRows } = await supabaseAdmin
+					.from('accounts')
+					.select('id')
+					.eq('organization_id', organization.id)
+					.or(`territory_id.in.(${territoryIds}),territory_id.is.null`);
+				const salesAccountIds = (salesAccountRows ?? []).map((a: { id: string }) => a.id);
+				if (salesAccountIds.length > 0) {
+					directQuery = directQuery.or(
+						`created_by.in.(${createdByClause}),account_id.in.(${salesAccountIds.join(',')})`
+					);
+				} else {
+					directQuery = directQuery.in('created_by', brandSalesScope.createdByScope);
+				}
+			} else {
+				directQuery = directQuery.in('created_by', brandSalesScope.createdByScope);
+			}
+		}
 		if (status) directQuery = directQuery.eq('status', status);
 		if (seasonIds && seasonIds.length > 0) directQuery = directQuery.in('season_id', seasonIds);
 		if (year) directQuery = directQuery.eq('order_year', parseInt(year));
@@ -345,6 +374,10 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	}
 
 	const isSales = locals.membership?.role === 'sales';
+	const salesScope =
+		isSales && locals.user?.id
+			? await loadManagerScope(supabaseAdmin, locals.user.id, locals.membership?.id ?? null)
+			: null;
 
 	// Federation: collect own org + connected org IDs so filter dropdowns surface
 	// connected brands, seasons, and shows.
@@ -407,10 +440,31 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		searchBrandIds = resolved.brandIds;
 	}
 
+	// Precompute the set of accounts this sales user can see via territory.
+	// Untagged accounts (territory_id IS NULL) stay visible so orgs that haven't
+	// backfilled territories aren't stranded.
+	let salesAccountIds: string[] | null = null;
+	if (isSales && salesScope && salesScope.hasTerritoryScope) {
+		const territoryIds = salesScope.visibleTerritoryIds.join(',');
+		const { data: rows } = await supabaseAdmin
+			.from('accounts')
+			.select('id')
+			.eq('organization_id', organization.id)
+			.or(`territory_id.in.(${territoryIds}),territory_id.is.null`);
+		salesAccountIds = (rows ?? []).map((a: { id: string }) => a.id);
+	}
+
 	// Helper to apply shared filters to an orders query
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	function applyFilters(q: any) {
-		if (isSales) q = q.eq('created_by', locals.user?.id);
+		if (isSales && salesScope) {
+			if (salesAccountIds && salesAccountIds.length > 0) {
+				const createdByClause = salesScope.createdByScope.join(',');
+				q = q.or(`created_by.in.(${createdByClause}),account_id.in.(${salesAccountIds.join(',')})`);
+			} else {
+				q = q.in('created_by', salesScope.createdByScope);
+			}
+		}
 		if (status) q = q.eq('status', status);
 		if (seasonIds && seasonIds.length > 0) q = q.in('season_id', seasonIds);
 		if (year) q = q.eq('order_year', parseInt(year));

@@ -347,7 +347,7 @@
 						? 'opacity-50'
 						: ''}"
 				>
-					<div class="aspect-[4/3] overflow-hidden rounded-t-xl bg-muted">
+					<div class="aspect-[4/3] overflow-hidden bg-muted">
 						{#if primaryImage}
 							<img
 								src="/api/products/{product.id}/images/{primaryImage.id}"
