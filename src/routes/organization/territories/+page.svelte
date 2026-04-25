@@ -56,14 +56,9 @@
 	const brandNameById = $derived((data.brandNameById ?? {}) as Record<string, string>);
 	const ownOrgId = $derived(data.ownOrgId as string | undefined);
 
-	// Own-org brands are pickable when creating a brand-scoped territory.
-	// Use `data.brands` if present; otherwise derive from territories we own.
-	const ownBrands = $derived(Object.entries(brandNameById).map(([id, name]) => ({ id, name })));
-
 	let adding = $state(false);
 	let newName = $state('');
 	let newNotes = $state('');
-	let newBrandId = $state('');
 	let loading = $state(false);
 	let error = $state('');
 
@@ -75,7 +70,7 @@
 			organization_id: data.organization?.id,
 			name: newName.trim(),
 			notes: newNotes.trim() || null,
-			brand_id: newBrandId || null
+			brand_id: null
 		});
 		loading = false;
 		if (err) {
@@ -83,7 +78,6 @@
 		} else {
 			newName = '';
 			newNotes = '';
-			newBrandId = '';
 			adding = false;
 			invalidateAll();
 		}
@@ -147,24 +141,9 @@
 					}}
 					class="space-y-4"
 				>
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div class="space-y-2">
-							<Label for="name">Name *</Label>
-							<Input id="name" bind:value={newName} required placeholder="e.g. West Coast" />
-						</div>
-						<div class="space-y-2">
-							<Label for="brand">Brand (optional)</Label>
-							<select
-								id="brand"
-								bind:value={newBrandId}
-								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-							>
-								<option value="">Org-wide (all brands)</option>
-								{#each ownBrands as brand (brand.id)}
-									<option value={brand.id}>{brand.name}</option>
-								{/each}
-							</select>
-						</div>
+					<div class="space-y-2">
+						<Label for="name">Name *</Label>
+						<Input id="name" bind:value={newName} required placeholder="e.g. West Coast" />
 					</div>
 					<div class="space-y-2">
 						<Label for="notes">Notes</Label>

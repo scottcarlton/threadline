@@ -14,12 +14,37 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 
 	const body = await request.json().catch(() => ({}));
 	const commissionRate = Math.max(0, Math.min(100, Number(body.commissionRate) || 0));
+	const managesOthers = body.managesOthers === true;
+	const rawTerritoryIds = Array.isArray(body.territoryIds) ? (body.territoryIds as string[]) : [];
 
-	const invite = await shareConnectInvite(supabaseAdmin, organization.id, commissionRate);
+	// Every territory_id must belong to this brand org. Same validation
+	// pattern as /api/connections/invite-member.
+	if (rawTerritoryIds.length > 0) {
+		const { data: territories } = await supabaseAdmin
+			.from('territories')
+			.select('id, organization_id')
+			.in('id', rawTerritoryIds);
+		const badTerritory = (territories ?? []).find(
+			(t: { organization_id: string }) => t.organization_id !== organization.id
+		);
+		if (badTerritory || (territories?.length ?? 0) !== rawTerritoryIds.length) {
+			return json(
+				{ error: 'One or more territories do not belong to your organization' },
+				{ status: 400 }
+			);
+		}
+	}
+
+	const invite = await shareConnectInvite(supabaseAdmin, organization.id, commissionRate, {
+		managesOthers,
+		territoryIds: rawTerritoryIds
+	});
 
 	return json({
 		code: invite.code,
 		url: `${url.origin}/connect/${invite.code}`,
-		commissionRate: invite.commission_rate
+		commissionRate: invite.commission_rate,
+		managesOthers: invite.manages_others,
+		territoryIds: invite.territory_ids
 	});
 };

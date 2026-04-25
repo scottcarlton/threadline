@@ -221,6 +221,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			order_type: o.order_type,
 			status: o.status,
 			total_amount: o.total_amount,
+			shipped_amount: o.shipped_amount,
+			shipped_at: o.shipped_at,
 			created_at: o.created_at,
 			expected_ship_date: o.expected_ship_date,
 			start_ship_date: o.start_ship_date,
@@ -264,6 +266,79 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				? allOrdersUnfiltered
 				: allOrdersUnfiltered.filter((o) => o.order_type === activeType);
 		const orders = allOrders.slice(0, PAGE_SIZE);
+
+		// Per-row commission rate lookup. Direct orders → BOA's organization_member
+		// for the rep, with optional per-brand override from member_brand_commissions.
+		// Federated orders → connection_id → org_connections.commission_rate (the
+		// rate the BOA agreed when generating the partner link).
+		const directRepIds = new Set<string>();
+		const federatedConnectionIds = new Set<string>();
+		for (const o of orders) {
+			const isFederated = !!(o as { source_org?: unknown }).source_org;
+			if (isFederated) {
+				const cid = (o as { connection_id?: string | null }).connection_id;
+				if (cid) federatedConnectionIds.add(cid);
+			} else {
+				const cb = (o as { created_by?: string | null }).created_by;
+				if (cb) directRepIds.add(cb);
+			}
+		}
+		const repDefaultRate = new Map<string, number>();
+		const repMemberId = new Map<string, string>();
+		const memberBrandRate = new Map<string, number>();
+		const connRate = new Map<string, number>();
+		if (directRepIds.size > 0) {
+			const { data: members } = await supabaseAdmin
+				.from('organization_members')
+				.select('id, profile_id, commission_rate')
+				.eq('organization_id', organization.id)
+				.in('profile_id', [...directRepIds]);
+			for (const m of (members ?? []) as Array<{
+				id: string;
+				profile_id: string;
+				commission_rate: number | null;
+			}>) {
+				repMemberId.set(m.profile_id, m.id);
+				if (m.commission_rate != null) repDefaultRate.set(m.profile_id, Number(m.commission_rate));
+			}
+			const memberIds = [...repMemberId.values()];
+			if (memberIds.length > 0) {
+				const { data: overrides } = await supabaseAdmin
+					.from('member_brand_commissions')
+					.select('member_id, brand_id, rate')
+					.in('member_id', memberIds);
+				for (const ov of (overrides ?? []) as Array<{
+					member_id: string;
+					brand_id: string;
+					rate: number;
+				}>) {
+					memberBrandRate.set(`${ov.member_id}:${ov.brand_id}`, Number(ov.rate));
+				}
+			}
+		}
+		if (federatedConnectionIds.size > 0) {
+			const { data: conns } = await supabaseAdmin
+				.from('org_connections')
+				.select('id, commission_rate')
+				.in('id', [...federatedConnectionIds]);
+			for (const c of (conns ?? []) as Array<{ id: string; commission_rate: number | null }>) {
+				if (c.commission_rate != null) connRate.set(c.id, Number(c.commission_rate));
+			}
+		}
+		function rateFor(o: (typeof orders)[number]): number | null {
+			const isFederated = !!(o as { source_org?: unknown }).source_org;
+			if (isFederated) {
+				const cid = (o as { connection_id?: string | null }).connection_id;
+				return cid ? (connRate.get(cid) ?? null) : null;
+			}
+			const cb = (o as { created_by?: string | null }).created_by;
+			const memberId = cb ? repMemberId.get(cb) : undefined;
+			const brandId = (o as { brand_id?: string | null }).brand_id;
+			const overrideRate =
+				memberId && brandId ? memberBrandRate.get(`${memberId}:${brandId}`) : undefined;
+			return overrideRate ?? (cb ? (repDefaultRate.get(cb) ?? null) : null);
+		}
+		const ordersWithCommission = orders.map((o) => ({ ...o, rep_commission_rate: rateFor(o) }));
 
 		// Filter chip sources — union of direct + federated, deduped by name.
 		const brandMap = new Map<string, { id: string; name: string }>();
@@ -340,7 +415,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		}
 
 		return {
-			orders,
+			orders: ordersWithCommission,
 			hasMore: allOrders.length > PAGE_SIZE,
 			totalCount: allOrders.length,
 			seasons: [...seasonMap.values()],

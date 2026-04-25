@@ -6,21 +6,34 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import Switch from '$lib/components/ui/switch.svelte';
 	import { inviteEmailSchema, type InviteEmailInput } from '$lib/schemas/invite-email.js';
+
+	type Territory = { id: string; name: string; brand_name?: string | null };
 
 	type Props = {
 		open: boolean;
 		emailForm: SuperValidated<InviteEmailInput>;
 		defaultCommissionRate: number;
+		territories?: Territory[];
 		onOpenChange: (open: boolean) => void;
 	};
-	let { open = $bindable(), emailForm, defaultCommissionRate, onOpenChange }: Props = $props();
+	let {
+		open = $bindable(),
+		emailForm,
+		defaultCommissionRate,
+		territories = [],
+		onOpenChange
+	}: Props = $props();
 
 	const presets = [8, 10, 12, 14];
 
 	let customMode = $state(false);
 	let customRate = $state(0);
 	let selectedRate = $state(0);
+
+	let managesOthers = $state(false);
+	let selectedTerritoryIds = $state<string[]>([]);
 
 	let generating = $state(false);
 	let generated = $state<{ url: string; code: string; rate: number } | null>(null);
@@ -41,12 +54,22 @@
 				customRate = rate;
 				selectedRate = rate;
 			}
+			managesOthers = false;
+			selectedTerritoryIds = [];
 			generated = null;
 			errorMsg = '';
 			copied = false;
 			emailOpen = false;
 		}
 	});
+
+	function toggleTerritory(territoryId: string) {
+		if (selectedTerritoryIds.includes(territoryId)) {
+			selectedTerritoryIds = selectedTerritoryIds.filter((id) => id !== territoryId);
+		} else {
+			selectedTerritoryIds = [...selectedTerritoryIds, territoryId];
+		}
+	}
 
 	function pickPreset(rate: number) {
 		selectedRate = rate;
@@ -73,7 +96,11 @@
 			const res = await fetch('/api/connections/share', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ commissionRate: selectedRate })
+				body: JSON.stringify({
+					commissionRate: selectedRate,
+					managesOthers,
+					territoryIds: selectedTerritoryIds
+				})
 			});
 			if (!res.ok) {
 				const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -182,6 +209,40 @@
 						</div>
 					{/if}
 				</div>
+
+				<label class="flex items-center justify-between gap-4">
+					<div>
+						<p class="text-sm font-medium">Manages others</p>
+						<p class="text-sm text-muted-foreground">
+							Let this partner invite teammates under them and see their data.
+						</p>
+					</div>
+					<Switch bind:checked={managesOthers} aria-label="Manages others" />
+				</label>
+
+				{#if territories.length > 0}
+					<div>
+						<Label>Territories</Label>
+						<p class="mt-0.5 text-sm text-muted-foreground">
+							Assign one or more territories. Leave empty to scope by brand alone.
+						</p>
+						<div class="mt-2 flex flex-wrap gap-2">
+							{#each territories as territory (territory.id)}
+								<button
+									type="button"
+									class="rounded-md border px-3 py-1.5 text-sm transition-colors {selectedTerritoryIds.includes(
+										territory.id
+									)
+										? 'border-primary bg-primary text-primary-foreground'
+										: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
+									onclick={() => toggleTerritory(territory.id)}
+								>
+									{territory.name}{territory.brand_name ? ` — ${territory.brand_name}` : ''}
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
 
 				{#if !generated}
 					<Button onclick={generateLink} disabled={generating} class="w-full">

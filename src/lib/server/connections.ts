@@ -61,28 +61,47 @@ export async function getOrCreateConnectInvite(
  * Rotates the invite code and stamps a commission rate for one-time use.
  * Called when a brand admin copies the connect link via the ShareLinkPicker.
  * Sets max_uses = 1 so the link is single-use; resets use_count to 0.
+ *
+ * `managesOthers` and `territoryIds` are per-partner attributes that get
+ * applied to the accepting rep's connection_members + member_territories
+ * rows when the link is claimed.
  */
 export async function shareConnectInvite(
 	supabase: SupabaseClient,
 	brandOrgId: string,
-	commissionRate: number
-): Promise<ConnectInvite & { commission_rate: number }> {
+	commissionRate: number,
+	options: { managesOthers?: boolean; territoryIds?: string[] } = {}
+): Promise<
+	ConnectInvite & {
+		commission_rate: number;
+		manages_others: boolean;
+		territory_ids: string[];
+	}
+> {
 	const rate = Math.max(0, Math.min(100, Number(commissionRate) || 0));
+	const managesOthers = options.managesOthers === true;
+	const territoryIds = Array.isArray(options.territoryIds) ? options.territoryIds : [];
 	const { data, error } = await supabase
 		.from('connection_invites')
 		.update({
 			code: newCode(),
 			commission_rate: rate,
+			manages_others: managesOthers,
+			territory_ids: territoryIds,
 			max_uses: 1,
 			use_count: 0,
 			last_used_at: null
 		})
 		.eq('brand_org_id', brandOrgId)
-		.select(`${COLUMNS}, commission_rate`)
+		.select(`${COLUMNS}, commission_rate, manages_others, territory_ids`)
 		.single();
 
 	if (error) throw error;
-	return data as ConnectInvite & { commission_rate: number };
+	return data as ConnectInvite & {
+		commission_rate: number;
+		manages_others: boolean;
+		territory_ids: string[];
+	};
 }
 
 export async function refreshConnectInvite(

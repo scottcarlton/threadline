@@ -8,6 +8,12 @@
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
+	import {
+		Tooltip,
+		TooltipContent,
+		TooltipProvider,
+		TooltipTrigger
+	} from '$lib/components/ui/tooltip/index.js';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
@@ -91,6 +97,23 @@
 		minimumFractionDigits: 0,
 		maximumFractionDigits: 0
 	});
+
+	const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+	function attentionReason(o: OrderRow): 'stale-draft' | 'overdue' | null {
+		const status = (o as { status?: string }).status;
+		if (status === 'draft') {
+			const created = (o as { created_at?: string }).created_at;
+			if (created && Date.now() - new Date(created).getTime() > SEVEN_DAYS_MS) return 'stale-draft';
+		}
+		if (status === 'submitted' || status === 'confirmed') {
+			const expected = (o as { expected_ship_date?: string | null }).expected_ship_date;
+			if (expected) {
+				const todayStr = new Date().toISOString().slice(0, 10);
+				if (expected < todayStr) return 'overdue';
+			}
+		}
+		return null;
+	}
 
 	const statusTabs = [
 		'all',
@@ -784,14 +807,33 @@
 						{@const shipWindowEnd = order.expected_ship_date
 							? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 							: null}
+						{@const reason = attentionReason(order)}
 						<tr
 							class="group transition-colors hover:bg-muted/30 {selectedIds.has(order.id)
 								? 'bg-primary/5'
 								: ''}"
 						>
-							<td class="w-8 py-3 pr-1 pl-4">
+							<td class="w-8 py-3 pr-1 pl-4 align-top">
+								<div class="flex h-5 items-center justify-center text-sm">
+									{#if reason}
+										<TooltipProvider delayDuration={150}>
+											<Tooltip>
+												<TooltipTrigger
+													class="inline-flex"
+													aria-label={reason === 'stale-draft' ? 'Stale note' : 'Overdue shipment'}
+												>
+													<span class="block h-2 w-2 rounded-full bg-amber-500"></span>
+												</TooltipTrigger>
+												<TooltipContent side="right">
+													{reason === 'stale-draft' ? 'Stale note' : 'Overdue shipment'}
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									{/if}
+								</div>
 								<div
-									class="{selectedIds.has(order.id) || selectedIds.size > 0
+									class="flex h-6 items-center justify-center {selectedIds.has(order.id) ||
+									selectedIds.size > 0
 										? 'opacity-100'
 										: 'opacity-0 group-hover:opacity-100'} transition-opacity"
 								>
@@ -850,11 +892,9 @@
 									<span class="text-sm {sourceName ? '' : 'text-muted-foreground/50'}"
 										>{sourceName ?? '—'}</span
 									>
-								{/if}
-								{#if showDate && !isBrandOrg}
-									<p class="mt-0.5 text-sm text-muted-foreground">
+									{#if showDate}
 										<span
-											class="mr-1 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-sm font-medium"
+											class="ml-2 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
 											>{[
 												'Jan',
 												'Feb',
@@ -869,8 +909,11 @@
 												'Nov',
 												'Dec'
 											][(showDate.month ?? 1) - 1]}</span
-										><span class="font-mono">{sourceLocation}</span>
-									</p>
+										>
+									{/if}
+								{/if}
+								{#if showDate && !isBrandOrg && sourceLocation}
+									<p class="mt-0.5 font-mono text-sm text-muted-foreground">{sourceLocation}</p>
 								{/if}
 							</td>
 							{#if isBrandOrg}
@@ -879,25 +922,26 @@
 										>{sourceName ?? '—'}</span
 									>
 									{#if showDate}
-										<p class="mt-0.5 text-sm text-muted-foreground">
-											<span
-												class="mr-1 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-sm font-medium"
-												>{[
-													'Jan',
-													'Feb',
-													'Mar',
-													'Apr',
-													'May',
-													'Jun',
-													'Jul',
-													'Aug',
-													'Sep',
-													'Oct',
-													'Nov',
-													'Dec'
-												][(showDate.month ?? 1) - 1]}</span
-											>{#if sourceLocation}<span class="font-mono">{sourceLocation}</span>{/if}
-										</p>
+										<span
+											class="ml-2 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
+											>{[
+												'Jan',
+												'Feb',
+												'Mar',
+												'Apr',
+												'May',
+												'Jun',
+												'Jul',
+												'Aug',
+												'Sep',
+												'Oct',
+												'Nov',
+												'Dec'
+											][(showDate.month ?? 1) - 1]}</span
+										>
+									{/if}
+									{#if showDate && sourceLocation}
+										<p class="mt-0.5 font-mono text-sm text-muted-foreground">{sourceLocation}</p>
 									{/if}
 								</td>
 							{/if}
@@ -937,14 +981,16 @@
 								{/if}
 							</td>
 							<td class="px-4 py-3 text-right font-mono">
-								{#if order.shipped_amount != null}
-									<span class="text-sm">{fmt.format(Number(order.shipped_amount))}</span>
-									<p class="text-sm text-muted-foreground">
+								{#if order.status === 'shipped' || order.status === 'delivered'}
+									<span class="text-sm"
+										>{fmt.format(Number(order.shipped_amount ?? order.total_amount))}</span
+									>
+									<p class="text-xs text-muted-foreground">
 										{fmt.format(Number(order.total_amount))}
 									</p>
 								{:else}
 									<span class="text-sm">{fmt.format(Number(order.total_amount))}</span>
-									<p class="text-sm text-muted-foreground/50">—</p>
+									<p class="text-xs text-muted-foreground/50">—</p>
 								{/if}
 							</td>
 						</tr>

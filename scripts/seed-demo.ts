@@ -61,8 +61,8 @@ const ORGS = [
 ] as const;
 
 const CONNECTIONS = [
-	{ repOrg: 'SH Showroom', brandOrg: 'Elise Varga' },
-	{ repOrg: 'Lauren Mackey', brandOrg: 'Elise Varga' }
+	{ repOrg: 'SH Showroom', brandOrg: 'Elise Varga', commissionRate: 12 },
+	{ repOrg: 'Lauren Mackey', brandOrg: 'Elise Varga', commissionRate: 10 }
 ] as const;
 
 const SHOWS = [
@@ -1176,6 +1176,7 @@ async function seedConnections(
 			rep_org_id: orgIds.get(c.repOrg)!,
 			brand_org_id: orgIds.get(c.brandOrg)!,
 			status: 'active',
+			commission_rate: c.commissionRate,
 			connected_at: new Date().toISOString(),
 			requested_by: userIds.get(ORGS.find((o) => o.name === c.repOrg)!.ownerEmail)!,
 			approved_by: userIds.get(ORGS.find((o) => o.name === c.brandOrg)!.ownerEmail)!
@@ -1367,6 +1368,15 @@ async function seedOrders(
 			showDateId = entry.show_date_id;
 		}
 
+		// Compute order total client-side from line items so we can set
+		// shipped_amount on the same insert. Mirrors what the recalc_order_total
+		// trigger does after order_lines are inserted.
+		const computedTotal = o.lines.reduce((sum, l) => {
+			const p = PRODUCTS.find((pp) => pp.style === l.style);
+			return sum + (p ? l.qty * p.wholesale : 0);
+		}, 0);
+		const isShipped = o.status === 'shipped' || o.status === 'delivered';
+
 		const row = {
 			organization_id: repOrgId,
 			brand_id: brand!.id,
@@ -1385,7 +1395,8 @@ async function seedOrders(
 			submitted_at: isoTime(o.submittedOffset),
 			confirmed_at: o.confirmedOffset != null ? isoTime(o.confirmedOffset) : null,
 			shipped_at: o.shippedOffset != null ? isoTime(o.shippedOffset) : null,
-			delivered_at: o.deliveredOffset != null ? isoTime(o.deliveredOffset) : null
+			delivered_at: o.deliveredOffset != null ? isoTime(o.deliveredOffset) : null,
+			shipped_amount: isShipped ? computedTotal : null
 		};
 		const { data: inserted, error: oErr } = await supa
 			.from('orders')

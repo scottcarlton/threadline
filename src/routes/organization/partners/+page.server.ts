@@ -26,10 +26,32 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		connectInvite = await getOrCreateConnectInvite(supabaseAdmin, orgId, locals.session.user.id);
 	}
 
-	const [connectedReps, inviteEmailForm] = await Promise.all([
+	const [connectedReps, inviteEmailForm, territoriesRes] = await Promise.all([
 		listConnectedReps(supabaseAdmin, orgId),
-		superValidate(zod4(inviteEmailSchema))
+		superValidate(zod4(inviteEmailSchema)),
+		// Brand-owned territories the new partner can be assigned to.
+		supabaseAdmin
+			.from('territories')
+			.select('id, name, brand_id, brands(name)')
+			.eq('organization_id', orgId)
+			.order('name')
 	]);
+
+	const territories = (
+		(territoriesRes.data ?? []) as Array<{
+			id: string;
+			name: string;
+			brand_id: string | null;
+			brands: { name: string | null } | { name: string | null }[] | null;
+		}>
+	).map((t) => {
+		const b = Array.isArray(t.brands) ? t.brands[0] : t.brands;
+		return {
+			id: t.id,
+			name: t.name,
+			brand_name: b?.name ?? null
+		};
+	});
 
 	// Fetch the brand's default commission rate for the share picker
 	const defaultCommissionRate =
@@ -41,7 +63,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		origin: url.origin,
 		isAdmin,
 		connectedReps,
-		defaultCommissionRate
+		defaultCommissionRate,
+		territories
 	};
 };
 
