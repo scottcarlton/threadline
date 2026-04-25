@@ -13,7 +13,12 @@
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"test": "vitest",
-		"test:run": "vitest run"
+		"test:run": "vitest run",
+		"reset": "bunx supabase db reset",
+		"migrate": "bunx supabase migration up",
+		"seed": "bun run scripts/seed-demo.ts",
+		"seed:reset": "bun run reset && bun run seed",
+		"dev:fresh": "bun run seed:reset && bun run dev"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.3",

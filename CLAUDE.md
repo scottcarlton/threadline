@@ -21,7 +21,7 @@ Canonical patterns to verify (not an exhaustive list — the rule applies to eve
 
 The repo has two federation directions (MBISR→BOA via `get_connected_org_ids()`, BOA→MBISR via `federated_*_links`). They are different mechanisms by design. Do not replace one with the other.
 
-Every own-org list route (`/brands`, `/accounts`, `/orders`, `/expenses`, `/appointments`, `/organization/contacts`) MUST keep its `.eq('organization_id', currentOrgId)` filter. Federation views (`/shop`, `/reps`, `/brands/[id]` when viewing a connected BOA's brand) rely on RLS + connection gating and explicitly omit the org filter.
+Every own-org list route (`/brands`, `/orders`, `/expenses`, `/appointments`) MUST keep its `.eq('organization_id', currentOrgId)` filter. Federation views (`/accounts`, `/organization/contacts`, `/shop`, `/reps`, `/brands/[id]` when viewing a connected BOA's brand) scope by active connections — they resolve `visibleOrgIds` from `org_connections` and `.in('organization_id', visibleOrgIds)`, relying on connection gating rather than own-org filtering. Accounts are shared context between both sides of an MBISR ↔ Brand connection by design (the brand owns accounts, the connected rep sells into them), so their contacts must surface on the rep side too.
 
 When in doubt, read `docs/brd/permissions-implementation-map.md` §A.4. Skill: `.claude/skills/rbac-change`.
 
