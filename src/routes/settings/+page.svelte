@@ -198,7 +198,7 @@
 	</div>
 
 	<!-- Connected Email -->
-	{#if !isBrandScoped}
+	{#if !isBrandScoped && !data.isBuyer}
 		<div class="border-b pb-8">
 			<h3 class="text-[14px] font-semibold">Connected Email</h3>
 			<p class="mt-1 text-[13px] text-muted-foreground">

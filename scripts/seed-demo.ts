@@ -61,8 +61,8 @@ const ORGS = [
 ] as const;
 
 const CONNECTIONS = [
-	{ repOrg: 'SH Showroom', brandOrg: 'Elise Varga' },
-	{ repOrg: 'Lauren Mackey', brandOrg: 'Elise Varga' }
+	{ repOrg: 'SH Showroom', brandOrg: 'Elise Varga', commissionRate: 12 },
+	{ repOrg: 'Lauren Mackey', brandOrg: 'Elise Varga', commissionRate: 10 }
 ] as const;
 
 const SHOWS = [
@@ -1176,6 +1176,7 @@ async function seedConnections(
 			rep_org_id: orgIds.get(c.repOrg)!,
 			brand_org_id: orgIds.get(c.brandOrg)!,
 			status: 'active',
+			commission_rate: c.commissionRate,
 			connected_at: new Date().toISOString(),
 			requested_by: userIds.get(ORGS.find((o) => o.name === c.repOrg)!.ownerEmail)!,
 			approved_by: userIds.get(ORGS.find((o) => o.name === c.brandOrg)!.ownerEmail)!
@@ -1190,8 +1191,12 @@ async function seedConnections(
 
 // ─── Phase 2: data ──────────────────────────────────────────────────────────
 
-async function seedAccounts(orgIds: Map<string, string>): Promise<Map<string, string>> {
+async function seedAccounts(
+	orgIds: Map<string, string>,
+	userIds: Map<string, string>
+): Promise<Map<string, string>> {
 	const eliseOrgId = orgIds.get('Elise Varga')!;
+	const eliseUserId = userIds.get('hello@elisevarga.com')!;
 	const rows = ACCOUNTS.map((row, i) => {
 		const [biz, fname, lname, city, state] = row;
 		const rowNum = i + 1;
@@ -1202,20 +1207,73 @@ async function seedAccounts(orgIds: Map<string, string>): Promise<Map<string, st
 			contact_last_name: lname,
 			contact_email: `${fname.replace(/\s+/g, '').toLowerCase()}@${sanitize(biz)}.com`,
 			phone: `(${String(200 + rowNum).padStart(3, '0')}) 555-${String((rowNum * 17) % 10000).padStart(4, '0')}`,
+			address_line1: `${100 + ((hashString(biz) % 900) + 1)} Main St`,
 			city,
 			state,
 			zip: String((hashString(biz) % 90000) + 10000).padStart(5, '0'),
 			country: 'US',
 			website: `https://${sanitize(biz)}.com`,
+			payment_preference: 'credit_card',
 			is_active: true,
 			created_at: isoTime(-(rowNum - 1) * (11 / 24))
 		};
 	});
-	const { data, error } = await supa.from('accounts').insert(rows).select('id, business_name');
+	const { data, error } = await supa
+		.from('accounts')
+		.insert(rows)
+		.select('id, business_name, contact_email, phone, address_line1, city, state, zip, country');
 	await mustInsert('accounts', { data, error });
 	log(`${data!.length} accounts inserted`);
 	const byBiz = new Map<string, string>();
 	for (const a of data!) byBiz.set(a.business_name, a.id);
+
+	// One default Primary location per account, mirroring the migration backfill
+	// pattern. New accounts inserted post-migration don't get auto-located, so
+	// the seed has to do it explicitly or the order flow can't pick a ship-to.
+	const locationRows = data!.map((a, i) => {
+		const src = ACCOUNTS[i];
+		const [, fname, lname] = src;
+		return {
+			account_id: a.id,
+			organization_id: eliseOrgId,
+			label: 'Primary',
+			contact_first_name: fname,
+			contact_last_name: lname,
+			contact_email: a.contact_email,
+			phone: a.phone,
+			address_line1: a.address_line1,
+			city: a.city,
+			state: a.state,
+			zip: a.zip,
+			country: a.country,
+			is_default: true,
+			sort_order: 0
+		};
+	});
+	const { error: locErr } = await supa.from('account_locations').insert(locationRows);
+	if (locErr) {
+		console.error('✖ account_locations insert:', locErr);
+		process.exit(1);
+	}
+	log(`${locationRows.length} account locations inserted`);
+
+	// Each account's contact gets a buyer-portal invite. role = buyer_admin
+	// since the first invitee per account becomes its admin (mirrors
+	// /api/buyer-invite/send logic).
+	const inviteRows = data!.map((a) => ({
+		account_id: a.id,
+		organization_id: eliseOrgId,
+		email: a.contact_email,
+		invited_by: eliseUserId,
+		role: 'buyer_admin'
+	}));
+	const { error: invErr } = await supa.from('buyer_invitations').insert(inviteRows);
+	if (invErr) {
+		console.error('✖ buyer_invitations insert:', invErr);
+		process.exit(1);
+	}
+	log(`${inviteRows.length} buyer invitations sent`);
+
 	return byBiz;
 }
 
@@ -1367,6 +1425,15 @@ async function seedOrders(
 			showDateId = entry.show_date_id;
 		}
 
+		// Compute order total client-side from line items so we can set
+		// shipped_amount on the same insert. Mirrors what the recalc_order_total
+		// trigger does after order_lines are inserted.
+		const computedTotal = o.lines.reduce((sum, l) => {
+			const p = PRODUCTS.find((pp) => pp.style === l.style);
+			return sum + (p ? l.qty * p.wholesale : 0);
+		}, 0);
+		const isShipped = o.status === 'shipped' || o.status === 'delivered';
+
 		const row = {
 			organization_id: repOrgId,
 			brand_id: brand!.id,
@@ -1385,7 +1452,8 @@ async function seedOrders(
 			submitted_at: isoTime(o.submittedOffset),
 			confirmed_at: o.confirmedOffset != null ? isoTime(o.confirmedOffset) : null,
 			shipped_at: o.shippedOffset != null ? isoTime(o.shippedOffset) : null,
-			delivered_at: o.deliveredOffset != null ? isoTime(o.deliveredOffset) : null
+			delivered_at: o.deliveredOffset != null ? isoTime(o.deliveredOffset) : null,
+			shipped_amount: isShipped ? computedTotal : null
 		};
 		const { data: inserted, error: oErr } = await supa
 			.from('orders')
@@ -1432,6 +1500,65 @@ async function seedOrders(
 	log(`${orderCount} orders + ${lineCount} lines inserted`);
 }
 
+async function seedBrandProfile(
+	orgIds: Map<string, string>,
+	userIds: Map<string, string>
+): Promise<void> {
+	const eliseOrgId = orgIds.get('Elise Varga')!;
+	const eliseUserId = userIds.get('hello@elisevarga.com')!;
+
+	// Org address (NYC garment district).
+	const { error: orgErr } = await supa
+		.from('organizations')
+		.update({
+			address_line1: '247 W 38th St, Suite 410',
+			city: 'New York',
+			state: 'NY',
+			zip: '10018',
+			country: 'US'
+		})
+		.eq('id', eliseOrgId);
+	if (orgErr) {
+		console.error('✖ Elise Varga org address update:', orgErr);
+		process.exit(1);
+	}
+
+	// Self-brand profile fields (website + contact).
+	const { data: brand, error: brandErr } = await supa
+		.from('brands')
+		.update({
+			website: 'https://elisevarga.com',
+			contact_email: 'hello@elisevarga.com',
+			contact_phone: '(212) 555-0184'
+		})
+		.eq('organization_id', eliseOrgId)
+		.eq('is_self_brand', true)
+		.select('id')
+		.single();
+	if (brandErr || !brand) {
+		console.error('✖ Elise Varga self-brand update:', brandErr);
+		process.exit(1);
+	}
+	log('Elise Varga org profile + self-brand profile set');
+
+	// Brand-level T&Cs. is_current = true; the demote_prior trigger handles
+	// any future versioning automatically.
+	const { error: termsErr } = await supa.from('brand_terms').insert({
+		brand_id: brand.id,
+		organization_id: eliseOrgId,
+		version: 1,
+		title: 'Wholesale Terms & Conditions',
+		body: 'Net-30 from invoice date. Past-due balances accrue 1.5% interest per month. Cancellations or changes within 14 days of the ship window may incur a restock fee equal to 15% of the affected line items. Damaged or short-shipped items must be reported within 7 days of delivery. By submitting this order, you agree to our standard wholesale terms.',
+		is_current: true,
+		created_by: eliseUserId
+	});
+	if (termsErr) {
+		console.error('✖ Elise Varga brand_terms insert:', termsErr);
+		process.exit(1);
+	}
+	log('Elise Varga brand terms inserted');
+}
+
 // ─── Orchestrator ───────────────────────────────────────────────────────────
 
 async function main() {
@@ -1444,9 +1571,10 @@ async function main() {
 	await seedMemberships(userIds, orgIds);
 	await seedShows(orgIds);
 	await seedConnections(orgIds, userIds);
+	await seedBrandProfile(orgIds, userIds);
 
 	console.log('\n◆ Phase 2: accounts');
-	const accountIds = await seedAccounts(orgIds);
+	const accountIds = await seedAccounts(orgIds, userIds);
 
 	console.log('\n◆ Phase 3: products & variants');
 	const productMap = await seedProductsAndVariants(orgIds);

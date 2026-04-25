@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 
 export type SearchResult = {
 	type: 'brand' | 'account' | 'order' | 'contact';
@@ -25,12 +26,34 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
+	// Buyers don't get account/brand/contact search — they have a scoped
+	// surface (shop, cart, orders) and shouldn't surface other accounts.
+	if (locals.isBuyer) {
+		return json({ results: [] } satisfies SearchResponse);
+	}
+
 	const { query } = await request.json();
 	const orgId = locals.organization.id;
 
 	if (!query || typeof query !== 'string' || query.trim().length === 0) {
 		return json({ results: [] });
 	}
+
+	// Widen the search across every org the caller can see via active
+	// connections, in either direction (rep ↔ brand). Without this, a rep
+	// can't find accounts on the brands they sell, and a BOA can't find
+	// rep-side contacts on the accounts they share.
+	const { data: connections } = await supabaseAdmin
+		.from('org_connections')
+		.select('rep_org_id, brand_org_id')
+		.eq('status', 'active')
+		.or(`rep_org_id.eq.${orgId},brand_org_id.eq.${orgId}`);
+	const visibleOrgIdSet = new Set<string>([orgId]);
+	for (const c of connections ?? []) {
+		if (c.rep_org_id && c.rep_org_id !== orgId) visibleOrgIdSet.add(c.rep_org_id);
+		if (c.brand_org_id && c.brand_org_id !== orgId) visibleOrgIdSet.add(c.brand_org_id);
+	}
+	const visibleOrgIds = Array.from(visibleOrgIdSet);
 
 	const searchTerm = `%${query.trim()}%`;
 	const results: SearchResult[] = [];
@@ -39,7 +62,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const { data: accountContacts } = await locals.supabase
 		.from('accounts')
 		.select('id, business_name, contact_first_name, contact_last_name, contact_email')
-		.eq('organization_id', orgId)
+		.in('organization_id', visibleOrgIds)
 		.or(`contact_first_name.not.is.null,contact_last_name.not.is.null`)
 		.or(
 			`contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
@@ -66,7 +89,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const { data: brandContacts } = await locals.supabase
 		.from('brands')
 		.select('id, name, contact_first_name, contact_last_name, contact_email')
-		.eq('organization_id', orgId)
+		.in('organization_id', visibleOrgIds)
 		.or(`contact_first_name.not.is.null,contact_last_name.not.is.null`)
 		.or(
 			`contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
@@ -113,7 +136,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const { data: brands } = await locals.supabase
 		.from('brands')
 		.select('id, name, contact_first_name, contact_last_name, contact_email, website')
-		.eq('organization_id', orgId)
+		.in('organization_id', visibleOrgIds)
 		.or(
 			`name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
 		)
@@ -135,7 +158,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const { data: accounts } = await locals.supabase
 		.from('accounts')
 		.select('id, business_name, contact_first_name, contact_last_name, contact_email, city, state')
-		.eq('organization_id', orgId)
+		.in('organization_id', visibleOrgIds)
 		.or(
 			`business_name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm},city.ilike.${searchTerm}`
 		)
@@ -156,7 +179,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const { data: matchingAccounts } = await locals.supabase
 		.from('accounts')
 		.select('id')
-		.eq('organization_id', orgId)
+		.in('organization_id', visibleOrgIds)
 		.or(
 			`business_name.ilike.${searchTerm},contact_first_name.ilike.${searchTerm},contact_last_name.ilike.${searchTerm},contact_email.ilike.${searchTerm}`
 		)
@@ -170,7 +193,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.select(
 			'id, order_number, status, order_year, created_at, brands(name), accounts(business_name, contact_first_name, contact_last_name, contact_email), seasons(name)'
 		)
-		.eq('organization_id', orgId)
+		.in('organization_id', visibleOrgIds)
 		.order('created_at', { ascending: false });
 
 	if (matchingAccountIds.length > 0) {

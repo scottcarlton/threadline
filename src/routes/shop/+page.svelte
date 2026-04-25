@@ -3,6 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
@@ -11,6 +13,7 @@
 	let { data } = $props();
 
 	const brands = $derived(data.brands as { id: string; name: string; logo_url: string | null }[]);
+	const seasons = $derived((data.seasons ?? []) as Array<{ id: string; name: string }>);
 	const products = $derived(
 		data.products as (Product & {
 			brands: { id: string; name: string } | null;
@@ -27,7 +30,25 @@
 	);
 
 	let search = $state('');
+	let seasonFilter = $state('');
+	let categoryFilter = $state('');
+	let priceRange = $state<[number, number]>([0, 500]);
 	const brandFilter = $derived($page.url.searchParams.get('brand') ?? '');
+
+	// Categories list derives from current product set so the dropdown only
+	// shows values that can actually match.
+	const categories = $derived(
+		[...new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c)))].sort()
+	);
+	const maxProductPrice = $derived(
+		Math.max(...products.map((p) => Number(p.wholesale_price) || 0), 500)
+	);
+	$effect(() => {
+		// Reset the upper bound when the product set or its max changes.
+		if (priceRange[1] === 500 && maxProductPrice !== 500) {
+			priceRange = [priceRange[0], maxProductPrice];
+		}
+	});
 
 	function setBrandFilter(brandId: string) {
 		const url = new URL($page.url);
@@ -59,13 +80,18 @@
 	const filtered = $derived(
 		products.filter((p) => {
 			const matchesBrand = !brandFilter || p.brand_id === brandFilter;
+			const matchesSeason = !seasonFilter || p.season_id === seasonFilter;
+			const matchesCategory = !categoryFilter || p.category === categoryFilter;
+			const price = Number(p.wholesale_price) || 0;
+			const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
 			const matchesSearch =
 				!search ||
 				p.name.toLowerCase().includes(search.toLowerCase()) ||
 				p.style_number.toLowerCase().includes(search.toLowerCase()) ||
 				(p.category?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
 				(p.brands?.name.toLowerCase().includes(search.toLowerCase()) ?? false);
-			if (!matchesBrand || !matchesSearch) return false;
+			if (!matchesBrand || !matchesSeason || !matchesCategory || !matchesPrice || !matchesSearch)
+				return false;
 			if (p.ats) {
 				const agg = aggregateStockStatus(p.product_variants ?? []);
 				if (agg === 'out') return false;
@@ -126,26 +152,50 @@
 			<div class="max-w-xs flex-1">
 				<SearchInput placeholder="Search products..." bind:value={search} />
 			</div>
-			<div class="flex flex-wrap gap-1.5">
-				<button
-					class="rounded-lg border px-3 py-1.5 text-sm transition-colors {!brandFilter
-						? 'border-primary bg-primary text-primary-foreground'
-						: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
-					onclick={() => setBrandFilter('')}
-				>
-					All Brands
-				</button>
-				{#each brands as brand (brand.id)}
+			{#if brands.length > 1}
+				<div class="flex flex-wrap gap-1.5">
 					<button
-						class="rounded-lg border px-3 py-1.5 text-sm transition-colors {brandFilter === brand.id
+						class="rounded-lg border px-3 py-1.5 text-sm transition-colors {!brandFilter
 							? 'border-primary bg-primary text-primary-foreground'
 							: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
-						onclick={() => setBrandFilter(brand.id)}
+						onclick={() => setBrandFilter('')}
 					>
-						{brand.name}
+						All Brands
 					</button>
-				{/each}
-			</div>
+					{#each brands as brand (brand.id)}
+						<button
+							class="rounded-lg border px-3 py-1.5 text-sm transition-colors {brandFilter ===
+							brand.id
+								? 'border-primary bg-primary text-primary-foreground'
+								: 'text-muted-foreground hover:border-foreground/20 hover:text-foreground'}"
+							onclick={() => setBrandFilter(brand.id)}
+						>
+							{brand.name}
+						</button>
+					{/each}
+				</div>
+			{/if}
+			{#if seasons.length > 0}
+				<SelectField
+					items={[
+						{ value: '', label: 'All Seasons' },
+						...seasons.map((s) => ({ value: s.id, label: s.name }))
+					]}
+					bind:value={seasonFilter}
+					placeholder="All Seasons"
+				/>
+			{/if}
+			{#if categories.length > 0}
+				<SelectField
+					items={[
+						{ value: '', label: 'All Categories' },
+						...categories.map((c) => ({ value: c, label: c }))
+					]}
+					bind:value={categoryFilter}
+					placeholder="All Categories"
+				/>
+			{/if}
+			<PriceFilterDropdown bind:value={priceRange} maxPrice={maxProductPrice} />
 		</div>
 
 		<!-- Product grid -->
@@ -176,7 +226,7 @@
 				{/if}
 			</div>
 		{:else}
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{#each filtered as product (product.id)}
 					{@const primaryImage =
 						product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}

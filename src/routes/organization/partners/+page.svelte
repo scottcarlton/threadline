@@ -107,6 +107,7 @@
 		bind:open={showAddPartner}
 		emailForm={data.inviteEmailForm}
 		defaultCommissionRate={data.defaultCommissionRate}
+		territories={data.territories ?? []}
 		onOpenChange={(v) => (showAddPartner = v)}
 	/>
 {/if}

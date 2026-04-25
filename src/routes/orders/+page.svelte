@@ -8,6 +8,12 @@
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
+	import {
+		Tooltip,
+		TooltipContent,
+		TooltipProvider,
+		TooltipTrigger
+	} from '$lib/components/ui/tooltip/index.js';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
@@ -53,13 +59,21 @@
 
 	const seasons = $derived(data.seasons as Season[]);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
-	const showDates = $derived(data.showDates ?? []);
+	const showDates = $derived(
+		(data.showDates ?? []) as Array<{
+			id: string;
+			year: number | null;
+			month: number | null;
+			city: string | null;
+			shows: { name?: string } | { name?: string }[] | null;
+		}>
+	);
+	const sourceTypes = $derived((data.sourceTypes ?? []) as Array<{ id: string; name: string }>);
 	const reps = $derived((data.reps as { id: string; name: string }[] | undefined) ?? []);
-	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
-	const canCreate = $derived(data.membership?.role !== 'guest');
-	// Brand-level sales reps shouldn't export org-wide data.
-	const canExport = $derived(!(isBrandOrg && data.membership?.role === 'sales'));
-	const monthNames = [
+
+	// Combined options for the unified Source filter (shows + source_types).
+	// Values are prefixed so the server can route to the right column.
+	const monthAbbrev = [
 		'Jan',
 		'Feb',
 		'Mar',
@@ -73,6 +87,36 @@
 		'Nov',
 		'Dec'
 	];
+	// Dedupe source_types by name across visible orgs (BOA's view spans
+	// every connected rep org, so "Road" can appear once per rep). Shows
+	// are date-distinct (CALA Mar 2026 ≠ CALA Mar 2027) so they keep IDs.
+	const dedupedSourceTypes = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const seen = new Set<string>();
+		return sourceTypes.filter((st) => {
+			const key = st.name.trim().toLowerCase();
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
+	});
+	const sourceItems = $derived([
+		{ value: '', label: 'All Sources' },
+		...showDates.map((sd) => {
+			const shows = sd.shows;
+			const showName = Array.isArray(shows) ? (shows[0]?.name ?? 'Show') : (shows?.name ?? 'Show');
+			return {
+				value: `show:${sd.id}`,
+				label: `${showName} — ${monthAbbrev[(sd.month ?? 1) - 1]} ${sd.year}${sd.city ? `, ${sd.city}` : ''}`
+			};
+		}),
+		...dedupedSourceTypes.map((st) => ({ value: `srctype:${st.name}`, label: st.name }))
+	]);
+	const hasSourceOptions = $derived(showDates.length > 0 || sourceTypes.length > 0);
+	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
+	const canCreate = $derived(data.membership?.role !== 'guest');
+	// Brand-level sales reps shouldn't export org-wide data.
+	const canExport = $derived(!(isBrandOrg && data.membership?.role === 'sales'));
 	const metrics = $derived(
 		data.metrics as {
 			pipelineValue: number;
@@ -91,6 +135,23 @@
 		minimumFractionDigits: 0,
 		maximumFractionDigits: 0
 	});
+
+	const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+	function attentionReason(o: OrderRow): 'stale-draft' | 'overdue' | null {
+		const status = (o as { status?: string }).status;
+		if (status === 'draft') {
+			const created = (o as { created_at?: string }).created_at;
+			if (created && Date.now() - new Date(created).getTime() > SEVEN_DAYS_MS) return 'stale-draft';
+		}
+		if (status === 'submitted' || status === 'confirmed') {
+			const expected = (o as { expected_ship_date?: string | null }).expected_ship_date;
+			if (expected) {
+				const todayStr = new Date().toISOString().slice(0, 10);
+				if (expected < todayStr) return 'overdue';
+			}
+		}
+		return null;
+	}
 
 	const statusTabs = [
 		'all',
@@ -593,29 +654,20 @@
 					onValueChange={(v) => setFilter('status', v)}
 				/>
 			{/if}
-			{#if showDates.length > 0}
-				<SelectField
-					value={$page.url.searchParams.get('show') ?? ''}
-					items={[
-						{ value: '', label: 'All Shows' },
-						...showDates.map((sd) => {
-							const shows = sd.shows as { name?: string } | { name?: string }[] | null;
-							const showName = Array.isArray(shows)
-								? (shows[0]?.name ?? 'Show')
-								: (shows?.name ?? 'Show');
-							return {
-								value: sd.id,
-								label: `${showName} — ${monthNames[(sd.month ?? 1) - 1]} ${sd.year}${sd.city ? `, ${sd.city}` : ''}`
-							};
-						})
-					]}
-					placeholder="All Shows"
-					onValueChange={(v) => setFilter('show', v)}
-				/>
-			{/if}
+			<SelectField
+				class="min-w-[158px]"
+				value={$page.url.searchParams.get('season') ?? ''}
+				items={[
+					{ value: '', label: 'All Seasons' },
+					...seasons.map((s) => ({ value: s.name, label: s.name }))
+				]}
+				placeholder="All Seasons"
+				onValueChange={(v) => setFilter('season', v)}
+			/>
 			<div class="flex-1"></div>
 			{#if isBrandOrg && reps.length > 0}
 				<SelectField
+					class="min-w-[158px]"
 					value={$page.url.searchParams.get('rep') ?? ''}
 					items={[
 						{ value: '', label: 'All Reps' },
@@ -627,6 +679,7 @@
 			{/if}
 			{#if !isBrandOrg}
 				<SelectField
+					class="min-w-[158px]"
 					value={$page.url.searchParams.get('brand') ?? ''}
 					items={[
 						{ value: '', label: 'All Brands' },
@@ -636,7 +689,17 @@
 					onValueChange={(v) => setFilter('brand', v)}
 				/>
 			{/if}
+			{#if hasSourceOptions}
+				<SelectField
+					class="max-w-[240px] min-w-[158px]"
+					value={$page.url.searchParams.get('source') ?? ''}
+					items={sourceItems}
+					placeholder="All Sources"
+					onValueChange={(v) => setFilter('source', v)}
+				/>
+			{/if}
 			<SelectField
+				class="min-w-[158px]"
 				value={activeDatePreset}
 				items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
 				placeholder="All Time"
@@ -659,16 +722,6 @@
 					onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
 				/>
 			{/if}
-			<SelectField
-				class="min-w-[127px]"
-				value={$page.url.searchParams.get('season') ?? ''}
-				items={[
-					{ value: '', label: 'All Seasons' },
-					...seasons.map((s) => ({ value: s.name, label: s.name }))
-				]}
-				placeholder="All Seasons"
-				onValueChange={(v) => setFilter('season', v)}
-			/>
 		{/if}
 	</div>
 
@@ -784,14 +837,33 @@
 						{@const shipWindowEnd = order.expected_ship_date
 							? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 							: null}
+						{@const reason = attentionReason(order)}
 						<tr
 							class="group transition-colors hover:bg-muted/30 {selectedIds.has(order.id)
 								? 'bg-primary/5'
 								: ''}"
 						>
-							<td class="w-8 py-3 pr-1 pl-4">
+							<td class="w-8 py-3 pr-1 pl-4 align-top">
+								<div class="flex h-5 items-center justify-center text-sm">
+									{#if reason}
+										<TooltipProvider delayDuration={150}>
+											<Tooltip>
+												<TooltipTrigger
+													class="inline-flex"
+													aria-label={reason === 'stale-draft' ? 'Stale note' : 'Overdue shipment'}
+												>
+													<span class="block h-2 w-2 rounded-full bg-amber-500"></span>
+												</TooltipTrigger>
+												<TooltipContent side="right">
+													{reason === 'stale-draft' ? 'Stale note' : 'Overdue shipment'}
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									{/if}
+								</div>
 								<div
-									class="{selectedIds.has(order.id) || selectedIds.size > 0
+									class="flex h-6 items-center justify-center {selectedIds.has(order.id) ||
+									selectedIds.size > 0
 										? 'opacity-100'
 										: 'opacity-0 group-hover:opacity-100'} transition-opacity"
 								>
@@ -802,24 +874,14 @@
 								</div>
 							</td>
 							<td class="px-4 py-3">
-								{#if isBrandOrg}
-									<p class="text-sm text-muted-foreground">
-										{order.accounts?.business_name ?? '—'}
-									</p>
-									<a
-										href={resolve(`/orders/${order.id}`)}
-										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
-									>
-									<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
-								{:else}
-									<a
-										href={resolve(`/orders/${order.id}`)}
-										class="font-mono text-base font-medium hover:underline">{order.order_number}</a
-									>
-									<p class="text-sm text-muted-foreground">
-										{order.accounts?.business_name ?? '—'}
-									</p>
-								{/if}
+								<p class="text-sm text-muted-foreground">
+									{order.accounts?.business_name ?? '—'}
+								</p>
+								<a
+									href={resolve(`/orders/${order.id}`)}
+									class="font-mono text-base font-medium hover:underline">{order.order_number}</a
+								>
+								<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
 							</td>
 							<td class="px-4 py-3 text-center">
 								{#if order.order_type === 'note'}
@@ -837,7 +899,6 @@
 							{#if !isBrandOrg}
 								<td class="hidden px-4 py-3 sm:table-cell">
 									<span class="text-sm">{order.brands?.name ?? '—'}</span>
-									<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
 								</td>
 							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
@@ -850,11 +911,9 @@
 									<span class="text-sm {sourceName ? '' : 'text-muted-foreground/50'}"
 										>{sourceName ?? '—'}</span
 									>
-								{/if}
-								{#if showDate && !isBrandOrg}
-									<p class="mt-0.5 text-sm text-muted-foreground">
+									{#if showDate}
 										<span
-											class="mr-1 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-sm font-medium"
+											class="ml-2 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
 											>{[
 												'Jan',
 												'Feb',
@@ -869,8 +928,11 @@
 												'Nov',
 												'Dec'
 											][(showDate.month ?? 1) - 1]}</span
-										><span class="font-mono">{sourceLocation}</span>
-									</p>
+										>
+									{/if}
+								{/if}
+								{#if showDate && !isBrandOrg && sourceLocation}
+									<p class="mt-0.5 font-mono text-sm text-muted-foreground">{sourceLocation}</p>
 								{/if}
 							</td>
 							{#if isBrandOrg}
@@ -879,25 +941,26 @@
 										>{sourceName ?? '—'}</span
 									>
 									{#if showDate}
-										<p class="mt-0.5 text-sm text-muted-foreground">
-											<span
-												class="mr-1 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-sm font-medium"
-												>{[
-													'Jan',
-													'Feb',
-													'Mar',
-													'Apr',
-													'May',
-													'Jun',
-													'Jul',
-													'Aug',
-													'Sep',
-													'Oct',
-													'Nov',
-													'Dec'
-												][(showDate.month ?? 1) - 1]}</span
-											>{#if sourceLocation}<span class="font-mono">{sourceLocation}</span>{/if}
-										</p>
+										<span
+											class="ml-2 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
+											>{[
+												'Jan',
+												'Feb',
+												'Mar',
+												'Apr',
+												'May',
+												'Jun',
+												'Jul',
+												'Aug',
+												'Sep',
+												'Oct',
+												'Nov',
+												'Dec'
+											][(showDate.month ?? 1) - 1]}</span
+										>
+									{/if}
+									{#if showDate && sourceLocation}
+										<p class="mt-0.5 font-mono text-sm text-muted-foreground">{sourceLocation}</p>
 									{/if}
 								</td>
 							{/if}
@@ -937,14 +1000,16 @@
 								{/if}
 							</td>
 							<td class="px-4 py-3 text-right font-mono">
-								{#if order.shipped_amount != null}
-									<span class="text-sm">{fmt.format(Number(order.shipped_amount))}</span>
-									<p class="text-sm text-muted-foreground">
+								{#if order.status === 'shipped' || order.status === 'delivered'}
+									<span class="text-sm"
+										>{fmt.format(Number(order.shipped_amount ?? order.total_amount))}</span
+									>
+									<p class="text-xs text-muted-foreground">
 										{fmt.format(Number(order.total_amount))}
 									</p>
 								{:else}
 									<span class="text-sm">{fmt.format(Number(order.total_amount))}</span>
-									<p class="text-sm text-muted-foreground/50">—</p>
+									<p class="text-xs text-muted-foreground/50">—</p>
 								{/if}
 							</td>
 						</tr>
