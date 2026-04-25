@@ -14,42 +14,60 @@ export type CartItem = {
 	addedAt: string;
 };
 
-const STORAGE_KEY = 'threadline_cart';
-
-function loadFromStorage(): CartItem[] {
-	if (!browser) return [];
+async function postAdd(productId: string) {
+	if (!browser) return;
 	try {
-		const raw = localStorage.getItem(STORAGE_KEY);
-		return raw ? JSON.parse(raw) : [];
+		await fetch('/api/cart', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ productId })
+		});
 	} catch {
-		return [];
+		// Optimistic local state already updated; the next page load reconciles
+		// from the server. Silent failure is intentional here so UI stays snappy.
 	}
 }
 
-function saveToStorage(items: CartItem[]) {
+async function postRemove(productId: string) {
 	if (!browser) return;
-	localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+	try {
+		await fetch(`/api/cart/${productId}`, { method: 'DELETE' });
+	} catch {
+		// See note in postAdd.
+	}
+}
+
+async function postClear() {
+	if (!browser) return;
+	try {
+		await fetch('/api/cart', { method: 'DELETE' });
+	} catch {
+		// See note in postAdd.
+	}
 }
 
 function createCartStore() {
-	const { subscribe, set, update } = writable<CartItem[]>(loadFromStorage());
-
-	// Persist on every change
-	subscribe((items) => saveToStorage(items));
+	const { subscribe, set, update } = writable<CartItem[]>([]);
 
 	return {
 		subscribe,
+		hydrate(items: CartItem[]) {
+			set(items);
+		},
 		addItem(item: CartItem) {
 			update((items) => {
 				if (items.some((i) => i.productId === item.productId)) return items;
 				return [...items, item];
 			});
+			postAdd(item.productId);
 		},
 		removeItem(productId: string) {
 			update((items) => items.filter((i) => i.productId !== productId));
+			postRemove(productId);
 		},
 		clearCart() {
 			set([]);
+			postClear();
 		},
 		isInCart(productId: string): boolean {
 			return get({ subscribe }).some((i) => i.productId === productId);

@@ -56,7 +56,7 @@
 
 <Popover.Root bind:open>
 	<Popover.Trigger
-		class="inline-flex min-h-[44px] items-center justify-between gap-2 rounded-lg border border-input bg-background px-3.5 text-sm transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none {isAllPrices
+		class="inline-flex min-h-[44px] items-center justify-between gap-2 rounded-xs border border-input bg-background px-3.5 text-sm transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none {isAllPrices
 			? ''
 			: 'border-foreground'}"
 	>

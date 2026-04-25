@@ -31,6 +31,7 @@ const baseInput = (over: Partial<Record<string, unknown>> = {}) => ({
 	contact_location_id: null,
 	rep_user_id: repId,
 	source_type_id: null,
+	show_date_id: null,
 	orders: [baseOrder()],
 	brand_agreements: [{ brand_id: brandA, terms_id: null, agreed: false }],
 	...over
@@ -166,6 +167,25 @@ describe('finalizeSchema — freeform', () => {
 	it('rejects submitting a freeform (no account) as an order', () => {
 		const result = finalizeSchema.safeParse(
 			baseInput({ submit_mode: 'order', account_id: null, freeform_name: 'Lead: Blue Moon' })
+		);
+		expect(result.success).toBe(false);
+	});
+});
+
+const showDateId = '50000000-0000-4000-8000-000000000050';
+const sourceTypeId = '60000000-0000-4000-8000-000000000060';
+
+describe('finalizeSchema — source selection', () => {
+	it('accepts a show_date_id as the sole source', () => {
+		const result = finalizeSchema.safeParse(
+			baseInput({ source_type_id: null, show_date_id: showDateId })
+		);
+		expect(result.success).toBe(true);
+	});
+
+	it('rejects setting both source_type_id and show_date_id', () => {
+		const result = finalizeSchema.safeParse(
+			baseInput({ source_type_id: sourceTypeId, show_date_id: showDateId })
 		);
 		expect(result.success).toBe(false);
 	});

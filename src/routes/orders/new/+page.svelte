@@ -130,6 +130,7 @@
 		order_year: number;
 		rep_user_id: string | null;
 		source_type_id: string | null;
+		show_date_id: string | null;
 		payment_preference: string;
 		payment_preference_touched: boolean;
 		termsAgreedByBrand: Record<string, boolean>;
@@ -155,6 +156,7 @@
 		order_year: new Date().getFullYear(),
 		rep_user_id: null,
 		source_type_id: null,
+		show_date_id: null,
 		payment_preference: '',
 		payment_preference_touched: false,
 		termsAgreedByBrand: {},
@@ -707,9 +709,9 @@
 	let billEditOpen = $state(false);
 
 	// Default the shared source to the org's first source type when the user
-	// first arrives at Finalize; manual picks override.
+	// first arrives at Finalize; manual picks (source or show) override.
 	$effect(() => {
-		if (!cart.source_type_id && sourceTypes.length > 0) {
+		if (!cart.source_type_id && !cart.show_date_id && sourceTypes.length > 0) {
 			cart.source_type_id = sourceTypes[0].id;
 		}
 	});
@@ -727,6 +729,37 @@
 	const sourceTypes = $derived(
 		(data.sourceTypes ?? []) as Array<{ id: string; name: string; sort_order: number | null }>
 	);
+	const showDates = $derived(
+		(data.showDates ?? []) as Array<{
+			id: string;
+			show_id: string;
+			show_name: string;
+			year: number;
+			month: number;
+			city: string | null;
+			state: string | null;
+			venue: string | null;
+		}>
+	);
+	const MONTH_LABELS = [
+		'Jan',
+		'Feb',
+		'Mar',
+		'Apr',
+		'May',
+		'Jun',
+		'Jul',
+		'Aug',
+		'Sep',
+		'Oct',
+		'Nov',
+		'Dec'
+	];
+	function showDateLabel(sd: (typeof showDates)[number]) {
+		const when = `${MONTH_LABELS[sd.month - 1] ?? ''} ${sd.year}`.trim();
+		const where = [sd.city, sd.state].filter(Boolean).join(', ');
+		return where ? `${sd.show_name} — ${when} (${where})` : `${sd.show_name} — ${when}`;
+	}
 	const distinctBrandsInCart = $derived.by(() => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const seen = new Set<string>();
@@ -751,7 +784,34 @@
 	const grandTotal = $derived(groups.reduce((sum, g) => sum + g.total, 0));
 	const grandUnits = $derived(groups.reduce((sum, g) => sum + g.units, 0));
 
-	const sourceTypeItems = $derived(sourceTypes.map((s) => ({ value: s.id, label: s.name })));
+	// Unified source picker: shows (specific dates) on top, then source types.
+	// Values are tagged (`show:<id>` or `source:<id>`) so the picker can write
+	// to the right cart field and the server can hydrate the right FK.
+	const sourceTypeItems = $derived([
+		...showDates.map((sd) => ({ value: `show:${sd.id}`, label: showDateLabel(sd) })),
+		...sourceTypes.map((s) => ({ value: `source:${s.id}`, label: s.name }))
+	]);
+	const selectedSourceValue = $derived(
+		cart.show_date_id
+			? `show:${cart.show_date_id}`
+			: cart.source_type_id
+				? `source:${cart.source_type_id}`
+				: ''
+	);
+	function onSourceChange(v: string) {
+		if (!v) {
+			cart.source_type_id = null;
+			cart.show_date_id = null;
+			return;
+		}
+		if (v.startsWith('show:')) {
+			cart.show_date_id = v.slice(5);
+			cart.source_type_id = null;
+		} else if (v.startsWith('source:')) {
+			cart.source_type_id = v.slice(7);
+			cart.show_date_id = null;
+		}
+	}
 	const repItems = $derived(reps.map((r) => ({ value: r.user_id, label: r.name })));
 	const shippingMethodItems = SHIPPING_METHODS.map((s) => ({
 		value: s,
@@ -771,6 +831,7 @@
 		contact_location_id: cart.contact_location_id,
 		rep_user_id: cart.rep_user_id ?? '',
 		source_type_id: cart.source_type_id,
+		show_date_id: cart.show_date_id,
 		orders: groups.map((g) => {
 			const meta = getMeta(g.brand_id, g.season_id);
 			return {
@@ -1680,14 +1741,14 @@
 									</Label>
 									{#if sourceTypeItems.length > 0}
 										<SelectField
-											value={cart.source_type_id ?? ''}
+											value={selectedSourceValue}
 											items={sourceTypeItems}
 											placeholder="Select a source"
 											class="w-full"
-											onValueChange={(v) => (cart.source_type_id = v || null)}
+											onValueChange={onSourceChange}
 										/>
 									{:else}
-										<div class="text-sm text-muted-foreground">No source types configured</div>
+										<div class="text-sm text-muted-foreground">No sources configured</div>
 									{/if}
 								</div>
 							</div>
@@ -1731,11 +1792,11 @@
 							</Label>
 							{#if sourceTypeItems.length > 0}
 								<SelectField
-									value={cart.source_type_id ?? ''}
+									value={selectedSourceValue}
 									items={sourceTypeItems}
 									placeholder="Select a source"
 									class="w-full"
-									onValueChange={(v) => (cart.source_type_id = v || null)}
+									onValueChange={onSourceChange}
 								/>
 							{:else}
 								<div class="text-sm text-muted-foreground">—</div>

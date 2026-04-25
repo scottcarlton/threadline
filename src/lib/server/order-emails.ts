@@ -2,7 +2,7 @@ import { supabaseAdmin } from './supabase.js';
 import { sendEmail } from './email.js';
 import { notification } from './email-templates.js';
 
-export type OrderEmailEvent = 'submitted' | 'created' | 'confirmed' | 'shipped';
+export type OrderEmailEvent = 'submitted' | 'created' | 'confirmed' | 'shipped' | 'delivered';
 
 type OrderContext = {
 	id: string;
@@ -88,14 +88,41 @@ async function resolveOrderContext(
 	};
 }
 
-async function resolveBuyerEmail(accountId: string | null): Promise<string | null> {
-	if (!accountId) return null;
-	const { data } = await supabaseAdmin
-		.from('accounts')
-		.select('contact_email')
-		.eq('id', accountId)
-		.single();
-	return data?.contact_email ?? null;
+async function resolveBuyerRecipients(accountId: string | null): Promise<Recipient[]> {
+	if (!accountId) return [];
+
+	// Fan out to every linked buyer user (multi-user buyer accounts) in addition
+	// to the account-level contact email kept on `accounts.contact_email`. The
+	// contact email is preserved as a fallback for accounts that have not yet
+	// onboarded any buyer user.
+	const [usersRes, accountRes] = await Promise.all([
+		supabaseAdmin.from('account_users').select('profile_id').eq('account_id', accountId),
+		supabaseAdmin
+			.from('accounts')
+			.select('contact_email, organization_id')
+			.eq('id', accountId)
+			.single()
+	]);
+
+	const seen = new Set<string>();
+	const recipients: Recipient[] = [];
+	const orgId = accountRes.data?.organization_id ?? null;
+
+	for (const u of usersRes.data ?? []) {
+		const email = await resolveAuthEmail(u.profile_id);
+		if (!email) continue;
+		const key = email.toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		recipients.push({ email, profileId: u.profile_id, orgId });
+	}
+
+	const fallbackEmail = accountRes.data?.contact_email ?? null;
+	if (fallbackEmail && !seen.has(fallbackEmail.toLowerCase())) {
+		recipients.push({ email: fallbackEmail, profileId: null, orgId: null });
+	}
+
+	return recipients;
 }
 
 async function resolveCreatorOrgId(profileId: string): Promise<string | null> {
@@ -124,11 +151,11 @@ export async function sendOrderEmail(
 		> = {
 			submitted: {
 				recipients: async () => {
-					const admins = await resolveBrandAdminRecipients(order.brand_id);
-					const buyerEmail = await resolveBuyerEmail(order.account_id);
-					return buyerEmail
-						? [...admins, { email: buyerEmail, profileId: null, orgId: null }]
-						: admins;
+					const [admins, buyers] = await Promise.all([
+						resolveBrandAdminRecipients(order.brand_id),
+						resolveBuyerRecipients(order.account_id)
+					]);
+					return [...admins, ...buyers];
 				},
 				subject: `New order submitted: ${order.order_number}`,
 				body: `A new order has been submitted for <strong>${accountName}</strong> (${brandName}).<br>Total: ${total}`
@@ -144,9 +171,7 @@ export async function sendOrderEmail(
 			},
 			confirmed: {
 				recipients: async () => {
-					const r: Recipient[] = [];
-					const buyerEmail = await resolveBuyerEmail(order.account_id);
-					if (buyerEmail) r.push({ email: buyerEmail, profileId: null, orgId: null });
+					const r: Recipient[] = await resolveBuyerRecipients(order.account_id);
 					const repEmail = await resolveAuthEmail(order.created_by);
 					const repOrgId = await resolveCreatorOrgId(order.created_by);
 					if (repEmail) r.push({ email: repEmail, profileId: order.created_by, orgId: repOrgId });
@@ -157,9 +182,7 @@ export async function sendOrderEmail(
 			},
 			shipped: {
 				recipients: async () => {
-					const r: Recipient[] = [];
-					const buyerEmail = await resolveBuyerEmail(order.account_id);
-					if (buyerEmail) r.push({ email: buyerEmail, profileId: null, orgId: null });
+					const r: Recipient[] = await resolveBuyerRecipients(order.account_id);
 					const repEmail = await resolveAuthEmail(order.created_by);
 					const repOrgId = await resolveCreatorOrgId(order.created_by);
 					if (repEmail) r.push({ email: repEmail, profileId: order.created_by, orgId: repOrgId });
@@ -167,6 +190,17 @@ export async function sendOrderEmail(
 				},
 				subject: `Order shipped: ${order.order_number}`,
 				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) has shipped.<br>Total: ${total}`
+			},
+			delivered: {
+				recipients: async () => {
+					const r: Recipient[] = await resolveBuyerRecipients(order.account_id);
+					const repEmail = await resolveAuthEmail(order.created_by);
+					const repOrgId = await resolveCreatorOrgId(order.created_by);
+					if (repEmail) r.push({ email: repEmail, profileId: order.created_by, orgId: repOrgId });
+					return r;
+				},
+				subject: `Order delivered: ${order.order_number}`,
+				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) has been delivered.<br>Total: ${total}`
 			}
 		};
 

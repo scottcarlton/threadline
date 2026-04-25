@@ -188,7 +188,7 @@
 			<a
 				href={resolve(item.href as '/orders')}
 				class={cn(
-					'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+					'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
 					isActive(item.href)
 						? 'bg-ghost font-medium text-foreground'
 						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
@@ -224,7 +224,7 @@
 					<a
 						href={resolve(inboxNav.href as '/inbox')}
 						class={cn(
-							'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+							'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
 							isActive(inboxNav.href)
 								? 'bg-ghost font-medium text-foreground'
 								: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
@@ -257,7 +257,7 @@
 				<a
 					href={resolve(appointmentsNav.href as '/appointments')}
 					class={cn(
-						'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+						'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
 						isActive(appointmentsNav.href)
 							? 'bg-ghost font-medium text-foreground'
 							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
@@ -288,7 +288,7 @@
 				<a
 					href={resolve('/workspace')}
 					class={cn(
-						'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+						'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
 						isActive('/workspace')
 							? 'bg-ghost font-medium text-foreground'
 							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
@@ -313,7 +313,7 @@
 				<a
 					href={resolve('/sheets')}
 					class={cn(
-						'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+						'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
 						isActive('/sheets')
 							? 'bg-ghost font-medium text-foreground'
 							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
@@ -345,7 +345,7 @@
 			<a
 				href={resolve('/account')}
 				class={cn(
-					'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+					'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
 					isActive('/account')
 						? 'bg-ghost font-medium text-foreground'
 						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
@@ -371,7 +371,7 @@
 			<a
 				href={resolve(brandLink as '/organization')}
 				class={cn(
-					'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+					'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
 					isActive(brandLink)
 						? 'bg-ghost font-medium text-foreground'
 						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
@@ -393,7 +393,7 @@
 
 		<button
 			onclick={() => (showHelp = true)}
-			class="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-normal text-muted-foreground transition-colors hover:bg-ghost/50 hover:text-foreground"
+			class="group flex w-full items-center gap-3 rounded-none px-3 py-2.5 text-sm font-normal text-muted-foreground transition-colors hover:bg-ghost/50 hover:text-foreground"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -415,7 +415,7 @@
 		{#if showOrg}
 			<a
 				href={resolve('/organization/billing')}
-				class="mt-3 flex w-full items-center justify-center rounded-lg bg-accent px-3 py-2.5 text-sm font-medium text-accent-foreground transition-colors"
+				class="mt-3 flex w-full items-center justify-center rounded-none bg-accent px-3 py-2.5 text-sm font-medium text-accent-foreground transition-colors"
 			>
 				Upgrade to Pro
 			</a>
