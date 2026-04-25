@@ -31,6 +31,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Account not found' }, { status: 404 });
 	}
 
+	// Resolve effective brand list. If the inviter didn't pick any chips, grant
+	// access to every active brand in the inviting org — otherwise the buyer
+	// lands with no brands/products and can't shop. For a single-brand BOA
+	// this is the desired default; for multi-brand orgs the inviter can still
+	// scope by passing explicit brandIds.
+	let effectiveBrandIds = Array.isArray(brandIds) ? (brandIds as string[]) : [];
+	if (effectiveBrandIds.length === 0) {
+		const { data: orgBrands } = await supabaseAdmin
+			.from('brands')
+			.select('id')
+			.eq('organization_id', organization.id)
+			.eq('is_active', true);
+		effectiveBrandIds = (orgBrands ?? []).map((b: { id: string }) => b.id);
+	}
+
 	// First buyer onboarded for an account becomes its buyer_admin so the
 	// account can self-serve team management going forward. Subsequent
 	// rep-side invites default to plain 'buyer'.
@@ -79,9 +94,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			accepted_at: new Date().toISOString()
 		});
 
-		// Create account_brand_access for selected brands
-		if (Array.isArray(brandIds) && brandIds.length > 0) {
-			const brandAccessRows = brandIds.map((brandId: string) => ({
+		// Create account_brand_access for the effective brand list
+		if (effectiveBrandIds.length > 0) {
+			const brandAccessRows = effectiveBrandIds.map((brandId: string) => ({
 				account_id: accountId,
 				brand_id: brandId,
 				organization_id: organization.id,

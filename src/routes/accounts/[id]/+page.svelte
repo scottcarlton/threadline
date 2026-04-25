@@ -891,7 +891,7 @@
 										bind:value={inviteEmail}
 									/>
 								</div>
-								{#if data.allBrands.length > 0}
+								{#if !isBrandOrg && data.allBrands.length > 0}
 									<div class="space-y-1.5">
 										<Label>Brand Access</Label>
 										<div class="flex flex-wrap gap-1.5">
@@ -979,7 +979,7 @@
 							</div>
 						{/if}
 
-						{#if data.buyerBrandAccess.length > 0}
+						{#if !isBrandOrg && data.buyerBrandAccess.length > 0}
 							<div class="mt-3 space-y-1.5">
 								<p class="text-xs font-medium text-muted-foreground">Brand Access</p>
 								<div class="flex flex-wrap gap-1.5">

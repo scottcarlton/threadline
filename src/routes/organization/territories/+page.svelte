@@ -53,17 +53,9 @@
 		(data.territoryAssignees ?? {}) as Record<string, Array<{ id: string; name: string }>>
 	);
 	const accountCounts = $derived(data.accountCounts as Record<string, number>);
-	const brandNameById = $derived((data.brandNameById ?? {}) as Record<string, string>);
-	const ownOrgId = $derived(data.ownOrgId as string | undefined);
-
-	// Own-org brands are pickable when creating a brand-scoped territory.
-	// Use `data.brands` if present; otherwise derive from territories we own.
-	const ownBrands = $derived(Object.entries(brandNameById).map(([id, name]) => ({ id, name })));
-
 	let adding = $state(false);
 	let newName = $state('');
 	let newNotes = $state('');
-	let newBrandId = $state('');
 	let loading = $state(false);
 	let error = $state('');
 
@@ -75,7 +67,7 @@
 			organization_id: data.organization?.id,
 			name: newName.trim(),
 			notes: newNotes.trim() || null,
-			brand_id: newBrandId || null
+			brand_id: null
 		});
 		loading = false;
 		if (err) {
@@ -83,7 +75,6 @@
 		} else {
 			newName = '';
 			newNotes = '';
-			newBrandId = '';
 			adding = false;
 			invalidateAll();
 		}
@@ -95,11 +86,6 @@
 		if (list.length === 1) return list[0].name;
 		if (list.length === 2) return `${list[0].name}, ${list[1].name}`;
 		return `${list[0].name}, ${list[1].name} +${list.length - 2}`;
-	}
-
-	function sourceLabel(t: { brand_id: string | null; organization_id: string }): string {
-		if (!t.brand_id) return t.organization_id === ownOrgId ? 'Own org' : 'Connected';
-		return brandNameById[t.brand_id] ?? 'Brand';
 	}
 </script>
 
@@ -147,24 +133,9 @@
 					}}
 					class="space-y-4"
 				>
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div class="space-y-2">
-							<Label for="name">Name *</Label>
-							<Input id="name" bind:value={newName} required placeholder="e.g. West Coast" />
-						</div>
-						<div class="space-y-2">
-							<Label for="brand">Brand (optional)</Label>
-							<select
-								id="brand"
-								bind:value={newBrandId}
-								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-							>
-								<option value="">Org-wide (all brands)</option>
-								{#each ownBrands as brand (brand.id)}
-									<option value={brand.id}>{brand.name}</option>
-								{/each}
-							</select>
-						</div>
+					<div class="space-y-2">
+						<Label for="name">Name *</Label>
+						<Input id="name" bind:value={newName} required placeholder="e.g. West Coast" />
 					</div>
 					<div class="space-y-2">
 						<Label for="notes">Notes</Label>
@@ -222,10 +193,6 @@
 						>
 						<th
 							class="px-4 py-2.5 text-left text-[12px] font-medium tracking-wider text-muted-foreground uppercase"
-							>Source</th
-						>
-						<th
-							class="px-4 py-2.5 text-left text-[12px] font-medium tracking-wider text-muted-foreground uppercase"
 							>Assigned Reps</th
 						>
 						<th
@@ -245,9 +212,6 @@
 								{#if territory.notes}
 									<p class="text-sm text-muted-foreground">{territory.notes}</p>
 								{/if}
-							</td>
-							<td class="px-4 py-3">
-								<span class="text-sm text-muted-foreground">{sourceLabel(territory)}</span>
 							</td>
 							<td class="px-4 py-3">
 								<span class="text-sm text-muted-foreground">

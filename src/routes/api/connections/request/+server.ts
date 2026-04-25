@@ -91,6 +91,44 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			.eq('organization_id', organization.id);
 	}
 
+	// Apply per-partner attributes the brand admin pre-set on the invite:
+	// - manages_others → connection_members row for this user on the new connection
+	// - territory_ids  → member_territories rows for this user's rep-org membership
+	// Apply at request time regardless of auto-approve. For pending connections
+	// these rows sit dormant until the brand admin approves; no further action
+	// needed in /api/connections/approve.
+	await supabaseAdmin.from('connection_members').upsert(
+		{
+			org_connection_id: connection.id,
+			profile_id: session.user.id,
+			manages_others: Boolean(invite.manages_others),
+			updated_at: new Date().toISOString()
+		},
+		{ onConflict: 'org_connection_id,profile_id' }
+	);
+
+	const inviteTerritoryIds = Array.isArray(invite.territory_ids)
+		? (invite.territory_ids as string[])
+		: [];
+	if (inviteTerritoryIds.length > 0) {
+		const { data: repMembership } = await supabaseAdmin
+			.from('organization_members')
+			.select('id')
+			.eq('organization_id', organization.id)
+			.eq('profile_id', session.user.id)
+			.maybeSingle();
+		if (repMembership?.id) {
+			const rows = inviteTerritoryIds.map((territoryId) => ({
+				organization_member_id: repMembership.id,
+				territory_id: territoryId
+			}));
+			await supabaseAdmin.from('member_territories').upsert(rows, {
+				onConflict: 'organization_member_id,territory_id',
+				ignoreDuplicates: true
+			});
+		}
+	}
+
 	// Stamp usage telemetry on the invite (use_count, last_used_at).
 	// For single-use invites, the atomic claim above already incremented; for
 	// unlimited invites (max_uses = 0) we still need the legacy counter bump.

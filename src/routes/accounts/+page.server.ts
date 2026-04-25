@@ -67,10 +67,13 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 
 	const [accountsRes, ordersRes, healthMap, tagAssignmentsRes] = await Promise.all([
 		accountsQuery,
+		// YTD totals span every org the viewer can see accounts for. For a BOA,
+		// most account orders are created by the connected rep org (different
+		// organization_id), so a self-org filter would zero them out.
 		supabaseAdmin
 			.from('orders')
 			.select('account_id, total_amount')
-			.eq('organization_id', organization.id)
+			.in('organization_id', visibleOrgIds)
 			.eq('order_year', currentYear),
 		// Health across every org the viewer can see accounts for — so federated
 		// accounts show a score too, computed against their own org's orders.

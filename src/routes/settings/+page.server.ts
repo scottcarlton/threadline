@@ -27,7 +27,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		emailConnected: !!emailRes.data,
 		emailAddress: emailRes.data?.email_address ?? null,
-		notificationPreferences: prefsRes.data ?? null
+		notificationPreferences: prefsRes.data ?? null,
+		isBuyer: locals.isBuyer === true
 	};
 };
 
