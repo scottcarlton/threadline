@@ -61,6 +61,15 @@ export interface Organization {
 	order_minimum_enabled: boolean;
 	order_minimum_amount: number | null;
 	handling_fee_amount: number;
+	taxes_pricing_display: 'exclusive' | 'inclusive';
+	taxes_us_sales_tax_enabled: boolean;
+	taxes_us_ein: string | null;
+	taxes_vat_enabled: boolean;
+	taxes_vat_registration: string | null;
+	taxes_vat_rate: number | null;
+	taxes_gst_enabled: boolean;
+	taxes_gst_registration: string | null;
+	taxes_gst_rate: number | null;
 	shipping_use_business_address: boolean;
 	shipping_from_line1: string | null;
 	shipping_from_line2: string | null;
@@ -72,6 +81,16 @@ export interface Organization {
 	shipping_free_threshold_amount: number | null;
 	default_shipping_method: string | null;
 	default_shipping_method_id: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface OrganizationSalesTaxRate {
+	id: string;
+	organization_id: string;
+	state_code: string;
+	rate: number;
+	tax_type: 'origin' | 'destination';
 	created_at: string;
 	updated_at: string;
 }
