@@ -12,11 +12,18 @@
 
 	let { data } = $props();
 	let showImport = $state(false);
+	// Nx-BLSR users belong to multiple brand-orgs directly (NOT via federation),
+	// so brands from any of their brand-orgs should NOT show the "Connected" badge.
+	// Single-org users fall back to the original behavior: only their active org
+	// counts as "own", any other org's brand is "Connected".
+	const ownOrgIds = $derived(
+		new Set(data.userBrandOrgIds?.length ? data.userBrandOrgIds : [data.organizationId])
+	);
 	const federatedIds = $derived(
 		new Set(
 			data.organizationId
 				? (data.brands as Array<Brand & { resolved_commission_rate?: number }>)
-						.filter((b) => b.organization_id !== data.organizationId)
+						.filter((b) => !ownOrgIds.has(b.organization_id))
 						.map((b) => b.id)
 				: []
 		)

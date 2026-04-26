@@ -64,27 +64,36 @@ export function buildProductPerformanceRows(
  * Calls get_style_velocity_for_brand twice: once for the current window,
  * once for a double-length window. The prior-window subset is the double
  * minus the current, per style.
+ *
+ * Accepts `string | string[]` for `brandOrgId`. For Nx-BLSR (sales role
+ * across multiple brand-orgs), we union the velocity rows from each org
+ * before computing trends. Style numbers are unique within a brand org;
+ * across orgs, identical style numbers get summed (rare but defensible).
  */
 export async function loadProductPerformance(
 	supabase: SupabaseClient,
-	brandOrgId: string,
+	brandOrgIdInput: string | string[],
 	daysBack: number
 ): Promise<ProductPerformanceRow[]> {
-	const [currentRes, doubleRes] = await Promise.all([
-		supabase.rpc('get_style_velocity_for_brand', {
-			brand_org_id: brandOrgId,
-			days_back: daysBack,
-			min_accounts: 1
-		}),
-		supabase.rpc('get_style_velocity_for_brand', {
-			brand_org_id: brandOrgId,
-			days_back: daysBack * 2,
-			min_accounts: 1
-		})
-	]);
+	const ids = Array.isArray(brandOrgIdInput) ? brandOrgIdInput : [brandOrgIdInput];
 
-	const currentAll = (currentRes.data ?? []) as VelocityRow[];
-	const doubleAll = (doubleRes.data ?? []) as VelocityRow[];
+	async function fetchVelocity(window: number) {
+		const batches = await Promise.all(
+			ids.map((id) =>
+				supabase.rpc('get_style_velocity_for_brand', {
+					brand_org_id: id,
+					days_back: window,
+					min_accounts: 1
+				})
+			)
+		);
+		return batches.flatMap((b) => (b.data ?? []) as VelocityRow[]);
+	}
+
+	const [currentAll, doubleAll] = await Promise.all([
+		fetchVelocity(daysBack),
+		fetchVelocity(daysBack * 2)
+	]);
 
 	const currentByStyle = new Map(currentAll.map((r) => [r.style_number, r]));
 	const priorByStyle = new Map<string, VelocityRow>();
