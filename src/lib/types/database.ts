@@ -80,6 +80,18 @@ export interface Organization {
 	shipping_free_threshold_enabled: boolean;
 	shipping_free_threshold_amount: number | null;
 	default_shipping_method: string | null;
+	returns_window_days: number;
+	returns_policy_text: string | null;
+	returns_use_ship_from_address: boolean;
+	returns_address_line1: string | null;
+	returns_address_line2: string | null;
+	returns_address_city: string | null;
+	returns_address_state: string | null;
+	returns_address_zip: string | null;
+	returns_address_country: string | null;
+	returns_restocking_fee_type: 'percent' | 'flat';
+	returns_restocking_fee_value: number;
+	returns_buyer_pays_shipping: boolean;
 	default_shipping_method_id: string | null;
 	created_at: string;
 	updated_at: string;
