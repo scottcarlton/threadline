@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { superValidate } from 'sveltekit-superforms';
+import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { organizationPaymentsSchema } from '$lib/schemas/organization-payments.js';
@@ -42,27 +42,33 @@ export const actions: Actions = {
 		const form = await superValidate(request, zod4(organizationPaymentsSchema));
 		if (!form.valid) return fail(400, { form });
 
-		const update = {
-			payments_processor: form.data.processor,
-			payments_stripe_link_enabled: form.data.stripeLinkEnabled,
-			accepted_payment_methods: form.data.acceptedMethods,
-			default_payment_method: form.data.defaultMethod || null,
-			default_payment_terms: form.data.defaultTerm || null,
-			payments_required_deposit_enabled: form.data.requiredDepositEnabled,
-			payments_required_deposit_percent: form.data.requiredDepositEnabled
-				? form.data.requiredDepositPercent
-				: null,
-			payments_deposit_account_name: form.data.depositAccountName || null,
-			payments_surcharge_pass_to_buyer: form.data.surchargePassToBuyer,
-			updated_at: new Date().toISOString()
-		};
+		try {
+			const update = {
+				payments_processor: form.data.processor,
+				payments_stripe_link_enabled: form.data.stripeLinkEnabled,
+				accepted_payment_methods: form.data.acceptedMethods,
+				default_payment_method: form.data.defaultMethod || null,
+				default_payment_terms: form.data.defaultTerm || null,
+				payments_required_deposit_enabled: form.data.requiredDepositEnabled,
+				payments_required_deposit_percent: form.data.requiredDepositEnabled
+					? form.data.requiredDepositPercent
+					: null,
+				payments_deposit_account_name: form.data.depositAccountName || null,
+				payments_surcharge_pass_to_buyer: form.data.surchargePassToBuyer,
+				updated_at: new Date().toISOString()
+			};
 
-		const { error } = await supabaseAdmin
-			.from('organizations')
-			.update(update)
-			.eq('id', organization.id);
+			const { error } = await supabaseAdmin
+				.from('organizations')
+				.update(update)
+				.eq('id', organization.id);
 
-		if (error) return fail(500, { form, message: error.message });
-		return { form, success: true };
+			if (error) return fail(500, { form, message: error.message });
+			return message(form, { success: true });
+		} catch (err) {
+			console.error('[organization/payments] save threw', err);
+			const detail = err instanceof Error ? err.message : 'Save failed';
+			return fail(500, { form, message: detail });
+		}
 	}
 };

@@ -60,5 +60,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: memberError.message }, { status: 500 });
 	}
 
+	// For brand orgs, the auto_create_self_brand trigger has already inserted
+	// a self-brand row. Set its contact_email to the founding admin's email so
+	// the Profile page defaults to something sensible.
+	if (validOrgType === 'brand' && session.user.email) {
+		await supabaseAdmin
+			.from('brands')
+			.update({ contact_email: session.user.email })
+			.eq('organization_id', org.id)
+			.eq('is_self_brand', true);
+	}
+
 	return json({ organization: org });
 };

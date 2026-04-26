@@ -22,13 +22,16 @@
 		validators: zod4Client(organizationTaxesSchema),
 		validationMethod: 'onblur',
 		dataType: 'json',
-		onUpdated: ({ form }) => {
-			if (form.valid && form.message?.success) {
+		resetForm: false,
+		onResult: ({ result }) => {
+			if (result.type === 'success') {
 				toast.success('Tax settings updated.');
+			} else if (result.type === 'failure') {
+				const msg = (result.data as { message?: string } | undefined)?.message;
+				if (msg) toast.error(msg);
+			} else if (result.type === 'error') {
+				toast.error(result.error?.message ?? 'Failed to save changes.');
 			}
-		},
-		onError: ({ result }) => {
-			toast.error(result.error?.message ?? 'Failed to save changes.');
 		}
 	});
 
@@ -165,12 +168,36 @@
 
 			{#if $form.usSalesTaxEnabled}
 				<div class="space-y-4 border-t pt-4">
-					<div class="space-y-2">
-						<Label for="us-ein">EIN</Label>
-						<Input id="us-ein" bind:value={$form.usEin} placeholder="12-3456789" />
-						{#if $errors.usEin}
-							<p class="text-sm text-destructive">{$errors.usEin[0]}</p>
-						{/if}
+					<div class="grid gap-4 sm:grid-cols-2">
+						<div class="space-y-2">
+							<Label for="us-ein">EIN</Label>
+							<Input id="us-ein" bind:value={$form.usEin} placeholder="12-3456789" />
+							{#if $errors.usEin}
+								<p class="text-sm text-destructive">{$errors.usEin[0]}</p>
+							{/if}
+						</div>
+						<div class="space-y-2">
+							<Label for="us-general-rate">General rate</Label>
+							<div class="flex items-center gap-2">
+								<Input
+									id="us-general-rate"
+									type="number"
+									min={0}
+									max={100}
+									step={0.001}
+									bind:value={$form.usGeneralRate}
+									class="w-32"
+									placeholder="0.000"
+								/>
+								<span class="text-sm text-muted-foreground">%</span>
+							</div>
+							<p class="text-sm text-muted-foreground">
+								Applies when the buyer's state isn't in the per-state rates below.
+							</p>
+							{#if $errors.usGeneralRate}
+								<p class="text-sm text-destructive">{$errors.usGeneralRate[0]}</p>
+							{/if}
+						</div>
 					</div>
 
 					<div class="space-y-2">
