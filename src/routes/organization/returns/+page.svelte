@@ -113,8 +113,9 @@
 						placeholder="What's eligible, how long buyers have, who pays return shipping…"
 					></textarea>
 				{:else if policyHtml}
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					<div class="prose prose-sm max-w-none rounded-md border bg-background p-4">
+						<!-- HTML is sanitized via isomorphic-dompurify above. -->
+						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 						{@html policyHtml}
 					</div>
 				{:else}
