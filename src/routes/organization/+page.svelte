@@ -2,25 +2,90 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
 	import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
+	import { FileUpload } from '$lib/components/ui/file-upload/index.js';
 	import { supabase } from '$lib/supabase.js';
 	import { formatPhone } from '$lib/utils/phone';
+	import { stripProtocol } from '$lib/utils/website';
 	import { PAYMENT_METHODS } from '$lib/payment-methods';
 	import { toast } from 'svelte-sonner';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { brandTermsSchema } from '$lib/schemas/brand-terms.js';
-	import { stripProtocol } from '$lib/utils/website';
+	import { organizationProfileSchema } from '$lib/schemas/organization-profile.js';
 
 	let { data } = $props();
 
 	const org = $derived(data.org);
 	const isBrandOrg = $derived(data.orgType === 'brand');
-	const selfBrand = $derived(data.selfBrand);
 	const canEditTerms = $derived(data.canEditTerms);
 	const currentTerms = $derived(data.currentTerms);
 	const termsHistory = $derived(data.termsHistory);
+
+	const COUNTRIES = [
+		{ value: 'US', label: 'United States' },
+		{ value: 'CA', label: 'Canada' },
+		{ value: 'GB', label: 'United Kingdom' },
+		{ value: 'AU', label: 'Australia' },
+		{ value: 'NZ', label: 'New Zealand' },
+		{ value: 'IE', label: 'Ireland' },
+		{ value: 'DE', label: 'Germany' },
+		{ value: 'FR', label: 'France' },
+		{ value: 'IT', label: 'Italy' },
+		{ value: 'ES', label: 'Spain' },
+		{ value: 'NL', label: 'Netherlands' },
+		{ value: 'SE', label: 'Sweden' },
+		{ value: 'JP', label: 'Japan' },
+		{ value: 'KR', label: 'South Korea' },
+		{ value: 'HK', label: 'Hong Kong' },
+		{ value: 'SG', label: 'Singapore' }
+	];
+
+	const TIME_ZONES = [
+		{ value: 'America/Los_Angeles', label: 'Pacific (Los Angeles)' },
+		{ value: 'America/Denver', label: 'Mountain (Denver)' },
+		{ value: 'America/Chicago', label: 'Central (Chicago)' },
+		{ value: 'America/New_York', label: 'Eastern (New York)' },
+		{ value: 'America/Toronto', label: 'Eastern (Toronto)' },
+		{ value: 'Europe/London', label: 'UK (London)' },
+		{ value: 'Europe/Paris', label: 'Central Europe (Paris)' },
+		{ value: 'Europe/Berlin', label: 'Central Europe (Berlin)' },
+		{ value: 'Asia/Tokyo', label: 'Japan (Tokyo)' },
+		{ value: 'Australia/Sydney', label: 'Australia (Sydney)' }
+	];
+
+	const CURRENCIES = [
+		{ value: 'USD', label: 'USD — US Dollar' },
+		{ value: 'CAD', label: 'CAD — Canadian Dollar' },
+		{ value: 'GBP', label: 'GBP — British Pound' },
+		{ value: 'EUR', label: 'EUR — Euro' },
+		{ value: 'AUD', label: 'AUD — Australian Dollar' },
+		{ value: 'JPY', label: 'JPY — Japanese Yen' }
+	];
+
+	// svelte-ignore state_referenced_locally
+	const profileFormInitial = data.profileForm;
+
+	const {
+		form: profileForm,
+		errors: profileErrors,
+		enhance: profileEnhance,
+		submitting: profileSubmitting
+	} = superForm(profileFormInitial, {
+		validators: zod4Client(organizationProfileSchema),
+		validationMethod: 'onblur',
+		dataType: 'json',
+		onUpdated: ({ form }) => {
+			if (form.valid && form.message?.success) {
+				toast.success('Organization updated.');
+			}
+		},
+		onError: ({ result }) => {
+			toast.error(result.error?.message ?? 'Failed to save changes.');
+		}
+	});
 
 	// svelte-ignore state_referenced_locally
 	// Stale client bundles (post-deploy, pre-reload) occasionally arrive before
@@ -55,42 +120,30 @@
 		}
 	});
 
-	let orgName = $state('');
-	let logoUrl = $state('');
-	let website = $state('');
-	let contactEmail = $state('');
-	let contactPhone = $state('');
-	let addressLine1 = $state('');
-	let addressLine2 = $state('');
-	let city = $state('');
-	let orgState = $state('');
-	let zip = $state('');
-	let defaultCommissionRate = $state(10);
+	// svelte-ignore state_referenced_locally
+	let logoStoragePath = $state(data.org?.logo_storage_path ?? '');
+
+	$effect(() => {
+		logoStoragePath = data.org?.logo_storage_path ?? '';
+	});
+
+	const logoPreviewUrl = $derived.by(() => {
+		if (logoStoragePath) {
+			return supabase.storage.from('organization-logos').getPublicUrl(logoStoragePath).data
+				.publicUrl;
+		}
+		return data.org?.logo_url ?? '';
+	});
 
 	const acceptedMethods = new SvelteSet<string>();
 	let defaultMethod = $state<string | null>(null);
 	let savingPayment = $state(false);
 
 	$effect(() => {
-		orgName = data.org?.name ?? '';
-		logoUrl = data.org?.logo_url ?? '';
-		// Strip legacy protocols when loading existing values so the input
-		// always shows the clean domain form.
-		website = stripProtocol(data.selfBrand?.website);
-		contactEmail = data.selfBrand?.contact_email ?? '';
-		contactPhone = data.selfBrand?.contact_phone ?? '';
-		addressLine1 = data.org?.address_line1 ?? '';
-		addressLine2 = data.org?.address_line2 ?? '';
-		city = data.org?.city ?? '';
-		orgState = data.org?.state ?? '';
-		zip = data.org?.zip ?? '';
-		defaultCommissionRate = data.org?.default_commission_rate ?? 10;
 		acceptedMethods.clear();
 		for (const m of data.org?.accepted_payment_methods ?? []) acceptedMethods.add(m);
 		defaultMethod = data.org?.default_payment_method ?? null;
 	});
-	let saving = $state(false);
-	let message = $state('');
 
 	function toggleMethod(code: string, next: boolean) {
 		if (next) {
@@ -128,52 +181,8 @@
 		toast.success('Payment methods updated.');
 	}
 
-	async function handleSave() {
-		if (!org) return;
-		saving = true;
-		message = '';
-
-		const { error } = await supabase
-			.from('organizations')
-			.update({
-				name: orgName,
-				logo_url: logoUrl || null,
-				address_line1: addressLine1 || null,
-				address_line2: addressLine2 || null,
-				city: city || null,
-				state: orgState || null,
-				zip: zip || null,
-				...(isBrandOrg ? { default_commission_rate: defaultCommissionRate } : {}),
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', org.id);
-
-		if (error) {
-			message = 'Failed to save changes.';
-			saving = false;
-			return;
-		}
-
-		if (isBrandOrg && selfBrand?.id) {
-			const cleanWebsite = stripProtocol(website);
-			website = cleanWebsite;
-			const { error: brandErr } = await supabase
-				.from('brands')
-				.update({
-					website: cleanWebsite || null,
-					contact_email: contactEmail || null,
-					contact_phone: contactPhone || null
-				})
-				.eq('id', selfBrand.id);
-			if (brandErr) {
-				message = 'Org saved, but brand details failed.';
-				saving = false;
-				return;
-			}
-		}
-
-		message = 'Organization updated successfully.';
-		saving = false;
+	function onWebsiteBlur() {
+		$profileForm.website = stripProtocol($profileForm.website);
 	}
 </script>
 
@@ -183,100 +192,194 @@
 		<p class="mt-0.5 text-sm text-muted-foreground">Your organization name and branding</p>
 	</div>
 
-	<div class="border-b pb-6">
-		<div class="mt-6 space-y-4">
-			<div class="space-y-2">
-				<Label for="org-name">Organization Name</Label>
-				<Input id="org-name" bind:value={orgName} placeholder="Your organization name" />
-			</div>
-			<div class="space-y-2">
-				<Label for="logo-url">Logo URL</Label>
-				<Input id="logo-url" bind:value={logoUrl} placeholder="https://example.com/logo.png" />
-			</div>
-			{#if logoUrl}
-				<div class="space-y-2">
-					<p class="mb-2 text-sm font-medium text-muted-foreground">Preview</p>
-					<img src={logoUrl} alt="Organization logo" class="h-14 w-14 rounded-md object-cover" />
-				</div>
-			{/if}
+	<form method="POST" use:profileEnhance class="space-y-8 border-b pb-6">
+		<!-- Identity -->
+		<section class="space-y-4">
+			<h3 class="text-sm font-semibold">Identity</h3>
 
-			{#if isBrandOrg}
+			<div class="space-y-2">
+				<Label>Logo</Label>
+				<FileUpload
+					bind:value={logoStoragePath}
+					previewUrl={logoPreviewUrl}
+					endpoint="/api/organization/logo"
+					accept="image/*"
+					ariaLabel="Upload organization logo"
+				/>
+			</div>
+
+			<div class="space-y-2">
+				<Label for="org-name">Organization name *</Label>
+				<Input
+					id="org-name"
+					bind:value={$profileForm.name}
+					aria-invalid={$profileErrors.name ? 'true' : undefined}
+					placeholder="Your organization name"
+				/>
+				{#if $profileErrors.name}
+					<p class="text-sm text-destructive">{$profileErrors.name[0]}</p>
+				{/if}
+			</div>
+
+			<div class="space-y-2">
+				<Label for="legal-name">Legal business name</Label>
+				<Input
+					id="legal-name"
+					bind:value={$profileForm.legalBusinessName}
+					placeholder="Acme Industries, Inc."
+				/>
+				{#if $profileErrors.legalBusinessName}
+					<p class="text-sm text-destructive">{$profileErrors.legalBusinessName[0]}</p>
+				{/if}
+			</div>
+
+			<div class="space-y-2">
+				<Label for="tagline">Tagline</Label>
+				<Input
+					id="tagline"
+					bind:value={$profileForm.tagline}
+					maxlength={80}
+					placeholder="Short line about what you do"
+				/>
+				{#if $profileErrors.tagline}
+					<p class="text-sm text-destructive">{$profileErrors.tagline[0]}</p>
+				{/if}
+			</div>
+		</section>
+
+		{#if isBrandOrg}
+			<!-- Contact -->
+			<section class="space-y-4">
+				<h3 class="text-sm font-semibold">Contact</h3>
+
 				<div class="space-y-2">
 					<Label for="website">Website</Label>
-					<Input id="website" bind:value={website} placeholder="yourbrand.com" />
+					<Input
+						id="website"
+						bind:value={$profileForm.website}
+						placeholder="yourbrand.com"
+						onblur={onWebsiteBlur}
+					/>
+					{#if $profileErrors.website}
+						<p class="text-sm text-destructive">{$profileErrors.website[0]}</p>
+					{/if}
 				</div>
+
 				<div class="space-y-2">
 					<Label for="contact-email">Contact email</Label>
 					<Input
 						id="contact-email"
 						type="email"
-						bind:value={contactEmail}
+						bind:value={$profileForm.contactEmail}
 						placeholder="hello@yourbrand.com"
 					/>
+					{#if $profileErrors.contactEmail}
+						<p class="text-sm text-destructive">{$profileErrors.contactEmail[0]}</p>
+					{/if}
 				</div>
+
 				<div class="space-y-2">
 					<Label for="contact-phone">Contact phone</Label>
 					<Input
 						id="contact-phone"
-						bind:value={contactPhone}
+						bind:value={$profileForm.contactPhone}
 						placeholder="(555) 123-4567"
 						oninput={(e) =>
-							(contactPhone = formatPhone((e.currentTarget as HTMLInputElement).value))}
+							($profileForm.contactPhone = formatPhone(
+								(e.currentTarget as HTMLInputElement).value
+							))}
 					/>
+					{#if $profileErrors.contactPhone}
+						<p class="text-sm text-destructive">{$profileErrors.contactPhone[0]}</p>
+					{/if}
 				</div>
-				<div class="space-y-2">
-					<Label for="default-commission-rate">Default commission rate</Label>
-					<div class="flex items-center gap-2">
-						<Input
-							id="default-commission-rate"
-							type="number"
-							min={0}
-							max={100}
-							step={0.25}
-							bind:value={defaultCommissionRate}
-							class="w-28"
-						/>
-						<span class="text-sm text-muted-foreground">%</span>
-					</div>
-					<p class="text-sm text-muted-foreground">
-						Pre-selected when sharing your connect link with reps.
-					</p>
-				</div>
+			</section>
+		{/if}
 
-				<div class="space-y-2">
-					<Label for="address-line1">Address</Label>
-					<Input id="address-line1" bind:value={addressLine1} placeholder="123 Main St" />
-				</div>
-				<div class="space-y-2">
-					<Label for="address-line2">Address line 2</Label>
-					<Input id="address-line2" bind:value={addressLine2} placeholder="Suite 100" />
-				</div>
-				<div class="grid grid-cols-[1fr_80px_100px] gap-3">
-					<div class="space-y-2">
-						<Label for="city">City</Label>
-						<Input id="city" bind:value={city} placeholder="New York" />
-					</div>
-					<div class="space-y-2">
-						<Label for="state">State</Label>
-						<Input id="state" bind:value={orgState} placeholder="NY" />
-					</div>
-					<div class="space-y-2">
-						<Label for="zip">ZIP</Label>
-						<Input id="zip" bind:value={zip} placeholder="10001" />
-					</div>
-				</div>
-			{/if}
-		</div>
+		<!-- Business address -->
+		<section class="space-y-4">
+			<h3 class="text-sm font-semibold">Business address</h3>
 
-		<div class="mt-6 flex items-center gap-3">
-			<Button onclick={handleSave} disabled={saving}>
-				{saving ? 'Saving...' : 'Save changes'}
+			<div class="space-y-2">
+				<Label for="address-line1">Address line 1</Label>
+				<Input
+					id="address-line1"
+					bind:value={$profileForm.addressLine1}
+					placeholder="123 Main St"
+				/>
+			</div>
+
+			<div class="space-y-2">
+				<Label for="address-line2">Address line 2</Label>
+				<Input id="address-line2" bind:value={$profileForm.addressLine2} placeholder="Suite 100" />
+			</div>
+
+			<div class="grid grid-cols-[1fr_80px_100px] gap-3">
+				<div class="space-y-2">
+					<Label for="city">City</Label>
+					<Input id="city" bind:value={$profileForm.city} placeholder="New York" />
+				</div>
+				<div class="space-y-2">
+					<Label for="state">State</Label>
+					<Input id="state" bind:value={$profileForm.state} placeholder="NY" />
+				</div>
+				<div class="space-y-2">
+					<Label for="zip">ZIP</Label>
+					<Input id="zip" bind:value={$profileForm.zip} placeholder="10001" />
+				</div>
+			</div>
+
+			<div class="space-y-2">
+				<Label for="country">Country</Label>
+				<SelectField
+					bind:value={$profileForm.country}
+					items={COUNTRIES}
+					placeholder="Select a country"
+					class="w-full"
+				/>
+				{#if $profileErrors.country}
+					<p class="text-sm text-destructive">{$profileErrors.country[0]}</p>
+				{/if}
+			</div>
+		</section>
+
+		<!-- Regional defaults -->
+		<section class="space-y-4">
+			<h3 class="text-sm font-semibold">Regional defaults</h3>
+
+			<div class="space-y-2">
+				<Label for="time-zone">Time zone</Label>
+				<SelectField
+					bind:value={$profileForm.timeZone}
+					items={TIME_ZONES}
+					placeholder="Select a time zone"
+					class="w-full"
+				/>
+				{#if $profileErrors.timeZone}
+					<p class="text-sm text-destructive">{$profileErrors.timeZone[0]}</p>
+				{/if}
+			</div>
+
+			<div class="space-y-2">
+				<Label for="currency">Currency</Label>
+				<SelectField
+					bind:value={$profileForm.currencyCode}
+					items={CURRENCIES}
+					placeholder="Select a currency"
+					class="w-full"
+				/>
+				{#if $profileErrors.currencyCode}
+					<p class="text-sm text-destructive">{$profileErrors.currencyCode[0]}</p>
+				{/if}
+			</div>
+		</section>
+
+		<div>
+			<Button type="submit" disabled={$profileSubmitting}>
+				{$profileSubmitting ? 'Saving…' : 'Save changes'}
 			</Button>
-			{#if message}
-				<p class="text-sm text-muted-foreground">{message}</p>
-			{/if}
 		</div>
-	</div>
+	</form>
 
 	<div class={canEditTerms ? 'border-b pb-6' : ''}>
 		<div>
