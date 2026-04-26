@@ -81,6 +81,14 @@ export interface Organization {
 	shipping_free_threshold_amount: number | null;
 	default_shipping_method: string | null;
 	default_shipping_method_id: string | null;
+	payments_processor: 'stripe' | 'manual';
+	payments_stripe_account_id: string | null;
+	payments_stripe_link_enabled: boolean;
+	payments_required_deposit_enabled: boolean;
+	payments_required_deposit_percent: number | null;
+	payments_deposit_account_name: string | null;
+	payments_deposit_account_last4: string | null;
+	payments_surcharge_pass_to_buyer: boolean;
 	created_at: string;
 	updated_at: string;
 }
