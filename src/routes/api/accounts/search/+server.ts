@@ -1,27 +1,39 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
 
 // Account search with federation awareness. Returns accounts owned by the
 // viewer's org OR by any org with an active connection to the viewer's org.
+// Nx-BLSR (sales-role member of 2+ brand-orgs): "own org" is the union of
+// every brand-org they belong to so accounts from any of those brands
+// surface here. Federation expands across that union too.
 export const GET: RequestHandler = async ({ locals, url }) => {
-	const { organization } = locals;
+	const { organization, allMemberships } = locals;
 	if (!organization) throw error(401, 'No organization context');
 
 	const q = (url.searchParams.get('q') ?? '').trim();
 	const limit = Math.min(Number(url.searchParams.get('limit') ?? 30), 100);
 
-	// Collect viewer's org + active-connection orgs (both directions).
+	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
+	const nxBlsr = isNxBlsr(brandOrgIds);
+	const ownOrgIds = nxBlsr ? brandOrgIds : [organization.id];
+	const ownOrgIdSet = new Set(ownOrgIds);
+
+	// Collect viewer's org(s) + active-connection orgs (both directions).
+	const orFilter = ownOrgIds
+		.flatMap((id) => [`rep_org_id.eq.${id}`, `brand_org_id.eq.${id}`])
+		.join(',');
 	const { data: conns } = await supabaseAdmin
 		.from('org_connections')
 		.select('rep_org_id, brand_org_id')
 		.eq('status', 'active')
-		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
+		.or(orFilter);
 
-	const orgIds = new Set<string>([organization.id]);
+	const orgIds = new Set<string>(ownOrgIds);
 	for (const c of conns ?? []) {
-		if (c.rep_org_id && c.rep_org_id !== organization.id) orgIds.add(c.rep_org_id);
-		if (c.brand_org_id && c.brand_org_id !== organization.id) orgIds.add(c.brand_org_id);
+		if (c.rep_org_id && !ownOrgIdSet.has(c.rep_org_id)) orgIds.add(c.rep_org_id);
+		if (c.brand_org_id && !ownOrgIdSet.has(c.brand_org_id)) orgIds.add(c.brand_org_id);
 	}
 
 	let query = supabaseAdmin

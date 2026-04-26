@@ -14,9 +14,10 @@ import { notifyBrandAdmins } from '$lib/server/notifications.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isPaymentPreferenceCode } from '$lib/payment-methods';
 import { finalizeSchema, type FinalizeInput } from '$lib/schemas/order-finalize';
+import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const { organization, user } = locals;
+	const { organization, user, allMemberships } = locals;
 
 	if (!organization) {
 		return {
@@ -60,25 +61,36 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const buyerBrandIds = isBuyer ? (locals.buyerBrandIds ?? []) : null;
 	const isBrandOrg = locals.orgType === 'brand';
 
-	// Federation-aware org set: own org + active connections (both directions).
+	// Nx-BLSR: own-org set is the union of every brand-org they're a sales-role
+	// member of (NOT a federation connection — these are direct memberships).
+	// Everyone else: just the active organization id (existing behavior).
+	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
+	const nxBlsr = isNxBlsr(brandOrgIds);
+	const ownOrgIds = nxBlsr ? brandOrgIds : [organization.id];
+	const ownOrgIdSet = new Set(ownOrgIds);
+
+	// Federation-aware org set: own org(s) + active connections (both directions).
 	// Classify the other side of each connection so the rep picker can apply
 	// the right role filter (connected brand org → sales only (BLSR);
 	// connected rep org → admin or sales).
+	const orFilter = ownOrgIds
+		.flatMap((id) => [`rep_org_id.eq.${id}`, `brand_org_id.eq.${id}`])
+		.join(',');
 	const { data: conns } = await supabaseAdmin
 		.from('org_connections')
 		.select('rep_org_id, brand_org_id')
 		.eq('status', 'active')
-		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
-	const visibleOrgIdSet = new Set<string>([organization.id]);
+		.or(orFilter);
+	const visibleOrgIdSet = new Set<string>(ownOrgIds);
 	const connectedBrandOrgIds = new Set<string>();
 	const connectedRepOrgIds = new Set<string>();
 	for (const c of conns ?? []) {
-		if (c.rep_org_id && c.rep_org_id !== organization.id) visibleOrgIdSet.add(c.rep_org_id);
-		if (c.brand_org_id && c.brand_org_id !== organization.id) visibleOrgIdSet.add(c.brand_org_id);
-		if (c.rep_org_id === organization.id && c.brand_org_id) {
+		if (c.rep_org_id && !ownOrgIdSet.has(c.rep_org_id)) visibleOrgIdSet.add(c.rep_org_id);
+		if (c.brand_org_id && !ownOrgIdSet.has(c.brand_org_id)) visibleOrgIdSet.add(c.brand_org_id);
+		if (c.rep_org_id && ownOrgIdSet.has(c.rep_org_id) && c.brand_org_id) {
 			connectedBrandOrgIds.add(c.brand_org_id);
 		}
-		if (c.brand_org_id === organization.id && c.rep_org_id) {
+		if (c.brand_org_id && ownOrgIdSet.has(c.brand_org_id) && c.rep_org_id) {
 			connectedRepOrgIds.add(c.rep_org_id);
 		}
 	}
@@ -96,7 +108,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.select('rep_org_id, brand_org_id')
 			.eq('status', 'active')
 			.in('brand_org_id', Array.from(connectedBrandOrgIds))
-			.neq('rep_org_id', organization.id);
+			.not('rep_org_id', 'in', `(${ownOrgIds.join(',')})`);
 		for (const sc of siblingConns ?? []) {
 			if (sc.rep_org_id) {
 				repVisibleOrgIdSet.add(sc.rep_org_id);
@@ -160,13 +172,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 		supabaseAdmin
 			.from('source_types')
 			.select('id, name, sort_order')
-			.eq('organization_id', organization.id)
+			.in('organization_id', ownOrgIds)
 			.eq('is_active', true)
 			.order('sort_order'),
 		supabaseAdmin
 			.from('show_dates')
 			.select('id, show_id, year, month, city, state, venue, shows!inner(name, is_active)')
-			.eq('organization_id', organization.id)
+			.in('organization_id', ownOrgIds)
 			.eq('shows.is_active', true)
 			.order('year', { ascending: false })
 			.order('month', { ascending: false }),
