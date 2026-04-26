@@ -39,9 +39,15 @@ export const POST: RequestHandler = async ({ request }) => {
 	const expenseId = uploadToken.expense_id;
 	const orgId = uploadToken.organization_id;
 
-	// Upload file to storage
+	// Upload file to storage. Storage keys must avoid spaces and unsafe
+	// characters or the upload silently 400s with an opaque "Invalid key" message.
+	const safeName = (file.name || 'receipt')
+		.normalize('NFKD')
+		.replace(/[^a-zA-Z0-9.\-_]/g, '-')
+		.replace(/-+/g, '-')
+		.toLowerCase();
 	const timestamp = Date.now();
-	const filePath = `${orgId}/${expenseId}/${timestamp}-${file.name}`;
+	const filePath = `${orgId}/${expenseId}/${timestamp}-${safeName}`;
 
 	const arrayBuffer = await file.arrayBuffer();
 	const buffer = Buffer.from(arrayBuffer);
@@ -54,6 +60,14 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 
 	if (uploadError) {
+		console.error('[upload/receipt] storage upload failed', {
+			expenseId,
+			orgId,
+			filePath,
+			fileSize: file.size,
+			mime: file.type,
+			error: uploadError
+		});
 		return json({ error: 'Upload failed: ' + uploadError.message }, { status: 500 });
 	}
 
@@ -73,6 +87,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		.single();
 
 	if (dbError) {
+		console.error('[upload/receipt] db insert failed', {
+			expenseId,
+			orgId,
+			filePath,
+			error: dbError
+		});
 		await supabaseAdmin.storage.from('expense-receipts').remove([filePath]);
 		return json({ error: 'Failed to save receipt: ' + dbError.message }, { status: 500 });
 	}

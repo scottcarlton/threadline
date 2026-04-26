@@ -7,6 +7,7 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
+	import { stripProtocol, withProtocol } from '$lib/utils/website';
 
 	let { data } = $props();
 
@@ -151,11 +152,10 @@
 						<dt class="text-muted-foreground">Website</dt>
 						<dd>
 							<a
-								href={contact.website}
+								href={withProtocol(contact.website)}
 								target="_blank"
 								rel="external noopener noreferrer"
-								class="text-primary hover:underline"
-								>{contact.website.replace(/^https?:\/\//, '')}</a
+								class="text-primary hover:underline">{stripProtocol(contact.website)}</a
 							>
 						</dd>
 					</div>

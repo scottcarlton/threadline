@@ -219,6 +219,12 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 
 	const canEditAccount = account.organization_id === organization.id;
 
+	const { data: shippingMethodsData } = await supabase
+		.from('organization_shipping_methods')
+		.select('id, name')
+		.eq('organization_id', account.organization_id)
+		.order('name', { ascending: true });
+
 	return {
 		account,
 		brandSummaries,
@@ -234,7 +240,8 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		canEditAccount,
 		acceptedPaymentMethods: canEditAccount
 			? ((organization.accepted_payment_methods ?? []) as string[])
-			: ([] as string[])
+			: ([] as string[]),
+		shippingMethods: (shippingMethodsData ?? []) as Array<{ id: string; name: string }>
 	};
 };
 

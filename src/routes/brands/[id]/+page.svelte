@@ -4,6 +4,7 @@
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { formatPhone } from '$lib/utils/phone';
+	import { stripProtocol, withProtocol } from '$lib/utils/website';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -179,7 +180,7 @@
 		contactLastName = brand.contact_last_name ?? '';
 		contactEmail = brand.contact_email ?? '';
 		contactPhone = brand.contact_phone ?? '';
-		website = brand.website ?? '';
+		website = stripProtocol(brand.website);
 		commissionRate = String(brand.commission_rate ?? 0);
 		notes = brand.notes ?? '';
 		editing = true;
@@ -189,6 +190,8 @@
 		error = '';
 		loading = true;
 
+		const cleanWebsite = stripProtocol(website);
+		website = cleanWebsite;
 		const { error: err } = await supabase
 			.from('brands')
 			.update({
@@ -197,7 +200,7 @@
 				contact_last_name: contactLastName || null,
 				contact_email: contactEmail || null,
 				contact_phone: contactPhone || null,
-				website: website || null,
+				website: cleanWebsite || null,
 				commission_rate: parseFloat(commissionRate) || 0,
 				notes: notes || null,
 				updated_at: new Date().toISOString()
@@ -252,12 +255,12 @@
 		</div>
 		{#if brand.website}
 			<a
-				href={brand.website}
+				href={withProtocol(brand.website)}
 				target="_blank"
 				rel="external noopener noreferrer"
 				class="text-sm text-muted-foreground hover:text-foreground hover:underline"
 			>
-				{brand.website}
+				{stripProtocol(brand.website)}
 			</a>
 		{/if}
 	</div>
@@ -392,7 +395,7 @@
 								</div>
 								<div class="space-y-2">
 									<Label for="website">Website</Label>
-									<Input id="website" bind:value={website} />
+									<Input id="website" bind:value={website} placeholder="yourbrand.com" />
 								</div>
 							</div>
 							{#if isAdmin}

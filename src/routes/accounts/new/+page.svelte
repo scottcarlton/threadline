@@ -183,7 +183,7 @@
 								id="website"
 								bind:value={$form.business.website}
 								aria-invalid={$errors.business?.website ? 'true' : undefined}
-								placeholder="https://bloom.com"
+								placeholder="bloom.com"
 							/>
 							{#if $errors.business?.website}
 								<p class="text-sm text-destructive">{$errors.business.website[0]}</p>
