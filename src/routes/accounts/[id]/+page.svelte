@@ -284,6 +284,8 @@
 	let accountState = $state('');
 	let zip = $state('');
 	let notes = $state('');
+	let commissionRateOverride = $state('');
+	let orderMinimumOverride = $state('');
 	let error = $state('');
 	let loading = $state(false);
 
@@ -311,12 +313,51 @@
 		accountState = account.state ?? '';
 		zip = account.zip ?? '';
 		notes = account.notes ?? '';
+		commissionRateOverride =
+			account.commission_rate_override === null || account.commission_rate_override === undefined
+				? ''
+				: String(account.commission_rate_override);
+		orderMinimumOverride =
+			account.order_minimum_override === null || account.order_minimum_override === undefined
+				? ''
+				: String(account.order_minimum_override);
 		editing = true;
+	}
+
+	function parseOverrideNumber(raw: string): number | null {
+		const trimmed = raw.trim();
+		if (trimmed === '') return null;
+		const n = Number(trimmed);
+		return Number.isFinite(n) ? n : null;
 	}
 
 	async function handleSave() {
 		error = '';
 		loading = true;
+
+		const commissionOverride = parseOverrideNumber(commissionRateOverride);
+		const minimumOverride = parseOverrideNumber(orderMinimumOverride);
+
+		if (commissionRateOverride.trim() !== '' && commissionOverride === null) {
+			error = 'Commission rate override must be a number or empty';
+			loading = false;
+			return;
+		}
+		if (commissionOverride !== null && (commissionOverride < 0 || commissionOverride > 100)) {
+			error = 'Commission rate override must be between 0 and 100';
+			loading = false;
+			return;
+		}
+		if (orderMinimumOverride.trim() !== '' && minimumOverride === null) {
+			error = 'Order minimum override must be a number or empty';
+			loading = false;
+			return;
+		}
+		if (minimumOverride !== null && minimumOverride < 0) {
+			error = 'Order minimum override must be 0 or more';
+			loading = false;
+			return;
+		}
 
 		const { error: err } = await supabase
 			.from('accounts')
@@ -332,6 +373,8 @@
 				state: accountState || null,
 				zip: zip || null,
 				notes: notes || null,
+				commission_rate_override: commissionOverride,
+				order_minimum_override: minimumOverride,
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', account.id);
@@ -501,6 +544,48 @@
 									class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 								></textarea>
 							</div>
+
+							<div class="space-y-3 border-t pt-4">
+								<div>
+									<p class="text-sm font-medium">Order overrides</p>
+									<p class="mt-0.5 text-sm text-muted-foreground">
+										Leave blank to use the org defaults from /organization/orders.
+									</p>
+								</div>
+								<div class="grid gap-4 sm:grid-cols-2">
+									<div class="space-y-2">
+										<Label for="commission-override">Commission rate</Label>
+										<div class="flex items-center gap-2">
+											<Input
+												id="commission-override"
+												type="number"
+												min={0}
+												max={100}
+												step={0.25}
+												bind:value={commissionRateOverride}
+												placeholder="—"
+												class="w-28"
+											/>
+											<span class="text-sm text-muted-foreground">%</span>
+										</div>
+									</div>
+									<div class="space-y-2">
+										<Label for="minimum-override">Order minimum</Label>
+										<div class="flex items-center gap-2">
+											<span class="text-sm text-muted-foreground">$</span>
+											<Input
+												id="minimum-override"
+												type="number"
+												min={0}
+												step={0.01}
+												bind:value={orderMinimumOverride}
+												placeholder="—"
+												class="w-40"
+											/>
+										</div>
+									</div>
+								</div>
+							</div>
 						</form>
 					{:else}
 						<dl class="space-y-4">
@@ -565,6 +650,19 @@
 								<div>
 									<dt class="text-sm font-medium text-muted-foreground">Notes</dt>
 									<dd class="mt-1 whitespace-pre-wrap">{account.notes}</dd>
+								</div>
+							{/if}
+							{#if account.commission_rate_override !== null || account.order_minimum_override !== null}
+								<div>
+									<dt class="text-sm font-medium text-muted-foreground">Order overrides</dt>
+									<dd class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+										{#if account.commission_rate_override !== null}
+											<span>{account.commission_rate_override}% commission</span>
+										{/if}
+										{#if account.order_minimum_override !== null}
+											<span>${account.order_minimum_override} minimum</span>
+										{/if}
+									</dd>
 								</div>
 							{/if}
 						</dl>
