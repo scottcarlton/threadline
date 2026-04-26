@@ -22,14 +22,25 @@
 		validators: zod4Client(organizationOrdersSchema),
 		validationMethod: 'onblur',
 		dataType: 'json',
-		onUpdated: ({ form }) => {
-			if (form.valid && form.message?.success) {
+		resetForm: false,
+		onResult: ({ result }) => {
+			if (result.type === 'success') {
 				toast.success('Order defaults updated.');
+			} else if (result.type === 'failure') {
+				const msg = (result.data as { message?: string } | undefined)?.message;
+				if (msg) toast.error(msg);
+			} else if (result.type === 'error') {
+				toast.error(result.error?.message ?? 'Failed to save changes.');
 			}
-		},
-		onError: ({ result }) => {
-			toast.error(result.error?.message ?? 'Failed to save changes.');
 		}
+	});
+
+	const sampleOrderNumber = $derived.by(() => {
+		const padded =
+			$form.orderNumberPadWidth > 0
+				? String($form.nextOrderNumber).padStart($form.orderNumberPadWidth, '0')
+				: String($form.nextOrderNumber);
+		return `${$form.orderNumberPrefix}${padded}`;
 	});
 
 	// svelte-ignore state_referenced_locally
@@ -78,7 +89,7 @@
 		<!-- Order number format -->
 		<section class="space-y-4">
 			<h3 class="text-sm font-semibold">Order number format</h3>
-			<div class="grid grid-cols-[120px_1fr] gap-3">
+			<div class="grid grid-cols-[120px_1fr_120px] gap-3">
 				<div class="space-y-2">
 					<Label for="prefix">Prefix</Label>
 					<Input
@@ -106,9 +117,27 @@
 						<p class="text-sm text-destructive">{$errors.nextOrderNumber[0]}</p>
 					{/if}
 				</div>
+				<div class="space-y-2">
+					<Label for="pad-width">Pad to digits</Label>
+					<Input
+						id="pad-width"
+						type="number"
+						min={0}
+						max={12}
+						step={1}
+						bind:value={$form.orderNumberPadWidth}
+						aria-invalid={$errors.orderNumberPadWidth ? 'true' : undefined}
+					/>
+					{#if $errors.orderNumberPadWidth}
+						<p class="text-sm text-destructive">{$errors.orderNumberPadWidth[0]}</p>
+					{/if}
+				</div>
 			</div>
 			<p class="text-sm text-muted-foreground">
-				Sample: <span class="font-mono">{$form.orderNumberPrefix}{$form.nextOrderNumber}</span>
+				Sample: <span class="font-mono">{sampleOrderNumber}</span>
+				<span class="ml-2 text-muted-foreground">
+					(0 in "Pad to digits" disables zero-padding)
+				</span>
 			</p>
 		</section>
 

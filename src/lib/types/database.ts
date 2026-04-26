@@ -58,10 +58,12 @@ export interface Organization {
 	default_commission_rate: number;
 	order_number_prefix: string;
 	next_order_number: number;
+	order_number_pad_width: number;
 	order_minimum_enabled: boolean;
 	order_minimum_amount: number | null;
 	handling_fee_amount: number;
 	taxes_pricing_display: 'exclusive' | 'inclusive';
+	taxes_us_general_rate: number | null;
 	taxes_us_sales_tax_enabled: boolean;
 	taxes_us_ein: string | null;
 	taxes_vat_enabled: boolean;

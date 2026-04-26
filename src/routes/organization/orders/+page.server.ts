@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { superValidate } from 'sveltekit-superforms';
+import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { organizationOrdersSchema } from '$lib/schemas/organization-orders.js';
@@ -31,6 +31,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	if (organization) {
 		form.data.orderNumberPrefix = organization.order_number_prefix ?? '';
 		form.data.nextOrderNumber = organization.next_order_number ?? 1;
+		form.data.orderNumberPadWidth = organization.order_number_pad_width ?? 0;
 		form.data.orderMinimumEnabled = organization.order_minimum_enabled ?? false;
 		form.data.orderMinimumAmount = Number(organization.order_minimum_amount ?? 0);
 		form.data.defaultCommissionRate = Number(organization.default_commission_rate ?? 10);
@@ -99,24 +100,31 @@ export const actions: Actions = {
 		const form = await superValidate(request, zod4(organizationOrdersSchema));
 		if (!form.valid) return fail(400, { form });
 
-		const update = {
-			order_number_prefix: form.data.orderNumberPrefix,
-			next_order_number: form.data.nextOrderNumber,
-			order_minimum_enabled: form.data.orderMinimumEnabled,
-			order_minimum_amount: form.data.orderMinimumEnabled ? form.data.orderMinimumAmount : null,
-			default_commission_rate: form.data.defaultCommissionRate,
-			handling_fee_amount: form.data.handlingFeeAmount,
-			updated_at: new Date().toISOString()
-		};
+		try {
+			const update = {
+				order_number_prefix: form.data.orderNumberPrefix,
+				next_order_number: form.data.nextOrderNumber,
+				order_number_pad_width: form.data.orderNumberPadWidth,
+				order_minimum_enabled: form.data.orderMinimumEnabled,
+				order_minimum_amount: form.data.orderMinimumEnabled ? form.data.orderMinimumAmount : null,
+				default_commission_rate: form.data.defaultCommissionRate,
+				handling_fee_amount: form.data.handlingFeeAmount,
+				updated_at: new Date().toISOString()
+			};
 
-		const { error } = await supabaseAdmin
-			.from('organizations')
-			.update(update)
-			.eq('id', organization.id);
+			const { error } = await supabaseAdmin
+				.from('organizations')
+				.update(update)
+				.eq('id', organization.id);
 
-		if (error) return fail(500, { form, message: error.message });
+			if (error) return fail(500, { form, message: error.message });
 
-		return { form, success: true };
+			return message(form, { success: true });
+		} catch (err) {
+			console.error('[organization/orders] save threw', err);
+			const detail = err instanceof Error ? err.message : 'Save failed';
+			return fail(500, { form, message: detail });
+		}
 	},
 
 	saveTerms: async ({ request, locals }) => {
@@ -158,6 +166,6 @@ export const actions: Actions = {
 		});
 		if (insertErr) return fail(500, { form, message: insertErr.message });
 
-		return { form, success: true };
+		return message(form, { success: true });
 	}
 };

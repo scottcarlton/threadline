@@ -20,6 +20,7 @@ export const organizationTaxesSchema = z.object({
 
 	usSalesTaxEnabled: z.boolean().default(false),
 	usEin: optShortString,
+	usGeneralRate: optRate,
 
 	vatEnabled: z.boolean().default(false),
 	vatRegistration: optShortString,
