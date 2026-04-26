@@ -67,15 +67,23 @@ export function mapAccountPenetrationRow(raw: RawRow): AccountPenetrationRow {
  * current-year activity vs. prior-year revenue for trend. "Dormant"
  * rows are accounts with zero current-year orders.
  */
+/**
+ * Accepts `string | string[]` for `brandOrgId`. Nx-BLSR: union per brand-org;
+ * an account that orders both Brand A and Brand B surfaces as two separate
+ * rows (one per brand-org) so per-brand activity stays distinguishable.
+ */
 export async function loadAccountPenetration(
 	supabase: SupabaseClient,
-	brandOrgId: string,
+	brandOrgIdInput: string | string[],
 	year: number
 ): Promise<AccountPenetrationRow[]> {
-	const { data, error } = await supabase.rpc('get_brand_account_penetration', {
-		brand_org_id: brandOrgId,
-		p_year: year
-	});
-	if (error) throw error;
-	return ((data ?? []) as RawRow[]).map(mapAccountPenetrationRow);
+	const ids = Array.isArray(brandOrgIdInput) ? brandOrgIdInput : [brandOrgIdInput];
+	const batches = await Promise.all(
+		ids.map((id) =>
+			supabase.rpc('get_brand_account_penetration', { brand_org_id: id, p_year: year })
+		)
+	);
+	const firstError = batches.find((b) => b.error)?.error;
+	if (firstError) throw firstError;
+	return batches.flatMap((b) => ((b.data ?? []) as RawRow[]).map(mapAccountPenetrationRow));
 }

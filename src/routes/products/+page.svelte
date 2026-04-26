@@ -32,7 +32,12 @@
 	};
 
 	let { data } = $props();
-	const brand = $derived(data.brand as { id: string; name: string });
+	// Single-brand mode: data.brand is the org's self-brand. Multi-brand mode
+	// (Nx-BLSR — sales-role member of 2+ brand-orgs): data.brand is null and
+	// data.brands is the union. Product cards use product.brand_id directly so
+	// links work in both modes.
+	const brand = $derived(data.brand as { id: string; name: string } | null);
+	const isMultiBrand = $derived(brand === null);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
 	const canEdit = $derived(['admin', 'owner', 'member'].includes(data.membership?.role ?? ''));
 
@@ -104,7 +109,10 @@
 			const params = new URLSearchParams();
 			params.set('offset', String(productList.length));
 			params.set('limit', String(PAGE_SIZE));
-			params.append('brand_id', brand.id);
+			// Multi-brand mode (Nx-BLSR): append every self-brand id so the API
+			// pulls products across all of them. Single-brand: append the one.
+			const allBrandIds = (data.brands ?? []).map((b) => b.id);
+			for (const id of allBrandIds) params.append('brand_id', id);
 			if (search) params.set('q', search);
 			if (seasonFilter) params.append('season_id', seasonFilter);
 			if (categoryFilter) params.set('category', categoryFilter);
@@ -152,6 +160,9 @@
 	): Promise<{ success: number; errors: string[] }> {
 		let success = 0;
 		const errors: string[] = [];
+		// Bulk import is single-brand only — the UI button is hidden in multi-brand
+		// mode, but defend against direct callers.
+		if (!brand) return { success: 0, errors: ['Bulk import requires a single active brand.'] };
 		for (let i = 0; i < rows.length; i++) {
 			const row = rows[i];
 			if (!row.style_number?.trim() || !row.name?.trim()) {
@@ -246,9 +257,9 @@
 			? 's'
 			: ''}"
 	>
-		{#if canEdit}
+		{#if canEdit && !isMultiBrand && brand}
 			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
-			<Button href="/brands/{brand.id}/products/new">
+			<Button href="/products/new">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"
@@ -342,7 +353,7 @@
 				{@const primaryImage =
 					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 				<a
-					href={resolve(`/brands/${brand.id}/products/${product.id}`)}
+					href={resolve(`/products/${product.id}`)}
 					class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md {product.archived_at
 						? 'opacity-50'
 						: ''}"

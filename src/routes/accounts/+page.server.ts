@@ -3,13 +3,14 @@ import type { PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { loadManagerScope } from '$lib/server/scoping.js';
+import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
 
 const PAGE_SIZE = 50;
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('data:accounts');
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
-	const { organization } = locals;
+	const { organization, allMemberships } = locals;
 	if (!organization)
 		return { accounts: [], hasMore: false, totalCount: 0, accountTotals: {}, accountHealth: {} };
 
@@ -17,18 +18,30 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 
 	const currentYear = new Date().getFullYear();
 
+	// Nx-BLSR: own-org set is the union of every brand-org they're a sales-role
+	// member of, NOT just the currently-active org. Federation is then layered
+	// on top of that union (Brand A's connected reps + Brand B's connected reps
+	// both surface). For everyone else, ownOrgIds = [organization.id] — the
+	// existing single-org behavior is preserved as a strict superset.
+	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
+	const nxBlsr = isNxBlsr(brandOrgIds);
+	const ownOrgIds = nxBlsr ? brandOrgIds : [organization.id];
+
 	// Build the list of org IDs this user can see accounts for:
-	// own org + any org connected via an active org_connections row (either direction).
+	// own org(s) + any org connected via an active org_connections row (either direction).
+	const orFilter = ownOrgIds
+		.flatMap((id) => [`rep_org_id.eq.${id}`, `brand_org_id.eq.${id}`])
+		.join(',');
 	const { data: connections } = await supabaseAdmin
 		.from('org_connections')
 		.select('rep_org_id, brand_org_id')
 		.eq('status', 'active')
-		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
+		.or(orFilter);
 
-	const connectedOrgIds = new Set<string>([organization.id]);
+	const connectedOrgIds = new Set<string>(ownOrgIds);
 	for (const c of connections ?? []) {
-		if (c.rep_org_id && c.rep_org_id !== organization.id) connectedOrgIds.add(c.rep_org_id);
-		if (c.brand_org_id && c.brand_org_id !== organization.id) connectedOrgIds.add(c.brand_org_id);
+		if (c.rep_org_id) connectedOrgIds.add(c.rep_org_id);
+		if (c.brand_org_id) connectedOrgIds.add(c.brand_org_id);
 	}
 	const visibleOrgIds = Array.from(connectedOrgIds);
 

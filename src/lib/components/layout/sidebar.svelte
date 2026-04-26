@@ -24,6 +24,7 @@
 		allMemberships?: MembershipWithOrg[];
 		brandScope?: string[] | null;
 		isBuyer?: boolean;
+		isNxBlsr?: boolean;
 		showHelp?: boolean;
 	};
 
@@ -34,6 +35,7 @@
 		allMemberships = [],
 		brandScope = null,
 		isBuyer = false,
+		isNxBlsr = false,
 		showHelp = $bindable(false)
 	}: Props = $props();
 
@@ -119,7 +121,20 @@
 		}
 	];
 
-	const primaryNav = $derived(isBrandOrg ? brandNav : repNav);
+	// Nx-BLSR portal: rep-style nav with Products folded in. Acts across all the
+	// user's brand-org memberships as a single unified context.
+	const nxBlsrNav: NavItem[] = (() => {
+		const productsItem = brandNav.find((it) => it.label === 'Products')!;
+		const order = ['Insight', 'Accounts', 'Orders', 'Products', 'Brands', 'Expenses', 'Reports'];
+		return order
+			.map((label) => {
+				if (label === 'Products') return productsItem;
+				return repNav.find((it) => it.label === label)!;
+			})
+			.filter(Boolean);
+	})();
+
+	const primaryNav = $derived(isNxBlsr ? nxBlsrNav : isBrandOrg ? brandNav : repNav);
 
 	// Items a brand-scoped member (not sales) sees
 	const brandScopedNav = ['Insight', 'Accounts', 'Orders', 'Expenses', 'Reports'];
@@ -141,11 +156,13 @@
 	const filteredPrimaryNav = $derived(
 		isBuyer
 			? [buyerHomeNav, shopNav, ...primaryNav.filter((item) => item.label === 'Orders')]
-			: isSales
-				? primaryNav.filter((item) => salesAllowed.includes(item.label))
-				: isBrandScoped
-					? primaryNav.filter((item) => brandScopedNav.includes(item.label))
-					: primaryNav
+			: isNxBlsr
+				? primaryNav
+				: isSales
+					? primaryNav.filter((item) => salesAllowed.includes(item.label))
+					: isBrandScoped
+						? primaryNav.filter((item) => brandScopedNav.includes(item.label))
+						: primaryNav
 	);
 
 	const inboxNav: NavItem = {
@@ -177,13 +194,14 @@
 </script>
 
 <aside class="flex h-full w-60 flex-col bg-background text-foreground">
-	<!-- Org Switcher (only shown when user belongs to multiple orgs) -->
-	{#if currentOrg && allMemberships.length > 1}
+	<!-- Org Switcher: hidden for Nx-BLSR (their multiple brand-org memberships
+	     are folded into a single unified portal — see isNxBlsr above). -->
+	{#if currentOrg && allMemberships.length > 1 && !isNxBlsr}
 		<OrgSwitcher {currentOrg} {allMemberships} />
 	{/if}
 
 	<!-- Primary Navigation -->
-	<nav class="flex-1 space-y-px px-5 {allMemberships.length > 1 ? 'pt-1' : 'pt-5'}">
+	<nav class="flex-1 space-y-px px-5 {allMemberships.length > 1 && !isNxBlsr ? 'pt-1' : 'pt-5'}">
 		{#each filteredPrimaryNav as item (item.href)}
 			<a
 				href={resolve(item.href as '/orders')}

@@ -3,6 +3,7 @@ import type { PageServerLoad } from './$types';
 import type { OrgType } from '$lib/types/database';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { loadManagerScope } from '$lib/server/scoping.js';
+import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
 
 const repReportTitles: Record<string, string> = {
 	'sales-by-brand': 'Sales by Brand',
@@ -24,20 +25,29 @@ const brandReportTitles: Record<string, string> = {
 	pipeline: 'Order Pipeline'
 };
 
-function titleFor(orgType: OrgType, slug: string): string | null {
-	if (orgType === 'brand') return brandReportTitles[slug] ?? null;
+function titleFor(orgType: OrgType, slug: string, nxBlsr: boolean): string | null {
+	// Nx-BLSR users see the brand-side report set unioned across their
+	// brand-org memberships. Same titles a single brand-org BLSR would see.
+	if (nxBlsr || orgType === 'brand') return brandReportTitles[slug] ?? null;
 	return repReportTitles[slug] ?? null;
 }
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
-	const { supabase, organization } = locals;
+	const { supabase, organization, allMemberships } = locals;
 	const report = params.slug;
 
-	const title = titleFor(locals.orgType, report);
+	// Nx-BLSR scoping: sales-role member of 2+ brand-orgs. orgScope unions
+	// every brand-org they belong to; existing single-org callers see
+	// `[orgId]` so behavior is a strict superset.
+	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
+	const nxBlsr = isNxBlsr(brandOrgIds);
+
+	const title = titleFor(locals.orgType, report, nxBlsr);
 	if (!title) throw error(404, 'Report not found');
 	if (!organization) return { report, title, year: new Date().getFullYear(), rows: [] };
 
 	const orgId = organization.id;
+	const orgScope = nxBlsr ? brandOrgIds : [orgId];
 	const year = parseInt(url.searchParams.get('year') ?? '') || new Date().getFullYear();
 	const brandScope = locals.brandScope as string[] | null;
 	const isSales = locals.membership?.role === 'sales';
@@ -202,9 +212,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		}
 
 		case 'sales-by-rep': {
-			if (locals.orgType === 'brand') {
+			if (locals.orgType === 'brand' || nxBlsr) {
 				const { loadSalesByRep } = await import('$lib/server/reports/brand/salesByRep');
-				const rows = await loadSalesByRep(supabase, orgId, year);
+				const rows = await loadSalesByRep(supabase, orgScope, year);
 				return { report, title, year, rows, variant: 'brand' as const };
 			}
 			const { data: orders } = await scopeByRep(
@@ -333,9 +343,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		}
 
 		case 'pipeline': {
-			if (locals.orgType === 'brand') {
+			if (locals.orgType === 'brand' || nxBlsr) {
 				const { loadOrderPipeline } = await import('$lib/server/reports/brand/orderPipeline');
-				const rows = await loadOrderPipeline(supabase, orgId);
+				const rows = await loadOrderPipeline(supabase, orgScope);
 				return { report, title, year, rows, variant: 'brand' as const };
 			}
 			const { data: orders } = await scopeByRep(
@@ -489,29 +499,29 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			const { loadProductPerformance } =
 				await import('$lib/server/reports/brand/productPerformance');
 			const daysBack = parseInt(url.searchParams.get('days') ?? '') || 90;
-			const rows = await loadProductPerformance(supabase, orgId, daysBack);
+			const rows = await loadProductPerformance(supabase, orgScope, daysBack);
 			return { report, title, year, rows, daysBack };
 		}
 
 		case 'territory-coverage': {
-			if (locals.orgType !== 'brand') throw error(404, 'Report not found');
+			if (locals.orgType !== 'brand' && !nxBlsr) throw error(404, 'Report not found');
 			const { loadTerritoryCoverage } = await import('$lib/server/reports/brand/territoryCoverage');
-			const rows = await loadTerritoryCoverage(supabase, orgId, year);
+			const rows = await loadTerritoryCoverage(supabase, orgScope, year);
 			return { report, title, year, rows, variant: 'brand' as const };
 		}
 
 		case 'account-penetration': {
-			if (locals.orgType !== 'brand') throw error(404, 'Report not found');
+			if (locals.orgType !== 'brand' && !nxBlsr) throw error(404, 'Report not found');
 			const { loadAccountPenetration } =
 				await import('$lib/server/reports/brand/accountPenetration');
-			const rows = await loadAccountPenetration(supabase, orgId, year);
+			const rows = await loadAccountPenetration(supabase, orgScope, year);
 			return { report, title, year, rows, variant: 'brand' as const };
 		}
 
 		case 'season-sell-through': {
-			if (locals.orgType !== 'brand') throw error(404, 'Report not found');
+			if (locals.orgType !== 'brand' && !nxBlsr) throw error(404, 'Report not found');
 			const { loadSeasonSellThrough } = await import('$lib/server/reports/brand/seasonSellThrough');
-			const rows = await loadSeasonSellThrough(supabase, orgId, year);
+			const rows = await loadSeasonSellThrough(supabase, orgScope, year);
 			return { report, title, year, rows, variant: 'brand' as const };
 		}
 

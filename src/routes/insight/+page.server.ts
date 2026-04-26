@@ -3,6 +3,7 @@ import { computeAccountHealth } from '$lib/server/account-health.js';
 import { refreshInsights } from '$lib/server/insights-engine.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listConnectedReps, listFederatedOrders } from '$lib/server/federation.js';
+import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
 
 type BrandTopAccount = {
 	account_id: string;
@@ -15,7 +16,9 @@ type BrandTopAccount = {
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('data:dashboard');
-	const { supabase, organization, orgType } = locals;
+	const { supabase, organization, orgType, allMemberships } = locals;
+	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
+	const nxBlsr = isNxBlsr(brandOrgIds);
 
 	if (!organization) {
 		return {
@@ -43,7 +46,12 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const orgId = organization.id;
 
 	// ── Brand org branch ────────────────────────────────────────────────
-	if (orgType === 'brand') {
+	// Note: Nx-BLSR users (sales in 2+ brand-orgs) DO NOT take this path.
+	// loadBrandInsight is built for brand admins viewing federated rep activity;
+	// Nx-BLSR users WRITE orders directly inside brand-orgs, so their orders
+	// don't appear in `federated_order_links`. They fall through to the rep-style
+	// branch below, which queries `orders` directly and unions across brandOrgIds.
+	if (orgType === 'brand' && !nxBlsr) {
 		const brandData = await loadBrandInsight(supabaseAdmin, orgId);
 		const isBrandAdmin = ['admin', 'owner'].includes(locals.membership?.role ?? '');
 		if (!isBrandAdmin) {
@@ -52,29 +60,38 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		return brandData;
 	}
 
+	// orgScope: union for Nx-BLSR (their brand-org IDs); single id otherwise.
+	// Used for every list query in the rep-style branch below — replaces
+	// `.in('organization_id', orgScope)` with `.in('organization_id', orgScope)`.
+	const orgScope = nxBlsr ? brandOrgIds : [orgId];
+
 	// ── Setup checklist (onboarding state) ──────────────────────────────
-	const [brandCountCheck, productCountCheck, accountCountCheck, orderCountCheck] =
-		await Promise.all([
-			supabase
-				.from('brands')
-				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', orgId)
-				.eq('is_active', true),
-			supabase
-				.from('products')
-				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', orgId)
-				.eq('is_active', true),
-			supabase
-				.from('accounts')
-				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', orgId)
-				.eq('is_active', true),
-			supabase
-				.from('orders')
-				.select('id', { count: 'exact', head: true })
-				.eq('organization_id', orgId)
-		]);
+	// Nx-BLSR users are sales-role, not org-admin — they don't run onboarding.
+	// Skip the checklist for them so they don't see "0 brands" against a rep-org
+	// perspective they don't own.
+	const [brandCountCheck, productCountCheck, accountCountCheck, orderCountCheck] = nxBlsr
+		? [{ count: 1 }, { count: 1 }, { count: 1 }, { count: 1 }]
+		: await Promise.all([
+				supabase
+					.from('brands')
+					.select('id', { count: 'exact', head: true })
+					.in('organization_id', orgScope)
+					.eq('is_active', true),
+				supabase
+					.from('products')
+					.select('id', { count: 'exact', head: true })
+					.in('organization_id', orgScope)
+					.eq('is_active', true),
+				supabase
+					.from('accounts')
+					.select('id', { count: 'exact', head: true })
+					.in('organization_id', orgScope)
+					.eq('is_active', true),
+				supabase
+					.from('orders')
+					.select('id', { count: 'exact', head: true })
+					.in('organization_id', orgScope)
+			]);
 
 	const hasBrands = (brandCountCheck.count ?? 0) > 0;
 	const hasProducts = (productCountCheck.count ?? 0) > 0;
@@ -82,13 +99,13 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const hasOrders = (orderCountCheck.count ?? 0) > 0;
 	const setupComplete = hasBrands && hasProducts && hasAccounts && hasOrders;
 
-	// Get first brand ID for the "add products" link
+	// Get first brand ID for the "add products" link (rep-org onboarding only).
 	let firstBrandId: string | null = null;
-	if (hasBrands && !hasProducts) {
+	if (!nxBlsr && hasBrands && !hasProducts) {
 		const { data: firstBrand } = await supabase
 			.from('brands')
 			.select('id')
-			.eq('organization_id', orgId)
+			.in('organization_id', orgScope)
 			.eq('is_active', true)
 			.limit(1)
 			.single();
@@ -134,7 +151,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		supabase
 			.from('orders')
 			.select('order_year')
-			.eq('organization_id', orgId)
+			.in('organization_id', orgScope)
 			.not('order_year', 'is', null)
 			.order('order_year', { ascending: false })
 	);
@@ -151,13 +168,23 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		? parseInt(yearParam, 10)
 		: (availableYears[0] ?? null);
 
-	const [seasonSummaryResult, yearlySummaryResult] = await Promise.all([
-		supabase.rpc('get_season_summary', {
-			org_id: orgId,
-			target_year: selectedYear
-		}),
-		supabase.rpc('get_yearly_summary', { org_id: orgId })
+	// RPCs take a single org_id. For Nx-BLSR, run per orgId and concat the
+	// row arrays — each RPC returns row-shaped data so flat concat is correct.
+	const seasonRpc = (id: string) =>
+		supabase.rpc('get_season_summary', { org_id: id, target_year: selectedYear });
+	const yearlyRpc = (id: string) => supabase.rpc('get_yearly_summary', { org_id: id });
+	const [seasonBatches, yearlyBatches] = await Promise.all([
+		Promise.all(orgScope.map(seasonRpc)),
+		Promise.all(orgScope.map(yearlyRpc))
 	]);
+	const seasonSummaryResult = {
+		data: seasonBatches.flatMap((b) => b.data ?? []),
+		error: seasonBatches.find((b) => b.error)?.error ?? null
+	};
+	const yearlySummaryResult = {
+		data: yearlyBatches.flatMap((b) => b.data ?? []),
+		error: yearlyBatches.find((b) => b.error)?.error ?? null
+	};
 
 	const seasonSummary = (seasonSummaryResult.data ?? []) as {
 		season_name: string;
@@ -181,7 +208,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		.select(
 			'id, season_id, label, delivery_month, delivery_day, sort_order, seasons(name, sort_order)'
 		)
-		.eq('organization_id', orgId)
+		.in('organization_id', orgScope)
 		.order('delivery_month', { ascending: true })
 		.order('delivery_day', { ascending: true });
 
@@ -199,7 +226,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const { data: accountRows } = await supabase
 		.from('accounts')
 		.select('id, business_name, city, state, notes, is_active')
-		.eq('organization_id', orgId)
+		.in('organization_id', orgScope)
 		.eq('is_active', true)
 		.order('business_name', { ascending: true });
 
@@ -228,7 +255,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			supabase
 				.from('orders')
 				.select('account_id, delivery_id, order_year, total_amount')
-				.eq('organization_id', orgId)
+				.in('organization_id', orgScope)
 				.not('delivery_id', 'is', null)
 				.in('order_year', [selectedYear, priorYear])
 		);
@@ -252,7 +279,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const { data: showDateRows } = await supabase
 		.from('show_dates')
 		.select('*, shows(name)')
-		.eq('organization_id', orgId)
+		.in('organization_id', orgScope)
 		.order('year')
 		.order('month');
 
@@ -324,19 +351,19 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 						'id, organization_id, show_date_id, account_id, status, notes, is_new_account, created_by, created_at, updated_at, accounts(id, business_name, contact_first_name, contact_last_name, city, state), profiles!show_visits_created_by_fkey(display_name)'
 					)
 					.eq('show_date_id', selectedShowDateId)
-					.eq('organization_id', orgId)
+					.in('organization_id', orgScope)
 			),
 			scopeByRep(
 				supabase
 					.from('orders')
 					.select('id, account_id, delivery_id, total_amount')
 					.eq('show_date_id', selectedShowDateId)
-					.eq('organization_id', orgId)
+					.in('organization_id', orgScope)
 			),
 			supabase
 				.from('season_deliveries')
 				.select('id, label, delivery_month, delivery_day, sort_order')
-				.eq('organization_id', orgId)
+				.in('organization_id', orgScope)
 				.order('delivery_month', { ascending: true })
 				.order('delivery_day', { ascending: true }),
 			scopeByRep(
@@ -346,7 +373,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 						'*, accounts(id, business_name, contact_first_name, contact_last_name, city, state), profiles!appointments_created_by_fkey(display_name)'
 					)
 					.eq('show_date_id', selectedShowDateId)
-					.eq('organization_id', orgId)
+					.in('organization_id', orgScope)
 			)
 		]);
 
@@ -364,14 +391,14 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 					.from('appointments')
 					.select('id, show_date_id')
 					.in('show_date_id', showDateIds)
-					.eq('organization_id', orgId)
+					.in('organization_id', orgScope)
 			),
 			scopeByRep(
 				supabase
 					.from('orders')
 					.select('id, show_date_id, total_amount')
 					.in('show_date_id', showDateIds)
-					.eq('organization_id', orgId)
+					.in('organization_id', orgScope)
 			)
 		]);
 
@@ -404,7 +431,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const { data: commBrandRows } = await supabase
 		.from('brands')
 		.select('id, name, commission_rate')
-		.eq('organization_id', orgId)
+		.in('organization_id', orgScope)
 		.eq('is_active', true)
 		.order('name', { ascending: true });
 
@@ -418,7 +445,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const { data: overrideRows } = await supabase
 		.from('commission_overrides')
 		.select('id, brand_id, account_id, rate')
-		.eq('organization_id', orgId);
+		.in('organization_id', orgScope);
 
 	const commissionOverrides = (overrideRows ?? []) as {
 		id: string;
@@ -434,7 +461,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		.select(
 			'id, order_number, account_id, brand_id, season_id, order_year, total_amount, shipped_amount, shipped_at, brands(name, commission_rate), accounts(business_name), seasons(name)'
 		)
-		.eq('organization_id', orgId)
+		.in('organization_id', orgScope)
 		.in('status', ['shipped', 'delivered']);
 
 	if (commYearParam) {
@@ -481,11 +508,17 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const velocityWindowParam = url.searchParams.get('velocity_window');
 	const velocityWindow = velocityWindowParam ? parseInt(velocityWindowParam, 10) : 14;
 
-	const { data: velocityData } = await supabase.rpc('get_style_velocity', {
-		org_id: orgId,
-		days_back: velocityWindow,
-		min_accounts: 2
-	});
+	// Style velocity RPC: union per orgId for Nx-BLSR.
+	const velocityBatches = await Promise.all(
+		orgScope.map((id) =>
+			supabase.rpc('get_style_velocity', {
+				org_id: id,
+				days_back: velocityWindow,
+				min_accounts: 2
+			})
+		)
+	);
+	const velocityData = velocityBatches.flatMap((b) => b.data ?? []);
 
 	const styleVelocity = (velocityData ?? []) as {
 		style_number: string;
@@ -505,17 +538,19 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	let { data: insightRows } = await supabase
 		.from('insight_actions')
 		.select('*')
-		.eq('organization_id', orgId)
+		.in('organization_id', orgScope)
 		.eq('status', 'active')
 		.order('priority_score', { ascending: false });
 
-	// Auto-compute on first visit if no insights exist yet
+	// Auto-compute on first visit if no insights exist yet (per-org for Nx-BLSR).
 	if (!insightRows || insightRows.length === 0) {
-		await refreshInsights(supabase, orgId);
+		for (const id of orgScope) {
+			await refreshInsights(supabase, id);
+		}
 		const refreshed = await supabase
 			.from('insight_actions')
 			.select('*')
-			.eq('organization_id', orgId)
+			.in('organization_id', orgScope)
 			.eq('status', 'active')
 			.order('priority_score', { ascending: false });
 		insightRows = refreshed.data;
@@ -537,7 +572,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	}[];
 
 	// ── Scoreboard KPIs ─────────────────────────────────────────────────
-	const healthMap = await computeAccountHealth(supabase, orgId);
+	const healthMap = await computeAccountHealth(supabase, orgScope);
 	const healthValues = Array.from(healthMap.values());
 	const atRiskCount = healthValues.filter((h) => h.label === 'at_risk').length;
 	const totalAccounts = healthValues.length;
@@ -626,19 +661,27 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 // Brand-org Insight loader
 // ───────────────────────────────────────────────────────────────────────────
 
-async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string) {
+async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: string | string[]) {
+	// Single-brand callers pass a string; Nx-BLSR (multi-brand-sales) passes the
+	// array of brand-org IDs they belong to. Internally we normalize to array
+	// and union helpers + queries across them.
+	const brandOrgIds = Array.isArray(brandOrgIdInput) ? brandOrgIdInput : [brandOrgIdInput];
+	const primaryOrgId = brandOrgIds[0];
+
 	// Refresh insight_actions on every visit — cheap, and keeps cards fresh against
-	// newly quiet reps, newly submitted orders, etc.
-	try {
-		await refreshInsights(admin, brandOrgId);
-	} catch {
-		// Best-effort; fall through.
+	// newly quiet reps, newly submitted orders, etc. Run per-org for Nx-BLSR.
+	for (const id of brandOrgIds) {
+		try {
+			await refreshInsights(admin, id);
+		} catch {
+			// Best-effort; fall through.
+		}
 	}
 
 	const { data: insightRows } = await admin
 		.from('insight_actions')
 		.select('*')
-		.eq('organization_id', brandOrgId)
+		.in('organization_id', brandOrgIds)
 		.eq('status', 'active')
 		.order('priority_score', { ascending: false });
 
@@ -662,10 +705,13 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 	const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 	const d90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-	const [connectedReps, federatedOrders] = await Promise.all([
-		listConnectedReps(admin, brandOrgId),
-		listFederatedOrders(admin, brandOrgId)
-	]);
+	// Federation helpers are single-org. For Nx-BLSR, run them per-org and concat.
+	// Brand A and Brand B may both have their own connected reps / federated orders;
+	// this just unions the lists. Federation mechanism itself is unchanged.
+	const repBatches = await Promise.all(brandOrgIds.map((id) => listConnectedReps(admin, id)));
+	const orderBatches = await Promise.all(brandOrgIds.map((id) => listFederatedOrders(admin, id)));
+	const connectedReps = repBatches.flat();
+	const federatedOrders = orderBatches.flat();
 
 	// Rep activity
 	const activeReps = connectedReps.filter((r) => r.status === 'active');
@@ -825,16 +871,19 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgId: string)
 	];
 
 	// ── Onboarding checklist (Phase C) ────────────────────────────────────────
+	// Checklist is rendered against a single brand org (it's the brand-admin's
+	// onboarding state); for Nx-BLSR the caller pins brandChecklist to null
+	// anyway (the caller is sales role, not admin), so primaryOrgId is fine here.
 	const [productCount, teammateCount, salesRepCount] = await Promise.all([
 		admin.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
 		admin
 			.from('organization_members')
 			.select('id', { count: 'exact', head: true })
-			.eq('organization_id', brandOrgId),
+			.eq('organization_id', primaryOrgId),
 		admin
 			.from('organization_members')
 			.select('id', { count: 'exact', head: true })
-			.eq('organization_id', brandOrgId)
+			.eq('organization_id', primaryOrgId)
 			.eq('role', 'sales')
 	]);
 	const hasProducts = (productCount.count ?? 0) > 0;

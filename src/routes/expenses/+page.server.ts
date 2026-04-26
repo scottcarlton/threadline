@@ -1,9 +1,12 @@
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('data:expenses');
-	const { organization, orgType } = locals;
+	const { organization, orgType, allMemberships } = locals;
+	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
+	const nxBlsr = isNxBlsr(brandOrgIds);
 
 	const emptyReturn = {
 		expenses: [],
@@ -26,13 +29,17 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const category = url.searchParams.get('category');
 	const isSales = locals.membership?.role === 'sales';
 
-	// ── Own-org expenses (MBISR sees expenses they submitted) ──
+	// ── Own-org expenses ──
+	// MBISR sees expenses they submitted in their own org. Nx-BLSR (sales-role
+	// in 2+ brand-orgs) sees expenses they submitted across the union of their
+	// brand-org memberships, so the page shows their full expense activity.
+	const ownOrgIds = nxBlsr ? brandOrgIds : [organization.id];
 	let ownQuery = supabaseAdmin
 		.from('brand_expenses')
 		.select(
 			'*, brands(name), profiles!brand_expenses_submitted_by_fkey(display_name), reviewer:profiles!brand_expenses_reviewed_by_fkey(display_name)'
 		)
-		.eq('organization_id', organization.id)
+		.in('organization_id', ownOrgIds)
 		.order('created_at', { ascending: false });
 
 	if (isSales) ownQuery = ownQuery.eq('submitted_by', locals.user?.id);
@@ -44,12 +51,14 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const expenses = ownResult.data ?? [];
 
 	// ── BOA sees expenses from connected reps on BOA's brands ──
+	// Nx-BLSR is sales-role and excluded by `!isSales` — they don't see federated
+	// reviewer expenses, just their own (which already covers all their orgs above).
 	if (orgType === 'brand' && !isSales) {
 		// Get this brand org's brand IDs
 		const { data: boaBrands } = await supabaseAdmin
 			.from('brands')
 			.select('id')
-			.eq('organization_id', organization.id)
+			.in('organization_id', ownOrgIds)
 			.eq('is_active', true);
 		const boaBrandIds = (boaBrands ?? []).map((b) => b.id);
 
@@ -60,7 +69,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 					'*, brands(name), profiles!brand_expenses_submitted_by_fkey(display_name), reviewer:profiles!brand_expenses_reviewed_by_fkey(display_name)'
 				)
 				.in('brand_id', boaBrandIds)
-				.neq('organization_id', organization.id)
+				.not('organization_id', 'in', `(${ownOrgIds.join(',')})`)
 				.order('created_at', { ascending: false });
 
 			if (status) fedQuery = fedQuery.eq('status', status);
