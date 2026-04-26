@@ -55,6 +55,12 @@ export interface Organization {
 	currency_code: string;
 	accepted_payment_methods: string[];
 	default_payment_method: string | null;
+	default_commission_rate: number;
+	order_number_prefix: string;
+	next_order_number: number;
+	order_minimum_enabled: boolean;
+	order_minimum_amount: number | null;
+	handling_fee_amount: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -129,6 +135,8 @@ export interface Account {
 	notes: string | null;
 	territory_id: string | null;
 	payment_preference: string | null;
+	commission_rate_override: number | null;
+	order_minimum_override: number | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;
