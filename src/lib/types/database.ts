@@ -40,6 +40,9 @@ export interface Organization {
 	name: string;
 	slug: string;
 	logo_url: string | null;
+	logo_storage_path: string | null;
+	legal_business_name: string | null;
+	tagline: string | null;
 	sso_enforced: boolean;
 	org_type: OrgType;
 	address_line1: string | null;
@@ -48,6 +51,8 @@ export interface Organization {
 	state: string | null;
 	zip: string | null;
 	country: string;
+	time_zone: string;
+	currency_code: string;
 	accepted_payment_methods: string[];
 	default_payment_method: string | null;
 	created_at: string;
