@@ -286,8 +286,17 @@
 	let notes = $state('');
 	let commissionRateOverride = $state('');
 	let orderMinimumOverride = $state('');
+	let shippingMethodId = $state('');
 	let error = $state('');
 	let loading = $state(false);
+
+	const shippingMethods = $derived(
+		(data.shippingMethods ?? []) as Array<{ id: string; name: string }>
+	);
+	const shippingMethodItems = $derived([
+		{ value: '', label: 'Use org default' },
+		...shippingMethods.map((m) => ({ value: m.id, label: m.name }))
+	]);
 
 	const canEditAccount = $derived(data.canEditAccount === true && canEdit);
 	const paymentItems = $derived(
@@ -321,6 +330,7 @@
 			account.order_minimum_override === null || account.order_minimum_override === undefined
 				? ''
 				: String(account.order_minimum_override);
+		shippingMethodId = account.shipping_method_id ?? '';
 		editing = true;
 	}
 
@@ -359,6 +369,15 @@
 			return;
 		}
 
+		// Dual-write the shipping_method text mirror from the chosen method's
+		// name. /orders/new reads the legacy text column until the follow-up
+		// PR migrates the readers.
+		const selectedMethod = shippingMethodId
+			? shippingMethods.find((m) => m.id === shippingMethodId)
+			: null;
+		const shippingMethodIdValue = shippingMethodId || null;
+		const shippingMethodTextValue = selectedMethod ? selectedMethod.name : null;
+
 		const { error: err } = await supabase
 			.from('accounts')
 			.update({
@@ -375,6 +394,8 @@
 				notes: notes || null,
 				commission_rate_override: commissionOverride,
 				order_minimum_override: minimumOverride,
+				shipping_method_id: shippingMethodIdValue,
+				shipping_method: shippingMethodTextValue,
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', account.id);
@@ -585,6 +606,15 @@
 										</div>
 									</div>
 								</div>
+								<div class="space-y-2">
+									<Label for="shipping-method-override">Shipping method</Label>
+									<SelectField
+										bind:value={shippingMethodId}
+										items={shippingMethodItems}
+										placeholder="Use org default"
+										class="w-full"
+									/>
+								</div>
 							</div>
 						</form>
 					{:else}
@@ -652,7 +682,7 @@
 									<dd class="mt-1 whitespace-pre-wrap">{account.notes}</dd>
 								</div>
 							{/if}
-							{#if account.commission_rate_override !== null || account.order_minimum_override !== null}
+							{#if account.commission_rate_override !== null || account.order_minimum_override !== null || account.shipping_method_id !== null}
 								<div>
 									<dt class="text-sm font-medium text-muted-foreground">Order overrides</dt>
 									<dd class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -661,6 +691,9 @@
 										{/if}
 										{#if account.order_minimum_override !== null}
 											<span>${account.order_minimum_override} minimum</span>
+										{/if}
+										{#if account.shipping_method_id !== null && account.shipping_method}
+											<span>{account.shipping_method} shipping</span>
 										{/if}
 									</dd>
 								</div>

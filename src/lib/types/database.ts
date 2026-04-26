@@ -70,6 +70,17 @@ export interface Organization {
 	taxes_gst_enabled: boolean;
 	taxes_gst_registration: string | null;
 	taxes_gst_rate: number | null;
+	shipping_use_business_address: boolean;
+	shipping_from_line1: string | null;
+	shipping_from_line2: string | null;
+	shipping_from_city: string | null;
+	shipping_from_state: string | null;
+	shipping_from_zip: string | null;
+	shipping_from_country: string | null;
+	shipping_free_threshold_enabled: boolean;
+	shipping_free_threshold_amount: number | null;
+	default_shipping_method: string | null;
+	default_shipping_method_id: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -80,6 +91,17 @@ export interface OrganizationSalesTaxRate {
 	state_code: string;
 	rate: number;
 	tax_type: 'origin' | 'destination';
+	created_at: string;
+	updated_at: string;
+}
+
+export interface OrganizationShippingMethod {
+	id: string;
+	organization_id: string;
+	name: string;
+	cost_type: 'flat' | 'calculated' | 'free';
+	cost_amount: number | null;
+	delivery_window: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -154,6 +176,8 @@ export interface Account {
 	notes: string | null;
 	territory_id: string | null;
 	payment_preference: string | null;
+	shipping_method: string | null;
+	shipping_method_id: string | null;
 	commission_rate_override: number | null;
 	order_minimum_override: number | null;
 	is_active: boolean;
