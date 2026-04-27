@@ -4,6 +4,7 @@
 	import Switch from '$lib/components/ui/switch.svelte';
 
 	let { data } = $props();
+	// svelte-ignore state_referenced_locally
 	let enabled = $state(data.emailIntakeEnabled);
 	let saving = $state(false);
 	let saved = $state(false);
