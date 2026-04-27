@@ -21,7 +21,13 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 	// ── (a) Unviewed orders in user's visibility scope, excluding self-created ──
 	// RLS already scopes `orders` to what the user can see (own-org + federated).
-	const { data: visible } = await supabase.from('orders').select('id').neq('created_by', userId);
+	// Notes (order_type='note') are excluded — they have their own surface and
+	// shouldn't drive the Orders badge.
+	const { data: visible } = await supabase
+		.from('orders')
+		.select('id')
+		.eq('order_type', 'order')
+		.neq('created_by', userId);
 
 	const { data: views } = await supabase
 		.from('order_views')
@@ -38,10 +44,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 	if (orgType === 'brand' && role && ['admin', 'owner', 'member'].includes(role)) {
 		const { data: links } = await supabaseAdmin
 			.from('federated_order_links')
-			.select('order_id, orders!inner(status)')
+			.select('order_id, orders!inner(status, order_type)')
 			.eq('target_org_id', organization.id)
 			.eq('status', 'active')
-			.eq('orders.status', 'submitted');
+			.eq('orders.status', 'submitted')
+			.eq('orders.order_type', 'order');
 		for (const l of (links ?? []) as Array<{ order_id: string }>) attentionIds.add(l.order_id);
 	}
 

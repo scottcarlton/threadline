@@ -475,6 +475,72 @@ export const actions: Actions = {
 			resolvedShowId = sd?.show_id ?? null;
 		}
 
+		// Resolve each cart brand to its owning organization. For brand-org
+		// users (BOA / Nx-BLSR), the order's organization_id MUST match the
+		// brand's organization_id — orders RLS gates SELECT on
+		// `brand_id IN get_user_brand_ids(organization_id)`, and the BOA list
+		// query filters by org_id. For Nx-BLSR (sales-role member of multiple
+		// brand-orgs), the active organization context can be a different
+		// brand-org than the one owning the brand_id, so always stamp from the
+		// brand. Rep-org users still stamp `organization.id` (the rep's own
+		// org), preserving the federated-create path from migration
+		// 20260417000002.
+		const isBrandOrgWriter = organization.org_type === 'brand';
+		const brandOrgMap = new Map<string, string>();
+		if (isBrandOrgWriter) {
+			const brandIds = Array.from(new Set(newOrders.map((o) => o.brand_id)));
+			if (brandIds.length > 0) {
+				const { data: brandRows, error: brandErr } = await supabase
+					.from('brands')
+					.select('id, organization_id')
+					.in('id', brandIds);
+				if (brandErr) {
+					console.error('[orders/new submit] brand org lookup failed', { error: brandErr });
+					return fail(500, { message: brandErr.message });
+				}
+				for (const b of brandRows ?? []) brandOrgMap.set(b.id, b.organization_id);
+			}
+		}
+
+		// Nx-BLSR Source resolution. The picker collapses same-named source_types
+		// across the user's brand-orgs to one option, so the submitted
+		// `source_type_id` is a representative — at insert time we resolve to
+		// the source_type owned by THIS order's brand-org. If no match exists in
+		// that org, we stamp null (matches today's "no source picked" path).
+		// Single-org BOA: name lookup over one org is identity, no behavior change.
+		let selectedSourceName: string | null = null;
+		if (finalizeData?.source_type_id) {
+			const { data: srcRow } = await supabase
+				.from('source_types')
+				.select('name')
+				.eq('id', finalizeData.source_type_id)
+				.maybeSingle();
+			selectedSourceName = srcRow?.name?.trim() ?? null;
+		}
+		const sourceByOrgName = new Map<string, string>();
+		if (selectedSourceName) {
+			const orderOrgIds = Array.from(
+				new Set(newOrders.map((o) => brandOrgMap.get(o.brand_id) ?? organization.id))
+			);
+			if (orderOrgIds.length > 0) {
+				const { data: sources } = await supabase
+					.from('source_types')
+					.select('id, organization_id, name')
+					.in('organization_id', orderOrgIds)
+					.eq('is_active', true);
+				const targetKey = selectedSourceName.toLowerCase();
+				for (const s of (sources ?? []) as Array<{
+					id: string;
+					organization_id: string;
+					name: string;
+				}>) {
+					if (s.name.trim().toLowerCase() === targetKey) {
+						sourceByOrgName.set(`${s.organization_id}::${targetKey}`, s.id);
+					}
+				}
+			}
+		}
+
 		for (const o of newOrders) {
 			const ov = overrideFor(o.brand_id, o.season_id);
 
@@ -502,10 +568,14 @@ export const actions: Actions = {
 				ba.terms_id
 			);
 
+			const orderOrgId = isBrandOrgWriter
+				? (brandOrgMap.get(o.brand_id) ?? organization.id)
+				: organization.id;
+
 			const { data: orderRow, error: orderErr } = await supabase
 				.from('orders')
 				.insert({
-					organization_id: organization.id,
+					organization_id: orderOrgId,
 					order_type: o.order_type,
 					account_id: o.account_id,
 					freeform_name: o.freeform_name,
@@ -525,7 +595,9 @@ export const actions: Actions = {
 					po_number: poNumberValue,
 					notes: internalNoteValue,
 					rep_user_id: finalizeData?.rep_user_id ?? null,
-					source_type_id: finalizeData?.source_type_id ?? null,
+					source_type_id: selectedSourceName
+						? (sourceByOrgName.get(`${orderOrgId}::${selectedSourceName.toLowerCase()}`) ?? null)
+						: null,
 					show_date_id: finalizeData?.show_date_id ?? null,
 					show_id: resolvedShowId,
 					terms_id: canStampTerms ? ba!.terms_id : null,

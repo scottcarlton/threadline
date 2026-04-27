@@ -27,6 +27,7 @@
 
 	type OrderRow = Order & {
 		profiles?: { display_name?: string | null } | null;
+		rep_profile?: { display_name?: string | null } | null;
 		show_dates?: {
 			city?: string | null;
 			state?: string | null;
@@ -808,7 +809,7 @@
 				</thead>
 				<tbody class="divide-y">
 					{#each filtered as order (order.id)}
-						{@const repName = order.profiles?.display_name ?? '—'}
+						{@const creatorName = order.profiles?.display_name ?? '—'}
 						{@const showDate = order.show_dates}
 						{@const sourceName = showDate?.shows?.name ?? order.source_types?.name ?? null}
 						{@const sourceLocation = showDate
@@ -903,7 +904,11 @@
 							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
 								{#if isBrandOrg}
-									{@const repName = order.profiles?.display_name ?? order.source_org?.name ?? '—'}
+									{@const repName =
+										order.rep_profile?.display_name ??
+										order.profiles?.display_name ??
+										order.source_org?.name ??
+										'—'}
 									<span class="text-sm {repName === '—' ? 'text-muted-foreground/50' : ''}"
 										>{repName}</span
 									>
@@ -965,8 +970,8 @@
 								</td>
 							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm {repName === '—' ? 'text-muted-foreground/50' : ''}"
-									>{repName}</span
+								<span class="text-sm {creatorName === '—' ? 'text-muted-foreground/50' : ''}"
+									>{creatorName}</span
 								>
 								<p class="font-mono text-sm text-muted-foreground">
 									{new Date(order.created_at).toLocaleDateString('en-US', {
