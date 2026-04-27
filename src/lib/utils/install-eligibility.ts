@@ -40,7 +40,9 @@ export function persistDismissedUserId(userId: string): void {
 export function detectIosSafari(): boolean {
 	if (typeof navigator === 'undefined') return false;
 	const ua = navigator.userAgent;
-	const isIos = /iPad|iPhone|iPod/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document);
+	const isIos =
+		/iPad|iPhone|iPod/.test(ua) ||
+		(ua.includes('Mac') && typeof document !== 'undefined' && 'ontouchend' in document);
 	const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
 	return isIos && isSafari;
 }

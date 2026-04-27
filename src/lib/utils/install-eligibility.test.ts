@@ -41,6 +41,15 @@ describe('shouldShowInstallPrompt', () => {
 		).toBe(false);
 	});
 
+	it('returns true when a different user has dismissed but not this user', () => {
+		expect(
+			shouldShowInstallPrompt({
+				...baseInputs,
+				dismissedUserIds: new Set(['user-2'])
+			})
+		).toBe(true);
+	});
+
 	it('returns true on iOS Safari even without beforeinstallprompt', () => {
 		expect(
 			shouldShowInstallPrompt({
