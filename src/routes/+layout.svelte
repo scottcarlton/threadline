@@ -758,7 +758,7 @@
 								<span class="text-xs font-medium text-zinc-500">Conversation</span>
 								<div class="flex items-center gap-1">
 									<button
-										class="rounded-lg p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+										class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
 										onclick={() => {
 											aiPanelOpen = false;
 										}}
@@ -776,7 +776,7 @@
 										</svg>
 									</button>
 									<button
-										class="rounded-lg p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+										class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
 										onclick={() => {
 											aiPanelOpen = false;
 											conversation.clear();
@@ -996,7 +996,7 @@
 									<button
 										onclick={() => fileInput?.click()}
 										disabled={$loading}
-										class="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50"
+										class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
 										aria-label="Attach file"
 									>
 										<svg
@@ -1019,7 +1019,7 @@
 										<div class="relative">
 											<button
 												onclick={() => (showAgentPicker = !showAgentPicker)}
-												class="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 {$activeAgent
+												class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1.5 {$activeAgent
 													? 'text-blue-400'
 													: ''}"
 												aria-label="Select agent"
@@ -1091,7 +1091,7 @@
 										<!-- Voice mode active — always show voice button regardless of $loading -->
 										<button
 											onclick={toggleVoice}
-											class="flex h-9 w-9 items-center justify-center rounded-full {voiceState ===
+											class="flex h-11 w-11 items-center justify-center rounded-full lg:h-9 lg:w-9 {voiceState ===
 											'listening'
 												? 'bg-blue-500 text-white'
 												: voiceState === 'speaking'
@@ -1132,7 +1132,7 @@
 											{/if}
 										</button>
 									{:else if $loading}
-										<div class="flex h-9 w-9 items-center justify-center">
+										<div class="flex h-11 w-11 items-center justify-center lg:h-9 lg:w-9">
 											<div
 												class="h-5 w-5 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
 											></div>
@@ -1142,7 +1142,7 @@
 										<button
 											onclick={() => sendAiMessage()}
 											disabled={!$isOnline}
-											class="flex h-9 w-9 items-center justify-center rounded-none bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+											class="flex h-11 w-11 items-center justify-center rounded-none bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
 											aria-label={$isOnline ? 'Send message' : 'Offline — cannot send'}
 										>
 											<svg
@@ -1165,7 +1165,7 @@
 										<button
 											onclick={toggleVoice}
 											disabled={!$isOnline}
-											class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+											class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
 											aria-label={$isOnline ? 'Voice input' : 'Offline — voice unavailable'}
 										>
 											<div class="flex items-center gap-[2px]">
