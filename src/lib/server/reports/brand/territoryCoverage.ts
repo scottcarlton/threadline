@@ -44,15 +44,24 @@ export function mapTerritoryCoverageRow(raw: RawRow): TerritoryCoverageRow {
  * accounts, a connected rep org for MBISR accounts). Scoped via
  * get_brand_order_ids so BOLSR + MBISR orders are both represented.
  */
+/**
+ * Accepts `string | string[]` for `brandOrgId`. Nx-BLSR users union rows
+ * across their brand-org memberships — (agency × territory × brand-org)
+ * triples surface as separate rows so each brand-org's contribution is
+ * visible.
+ */
 export async function loadTerritoryCoverage(
 	supabase: SupabaseClient,
-	brandOrgId: string,
+	brandOrgIdInput: string | string[],
 	year: number
 ): Promise<TerritoryCoverageRow[]> {
-	const { data, error } = await supabase.rpc('get_brand_territory_coverage', {
-		brand_org_id: brandOrgId,
-		p_year: year
-	});
-	if (error) throw error;
-	return ((data ?? []) as RawRow[]).map(mapTerritoryCoverageRow);
+	const ids = Array.isArray(brandOrgIdInput) ? brandOrgIdInput : [brandOrgIdInput];
+	const batches = await Promise.all(
+		ids.map((id) =>
+			supabase.rpc('get_brand_territory_coverage', { brand_org_id: id, p_year: year })
+		)
+	);
+	const firstError = batches.find((b) => b.error)?.error;
+	if (firstError) throw firstError;
+	return batches.flatMap((b) => ((b.data ?? []) as RawRow[]).map(mapTerritoryCoverageRow));
 }

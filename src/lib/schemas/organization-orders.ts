@@ -10,6 +10,12 @@ export const organizationOrdersSchema = z
 			.min(1, 'Must be at least 1')
 			.max(2_147_483_647)
 			.default(1),
+		orderNumberPadWidth: z.coerce
+			.number({ message: 'Must be a number' })
+			.int('Whole number only')
+			.min(0, '0 disables padding')
+			.max(12, 'Cap at 12 digits')
+			.default(0),
 
 		// Order minimum
 		orderMinimumEnabled: z.boolean().default(false),

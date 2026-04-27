@@ -3,21 +3,17 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
-	import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
 	import { FileUpload } from '$lib/components/ui/file-upload/index.js';
 	import { supabase } from '$lib/supabase.js';
 	import { formatPhone } from '$lib/utils/phone';
 	import { stripProtocol } from '$lib/utils/website';
-	import { PAYMENT_METHODS } from '$lib/payment-methods';
 	import { toast } from 'svelte-sonner';
-	import { SvelteSet } from 'svelte/reactivity';
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { organizationProfileSchema } from '$lib/schemas/organization-profile.js';
 
 	let { data } = $props();
 
-	const org = $derived(data.org);
 	const isBrandOrg = $derived(data.orgType === 'brand');
 
 	const COUNTRIES = [
@@ -73,13 +69,16 @@
 		validators: zod4Client(organizationProfileSchema),
 		validationMethod: 'onblur',
 		dataType: 'json',
-		onUpdated: ({ form }) => {
-			if (form.valid && form.message?.success) {
+		resetForm: false,
+		onResult: ({ result }) => {
+			if (result.type === 'success') {
 				toast.success('Organization updated.');
+			} else if (result.type === 'failure') {
+				const msg = (result.data as { message?: string } | undefined)?.message;
+				if (msg) toast.error(msg);
+			} else if (result.type === 'error') {
+				toast.error(result.error?.message ?? 'Failed to save changes.');
 			}
-		},
-		onError: ({ result }) => {
-			toast.error(result.error?.message ?? 'Failed to save changes.');
 		}
 	});
 
@@ -98,52 +97,6 @@
 		return data.org?.logo_url ?? '';
 	});
 
-	const acceptedMethods = new SvelteSet<string>();
-	let defaultMethod = $state<string | null>(null);
-	let savingPayment = $state(false);
-
-	$effect(() => {
-		acceptedMethods.clear();
-		for (const m of data.org?.accepted_payment_methods ?? []) acceptedMethods.add(m);
-		defaultMethod = data.org?.default_payment_method ?? null;
-	});
-
-	function toggleMethod(code: string, next: boolean) {
-		if (next) {
-			acceptedMethods.add(code);
-		} else {
-			acceptedMethods.delete(code);
-			if (defaultMethod === code) defaultMethod = null;
-		}
-	}
-
-	async function handleSavePayment() {
-		if (!org) return;
-		if (acceptedMethods.size === 0) {
-			toast.error('Pick at least one payment method you accept.');
-			return;
-		}
-		if (!defaultMethod || !acceptedMethods.has(defaultMethod)) {
-			toast.error('Pick a default payment method.');
-			return;
-		}
-		savingPayment = true;
-		const { error } = await supabase
-			.from('organizations')
-			.update({
-				accepted_payment_methods: Array.from(acceptedMethods),
-				default_payment_method: defaultMethod,
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', org.id);
-		savingPayment = false;
-		if (error) {
-			toast.error('Could not save payment methods.');
-			return;
-		}
-		toast.success('Payment methods updated.');
-	}
-
 	function onWebsiteBlur() {
 		$profileForm.website = stripProtocol($profileForm.website);
 	}
@@ -155,7 +108,7 @@
 		<p class="mt-0.5 text-sm text-muted-foreground">Your organization name and branding</p>
 	</div>
 
-	<form method="POST" use:profileEnhance class="space-y-8 border-b pb-6">
+	<form method="POST" use:profileEnhance class="space-y-8">
 		<!-- Identity -->
 		<section class="space-y-4">
 			<h3 class="text-sm font-semibold">Identity</h3>
@@ -343,47 +296,4 @@
 			</Button>
 		</div>
 	</form>
-
-	<div>
-		<div>
-			<h2 class="text-lg font-semibold">Payment methods</h2>
-			<p class="mt-0.5 text-sm text-muted-foreground">
-				Pick the methods you accept on orders. One must be the default for new accounts.
-			</p>
-		</div>
-
-		<ul class="mt-6 divide-y rounded-md border">
-			{#each PAYMENT_METHODS as method (method.code)}
-				{@const accepted = acceptedMethods.has(method.code)}
-				{@const isDefault = defaultMethod === method.code}
-				<li class="flex items-center gap-4 px-4 py-3">
-					<Checkbox checked={accepted} onCheckedChange={(v) => toggleMethod(method.code, v)} />
-					<span class="flex-1 text-sm font-medium">{method.label}</span>
-					{#if isDefault}
-						<span
-							class="inline-flex items-center gap-1.5 rounded-full bg-foreground px-2.5 py-1 text-sm font-medium text-background"
-						>
-							<span class="h-1.5 w-1.5 rounded-full bg-background"></span>
-							Default
-						</span>
-					{:else}
-						<button
-							type="button"
-							disabled={!accepted}
-							onclick={() => (defaultMethod = method.code)}
-							class="rounded-full border px-2.5 py-1 text-sm text-muted-foreground transition-colors hover:border-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-input disabled:hover:text-muted-foreground"
-						>
-							Set default
-						</button>
-					{/if}
-				</li>
-			{/each}
-		</ul>
-
-		<div class="mt-6">
-			<Button onclick={handleSavePayment} disabled={savingPayment}>
-				{savingPayment ? 'Saving...' : 'Save payment methods'}
-			</Button>
-		</div>
-	</div>
 </div>

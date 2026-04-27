@@ -19,6 +19,7 @@
 		sidebarOpen: boolean;
 		role?: UserRole | null;
 		isBuyer?: boolean;
+		isNxBlsr?: boolean;
 		onsidebarToggle: () => void;
 	};
 
@@ -28,6 +29,7 @@
 		sidebarOpen,
 		role = null,
 		isBuyer = false,
+		isNxBlsr = false,
 		onsidebarToggle
 	}: Props = $props();
 	const cartCount = $derived($cart.length);
@@ -83,13 +85,13 @@
 			<div
 				class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground"
 			>
-				{orgDisplayName.charAt(0).toUpperCase()}
+				{isNxBlsr ? '/' : orgDisplayName.charAt(0).toUpperCase()}
 			</div>
 			<div class="hidden flex-col sm:flex">
 				<span class="text-sm leading-tight font-semibold">{orgDisplayName}</span>
 				<span
 					class="font-mono text-[10px] text-muted-foreground text-zinc-500 dark:text-muted-foreground"
-					>Powered by Threadline</span
+					>{isNxBlsr ? 'Power your Sale' : 'Powered by Threadline'}</span
 				>
 			</div>
 		</div>

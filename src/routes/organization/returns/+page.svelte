@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { marked } from 'marked';
-	import DOMPurify from 'isomorphic-dompurify';
+	import { sanitizeMarkdown } from '$lib/utils/sanitize-markdown.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -19,13 +19,16 @@
 		validators: zod4Client(organizationReturnsSchema),
 		validationMethod: 'onblur',
 		dataType: 'json',
-		onUpdated: ({ form }) => {
-			if (form.valid && form.message?.success) {
+		resetForm: false,
+		onResult: ({ result }) => {
+			if (result.type === 'success') {
 				toast.success('Return policy updated.');
+			} else if (result.type === 'failure') {
+				const msg = (result.data as { message?: string } | undefined)?.message;
+				if (msg) toast.error(msg);
+			} else if (result.type === 'error') {
+				toast.error(result.error?.message ?? 'Failed to save changes.');
 			}
-		},
-		onError: ({ result }) => {
-			toast.error(result.error?.message ?? 'Failed to save changes.');
 		}
 	});
 
@@ -36,7 +39,7 @@
 		const md = $form.policyText ?? '';
 		if (!md) return '';
 		const raw = marked.parse(md, { async: false }) as string;
-		return DOMPurify.sanitize(raw);
+		return sanitizeMarkdown(raw);
 	});
 </script>
 
@@ -114,7 +117,7 @@
 					></textarea>
 				{:else if policyHtml}
 					<div class="prose prose-sm max-w-none rounded-md border bg-background p-4">
-						<!-- HTML is sanitized via isomorphic-dompurify above. -->
+						<!-- HTML is sanitized via sanitize-html above. -->
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 						{@html policyHtml}
 					</div>

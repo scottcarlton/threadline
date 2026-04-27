@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { superValidate } from 'sveltekit-superforms';
+import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { organizationTaxesSchema, salesTaxRateSchema } from '$lib/schemas/organization-taxes.js';
@@ -16,6 +16,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		form.data.pricingDisplay = organization.taxes_pricing_display ?? 'exclusive';
 		form.data.usSalesTaxEnabled = organization.taxes_us_sales_tax_enabled ?? false;
 		form.data.usEin = organization.taxes_us_ein ?? '';
+		form.data.usGeneralRate =
+			organization.taxes_us_general_rate === null ? '' : Number(organization.taxes_us_general_rate);
 		form.data.vatEnabled = organization.taxes_vat_enabled ?? false;
 		form.data.vatRegistration = organization.taxes_vat_registration ?? '';
 		form.data.vatRate =
@@ -56,23 +58,30 @@ export const actions: Actions = {
 		const form = await superValidate(request, zod4(organizationTaxesSchema));
 		if (!form.valid) return fail(400, { form });
 
-		const update = {
-			taxes_pricing_display: form.data.pricingDisplay,
-			taxes_us_sales_tax_enabled: form.data.usSalesTaxEnabled,
-			taxes_us_ein: form.data.usEin || null,
-			taxes_vat_enabled: form.data.vatEnabled,
-			taxes_vat_registration: form.data.vatRegistration || null,
-			taxes_vat_rate: form.data.vatRate === '' ? null : form.data.vatRate,
-			taxes_gst_enabled: form.data.gstEnabled,
-			taxes_gst_registration: form.data.gstRegistration || null,
-			taxes_gst_rate: form.data.gstRate === '' ? null : form.data.gstRate,
-			updated_at: new Date().toISOString()
-		};
+		try {
+			const update = {
+				taxes_pricing_display: form.data.pricingDisplay,
+				taxes_us_sales_tax_enabled: form.data.usSalesTaxEnabled,
+				taxes_us_ein: form.data.usEin || null,
+				taxes_us_general_rate: form.data.usGeneralRate === '' ? null : form.data.usGeneralRate,
+				taxes_vat_enabled: form.data.vatEnabled,
+				taxes_vat_registration: form.data.vatRegistration || null,
+				taxes_vat_rate: form.data.vatRate === '' ? null : form.data.vatRate,
+				taxes_gst_enabled: form.data.gstEnabled,
+				taxes_gst_registration: form.data.gstRegistration || null,
+				taxes_gst_rate: form.data.gstRate === '' ? null : form.data.gstRate,
+				updated_at: new Date().toISOString()
+			};
 
-		const { error } = await supabaseAdmin.from('organizations').update(update).eq('id', orgId);
+			const { error } = await supabaseAdmin.from('organizations').update(update).eq('id', orgId);
 
-		if (error) return fail(500, { form, message: error.message });
-		return { form, success: true };
+			if (error) return fail(500, { form, message: error.message });
+			return message(form, { success: true });
+		} catch (err) {
+			console.error('[organization/taxes] save threw', err);
+			const detail = err instanceof Error ? err.message : 'Save failed';
+			return fail(500, { form, message: detail });
+		}
 	},
 
 	upsertRate: async ({ request, locals }) => {
@@ -111,7 +120,7 @@ export const actions: Actions = {
 			}
 		}
 
-		return { form, success: true };
+		return message(form, { success: true });
 	},
 
 	deleteRate: async ({ request, locals }) => {

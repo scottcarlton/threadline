@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { superValidate } from 'sveltekit-superforms';
+import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { organizationProfileSchema } from '$lib/schemas/organization-profile.js';
@@ -49,9 +49,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 					id: organization.id,
 					name: organization.name,
 					logo_url: organization.logo_url,
-					logo_storage_path: organization.logo_storage_path,
-					accepted_payment_methods: organization.accepted_payment_methods ?? [],
-					default_payment_method: organization.default_payment_method ?? null
+					logo_storage_path: organization.logo_storage_path
 				}
 			: null,
 		orgType,
@@ -71,52 +69,58 @@ export const actions: Actions = {
 		const form = await superValidate(request, zod4(organizationProfileSchema));
 		if (!form.valid) return fail(400, { form });
 
-		const orgUpdate = {
-			name: form.data.name,
-			legal_business_name: form.data.legalBusinessName || null,
-			tagline: form.data.tagline || null,
-			address_line1: form.data.addressLine1 || null,
-			address_line2: form.data.addressLine2 || null,
-			city: form.data.city || null,
-			state: form.data.state || null,
-			zip: form.data.zip || null,
-			country: form.data.country,
-			time_zone: form.data.timeZone,
-			currency_code: form.data.currencyCode,
-			updated_at: new Date().toISOString()
-		};
+		try {
+			const orgUpdate = {
+				name: form.data.name,
+				legal_business_name: form.data.legalBusinessName || null,
+				tagline: form.data.tagline || null,
+				address_line1: form.data.addressLine1 || null,
+				address_line2: form.data.addressLine2 || null,
+				city: form.data.city || null,
+				state: form.data.state || null,
+				zip: form.data.zip || null,
+				country: form.data.country,
+				time_zone: form.data.timeZone,
+				currency_code: form.data.currencyCode,
+				updated_at: new Date().toISOString()
+			};
 
-		const { error: orgErr } = await supabaseAdmin
-			.from('organizations')
-			.update(orgUpdate)
-			.eq('id', organization.id);
+			const { error: orgErr } = await supabaseAdmin
+				.from('organizations')
+				.update(orgUpdate)
+				.eq('id', organization.id);
 
-		if (orgErr) return fail(500, { form, message: orgErr.message });
+			if (orgErr) return fail(500, { form, message: orgErr.message });
 
-		if (orgType === 'brand') {
-			const { data: selfBrand } = await supabaseAdmin
-				.from('brands')
-				.select('id')
-				.eq('organization_id', organization.id)
-				.eq('is_self_brand', true)
-				.maybeSingle();
-
-			if (selfBrand) {
-				const { error: brandErr } = await supabaseAdmin
+			if (orgType === 'brand') {
+				const { data: selfBrand } = await supabaseAdmin
 					.from('brands')
-					.update({
-						website: form.data.website || null,
-						contact_email: form.data.contactEmail || null,
-						contact_phone: form.data.contactPhone || null
-					})
-					.eq('id', selfBrand.id);
+					.select('id')
+					.eq('organization_id', organization.id)
+					.eq('is_self_brand', true)
+					.maybeSingle();
 
-				if (brandErr) {
-					return fail(500, { form, message: 'Org saved, but brand details failed.' });
+				if (selfBrand) {
+					const { error: brandErr } = await supabaseAdmin
+						.from('brands')
+						.update({
+							website: form.data.website || null,
+							contact_email: form.data.contactEmail || null,
+							contact_phone: form.data.contactPhone || null
+						})
+						.eq('id', selfBrand.id);
+
+					if (brandErr) {
+						return fail(500, { form, message: 'Org saved, but brand details failed.' });
+					}
 				}
 			}
-		}
 
-		return { form, success: true };
+			return message(form, { success: true });
+		} catch (err) {
+			console.error('[organization/profile] save threw', err);
+			const detail = err instanceof Error ? err.message : 'Save failed';
+			return fail(500, { form, message: detail });
+		}
 	}
 };

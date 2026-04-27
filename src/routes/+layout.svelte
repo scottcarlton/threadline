@@ -223,14 +223,23 @@
 				data.membership?.role === 'guest')
 	);
 
+	// Nx-BLSR: user is a sales-role member in 2+ brand orgs. Acts as one unified
+	// portal across those brand orgs — no per-org switcher, no per-brand dropdown.
+	const isNxBlsr = $derived(
+		(data.allMemberships?.filter((m) => m.organizations?.org_type === 'brand' && m.role === 'sales')
+			.length ?? 0) > 1
+	);
+
 	const buyerAccountName = $derived(data.buyerAccounts?.[0]?.accounts?.business_name ?? null);
 
 	const orgDisplayName = $derived(
 		data.isBuyer && buyerAccountName
 			? buyerAccountName
-			: isBrandScoped && data.scopedBrandNames?.length
-				? data.scopedBrandNames.join(', ')
-				: (data.organization?.name ?? 'Threadline')
+			: isNxBlsr
+				? 'Threadline'
+				: isBrandScoped && data.scopedBrandNames?.length
+					? data.scopedBrandNames.join(', ')
+					: (data.organization?.name ?? 'Threadline')
 	);
 
 	function handleAiKeydown(e: KeyboardEvent) {
@@ -649,6 +658,7 @@
 			{sidebarOpen}
 			role={data.membership?.role ?? null}
 			isBuyer={data.isBuyer === true}
+			{isNxBlsr}
 			onsidebarToggle={() => (sidebarOpen = !sidebarOpen)}
 		/>
 
@@ -667,6 +677,7 @@
 						allMemberships={data.allMemberships}
 						brandScope={data.brandScope}
 						isBuyer={data.isBuyer}
+						{isNxBlsr}
 						bind:showHelp
 					/>
 				</div>

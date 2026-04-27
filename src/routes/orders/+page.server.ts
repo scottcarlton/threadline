@@ -3,6 +3,7 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listFederatedOrders } from '$lib/server/federation.js';
 import { resolveOrderSearch, applyOrderSearch } from '$lib/server/orders/search.js';
 import { loadManagerScope } from '$lib/server/scoping.js';
+import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
 
 const PAGE_SIZE = 50;
 
@@ -26,7 +27,13 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('data:orders');
 	depends('data:dashboard');
 
-	const { supabase, organization, orgType } = locals;
+	const { supabase, organization, orgType, allMemberships } = locals;
+	// Nx-BLSR: sales-role member of 2+ brand-orgs. Their orders union spans every
+	// brand-org they belong to. ownOrgIds = brand-org union when Nx-BLSR, else
+	// just the active organization id (existing behavior preserved).
+	const brandOrgIdsForNx = getNxBlsrBrandOrgIds(allMemberships);
+	const nxBlsr = isNxBlsr(brandOrgIdsForNx);
+	const ownOrgIds = organization ? (nxBlsr ? brandOrgIdsForNx : [organization.id]) : [];
 
 	const status = url.searchParams.get('status');
 	const seasonFilter = url.searchParams.get('season');
@@ -153,17 +160,19 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				? await loadManagerScope(supabaseAdmin, brandUserId, locals.membership?.id ?? null)
 				: null;
 
-		// Visible orgs for the BOA: own org + every connected rep org. Used to
+		// Visible orgs for the BOA: own org(s) + every connected rep org. Used to
 		// populate filter dropdowns with the full union of seasons/brands so
-		// they don't shrink when the user picks one as a filter.
+		// they don't shrink when the user picks one as a filter. For Nx-BLSR
+		// `ownOrgIds` is the union of their brand-org memberships, so federation
+		// expands to include every rep org connected to any of their brand-orgs.
 		const { data: brandConnections } = await supabaseAdmin
 			.from('org_connections')
 			.select('rep_org_id')
-			.eq('brand_org_id', organization.id)
+			.in('brand_org_id', ownOrgIds)
 			.eq('status', 'active');
 		const boaVisibleOrgIds = Array.from(
 			new Set<string>([
-				organization.id,
+				...ownOrgIds,
 				...((brandConnections ?? []).map((c) => c.rep_org_id) as string[])
 			])
 		);
@@ -223,14 +232,15 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				.map((s) => s.id);
 		}
 
-		// 1. Direct orders owned by the brand org.
+		// 1. Direct orders owned by the brand org(s).
 		//    Sales reps only see their own. Admin/owner/member see all.
+		//    Nx-BLSR: union across all brand-org memberships (ownOrgIds).
 		let directQuery = supabase
 			.from('orders')
 			.select(
 				'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)'
 			)
-			.eq('organization_id', organization.id)
+			.in('organization_id', ownOrgIds)
 			.order('created_at', { ascending: false });
 		// Sales visibility: widen from "own created_by" to include orders on accounts
 		// the viewer (or their managed reports) cover via territory. Untagged
@@ -243,7 +253,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				const { data: salesAccountRows } = await supabaseAdmin
 					.from('accounts')
 					.select('id')
-					.eq('organization_id', organization.id)
+					.in('organization_id', ownOrgIds)
 					.or(`territory_id.in.(${territoryIds}),territory_id.is.null`);
 				const salesAccountIds = (salesAccountRows ?? []).map((a: { id: string }) => a.id);
 				if (salesAccountIds.length > 0) {
@@ -282,9 +292,11 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		//    Admins and members see all federated orders.
 		// Keep the pre-filter list so the rep filter dropdown stays populated
 		// with every connected rep regardless of which one is currently selected.
-		const allFederatedOrders = brandIsSales
+		// Nx-BLSR: union per brand-org membership (each may have its own connections).
+		const federatedBatches = brandIsSales
 			? []
-			: await listFederatedOrders(supabaseAdmin, organization.id);
+			: await Promise.all(ownOrgIds.map((id) => listFederatedOrders(supabaseAdmin, id)));
+		const allFederatedOrders = brandIsSales ? [] : federatedBatches.flat();
 		let federatedOrders = allFederatedOrders;
 		if (status) federatedOrders = federatedOrders.filter((o) => o.status === status);
 		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.rep_org_id === repOrgId);
@@ -394,8 +406,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		if (directRepIds.size > 0) {
 			const { data: members } = await supabaseAdmin
 				.from('organization_members')
-				.select('id, profile_id, commission_rate')
-				.eq('organization_id', organization.id)
+				.select('id, profile_id, commission_rate, organization_id')
+				.in('organization_id', ownOrgIds)
 				.in('profile_id', [...directRepIds]);
 			for (const m of (members ?? []) as Array<{
 				id: string;

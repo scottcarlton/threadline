@@ -45,16 +45,23 @@ export function mapSalesByRepRow(raw: RawRow): SalesByRepRow {
  * for any brand owned by `brandOrgId`, combining BOLSR (same-org sales
  * reps) and MBISR (users in connected rep orgs). Order visibility is
  * resolved by the `get_brand_order_ids` SQL helper.
+ *
+ * Accepts `string | string[]` for `brandOrgId`. Single string preserves the
+ * existing single-org behavior. An array (used by Nx-BLSR — sales-role member
+ * of multiple brand-orgs) calls the RPC per-org in parallel and concatenates
+ * the row sets so each (rep × brand-org) pair surfaces as its own row.
  */
 export async function loadSalesByRep(
 	supabase: SupabaseClient,
-	brandOrgId: string,
+	brandOrgIdInput: string | string[],
 	year: number
 ): Promise<SalesByRepRow[]> {
-	const { data, error } = await supabase.rpc('get_brand_sales_by_rep', {
-		brand_org_id: brandOrgId,
-		p_year: year
-	});
-	if (error) throw error;
-	return ((data ?? []) as RawRow[]).map(mapSalesByRepRow);
+	const ids = Array.isArray(brandOrgIdInput) ? brandOrgIdInput : [brandOrgIdInput];
+	const batches = await Promise.all(
+		ids.map((id) => supabase.rpc('get_brand_sales_by_rep', { brand_org_id: id, p_year: year }))
+	);
+	const firstError = batches.find((b) => b.error)?.error;
+	if (firstError) throw firstError;
+	const rows = batches.flatMap((b) => (b.data ?? []) as RawRow[]);
+	return rows.map(mapSalesByRepRow);
 }

@@ -22,13 +22,16 @@
 		validators: zod4Client(organizationPaymentsSchema),
 		validationMethod: 'onblur',
 		dataType: 'json',
-		onUpdated: ({ form }) => {
-			if (form.valid && form.message?.success) {
+		resetForm: false,
+		onResult: ({ result }) => {
+			if (result.type === 'success') {
 				toast.success('Payments updated.');
+			} else if (result.type === 'failure') {
+				const msg = (result.data as { message?: string } | undefined)?.message;
+				if (msg) toast.error(msg);
+			} else if (result.type === 'error') {
+				toast.error(result.error?.message ?? 'Failed to save changes.');
 			}
-		},
-		onError: ({ result }) => {
-			toast.error(result.error?.message ?? 'Failed to save changes.');
 		}
 	});
 
