@@ -16,7 +16,10 @@
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
-	import { registerServiceWorker } from '$lib/stores/pwa.js';
+	import { registerServiceWorker, swUpdateAvailable, isOnline } from '$lib/stores/pwa.js';
+	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
+	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
+	import { toast } from 'svelte-sonner';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import { preferences } from '$lib/stores/preferences.js';
@@ -65,6 +68,19 @@
 			apply();
 			mq.addEventListener('change', apply);
 			return () => mq.removeEventListener('change', apply);
+		}
+	});
+
+	// SW update toast
+	$effect(() => {
+		if ($swUpdateAvailable) {
+			toast('A new version of Threadline is available.', {
+				action: {
+					label: 'Reload',
+					onClick: () => location.reload()
+				},
+				duration: Infinity
+			});
 		}
 	});
 
@@ -652,6 +668,7 @@
 	{@render children()}
 {:else}
 	<div class="flex h-screen flex-col overflow-hidden">
+		<OfflineBanner />
 		<!-- Full-width header -->
 		<Navbar
 			user={data.user}
@@ -1101,8 +1118,9 @@
 										<!-- Send button -->
 										<button
 											onclick={() => sendAiMessage()}
-											class="flex h-9 w-9 items-center justify-center rounded-none bg-white text-zinc-900 transition-colors hover:bg-zinc-200"
-											aria-label="Send message"
+											disabled={!$isOnline}
+											class="flex h-9 w-9 items-center justify-center rounded-none bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+											aria-label={$isOnline ? 'Send message' : 'Offline — cannot send'}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -1123,8 +1141,9 @@
 										<!-- Voice idle: static wave icon -->
 										<button
 											onclick={toggleVoice}
-											class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200"
-											aria-label="Voice input"
+											disabled={!$isOnline}
+											class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+											aria-label={$isOnline ? 'Voice input' : 'Offline — voice unavailable'}
 										>
 											<div class="flex items-center gap-[2px]">
 												<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
@@ -1140,6 +1159,10 @@
 					</div>
 				</div>
 			</div>
+		{/if}
+
+		{#if data.user?.id}
+			<InstallPrompt userId={data.user.id} />
 		{/if}
 	</div>
 
