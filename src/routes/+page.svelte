@@ -3,6 +3,7 @@
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
 	// import { resolve } from '$app/paths';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
+	import InstallCta from '$lib/components/pwa/InstallCta.svelte';
 
 	let faqOpen = $state<number | null>(null);
 
@@ -373,6 +374,10 @@
 						/>
 						<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
 					</form>
+					<div class="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+						<span>Already have an account?</span>
+						<InstallCta />
+					</div>
 				</div>
 			</section>
 		</div>
