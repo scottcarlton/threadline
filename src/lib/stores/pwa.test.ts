@@ -47,8 +47,10 @@ describe('pwa store', () => {
 	it('captures beforeinstallprompt event', async () => {
 		const { installPromptEvent } = await import('./pwa.js');
 		expect(get(installPromptEvent)).toBeNull();
-		const fakeEvent = new Event('beforeinstallprompt', { cancelable: true });
-		(fakeEvent as any).prompt = vi.fn();
+		const fakeEvent = new Event('beforeinstallprompt', { cancelable: true }) as Event & {
+			prompt: () => Promise<void>;
+		};
+		fakeEvent.prompt = vi.fn();
 		window.dispatchEvent(fakeEvent);
 		expect(fakeEvent.defaultPrevented).toBe(true);
 		expect(get(installPromptEvent)).toBe(fakeEvent);
@@ -56,8 +58,10 @@ describe('pwa store', () => {
 
 	it('resets installPromptEvent on appinstalled', async () => {
 		const { installPromptEvent } = await import('./pwa.js');
-		const fakeEvent = new Event('beforeinstallprompt', { cancelable: true });
-		(fakeEvent as any).prompt = vi.fn();
+		const fakeEvent = new Event('beforeinstallprompt', { cancelable: true }) as Event & {
+			prompt: () => Promise<void>;
+		};
+		fakeEvent.prompt = vi.fn();
 		window.dispatchEvent(fakeEvent);
 		expect(get(installPromptEvent)).toBe(fakeEvent);
 		window.dispatchEvent(new Event('appinstalled'));
