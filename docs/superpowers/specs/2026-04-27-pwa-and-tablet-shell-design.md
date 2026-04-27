@@ -259,6 +259,17 @@ Used by both the primary sidebar (overlay mode) and `SectionSheet`. Centralizing
 
 A new `ui/` primitive at `src/lib/components/ui/section-sheet/`. Renders a grouped nav inside an `OverlayPanel`. Accepts a `groups` prop matching the existing organization layout's shape (`{ label, pill?, items: { label, href, badge? }[] }`). Used by the organization sub-nav at `< lg`. Available for any future page that has grouped secondary nav with too many items for horizontal scrollable tabs.
 
+#### Stat card carousels at `< lg`
+
+List pages with a row of summary/stat cards (currently `/orders` and `/expenses`) use a `grid gap-4 sm:grid-cols-2 lg:grid-cols-4` pattern that stacks vertically at iPad portrait, eating significant vertical real estate before the actual list content. The tablet rule is:
+
+- **`lg+`:** keep the existing grid layout.
+- **`< lg`:** the cards become a horizontally-scrollable, snap-aligned carousel that bleeds to the screen edge. Each card is a fixed shrink-0 width (e.g., `w-[min(80%,18rem)]`) and snaps to the start.
+
+Concretely, the wrapper class swaps from `grid grid-cols-* gap-*` to `-mx-4 flex snap-x snap-mandatory gap-* overflow-x-auto px-4 pb-2 lg:mx-0 lg:grid lg:grid-cols-* lg:overflow-visible lg:px-0 lg:pb-0`, with each card adding `shrink-0 w-[min(80%,18rem)] snap-start lg:w-auto`. No new primitive is introduced for two sites; if a third site needs the pattern in the future, the rule should be promoted to a `StatCardRow` component.
+
+Scope for this branch: `/orders` and `/expenses` only. Other surfaces with stat-tile rows (e.g., `/dashboard`, `/reports`) follow in a future branch once the pattern is validated.
+
 #### Organization sub-nav (`src/routes/organization/+layout.svelte`)
 
 The existing 17-item / 5-group nav stays as-is on `lg+` (sticky `w-48 shrink-0` rail). On `< lg`:

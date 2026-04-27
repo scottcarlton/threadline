@@ -2350,6 +2350,67 @@ git commit -m "feat(tablet): organization sub-nav uses SectionSheet at < lg"
 
 ---
 
+### Task 24a: Stat card carousels on /orders and /expenses
+
+**Files:**
+
+- Modify: `src/routes/orders/+page.svelte`
+- Modify: `src/routes/expenses/+page.svelte`
+
+- [ ] **Step 1: Find the stat-card grid in `/orders`**
+
+Run: `grep -n "sm:grid-cols-2 lg:grid-cols-4" src/routes/orders/+page.svelte`. Expected: a single match around line 536 wrapping ~4 stat cards.
+
+- [ ] **Step 2: Convert the orders grid to a carousel below `lg`**
+
+In `src/routes/orders/+page.svelte`, replace the wrapper class on the stat-card row from:
+
+```svelte
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+```
+
+To:
+
+```svelte
+<div class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0">
+```
+
+The `-mx-*` + `px-*` pattern lets the carousel bleed to the screen edge (matching the main content's `p-4 sm:p-6`) so the first card aligns with the page padding instead of looking inset.
+
+For each direct child stat card inside that wrapper, add `snap-start shrink-0 w-[min(80%,18rem)] lg:w-auto` to its existing class list. Concretely, if a card is `<div class="rounded-lg border bg-muted/30 p-5">`, change to `<div class="snap-start shrink-0 w-[min(80%,18rem)] rounded-lg border bg-muted/30 p-5 lg:w-auto">`. Apply to every card in that row.
+
+- [ ] **Step 3: Find the stat-card grid in `/expenses`**
+
+Run: `grep -n "grid-cols" src/routes/expenses/+page.svelte | head -5`. Locate the wrapper for the expenses summary cards (the same `grid gap-4 sm:grid-cols-* lg:grid-cols-*` shape). If the column count differs (e.g., `lg:grid-cols-3`), preserve the existing column count in the `lg:` half of the new class.
+
+- [ ] **Step 4: Convert the expenses grid the same way**
+
+Apply the identical wrapper class swap from Step 2, preserving the original `lg:grid-cols-N` count, and add the `snap-start shrink-0 w-[min(80%,18rem)] lg:w-auto` classes to each direct child card.
+
+- [ ] **Step 5: Run typecheck**
+
+Run: `bun run check`
+Expected: 0 errors.
+
+- [ ] **Step 6: Manual verification**
+
+Run: `bun run dev` at iPad portrait width (DevTools device emulation: iPad). Visit `/orders`. Verify:
+
+- The stat-card row scrolls horizontally with snap-to-card behavior.
+- Cards bleed to the left edge (no awkward inset).
+- The list below renders without compression.
+
+Visit `/expenses` and verify the same. Resize to `≥ lg` — both pages return to the original grid.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/routes/orders/+page.svelte src/routes/expenses/+page.svelte
+git commit -m "feat(tablet): stat-card row scrolls horizontally below lg on /orders and /expenses"
+```
+
+---
+
 ### Task 25: Stage 1 — verify high-traffic surfaces at iPad widths
 
 **Files:**
