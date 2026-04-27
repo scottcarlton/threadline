@@ -7,6 +7,7 @@
 	import { orderAttentionCount } from '$lib/stores/orderAttention.js';
 	import type { UserRole, OrgType, Organization, OrganizationMember } from '$lib/types/database.js';
 	import OrgSwitcher from './OrgSwitcher.svelte';
+	import { OverlayPanel } from '$lib/components/ui/overlay-panel/index.js';
 
 	type NavItem = {
 		label: string;
@@ -26,6 +27,9 @@
 		isBuyer?: boolean;
 		isNxBlsr?: boolean;
 		showHelp?: boolean;
+		mode?: 'push' | 'overlay';
+		open?: boolean;
+		onclose?: () => void;
 	};
 
 	let {
@@ -36,7 +40,10 @@
 		brandScope = null,
 		isBuyer = false,
 		isNxBlsr = false,
-		showHelp = $bindable(false)
+		showHelp = $bindable(false),
+		mode = 'push',
+		open = true,
+		onclose = () => {}
 	}: Props = $props();
 
 	const isSales = $derived(role === 'sales');
@@ -193,7 +200,7 @@
 	}
 </script>
 
-<aside class="flex h-full w-60 flex-col bg-background text-foreground">
+{#snippet sidebarContent()}
 	<!-- Org Switcher: hidden for Nx-BLSR (their multiple brand-org memberships
 	     are folded into a single unified portal — see isNxBlsr above). -->
 	{#if currentOrg && allMemberships.length > 1 && !isNxBlsr}
@@ -464,7 +471,19 @@
 			</a>
 		{/if}
 	</div>
-</aside>
+{/snippet}
+
+{#if mode === 'overlay'}
+	<OverlayPanel {open} {onclose} ariaLabel="Main navigation" side="left" width="240px">
+		<aside class="flex h-full w-full flex-col bg-background text-foreground">
+			{@render sidebarContent()}
+		</aside>
+	</OverlayPanel>
+{:else}
+	<aside class="flex h-full w-60 flex-col bg-background text-foreground">
+		{@render sidebarContent()}
+	</aside>
+{/if}
 
 <!-- Help & Support Drawer -->
 {#if showHelp}
