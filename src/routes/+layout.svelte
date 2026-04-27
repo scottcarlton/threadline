@@ -23,6 +23,7 @@
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import { preferences } from '$lib/stores/preferences.js';
+	import { isLgUp } from '$lib/utils/viewport.js';
 	import { cart } from '$lib/stores/cart.js';
 
 	const { messages, loading } = conversation;
@@ -163,7 +164,13 @@
 		}, 300);
 	}
 
-	let sidebarOpen = $state(true);
+	let sidebarOpen = $state<boolean>(
+		$preferences.sidebarOpen ?? (browser ? matchMedia('(min-width: 1024px)').matches : true)
+	);
+
+	$effect(() => {
+		preferences.setSidebarOpen(sidebarOpen);
+	});
 	let showHelp = $state(false);
 	let aiPanelOpen = $state(false);
 	let messagesContainer = $state<HTMLDivElement | null>(null);
@@ -227,8 +234,8 @@
 	});
 
 	$effect(() => {
-		if ($page.url.pathname) {
-			// Close sidebar on mobile nav
+		if ($page.url.pathname && !$isLgUp) {
+			sidebarOpen = false;
 		}
 	});
 
@@ -683,24 +690,40 @@
 
 		<!-- Sidebar + Content below header -->
 		<div class="flex flex-1 overflow-hidden">
-			<!-- Sidebar (slides on/off with animation) -->
-			<div
-				class="h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
-				style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
-			>
-				<div class="h-full w-60">
-					<Sidebar
-						role={data.membership?.role ?? 'guest'}
-						orgType={data.orgType}
-						currentOrg={data.organization}
-						allMemberships={data.allMemberships}
-						brandScope={data.brandScope}
-						isBuyer={data.isBuyer}
-						{isNxBlsr}
-						bind:showHelp
-					/>
+			{#if $isLgUp}
+				<div
+					class="h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
+					style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
+				>
+					<div class="h-full w-60">
+						<Sidebar
+							mode="push"
+							role={data.membership?.role ?? 'guest'}
+							orgType={data.orgType}
+							currentOrg={data.organization}
+							allMemberships={data.allMemberships}
+							brandScope={data.brandScope}
+							isBuyer={data.isBuyer}
+							{isNxBlsr}
+							bind:showHelp
+						/>
+					</div>
 				</div>
-			</div>
+			{:else}
+				<Sidebar
+					mode="overlay"
+					open={sidebarOpen}
+					onclose={() => (sidebarOpen = false)}
+					role={data.membership?.role ?? 'guest'}
+					orgType={data.orgType}
+					currentOrg={data.organization}
+					allMemberships={data.allMemberships}
+					brandScope={data.brandScope}
+					isBuyer={data.isBuyer}
+					{isNxBlsr}
+					bind:showHelp
+				/>
+			{/if}
 
 			<!-- Main content -->
 			<main class="flex-1 overflow-y-auto bg-background p-4 pb-32 sm:p-6 sm:pb-36">
@@ -713,7 +736,7 @@
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="pointer-events-none fixed right-0 bottom-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out"
-				style="left: {sidebarOpen ? '240px' : '0px'}"
+				style="left: {$isLgUp && sidebarOpen ? '240px' : '0px'}"
 				transition:fly={{ y: 100, duration: 300 }}
 				onmouseenter={() => {
 					if (dockPeeking) clearTimeout(peekTimeout);
