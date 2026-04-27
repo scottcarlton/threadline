@@ -9,10 +9,12 @@
 
 Make Threadline installable as a Progressive Web App with an offline-capable application shell, and bring the authenticated app to a usable, design-considered state on iPad and larger viewports. Mobile (phone) support and unauthenticated-route responsiveness are deliberately out of scope and tracked for follow-up branches.
 
-This branch ships two parallel workstreams in one PR boundary:
+This branch ships two phased deliverables on a single feature branch (`feat/pwa-setup`), opened as two stacked PRs into `dev`:
 
-1. **PWA layer (greenfield):** Web App Manifest, icon set, iOS meta, service worker, offline shell, install prompts.
-2. **Tablet shell (modification):** Responsive sidebar/dock behavior at iPad portrait, an `OverlayPanel` primitive, a `SectionSheet` primitive for grouped secondary navigation (organization), and a staged tablet-quality pass over the authenticated routes.
+1. **Phase 1 — PWA layer (PR #1, greenfield):** Web App Manifest, icon set, iOS meta, service worker, offline shell, install prompts.
+2. **Phase 2 — Tablet shell (PR #2, after PR #1 merges):** Responsive sidebar/dock behavior at iPad portrait, an `OverlayPanel` primitive, a `SectionSheet` primitive for grouped secondary navigation (organization), and a staged tablet-quality pass over the authenticated routes.
+
+Phasing rationale: the two layers share `src/routes/+layout.svelte` but have non-overlapping logical surface area. Splitting into two PRs keeps reviews focused (Phase 1 is greenfield / additive; Phase 2 modifies existing shell behavior) and matches the "one PR per deliverable" project rule.
 
 ## Goals
 
