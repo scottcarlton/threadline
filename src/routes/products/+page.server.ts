@@ -126,6 +126,58 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		};
 	}
 
-	// Rep orgs shouldn't hit /products directly — Products lives under each brand.
+	// Rep orgs (MBISR/MBLSR): show a federated multi-brand catalog spanning
+	// every brand the user has RLS visibility into via active connections.
+	// `/brands` lets them drill to one brand; `/products` is the cross-brand
+	// view. RLS is the authoritative gate — query brands without an org_id
+	// filter and let the policy resolve federation.
+	if (orgType === 'rep') {
+		const { data: brands } = await supabase
+			.from('brands')
+			.select('id, name')
+			.eq('is_active', true)
+			.order('name');
+		const brandIds = (brands ?? []).map((b) => b.id);
+		if (brandIds.length === 0) throw error(404, 'No active brands found across your connections.');
+
+		let productsQuery = supabase
+			.from('products')
+			.select(
+				'*, product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order), brands(id, name)',
+				{ count: 'exact' }
+			)
+			.in('brand_id', brandIds)
+			.is('archived_at', null)
+			.order('style_number')
+			.range(0, PAGE_SIZE - 1);
+
+		if (search) {
+			productsQuery = productsQuery.or(
+				`style_number.ilike.%${search}%,name.ilike.%${search}%,category.ilike.%${search}%`
+			);
+		}
+		if (seasonFilter) productsQuery = productsQuery.eq('season_id', seasonFilter);
+		if (categoryFilter) productsQuery = productsQuery.eq('category', categoryFilter);
+
+		// Connected brand-orgs' season ids. RLS on seasons follows the same
+		// federation policy, so query without an org filter.
+		const [productsRes, seasonsRes] = await Promise.all([
+			productsQuery,
+			supabase.from('seasons').select('id, name').eq('is_active', true).order('name')
+		]);
+
+		const totalCount = productsRes.count ?? (productsRes.data ?? []).length;
+
+		return {
+			brand: null,
+			brands: brands ?? [],
+			products: productsRes.data ?? [],
+			hasMore: totalCount > PAGE_SIZE,
+			totalCount,
+			seasons: seasonsRes.data ?? []
+		};
+	}
+
+	// Fallback (shouldn't normally hit): preserve the legacy redirect.
 	throw redirect(303, '/brands');
 };
