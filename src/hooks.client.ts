@@ -5,7 +5,7 @@ import { dev } from '$app/environment';
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
 	enabled: !dev,
-	environment: dev ? 'development' : 'production',
+	environment: import.meta.env.VERCEL_ENV ?? (dev ? 'development' : 'production'),
 	tracesSampleRate: 0.1,
 	replaysSessionSampleRate: 0.1,
 	replaysOnErrorSampleRate: 1.0,
