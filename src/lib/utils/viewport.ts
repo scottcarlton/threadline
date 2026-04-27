@@ -1,8 +1,9 @@
 import { readable, type Readable } from 'svelte/store';
+import { browser } from '$app/environment';
 
 function fromMediaQuery(query: string): Readable<boolean> {
 	return readable(false, (set) => {
-		if (typeof matchMedia !== 'function') {
+		if (!browser || typeof matchMedia !== 'function') {
 			return;
 		}
 		const mql = matchMedia(query);

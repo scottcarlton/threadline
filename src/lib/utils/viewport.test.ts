@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
 
+vi.mock('$app/environment', () => ({ browser: true }));
+
 describe('viewport utils', () => {
 	let listeners: Map<string, Set<(e: MediaQueryListEvent) => void>>;
 
