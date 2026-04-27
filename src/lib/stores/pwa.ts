@@ -16,6 +16,9 @@ function detectStandalone(): boolean {
 }
 
 function createOnlineStore(): Writable<boolean> {
+	// SSR initial value is `true` (optimistically online). On hydration, the client
+	// re-reads navigator.onLine. An offline user sees a brief flash before the
+	// OfflineBanner appears — acceptable for MVP since first-load offline is rare.
 	const store = writable<boolean>(browser ? navigator.onLine : true);
 	if (browser) {
 		const setOnline = () => store.set(true);
