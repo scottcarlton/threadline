@@ -16,6 +16,7 @@
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
+	import { registerServiceWorker } from '$lib/stores/pwa.js';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import { preferences } from '$lib/stores/preferences.js';
@@ -73,6 +74,7 @@
 			const stopAppointments = startAppointmentPolling(60000);
 			const stopAttention = startOrderAttentionPolling(60000);
 			const stopNotifications = startNotificationPolling(30000);
+			registerServiceWorker();
 			return () => {
 				stopUnread?.();
 				stopAppointments?.();
