@@ -661,16 +661,12 @@
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
+							class="h-3.5 w-3.5"
+							fill="currentColor"
 							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
 						>
 							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
 							/>
 						</svg>
 						Back
@@ -711,16 +707,12 @@
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
+							class="h-3.5 w-3.5"
+							fill="currentColor"
 							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
 						>
 							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
 							/>
 						</svg>
 						Back
@@ -819,16 +811,12 @@
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
+							class="h-3.5 w-3.5"
+							fill="currentColor"
 							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
 						>
 							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
 							/>
 						</svg>
 						Back
@@ -854,16 +842,12 @@
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
+							class="h-3.5 w-3.5"
+							fill="currentColor"
 							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
 						>
 							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
 							/>
 						</svg>
 						Back
@@ -1023,16 +1007,12 @@
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
+							class="h-3.5 w-3.5"
+							fill="currentColor"
 							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
 						>
 							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
 							/>
 						</svg>
 						Back

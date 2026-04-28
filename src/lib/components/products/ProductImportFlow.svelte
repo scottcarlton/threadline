@@ -290,15 +290,11 @@
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
 			class="h-7 w-7 animate-spin text-muted-foreground"
-			fill="none"
+			fill="currentColor"
 			viewBox="0 0 24 24"
 		>
 			<path
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				stroke="currentColor"
-				stroke-width="2"
-				d="M21 12a9 9 0 11-6.219-8.56"
+				d="M18.364 5.63604L16.9497 7.05025C15.683 5.7835 13.933 5 12 5C8.13401 5 5 8.13401 5 12C5 15.866 8.13401 19 12 19C15.866 19 19 15.866 19 12H21C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C14.4853 3 16.7353 4.00736 18.364 5.63604Z"
 			/>
 		</svg>
 		<div class="grid text-left">
@@ -379,15 +375,11 @@
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
+						fill="currentColor"
 						class="h-7 w-7 text-destructive"
 					>
 						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+							d="M15 4H5V20H19V8H15V4ZM3 2.9918C3 2.44405 3.44749 2 3.9985 2H16L20.9997 7L21 20.9925C21 21.5489 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5447 3 21.0082V2.9918ZM11 15H13V17H11V15ZM11 7H13V13H11V7Z"
 						/>
 					</svg>
 					<p class="mt-2 text-sm text-destructive">{errorMessage}</p>
@@ -417,12 +409,12 @@
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
+						fill="currentColor"
 						class="h-7 w-7 text-foreground"
 					>
-						<path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5m-7 7l7-7 7 7" />
+						<path
+							d="M3 19H21V21H3V19ZM13 5.82843V17H11V5.82843L4.92893 11.8995L3.51472 10.4853L12 2L20.4853 10.4853L19.0711 11.8995L13 5.82843Z"
+						/>
 					</svg>
 					<p class="mt-2 text-base font-semibold">Upload a File</p>
 					<p class="text-sm text-muted-foreground">
@@ -484,15 +476,11 @@
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
+					fill="currentColor"
 					class="h-4 w-4"
 				>
 					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+						d="M3 19H21V21H3V19ZM13 13.1716L19.0711 7.1005L20.4853 8.51472L12 17L3.51472 8.51472L4.92893 7.1005L11 13.1716V2H13V13.1716Z"
 					/>
 				</svg>
 				Download CSV Template
@@ -504,15 +492,11 @@
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
+					fill="currentColor"
 					class="h-4 w-4"
 				>
 					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+						d="M10 6V8H5V19H16V14H18V20C18 20.5523 17.5523 21 17 21H4C3.44772 21 3 20.5523 3 20V7C3 6.44772 3.44772 6 4 6H10ZM21 3V11H19L18.9999 6.413L11.2071 14.2071L9.79289 12.7929L17.5849 5H13V3H21Z"
 					/>
 				</svg>
 				Learn about imports
@@ -524,18 +508,16 @@
 	<div class="space-y-3">
 		<div class="flex items-center justify-between">
 			<div class="inline-flex items-center gap-2 text-sm">
-				<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="3"
-						class="h-3 w-3 text-white"
-					>
-						<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-					</svg>
-				</span>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 24 24"
+					fill="currentColor"
+					class="h-5 w-5 text-emerald-500"
+				>
+					<path
+						d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22ZM17.4571 9.45711L11 15.9142L6.79289 11.7071L8.20711 10.2929L11 13.0858L16.0429 8.04289L17.4571 9.45711Z"
+					/>
+				</svg>
 				{#if isHighConfidence && matchedSeason && chosenYear}
 					{matchedSeason.name} {chosenYear} imported
 				{:else}
