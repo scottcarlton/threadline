@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { OverlayPanel } from '$lib/components/ui/overlay-panel/index.js';
 	import { cn } from '$lib/utils.js';
 
@@ -63,7 +64,7 @@
 						{#each group.items as item (item.href)}
 							<li>
 								<a
-									href={item.href}
+									href={resolve(item.href as '/organization')}
 									onclick={onnavigate}
 									class={cn(
 										'flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors',
