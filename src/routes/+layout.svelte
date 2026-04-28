@@ -666,7 +666,7 @@
 {/if}
 
 {#if $navigating}
-	<div class="fixed inset-x-0 top-0 z-[100] h-0.5">
+	<div class="fixed inset-x-0 top-0 z-[100] h-1">
 		<div class="nav-progress h-full bg-accent"></div>
 	</div>
 {/if}
