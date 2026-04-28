@@ -1,0 +1,8 @@
+{{{INVITER_NAME}}} invited you to {{{ORGANIZATION_NAME}}} on /Threadline
+
+{{{INVITER_NAME}}} invited you to join {{{ORGANIZATION_NAME}}} as {{{ROLE}}}.
+
+Accept the invite: {{{ACCEPT_URL}}}
+
+This invite expires in {{{EXPIRES_IN_DAYS}}} days.
+/Threadline · threadline.systems

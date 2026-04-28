@@ -4,7 +4,14 @@ export interface InstallEligibilityInputs {
 	installAvailable: boolean;
 	isLgUp: boolean;
 	isTabletPortrait: boolean;
-	isIosSafari: boolean;
+	/**
+	 * True for any iOS browser (Safari, Chrome iOS, Firefox iOS, Edge iOS).
+	 * Apple WebKit blocks `beforeinstallprompt` across the board, so all iOS
+	 * browsers fall back to the same Add-to-Home-Screen instructions modal.
+	 * Only Safari produces a real standalone PWA — the others create a
+	 * bookmark — but the install path looks the same to the user.
+	 */
+	isIosBrowser: boolean;
 	dismissedUserIds: Set<string>;
 }
 
@@ -12,7 +19,7 @@ export function shouldShowInstallPrompt(inputs: InstallEligibilityInputs): boole
 	if (inputs.isStandalone) return false;
 	if (inputs.dismissedUserIds.has(inputs.userId)) return false;
 	if (!inputs.isLgUp && !inputs.isTabletPortrait) return false; // phones excluded
-	if (!inputs.installAvailable && !inputs.isIosSafari) return false;
+	if (!inputs.installAvailable && !inputs.isIosBrowser) return false;
 	return true;
 }
 
@@ -37,12 +44,24 @@ export function persistDismissedUserId(userId: string): void {
 	localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
 }
 
-export function detectIosSafari(): boolean {
+/**
+ * True for any iOS browser (Safari, Chrome iOS, Firefox iOS, Edge iOS).
+ * All iOS browsers share Apple's WebKit which blocks `beforeinstallprompt`
+ * but supports Add-to-Home-Screen via the Share menu.
+ */
+export function detectIosBrowser(): boolean {
 	if (typeof navigator === 'undefined') return false;
 	const ua = navigator.userAgent;
-	const isIos =
+	return (
 		/iPad|iPhone|iPod/.test(ua) ||
-		(ua.includes('Mac') && typeof document !== 'undefined' && 'ontouchend' in document);
-	const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
-	return isIos && isSafari;
+		(ua.includes('Mac') && typeof document !== 'undefined' && 'ontouchend' in document)
+	);
+}
+
+/**
+ * @deprecated kept for backwards-compat; prefer detectIosBrowser since
+ * iOS Chrome/Firefox/Edge all need the same install path as iOS Safari.
+ */
+export function detectIosSafari(): boolean {
+	return detectIosBrowser();
 }
