@@ -7,13 +7,12 @@ import { logUsage } from '$lib/server/ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-const ALLOWED_TYPES = new Set([
-	'image/jpeg',
-	'image/png',
-	'image/webp',
-	'image/gif',
-	'application/pdf'
-]);
+// PDF-only as of the linesheet uploader rewrite. Image formats were dropped:
+// a photo of one product belongs in the regular product creation flow, and
+// a screenshot of a printed linesheet OCRs worse than the source PDF — both
+// inflate AI cost without lifting accuracy. CSVs route through the new
+// mapping path and never hit this endpoint.
+const ALLOWED_TYPES = new Set(['application/pdf']);
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
@@ -50,6 +49,16 @@ const extractionTool: Anthropic.Tool = {
 							type: 'string',
 							description: 'Product category (e.g., Tops, Bottoms, Dresses)'
 						},
+						subcategory: {
+							type: 'string',
+							description:
+								"Product subcategory if shown — e.g. 'Knits' under 'Tops'. Omit if not confident."
+						},
+						product_year: {
+							type: 'number',
+							description:
+								"Four-digit year if shown per-product, separate from the linesheet-level `year`. Omit if the row doesn't carry its own year."
+						},
 						description: { type: 'string', description: 'Additional product description' },
 						sizes: {
 							type: 'array',
@@ -82,10 +91,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	if (!ALLOWED_TYPES.has(file.type)) {
-		return json(
-			{ error: 'Unsupported file type. Please upload a PDF, JPG, PNG, or WebP file.' },
-			{ status: 400 }
-		);
+		return json({ error: 'Unsupported file type. Upload a PDF.' }, { status: 400 });
 	}
 
 	if (file.size > MAX_FILE_SIZE) {
@@ -94,37 +100,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const arrayBuffer = await file.arrayBuffer();
 	const base64 = Buffer.from(arrayBuffer).toString('base64');
-	const isPdf = file.type === 'application/pdf';
 
-	const content: Anthropic.ContentBlockParam[] = isPdf
-		? [
-				{
-					type: 'document',
-					source: {
-						type: 'base64',
-						media_type: 'application/pdf',
-						data: base64
-					}
-				} as unknown as Anthropic.ContentBlockParam,
-				{
-					type: 'text',
-					text: 'Extract all products from this linesheet. You MUST call the parse_products tool with the results.'
-				}
-			]
-		: [
-				{
-					type: 'image',
-					source: {
-						type: 'base64',
-						media_type: file.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-						data: base64
-					}
-				},
-				{
-					type: 'text',
-					text: 'Extract all products from this linesheet. You MUST call the parse_products tool with the results.'
-				}
-			];
+	const content: Anthropic.ContentBlockParam[] = [
+		{
+			type: 'document',
+			source: {
+				type: 'base64',
+				media_type: 'application/pdf',
+				data: base64
+			}
+		} as unknown as Anthropic.ContentBlockParam,
+		{
+			type: 'text',
+			text: 'Extract all products from this linesheet. You MUST call the parse_products tool with the results.'
+		}
+	];
 
 	try {
 		const response = await anthropic.messages.create({
@@ -148,7 +138,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const toolBlock = response.content.find((b) => b.type === 'tool_use');
 		if (!toolBlock || toolBlock.type !== 'tool_use') {
 			return json(
-				{ error: 'AI did not return product data. Try a clearer image or use CSV import.' },
+				{ error: 'AI did not return product data. Try a clearer PDF or use CSV import.' },
 				{ status: 422 }
 			);
 		}
@@ -162,7 +152,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (!Array.isArray(products) || products.length === 0) {
 			return json(
-				{ error: 'No products found in this file. Try a clearer image or use CSV import.' },
+				{ error: 'No products found in this file. Try a clearer PDF or use CSV import.' },
 				{ status: 422 }
 			);
 		}
@@ -174,6 +164,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			wholesale_price: String(Number(p.wholesale_price) || 0),
 			retail_price: p.retail_price != null ? String(Number(p.retail_price) || '') : '',
 			category: p.category ? String(p.category).trim() : '',
+			subcategory: p.subcategory ? String(p.subcategory).trim() : '',
+			product_year:
+				typeof p.product_year === 'number' && Number.isFinite(p.product_year)
+					? Math.trunc(p.product_year)
+					: null,
 			description: p.description ? String(p.description).trim() : '',
 			sizes: Array.isArray(p.sizes) ? p.sizes.map(String) : [],
 			colors: Array.isArray(p.colors) ? p.colors.map(String) : []
@@ -190,9 +185,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const message = err instanceof Error ? err.message : 'Unknown error';
 		if (message.includes('Could not process') || message.includes('image')) {
 			return json(
-				{
-					error: "Could not process this file. Make sure it's a clear image or PDF of a linesheet."
-				},
+				{ error: "Could not process this file. Make sure it's a clear PDF of a linesheet." },
 				{ status: 422 }
 			);
 		}

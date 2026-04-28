@@ -4,6 +4,11 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { supabase } from '$lib/supabase.js';
 	import { stripProtocol } from '$lib/utils/website';
+	import { parseCSV as parseProductCSV } from '$lib/utils/csv-parse.js';
+	import { suggestColumnMapping, REQUIRED_PRODUCT_FIELDS } from '$lib/utils/csv-column-suggest.js';
+	import CsvColumnMapper from '$lib/components/shared/CsvColumnMapper.svelte';
+	import ProductImportPreview from '$lib/components/shared/ProductImportPreview.svelte';
+	import type { ProductImportResult } from '$lib/schemas/product-import.js';
 
 	let { data } = $props();
 	const existingOrg = $derived(data.organization);
@@ -501,50 +506,35 @@
 	const welcomeStep = $derived(effectiveOrgType === 'brand' ? 6 : 6);
 
 	// ── Catalog step (brand onboarding v1 — SCO-125) ───────────────────────
-	type ParsedProduct = {
-		style_number?: string;
-		name: string;
-		wholesale_price?: number;
-		retail_price?: number;
-		category?: string;
-		description?: string;
-		sizes?: string[];
-		colors?: string[];
-	};
-	let catalogFile = $state<File | null>(null);
+	// Catalog upload flow: three views
+	//   'choose'  — Paste / Upload entry actions (default)
+	//   'mapping' — CSV column-mapping screen (only when CSV headers don't
+	//               cleanly auto-map to required fields)
+	//   'preview' — Preview + edit + commit (both PDF and CSV land here)
+	type CatalogView = 'choose' | 'mapping' | 'preview';
+	let catalogView = $state<CatalogView>('choose');
 	let catalogParsing = $state(false);
-	let catalogSaving = $state(false);
-	let catalogParsed = $state<ParsedProduct[]>([]);
 	let catalogError = $state('');
+	let catalogPaste = $state('');
 
-	async function parseCatalogFile() {
-		if (!catalogFile) return;
-		catalogParsing = true;
-		catalogError = '';
-		try {
-			const form = new FormData();
-			form.append('file', catalogFile);
-			const res = await fetch('/api/products/parse-linesheet', { method: 'POST', body: form });
-			const body = await res.json();
-			if (!res.ok) {
-				catalogError = body.error ?? 'Parse failed';
-				return;
-			}
-			catalogParsed = (body.products ?? []) as ParsedProduct[];
-			if (catalogParsed.length === 0)
-				catalogError = 'No products detected. Try a clearer linesheet.';
-		} catch (e) {
-			catalogError = (e as Error).message;
-		} finally {
-			catalogParsing = false;
-		}
-	}
+	// CSV mapping data — populated when we drop into the mapping view.
+	let csvHeaders = $state<string[]>([]);
+	let csvRows = $state<Record<string, string>[]>([]);
 
-	async function saveCatalogProducts() {
-		if (catalogParsed.length === 0 || !data.organization) return;
-		catalogSaving = true;
-		catalogError = '';
-		// Find the org's self-brand (auto-created on brand org setup).
+	// Rows ready for the preview component (either AI-extracted from PDF or
+	// CSV-mapped to product fields). Loose shape; the preview component
+	// coerces to the canonical ProductDraft shape.
+	let previewRows = $state<Record<string, unknown>[]>([]);
+	let previewUnmapped = $state<string[]>([]);
+
+	// Brand the importer writes to. For onboarding we always target the
+	// org's self-brand (auto-created on brand-org setup); resolved lazily
+	// when the user commits.
+	let importBrandId = $state<string | null>(null);
+
+	async function ensureSelfBrandId(): Promise<string | null> {
+		if (importBrandId) return importBrandId;
+		if (!data.organization) return null;
 		const { data: selfBrand } = await supabase
 			.from('brands')
 			.select('id')
@@ -553,27 +543,139 @@
 			.maybeSingle();
 		if (!selfBrand) {
 			catalogError = 'Self-brand not found yet. Try refreshing.';
-			catalogSaving = false;
+			return null;
+		}
+		importBrandId = selfBrand.id;
+		return selfBrand.id;
+	}
+
+	function resetCatalog() {
+		catalogView = 'choose';
+		catalogError = '';
+		catalogPaste = '';
+		csvHeaders = [];
+		csvRows = [];
+		previewRows = [];
+		previewUnmapped = [];
+	}
+
+	function handleImportCompleted(result: ProductImportResult) {
+		// At least one row landed (insert + update). Skipped-only is a
+		// no-op, so don't advance the funnel — let the user back out and
+		// pick "Replace" or skip the step entirely.
+		if (result.inserted + result.updated > 0) {
+			step = inviteStep;
+		}
+	}
+
+	// Walk the parsed CSV headers and decide whether all required product
+	// fields auto-map cleanly. If yes → preview directly. If no → mapping.
+	function routeCsv(headers: string[], rows: Record<string, string>[]) {
+		csvHeaders = headers;
+		csvRows = rows;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient
+		const fieldByHeader = new Map<string, ReturnType<typeof suggestColumnMapping>>();
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient
+		const claimedFields = new Set<string>();
+		for (const h of headers) {
+			const field = suggestColumnMapping(h);
+			fieldByHeader.set(h, field);
+			if (field) claimedFields.add(field);
+		}
+		const missingRequired = REQUIRED_PRODUCT_FIELDS.filter((f) => !claimedFields.has(f));
+		if (missingRequired.length > 0) {
+			catalogView = 'mapping';
 			return;
 		}
-		const rows = catalogParsed.map((p) => ({
-			organization_id: data.organization!.id,
-			brand_id: selfBrand.id,
-			style_number: p.style_number ?? '',
-			name: p.name,
-			description: p.description ?? null,
-			wholesale_price: p.wholesale_price ?? 0,
-			retail_price: p.retail_price ?? null,
-			category: p.category ?? null,
-			product_year: new Date().getFullYear()
-		}));
-		const { error: err } = await supabase.from('products').insert(rows);
-		catalogSaving = false;
-		if (err) {
-			catalogError = err.message;
+		// All required fields covered — convert directly to preview rows.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient
+		const headerByField = new Map<string, string>();
+		for (const [h, f] of fieldByHeader) {
+			if (f) headerByField.set(f, h);
+		}
+		previewRows = rows.map((row) => {
+			const out: Record<string, unknown> = {};
+			for (const [field, header] of headerByField) {
+				out[field] = row[header.toLowerCase()] ?? '';
+			}
+			return out;
+		});
+		previewUnmapped = headers.filter((h) => !fieldByHeader.get(h));
+		catalogView = 'preview';
+	}
+
+	function handleMapperConfirm(mapped: Record<string, unknown>[], unmapped: string[]) {
+		previewRows = mapped;
+		previewUnmapped = unmapped;
+		catalogView = 'preview';
+	}
+
+	async function handleCatalogFile(file: File) {
+		catalogError = '';
+		const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+		const isCsv = file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
+
+		if (!isPdf && !isCsv) {
+			catalogError = 'Unsupported file. Drop a PDF or CSV.';
 			return;
 		}
-		step = inviteStep;
+
+		// Resolve the target brand BEFORE we burn time parsing — better to
+		// fail fast if the self-brand isn't ready yet.
+		const brand = await ensureSelfBrandId();
+		if (!brand) return;
+
+		if (isPdf) {
+			catalogParsing = true;
+			try {
+				const form = new FormData();
+				form.append('file', file);
+				const res = await fetch('/api/products/parse-linesheet', { method: 'POST', body: form });
+				const body = await res.json();
+				if (!res.ok) {
+					catalogError = body.error ?? 'Parse failed';
+					return;
+				}
+				const products = (body.products ?? []) as Record<string, unknown>[];
+				if (products.length === 0) {
+					catalogError = 'No products detected. Try a clearer linesheet.';
+					return;
+				}
+				previewRows = products;
+				previewUnmapped = [];
+				catalogView = 'preview';
+			} catch (e) {
+				catalogError = (e as Error).message;
+			} finally {
+				catalogParsing = false;
+			}
+			return;
+		}
+
+		// CSV
+		const text = await file.text();
+		const { headers, rows } = parseProductCSV(text);
+		if (rows.length === 0) {
+			catalogError = 'No rows found. Make sure your CSV has a header row.';
+			return;
+		}
+		routeCsv(headers, rows);
+	}
+
+	async function handleCatalogPaste() {
+		catalogError = '';
+		if (!catalogPaste.trim()) {
+			catalogError = 'Paste some CSV data first.';
+			return;
+		}
+		const brand = await ensureSelfBrandId();
+		if (!brand) return;
+		const { headers, rows } = parseProductCSV(catalogPaste);
+		if (rows.length === 0) {
+			catalogError = 'No rows found. Make sure your CSV has a header row.';
+			return;
+		}
+		routeCsv(headers, rows);
 	}
 
 	function skipCatalog() {
@@ -853,116 +955,106 @@
 						Back
 					</button>
 					<div>
-						<h1 class="text-3xl font-semibold tracking-tight">Upload your linesheet</h1>
+						<h1 class="text-3xl font-semibold tracking-tight">Add your products</h1>
 						<p class="mt-2 text-sm text-muted-foreground">
-							Drop a PDF or image and we'll extract your products automatically. You can edit or add
-							more later.
+							Drop a PDF or CSV and we'll extract your products. You can edit or add more later.
 						</p>
 					</div>
 
-					{#if catalogParsed.length === 0}
-						<label
-							class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-10 text-center hover:border-foreground/40"
-						>
-							<input
-								type="file"
-								accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
-								class="hidden"
-								onchange={(e) => {
-									const f = (e.target as HTMLInputElement).files?.[0];
-									catalogFile = f ?? null;
-								}}
-							/>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.5"
-								class="h-8 w-8 text-muted-foreground"
+					{#if catalogView === 'choose'}
+						<div class="grid gap-4 sm:grid-cols-2">
+							<!-- Upload card: PDF or CSV -->
+							<label
+								class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center hover:border-foreground/40"
 							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									d="M7 16a4 4 0 01-.88-7.9 5 5 0 019.77-2.1A4.5 4.5 0 1117 16H7zm5-4v-6m-3 3l3-3 3 3"
-								/>
-							</svg>
-							<div class="text-sm font-medium">
-								{catalogFile ? catalogFile.name : 'Click to choose a linesheet'}
-							</div>
-							<div class="text-sm text-muted-foreground">PDF, PNG, or JPG — up to 20 MB</div>
-						</label>
-
-						{#if catalogError}
-							<p class="text-sm text-red-600">{catalogError}</p>
-						{/if}
-
-						<div class="flex items-center justify-end">
-							<button
-								type="button"
-								class="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-								disabled={!catalogFile || catalogParsing}
-								onclick={parseCatalogFile}
-							>
-								{catalogParsing ? 'Parsing…' : 'Parse linesheet'}
-							</button>
-						</div>
-					{:else}
-						<div class="rounded-lg border">
-							<div class="flex items-center justify-between border-b p-3">
-								<div class="text-sm font-medium">
-									{catalogParsed.length} product{catalogParsed.length === 1 ? '' : 's'} detected
-								</div>
-								<button
-									type="button"
-									class="text-sm text-muted-foreground underline hover:text-foreground"
-									onclick={() => {
-										catalogParsed = [];
-										catalogFile = null;
+								<input
+									type="file"
+									accept=".pdf,.csv,application/pdf,text/csv"
+									class="hidden"
+									onchange={(e) => {
+										const f = (e.target as HTMLInputElement).files?.[0];
+										if (f) handleCatalogFile(f);
 									}}
+								/>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									class="h-8 w-8 text-muted-foreground"
 								>
-									Start over
-								</button>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M7 16a4 4 0 01-.88-7.9 5 5 0 019.77-2.1A4.5 4.5 0 1117 16H7zm5-4v-6m-3 3l3-3 3 3"
+									/>
+								</svg>
+								<div class="text-sm font-medium">
+									{catalogParsing ? 'Parsing…' : 'Upload a file'}
+								</div>
+								<div class="text-sm text-muted-foreground">PDF or CSV — up to 20 MB</div>
+							</label>
+
+							<!-- Paste card: always CSV -->
+							<div class="flex flex-col gap-2 rounded-lg border p-5">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.5"
+										class="h-5 w-5 text-muted-foreground"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2m4 0h-4a2 2 0 00-2 2v0a2 2 0 002 2h4a2 2 0 002-2v0a2 2 0 00-2-2z"
+										/>
+									</svg>
+									<div class="text-sm font-medium">Paste CSV</div>
+								</div>
+								<textarea
+									bind:value={catalogPaste}
+									placeholder="name,style_number,wholesale_price&#10;Crew Tee,CT-01,24.00"
+									rows={5}
+									class="w-full resize-none rounded-md border bg-background px-3 py-2 font-mono text-sm placeholder:text-muted-foreground/50"
+								></textarea>
+								<div class="flex justify-end">
+									<Button type="button" size="sm" onclick={handleCatalogPaste}>Parse paste</Button>
+								</div>
 							</div>
-							<ul class="max-h-80 divide-y overflow-auto">
-								{#each catalogParsed as p, i (i)}
-									<li class="flex items-center justify-between p-3 text-sm">
-										<div>
-											<div class="font-medium">{p.name}</div>
-											<div class="text-muted-foreground">
-												{p.style_number ? `#${p.style_number} · ` : ''}{p.category ??
-													'Uncategorized'}
-											</div>
-										</div>
-										<div class="font-mono">
-											{p.wholesale_price ? `$${p.wholesale_price}` : '—'}
-										</div>
-									</li>
-								{/each}
-							</ul>
 						</div>
 
 						{#if catalogError}
-							<p class="text-sm text-red-600">{catalogError}</p>
+							<p class="text-sm text-destructive">{catalogError}</p>
 						{/if}
 
-						<div class="flex items-center justify-between">
+						<div class="flex justify-end">
 							<button
 								type="button"
 								class="text-sm text-muted-foreground underline hover:text-foreground"
 								onclick={skipCatalog}
 							>
-								Skip — don't save these
-							</button>
-							<button
-								type="button"
-								class="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-								disabled={catalogSaving}
-								onclick={saveCatalogProducts}
-							>
-								{catalogSaving ? 'Saving…' : `Save ${catalogParsed.length} products`}
+								Skip for now
 							</button>
 						</div>
+					{:else if catalogView === 'mapping'}
+						<CsvColumnMapper
+							uploadedHeaders={csvHeaders}
+							rawRows={csvRows}
+							onConfirm={handleMapperConfirm}
+							onCancel={resetCatalog}
+						/>
+					{:else if catalogView === 'preview' && importBrandId}
+						<ProductImportPreview
+							brandId={importBrandId}
+							rawProducts={previewRows}
+							unmappedColumns={previewUnmapped}
+							onCancel={resetCatalog}
+							onCompleted={handleImportCompleted}
+						/>
 					{/if}
 				</div>
 			{:else if step === 4 && effectiveOrgType === 'rep'}
