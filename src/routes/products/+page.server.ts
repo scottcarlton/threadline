@@ -31,8 +31,16 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			.order('name');
 
 		const brandIds = (selfBrands ?? []).map((b) => b.id);
-		if (brandIds.length === 0)
-			throw error(404, 'No active brands found across your organizations.');
+		if (brandIds.length === 0) {
+			return {
+				brand: null,
+				brands: [],
+				products: [],
+				hasMore: false,
+				totalCount: 0,
+				seasons: []
+			};
+		}
 
 		let productsQuery = supabase
 			.from('products')
@@ -138,7 +146,16 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			.eq('is_active', true)
 			.order('name');
 		const brandIds = (brands ?? []).map((b) => b.id);
-		if (brandIds.length === 0) throw error(404, 'No active brands found across your connections.');
+		if (brandIds.length === 0) {
+			return {
+				brand: null,
+				brands: [],
+				products: [],
+				hasMore: false,
+				totalCount: 0,
+				seasons: []
+			};
+		}
 
 		let productsQuery = supabase
 			.from('products')

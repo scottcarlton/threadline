@@ -5,8 +5,7 @@
 	import { unreadCount } from '$lib/stores/unread.js';
 	import { upcomingAppointmentCount } from '$lib/stores/appointments.js';
 	import { orderAttentionCount } from '$lib/stores/orderAttention.js';
-	import type { UserRole, OrgType, Organization, OrganizationMember } from '$lib/types/database.js';
-	import OrgSwitcher from './OrgSwitcher.svelte';
+	import type { UserRole, OrgType } from '$lib/types/database.js';
 	import { OverlayPanel } from '$lib/components/ui/overlay-panel/index.js';
 
 	type NavItem = {
@@ -16,13 +15,10 @@
 		fillIcon?: boolean;
 		viewBox?: string;
 	};
-	type MembershipWithOrg = OrganizationMember & { organizations: Organization };
 
 	type Props = {
 		role: UserRole;
 		orgType?: OrgType;
-		currentOrg?: Organization | null;
-		allMemberships?: MembershipWithOrg[];
 		brandScope?: string[] | null;
 		isBuyer?: boolean;
 		isNxBlsr?: boolean;
@@ -35,8 +31,6 @@
 	let {
 		role,
 		orgType = 'rep',
-		currentOrg = null,
-		allMemberships = [],
 		brandScope = null,
 		isBuyer = false,
 		isNxBlsr = false,
@@ -206,14 +200,8 @@
 </script>
 
 {#snippet sidebarContent()}
-	<!-- Org Switcher: hidden for Nx-BLSR (their multiple brand-org memberships
-	     are folded into a single unified portal — see isNxBlsr above). -->
-	{#if currentOrg && allMemberships.length > 1 && !isNxBlsr}
-		<OrgSwitcher {currentOrg} {allMemberships} />
-	{/if}
-
 	<!-- Primary Navigation -->
-	<nav class="flex-1 space-y-px px-5 {allMemberships.length > 1 && !isNxBlsr ? 'pt-1' : 'pt-5'}">
+	<nav class="flex-1 space-y-px px-5 pt-5">
 		{#each filteredPrimaryNav as item (item.href)}
 			<a
 				href={resolve(item.href as '/orders')}
