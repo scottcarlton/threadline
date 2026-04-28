@@ -12,7 +12,7 @@
 		children: Snippet;
 	};
 
-	let { open, side = 'left', ariaLabel, onclose, width = '280px', children }: Props = $props();
+	let { open, side = 'left', ariaLabel, onclose, width = '320px', children }: Props = $props();
 
 	let panelEl = $state<HTMLDivElement | null>(null);
 	let previouslyFocused: HTMLElement | null = null;
@@ -21,11 +21,26 @@
 		if (!browser) return;
 		if (open) {
 			previouslyFocused = document.activeElement as HTMLElement | null;
-			document.body.style.overflow = 'hidden';
+			// iOS Safari ignores body { overflow: hidden } for touch scroll. The
+			// fix-position pattern locks the page by pinning body to the current
+			// scroll offset and restoring on close. Without this, swiping over the
+			// panel scrolls the page underneath.
+			const scrollY = window.scrollY;
+			const body = document.body;
+			body.style.position = 'fixed';
+			body.style.top = `-${scrollY}px`;
+			body.style.left = '0';
+			body.style.right = '0';
+			body.style.overflow = 'hidden';
 			// Focus the panel on open for screen readers / keyboard nav.
 			queueMicrotask(() => panelEl?.focus());
 			return () => {
-				document.body.style.overflow = '';
+				body.style.position = '';
+				body.style.top = '';
+				body.style.left = '';
+				body.style.right = '';
+				body.style.overflow = '';
+				window.scrollTo(0, scrollY);
 				previouslyFocused?.focus();
 			};
 		}
