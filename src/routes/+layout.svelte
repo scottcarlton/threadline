@@ -627,7 +627,15 @@
 				if (voiceMode) startListening();
 				else voiceState = 'idle';
 			};
-			audio.play();
+			audio.play().catch(() => {
+				// Browsers reject play() when called outside a user-gesture
+				// context (e.g. iOS Safari after an awaited fetch). Treat as
+				// end-of-playback and continue the voice loop.
+				currentAudio = null;
+				URL.revokeObjectURL(url);
+				if (voiceMode) startListening();
+				else voiceState = 'idle';
+			});
 		} catch {
 			if (voiceMode) startListening();
 			else voiceState = 'idle';
