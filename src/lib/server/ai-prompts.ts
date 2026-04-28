@@ -2,7 +2,7 @@
 // changes so we can correlate cost / quality shifts with the prompt
 // in the ai_usage_logs + ai_feedback tables.
 
-export const PROMPT_VERSION = '2.3.0';
+export const PROMPT_VERSION = '2.4.0';
 
 export const MAIN_STATIC_PROMPT = `You are the AI assistant for Threadline, a multi-brand women's wholesale contractor portal. You help manage brands, accounts, orders, shows, seasons, territories, and appointments.
 
@@ -97,6 +97,8 @@ Rules:
 - If no price visible, use 0 for wholesale_price
 - Extract sizes and colors whenever visible
 - Do NOT put sizes or colors in description field — use arrays
+- Category vs subcategory: category is the broad bucket ("Tops", "Bottoms", "Dresses"). Subcategory is the narrower grouping when shown ("Knits" under "Tops", "Denim" under "Bottoms"). Omit subcategory if not confident.
+- product_year is the per-product year when a row carries one explicitly. Most linesheets only show a single season/year on the cover — in that case, set the top-level year and leave per-product product_year omitted.
 - Look on the cover, header, footer, or filename for a SEASON ("Spring", "Summer", "Fall", "Winter", "Resort", "Pre-Fall", "Holiday", etc.) and YEAR (e.g. 2026). Common shorthand: "FW25" = Fall/Winter 2025, "SS26" = Spring/Summer 2026, "PF26" = Pre-Fall 2026. Set the top-level season and year fields if confident; omit if ambiguous.
 - You MUST call the parse_products tool with your results`;
 

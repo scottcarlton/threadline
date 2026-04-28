@@ -1,0 +1,10 @@
+Order delivered: {{{ORDER_NUMBER}}}
+
+Account: {{{ACCOUNT_NAME}}}
+Brand:   {{{BRAND_NAME}}}
+Total:   {{{TOTAL}}}
+
+Flag short ships, damages, or open a reorder from the order page.
+
+View order: {{{ORDER_URL}}}
+/Threadline · threadline.systems

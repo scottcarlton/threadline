@@ -128,6 +128,30 @@ export interface OrganizationShippingMethod {
 	updated_at: string;
 }
 
+// Brand-side commerce satellites — used only when brand.organization_id
+// belongs to a rep org (manual brand). Same shape as the org satellites,
+// keyed on brand_id.
+export interface BrandSalesTaxRate {
+	id: string;
+	brand_id: string;
+	state_code: string;
+	rate: number;
+	tax_type: 'origin' | 'destination';
+	created_at: string;
+	updated_at: string;
+}
+
+export interface BrandShippingMethod {
+	id: string;
+	brand_id: string;
+	name: string;
+	cost_type: 'flat' | 'calculated' | 'free';
+	cost_amount: number | null;
+	delivery_window: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
 export interface OrganizationMember {
 	id: string;
 	organization_id: string;
@@ -177,6 +201,64 @@ export interface Brand {
 	archived_at: string | null;
 	created_at: string;
 	updated_at: string;
+
+	// Commerce settings — populated only on rep-org-owned manual brands.
+	// BO-owned brands leave these NULL; the order resolver reads from
+	// `organizations` instead. See migration 20260426000001 for shape.
+	order_number_prefix: string | null;
+	next_order_number: number | null;
+	order_number_pad_width: number | null;
+	order_minimum_enabled: boolean | null;
+	order_minimum_amount: number | null;
+	handling_fee_amount: number | null;
+	default_commission_rate: number | null;
+
+	taxes_pricing_display: 'exclusive' | 'inclusive' | null;
+	taxes_us_sales_tax_enabled: boolean | null;
+	taxes_us_ein: string | null;
+	taxes_us_general_rate: number | null;
+	taxes_vat_enabled: boolean | null;
+	taxes_vat_registration: string | null;
+	taxes_vat_rate: number | null;
+	taxes_gst_enabled: boolean | null;
+	taxes_gst_registration: string | null;
+	taxes_gst_rate: number | null;
+
+	shipping_use_business_address: boolean | null;
+	shipping_from_line1: string | null;
+	shipping_from_line2: string | null;
+	shipping_from_city: string | null;
+	shipping_from_state: string | null;
+	shipping_from_zip: string | null;
+	shipping_from_country: string | null;
+	shipping_free_threshold_enabled: boolean | null;
+	shipping_free_threshold_amount: number | null;
+	default_shipping_method_id: string | null;
+
+	returns_window_days: number | null;
+	returns_policy_text: string | null;
+	returns_use_ship_from_address: boolean | null;
+	returns_address_line1: string | null;
+	returns_address_line2: string | null;
+	returns_address_city: string | null;
+	returns_address_state: string | null;
+	returns_address_zip: string | null;
+	returns_address_country: string | null;
+	returns_restocking_fee_type: 'percent' | 'flat' | null;
+	returns_restocking_fee_value: number | null;
+	returns_buyer_pays_shipping: boolean | null;
+
+	payments_processor: 'stripe' | 'manual' | null;
+	payments_stripe_account_id: string | null;
+	payments_stripe_link_enabled: boolean | null;
+	payments_required_deposit_enabled: boolean | null;
+	payments_required_deposit_percent: number | null;
+	payments_deposit_account_name: string | null;
+	payments_deposit_account_last4: string | null;
+	payments_surcharge_pass_to_buyer: boolean | null;
+	accepted_payment_methods: string[] | null;
+	default_payment_method: string | null;
+	default_payment_terms: string | null;
 }
 
 export interface Account {
@@ -199,7 +281,6 @@ export interface Account {
 	territory_id: string | null;
 	payment_preference: string | null;
 	shipping_method: string | null;
-	shipping_method_id: string | null;
 	commission_rate_override: number | null;
 	order_minimum_override: number | null;
 	is_active: boolean;

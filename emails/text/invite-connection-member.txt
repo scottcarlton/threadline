@@ -1,0 +1,8 @@
+{{{INVITER_NAME}}} added you to {{{ORGANIZATION_NAME}}} on /Threadline
+
+{{{INVITER_NAME}}} at {{{ORGANIZATION_NAME}}} added you as a connection member.
+Accept to start writing orders for them.
+
+Accept: {{{ACCEPT_URL}}}
+
+/Threadline · threadline.systems

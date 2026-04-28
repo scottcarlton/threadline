@@ -1,4 +1,4 @@
-import { fail } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -8,8 +8,10 @@ import {
 	shippingMethodSchema
 } from '$lib/schemas/organization-shipping.js';
 import type { OrganizationShippingMethod } from '$lib/types/database.js';
+import { requireAdmin } from '$lib/server/auth/require-admin.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
+	if (locals.orgType !== 'brand') throw error(404, 'Not found');
 	const { organization, supabase } = locals;
 
 	const form = await superValidate(zod4(organizationShippingSchema));
@@ -38,17 +40,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return { form, methods, defaultMethodId };
 };
-
-function requireAdmin(locals: App.Locals): { error: string; status: number } | null {
-	if (!locals.session || !locals.user || !locals.organization) {
-		return { error: 'Not authenticated', status: 401 };
-	}
-	const role = locals.membership?.role;
-	if (!role || !['admin', 'owner'].includes(role)) {
-		return { error: 'Admin or owner required', status: 403 };
-	}
-	return null;
-}
 
 export const actions: Actions = {
 	default: async ({ request, locals }) => {
@@ -136,10 +127,10 @@ export const actions: Actions = {
 					.from('organizations')
 					.update({ default_shipping_method: form.data.name })
 					.eq('default_shipping_method_id', form.data.id);
-				await supabaseAdmin
-					.from('accounts')
-					.update({ shipping_method: form.data.name })
-					.eq('shipping_method_id', form.data.id);
+				// accounts.shipping_method_id was dropped in 20260426000001.
+				// The free-text accounts.shipping_method column is now the
+				// override surface; renaming the org method no longer cascades
+				// (account-level text becomes a manual override at that point).
 			}
 		} else {
 			const { error } = await supabaseAdmin.from('organization_shipping_methods').insert(payload);
@@ -158,18 +149,14 @@ export const actions: Actions = {
 		const id = formData.get('id');
 		if (typeof id !== 'string' || !id) return fail(400, { message: 'Missing id' });
 
-		// Block deletion when the method is anyone's current default.
-		const [{ count: orgDefaultCount }, { count: accountDefaultCount }] = await Promise.all([
-			supabaseAdmin
-				.from('organizations')
-				.select('id', { count: 'exact', head: true })
-				.eq('default_shipping_method_id', id),
-			supabaseAdmin
-				.from('accounts')
-				.select('id', { count: 'exact', head: true })
-				.eq('shipping_method_id', id)
-		]);
-		if ((orgDefaultCount ?? 0) > 0 || (accountDefaultCount ?? 0) > 0) {
+		// Block deletion when the method is the org's current default.
+		// accounts.shipping_method_id was dropped in 20260426000001 — only
+		// the org-level FK is left to check.
+		const { count: orgDefaultCount } = await supabaseAdmin
+			.from('organizations')
+			.select('id', { count: 'exact', head: true })
+			.eq('default_shipping_method_id', id);
+		if ((orgDefaultCount ?? 0) > 0) {
 			return fail(400, {
 				message: 'This method is in use as a default. Change defaults before removing.'
 			});

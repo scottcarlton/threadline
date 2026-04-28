@@ -27,6 +27,7 @@
 
 	type OrderRow = Order & {
 		profiles?: { display_name?: string | null } | null;
+		rep_profile?: { display_name?: string | null } | null;
 		show_dates?: {
 			city?: string | null;
 			state?: string | null;
@@ -607,7 +608,9 @@
 	</div>
 
 	<!-- Filters / Bulk action bar -->
-	<div class="flex min-h-[44px] flex-wrap items-center gap-3">
+	<div
+		class="-mx-4 flex min-h-[44px] items-center gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0"
+	>
 		{#if selectedIds.size > 0}
 			{@const nextStatuses = bulkNextStatuses()}
 			<span class="text-sm font-medium">{selectedIds.size} selected</span>
@@ -649,19 +652,19 @@
 				placeholder="Search orders..."
 				value={search}
 				oninput={onSearchInput}
-				class="w-64"
+				class="w-64 shrink-0"
 			/>
 			{#if activeType !== 'note'}
 				<SelectField
 					value={activeStatus}
 					items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
 					placeholder="Status"
-					class="min-w-[120px]"
+					class="min-w-[120px] shrink-0"
 					onValueChange={(v) => setFilter('status', v)}
 				/>
 			{/if}
 			<SelectField
-				class="min-w-[158px]"
+				class="min-w-[158px] shrink-0"
 				value={$page.url.searchParams.get('season') ?? ''}
 				items={[
 					{ value: '', label: 'All Seasons' },
@@ -670,10 +673,10 @@
 				placeholder="All Seasons"
 				onValueChange={(v) => setFilter('season', v)}
 			/>
-			<div class="flex-1"></div>
+			<div class="hidden lg:block lg:flex-1"></div>
 			{#if isBrandOrg && reps.length > 0}
 				<SelectField
-					class="min-w-[158px]"
+					class="min-w-[158px] shrink-0"
 					value={$page.url.searchParams.get('rep') ?? ''}
 					items={[
 						{ value: '', label: 'All Reps' },
@@ -685,7 +688,7 @@
 			{/if}
 			{#if !isBrandOrg}
 				<SelectField
-					class="min-w-[158px]"
+					class="min-w-[158px] shrink-0"
 					value={$page.url.searchParams.get('brand') ?? ''}
 					items={[
 						{ value: '', label: 'All Brands' },
@@ -697,7 +700,7 @@
 			{/if}
 			{#if hasSourceOptions}
 				<SelectField
-					class="max-w-[240px] min-w-[158px]"
+					class="max-w-[240px] min-w-[158px] shrink-0"
 					value={$page.url.searchParams.get('source') ?? ''}
 					items={sourceItems}
 					placeholder="All Sources"
@@ -705,7 +708,7 @@
 				/>
 			{/if}
 			<SelectField
-				class="min-w-[158px]"
+				class="min-w-[158px] shrink-0"
 				value={activeDatePreset}
 				items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
 				placeholder="All Time"
@@ -814,7 +817,7 @@
 				</thead>
 				<tbody class="divide-y">
 					{#each filtered as order (order.id)}
-						{@const repName = order.profiles?.display_name ?? '—'}
+						{@const creatorName = order.profiles?.display_name ?? '—'}
 						{@const showDate = order.show_dates}
 						{@const sourceName = showDate?.shows?.name ?? order.source_types?.name ?? null}
 						{@const sourceLocation = showDate
@@ -909,7 +912,11 @@
 							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
 								{#if isBrandOrg}
-									{@const repName = order.profiles?.display_name ?? order.source_org?.name ?? '—'}
+									{@const repName =
+										order.rep_profile?.display_name ??
+										order.profiles?.display_name ??
+										order.source_org?.name ??
+										'—'}
 									<span class="text-sm {repName === '—' ? 'text-muted-foreground/50' : ''}"
 										>{repName}</span
 									>
@@ -971,8 +978,8 @@
 								</td>
 							{/if}
 							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm {repName === '—' ? 'text-muted-foreground/50' : ''}"
-									>{repName}</span
+								<span class="text-sm {creatorName === '—' ? 'text-muted-foreground/50' : ''}"
+									>{creatorName}</span
 								>
 								<p class="font-mono text-sm text-muted-foreground">
 									{new Date(order.created_at).toLocaleDateString('en-US', {

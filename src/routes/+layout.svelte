@@ -704,7 +704,7 @@
 {#if isAuthRoute}
 	{@render children()}
 {:else}
-	<div class="flex h-screen flex-col overflow-hidden">
+	<div class="flex h-dvh flex-col overflow-hidden">
 		<OfflineBanner />
 		<!-- Full-width header -->
 		<Navbar
@@ -832,7 +832,7 @@
 							</div>
 							<div
 								bind:this={messagesContainer}
-								class="max-h-[50vh] space-y-3 overflow-y-auto px-5 pb-5"
+								class="max-h-[50dvh] space-y-3 overflow-y-auto px-5 pb-5"
 								style={chatFontStyle}
 							>
 								{#each $messages as msg, i (i)}

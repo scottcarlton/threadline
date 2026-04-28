@@ -3,15 +3,26 @@ import type { Actions, PageServerLoad } from './$types';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isPaymentPreferenceCode } from '$lib/payment-methods';
+import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	depends('data:accounts');
 	if (locals.isBuyer) throw redirect(303, '/dashboard');
-	const { organization } = locals;
+	const { organization, allMemberships } = locals;
 	if (!organization) throw error(404, 'Organization not found');
 
+	// Nx-BLSR: own-org set unions every brand-org the user is a sales-role
+	// member of. The detail-page gate accepts an account whose org_id is in
+	// that union, even if the active organization context is a different one
+	// of those brand-orgs.
+	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
+	const nxBlsr = isNxBlsr(brandOrgIds);
+	const ownOrgIds = nxBlsr ? brandOrgIds : [organization.id];
+	const ownOrgIdSet = new Set(ownOrgIds);
+
 	// Load the account via admin, then enforce visibility in app code:
-	// the account's org must be the viewer's org OR an active connection.
+	// the account's org must be in the viewer's own-org set OR an active
+	// connection from any of those orgs.
 	const { data: preAccount } = await supabaseAdmin
 		.from('accounts')
 		.select('id, organization_id')
@@ -20,14 +31,18 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 
 	if (!preAccount) throw error(404, 'Account not found');
 
-	if (preAccount.organization_id !== organization.id) {
+	if (!ownOrgIdSet.has(preAccount.organization_id)) {
+		const orFilter = ownOrgIds
+			.flatMap((id) => [
+				`and(rep_org_id.eq.${id},brand_org_id.eq.${preAccount.organization_id})`,
+				`and(brand_org_id.eq.${id},rep_org_id.eq.${preAccount.organization_id})`
+			])
+			.join(',');
 		const { data: conn } = await supabaseAdmin
 			.from('org_connections')
 			.select('id')
 			.eq('status', 'active')
-			.or(
-				`and(rep_org_id.eq.${organization.id},brand_org_id.eq.${preAccount.organization_id}),and(brand_org_id.eq.${organization.id},rep_org_id.eq.${preAccount.organization_id})`
-			)
+			.or(orFilter)
 			.maybeSingle();
 		if (!conn) throw error(404, 'Account not found');
 	}
@@ -217,7 +232,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 
 	activity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-	const canEditAccount = account.organization_id === organization.id;
+	const canEditAccount = ownOrgIdSet.has(account.organization_id);
 
 	const { data: shippingMethodsData } = await supabase
 		.from('organization_shipping_methods')
@@ -291,6 +306,16 @@ export const actions: Actions = {
 		const patch = pickLocationFields(fd);
 		if ('error' in patch) return fail(400, { message: patch.error });
 
+		// Stamp the location with the account's owning org, not the user's
+		// active org. For Nx-BLSR the active org may be a different brand-org
+		// than the one that owns this account.
+		const { data: acctRow } = await supabaseAdmin
+			.from('accounts')
+			.select('organization_id')
+			.eq('id', params.id)
+			.maybeSingle();
+		if (!acctRow) return fail(404, { message: 'Account not found' });
+
 		// First location becomes default automatically.
 		const { count } = await supabase
 			.from('account_locations')
@@ -311,7 +336,7 @@ export const actions: Actions = {
 		const { error: insertErr } = await supabase.from('account_locations').insert({
 			...patch,
 			account_id: params.id,
-			organization_id: organization.id,
+			organization_id: acctRow.organization_id,
 			is_default,
 			sort_order
 		});
@@ -395,7 +420,7 @@ export const actions: Actions = {
 	},
 
 	updatePaymentPreference: async ({ request, locals, params }) => {
-		const { organization, membership } = locals;
+		const { organization, membership, allMemberships } = locals;
 		if (!organization) return fail(401, { message: 'Not authenticated' });
 		const role = membership?.role;
 		if (!['admin', 'owner', 'member', 'sales'].includes(role ?? '')) {
@@ -414,12 +439,16 @@ export const actions: Actions = {
 			next = raw;
 		}
 
-		// Only the account's own org can edit.
+		// Only the account's own org can edit. For Nx-BLSR, "own org" is the
+		// union of every brand-org they're a sales-role member of.
+		const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
+		const ownOrgIds = isNxBlsr(brandOrgIds) ? brandOrgIds : [organization.id];
+
 		const { error: updErr } = await supabaseAdmin
 			.from('accounts')
 			.update({ payment_preference: next, updated_at: new Date().toISOString() })
 			.eq('id', params.id)
-			.eq('organization_id', organization.id);
+			.in('organization_id', ownOrgIds);
 		if (updErr) return fail(500, { message: updErr.message });
 		return { ok: true };
 	}

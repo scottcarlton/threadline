@@ -555,99 +555,102 @@
 				</button>
 
 				<!-- Right: Voice or Send -->
-				{#if hasText || hasAttachments}
-					<!-- Send button -->
-					<button
-						onclick={() => handleSend()}
-						disabled={$loading}
-						class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-						aria-label="Send message"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2.5"
+				<div class="flex items-center gap-2">
+					<span class="text-xs text-muted-foreground">Stitch is currently beta.</span>
+					{#if hasText || hasAttachments}
+						<!-- Send button -->
+						<button
+							onclick={() => handleSend()}
+							disabled={$loading}
+							class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+							aria-label="Send message"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
-							/>
-						</svg>
-					</button>
-				{:else if voiceState === 'listening'}
-					<!-- Voice active: wave animation -->
-					<button
-						onclick={toggleVoice}
-						class="flex h-8 w-8 items-center justify-center rounded-full bg-destructive text-destructive-foreground transition-colors"
-						aria-label="Stop listening"
-					>
-						<div class="flex items-center gap-[3px]">
-							<span class="voice-bar h-3 w-[3px] rounded-full bg-current"></span>
-							<span
-								class="voice-bar h-4 w-[3px] rounded-full bg-current"
-								style="animation-delay: 0.15s"
-							></span>
-							<span
-								class="voice-bar h-2.5 w-[3px] rounded-full bg-current"
-								style="animation-delay: 0.3s"
-							></span>
-							<span
-								class="voice-bar h-3.5 w-[3px] rounded-full bg-current"
-								style="animation-delay: 0.45s"
-							></span>
-						</div>
-					</button>
-				{:else if voiceState === 'speaking'}
-					<!-- AI speaking: wave animation -->
-					<button
-						onclick={toggleVoice}
-						class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors"
-						aria-label="Stop speaking"
-					>
-						<div class="flex items-center gap-[3px]">
-							<span class="voice-bar h-3 w-[3px] rounded-full bg-current"></span>
-							<span
-								class="voice-bar h-4 w-[3px] rounded-full bg-current"
-								style="animation-delay: 0.15s"
-							></span>
-							<span
-								class="voice-bar h-2.5 w-[3px] rounded-full bg-current"
-								style="animation-delay: 0.3s"
-							></span>
-							<span
-								class="voice-bar h-3.5 w-[3px] rounded-full bg-current"
-								style="animation-delay: 0.45s"
-							></span>
-						</div>
-					</button>
-				{:else}
-					<!-- Mic button (idle) -->
-					<button
-						onclick={toggleVoice}
-						disabled={$loading}
-						class="flex h-8 w-8 items-center justify-center rounded-full bg-foreground/10 text-foreground transition-colors hover:bg-foreground/20 disabled:opacity-50"
-						aria-label="Voice input"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2.5"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
+								/>
+							</svg>
+						</button>
+					{:else if voiceState === 'listening'}
+						<!-- Voice active: wave animation -->
+						<button
+							onclick={toggleVoice}
+							class="flex h-8 w-8 items-center justify-center rounded-full bg-destructive text-destructive-foreground transition-colors"
+							aria-label="Stop listening"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
-							/>
-						</svg>
-					</button>
-				{/if}
+							<div class="flex items-center gap-[3px]">
+								<span class="voice-bar h-3 w-[3px] rounded-full bg-current"></span>
+								<span
+									class="voice-bar h-4 w-[3px] rounded-full bg-current"
+									style="animation-delay: 0.15s"
+								></span>
+								<span
+									class="voice-bar h-2.5 w-[3px] rounded-full bg-current"
+									style="animation-delay: 0.3s"
+								></span>
+								<span
+									class="voice-bar h-3.5 w-[3px] rounded-full bg-current"
+									style="animation-delay: 0.45s"
+								></span>
+							</div>
+						</button>
+					{:else if voiceState === 'speaking'}
+						<!-- AI speaking: wave animation -->
+						<button
+							onclick={toggleVoice}
+							class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors"
+							aria-label="Stop speaking"
+						>
+							<div class="flex items-center gap-[3px]">
+								<span class="voice-bar h-3 w-[3px] rounded-full bg-current"></span>
+								<span
+									class="voice-bar h-4 w-[3px] rounded-full bg-current"
+									style="animation-delay: 0.15s"
+								></span>
+								<span
+									class="voice-bar h-2.5 w-[3px] rounded-full bg-current"
+									style="animation-delay: 0.3s"
+								></span>
+								<span
+									class="voice-bar h-3.5 w-[3px] rounded-full bg-current"
+									style="animation-delay: 0.45s"
+								></span>
+							</div>
+						</button>
+					{:else}
+						<!-- Mic button (idle) -->
+						<button
+							onclick={toggleVoice}
+							disabled={$loading}
+							class="flex h-8 w-8 items-center justify-center rounded-full bg-foreground/10 text-foreground transition-colors hover:bg-foreground/20 disabled:opacity-50"
+							aria-label="Voice input"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
+								/>
+							</svg>
+						</button>
+					{/if}
+				</div>
 			</div>
 		</div>
 	</div>

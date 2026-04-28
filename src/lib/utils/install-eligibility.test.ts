@@ -8,7 +8,7 @@ describe('shouldShowInstallPrompt', () => {
 		installAvailable: true,
 		isLgUp: true,
 		isTabletPortrait: false,
-		isIosSafari: false,
+		isIosBrowser: false,
 		dismissedUserIds: new Set<string>()
 	};
 
@@ -50,12 +50,12 @@ describe('shouldShowInstallPrompt', () => {
 		).toBe(true);
 	});
 
-	it('returns true on iOS Safari even without beforeinstallprompt', () => {
+	it('returns true on any iOS browser even without beforeinstallprompt', () => {
 		expect(
 			shouldShowInstallPrompt({
 				...baseInputs,
 				installAvailable: false,
-				isIosSafari: true
+				isIosBrowser: true
 			})
 		).toBe(true);
 	});
@@ -65,7 +65,7 @@ describe('shouldShowInstallPrompt', () => {
 			shouldShowInstallPrompt({
 				...baseInputs,
 				installAvailable: false,
-				isIosSafari: false
+				isIosBrowser: false
 			})
 		).toBe(false);
 	});

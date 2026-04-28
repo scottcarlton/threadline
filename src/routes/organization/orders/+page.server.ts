@@ -1,10 +1,11 @@
-import { fail } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { organizationOrdersSchema } from '$lib/schemas/organization-orders.js';
 import { brandTermsSchema } from '$lib/schemas/brand-terms.js';
+import { requireAdmin } from '$lib/server/auth/require-admin.js';
 
 type CurrentTerms = {
 	id: string;
@@ -25,6 +26,13 @@ type HistoryTerms = {
 };
 
 export const load: PageServerLoad = async ({ locals }) => {
+	// Org-level commerce settings are Brand-Org-only. Rep orgs configure
+	// commerce per manual brand on /brands/[id]; the order resolver
+	// branches on the brand's owning org_type. Defense-in-depth: the
+	// sidebar already hides the link for rep orgs, but a rep admin who
+	// hand-types the URL gets 404 here.
+	if (locals.orgType !== 'brand') throw error(404, 'Not found');
+
 	const { organization, orgType, supabase, membership } = locals;
 
 	const form = await superValidate(zod4(organizationOrdersSchema));
@@ -91,11 +99,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	default: async ({ request, locals }) => {
-		const { organization, user, membership } = locals;
-		if (!organization || !user) return fail(401, { message: 'Not authenticated' });
-		if (!membership || !['admin', 'owner'].includes(membership.role)) {
-			return fail(403, { message: 'Admin or owner required' });
-		}
+		const denied = requireAdmin(locals);
+		if (denied) return fail(denied.status, { message: denied.error });
+		const orgId = locals.organization!.id;
 
 		const form = await superValidate(request, zod4(organizationOrdersSchema));
 		if (!form.valid) return fail(400, { form });
@@ -112,10 +118,7 @@ export const actions: Actions = {
 				updated_at: new Date().toISOString()
 			};
 
-			const { error } = await supabaseAdmin
-				.from('organizations')
-				.update(update)
-				.eq('id', organization.id);
+			const { error } = await supabaseAdmin.from('organizations').update(update).eq('id', orgId);
 
 			if (error) return fail(500, { form, message: error.message });
 

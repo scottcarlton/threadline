@@ -1,0 +1,10 @@
+Order confirmed: {{{ORDER_NUMBER}}}
+
+Account: {{{ACCOUNT_NAME}}}
+Brand:   {{{BRAND_NAME}}}
+Total:   {{{TOTAL}}}
+
+{{{BRAND_NAME}}} confirmed your order. You'll get another email when it ships.
+
+View order: {{{ORDER_URL}}}
+/Threadline · threadline.systems

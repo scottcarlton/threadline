@@ -1,0 +1,9 @@
+Draft saved: {{{ORDER_NUMBER}}}
+
+Account: {{{ACCOUNT_NAME}}}
+Brand:   {{{BRAND_NAME}}}
+Total:   {{{TOTAL}}}
+
+Open draft: {{{ORDER_URL}}}
+
+/Threadline · threadline.systems

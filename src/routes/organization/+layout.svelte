@@ -54,17 +54,25 @@
 				{ label: 'Territories', href: '/organization/territories' }
 			]
 		},
-		{
-			label: 'Commerce',
-			pill: 'new',
-			items: [
-				{ label: 'Orders', href: '/organization/orders' },
-				{ label: 'Taxes', href: '/organization/taxes' },
-				{ label: 'Shipping', href: '/organization/shipping' },
-				{ label: 'Returns', href: '/organization/returns' },
-				{ label: 'Payments', href: '/organization/payments' }
-			]
-		},
+		// Commerce settings only apply to Brand Orgs. Rep orgs configure
+		// commerce per manual brand on /brands/[id] (the Edit Commerce
+		// modal); the order resolver branches on the brand's owning
+		// org_type. See migration 20260426000001 for the schema split.
+		...(data.orgType === 'brand'
+			? [
+					{
+						label: 'Commerce',
+						pill: 'new' as const,
+						items: [
+							{ label: 'Orders', href: '/organization/orders' as const },
+							{ label: 'Taxes', href: '/organization/taxes' as const },
+							{ label: 'Shipping', href: '/organization/shipping' as const },
+							{ label: 'Returns', href: '/organization/returns' as const },
+							{ label: 'Payments', href: '/organization/payments' as const }
+						]
+					}
+				]
+			: []),
 		{
 			label: 'Network',
 			items: [

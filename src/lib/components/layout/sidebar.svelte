@@ -76,6 +76,11 @@
 			icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
 		},
 		{
+			label: 'Products',
+			href: '/products',
+			icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
+		},
+		{
 			label: 'Brands',
 			href: '/brands',
 			icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
@@ -213,7 +218,7 @@
 			<a
 				href={resolve(item.href as '/orders')}
 				class={cn(
-					'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
+					'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
 					isActive(item.href)
 						? 'bg-ghost font-medium text-foreground'
 						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
@@ -249,7 +254,7 @@
 					<a
 						href={resolve(inboxNav.href as '/inbox')}
 						class={cn(
-							'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
+							'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
 							isActive(inboxNav.href)
 								? 'bg-ghost font-medium text-foreground'
 								: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
@@ -282,7 +287,7 @@
 				<a
 					href={resolve(appointmentsNav.href as '/appointments')}
 					class={cn(
-						'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
+						'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
 						isActive(appointmentsNav.href)
 							? 'bg-ghost font-medium text-foreground'
 							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
@@ -313,7 +318,7 @@
 				<a
 					href={resolve('/workspace')}
 					class={cn(
-						'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
+						'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
 						isActive('/workspace')
 							? 'bg-ghost font-medium text-foreground'
 							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
@@ -338,7 +343,7 @@
 				<a
 					href={resolve('/sheets')}
 					class={cn(
-						'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
+						'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
 						isActive('/sheets')
 							? 'bg-ghost font-medium text-foreground'
 							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
@@ -363,7 +368,7 @@
 				<a
 					href={resolve('/plan')}
 					class={cn(
-						'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
+						'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
 						isActive('/plan')
 							? 'bg-ghost font-medium text-foreground'
 							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
@@ -395,7 +400,7 @@
 			<a
 				href={resolve('/account')}
 				class={cn(
-					'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
+					'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
 					isActive('/account')
 						? 'bg-ghost font-medium text-foreground'
 						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
@@ -421,7 +426,7 @@
 			<a
 				href={resolve(brandLink as '/organization')}
 				class={cn(
-					'group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm transition-colors',
+					'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
 					isActive(brandLink)
 						? 'bg-ghost font-medium text-foreground'
 						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
@@ -443,7 +448,7 @@
 
 		<button
 			onclick={() => (showHelp = true)}
-			class="group flex w-full items-center gap-3 rounded-none px-3 py-2.5 text-sm font-normal text-muted-foreground transition-colors hover:bg-ghost/50 hover:text-foreground"
+			class="group flex w-full items-center gap-3 rounded-none px-4 py-3.5 text-base font-normal text-muted-foreground transition-colors hover:bg-ghost/50 hover:text-foreground lg:px-3 lg:py-2.5 lg:text-sm"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -465,7 +470,7 @@
 		{#if showOrg}
 			<a
 				href={resolve('/organization/billing')}
-				class="mt-3 flex w-full items-center justify-center rounded-none bg-accent px-3 py-2.5 text-sm font-medium text-accent-foreground transition-colors"
+				class="mt-3 flex w-full items-center justify-center rounded-none bg-accent px-4 py-3.5 text-base font-medium text-accent-foreground transition-colors lg:px-3 lg:py-2.5 lg:text-sm"
 			>
 				Upgrade to Pro
 			</a>
@@ -475,7 +480,7 @@
 
 {#if mode === 'overlay'}
 	<OverlayPanel {open} {onclose} ariaLabel="Main navigation" side="left" width="240px">
-		<aside class="flex h-full w-full flex-col bg-background text-foreground">
+		<aside class="flex h-full w-full flex-col overflow-y-auto bg-background text-foreground">
 			{@render sidebarContent()}
 		</aside>
 	</OverlayPanel>
