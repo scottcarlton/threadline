@@ -286,6 +286,11 @@
 	let notes = $state('');
 	let commissionRateOverride = $state('');
 	let orderMinimumOverride = $state('');
+	// Picker holds the chosen org-shipping-method's id locally. Only the
+	// method's name is persisted to accounts.shipping_method (free-text).
+	// The legacy accounts.shipping_method_id FK was dropped in
+	// 20260426000001 because it only resolved to organization_shipping_methods
+	// and didn't generalize to manual brands owned by rep orgs.
 	let shippingMethodId = $state('');
 	let error = $state('');
 	let loading = $state(false);
@@ -330,7 +335,12 @@
 			account.order_minimum_override === null || account.order_minimum_override === undefined
 				? ''
 				: String(account.order_minimum_override);
-		shippingMethodId = account.shipping_method_id ?? '';
+		// Pre-select the picker by matching the persisted free-text against the
+		// org's current methods list.
+		shippingMethodId =
+			(account.shipping_method
+				? shippingMethods.find((m) => m.name === account.shipping_method)?.id
+				: undefined) ?? '';
 		editing = true;
 	}
 
@@ -369,13 +379,9 @@
 			return;
 		}
 
-		// Dual-write the shipping_method text mirror from the chosen method's
-		// name. /orders/new reads the legacy text column until the follow-up
-		// PR migrates the readers.
 		const selectedMethod = shippingMethodId
 			? shippingMethods.find((m) => m.id === shippingMethodId)
 			: null;
-		const shippingMethodIdValue = shippingMethodId || null;
 		const shippingMethodTextValue = selectedMethod ? selectedMethod.name : null;
 
 		const { error: err } = await supabase
@@ -394,7 +400,6 @@
 				notes: notes || null,
 				commission_rate_override: commissionOverride,
 				order_minimum_override: minimumOverride,
-				shipping_method_id: shippingMethodIdValue,
 				shipping_method: shippingMethodTextValue,
 				updated_at: new Date().toISOString()
 			})
@@ -682,7 +687,7 @@
 									<dd class="mt-1 whitespace-pre-wrap">{account.notes}</dd>
 								</div>
 							{/if}
-							{#if account.commission_rate_override !== null || account.order_minimum_override !== null || account.shipping_method_id !== null}
+							{#if account.commission_rate_override !== null || account.order_minimum_override !== null || account.shipping_method}
 								<div>
 									<dt class="text-sm font-medium text-muted-foreground">Order overrides</dt>
 									<dd class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -692,7 +697,7 @@
 										{#if account.order_minimum_override !== null}
 											<span>${account.order_minimum_override} minimum</span>
 										{/if}
-										{#if account.shipping_method_id !== null && account.shipping_method}
+										{#if account.shipping_method}
 											<span>{account.shipping_method} shipping</span>
 										{/if}
 									</dd>
