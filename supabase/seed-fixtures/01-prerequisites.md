@@ -1,94 +1,158 @@
-# Prerequisites — manual setup before seeding
+# Prerequisites — orgs, users, connections, commerce defaults
 
-The demo dataset assumes these orgs, users, memberships, connections,
-and org-scoped metadata already exist. Create them through the app's
-normal onboarding flow (new user sign-up → new org → connect → accept)
-or via direct SQL. Claude verifies everything below exists before
-seeding and bails if anything is missing.
-
-All identifiers below are **lookup keys**, not UUIDs. UUIDs differ per
-setup; seed-time Claude resolves them from these natural keys.
+This document describes the dataset shape that `scripts/seed-demo.ts`
+produces in Phase 1. Everything here is created by the seed script;
+the doc exists so a human can read what's in the dataset without
+opening TypeScript. Identifiers are **lookup keys** (email, org name);
+UUIDs differ per setup.
 
 ## 1. Users
 
-Three users sign up via the normal auth flow. Email is the canonical
-lookup key for each.
+Five users sign up via the auth admin API. The first three are org
+owners; the last two are second members on `SH Showroom` and
+`Elise Varga` so we can exercise team / manager / connection-member
+flows. Every user gets `profiles.phone` set.
 
-| Display name    | Email                   | Role in their org |
-| --------------- | ----------------------- | ----------------- |
-| Elise Varga     | hello@elisevarga.com    | admin             |
-| Sofia Hernandez | sofia@sofiahernandez.co | admin             |
-| Lauren Mackey   | lauren@laurenmackey.co  | admin             |
+| Display name    | Email                   | Phone          | Org membership                                 |
+| --------------- | ----------------------- | -------------- | ---------------------------------------------- |
+| Elise Varga     | hello@elisevarga.com    | (212) 555-0140 | admin of Elise Varga (manages_others)          |
+| Sofia Hernandez | sofia@sofiahernandez.co | (917) 555-0117 | admin of SH Showroom (manages_others)          |
+| Lauren Mackey   | lauren@laurenmackey.co  | (214) 555-0162 | admin of Lauren Mackey (manages_others)        |
+| Maya Park       | maya@sofiahernandez.co  | (917) 555-0184 | sales of SH Showroom, manager_id → Sofia       |
+| Noor Ramirez    | noor@elisevarga.com     | (212) 555-0173 | admin of Elise Varga (no manager — peer admin) |
+
+All users share the dev password `threadline-demo-pw!`.
 
 ## 2. Organizations
 
-| Org name      | Type  | Owner / first admin | Notes                                   |
-| ------------- | ----- | ------------------- | --------------------------------------- |
-| Elise Varga   | brand | Elise Varga         | Brand org — owns the Elise Varga brand. |
-| SH Showroom   | rep   | Sofia Hernandez     | MBISR rep org.                          |
-| Lauren Mackey | rep   | Lauren Mackey       | MBISR rep org (single-person).          |
+Each org gets a complete identity profile (legal name, tagline, time
+zone, currency, address) and is marked `onboarding_completed_at = now()`
+so reseeding doesn't drop users into `/onboarding`.
 
-## 3. Brand record
+| Org name      | Type  | Legal name              | Time zone        | Currency | Address                                |
+| ------------- | ----- | ----------------------- | ---------------- | -------- | -------------------------------------- |
+| Elise Varga   | brand | Elise Varga Studio LLC  | America/New_York | USD      | 247 W 38th St, Suite 410, New York, NY |
+| SH Showroom   | rep   | SH Showroom Inc.        | America/New_York | USD      | 231 W 39th St, 8th Fl, New York, NY    |
+| Lauren Mackey | rep   | Lauren Mackey Sales LLC | America/Chicago  | USD      | 1209 Slocum St, Dallas, TX             |
 
-Elise Varga's brand org contains one self-brand:
+## 3. Brand records
 
-| Brand name  | Org         | `is_self_brand` |
-| ----------- | ----------- | --------------- |
-| Elise Varga | Elise Varga | true            |
+Each org has one auto-created self-brand (via the brand-org migration
+backfill). The seed updates Elise Varga's self-brand with website +
+contact fields and inserts a current `brand_terms` row.
 
-This is created automatically when a brand-type org is set up via
-onboarding. Claude verifies its presence.
+In addition, the seed inserts **one rep-owned manual brand** under
+SH Showroom: **Lago Sun**. Manual brands carry their commerce
+settings (taxes, shipping, returns, payments, order numbering) on the
+`brands` row itself instead of inheriting from `organizations` — see
+`20260426000001_brand_manual_commerce_settings`. Lago Sun has 3 styles
+and 15 variants but no orders are placed against it in this pass.
 
-## 4. Seasons (Elise Varga org)
+| Brand name    | Owning org    | `is_self_brand` | Commerce settings location |
+| ------------- | ------------- | --------------- | -------------------------- |
+| Elise Varga   | Elise Varga   | true            | `organizations` row        |
+| SH Showroom   | SH Showroom   | true            | `organizations` row        |
+| Lauren Mackey | Lauren Mackey | true            | `organizations` row        |
+| Lago Sun      | SH Showroom   | false (manual)  | `brands` row + brand\_\*   |
 
-Each Threadline org gets the same default season list on creation.
-Verify these five exist under Elise Varga; if not, they were created by
-the onboarding flow and need to be re-added by Claude.
+## 4. Org commerce defaults
 
-| Season name |
-| ----------- |
-| Spring      |
-| Summer      |
-| Fall        |
-| Holiday     |
-| Resort      |
+Per-org defaults live on `organizations` (and on the manual brand row
+for Lago Sun). The seed populates every column the `/organization/*`
+pages bind to so each page renders with values, not defaults.
 
-Seasons used in fixtures: **Spring**, **Summer**, **Fall** (all with
-`product_year = 2026` via the products' `product_year` column, not via
-season naming).
+### 4a. Order numbering / minimums (`organizations`)
 
-## 5. Season deliveries (Elise Varga org)
+| Org           | Prefix | Pad | Next | Minimum   | Handling fee |
+| ------------- | ------ | --- | ---- | --------- | ------------ |
+| Elise Varga   | EV-    | 6   | 1024 | $750 (on) | $0           |
+| SH Showroom   | SHS-   | 5   | 312  | (off)     | $0           |
+| Lauren Mackey | LM-    | 5   | 188  | (off)     | $0           |
 
-Default delivery windows per season, also created by onboarding.
-Reference only — fixtures do not set `delivery_id` on orders; ship
-windows are set via `start_ship_date` / `expected_ship_date` directly.
+### 4b. Taxes
 
-| Season  | Deliveries          |
-| ------- | ------------------- |
-| Spring  | 1/30, 2/28, 3/30    |
-| Summer  | 4/30, 5/30, 6/30    |
-| Fall    | 7/30, 8/30, 9/30    |
-| Holiday | 10/30, 11/30, 12/30 |
+| Org           | Display   | US sales tax | EIN        | VAT | GST |
+| ------------- | --------- | ------------ | ---------- | --- | --- |
+| Elise Varga   | exclusive | enabled      | 47-1832094 | —   | —   |
+| SH Showroom   | exclusive | —            | —          | —   | —   |
+| Lauren Mackey | exclusive | —            | —          | —   | —   |
 
-## 6. Source types (each rep org)
+Per-state rates in `organization_sales_tax_rates` (Elise Varga only):
 
-Both MBISR rep orgs need the same two source types. These are created
-manually by the org admin via Settings → Sources (or directly in SQL).
+| State | Rate   | Type        |
+| ----- | ------ | ----------- |
+| NY    | 8.875% | destination |
+| CA    | 9.50%  | destination |
+| TX    | 8.25%  | destination |
+| IL    | 10.25% | destination |
+| MA    | 6.25%  | destination |
+| CO    | 8.81%  | destination |
 
-| Org           | Source name |
-| ------------- | ----------- |
-| SH Showroom   | Road        |
-| SH Showroom   | JOOR        |
-| Lauren Mackey | Road        |
-| Lauren Mackey | JOOR        |
+### 4c. Shipping
 
-Note: JOOR exists but is not used by any fixture order (by design — the
-demo avoids the JOOR source to highlight show-based sourcing).
+`organization_shipping_methods` rows per org; `organizations.default_shipping_method_id`
+points at the **Ground** row for each.
 
-## 7. Shows + show dates (each rep org)
+| Org           | Methods                                                                 |
+| ------------- | ----------------------------------------------------------------------- |
+| Elise Varga   | Ground ($18 / 5–7 d) — default · Express ($42 / 2 d) · Free over $2,500 |
+| SH Showroom   | Ground ($15) — default · Express ($38)                                  |
+| Lauren Mackey | Ground ($16) — default · Local pickup (free)                            |
 
-Shows are created via Settings → Shows, with at least one show_date per
-show. Fixtures reference these by `(org, show_name, year, month)`.
+Elise Varga also sets a separate ship-from address (Secaucus, NJ) and
+`shipping_free_threshold_amount = 2500`.
+
+### 4d. Returns
+
+| Org           | Window  | Restocking fee | Buyer pays return shipping |
+| ------------- | ------- | -------------- | -------------------------- |
+| Elise Varga   | 14 days | 15% of line    | yes                        |
+| SH Showroom   | 0 (off) | 0%             | no                         |
+| Lauren Mackey | 0 (off) | 0%             | no                         |
+
+Elise Varga's `returns_policy_text` is populated; the rep orgs leave
+the policy blank.
+
+### 4e. Payments
+
+| Org           | Processor | Required deposit | Deposit account            | Pass surcharge |
+| ------------- | --------- | ---------------- | -------------------------- | -------------- |
+| Elise Varga   | manual    | 25%              | "...Operating" ending 4421 | no             |
+| SH Showroom   | manual    | —                | —                          | no             |
+| Lauren Mackey | manual    | —                | —                          | no             |
+
+`accepted_payment_methods` is set on every org. `default_payment_terms`
+defaults to `net_30`; `default_payment_method` to `credit_card`.
+
+## 5. Manual brand commerce — Lago Sun
+
+Lago Sun mirrors the org-level shape, but on the `brands` row and the
+brand-scoped satellites.
+
+| Concept    | Value                                                             |
+| ---------- | ----------------------------------------------------------------- |
+| Numbering  | LGS- · pad 5 · next 87                                            |
+| Minimum    | $500 (on)                                                         |
+| Commission | 12% default                                                       |
+| Taxes      | US sales tax enabled, FL EIN 83-2741055, general 7%               |
+| Tax rates  | FL 7%, GA 7.5%, TX 8.25% (`brand_sales_tax_rates`)                |
+| Shipping   | Miami ship-from, free over $1,500                                 |
+| Methods    | Ground ($14) — default · Express ($36) (`brand_shipping_methods`) |
+| Returns    | 10-day window, 20% restocking, buyer pays return shipping         |
+| Payments   | manual, 30% required deposit, account ending 7710                 |
+
+## 6. Seasons + season deliveries
+
+Both auto-created by triggers on org INSERT. Seasons: Spring, Summer,
+Fall, Resort, Holiday. Season deliveries are pre-seeded via the
+existing trigger and not modified by this script.
+
+## 7. Source types (each rep org)
+
+Auto-created on org INSERT (not by this seed). Rep orgs land with
+`Road` and `JOOR`. Fixtures use `Road`; `JOOR` is left untouched.
+
+## 8. Shows + show dates (each rep org)
 
 | Org           | Show name      | Year | Month | City     | State | Venue             |
 | ------------- | -------------- | ---- | ----- | -------- | ----- | ----------------- |
@@ -96,48 +160,38 @@ show. Fixtures reference these by `(org, show_name, year, month)`.
 | SH Showroom   | FIG            | 2026 | 3     | Dallas   | TX    | (none)            |
 | Lauren Mackey | CALA           | 2026 | 3     | Dallas   | TX    | (none)            |
 
-## 8. Org connections (both active)
+## 9. Org connections + connection members
 
-Both rep orgs connect to Elise Varga as active brand partners. In
-`org_connections`: `rep_org_id = rep org`, `brand_org_id = Elise
-Varga org`, `status = 'active'`.
+Both rep orgs connect to Elise Varga.
 
-| Rep org       | Brand org   | Status |
-| ------------- | ----------- | ------ |
-| SH Showroom   | Elise Varga | active |
-| Lauren Mackey | Elise Varga | active |
+| Rep org       | Brand org   | Status | Commission |
+| ------------- | ----------- | ------ | ---------- |
+| SH Showroom   | Elise Varga | active | 12%        |
+| Lauren Mackey | Elise Varga | active | 10%        |
 
-Connections are normally created via the /connect flow (brand generates
-invite code → rep accepts). For seed-time verification, Claude checks
-both rows exist with status='active'.
+`connection_members` rows attach the rep-side users to each connection:
 
-## 9. Verification checklist (Claude runs before seeding)
+| Connection                  | Member | manages_others |
+| --------------------------- | ------ | -------------- |
+| SH Showroom ↔ Elise Varga   | Sofia  | true           |
+| SH Showroom ↔ Elise Varga   | Maya   | false          |
+| Lauren Mackey ↔ Elise Varga | Lauren | true           |
 
-```sql
--- All three users exist
-SELECT COUNT(*) = 3 FROM auth.users WHERE email IN (
-  'hello@elisevarga.com','sofia@sofiahernandez.co','lauren@laurenmackey.co'
-);
+## 10. Territories
 
--- All three orgs exist
-SELECT COUNT(*) = 3 FROM public.organizations WHERE name IN (
-  'Elise Varga','SH Showroom','Lauren Mackey'
-);
+Each org has 4 default territories auto-seeded by trigger: Northeast,
+Southeast, Midwest, West Coast. `member_territories` assignments:
 
--- Brand record exists
-SELECT COUNT(*) = 1 FROM public.brands b
-JOIN public.organizations o ON o.id = b.organization_id
-WHERE o.name = 'Elise Varga' AND b.name = 'Elise Varga' AND b.is_self_brand = true;
+| Org           | Member | Territories                               |
+| ------------- | ------ | ----------------------------------------- |
+| Elise Varga   | Elise  | Northeast, Southeast, Midwest, West Coast |
+| Elise Varga   | Noor   | Northeast, Southeast, Midwest, West Coast |
+| SH Showroom   | Sofia  | Northeast, Southeast, Midwest, West Coast |
+| SH Showroom   | Maya   | Northeast, Southeast (subset)             |
+| Lauren Mackey | Lauren | Northeast, Southeast, Midwest, West Coast |
 
--- Seasons exist (at least Spring/Summer/Fall under Elise Varga)
-SELECT COUNT(*) >= 3 FROM public.seasons s
-JOIN public.organizations o ON o.id = s.organization_id
-WHERE o.name = 'Elise Varga' AND s.name IN ('Spring','Summer','Fall');
+## 11. Brand terms
 
--- Source types exist on each rep org
--- Shows + show_dates exist per section 7
--- Both connections exist with status='active'
-```
-
-If any check fails, stop and ask the user to create the missing
-prerequisite before continuing.
+A single `brand_terms` row exists for the Elise Varga self-brand,
+`is_current = true`. Submitted+ orders snapshot it as `terms_id`,
+`terms_agreed_by`, `terms_agreed_at`.
