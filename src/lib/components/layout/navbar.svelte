@@ -61,7 +61,7 @@
 	<div class="flex items-center gap-3">
 		<button
 			onclick={onsidebarToggle}
-			class="cursor-pointer rounded-lg p-1.5 text-muted-foreground transition-all duration-200 hover:bg-ghost hover:text-foreground active:scale-95"
+			class="cursor-pointer rounded-lg p-2.5 text-muted-foreground transition-all duration-200 hover:bg-ghost hover:text-foreground active:scale-95 lg:p-1.5"
 			aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
 		>
 			<svg
