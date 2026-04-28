@@ -1,14 +1,11 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import ProductImportFlow from '$lib/components/products/ProductImportFlow.svelte';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { supabase } from '$lib/supabase.js';
 	import { stripProtocol } from '$lib/utils/website';
-	import { parseCSV as parseProductCSV } from '$lib/utils/csv-parse.js';
-	import { suggestColumnMapping, REQUIRED_PRODUCT_FIELDS } from '$lib/utils/csv-column-suggest.js';
-	import CsvColumnMapper from '$lib/components/shared/CsvColumnMapper.svelte';
-	import ProductImportPreview from '$lib/components/shared/ProductImportPreview.svelte';
-	import type { ProductImportResult } from '$lib/schemas/product-import.js';
 
 	let { data } = $props();
 	const existingOrg = $derived(data.organization);
@@ -44,7 +41,14 @@
 	// Also pre-fill from existing profile display_name
 	const prefillName = $derived(data.user?.display_name ?? '');
 
-	let step = $state(1);
+	// Hydrate from the persisted onboarding_step so a refresh resumes where
+	// the user left off. Reading `data` once at init is intentional — SSR
+	// already provides the up-to-date value, and after that step is driven
+	// by user action. svelte-ignore state_referenced_locally
+	// svelte-ignore state_referenced_locally
+	let step = $state(data.organization?.onboarding_step ?? 1);
+	// svelte-ignore state_referenced_locally
+	let lastPersistedStep = $state<number | null>(data.organization?.onboarding_step ?? null);
 	let firstName = $state('');
 	let lastName = $state('');
 	let orgName = $state('');
@@ -454,6 +458,10 @@
 
 			const { organization } = await res.json();
 			createdOrgId = organization.id;
+			// Re-run the load fn so data.organization is populated on the
+			// client. Without this, ensureSelfBrandId at commit time sees
+			// a null org and the import fails silently.
+			await invalidateAll();
 		} else {
 			const { error: err } = await supabase
 				.from('organizations')
@@ -505,31 +513,11 @@
 	const inviteStep = $derived(effectiveOrgType === 'brand' ? 5 : 5);
 	const welcomeStep = $derived(effectiveOrgType === 'brand' ? 6 : 6);
 
-	// ── Catalog step (brand onboarding v1 — SCO-125) ───────────────────────
-	// Catalog upload flow: three views
-	//   'choose'  — Paste / Upload entry actions (default)
-	//   'mapping' — CSV column-mapping screen (only when CSV headers don't
-	//               cleanly auto-map to required fields)
-	//   'preview' — Preview + edit + commit (both PDF and CSV land here)
-	type CatalogView = 'choose' | 'mapping' | 'preview';
-	let catalogView = $state<CatalogView>('choose');
-	let catalogParsing = $state(false);
-	let catalogError = $state('');
-	let catalogPaste = $state('');
-
-	// CSV mapping data — populated when we drop into the mapping view.
-	let csvHeaders = $state<string[]>([]);
-	let csvRows = $state<Record<string, string>[]>([]);
-
-	// Rows ready for the preview component (either AI-extracted from PDF or
-	// CSV-mapped to product fields). Loose shape; the preview component
-	// coerces to the canonical ProductDraft shape.
-	let previewRows = $state<Record<string, unknown>[]>([]);
-	let previewUnmapped = $state<string[]>([]);
-
-	// Brand the importer writes to. For onboarding we always target the
-	// org's self-brand (auto-created on brand-org setup); resolved lazily
-	// when the user commits.
+	// ── Catalog step (brand onboarding) ────────────────────────────────────
+	// The full import flow (tabs → loading stages → preview → commit) lives
+	// in <ProductImportFlow>. This page just resolves the destination brand
+	// (the org's auto-created self-brand) via `ensureSelfBrandId` and
+	// advances the wizard on completion.
 	let importBrandId = $state<string | null>(null);
 
 	async function ensureSelfBrandId(): Promise<string | null> {
@@ -541,141 +529,9 @@
 			.eq('organization_id', data.organization.id)
 			.eq('is_self_brand', true)
 			.maybeSingle();
-		if (!selfBrand) {
-			catalogError = 'Self-brand not found yet. Try refreshing.';
-			return null;
-		}
+		if (!selfBrand) return null;
 		importBrandId = selfBrand.id;
 		return selfBrand.id;
-	}
-
-	function resetCatalog() {
-		catalogView = 'choose';
-		catalogError = '';
-		catalogPaste = '';
-		csvHeaders = [];
-		csvRows = [];
-		previewRows = [];
-		previewUnmapped = [];
-	}
-
-	function handleImportCompleted(result: ProductImportResult) {
-		// At least one row landed (insert + update). Skipped-only is a
-		// no-op, so don't advance the funnel — let the user back out and
-		// pick "Replace" or skip the step entirely.
-		if (result.inserted + result.updated > 0) {
-			step = inviteStep;
-		}
-	}
-
-	// Walk the parsed CSV headers and decide whether all required product
-	// fields auto-map cleanly. If yes → preview directly. If no → mapping.
-	function routeCsv(headers: string[], rows: Record<string, string>[]) {
-		csvHeaders = headers;
-		csvRows = rows;
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient
-		const fieldByHeader = new Map<string, ReturnType<typeof suggestColumnMapping>>();
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient
-		const claimedFields = new Set<string>();
-		for (const h of headers) {
-			const field = suggestColumnMapping(h);
-			fieldByHeader.set(h, field);
-			if (field) claimedFields.add(field);
-		}
-		const missingRequired = REQUIRED_PRODUCT_FIELDS.filter((f) => !claimedFields.has(f));
-		if (missingRequired.length > 0) {
-			catalogView = 'mapping';
-			return;
-		}
-		// All required fields covered — convert directly to preview rows.
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient
-		const headerByField = new Map<string, string>();
-		for (const [h, f] of fieldByHeader) {
-			if (f) headerByField.set(f, h);
-		}
-		previewRows = rows.map((row) => {
-			const out: Record<string, unknown> = {};
-			for (const [field, header] of headerByField) {
-				out[field] = row[header.toLowerCase()] ?? '';
-			}
-			return out;
-		});
-		previewUnmapped = headers.filter((h) => !fieldByHeader.get(h));
-		catalogView = 'preview';
-	}
-
-	function handleMapperConfirm(mapped: Record<string, unknown>[], unmapped: string[]) {
-		previewRows = mapped;
-		previewUnmapped = unmapped;
-		catalogView = 'preview';
-	}
-
-	async function handleCatalogFile(file: File) {
-		catalogError = '';
-		const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-		const isCsv = file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
-
-		if (!isPdf && !isCsv) {
-			catalogError = 'Unsupported file. Drop a PDF or CSV.';
-			return;
-		}
-
-		// Resolve the target brand BEFORE we burn time parsing — better to
-		// fail fast if the self-brand isn't ready yet.
-		const brand = await ensureSelfBrandId();
-		if (!brand) return;
-
-		if (isPdf) {
-			catalogParsing = true;
-			try {
-				const form = new FormData();
-				form.append('file', file);
-				const res = await fetch('/api/products/parse-linesheet', { method: 'POST', body: form });
-				const body = await res.json();
-				if (!res.ok) {
-					catalogError = body.error ?? 'Parse failed';
-					return;
-				}
-				const products = (body.products ?? []) as Record<string, unknown>[];
-				if (products.length === 0) {
-					catalogError = 'No products detected. Try a clearer linesheet.';
-					return;
-				}
-				previewRows = products;
-				previewUnmapped = [];
-				catalogView = 'preview';
-			} catch (e) {
-				catalogError = (e as Error).message;
-			} finally {
-				catalogParsing = false;
-			}
-			return;
-		}
-
-		// CSV
-		const text = await file.text();
-		const { headers, rows } = parseProductCSV(text);
-		if (rows.length === 0) {
-			catalogError = 'No rows found. Make sure your CSV has a header row.';
-			return;
-		}
-		routeCsv(headers, rows);
-	}
-
-	async function handleCatalogPaste() {
-		catalogError = '';
-		if (!catalogPaste.trim()) {
-			catalogError = 'Paste some CSV data first.';
-			return;
-		}
-		const brand = await ensureSelfBrandId();
-		if (!brand) return;
-		const { headers, rows } = parseProductCSV(catalogPaste);
-		if (rows.length === 0) {
-			catalogError = 'No rows found. Make sure your CSV has a header row.';
-			return;
-		}
-		routeCsv(headers, rows);
 	}
 
 	function skipCatalog() {
@@ -715,9 +571,28 @@
 		step = step - 1;
 	}
 
-	function finish() {
+	async function finish() {
+		// Mark onboarding complete so the next /onboarding visit bounces to
+		// /insight instead of resuming the wizard.
+		if (data.organization) {
+			await supabase
+				.from('organizations')
+				.update({ onboarding_completed_at: new Date().toISOString() })
+				.eq('id', data.organization.id);
+		}
 		window.location.href = '/insight';
 	}
+
+	// Persist step transitions so a refresh mid-onboarding resumes here
+	// rather than starting over.
+	$effect(() => {
+		const orgId = data.organization?.id;
+		if (!orgId) return;
+		if (step === lastPersistedStep) return;
+		const newStep = step;
+		void supabase.from('organizations').update({ onboarding_step: newStep }).eq('id', orgId);
+		lastPersistedStep = newStep;
+	});
 </script>
 
 <div class="flex min-h-screen items-center justify-center bg-background">
@@ -859,44 +734,6 @@
 					<div class="space-y-3">
 						<button
 							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
-							'rep'
-								? 'border-foreground'
-								: 'border-border hover:border-foreground'}"
-							onclick={() => {
-								orgType = 'rep';
-								saveOrgType();
-							}}
-						>
-							<div
-								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
-								'rep'
-									? 'bg-foreground text-background'
-									: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-semibold">Independent Sales Rep</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									I represent multiple brands and manage accounts, orders, and commissions.
-								</p>
-							</div>
-						</button>
-						<button
-							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
 							'brand'
 								? 'border-foreground'
 								: 'border-border hover:border-foreground'}"
@@ -934,6 +771,44 @@
 								</p>
 							</div>
 						</button>
+						<button
+							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
+							'rep'
+								? 'border-foreground'
+								: 'border-border hover:border-foreground'}"
+							onclick={() => {
+								orgType = 'rep';
+								saveOrgType();
+							}}
+						>
+							<div
+								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
+								'rep'
+									? 'bg-foreground text-background'
+									: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="1.5"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z"
+									/>
+								</svg>
+							</div>
+							<div>
+								<p class="text-sm font-semibold">Independent Sales Rep</p>
+								<p class="mt-0.5 text-sm text-muted-foreground">
+									I represent multiple brands and manage accounts, orders, and commissions.
+								</p>
+							</div>
+						</button>
 					</div>
 				</div>
 			{:else if step === catalogStep && effectiveOrgType === 'brand'}
@@ -950,112 +825,26 @@
 							stroke="currentColor"
 							stroke-width="2"
 						>
-							<path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+							/>
 						</svg>
 						Back
 					</button>
 					<div>
-						<h1 class="text-3xl font-semibold tracking-tight">Add your products</h1>
-						<p class="mt-2 text-sm text-muted-foreground">
-							Drop a PDF or CSV and we'll extract your products. You can edit or add more later.
+						<h2 class="text-lg font-semibold">Add your products</h2>
+						<p class="mt-1 text-sm text-muted-foreground">
+							Import your products by uploading a PDF or CSV file or paste a CSV
 						</p>
 					</div>
 
-					{#if catalogView === 'choose'}
-						<div class="grid gap-4 sm:grid-cols-2">
-							<!-- Upload card: PDF or CSV -->
-							<label
-								class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center hover:border-foreground/40"
-							>
-								<input
-									type="file"
-									accept=".pdf,.csv,application/pdf,text/csv"
-									class="hidden"
-									onchange={(e) => {
-										const f = (e.target as HTMLInputElement).files?.[0];
-										if (f) handleCatalogFile(f);
-									}}
-								/>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.5"
-									class="h-8 w-8 text-muted-foreground"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M7 16a4 4 0 01-.88-7.9 5 5 0 019.77-2.1A4.5 4.5 0 1117 16H7zm5-4v-6m-3 3l3-3 3 3"
-									/>
-								</svg>
-								<div class="text-sm font-medium">
-									{catalogParsing ? 'Parsing…' : 'Upload a file'}
-								</div>
-								<div class="text-sm text-muted-foreground">PDF or CSV — up to 20 MB</div>
-							</label>
-
-							<!-- Paste card: always CSV -->
-							<div class="flex flex-col gap-2 rounded-lg border p-5">
-								<div class="flex items-center gap-2">
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="1.5"
-										class="h-5 w-5 text-muted-foreground"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2m4 0h-4a2 2 0 00-2 2v0a2 2 0 002 2h4a2 2 0 002-2v0a2 2 0 00-2-2z"
-										/>
-									</svg>
-									<div class="text-sm font-medium">Paste CSV</div>
-								</div>
-								<textarea
-									bind:value={catalogPaste}
-									placeholder="name,style_number,wholesale_price&#10;Crew Tee,CT-01,24.00"
-									rows={5}
-									class="w-full resize-none rounded-md border bg-background px-3 py-2 font-mono text-sm placeholder:text-muted-foreground/50"
-								></textarea>
-								<div class="flex justify-end">
-									<Button type="button" size="sm" onclick={handleCatalogPaste}>Parse paste</Button>
-								</div>
-							</div>
-						</div>
-
-						{#if catalogError}
-							<p class="text-sm text-destructive">{catalogError}</p>
-						{/if}
-
-						<div class="flex justify-end">
-							<button
-								type="button"
-								class="text-sm text-muted-foreground underline hover:text-foreground"
-								onclick={skipCatalog}
-							>
-								Skip for now
-							</button>
-						</div>
-					{:else if catalogView === 'mapping'}
-						<CsvColumnMapper
-							uploadedHeaders={csvHeaders}
-							rawRows={csvRows}
-							onConfirm={handleMapperConfirm}
-							onCancel={resetCatalog}
-						/>
-					{:else if catalogView === 'preview' && importBrandId}
-						<ProductImportPreview
-							brandId={importBrandId}
-							rawProducts={previewRows}
-							unmappedColumns={previewUnmapped}
-							onCancel={resetCatalog}
-							onCompleted={handleImportCompleted}
-						/>
-					{/if}
+					<ProductImportFlow
+						brand={ensureSelfBrandId}
+						seasons={data.seasons}
+						onComplete={() => (step = inviteStep)}
+					/>
 				</div>
 			{:else if step === 4 && effectiveOrgType === 'rep'}
 				<div class="space-y-5">
