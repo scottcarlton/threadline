@@ -315,24 +315,25 @@
 	<div class="space-y-3">
 		<!-- Tabs -->
 		<div class="flex justify-center">
-			<div class="inline-flex rounded-md bg-muted p-1">
+			<div class="inline-flex rounded-lg bg-muted p-1.5">
 				<button
 					type="button"
-					class="rounded-sm px-10 py-2 text-sm font-medium transition-colors {activeTab === 'upload'
-						? 'bg-foreground text-background'
-						: 'text-foreground'}"
+					class="rounded-md px-8 py-2.5 text-sm font-medium transition-colors {activeTab ===
+					'upload'
+						? 'bg-background text-foreground shadow-sm'
+						: 'text-muted-foreground hover:text-foreground'}"
 					onclick={() => {
 						activeTab = 'upload';
 						errorMessage = '';
 					}}
 				>
-					Upload
+					Upload File
 				</button>
 				<button
 					type="button"
-					class="rounded-sm px-10 py-2 text-sm font-medium transition-colors {activeTab === 'paste'
-						? 'bg-foreground text-background'
-						: 'text-foreground'}"
+					class="rounded-md px-8 py-2.5 text-sm font-medium transition-colors {activeTab === 'paste'
+						? 'bg-background text-foreground shadow-sm'
+						: 'text-muted-foreground hover:text-foreground'}"
 					onclick={() => {
 						activeTab = 'paste';
 						errorMessage = '';
