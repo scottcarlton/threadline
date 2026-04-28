@@ -186,6 +186,12 @@
 	let voiceMode = $state(false);
 	let voiceState = $state<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
 	let currentAudio = $state<HTMLAudioElement | null>(null);
+	// Persistent <audio> element pre-unlocked by an initial user gesture
+	// (the voice-mode toggle tap). Required on iOS Safari so subsequent
+	// playVoiceResponse() calls can play() after an awaited fetch.
+	let unlockedAudio: HTMLAudioElement | null = null;
+	const UNLOCK_AUDIO_SRC =
+		'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAABAAABDgD///////////////////////////////////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+xDEAAPAAAGkAAAAIAAANIAAAARMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EMQpg8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+xDEUgPAAAGkAAAAIAAANIAAAARVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxHsDwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EMSkA8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxM2DwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EMT2A8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
 	const hasAttachments = $derived(attachedFiles.length > 0);
 
 	function getAiInput(): string {
@@ -449,6 +455,14 @@
 
 	function enterVoiceMode() {
 		voiceMode = true;
+		// We're inside a user-gesture handler here. Pre-unlock the audio
+		// element so iOS Safari accepts later play() calls that occur
+		// after awaited fetches (see playVoiceResponse).
+		if (!unlockedAudio) {
+			unlockedAudio = new Audio(UNLOCK_AUDIO_SRC);
+			unlockedAudio.preload = 'auto';
+		}
+		unlockedAudio.play().catch(() => {});
 		startListening();
 	}
 
@@ -460,6 +474,9 @@
 		if (currentAudio) {
 			currentAudio.pause();
 			currentAudio = null;
+		}
+		if (unlockedAudio) {
+			unlockedAudio.pause();
 		}
 	}
 
@@ -618,7 +635,12 @@
 			}
 			const blob = await res.blob();
 			const url = URL.createObjectURL(blob);
-			const audio = new Audio(url);
+			// Reuse the persistent unlocked element on iOS so play() can
+			// succeed outside the original user-gesture window. Falls back
+			// to a fresh element if voice mode was somehow entered without
+			// the unlock running.
+			const audio = unlockedAudio ?? new Audio();
+			audio.src = url;
 			currentAudio = audio;
 			audio.onended = () => {
 				currentAudio = null;
@@ -627,7 +649,15 @@
 				if (voiceMode) startListening();
 				else voiceState = 'idle';
 			};
-			audio.play();
+			audio.play().catch(() => {
+				// Browsers reject play() when called outside a user-gesture
+				// context (e.g. iOS Safari after an awaited fetch). Treat as
+				// end-of-playback and continue the voice loop.
+				currentAudio = null;
+				URL.revokeObjectURL(url);
+				if (voiceMode) startListening();
+				else voiceState = 'idle';
+			});
 		} catch {
 			if (voiceMode) startListening();
 			else voiceState = 'idle';
