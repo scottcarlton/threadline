@@ -7,7 +7,7 @@
 		shouldShowInstallPrompt,
 		loadDismissedUserIds,
 		persistDismissedUserId,
-		detectIosSafari
+		detectIosBrowser
 	} from '$lib/utils/install-eligibility.js';
 	import { browser } from '$app/environment';
 
@@ -22,7 +22,9 @@
 		dismissed = loadDismissedUserIds();
 	});
 
-	const isIos = $derived(browser ? detectIosSafari() : false);
+	// All iOS browsers (Safari, Chrome iOS, etc.) — Apple WebKit blocks
+	// beforeinstallprompt across the board, so all iOS users see this prompt.
+	const isIos = $derived(browser ? detectIosBrowser() : false);
 
 	$effect(() => {
 		if (!browser) return;
@@ -32,7 +34,7 @@
 			installAvailable: $installPromptEvent !== null,
 			isLgUp: $isLgUp,
 			isTabletPortrait: $isTabletPortrait,
-			isIosSafari: isIos,
+			isIosBrowser: isIos,
 			dismissedUserIds: dismissed
 		});
 		if (eligible && !open) {
@@ -69,10 +71,15 @@
 			</Dialog.Description>
 			{#if isIos}
 				<ol class="mt-4 space-y-2 text-sm">
-					<li>1. Tap the Share button in Safari.</li>
+					<li>
+						1. Open the <strong>Share</strong> menu (Safari: bottom toolbar; Chrome: top right).
+					</li>
 					<li>2. Tap <strong>Add to Home Screen</strong>.</li>
-					<li>3. Tap <strong>Add</strong>.</li>
+					<li>3. Tap <strong>Add</strong> to confirm.</li>
 				</ol>
+				<p class="mt-3 text-sm text-muted-foreground">
+					Safari produces a true standalone app; other iOS browsers create a home-screen shortcut.
+				</p>
 				<div class="mt-6 flex justify-end gap-2">
 					<Button variant="outline" onclick={handleDismiss}>Don't show again</Button>
 				</div>

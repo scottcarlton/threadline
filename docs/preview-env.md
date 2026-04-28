@@ -77,7 +77,11 @@ App-level integration callbacks (Gmail, Slack, etc.) still need their dev callba
 - Verified sending domain: `threadline.systems`
 - Verified inbound domain: `inbound.threadline.systems`
 - API keys: `threadline` (general), `Onboarding`, `Threadline Dev SMTP (Supabase)`
-- Inbound webhook for dev: TODO (currently only prod webhook configured)
+- Inbound webhooks (both subscribed to `email.received` on the same Resend org):
+  - **Prod**: `https://threadline.systems/api/webhooks/inbound-email` (effectively dormant until prod is wired to Vercel)
+  - **Dev**: `https://dev.threadline.systems/api/webhooks/inbound-email`
+- `RESEND_WEBHOOK_SECRET` Vercel env var has a dev-branch override (`gitBranch: "dev"`) carrying the dev webhook's signing secret; Production+Preview entry continues to carry the prod webhook secret
+- **Caveat**: Resend fires both webhooks for every inbound email, so dev and prod will both attempt to process the same message. This is fine while prod's apex isn't on Vercel (prod webhook just 404s at Squarespace), but before launching prod we need to either (a) split inbound to a separate dev domain like `dev-inbound.threadline.systems` with its own MX or (b) disable the dev webhook
 
 ## Sentry environment tagging
 
