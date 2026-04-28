@@ -731,7 +731,6 @@
 							role={data.membership?.role ?? 'guest'}
 							orgType={data.orgType}
 							currentOrg={data.organization}
-							allMemberships={data.allMemberships}
 							brandScope={data.brandScope}
 							isBuyer={data.isBuyer}
 							{isNxBlsr}
@@ -747,7 +746,6 @@
 					role={data.membership?.role ?? 'guest'}
 					orgType={data.orgType}
 					currentOrg={data.organization}
-					allMemberships={data.allMemberships}
 					brandScope={data.brandScope}
 					isBuyer={data.isBuyer}
 					{isNxBlsr}
