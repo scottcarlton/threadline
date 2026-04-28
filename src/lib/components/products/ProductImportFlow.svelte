@@ -11,6 +11,7 @@
 		buildPreviewFromCsv,
 		detectHintFromCsvRows,
 		detectHintFromText,
+		downloadCsvTemplate,
 		ensureMinElapsed,
 		formatPreviewPrice,
 		matchSeasonId,
@@ -471,6 +472,7 @@
 		<div class="flex items-center justify-between text-sm text-muted-foreground">
 			<button
 				type="button"
+				onclick={() => downloadCsvTemplate()}
 				class="inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
 			>
 				<svg

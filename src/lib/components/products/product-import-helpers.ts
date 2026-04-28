@@ -112,6 +112,69 @@ export function formatPreviewPrice(v: unknown): string {
 	return Number.isFinite(n) ? previewMoneyFmt.format(n) : '';
 }
 
+// ─── CSV template download ───────────────────────────────────────────
+// Canonical columns matching the auto-mapper aliases. Order is "required
+// first, then most-likely-edited fields, then optional details" so the
+// user sees what matters when the file opens in Sheets/Excel. The
+// example row uses realistic values so empty/blank fields are easy to
+// distinguish from real data.
+
+const TEMPLATE_HEADERS = [
+	'style_number',
+	'name',
+	'wholesale_price',
+	'retail_price',
+	'category',
+	'subcategory',
+	'season',
+	'product_year',
+	'sizes',
+	'colors',
+	'image_url',
+	'description'
+];
+
+const TEMPLATE_EXAMPLE_ROW = [
+	'CT-01',
+	'Crew Tee',
+	'24.00',
+	'48.00',
+	'Tops',
+	'Knits',
+	'Fall',
+	'2026',
+	'XS, S, M, L, XL',
+	'Black, White',
+	'https://example.com/crew-tee.jpg',
+	'Soft cotton crew-neck tee.'
+];
+
+function csvCell(v: string): string {
+	// Quote anything that contains a delimiter, quote, or newline. Embedded
+	// quotes are escaped by doubling them — standard CSV.
+	if (/["\n,]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+	return v;
+}
+
+function csvRow(cells: string[]): string {
+	return cells.map(csvCell).join(',');
+}
+
+export function downloadCsvTemplate(filename = 'threadline-products-template.csv'): void {
+	// Leading BOM (U+FEFF) signals UTF-8 to Excel — without it, Excel
+	// often guesses Windows-1252 and mangles non-ASCII characters.
+	const csv = '\uFEFF' + [csvRow(TEMPLATE_HEADERS), csvRow(TEMPLATE_EXAMPLE_ROW)].join('\n');
+	const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
+}
+
 // ─── Season + year detection ─────────────────────────────────────────
 // Cascade: filename → mapped CSV columns → raw text scan → AI hints.
 // First non-null source wins per field (season name and year resolve
