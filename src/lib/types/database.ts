@@ -103,6 +103,8 @@ export interface Organization {
 	payments_deposit_account_name: string | null;
 	payments_deposit_account_last4: string | null;
 	payments_surcharge_pass_to_buyer: boolean;
+	onboarding_step: number;
+	onboarding_completed_at: string | null;
 	created_at: string;
 	updated_at: string;
 }

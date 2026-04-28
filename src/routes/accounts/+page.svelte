@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
-	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import AccountImportModal from '$lib/components/accounts/AccountImportModal.svelte';
+	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import type { Account } from '$lib/types/database.js';
 
@@ -18,52 +18,8 @@
 	let { data } = $props();
 	let showImport = $state(false);
 
-	const accountColumns = [
-		{ key: 'business_name', label: 'Business Name', required: true },
-		{ key: 'contact_first_name', label: 'Contact First Name' },
-		{ key: 'contact_last_name', label: 'Contact Last Name' },
-		{ key: 'contact_email', label: 'Contact Email' },
-		{ key: 'phone', label: 'Phone' },
-		{ key: 'address_line1', label: 'Address' },
-		{ key: 'city', label: 'City' },
-		{ key: 'state', label: 'State' },
-		{ key: 'zip', label: 'ZIP' }
-	];
-
-	async function handleAccountImport(
-		rows: Record<string, string>[]
-	): Promise<{ success: number; errors: string[] }> {
-		let success = 0;
-		const errors: string[] = [];
-
-		for (let i = 0; i < rows.length; i++) {
-			const row = rows[i];
-			if (!row.business_name?.trim()) {
-				errors.push(`Row ${i + 1}: Business Name is required`);
-				continue;
-			}
-			const { error } = await supabase.from('accounts').insert({
-				organization_id: data.organization?.id,
-				business_name: row.business_name.trim(),
-				contact_first_name: row.contact_first_name?.trim() || null,
-				contact_last_name: row.contact_last_name?.trim() || null,
-				contact_email: row.contact_email?.trim() || null,
-				phone: row.phone?.trim() || null,
-				address_line1: row.address_line1?.trim() || null,
-				city: row.city?.trim() || null,
-				state: row.state?.trim() || null,
-				zip: row.zip?.trim() || null
-			});
-			if (error) {
-				errors.push(`Row ${i + 1} (${row.business_name}): ${error.message}`);
-			} else {
-				success++;
-			}
-		}
-
-		if (success > 0) invalidateAll();
-		return { success, errors };
-	}
+	// Account import is handled by <AccountImportModal>, which wraps
+	// <AccountImportFlow> and POSTs to /api/accounts/import on commit.
 	import type { AccountHealth } from '$lib/server/account-health.js';
 
 	// Mutable list — initial page from server, appended via infinite scroll
@@ -367,10 +323,21 @@
 	{/if}
 </div>
 
-<BulkImportModal
-	open={showImport}
-	ontoggle={() => (showImport = false)}
-	entityType="account"
-	columns={accountColumns}
-	onimport={handleAccountImport}
+<AccountImportModal
+	bind:open={showImport}
+	onOpenChange={(v) => (showImport = v)}
+	onImported={(result) => {
+		const created = result.created;
+		const skipped = result.skipped.length;
+		if (created > 0) invalidateAll();
+		if (created === 0 && skipped > 0) {
+			toast.info(`No new accounts — all ${skipped} already existed.`);
+		} else if (skipped > 0) {
+			toast.success(
+				`${created} account${created === 1 ? '' : 's'} imported · ${skipped} already existed`
+			);
+		} else {
+			toast.success(`${created} account${created === 1 ? '' : 's'} imported`);
+		}
+	}}
 />

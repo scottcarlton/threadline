@@ -718,42 +718,41 @@
 			onsidebarToggle={() => (sidebarOpen = !sidebarOpen)}
 		/>
 
-		<!-- Sidebar + Content below header -->
+		<!-- Sidebar + Content below header. Both desktop (push) and mobile
+		     (overlay) sidebars render in the DOM; Tailwind's `hidden lg:block`
+		     / `lg:hidden` pick the right one based on actual viewport, so the
+		     server-rendered HTML matches the client and there's no first-paint
+		     flash from the media-query store seeding to false on SSR. -->
 		<div class="flex flex-1 overflow-hidden">
-			{#if $isLgUp}
-				<div
-					class="h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
-					style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
-				>
-					<div class="h-full w-60">
-						<Sidebar
-							mode="push"
-							role={data.membership?.role ?? 'guest'}
-							orgType={data.orgType}
-							currentOrg={data.organization}
-							allMemberships={data.allMemberships}
-							brandScope={data.brandScope}
-							isBuyer={data.isBuyer}
-							{isNxBlsr}
-							bind:showHelp
-						/>
-					</div>
+			<div
+				class="hidden h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out lg:block"
+				style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
+			>
+				<div class="h-full w-60">
+					<Sidebar
+						mode="push"
+						role={data.membership?.role ?? 'guest'}
+						orgType={data.orgType}
+						brandScope={data.brandScope}
+						isBuyer={data.isBuyer}
+						{isNxBlsr}
+						bind:showHelp
+					/>
 				</div>
-			{:else}
+			</div>
+			<div class="lg:hidden">
 				<Sidebar
 					mode="overlay"
 					open={sidebarOpen}
 					onclose={() => (sidebarOpen = false)}
 					role={data.membership?.role ?? 'guest'}
 					orgType={data.orgType}
-					currentOrg={data.organization}
-					allMemberships={data.allMemberships}
 					brandScope={data.brandScope}
 					isBuyer={data.isBuyer}
 					{isNxBlsr}
 					bind:showHelp
 				/>
-			{/if}
+			</div>
 
 			<!-- Main content -->
 			<main class="flex-1 overflow-y-auto bg-background p-4 pb-32 sm:p-6 sm:pb-36">
@@ -765,8 +764,9 @@
 		{#if !hideAiDock || dockPeeking}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="pointer-events-none fixed right-0 bottom-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out"
-				style="left: {$isLgUp && sidebarOpen ? '240px' : '0px'}"
+				class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out {sidebarOpen
+					? 'lg:left-60'
+					: 'lg:left-0'}"
 				transition:fly={{ y: 100, duration: 300 }}
 				onmouseenter={() => {
 					if (dockPeeking) clearTimeout(peekTimeout);

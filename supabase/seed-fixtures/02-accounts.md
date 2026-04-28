@@ -24,15 +24,20 @@ same on-screen order for screenshots.
 For each row, fill derived fields deterministically from the business
 name and contact first name:
 
-| Field           | Rule                                                                                                                   |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `contact_email` | `lower(replace(first,' ','')) \|\| '@' \|\| lower(regexp_replace(business_name, '[^a-zA-Z0-9]', '', 'g')) \|\| '.com'` |
-| `phone`         | `'(' \|\| lpad((200+row_num)::text,3,'0') \|\| ') 555-' \|\| lpad(((row_num*17)%10000)::text,4,'0')`                   |
-| `zip`           | `lpad(((abs(hashtext(business_name))%90000)+10000)::text, 5, '0')`                                                     |
-| `website`       | `'https://' \|\| lower(regexp_replace(business_name,'[^a-zA-Z0-9]','','g')) \|\| '.com'`                               |
-| `country`       | `'US'` (literal)                                                                                                       |
-| `is_active`     | `true`                                                                                                                 |
-| `archived_at`   | `null`                                                                                                                 |
+| Field                      | Rule                                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `contact_email`            | `lower(replace(first,' ','')) \|\| '@' \|\| lower(regexp_replace(business_name, '[^a-zA-Z0-9]', '', 'g')) \|\| '.com'` |
+| `phone`                    | `'(' \|\| lpad((200+row_num)::text,3,'0') \|\| ') 555-' \|\| lpad(((row_num*17)%10000)::text,4,'0')`                   |
+| `zip`                      | `lpad(((abs(hashtext(business_name))%90000)+10000)::text, 5, '0')`                                                     |
+| `website`                  | `'https://' \|\| lower(regexp_replace(business_name,'[^a-zA-Z0-9]','','g')) \|\| '.com'`                               |
+| `country`                  | `'US'` (literal)                                                                                                       |
+| `is_active`                | `true`                                                                                                                 |
+| `archived_at`              | `null`                                                                                                                 |
+| `payment_preference`       | `'credit_card'` (default; some rows in the override table below replace this)                                          |
+| `payment_terms`            | `null` unless overridden                                                                                               |
+| `shipping_method`          | `null` unless overridden (free-form snapshot text, e.g. `'Express'`)                                                   |
+| `commission_rate_override` | `null` unless overridden                                                                                               |
+| `order_minimum_override`   | `null` unless overridden                                                                                               |
 
 ## The 50 accounts
 
@@ -88,6 +93,55 @@ name and contact first name:
 | 48  | Wayfarer Dry Goods     | Aris Papadakis      | Salt Lake City | UT    |
 | 49  | Gildhouse              | Octavia Radcliffe   | Philadelphia   | PA    |
 | 50  | Little Oak Studio      | Rosalind Kinsella   | Richmond       | VA    |
+
+## Account-level overrides
+
+Ten of the 50 accounts carry per-account overrides so list pages and
+the order-create resolver have realistic mixed data. Every other
+account leaves the override columns null and inherits org defaults.
+
+| Account              | commission_rate_override | order_minimum_override | payment_terms | shipping_method                      |
+| -------------------- | -----------------------: | ---------------------: | ------------- | ------------------------------------ |
+| Tidepool 42          |                      15% |                      — | net_60        | —                                    |
+| Fernwick Dry Goods   |                       8% |                      — | —             | —                                    |
+| Quillwren            |                        — |                 $1,500 | —             | Express                              |
+| The Fog Index        |                        — |                      — | net_15        | —                                    |
+| Ninebark Mercantile  |                      14% |                 $1,000 | —             | —                                    |
+| Maison Lumen         |                        — |                      — | cod           | — (payment_preference = credit_card) |
+| Ember & Oak Boutique |                      10% |                      — | —             | Ground                               |
+| Marigold Threadworks |                        — |                      — | net_30        | —                                    |
+| Fjord Atelier        |                      13% |                      — | —             | —                                    |
+| Saltwind Supply Co   |                      11% |                   $800 | —             | Free over $2,500                     |
+
+## Account locations
+
+Every account gets one **Primary** location auto-inserted on
+`account_locations` mirroring its base address. `is_default = true`,
+`sort_order = 0`. The order seed pulls each account's default location
+and stores it on `orders.location_id`.
+
+## Buyer invitations + accepted buyers
+
+Every account has one `buyer_invitations` row addressed to the contact
+email (role `buyer_admin`). **Five of the 50 are accepted** — the seed
+creates auth users, links them via `account_users`, and stamps
+`accepted_at` on the matching invite. The remaining 45 invites stay
+open.
+
+| Accepted account    | Buyer name     | Email (auto from biz name)   | Role        |
+| ------------------- | -------------- | ---------------------------- | ----------- |
+| Tidepool 42         | Katie Donovan  | katie@tidepool42.com         | buyer_admin |
+| Fernwick Dry Goods  | Ashley Pierce  | ashley@fernwickdrygoods.com  | buyer       |
+| Quillwren           | Samantha Ruiz  | samantha@quillwren.com       | buyer       |
+| The Fog Index       | Priya Sharma   | priya@thefogindex.com        | buyer       |
+| Ninebark Mercantile | Megan Caldwell | megan@ninebarkmercantile.com | buyer       |
+
+All buyer accounts share the dev password `threadline-demo-pw!`.
+
+`cart_items`: the first accepted buyer (Katie / Tidepool 42) gets a
+4-item cart pointed at SP26-101, SP26-103, SU26-202, FA26-302 so
+`/shop`, the cart drawer, and the checkout flow have data without
+needing to click through manually.
 
 ## Insertion SQL pattern
 

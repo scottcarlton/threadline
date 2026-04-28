@@ -16,7 +16,8 @@
 	} from '$lib/components/ui/tooltip/index.js';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
-	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import OrderImportModal from '$lib/components/orders/OrderImportModal.svelte';
+	import { toast } from 'svelte-sonner';
 	import type { Order, Season } from '$lib/types/database.js';
 	import {
 		computePreset,
@@ -338,108 +339,10 @@
 
 	let showImport = $state(false);
 
-	const orderImportColumns = [
-		{ key: 'account', label: 'Account (business name)', required: true },
-		{ key: 'style_number', label: 'Style Number', required: true },
-		{ key: 'qty', label: 'Quantity', required: true },
-		{ key: 'unit_price', label: 'Unit Price' },
-		{ key: 'color', label: 'Color' },
-		{ key: 'size', label: 'Size' },
-		{ key: 'expected_ship_date', label: 'Expected Ship Date (YYYY-MM-DD)' },
-		{ key: 'notes', label: 'Notes' }
-	];
-
-	async function handleImportOrders(
-		rows: Record<string, string>[]
-	): Promise<{ success: number; errors: string[] }> {
-		let success = 0;
-		const errors: string[] = [];
-
-		const { data: selfBrand } = await supabase
-			.from('brands')
-			.select('id')
-			.eq('organization_id', data.organization?.id ?? '')
-			.eq('is_self_brand', true)
-			.maybeSingle();
-		if (!selfBrand) {
-			return { success: 0, errors: ['No self-brand found for this organization'] };
-		}
-
-		for (let i = 0; i < rows.length; i++) {
-			const row = rows[i];
-			const accountName = row.account?.trim();
-			const styleNumber = row.style_number?.trim();
-			const qty = parseInt(row.qty);
-			if (!accountName || !styleNumber || !qty || qty <= 0) {
-				errors.push(`Row ${i + 1}: account, style_number, and positive qty required`);
-				continue;
-			}
-
-			const { data: account } = await supabase
-				.from('accounts')
-				.select('id')
-				.eq('organization_id', data.organization?.id ?? '')
-				.ilike('business_name', accountName)
-				.maybeSingle();
-			if (!account) {
-				errors.push(`Row ${i + 1} (${accountName}): account not found`);
-				continue;
-			}
-
-			const { data: product } = await supabase
-				.from('products')
-				.select('id, wholesale_price')
-				.eq('brand_id', selfBrand.id)
-				.eq('style_number', styleNumber)
-				.maybeSingle();
-			if (!product) {
-				errors.push(`Row ${i + 1} (${styleNumber}): product not found in your catalog`);
-				continue;
-			}
-
-			const unitPrice = row.unit_price?.trim()
-				? parseFloat(row.unit_price)
-				: Number(product.wholesale_price);
-
-			const { data: order, error: orderErr } = await supabase
-				.from('orders')
-				.insert({
-					organization_id: data.organization?.id,
-					brand_id: selfBrand.id,
-					account_id: account.id,
-					created_by: data.user?.id,
-					status: 'draft',
-					order_type: 'direct',
-					expected_ship_date: row.expected_ship_date?.trim() || null,
-					notes: row.notes?.trim() || null,
-					total_amount: qty * unitPrice
-				})
-				.select('id')
-				.single();
-
-			if (orderErr || !order) {
-				errors.push(`Row ${i + 1}: ${orderErr?.message ?? 'Failed to create order'}`);
-				continue;
-			}
-
-			const { error: lineErr } = await supabase.from('order_lines').insert({
-				order_id: order.id,
-				product_id: product.id,
-				style_number: styleNumber,
-				qty,
-				unit_price: unitPrice,
-				color: row.color?.trim() || null,
-				size: row.size?.trim() || null
-			});
-			if (lineErr) {
-				errors.push(`Row ${i + 1}: order created but line failed — ${lineErr.message}`);
-				continue;
-			}
-			success++;
-		}
-		if (success > 0) invalidateAll();
-		return { success, errors };
-	}
+	// Order import is handled by <OrderImportModal>, which wraps
+	// <OrderImportFlow> and POSTs to /api/orders/import on commit. The
+	// server resolves accounts (by business_name) and products (by
+	// style_number) per row and skips rows whose references don't match.
 
 	function setFilter(key: string, value: string) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
@@ -1043,11 +946,25 @@
 </div>
 
 {#if isBrandOrg}
-	<BulkImportModal
-		open={showImport}
-		ontoggle={() => (showImport = false)}
-		entityType="Orders"
-		columns={orderImportColumns}
-		onimport={handleImportOrders}
+	<OrderImportModal
+		bind:open={showImport}
+		onOpenChange={(v) => (showImport = v)}
+		onImported={(result) => {
+			const created = result.created;
+			const skipped = result.skipped.length;
+			const errors = result.errors.length;
+			if (created > 0) invalidateAll();
+			if (created === 0 && (skipped > 0 || errors > 0)) {
+				toast.error(
+					`No orders created. ${skipped} skipped, ${errors} failed. Check that accounts and styles exist.`
+				);
+			} else if (skipped > 0 || errors > 0) {
+				toast.success(
+					`${created} order${created === 1 ? '' : 's'} imported · ${skipped + errors} skipped`
+				);
+			} else {
+				toast.success(`${created} order${created === 1 ? '' : 's'} imported`);
+			}
+		}}
 	/>
 {/if}

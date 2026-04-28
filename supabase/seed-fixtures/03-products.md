@@ -8,23 +8,34 @@ bow details, puff sleeves, camp collars, statement prints.
   Shirt, Top, Tank).
 - **Product year:** `2026` on every row.
 - **Seasons:** Spring (10 products), Summer (15), Fall (15).
-- **Images:** skipped in seed (uploaded separately post-seed).
-- **ats flag:** `false` on every row.
+- **Images:** skipped in seed (`product_images` is a separate table
+  backed by Supabase Storage; uploaded post-seed if needed).
+- **ats flag:** `true` on every other style (PRODUCTS index 0, 2, 4,
+  …) — gives the ATS filter a real toggle to hit.
+- **Color (variants only):** cycled through a 6-tone palette (Ivory,
+  Black, Sand, Sage, Navy, Rose) so variants render with variety.
+  Note: `products.color` does not exist; color is variant-level.
 - **Variants:** 5 per product (XS/S/M/L/XL) = 200 total. Rules below.
+
+In addition, the script seeds **3 products + 15 variants** under the
+rep-owned manual brand **Lago Sun** (LGS-001 through LGS-003) inside
+the SH Showroom org, in season Resort. Those products are documented
+in `01-prerequisites.md §5`. They aren't referenced by any seeded
+order (out of scope this pass).
 
 ## Variant generation rule
 
 For every product, create 5 variants:
 
-| Field             | Value                                                             |
-| ----------------- | ----------------------------------------------------------------- |
-| `size`            | one of `XS`, `S`, `M`, `L`, `XL`                                  |
-| `sku`             | `style_number \|\| '-' \|\| size`                                 |
-| `stock_qty`       | `20 + (abs(hashtext(style_number \|\| size)) % 80)` (range 20–99) |
-| `stock_threshold` | `5`                                                               |
-| `is_active`       | `true`                                                            |
-| `color`           | `null` (colorways not modeled yet)                                |
-| `price_override`  | `null`                                                            |
+| Field             | Value                                                                                                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `size`            | one of `XS`, `S`, `M`, `L`, `XL`                                                                                                                                              |
+| `sku`             | `style_number \|\| '-' \|\| size`                                                                                                                                             |
+| `stock_qty`       | `20 + (abs(hashtext(style_number \|\| size)) % 80)` (range 20–99)                                                                                                             |
+| `stock_threshold` | `5`                                                                                                                                                                           |
+| `is_active`       | `true`                                                                                                                                                                        |
+| `color`           | cycled palette per product (Ivory / Black / Sand / Sage / Navy / Rose)                                                                                                        |
+| `price_override`  | `null` for most variants. Set to `158` on the XL of every third style (deterministic via `hashString(style) % 3 === 0`) so override badges show on a handful of variant rows. |
 
 ## Spring 2026 — 10 products
 

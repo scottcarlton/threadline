@@ -15,6 +15,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Organization name is required' }, { status: 400 });
 	}
 
+	// Idempotency: if this user already has a founding-admin membership, return
+	// the existing org instead of inserting a second one. Re-submits, refreshes,
+	// or bouncing back to /onboarding must not create duplicate orgs.
+	const { data: existingMembership } = await supabaseAdmin
+		.from('organization_members')
+		.select('organizations(*)')
+		.eq('profile_id', userId)
+		.eq('role', 'admin')
+		.limit(1)
+		.maybeSingle();
+
+	if (existingMembership?.organizations) {
+		return json({ organization: existingMembership.organizations });
+	}
+
 	// Update profile display_name if provided
 	if (displayName) {
 		await supabaseAdmin.from('profiles').update({ display_name: displayName }).eq('id', userId);
@@ -27,20 +42,27 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.replace(/\s+/g, '-')
 		.substring(0, 50);
 
-	// Check for slug uniqueness
-	const { data: existing } = await supabaseAdmin
+	// Reject (don't suffix-mint) when another org owns this slug — the form can
+	// ask for a different name. Suffix-minting silently let duplicate names
+	// through and produced the recurring "two same-name orgs" bug.
+	const { data: slugTaken } = await supabaseAdmin
 		.from('organizations')
 		.select('id')
 		.eq('slug', slug)
-		.single();
+		.maybeSingle();
 
-	const finalSlug = existing ? `${slug}-${Date.now().toString(36)}` : slug;
+	if (slugTaken) {
+		return json(
+			{ error: 'That organization name is taken. Please pick another.' },
+			{ status: 409 }
+		);
+	}
 
 	// Create organization
 	const validOrgType = orgType === 'brand' ? 'brand' : 'rep';
 	const { data: org, error: orgError } = await supabaseAdmin
 		.from('organizations')
-		.insert({ name: orgName, slug: finalSlug, org_type: validOrgType })
+		.insert({ name: orgName, slug, org_type: validOrgType })
 		.select()
 		.single();
 
