@@ -5,7 +5,7 @@
 	import { unreadCount } from '$lib/stores/unread.js';
 	import { upcomingAppointmentCount } from '$lib/stores/appointments.js';
 	import { orderAttentionCount } from '$lib/stores/orderAttention.js';
-	import type { UserRole, OrgType, Organization } from '$lib/types/database.js';
+	import type { UserRole, OrgType } from '$lib/types/database.js';
 	import { OverlayPanel } from '$lib/components/ui/overlay-panel/index.js';
 
 	type NavItem = {
@@ -19,7 +19,6 @@
 	type Props = {
 		role: UserRole;
 		orgType?: OrgType;
-		currentOrg?: Organization | null;
 		brandScope?: string[] | null;
 		isBuyer?: boolean;
 		isNxBlsr?: boolean;
@@ -32,7 +31,6 @@
 	let {
 		role,
 		orgType = 'rep',
-		currentOrg = null,
 		brandScope = null,
 		isBuyer = false,
 		isNxBlsr = false,

@@ -733,7 +733,6 @@
 						mode="push"
 						role={data.membership?.role ?? 'guest'}
 						orgType={data.orgType}
-						currentOrg={data.organization}
 						brandScope={data.brandScope}
 						isBuyer={data.isBuyer}
 						{isNxBlsr}
@@ -748,7 +747,6 @@
 					onclose={() => (sidebarOpen = false)}
 					role={data.membership?.role ?? 'guest'}
 					orgType={data.orgType}
-					currentOrg={data.organization}
 					brandScope={data.brandScope}
 					isBuyer={data.isBuyer}
 					{isNxBlsr}
