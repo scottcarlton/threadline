@@ -7,3 +7,7 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Email templates have hand-tuned table-based HTML and Mustache tags
+# that prettier would mangle.
+/emails/

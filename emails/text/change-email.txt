@@ -1,0 +1,7 @@
+Confirm your new email on /Threadline
+
+Confirm the change from {{ .Email }} to {{ .NewEmail }}:
+{{ .ConfirmationURL }}
+
+Didn't request this? Contact us — the change is held until you confirm.
+/Threadline · threadline.systems

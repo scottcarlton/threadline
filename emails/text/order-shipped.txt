@@ -1,0 +1,9 @@
+Order shipped: {{{ORDER_NUMBER}}}
+
+Account:  {{{ACCOUNT_NAME}}}
+Brand:    {{{BRAND_NAME}}}
+Total:    {{{TOTAL}}}
+{{{#if TRACKING_NUMBER}}}Tracking: {{{TRACKING_NUMBER}}} ({{{TRACKING_URL}}}){{{/if}}}
+
+View order: {{{ORDER_URL}}}
+/Threadline · threadline.systems

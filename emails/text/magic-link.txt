@@ -1,0 +1,7 @@
+Sign in to /Threadline
+
+Use this one-time link to sign in:
+{{ .ConfirmationURL }}
+
+If you didn't request it, ignore this email.
+/Threadline · threadline.systems
