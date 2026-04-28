@@ -2,6 +2,8 @@
 	import { page } from '$app/stores';
 	import { resolve } from '$app/paths';
 	import { cn } from '$lib/utils.js';
+	import { isLgUp } from '$lib/utils/viewport.js';
+	import { SectionSheet } from '$lib/components/ui/section-sheet/index.js';
 
 	let { children, data } = $props();
 
@@ -110,6 +112,17 @@
 			return $page.url.pathname.startsWith(p) && after.length > 0 && !after.startsWith('new');
 		})
 	);
+
+	let sheetOpen = $state(false);
+
+	const activeGroupItem = $derived.by(() => {
+		for (const g of navGroups) {
+			for (const item of g.items) {
+				if (isActive(item.href)) return item;
+			}
+		}
+		return null;
+	});
 </script>
 
 {#if isDetailView}
@@ -123,52 +136,85 @@
 			</p>
 		</div>
 
-		<div class="flex gap-8">
-			<nav class="sticky top-0 w-48 shrink-0 space-y-5 self-start">
-				{#each navGroups as group (group.label)}
-					<div>
-						<div class="mb-1.5 flex items-center gap-2 px-3">
-							<span class="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-								{group.label}
-							</span>
-							{#if group.pill === 'new'}
-								<span
-									class="inline-flex items-center rounded-full bg-foreground px-2 py-0.5 text-xs font-medium text-background"
-								>
-									New
+		{#if $isLgUp}
+			<div class="flex gap-8">
+				<nav class="sticky top-0 w-48 shrink-0 space-y-5 self-start">
+					{#each navGroups as group (group.label)}
+						<div>
+							<div class="mb-1.5 flex items-center gap-2 px-3">
+								<span class="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+									{group.label}
 								</span>
-							{/if}
-						</div>
-						<ul class="space-y-0.5">
-							{#each group.items as item (item.href)}
-								<li>
-									<a
-										href={resolve(item.href)}
-										class={cn(
-											'flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors',
-											isActive(item.href)
-												? 'bg-muted text-foreground'
-												: 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-										)}
+								{#if group.pill === 'new'}
+									<span
+										class="inline-flex items-center rounded-full bg-foreground px-2 py-0.5 text-xs font-medium text-background"
 									>
-										{item.label}
-										{#if item.badge}
-											<span
-												class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-100 px-1.5 text-[11px] font-medium text-zinc-600"
-												>{item.badge}</span
-											>
-										{/if}
-									</a>
-								</li>
-							{/each}
-						</ul>
-					</div>
-				{/each}
-			</nav>
+										New
+									</span>
+								{/if}
+							</div>
+							<ul class="space-y-0.5">
+								{#each group.items as item (item.href)}
+									<li>
+										<a
+											href={resolve(item.href)}
+											class={cn(
+												'flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors',
+												isActive(item.href)
+													? 'bg-muted text-foreground'
+													: 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+											)}
+										>
+											{item.label}
+											{#if item.badge}
+												<span
+													class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-100 px-1.5 text-[11px] font-medium text-zinc-600"
+													>{item.badge}</span
+												>
+											{/if}
+										</a>
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/each}
+				</nav>
 
-			<div class="min-w-0 flex-1">
+				<div class="min-w-0 flex-1">
+					{@render children?.()}
+				</div>
+			</div>
+		{:else}
+			<button
+				onclick={() => (sheetOpen = true)}
+				class="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<line x1="3" y1="6" x2="21" y2="6" />
+					<line x1="3" y1="12" x2="21" y2="12" />
+					<line x1="3" y1="18" x2="21" y2="18" />
+				</svg>
+				<span>Sections{activeGroupItem ? ` · ${activeGroupItem.label}` : ''}</span>
+			</button>
+
+			<div class="mt-6">
 				{@render children?.()}
 			</div>
-		</div>
+
+			<SectionSheet
+				open={sheetOpen}
+				groups={navGroups}
+				activeHref={$page.url.pathname}
+				onclose={() => (sheetOpen = false)}
+				onnavigate={() => (sheetOpen = false)}
+			/>
+		{/if}
 	</div>
 {/if}

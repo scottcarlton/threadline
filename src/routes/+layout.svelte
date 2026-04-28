@@ -16,9 +16,14 @@
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
+	import { registerServiceWorker, swUpdateAvailable, isOnline } from '$lib/stores/pwa.js';
+	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
+	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
+	import { toast } from 'svelte-sonner';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import { preferences } from '$lib/stores/preferences.js';
+	import { isLgUp } from '$lib/utils/viewport.js';
 	import { cart } from '$lib/stores/cart.js';
 
 	const { messages, loading } = conversation;
@@ -67,12 +72,26 @@
 		}
 	});
 
+	// SW update toast
+	$effect(() => {
+		if ($swUpdateAvailable) {
+			toast('A new version of Threadline is available.', {
+				action: {
+					label: 'Reload',
+					onClick: () => location.reload()
+				},
+				duration: Infinity
+			});
+		}
+	});
+
 	onMount(() => {
 		if (data.session) {
 			const stopUnread = startUnreadPolling(60000);
 			const stopAppointments = startAppointmentPolling(60000);
 			const stopAttention = startOrderAttentionPolling(60000);
 			const stopNotifications = startNotificationPolling(30000);
+			registerServiceWorker();
 			return () => {
 				stopUnread?.();
 				stopAppointments?.();
@@ -145,7 +164,13 @@
 		}, 300);
 	}
 
-	let sidebarOpen = $state(true);
+	let sidebarOpen = $state<boolean>(
+		$preferences.sidebarOpen ?? (browser ? matchMedia('(min-width: 1024px)').matches : true)
+	);
+
+	$effect(() => {
+		preferences.setSidebarOpen(sidebarOpen);
+	});
 	let showHelp = $state(false);
 	let aiPanelOpen = $state(false);
 	let messagesContainer = $state<HTMLDivElement | null>(null);
@@ -209,8 +234,8 @@
 	});
 
 	$effect(() => {
-		if ($page.url.pathname) {
-			// Close sidebar on mobile nav
+		if ($page.url.pathname && !$isLgUp) {
+			sidebarOpen = false;
 		}
 	});
 
@@ -650,6 +675,7 @@
 	{@render children()}
 {:else}
 	<div class="flex h-screen flex-col overflow-hidden">
+		<OfflineBanner />
 		<!-- Full-width header -->
 		<Navbar
 			user={data.user}
@@ -664,24 +690,40 @@
 
 		<!-- Sidebar + Content below header -->
 		<div class="flex flex-1 overflow-hidden">
-			<!-- Sidebar (slides on/off with animation) -->
-			<div
-				class="h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
-				style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
-			>
-				<div class="h-full w-60">
-					<Sidebar
-						role={data.membership?.role ?? 'guest'}
-						orgType={data.orgType}
-						currentOrg={data.organization}
-						allMemberships={data.allMemberships}
-						brandScope={data.brandScope}
-						isBuyer={data.isBuyer}
-						{isNxBlsr}
-						bind:showHelp
-					/>
+			{#if $isLgUp}
+				<div
+					class="h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
+					style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
+				>
+					<div class="h-full w-60">
+						<Sidebar
+							mode="push"
+							role={data.membership?.role ?? 'guest'}
+							orgType={data.orgType}
+							currentOrg={data.organization}
+							allMemberships={data.allMemberships}
+							brandScope={data.brandScope}
+							isBuyer={data.isBuyer}
+							{isNxBlsr}
+							bind:showHelp
+						/>
+					</div>
 				</div>
-			</div>
+			{:else}
+				<Sidebar
+					mode="overlay"
+					open={sidebarOpen}
+					onclose={() => (sidebarOpen = false)}
+					role={data.membership?.role ?? 'guest'}
+					orgType={data.orgType}
+					currentOrg={data.organization}
+					allMemberships={data.allMemberships}
+					brandScope={data.brandScope}
+					isBuyer={data.isBuyer}
+					{isNxBlsr}
+					bind:showHelp
+				/>
+			{/if}
 
 			<!-- Main content -->
 			<main class="flex-1 overflow-y-auto bg-background p-4 pb-32 sm:p-6 sm:pb-36">
@@ -694,7 +736,7 @@
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="pointer-events-none fixed right-0 bottom-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out"
-				style="left: {sidebarOpen ? '240px' : '0px'}"
+				style="left: {$isLgUp && sidebarOpen ? '240px' : '0px'}"
 				transition:fly={{ y: 100, duration: 300 }}
 				onmouseenter={() => {
 					if (dockPeeking) clearTimeout(peekTimeout);
@@ -716,7 +758,7 @@
 								<span class="text-xs font-medium text-zinc-500">Conversation</span>
 								<div class="flex items-center gap-1">
 									<button
-										class="rounded-lg p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+										class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
 										onclick={() => {
 											aiPanelOpen = false;
 										}}
@@ -734,7 +776,7 @@
 										</svg>
 									</button>
 									<button
-										class="rounded-lg p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+										class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
 										onclick={() => {
 											aiPanelOpen = false;
 											conversation.clear();
@@ -954,7 +996,7 @@
 									<button
 										onclick={() => fileInput?.click()}
 										disabled={$loading}
-										class="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50"
+										class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
 										aria-label="Attach file"
 									>
 										<svg
@@ -977,7 +1019,7 @@
 										<div class="relative">
 											<button
 												onclick={() => (showAgentPicker = !showAgentPicker)}
-												class="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 {$activeAgent
+												class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1.5 {$activeAgent
 													? 'text-blue-400'
 													: ''}"
 												aria-label="Select agent"
@@ -1049,7 +1091,7 @@
 										<!-- Voice mode active — always show voice button regardless of $loading -->
 										<button
 											onclick={toggleVoice}
-											class="flex h-9 w-9 items-center justify-center rounded-full {voiceState ===
+											class="flex h-11 w-11 items-center justify-center rounded-full lg:h-9 lg:w-9 {voiceState ===
 											'listening'
 												? 'bg-blue-500 text-white'
 												: voiceState === 'speaking'
@@ -1090,7 +1132,7 @@
 											{/if}
 										</button>
 									{:else if $loading}
-										<div class="flex h-9 w-9 items-center justify-center">
+										<div class="flex h-11 w-11 items-center justify-center lg:h-9 lg:w-9">
 											<div
 												class="h-5 w-5 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
 											></div>
@@ -1099,8 +1141,9 @@
 										<!-- Send button -->
 										<button
 											onclick={() => sendAiMessage()}
-											class="flex h-9 w-9 items-center justify-center rounded-none bg-white text-zinc-900 transition-colors hover:bg-zinc-200"
-											aria-label="Send message"
+											disabled={!$isOnline}
+											class="flex h-11 w-11 items-center justify-center rounded-none bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+											aria-label={$isOnline ? 'Send message' : 'Offline — cannot send'}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -1121,8 +1164,9 @@
 										<!-- Voice idle: static wave icon -->
 										<button
 											onclick={toggleVoice}
-											class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200"
-											aria-label="Voice input"
+											disabled={!$isOnline}
+											class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+											aria-label={$isOnline ? 'Voice input' : 'Offline — voice unavailable'}
 										>
 											<div class="flex items-center gap-[2px]">
 												<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
@@ -1138,6 +1182,10 @@
 					</div>
 				</div>
 			</div>
+		{/if}
+
+		{#if data.user?.id}
+			<InstallPrompt userId={data.user.id} />
 		{/if}
 	</div>
 
