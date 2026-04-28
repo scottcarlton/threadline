@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { marked } from 'marked';
-	import DOMPurify from 'isomorphic-dompurify';
+	import { sanitizeMarkdown } from '$lib/utils/sanitize-markdown.js';
 
 	type Props = {
 		content: string;
@@ -14,7 +14,7 @@
 		gfm: true
 	});
 
-	const html = $derived(DOMPurify.sanitize(marked.parse(content, { async: false }) as string));
+	const html = $derived(sanitizeMarkdown(marked.parse(content, { async: false }) as string));
 </script>
 
 <div class="markdown">

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { marked } from 'marked';
-	import DOMPurify from 'isomorphic-dompurify';
+	import { sanitizeMarkdown } from '$lib/utils/sanitize-markdown.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -39,7 +39,7 @@
 		const md = $form.policyText ?? '';
 		if (!md) return '';
 		const raw = marked.parse(md, { async: false }) as string;
-		return DOMPurify.sanitize(raw);
+		return sanitizeMarkdown(raw);
 	});
 </script>
 
@@ -117,7 +117,7 @@
 					></textarea>
 				{:else if policyHtml}
 					<div class="prose prose-sm max-w-none rounded-md border bg-background p-4">
-						<!-- HTML is sanitized via isomorphic-dompurify above. -->
+						<!-- HTML is sanitized via sanitize-html above. -->
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 						{@html policyHtml}
 					</div>

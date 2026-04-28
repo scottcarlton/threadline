@@ -10,7 +10,8 @@ describe('preferences store', () => {
 			animations: 'auto',
 			chatFont: 'default',
 			autoHideDock: false,
-			voiceId: 'EXAVITQu4vr4xnSDxMaL'
+			voiceId: 'EXAVITQu4vr4xnSDxMaL',
+			sidebarOpen: undefined
 		});
 	});
 
@@ -45,6 +46,15 @@ describe('preferences store', () => {
 	it('setAutoHideDock updates only autoHideDock', () => {
 		preferences.setAutoHideDock(true);
 		expect(get(preferences).autoHideDock).toBe(true);
+	});
+
+	it('setSidebarOpen updates only sidebarOpen', () => {
+		preferences.setSidebarOpen(true);
+		const prefs = get(preferences);
+
+		expect(prefs.sidebarOpen).toBe(true);
+		expect(prefs.appearance).toBe('auto');
+		expect(prefs.animations).toBe('auto');
 	});
 
 	it('multiple setters compose correctly', () => {

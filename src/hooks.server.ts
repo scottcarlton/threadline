@@ -27,7 +27,7 @@ type SsoIdentity = { provider?: string };
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
 	enabled: !dev,
-	environment: dev ? 'development' : 'production',
+	environment: import.meta.env.VERCEL_ENV ?? (dev ? 'development' : 'production'),
 	tracesSampleRate: 0.1,
 	beforeSend(event, hint) {
 		const err = hint?.originalException as

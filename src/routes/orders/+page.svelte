@@ -534,8 +534,10 @@
 	</div>
 
 	<!-- Analytics Cards -->
-	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		<Card>
+	<div
+		class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
+	>
+		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
 				<p class="font-mono text-sm font-medium text-muted-foreground">Pipeline Value</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.pipelineValue)}</p>
@@ -545,7 +547,7 @@
 			</CardContent>
 		</Card>
 
-		<Card>
+		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
 				<p class="font-mono text-sm font-medium text-muted-foreground">Delivered Revenue</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.deliveredRevenue)}</p>
@@ -555,7 +557,11 @@
 			</CardContent>
 		</Card>
 
-		<Card class={metrics.needsAttention.total > 0 ? 'border-amber-300' : ''}>
+		<Card
+			class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto {metrics.needsAttention.total > 0
+				? 'border-amber-300'
+				: ''}"
+		>
 			<CardContent class="pt-4 pb-4">
 				<p
 					class="font-mono text-sm font-medium {metrics.needsAttention.total > 0
@@ -590,7 +596,7 @@
 			</CardContent>
 		</Card>
 
-		<Card>
+		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
 				<p class="font-mono text-sm font-medium text-muted-foreground">Conversion Rate</p>
 				<p class="mt-1 text-2xl font-semibold">{Math.round(metrics.conversion.rate * 100)}%</p>
