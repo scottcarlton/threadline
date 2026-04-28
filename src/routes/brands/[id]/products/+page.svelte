@@ -9,7 +9,7 @@
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
-	import BulkImportModal from '$lib/components/shared/BulkImportModal.svelte';
+	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import type { Product } from '$lib/types/database.js';
 
@@ -114,93 +114,8 @@
 		invalidateAll();
 	}
 
-	// Import
-	const productColumns = [
-		{ key: 'style_number', label: 'Style Number', required: true },
-		{ key: 'name', label: 'Name', required: true },
-		{ key: 'wholesale_price', label: 'Wholesale Price', required: true },
-		{ key: 'retail_price', label: 'Retail Price' },
-		{ key: 'category', label: 'Category' },
-		{ key: 'sizes', label: 'Sizes' },
-		{ key: 'colors', label: 'Colors' },
-		{ key: 'description', label: 'Description' }
-	];
-
-	async function handleImport(
-		rows: Record<string, string>[]
-	): Promise<{ success: number; errors: string[] }> {
-		let success = 0;
-		const errors: string[] = [];
-		for (let i = 0; i < rows.length; i++) {
-			const row = rows[i];
-			if (!row.style_number?.trim() || !row.name?.trim()) {
-				errors.push(`Row ${i + 1}: Style Number and Name are required`);
-				continue;
-			}
-			const yearNum = parseInt(row.product_year ?? '', 10);
-			const { data: product, error } = await supabase
-				.from('products')
-				.insert({
-					organization_id: data.organization?.id,
-					brand_id: brand.id,
-					style_number: row.style_number.trim(),
-					name: row.name.trim(),
-					wholesale_price: parseFloat(row.wholesale_price) || 0,
-					retail_price: parseFloat(row.retail_price) || null,
-					category: row.category?.trim() || null,
-					description: row.description?.trim() || null,
-					season_id: row.season_id || null,
-					product_year: Number.isFinite(yearNum) ? yearNum : null
-				})
-				.select('id')
-				.single();
-			if (error || !product) {
-				errors.push(`Row ${i + 1} (${row.style_number}): ${error?.message ?? 'Failed to create'}`);
-				continue;
-			}
-
-			// Create variants from sizes and colors
-			const sizes =
-				row.sizes
-					?.split(',')
-					.map((s) => s.trim())
-					.filter(Boolean) ?? [];
-			const colors =
-				row.colors
-					?.split(',')
-					.map((s) => s.trim())
-					.filter(Boolean) ?? [];
-			const variants: { product_id: string; color: string | null; size: string | null }[] = [];
-
-			if (sizes.length > 0 && colors.length > 0) {
-				for (const color of colors) {
-					for (const size of sizes) {
-						variants.push({ product_id: product.id, color, size });
-					}
-				}
-			} else if (sizes.length > 0) {
-				for (const size of sizes) {
-					variants.push({ product_id: product.id, color: null, size });
-				}
-			} else if (colors.length > 0) {
-				for (const color of colors) {
-					variants.push({ product_id: product.id, color: color, size: null });
-				}
-			}
-
-			if (variants.length > 0) {
-				const { error: varErr } = await supabase.from('product_variants').insert(variants);
-				if (varErr)
-					errors.push(
-						`Row ${i + 1} (${row.style_number}): Product created but variants failed — ${varErr.message}`
-					);
-			}
-
-			success++;
-		}
-		if (success > 0) invalidateAll();
-		return { success, errors };
-	}
+	// Import is now handled by <ProductImportModal>, which wraps
+	// <ProductImportFlow> and POSTs to /api/products/import on commit.
 
 	function csvEscape(value: unknown): string {
 		if (value === null || value === undefined) return '';
@@ -487,12 +402,10 @@
 	{/if}
 </div>
 
-<BulkImportModal
-	open={showImport}
-	ontoggle={() => (showImport = false)}
-	entityType="product"
-	columns={productColumns}
-	onimport={handleImport}
-	enableLinesheet={true}
+<ProductImportModal
+	bind:open={showImport}
+	brandId={brand.id}
 	{seasons}
+	onOpenChange={(v) => (showImport = v)}
+	onImported={() => invalidateAll()}
 />

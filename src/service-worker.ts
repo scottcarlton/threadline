@@ -12,11 +12,11 @@ const PAGES = `pages-${version}`;
 const STATIC = `static-${version}`;
 const ALL_CACHES = [PRECACHE, PAGES, STATIC];
 
-const PRECACHE_URLS = [
-	...build, // SvelteKit-built JS/CSS chunks
-	...files, // anything in /static
-	'/offline.html'
-];
+// Dedupe — `/offline.html` lives in /static, so it's already in `files`.
+// Listing it again would make cache.addAll throw on duplicate requests,
+// which fails the SW install and leaves the previous SW serving stale
+// content (so source edits never reach the page).
+const PRECACHE_URLS = Array.from(new Set([...build, ...files, '/offline.html']));
 
 self.addEventListener('install', (event) => {
 	event.waitUntil(
