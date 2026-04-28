@@ -10,7 +10,9 @@
 	let { title, subtitle, children }: Props = $props();
 </script>
 
-<div class="flex items-center justify-between gap-4">
+<div
+	class="sticky top-0 z-20 -mx-4 -mt-4 flex items-center justify-between gap-4 border-b border-border/50 bg-background px-4 pt-4 pb-3 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 sm:pb-4"
+>
 	<div>
 		<h1 class="text-3xl">{title}</h1>
 		{#if subtitle}
