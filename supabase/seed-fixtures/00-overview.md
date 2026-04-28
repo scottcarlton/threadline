@@ -67,14 +67,36 @@ differ per setup, resolved at seed time.
 
 The order matters because of FK dependencies and existing triggers:
 
-1. Prerequisites — manually
-2. Accounts — insert (depends on org)
-3. Products + variants — insert (depends on org + brand + seasons)
-4. Orders — insert (depends on accounts, season, source_type or
-   show_date, rep user). The existing `set_order_number`,
+1. **Prerequisites** — auth users (with `phone`); orgs (with full
+   identity, address, `time_zone`/`currency_code`, and
+   `onboarding_completed_at` set); org memberships (owners + extras
+   with `manager_id`); org commerce defaults
+   (taxes/shipping/returns/payments columns);
+   `organization_sales_tax_rates`; `organization_shipping_methods`
+   (then patch `organizations.default_shipping_method_id`); shows +
+   show_dates; `org_connections`; `connection_members`;
+   `member_territories`; self-brand profile fields; `brand_terms`.
+2. **Accounts** — `accounts` (overrides on a subset),
+   `account_locations` (one Primary per account), `buyer_invitations`
+   (one per account; 5 are accepted later in Phase 5).
+3. **Products + variants** — Elise Varga catalog (40 products, 200
+   variants with cycled colors and a sprinkle of `price_override`),
+   then the rep-owned **manual brand** Lago Sun (3 products + 15
+   variants) with its own `brand_sales_tax_rates` and
+   `brand_shipping_methods` rows.
+4. **Orders + lines** — depends on accounts, season, source_type or
+   show_date, rep user. The existing `set_order_number`,
    `federate_new_order`, and `recalc_order_total` triggers run
-   automatically.
-5. Status flips — the 4 delivered orders are inserted directly in
+   automatically. Each order also stamps `location_id`,
+   `payment_terms`, `shipping_method`, `terms_id`/`terms_agreed_by`/
+   `terms_agreed_at`, plus a deterministic subset with `notes` and
+   `po_number`. One row is seeded as `cancelled` with `cancelled_at`
+   and `cancelled_reason`.
+5. **Buyers + cart** — accept 5 of the 50 invites: create buyer auth
+   users, insert `account_users` (one as `buyer_admin`), stamp
+   matching invites `accepted_at`. Seed a 4-item `cart_items` cart
+   for the first accepted buyer.
+6. **Status flips** — the 4 delivered orders are inserted directly in
    `delivered` status (they skip the trigger chain — stock isn't
    decremented because `trg_decrement_stock_on_ship` fires on UPDATE
    only, not INSERT).

@@ -1,4 +1,4 @@
-# Orders — 22 orders across Sofia & Lauren for Elise Varga brand
+# Orders — 23 orders across Sofia & Lauren for Elise Varga brand
 
 All orders belong to the two MBISR rep orgs (SH Showroom, Lauren
 Mackey) with `brand_id = Elise Varga`. Accounts are all from Elise
@@ -7,10 +7,10 @@ context between the two sides of an active MBISR ↔ Brand connection).
 
 ## High-level mix
 
-| Rep (org)            | Orders | Status mix                                       | Seasons                    |
-| -------------------- | ------ | ------------------------------------------------ | -------------------------- |
-| Sofia Hernandez (SH) | 13     | 3 submitted, 3 shipped, 5 confirmed, 2 delivered | 3 Spring, 5 Summer, 5 Fall |
-| Lauren Mackey        | 9      | 2 submitted, 2 shipped, 3 confirmed, 2 delivered | 2 Spring, 3 Summer, 4 Fall |
+| Rep (org)            | Orders | Status mix                                                    | Seasons                    |
+| -------------------- | ------ | ------------------------------------------------------------- | -------------------------- |
+| Sofia Hernandez (SH) | 14     | 3 submitted, 3 shipped, 5 confirmed, 2 delivered, 1 cancelled | 3 Spring, 5 Summer, 6 Fall |
+| Lauren Mackey        | 9      | 2 submitted, 2 shipped, 3 confirmed, 2 delivered              | 2 Spring, 3 Summer, 4 Fall |
 
 The 4 orders seeded directly as `delivered` (instead of walking the
 status chain) give the Elise Varga dashboard its demo numbers:
@@ -69,6 +69,11 @@ Blanks mean the column is `null` for that status.
 | LAU-000007 | Lauren | Terra Cotta Goods    | Fall   | Road           | confirmed | 117   | 147 | -44 | -43  |      |       |
 | LAU-000008 | Lauren | Quill & Vine         | Fall   | CALA           | shipped   | 108   | 138 | -34 | -31  | -26  |       |
 | LAU-000009 | Lauren | Linea Forma          | Fall   | Road           | confirmed | 118   | 148 | -57 | -54  |      |       |
+| SH--000014 | Sofia  | Plumeria Shop        | Fall   | Road           | cancelled | 102   | 132 | -19 |      |      |       |
+
+The cancelled row also stamps `cancelled_at = now() - 16 days` and
+`cancelled_reason = 'Buyer scaled back the Fall budget; will revisit
+next season.'`
 
 Source lookup:
 
@@ -80,6 +85,27 @@ When a show is picked, write both `show_id` (from the show) and
 `show_date_id` (from the matching show_date for that show). Leave
 `source_type_id` null. When a source type is picked, leave show
 columns null.
+
+## Order metadata (per-order columns)
+
+Beyond the status / source / dates columns above, every order also
+carries the new finalize-step metadata so order detail screens render
+realistic data. These columns are populated by `seedOrders` based on
+status and a deterministic index.
+
+| Column                | Value rule                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `location_id`         | Account's default `account_locations` row (the auto-seeded Primary)                                                                       |
+| `bill_to_location_id` | `null` (UI derives bill-to from ship-to)                                                                                                  |
+| `payment_terms`       | Defaults to `'net_30'`; cancelled order matches its inline value                                                                          |
+| `shipping_method`     | Defaults to `'Ground'` (free-form text snapshot, not the methods FK)                                                                      |
+| `notes`               | `null` for most; populated on every 7th order (index 3, 10, 17) and on the cancelled order (carries the buyer's revisit-next-season note) |
+| `po_number`           | `null` for most; `PO-2604+13·index` on every 5th order (index 1, 6, 11, …)                                                                |
+| `terms_id`            | `brand_terms.id` for the Elise Varga current terms row, on submitted+ orders; `null` on cancelled                                         |
+| `terms_agreed_by`     | The rep user who created the order, on submitted+ orders                                                                                  |
+| `terms_agreed_at`     | Same timestamp as `submitted_at`, on submitted+ orders                                                                                    |
+| `cancelled_at`        | Set only on the cancelled order (`now() - 16 days`)                                                                                       |
+| `cancelled_reason`    | Set only on the cancelled order                                                                                                           |
 
 ## Order lines
 
@@ -330,6 +356,13 @@ lines automatically.
 | FA26-302 | S    | 6   |
 | FA26-304 | XS   | 6   |
 | FA26-310 | XL   | 3   |
+
+**SH--000014** (cancelled — Plumeria Shop)
+
+| Style    | Size | Qty |
+| -------- | ---- | --- |
+| FA26-302 | M    | 3   |
+| FA26-310 | L    | 3   |
 
 ## Insertion SQL pattern
 
