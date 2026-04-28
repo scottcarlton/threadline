@@ -19,7 +19,6 @@
 	import { deriveStockStatus } from '$lib/inventory/status';
 
 	let { data } = $props();
-	const brand = $derived(data.brand as { id: string; name: string });
 	const product = $derived(
 		data.product as Product & { product_variants: ProductVariant[]; product_images: ProductImage[] }
 	);
@@ -224,11 +223,7 @@
 <div class="mx-auto max-w-7xl space-y-6">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
-		<Button
-			variant="ghost"
-			size="sm"
-			href={data.orgType === 'brand' ? '/products' : `/brands/${brand.id}/products`}
-		>
+		<Button variant="ghost" size="sm" href="/products">
 			<LongArrow direction="left" /> Products
 		</Button>
 		{#if canEdit && !editing}

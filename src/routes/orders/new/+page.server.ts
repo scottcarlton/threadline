@@ -15,6 +15,10 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isPaymentPreferenceCode } from '$lib/payment-methods';
 import { finalizeSchema, type FinalizeInput } from '$lib/schemas/order-finalize';
 import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
+import {
+	resolveOrderSettings,
+	type BrandCommerceSettings
+} from '$lib/server/orders/resolve-order-settings.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { organization, user, allMemberships } = locals;
@@ -236,6 +240,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 		default_shipping_method?: string | null;
 	};
 
+	// Per-brand commerce settings keyed by brand_id. The cart UI is still
+	// cart-wide for the picker (acceptedPaymentMethods below comes from the
+	// active org), but the server validates per-order against THIS brand's
+	// resolved methods at INSERT time. For federated orders the brand may be
+	// owned by a different org with different accepted methods than the
+	// active one.
+	const brandSettingsMap = await resolveOrderSettings(
+		supabaseAdmin,
+		brands.map((b) => b.id)
+	);
+	const brandSettings: Record<string, BrandCommerceSettings> = Object.fromEntries(brandSettingsMap);
+
 	return {
 		accounts: accountsRes.data ?? [],
 		locations: locationsRes.data ?? [],
@@ -276,7 +292,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		acceptedPaymentMethods: (organization.accepted_payment_methods ?? []) as string[],
 		defaultPaymentMethod: (organization.default_payment_method ?? null) as string | null,
 		defaultPaymentTerms: (orgRow.default_payment_terms ?? null) as string | null,
-		defaultShippingMethod: (orgRow.default_shipping_method ?? null) as string | null
+		defaultShippingMethod: (orgRow.default_shipping_method ?? null) as string | null,
+		brandSettings
 	};
 };
 
@@ -475,17 +492,102 @@ export const actions: Actions = {
 			resolvedShowId = sd?.show_id ?? null;
 		}
 
+		// Resolve each cart brand to its owning organization. For brand-org
+		// users (BOA / Nx-BLSR), the order's organization_id MUST match the
+		// brand's organization_id — orders RLS gates SELECT on
+		// `brand_id IN get_user_brand_ids(organization_id)`, and the BOA list
+		// query filters by org_id. For Nx-BLSR (sales-role member of multiple
+		// brand-orgs), the active organization context can be a different
+		// brand-org than the one owning the brand_id, so always stamp from the
+		// brand. Rep-org users still stamp `organization.id` (the rep's own
+		// org), preserving the federated-create path from migration
+		// 20260417000002.
+		const isBrandOrgWriter = organization.org_type === 'brand';
+
+		// Resolve commerce settings for every brand in the cart. Each row gives
+		// us both the owning org (for the orders.organization_id stamp on
+		// brand-org writers) and the per-brand accepted_payment_methods used to
+		// validate payment_preference / payment_terms at INSERT time. For BO
+		// brands, settings come from `organizations`; for rep manual brands,
+		// from `brands`. See src/lib/server/orders/resolve-order-settings.ts.
+		const brandCommerce = await resolveOrderSettings(
+			supabase,
+			Array.from(new Set(newOrders.map((o) => o.brand_id)))
+		).catch((err: unknown) => {
+			console.error('[orders/new submit] brand commerce resolve failed', { error: err });
+			return null;
+		});
+		if (brandCommerce === null) {
+			return fail(500, { message: 'Failed to resolve brand commerce settings' });
+		}
+
+		const brandOrgMap = new Map<string, string>();
+		if (isBrandOrgWriter) {
+			for (const [brandId, settings] of brandCommerce) {
+				brandOrgMap.set(brandId, settings.owner_org_id);
+			}
+		}
+
+		// Nx-BLSR Source resolution. The picker collapses same-named source_types
+		// across the user's brand-orgs to one option, so the submitted
+		// `source_type_id` is a representative — at insert time we resolve to
+		// the source_type owned by THIS order's brand-org. If no match exists in
+		// that org, we stamp null (matches today's "no source picked" path).
+		// Single-org BOA: name lookup over one org is identity, no behavior change.
+		let selectedSourceName: string | null = null;
+		if (finalizeData?.source_type_id) {
+			const { data: srcRow } = await supabase
+				.from('source_types')
+				.select('name')
+				.eq('id', finalizeData.source_type_id)
+				.maybeSingle();
+			selectedSourceName = srcRow?.name?.trim() ?? null;
+		}
+		const sourceByOrgName = new Map<string, string>();
+		if (selectedSourceName) {
+			const orderOrgIds = Array.from(
+				new Set(newOrders.map((o) => brandOrgMap.get(o.brand_id) ?? organization.id))
+			);
+			if (orderOrgIds.length > 0) {
+				const { data: sources } = await supabase
+					.from('source_types')
+					.select('id, organization_id, name')
+					.in('organization_id', orderOrgIds)
+					.eq('is_active', true);
+				const targetKey = selectedSourceName.toLowerCase();
+				for (const s of (sources ?? []) as Array<{
+					id: string;
+					organization_id: string;
+					name: string;
+				}>) {
+					if (s.name.trim().toLowerCase() === targetKey) {
+						sourceByOrgName.set(`${s.organization_id}::${targetKey}`, s.id);
+					}
+				}
+			}
+		}
+
 		for (const o of newOrders) {
 			const ov = overrideFor(o.brand_id, o.season_id);
 
-			// Per-order override → cart-wide legacy payment_preference → null
+			// Validate payment preference/terms against THIS brand's accepted
+			// methods, not the active org's. For federated orders (rep writes
+			// against a connected BO brand) the accepted methods come from the
+			// BO; for rep manual brands, from the brand row. Falls back to the
+			// cart-wide legacy preference only if both that AND this brand
+			// accept it. See resolve-order-settings.ts.
+			const brandAccepted = brandCommerce.get(o.brand_id)?.accepted_payment_methods ?? [];
+			const fallbackPaymentPref =
+				legacyPaymentPrefValue && brandAccepted.includes(legacyPaymentPrefValue)
+					? legacyPaymentPrefValue
+					: null;
 			const paymentPrefValue =
-				(ov?.payment_preference && acceptedMethods.includes(ov.payment_preference)
+				(ov?.payment_preference && brandAccepted.includes(ov.payment_preference)
 					? ov.payment_preference
-					: null) ?? legacyPaymentPrefValue;
+					: null) ?? fallbackPaymentPref;
 
 			const paymentTermsValue =
-				ov?.payment_terms && acceptedMethods.includes(ov.payment_terms) ? ov.payment_terms : null;
+				ov?.payment_terms && brandAccepted.includes(ov.payment_terms) ? ov.payment_terms : null;
 
 			const shippingMethodValue = ov?.shipping_method ?? null;
 			const poNumberValue = ov?.po_number ?? null;
@@ -502,10 +604,14 @@ export const actions: Actions = {
 				ba.terms_id
 			);
 
+			const orderOrgId = isBrandOrgWriter
+				? (brandOrgMap.get(o.brand_id) ?? organization.id)
+				: organization.id;
+
 			const { data: orderRow, error: orderErr } = await supabase
 				.from('orders')
 				.insert({
-					organization_id: organization.id,
+					organization_id: orderOrgId,
 					order_type: o.order_type,
 					account_id: o.account_id,
 					freeform_name: o.freeform_name,
@@ -525,7 +631,9 @@ export const actions: Actions = {
 					po_number: poNumberValue,
 					notes: internalNoteValue,
 					rep_user_id: finalizeData?.rep_user_id ?? null,
-					source_type_id: finalizeData?.source_type_id ?? null,
+					source_type_id: selectedSourceName
+						? (sourceByOrgName.get(`${orderOrgId}::${selectedSourceName.toLowerCase()}`) ?? null)
+						: null,
 					show_date_id: finalizeData?.show_date_id ?? null,
 					show_id: resolvedShowId,
 					terms_id: canStampTerms ? ba!.terms_id : null,

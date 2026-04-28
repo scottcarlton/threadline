@@ -1,12 +1,14 @@
-import { fail } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { organizationTaxesSchema, salesTaxRateSchema } from '$lib/schemas/organization-taxes.js';
 import type { OrganizationSalesTaxRate } from '$lib/types/database.js';
+import { requireAdmin } from '$lib/server/auth/require-admin.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
+	if (locals.orgType !== 'brand') throw error(404, 'Not found');
 	const { organization, supabase } = locals;
 
 	const form = await superValidate(zod4(organizationTaxesSchema));
@@ -37,17 +39,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return { form, rates };
 };
-
-function requireAdmin(locals: App.Locals): { error: string; status: number } | null {
-	if (!locals.session || !locals.user || !locals.organization) {
-		return { error: 'Not authenticated', status: 401 };
-	}
-	const role = locals.membership?.role;
-	if (!role || !['admin', 'owner'].includes(role)) {
-		return { error: 'Admin or owner required', status: 403 };
-	}
-	return null;
-}
 
 export const actions: Actions = {
 	default: async ({ request, locals }) => {

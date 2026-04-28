@@ -235,19 +235,28 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		// 1. Direct orders owned by the brand org(s).
 		//    Sales reps only see their own. Admin/owner/member see all.
 		//    Nx-BLSR: union across all brand-org memberships (ownOrgIds).
-		let directQuery = supabase
+		// Use service role so embedded source_types/profiles resolve even when
+		// they belong to a sibling brand-org (Nx-BLSR can pick a source_type
+		// from one of their other brand-orgs while creating an order against
+		// this brand-org's brand). The `.in('organization_id', ownOrgIds)`
+		// filter is the row-level gate; matches the rep-org branch below.
+		let directQuery = supabaseAdmin
 			.from('orders')
 			.select(
-				'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)'
+				'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), rep_profile:profiles!orders_rep_user_id_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)'
 			)
 			.in('organization_id', ownOrgIds)
 			.order('created_at', { ascending: false });
-		// Sales visibility: widen from "own created_by" to include orders on accounts
-		// the viewer (or their managed reports) cover via territory. Untagged
-		// accounts remain visible so an org that hasn't backfilled territories
-		// isn't stranded.
+		// Sales visibility: widen from "own created_by" to include
+		//   • orders where the viewer is the rep_user_id (admin-on-behalf flow:
+		//     a BOA admin can create an order and stamp the rep, and the rep
+		//     should see it in their list), AND
+		//   • orders on accounts the viewer (or their managed reports) cover
+		//     via territory. Untagged accounts remain visible so an org that
+		//     hasn't backfilled territories isn't stranded.
 		if (brandSalesScope) {
 			const createdByClause = brandSalesScope.createdByScope.join(',');
+			const repUserIdClause = brandSalesScope.createdByScope.join(',');
 			if (brandSalesScope.hasTerritoryScope) {
 				const territoryIds = brandSalesScope.visibleTerritoryIds.join(',');
 				const { data: salesAccountRows } = await supabaseAdmin
@@ -258,13 +267,17 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				const salesAccountIds = (salesAccountRows ?? []).map((a: { id: string }) => a.id);
 				if (salesAccountIds.length > 0) {
 					directQuery = directQuery.or(
-						`created_by.in.(${createdByClause}),account_id.in.(${salesAccountIds.join(',')})`
+						`created_by.in.(${createdByClause}),rep_user_id.in.(${repUserIdClause}),account_id.in.(${salesAccountIds.join(',')})`
 					);
 				} else {
-					directQuery = directQuery.in('created_by', brandSalesScope.createdByScope);
+					directQuery = directQuery.or(
+						`created_by.in.(${createdByClause}),rep_user_id.in.(${repUserIdClause})`
+					);
 				}
 			} else {
-				directQuery = directQuery.in('created_by', brandSalesScope.createdByScope);
+				directQuery = directQuery.or(
+					`created_by.in.(${createdByClause}),rep_user_id.in.(${repUserIdClause})`
+				);
 			}
 		}
 		if (status) directQuery = directQuery.eq('status', status);
@@ -656,11 +669,14 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	function applyFilters(q: any) {
 		if (isSales && salesScope) {
+			const createdByClause = salesScope.createdByScope.join(',');
+			const repUserIdClause = salesScope.createdByScope.join(',');
 			if (salesAccountIds && salesAccountIds.length > 0) {
-				const createdByClause = salesScope.createdByScope.join(',');
-				q = q.or(`created_by.in.(${createdByClause}),account_id.in.(${salesAccountIds.join(',')})`);
+				q = q.or(
+					`created_by.in.(${createdByClause}),rep_user_id.in.(${repUserIdClause}),account_id.in.(${salesAccountIds.join(',')})`
+				);
 			} else {
-				q = q.in('created_by', salesScope.createdByScope);
+				q = q.or(`created_by.in.(${createdByClause}),rep_user_id.in.(${repUserIdClause})`);
 			}
 		}
 		if (status) q = q.eq('status', status);
@@ -680,7 +696,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	let displayQuery = supabaseAdmin
 		.from('orders')
 		.select(
-			'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)',
+			'*, brands(name), accounts(business_name), seasons(name), show_dates(id, show_id, year, month, city, state, shows(name)), profiles!orders_created_by_fkey(display_name), rep_profile:profiles!orders_rep_user_id_fkey(display_name), source_types(name), season_deliveries!delivery_id(label, delivery_month, delivery_day)',
 			{ count: 'exact' }
 		)
 		.eq('organization_id', organization.id)

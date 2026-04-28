@@ -785,10 +785,23 @@
 	// Unified source picker: shows (specific dates) on top, then source types.
 	// Values are tagged (`show:<id>` or `source:<id>`) so the picker can write
 	// to the right cart field and the server can hydrate the right FK.
-	const sourceTypeItems = $derived([
-		...showDates.map((sd) => ({ value: `show:${sd.id}`, label: showDateLabel(sd) })),
-		...sourceTypes.map((s) => ({ value: `source:${s.id}`, label: s.name }))
-	]);
+	// Nx-BLSR (sales-role member of multiple brand-orgs) sees source_types
+	// from each of their brand-orgs, so identical names like "Road" appear
+	// once per org. Collapse by trimmed lowercase name; first occurrence wins
+	// (load query orders by sort_order). The picked id is a representative —
+	// the server resolves the actual per-order id from the picked name.
+	const sourceTypeItems = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const byName = new Map<string, { id: string; name: string; sort_order: number | null }>();
+		for (const s of sourceTypes) {
+			const key = s.name.trim().toLowerCase();
+			if (!byName.has(key)) byName.set(key, s);
+		}
+		return [
+			...showDates.map((sd) => ({ value: `show:${sd.id}`, label: showDateLabel(sd) })),
+			...Array.from(byName.values()).map((s) => ({ value: `source:${s.id}`, label: s.name }))
+		];
+	});
 	const selectedSourceValue = $derived(
 		cart.show_date_id
 			? `show:${cart.show_date_id}`

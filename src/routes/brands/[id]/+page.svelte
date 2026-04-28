@@ -18,6 +18,7 @@
 	} from '$lib/components/ui/card/index.js';
 	import type { Brand, BrandAsset } from '$lib/types/database.js';
 	import { entityContext } from '$lib/stores/entityContext.js';
+	import BrandCommerceModal from '$lib/components/brands/BrandCommerceModal.svelte';
 
 	let { data } = $props();
 	const brand = $derived(data.brand as Brand);
@@ -60,6 +61,8 @@
 			data.membership?.role === 'member'
 	);
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
+	const commerce = $derived(data.commerce);
+	let commerceOpen = $state(false);
 
 	let editing = $state(false);
 	let name = $state('');
@@ -234,6 +237,11 @@
 		<Button variant="ghost" size="sm" href="/brands"><LongArrow direction="left" /> Back</Button>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
+				{#if commerce && commerce.canEdit}
+					<Button variant="outline" size="sm" onclick={() => (commerceOpen = true)}>
+						Edit Commerce
+					</Button>
+				{/if}
 				{#if isAdmin}
 					<Button variant="outline" size="sm" onclick={toggleArchive}>
 						{brand.archived_at ? 'Unarchive' : 'Archive'}
@@ -762,3 +770,21 @@
 		</div>
 	</div>
 </div>
+
+{#if commerce && commerce.canEdit}
+	<BrandCommerceModal
+		open={commerceOpen}
+		onOpenChange={(v) => (commerceOpen = v)}
+		brandName={brand.name}
+		ordersForm={commerce.ordersForm}
+		taxesForm={commerce.taxesForm}
+		shippingForm={commerce.shippingForm}
+		returnsForm={commerce.returnsForm}
+		paymentsForm={commerce.paymentsForm}
+		taxRateForm={commerce.taxRateForm}
+		shippingMethodForm={commerce.shippingMethodForm}
+		taxRates={commerce.taxRates}
+		shippingMethods={commerce.shippingMethods}
+		defaultShippingMethodId={brand.default_shipping_method_id}
+	/>
+{/if}
