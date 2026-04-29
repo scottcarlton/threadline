@@ -6,8 +6,11 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
+	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
+	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
+	import { DropdownMenu } from 'bits-ui';
 	import {
 		Tooltip,
 		TooltipContent,
@@ -746,14 +749,10 @@
 					onValueChange={(v) => setFilter('status', v)}
 				/>
 			{/if}
-			<SelectField
+			<SeasonFilter
 				class="min-w-[158px] shrink-0"
+				{seasons}
 				value={$page.url.searchParams.get('season') ?? ''}
-				items={[
-					{ value: '', label: 'All Seasons' },
-					...seasons.map((s) => ({ value: s.name, label: s.name }))
-				]}
-				placeholder="All Seasons"
 				onValueChange={(v) => setFilter('season', v)}
 			/>
 			<div class="hidden lg:block lg:flex-1"></div>
@@ -770,14 +769,11 @@
 				/>
 			{/if}
 			{#if !isBrandOrg}
-				<SelectField
+				<BrandFilter
 					class="min-w-[158px] shrink-0"
+					{brands}
+					valueKey="name"
 					value={$page.url.searchParams.get('brand') ?? ''}
-					items={[
-						{ value: '', label: 'All Brands' },
-						...brands.map((b) => ({ value: b.name, label: b.name }))
-					]}
-					placeholder="All Brands"
 					onValueChange={(v) => setFilter('brand', v)}
 				/>
 			{/if}
@@ -909,6 +905,7 @@
 							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Total</th
 						>
+						<th class="w-10 px-4 py-2.5"></th>
 					</tr>
 				</thead>
 				<tbody class="divide-y">
@@ -946,7 +943,19 @@
 						{@const rowTooltip = rowBuckets.map((b) => SPOTLIGHT_LABELS[b]).join(', ')}
 						{@const shipMeta = shipWindowMeta(order)}
 						<tr
-							class="group transition-colors hover:bg-muted/30 {selectedIds.has(order.id)
+							role="link"
+							tabindex="0"
+							aria-label={order.order_number}
+							onclick={() => goto(resolve(`/orders/${order.id}`))}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									goto(resolve(`/orders/${order.id}`));
+								}
+							}}
+							class="group cursor-pointer transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none {selectedIds.has(
+								order.id
+							)
 								? 'bg-primary/5'
 								: ''}"
 						>
@@ -955,7 +964,11 @@
 									{#if rowBuckets.length > 0}
 										<TooltipProvider delayDuration={150}>
 											<Tooltip>
-												<TooltipTrigger class="inline-flex" aria-label={rowTooltip}>
+												<TooltipTrigger
+													class="inline-flex"
+													aria-label={rowTooltip}
+													onclick={(e) => e.stopPropagation()}
+												>
 													<span
 														class="block h-2 w-2 rounded-full {rowBuckets.includes('overdue')
 															? 'bg-red-500'
@@ -974,6 +987,8 @@
 									selectedIds.size > 0
 										? 'opacity-100'
 										: 'opacity-0 group-hover:opacity-100'} transition-opacity"
+									onclick={(e) => e.stopPropagation()}
+									role="presentation"
 								>
 									<Checkbox
 										checked={selectedIds.has(order.id)}
@@ -987,6 +1002,7 @@
 								</p>
 								<a
 									href={resolve(`/orders/${order.id}`)}
+									onclick={(e) => e.stopPropagation()}
 									class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 								>
 								<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
@@ -1114,6 +1130,57 @@
 									<span class="text-sm">{fmt.format(Number(order.total_amount))}</span>
 									<p class="text-xs text-muted-foreground/50">—</p>
 								{/if}
+							</td>
+							<td class="w-10 px-4 py-3 text-right align-middle">
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger
+										aria-label="More actions"
+										onclick={(e: Event) => e.stopPropagation()}
+										onkeydown={(e: KeyboardEvent) => {
+											if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+										}}
+										class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none [@media(hover:none)]:opacity-100"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="currentColor"
+											class="h-4 w-4"
+											aria-hidden="true"
+										>
+											<circle cx="12" cy="5" r="1.75" />
+											<circle cx="12" cy="12" r="1.75" />
+											<circle cx="12" cy="19" r="1.75" />
+										</svg>
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Portal>
+										<DropdownMenu.Content
+											align="end"
+											sideOffset={4}
+											class="z-50 min-w-[10rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+										>
+											<DropdownMenu.Item
+												disabled
+												class="flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm opacity-50 outline-none"
+											>
+												Duplicate
+											</DropdownMenu.Item>
+											<DropdownMenu.Item
+												disabled
+												class="flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm opacity-50 outline-none"
+											>
+												Archive
+											</DropdownMenu.Item>
+											<DropdownMenu.Separator class="my-1 h-px bg-border" />
+											<DropdownMenu.Item
+												disabled
+												class="flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm text-destructive opacity-50 outline-none"
+											>
+												Delete
+											</DropdownMenu.Item>
+										</DropdownMenu.Content>
+									</DropdownMenu.Portal>
+								</DropdownMenu.Root>
 							</td>
 						</tr>
 					{/each}

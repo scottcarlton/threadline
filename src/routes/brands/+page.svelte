@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { goto } from '$app/navigation';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
@@ -210,10 +211,26 @@
 				</thead>
 				<tbody class="divide-y">
 					{#each filtered as brand (brand.id)}
-						<tr class="transition-colors hover:bg-muted/30 {brand.archived_at ? 'opacity-50' : ''}">
+						<tr
+							role="link"
+							tabindex="0"
+							aria-label={brand.name}
+							onclick={() => goto(resolve(`/brands/${brand.id}`))}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									goto(resolve(`/brands/${brand.id}`));
+								}
+							}}
+							class="cursor-pointer transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none {brand.archived_at
+								? 'opacity-50'
+								: ''}"
+						>
 							<td class="px-4 py-3">
-								<a href={resolve(`/brands/${brand.id}`)} class="text-base hover:underline"
-									>{brand.name}</a
+								<a
+									href={resolve(`/brands/${brand.id}`)}
+									onclick={(e) => e.stopPropagation()}
+									class="text-base hover:underline">{brand.name}</a
 								>
 								{#if federatedIds.has(brand.id)}
 									<span
@@ -226,6 +243,7 @@
 										href={withProtocol(brand.website)}
 										target="_blank"
 										rel="external noopener noreferrer"
+										onclick={(e) => e.stopPropagation()}
 										class="block font-mono text-sm text-muted-foreground hover:underline"
 										>{stripProtocol(brand.website)}</a
 									>

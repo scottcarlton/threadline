@@ -18,7 +18,7 @@
 	} from '$lib/components/ui/card/index.js';
 	import type { Brand, BrandAsset } from '$lib/types/database.js';
 	import { entityContext } from '$lib/stores/entityContext.js';
-	import BrandCommerceModal from '$lib/components/brands/BrandCommerceModal.svelte';
+	import BrandCommerceDrawer from '$lib/components/brands/BrandCommerceDrawer.svelte';
 
 	let { data } = $props();
 	const brand = $derived(data.brand as Brand);
@@ -772,7 +772,7 @@
 </div>
 
 {#if commerce && commerce.canEdit}
-	<BrandCommerceModal
+	<BrandCommerceDrawer
 		open={commerceOpen}
 		onOpenChange={(v) => (commerceOpen = v)}
 		brandName={brand.name}

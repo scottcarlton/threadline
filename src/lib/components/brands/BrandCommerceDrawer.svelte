@@ -8,13 +8,7 @@
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
-	import {
-		Dialog,
-		DialogContent,
-		DialogTitle,
-		DialogDescription,
-		DialogClose
-	} from '$lib/components/ui/dialog/index.js';
+	import { cn } from '$lib/utils.js';
 	import { brandOrdersSchema } from '$lib/schemas/brand-orders.js';
 	import { brandTaxesSchema, brandSalesTaxRateSchema } from '$lib/schemas/brand-taxes.js';
 	import { brandShippingSchema, brandShippingMethodSchema } from '$lib/schemas/brand-shipping.js';
@@ -287,35 +281,81 @@
 			label: m.label
 		}))
 	]);
+
+	$effect(() => {
+		if (!open) return;
+		function onKeydown(e: KeyboardEvent) {
+			if (e.key === 'Escape') onOpenChange(false);
+		}
+		window.addEventListener('keydown', onKeydown);
+		return () => window.removeEventListener('keydown', onKeydown);
+	});
 </script>
 
-<Dialog {open} onOpenChange={(v) => onOpenChange(v)}>
-	<DialogContent class="max-w-3xl">
-		<div class="space-y-1 border-b px-6 py-4">
-			<DialogTitle>Edit Commerce</DialogTitle>
-			<DialogDescription
-				>{brandName} — taxes, shipping, returns, payments, orders.</DialogDescription
+{#if open}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+		onclick={() => onOpenChange(false)}
+	></div>
+{/if}
+
+<div
+	role="dialog"
+	aria-modal="true"
+	aria-labelledby="commerce-drawer-title"
+	class={cn(
+		'fixed top-3 right-3 bottom-3 z-50 flex w-[calc(100vw-5rem)] flex-col overflow-hidden rounded-none border bg-background shadow-xl transition-transform duration-300 ease-in-out sm:w-[44rem]',
+		open ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'
+	)}
+>
+	<div class="relative space-y-1 px-6 py-4">
+		<h2 id="commerce-drawer-title" class="text-base font-semibold">Edit Commerce</h2>
+		<p class="text-sm text-muted-foreground">
+			{brandName} — taxes, shipping, returns, payments, orders.
+		</p>
+		<button
+			type="button"
+			onclick={() => onOpenChange(false)}
+			aria-label="Close"
+			class="absolute top-4 right-4 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.75"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="h-5 w-5"
 			>
-		</div>
+				<path d="M18 6L6 18" />
+				<path d="M6 6l12 12" />
+			</svg>
+		</button>
+	</div>
 
-		<!-- Tab nav -->
-		<div class="border-b px-6">
-			<nav class="-mb-px flex gap-4" aria-label="Commerce sections">
-				{#each tabs as t (t.id)}
-					<button
-						type="button"
-						onclick={() => (activeTab = t.id)}
-						class="border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === t.id
-							? 'border-foreground text-foreground'
-							: 'border-transparent text-muted-foreground hover:text-foreground'}"
-					>
-						{t.label}
-					</button>
-				{/each}
-			</nav>
-		</div>
+	<!-- Tab nav -->
+	<div class="border-b px-6">
+		<nav class="-mb-px flex gap-4" aria-label="Commerce sections">
+			{#each tabs as t (t.id)}
+				<button
+					type="button"
+					onclick={() => (activeTab = t.id)}
+					class="border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === t.id
+						? 'border-foreground text-foreground'
+						: 'border-transparent text-muted-foreground hover:text-foreground'}"
+				>
+					{t.label}
+				</button>
+			{/each}
+		</nav>
+	</div>
 
-		<!-- Tab panels -->
+	<!-- Tab panels -->
+	<div class="flex-1 overflow-y-auto">
 		<div class="px-6 py-5">
 			{#if activeTab === 'orders'}
 				<form method="POST" action="?/saveCommerceOrders" use:oEnhance class="space-y-7">
@@ -1084,13 +1124,9 @@
 				</form>
 			{/if}
 		</div>
+	</div>
 
-		<div class="flex justify-end border-t px-6 py-4">
-			<DialogClose>
-				{#snippet child({ props })}
-					<Button {...props} variant="outline">Close</Button>
-				{/snippet}
-			</DialogClose>
-		</div>
-	</DialogContent>
-</Dialog>
+	<div class="flex justify-end px-6 py-4">
+		<Button variant="outline" onclick={() => onOpenChange(false)}>Close</Button>
+	</div>
+</div>
