@@ -4,12 +4,15 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
-	import { SelectField } from '$lib/components/ui/select/index.js';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
+	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
+	import CategoryFilter from '$lib/components/shared/CategoryFilter.svelte';
+	import { seasonIdsByName } from '$lib/utils/seasons.js';
 	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 	import type { Product } from '$lib/types/database.js';
 
@@ -59,6 +62,7 @@
 
 	let search = $state($page.url.searchParams.get('search') ?? '');
 	let seasonFilter = $state($page.url.searchParams.get('season') ?? '');
+	let brandFilter = $state($page.url.searchParams.get('brand') ?? '');
 	let categoryFilter = $state($page.url.searchParams.get('category') ?? '');
 	let priceRange = $state<[number, number]>([0, 500]);
 	let atsOnly = $state(false);
@@ -118,12 +122,15 @@
 			const params = new URLSearchParams();
 			params.set('offset', String(productList.length));
 			params.set('limit', String(PAGE_SIZE));
-			// Multi-brand mode (Nx-BLSR): append every self-brand id so the API
-			// pulls products across all of them. Single-brand: append the one.
-			const allBrandIds = (data.brands ?? []).map((b) => b.id);
-			for (const id of allBrandIds) params.append('brand_id', id);
+			// Multi-brand mode (Nx-BLSR or rep org): append every brand id so the
+			// API pulls products across all of them. If a brand filter is active,
+			// scope to that one brand instead.
+			const scopedBrandIds = brandFilter ? [brandFilter] : (data.brands ?? []).map((b) => b.id);
+			for (const id of scopedBrandIds) params.append('brand_id', id);
 			if (search) params.set('q', search);
-			if (seasonFilter) params.append('season_id', seasonFilter);
+			if (seasonFilter) {
+				for (const id of seasonIdsByName(seasons, seasonFilter)) params.append('season_id', id);
+			}
 			if (categoryFilter) params.set('category', categoryFilter);
 			if (showArchived) params.set('archived', 'true');
 			const res = await fetch(`/api/products?${params.toString()}`);
@@ -208,26 +215,28 @@
 		<div class="max-w-xs flex-1">
 			<SearchInput placeholder="Search products..." value={search} oninput={onSearchInput} />
 		</div>
-		<SelectField
-			items={[
-				{ value: '', label: 'All Seasons' },
-				...seasons.map((s) => ({ value: s.id, label: s.name }))
-			]}
+		{#if (data.brands ?? []).length > 1}
+			<BrandFilter
+				brands={data.brands ?? []}
+				value={brandFilter}
+				onValueChange={(v) => {
+					brandFilter = v;
+					setFilter('brand', v);
+				}}
+			/>
+		{/if}
+		<SeasonFilter
+			{seasons}
 			value={seasonFilter}
-			placeholder="All Seasons"
 			onValueChange={(v) => {
 				seasonFilter = v;
 				setFilter('season', v);
 			}}
 		/>
 		{#if categories.length > 0}
-			<SelectField
-				items={[
-					{ value: '', label: 'All Categories' },
-					...categories.map((c) => ({ value: c, label: c }))
-				]}
+			<CategoryFilter
+				{categories}
 				value={categoryFilter}
-				placeholder="All Categories"
 				onValueChange={(v) => {
 					categoryFilter = v;
 					setFilter('category', v);
@@ -252,7 +261,7 @@
 	<!-- Product grid -->
 	{#if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
-			{#if search || seasonFilter || categoryFilter || atsOnly}
+			{#if search || brandFilter || seasonFilter || categoryFilter || atsOnly}
 				<p class="text-lg font-semibold">No products match your filters</p>
 				<p class="mt-2 text-sm text-muted-foreground">Try adjusting your filters</p>
 			{:else}

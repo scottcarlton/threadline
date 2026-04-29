@@ -6,6 +6,8 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
+	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
+	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import {
@@ -566,14 +568,10 @@
 					onValueChange={(v) => setFilter('status', v)}
 				/>
 			{/if}
-			<SelectField
+			<SeasonFilter
 				class="min-w-[158px] shrink-0"
+				{seasons}
 				value={$page.url.searchParams.get('season') ?? ''}
-				items={[
-					{ value: '', label: 'All Seasons' },
-					...seasons.map((s) => ({ value: s.name, label: s.name }))
-				]}
-				placeholder="All Seasons"
 				onValueChange={(v) => setFilter('season', v)}
 			/>
 			<div class="hidden lg:block lg:flex-1"></div>
@@ -590,14 +588,11 @@
 				/>
 			{/if}
 			{#if !isBrandOrg}
-				<SelectField
+				<BrandFilter
 					class="min-w-[158px] shrink-0"
+					{brands}
+					valueKey="name"
 					value={$page.url.searchParams.get('brand') ?? ''}
-					items={[
-						{ value: '', label: 'All Brands' },
-						...brands.map((b) => ({ value: b.name, label: b.name }))
-					]}
-					placeholder="All Brands"
 					onValueChange={(v) => setFilter('brand', v)}
 				/>
 			{/if}

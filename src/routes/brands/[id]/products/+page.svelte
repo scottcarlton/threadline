@@ -5,8 +5,10 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input, SearchInput } from '$lib/components/ui/input/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
-	import { SelectField } from '$lib/components/ui/select/index.js';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
+	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
+	import CategoryFilter from '$lib/components/shared/CategoryFilter.svelte';
+	import { seasonIdsByName } from '$lib/utils/seasons.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
@@ -40,13 +42,17 @@
 		[...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort()
 	);
 
+	const selectedSeasonIds = $derived(
+		seasonFilter ? new Set(seasonIdsByName(seasons, seasonFilter)) : null
+	);
 	const filtered = $derived(
 		products.filter((p) => {
 			const matchesSearch =
 				p.name.toLowerCase().includes(search.toLowerCase()) ||
 				p.style_number.toLowerCase().includes(search.toLowerCase()) ||
 				(p.category?.toLowerCase().includes(search.toLowerCase()) ?? false);
-			const matchesSeason = !seasonFilter || p.season_id === seasonFilter;
+			const matchesSeason =
+				!selectedSeasonIds || (p.season_id && selectedSeasonIds.has(p.season_id));
 			const matchesCategory = !categoryFilter || p.category === categoryFilter;
 			const price = Number(p.wholesale_price);
 			const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
@@ -220,22 +226,12 @@
 		<div class="max-w-xs flex-1">
 			<SearchInput placeholder="Search products..." bind:value={search} />
 		</div>
-		<SelectField
-			items={[
-				{ value: '', label: 'All Seasons' },
-				...seasons.map((s) => ({ value: s.id, label: s.name }))
-			]}
-			bind:value={seasonFilter}
-			placeholder="All Seasons"
-		/>
+		<SeasonFilter {seasons} value={seasonFilter} onValueChange={(v) => (seasonFilter = v)} />
 		{#if categories.length > 0}
-			<SelectField
-				items={[
-					{ value: '', label: 'All Categories' },
-					...categories.map((c) => ({ value: c, label: c }))
-				]}
-				bind:value={categoryFilter}
-				placeholder="All Categories"
+			<CategoryFilter
+				{categories}
+				value={categoryFilter}
+				onValueChange={(v) => (categoryFilter = v)}
 			/>
 		{/if}
 		<PriceFilterDropdown bind:value={priceRange} maxPrice={maxProductPrice} />

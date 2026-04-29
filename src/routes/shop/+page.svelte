@@ -3,8 +3,10 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
-	import { SelectField } from '$lib/components/ui/select/index.js';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
+	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
+	import CategoryFilter from '$lib/components/shared/CategoryFilter.svelte';
+	import { seasonIdsByName } from '$lib/utils/seasons.js';
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
@@ -77,10 +79,14 @@
 		return 'in';
 	}
 
+	const selectedSeasonIds = $derived(
+		seasonFilter ? new Set(seasonIdsByName(seasons, seasonFilter)) : null
+	);
 	const filtered = $derived(
 		products.filter((p) => {
 			const matchesBrand = !brandFilter || p.brand_id === brandFilter;
-			const matchesSeason = !seasonFilter || p.season_id === seasonFilter;
+			const matchesSeason =
+				!selectedSeasonIds || (p.season_id && selectedSeasonIds.has(p.season_id));
 			const matchesCategory = !categoryFilter || p.category === categoryFilter;
 			const price = Number(p.wholesale_price) || 0;
 			const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
@@ -176,23 +182,13 @@
 				</div>
 			{/if}
 			{#if seasons.length > 0}
-				<SelectField
-					items={[
-						{ value: '', label: 'All Seasons' },
-						...seasons.map((s) => ({ value: s.id, label: s.name }))
-					]}
-					bind:value={seasonFilter}
-					placeholder="All Seasons"
-				/>
+				<SeasonFilter {seasons} value={seasonFilter} onValueChange={(v) => (seasonFilter = v)} />
 			{/if}
 			{#if categories.length > 0}
-				<SelectField
-					items={[
-						{ value: '', label: 'All Categories' },
-						...categories.map((c) => ({ value: c, label: c }))
-					]}
-					bind:value={categoryFilter}
-					placeholder="All Categories"
+				<CategoryFilter
+					{categories}
+					value={categoryFilter}
+					onValueChange={(v) => (categoryFilter = v)}
 				/>
 			{/if}
 			<PriceFilterDropdown bind:value={priceRange} maxPrice={maxProductPrice} />
