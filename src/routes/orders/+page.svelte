@@ -941,7 +941,7 @@
 									<p class="text-xs text-muted-foreground/50">—</p>
 								{/if}
 							</td>
-							<td class="w-10 px-4 py-3 text-right align-top">
+							<td class="w-10 px-4 py-3 text-right align-middle">
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger
 										aria-label="More actions"
