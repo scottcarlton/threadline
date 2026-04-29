@@ -9,6 +9,7 @@
 	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 	import type { Product } from '$lib/types/database.js';
 
@@ -42,6 +43,11 @@
 
 	// Mutable list — initial page from server, appended via infinite scroll
 	let productList = $state<ProductRow[]>([]);
+	let selectedIds = $state<string[]>([]);
+	function toggleSelected(id: string, v: boolean) {
+		if (v) selectedIds = selectedIds.includes(id) ? selectedIds : [...selectedIds, id];
+		else selectedIds = selectedIds.filter((x) => x !== id);
+	}
 	let hasMore = $state(false);
 	let loadingMore = $state(false);
 	let sentinelEl = $state<HTMLDivElement | null>(null);
@@ -86,7 +92,11 @@
 		const params = new URLSearchParams($page.url.searchParams);
 		if (!value) params.delete(key);
 		else params.set(key, value);
-		goto(resolve(`/products?${params.toString()}`), { replaceState: true });
+		goto(resolve(`/products?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	const debouncedSearch = debounce((value: string) => {
@@ -273,11 +283,13 @@
 					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 				<a
 					href={resolve(`/products/${product.id}`)}
-					class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md {product.archived_at
-						? 'opacity-50'
-						: ''}"
+					class="group rounded-none border bg-card transition-all duration-200 hover:shadow-md {selectedIds.includes(
+						product.id
+					)
+						? 'border-foreground'
+						: 'border-border hover:border-foreground/20'} {product.archived_at ? 'opacity-50' : ''}"
 				>
-					<div class="aspect-[4/3] overflow-hidden bg-muted">
+					<div class="relative aspect-[4/3] overflow-hidden bg-muted">
 						{#if primaryImage}
 							<img
 								src="/api/products/{product.id}/images/{primaryImage.id}"
@@ -302,36 +314,56 @@
 								</svg>
 							</div>
 						{/if}
-					</div>
-					<div class="p-4">
-						<p class="text-xs text-muted-foreground">{product.style_number}</p>
-						<p class="mt-0.5 text-sm font-medium">{product.name}</p>
-						{#if product.season_id || product.product_year}
-							{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
-							</p>
-						{/if}
-						<div class="mt-2 flex items-center justify-between">
-							<span class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</span>
-							<span class="text-xs text-muted-foreground"
-								>{getVariantSummary(product.product_variants ?? [])}</span
-							>
-						</div>
 						{#if product.ats}
 							{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
 							{#if stockAgg}
-								<div class="mt-2">
+								<div class="absolute top-4 left-4">
 									<StockPill status={stockAgg} qty={null} hideQty />
 								</div>
 							{/if}
 						{/if}
-						{#if product.category}
-							<span
-								class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-								>{product.category}</span
-							>
-						{/if}
+						<button
+							type="button"
+							aria-label={selectedIds.includes(product.id) ? 'Deselect product' : 'Select product'}
+							aria-pressed={selectedIds.includes(product.id)}
+							class="group/check absolute top-2 right-2 p-2 transition-opacity [@media(hover:none)]:opacity-100 {selectedIds.includes(
+								product.id
+							)
+								? 'opacity-100'
+								: 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'}"
+							onclick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								toggleSelected(product.id, !selectedIds.includes(product.id));
+							}}
+						>
+							<span class="pointer-events-none block">
+								<Checkbox
+									checked={selectedIds.includes(product.id)}
+									class="h-6 w-6 group-hover/check:border-foreground"
+								/>
+							</span>
+						</button>
+					</div>
+					<div class="p-4">
+						<p class="text-xs text-muted-foreground">{product.style_number}</p>
+						<div class="mt-0.5 flex items-start justify-between gap-3">
+							<div class="min-w-0">
+								<p class="text-sm font-medium">{product.name}</p>
+								{#if product.season_id || product.product_year}
+									{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+									<p class="mt-0.5 text-sm text-muted-foreground">
+										{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+									</p>
+								{/if}
+							</div>
+							<div class="shrink-0 text-right">
+								<p class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</p>
+								<p class="mt-0.5 text-sm text-muted-foreground">
+									{getVariantSummary(product.product_variants ?? [])}
+								</p>
+							</div>
+						</div>
 					</div>
 				</a>
 			{/each}

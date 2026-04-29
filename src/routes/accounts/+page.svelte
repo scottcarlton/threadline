@@ -87,7 +87,11 @@
 		const params = new URLSearchParams($page.url.searchParams);
 		if (value) params.set('search', value);
 		else params.delete('search');
-		goto(resolve(`/accounts?${params.toString()}`), { replaceState: true });
+		goto(resolve(`/accounts?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}, 300);
 
 	function onSearchInput(e: Event) {

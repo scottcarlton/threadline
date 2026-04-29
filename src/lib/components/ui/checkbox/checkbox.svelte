@@ -34,7 +34,7 @@
 	{#if indeterminate}
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
-			class="h-3 w-3"
+			class="h-[70%] w-[70%]"
 			fill="none"
 			viewBox="0 0 24 24"
 			stroke="currentColor"
@@ -45,7 +45,7 @@
 	{:else if checked}
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
-			class="h-3 w-3"
+			class="h-[70%] w-[70%]"
 			fill="none"
 			viewBox="0 0 24 24"
 			stroke="currentColor"

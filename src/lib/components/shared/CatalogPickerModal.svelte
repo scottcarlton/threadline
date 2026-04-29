@@ -7,6 +7,7 @@
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 	import type { CatalogProduct, CatalogCartItem, ProductVariant } from './catalog-picker-types.js';
 	import {
@@ -202,6 +203,15 @@
 		return items.find((it) => it.product_id === product_id);
 	}
 
+	function variantSummary(p: CatalogProduct): string {
+		const colors = productColors(p).length;
+		const sizes = productSizes(p).length;
+		const parts: string[] = [];
+		if (colors > 0) parts.push(`${colors} color${colors > 1 ? 's' : ''}`);
+		if (sizes > 0) parts.push(`${sizes} size${sizes > 1 ? 's' : ''}`);
+		return parts.join(', ') || 'No variants';
+	}
+
 	function aggregateStockStatus(
 		variants: { stock_qty: number | null; stock_threshold: number | null }[]
 	): StockStatus | null {
@@ -321,9 +331,22 @@
 							{@const imgId = primaryImageId(p)}
 							{@const locked = lockedProductIds.includes(p.id)}
 							<div
-								class="relative flex flex-col rounded-lg border transition {added
+								class="group/card relative flex flex-col border transition {added
 									? 'border-foreground'
-									: 'border-border'} {locked ? 'pointer-events-none' : ''}"
+									: 'border-border'} {locked ? 'pointer-events-none' : 'cursor-pointer'}"
+								role="button"
+								tabindex={locked ? -1 : 0}
+								aria-pressed={added}
+								onclick={() => {
+									if (!locked) toggleProduct(p);
+								}}
+								onkeydown={(e) => {
+									if (locked) return;
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										toggleProduct(p);
+									}
+								}}
 							>
 								{#if locked}
 									<span
@@ -333,7 +356,7 @@
 									</span>
 								{/if}
 								<div class="flex flex-1 flex-col {locked ? 'opacity-50' : ''}">
-									<div class="aspect-square overflow-hidden rounded-t-lg bg-muted">
+									<div class="relative aspect-square overflow-hidden bg-muted">
 										{#if imgId}
 											<img
 												src={`/api/products/${p.id}/images/${imgId}`}
@@ -356,56 +379,56 @@
 												</svg>
 											</div>
 										{/if}
-									</div>
-									<div class="flex flex-1 flex-col gap-1 p-3">
-										<div class="text-sm text-muted-foreground">{p.style_number}</div>
-										<div class="line-clamp-2 text-sm font-semibold">{p.name}</div>
-										<div class="text-sm text-muted-foreground">
-											{brandName(p.brand_id)}{p.season_id
-												? ' · ' + seasonLabel(p.season_id, p.product_year)
-												: ''}
-										</div>
-										<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
 										{#if p.ats}
 											{@const agg = aggregateStockStatus(p.product_variants ?? [])}
 											{#if agg}
-												<div class="mt-1">
+												<div class="absolute top-4 left-4">
 													<StockPill status={agg} qty={null} hideQty />
 												</div>
 											{/if}
 										{/if}
-										<div class="mt-auto grid grid-cols-2 gap-2 pt-3">
-											{#if added}
-												{#if locked}
-													<Button
-														size="sm"
-														variant="outline"
-														onclick={() => toggleProduct(p)}
-														class="border-muted-foreground!"
-													>
-														Remove
-													</Button>
-												{:else}
-													<button
-														type="button"
-														class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
-														onclick={() => toggleProduct(p)}
-													>
-														Remove
-													</button>
-												{/if}
-											{:else}
-												<Button size="sm" onclick={() => toggleProduct(p)}>Add</Button>
-											{/if}
-											<Button
-												size="sm"
-												variant="outline"
-												disabled={!added}
-												onclick={() => openSizing(p)}
-												class={locked ? 'border-muted-foreground!' : ''}
+										{#if !locked}
+											<div
+												class="absolute top-2 right-2 p-2 transition-opacity [@media(hover:none)]:opacity-100 {added
+													? 'opacity-100'
+													: 'opacity-0 group-focus-within/card:opacity-100 group-hover/card:opacity-100'}"
 											>
-												Size
-											</Button>
+												<span class="pointer-events-none block">
+													<Checkbox
+														checked={added}
+														class="h-6 w-6 group-hover/card:border-foreground"
+													/>
+												</span>
+											</div>
+											{#if added}
+												<button
+													type="button"
+													class="absolute right-4 bottom-4 left-4 inline-flex h-10 items-center justify-center rounded-md border border-foreground bg-background text-sm font-medium transition-colors hover:bg-muted"
+													onclick={(e) => {
+														e.stopPropagation();
+														openSizing(p);
+													}}
+												>
+													Set Sizes
+												</button>
+											{/if}
+										{/if}
+									</div>
+									<div class="flex flex-1 flex-col gap-1 p-3">
+										<div class="text-sm text-muted-foreground">{p.style_number}</div>
+										<div class="flex items-start justify-between gap-3">
+											<div class="min-w-0">
+												<div class="line-clamp-2 text-sm font-semibold">{p.name}</div>
+												<div class="text-sm text-muted-foreground">
+													{brandName(p.brand_id)}{p.season_id
+														? ' · ' + seasonLabel(p.season_id, p.product_year)
+														: ''}
+												</div>
+											</div>
+											<div class="shrink-0 text-right">
+												<div class="text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
+												<div class="mt-0.5 text-sm text-muted-foreground">{variantSummary(p)}</div>
+											</div>
 										</div>
 									</div>
 								</div>
