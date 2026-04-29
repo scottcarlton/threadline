@@ -14,12 +14,6 @@
 	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
-	import {
-		Tooltip,
-		TooltipContent,
-		TooltipProvider,
-		TooltipTrigger
-	} from '$lib/components/ui/tooltip/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Dialog } from 'bits-ui';
@@ -315,7 +309,9 @@
 				: []
 			: isBrandOrg
 				? ['Account']
-				: ['Brand', 'Account'];
+				: brands.length <= 1
+					? ['Account']
+					: ['Brand', 'Account'];
 		if (needsAccountDetailsStep) s.push('Details');
 		s.push('Items', 'Delivery');
 		if (needsLocationStep) s.push('Location');
@@ -329,6 +325,16 @@
 			const current = cart.brandFilter;
 			const alreadyPinned = current !== 'all' && current.length === 1 && current[0] === selfBrandId;
 			if (!alreadyPinned) cart.brandFilter = [selfBrandId];
+		}
+	});
+
+	// Auto-pin brandFilter when a rep org has exactly one brand — Brand step is skipped.
+	$effect(() => {
+		if (!isBuyer && !isBrandOrg && brands.length === 1) {
+			const only = brands[0].id;
+			const current = cart.brandFilter;
+			const alreadyPinned = current !== 'all' && current.length === 1 && current[0] === only;
+			if (!alreadyPinned) cart.brandFilter = [only];
 		}
 	});
 
@@ -519,23 +525,54 @@
 	function closeAddItemsModal() {
 		modalOpen = false;
 	}
-	// Auto-size: take the first non-zero size qty and apply it to every other size.
-	function autoSize(idx: number) {
-		const it = cart.items[idx];
-		const sizes = it.available_sizes;
-		if (sizes.length === 0) return;
-		let template = 0;
-		for (const s of sizes) {
+	// Apply All / Undo (per-row, transient — not persisted with the cart).
+	// `sizeTouches` records the order in which sizes were edited so the template
+	// for Apply All is the most-recently-typed value (with qty > 0). `applySnapshots`
+	// holds the pre-Apply qtys so Undo can restore them. Any value change clears
+	// the snapshot, flipping the button back to "Apply All" per spec.
+	const sizeTouches = $state<Record<string, string[]>>({});
+	const applySnapshots = $state<Record<string, Record<string, number>>>({});
+
+	function recordTouch(productId: string, size: string) {
+		const list = (sizeTouches[productId] ?? []).filter((s) => s !== size);
+		list.push(size);
+		sizeTouches[productId] = list;
+		if (applySnapshots[productId]) delete applySnapshots[productId];
+	}
+
+	function applyAllTemplate(it: OrderItem): number {
+		const list = sizeTouches[it.product_id] ?? [];
+		for (let i = list.length - 1; i >= 0; i--) {
+			const q = it.size_qtys[list[i]] ?? 0;
+			if (q > 0) return q;
+		}
+		// Fallback when nothing has been touched yet (e.g. seeded from another flow):
+		// pick any size with qty > 0, in declared order.
+		for (const s of it.available_sizes) {
 			const q = it.size_qtys[s] ?? 0;
-			if (q > 0) {
-				template = q;
-				break;
-			}
+			if (q > 0) return q;
 		}
+		return 0;
+	}
+
+	function applyAll(idx: number) {
+		const it = cart.items[idx];
+		const template = applyAllTemplate(it);
 		if (template === 0) return;
-		for (const s of sizes) {
-			cart.items[idx].size_qtys[s] = template;
+		const snapshot: Record<string, number> = {};
+		for (const s of it.available_sizes) snapshot[s] = it.size_qtys[s] ?? 0;
+		for (const s of it.available_sizes) {
+			if ((it.size_qtys[s] ?? 0) === 0) cart.items[idx].size_qtys[s] = template;
 		}
+		applySnapshots[it.product_id] = snapshot;
+	}
+
+	function undoApplyAll(idx: number) {
+		const it = cart.items[idx];
+		const snap = applySnapshots[it.product_id];
+		if (!snap) return;
+		for (const s of it.available_sizes) cart.items[idx].size_qtys[s] = snap[s] ?? 0;
+		delete applySnapshots[it.product_id];
 	}
 
 	function removeProduct(product_id: string) {
@@ -997,168 +1034,226 @@
 					{#each cart.items as it, idx (it.product_id)}
 						{@const rowUnits = itemUnits(it)}
 						{@const rowTotal = itemTotal(it)}
-						<div class="group/item rounded-lg border p-4">
-							<div class="flex items-start gap-4">
-								<div class="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
-									{#if it.image_id}
-										<img
-											src={`/api/products/${it.product_id}/images/${it.image_id}`}
-											alt=""
-											class="h-full w-full object-cover"
-										/>
-									{:else}
-										<div
-											class="flex h-full w-full items-center justify-center text-muted-foreground/40"
+						<div class="group/item rounded-lg border px-6 py-4">
+							<div class="flex items-start justify-between gap-6">
+								<div class="flex min-w-0 flex-1 items-start gap-4">
+									<div class="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
+										{#if it.image_id}
+											<img
+												src={`/api/products/${it.product_id}/images/${it.image_id}`}
+												alt=""
+												class="h-full w-full object-cover"
+											/>
+										{:else}
+											<div
+												class="flex h-full w-full items-center justify-center text-muted-foreground/40"
+											>
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+													stroke-width="1.5"
+													class="h-6 w-6"
+												>
+													<rect x="3" y="3" width="18" height="18" rx="2" />
+													<circle cx="8.5" cy="8.5" r="1.5" />
+													<path d="M21 15l-5-5L5 21" />
+												</svg>
+											</div>
+										{/if}
+									</div>
+
+									<div class="min-w-0 flex-1">
+										<div class="font-mono text-sm">{it.style_number}</div>
+										<div class="text-sm font-medium">{it.name}</div>
+										<div class="text-sm text-muted-foreground">
+											{brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
+										</div>
+										<div class="mt-2">
+											{#if it.available_colors.length > 1}
+												<ColorSwatchPicker
+													value={it.selected_color || null}
+													options={it.available_colors}
+													onChange={(c) => (cart.items[idx].selected_color = c ?? '')}
+												/>
+											{:else}
+												<div class="flex items-center gap-2 text-sm">
+													<ColorSwatch color={it.selected_color || null} size={28} />
+													{#if it.selected_color}
+														<span>{it.selected_color}</span>
+													{/if}
+												</div>
+											{/if}
+										</div>
+									</div>
+								</div>
+
+								<div class="shrink-0 text-right">
+									<div class="font-mono text-sm font-medium">{fmt.format(rowTotal)}</div>
+									<div class="text-sm text-muted-foreground">
+										{rowUnits}
+										{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(it.unit_price)}/ea
+									</div>
+									<div class="mt-2 flex items-center justify-end gap-1">
+										<button
+											type="button"
+											aria-label="Remove item"
+											class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100"
+											onclick={() => removeProduct(it.product_id)}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
 												viewBox="0 0 24 24"
 												fill="none"
 												stroke="currentColor"
-												stroke-width="1.5"
-												class="h-6 w-6"
+												stroke-width="1.75"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												class="h-4 w-4"
 											>
-												<rect x="3" y="3" width="18" height="18" rx="2" />
-												<circle cx="8.5" cy="8.5" r="1.5" />
-												<path d="M21 15l-5-5L5 21" />
+												<path d="M3 6h18" />
+												<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+												<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+												<path d="M10 11v6" />
+												<path d="M14 11v6" />
 											</svg>
-										</div>
-									{/if}
-								</div>
-
-								<div class="min-w-0 flex-1">
-									<div class="font-mono text-sm">{it.style_number}</div>
-									<div class="text-sm font-medium">{it.name}</div>
-									<div class="text-sm text-muted-foreground">
-										{brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
+										</button>
 									</div>
 								</div>
+							</div>
 
-								<div class="shrink-0 self-center">
-									{#if it.available_colors.length > 1}
-										<ColorSwatchPicker
-											value={it.selected_color || null}
-											options={it.available_colors}
-											onChange={(c) => (cart.items[idx].selected_color = c ?? '')}
-										/>
-									{:else}
-										<div class="flex items-center justify-center gap-2 text-sm">
-											<ColorSwatch color={it.selected_color || null} size={28} />
-											{#if it.selected_color}
-												<span>{it.selected_color}</span>
-											{/if}
-										</div>
-									{/if}
-								</div>
-
-								<div class="shrink-0">
-									{#if it.available_sizes.length > 0}
-										<div class="flex flex-wrap items-end gap-2">
-											{#each it.available_sizes as size (size)}
-												<label class="flex flex-col items-center gap-1">
-													<span class="text-sm text-muted-foreground">{size}</span>
+							{#if it.available_sizes.length > 0}
+								{@const hasAnyValue = it.available_sizes.some((s) => (it.size_qtys[s] ?? 0) > 0)}
+								{@const isUndo = !!applySnapshots[it.product_id]}
+								<div class="mt-3 flex flex-wrap items-start gap-3">
+									<div
+										class="grid gap-3"
+										style="grid-template-columns: repeat({it.available_sizes
+											.length}, minmax(0, 7rem));"
+									>
+										{#each it.available_sizes as size (size)}
+											{@const qty = it.size_qtys[size] ?? 0}
+											<div
+												role="group"
+												aria-label="{it.name} size {size} quantity"
+												class="grid min-h-14 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-md border bg-muted/40 transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
+												0
+													? 'border-dashed opacity-60'
+													: ''}"
+											>
+												<button
+													type="button"
+													aria-label="Decrease {size}"
+													class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-30"
+													disabled={qty === 0}
+													onclick={() => {
+														cart.items[idx].size_qtys[size] = Math.max(0, qty - 1);
+														recordTouch(it.product_id, size);
+													}}
+												>
+													−
+												</button>
+												<div class="flex flex-col items-center justify-center px-1 text-center">
+													<div class="text-xs text-muted-foreground">{size}</div>
 													<input
-														type="number"
-														min="0"
-														class="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm"
-														value={it.size_qtys[size] ?? 0}
+														type="text"
+														inputmode="numeric"
+														pattern="[0-9]*"
+														aria-label="{size} quantity"
+														value={qty}
 														oninput={(e) => {
-															const n = parseInt((e.target as HTMLInputElement).value, 10);
+															const raw = (e.currentTarget as HTMLInputElement).value.replace(
+																/[^0-9]/g,
+																''
+															);
+															const n = raw === '' ? 0 : parseInt(raw, 10);
 															cart.items[idx].size_qtys[size] = Number.isNaN(n)
 																? 0
 																: Math.max(0, n);
+															recordTouch(it.product_id, size);
 														}}
+														onkeydown={(e) => {
+															if (e.key === 'ArrowUp') {
+																e.preventDefault();
+																cart.items[idx].size_qtys[size] = qty + 1;
+																recordTouch(it.product_id, size);
+															} else if (e.key === 'ArrowDown') {
+																e.preventDefault();
+																cart.items[idx].size_qtys[size] = Math.max(0, qty - 1);
+																recordTouch(it.product_id, size);
+															} else if (e.key === 'Enter') {
+																e.preventDefault();
+																(e.currentTarget as HTMLInputElement).blur();
+															}
+														}}
+														class="w-full bg-transparent text-center font-mono text-sm outline-none"
 													/>
-												</label>
-											{/each}
-											<TooltipProvider>
-												<Tooltip>
-													<TooltipTrigger>
-														<button
-															type="button"
-															aria-label="Fill all sizes"
-															class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-40"
-															disabled={rowUnits === 0}
-															onclick={() => autoSize(idx)}
-														>
-															<svg
-																xmlns="http://www.w3.org/2000/svg"
-																viewBox="0 0 24 24"
-																fill="none"
-																stroke="currentColor"
-																stroke-width="1.75"
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																class="h-4 w-4"
-															>
-																<path d="M3 6h13" />
-																<path d="M3 12h13" />
-																<path d="M3 18h13" />
-																<path d="M19 9l3 3-3 3" />
-															</svg>
-														</button>
-													</TooltipTrigger>
-													<TooltipContent>
-														Apply this row's first non-zero qty to every size
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-										</div>
-									{:else}
-										<label class="flex flex-col items-center gap-1">
-											<span class="text-sm text-muted-foreground">Qty</span>
-											<input
-												type="number"
-												min="0"
-												class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center text-sm"
-												value={it.size_qtys[''] ?? 0}
-												oninput={(e) => {
-													const n = parseInt((e.target as HTMLInputElement).value, 10);
-													cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
-												}}
-											/>
-										</label>
+												</div>
+												<button
+													type="button"
+													aria-label="Increase {size}"
+													class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset"
+													onclick={() => {
+														cart.items[idx].size_qtys[size] = qty + 1;
+														recordTouch(it.product_id, size);
+													}}
+												>
+													+
+												</button>
+											</div>
+										{/each}
+									</div>
+									{#if hasAnyValue || isUndo}
+										<button
+											type="button"
+											class="inline-flex h-14 shrink-0 items-center gap-1.5 px-3 text-sm text-foreground transition-colors hover:text-foreground/70"
+											onclick={() => (isUndo ? undoApplyAll(idx) : applyAll(idx))}
+										>
+											{#if isUndo}
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+													stroke-width="1.75"
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													class="h-4 w-4"
+												>
+													<path d="M9 14l-4-4 4-4" />
+													<path d="M5 10h9a5 5 0 010 10h-2" />
+												</svg>
+												Undo
+											{:else}
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													viewBox="0 0 24 24"
+													fill="currentColor"
+													class="h-4 w-4"
+												>
+													<path d="M8 5v14l11-7L8 5z" />
+												</svg>
+												Apply All
+											{/if}
+										</button>
 									{/if}
 								</div>
-
-								<div class="shrink-0 pt-[1.5rem] text-right font-mono text-sm">
-									{fmt.format(it.unit_price)}
+							{:else}
+								<div class="mt-3 flex items-center gap-3">
+									<span class="text-sm text-muted-foreground">Qty</span>
+									<input
+										type="number"
+										min="0"
+										class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center font-mono text-sm"
+										value={it.size_qtys[''] ?? 0}
+										oninput={(e) => {
+											const n = parseInt((e.target as HTMLInputElement).value, 10);
+											cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
+										}}
+									/>
 								</div>
-
-								<div class="shrink-0 pt-[1.5rem] text-right font-mono text-sm font-medium">
-									<div>{fmt.format(rowTotal)}</div>
-									<div class="text-sm font-normal text-muted-foreground">
-										{rowUnits}
-										{rowUnits === 1 ? 'unit' : 'units'}
-									</div>
-								</div>
-
-								<div class="shrink-0 pt-[1.5rem]">
-									<button
-										type="button"
-										aria-label="Remove item"
-										class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100"
-										onclick={() => removeProduct(it.product_id)}
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.75"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											class="h-4 w-4"
-										>
-											<path d="M3 6h18" />
-											<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-											<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-											<path d="M10 11v6" />
-											<path d="M14 11v6" />
-										</svg>
-									</button>
-								</div>
-							</div>
+							{/if}
 						</div>
 					{/each}
 				</div>
