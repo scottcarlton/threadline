@@ -4,7 +4,7 @@
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { navigating } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { goto, afterNavigate, onNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
@@ -83,6 +83,31 @@
 				duration: Infinity
 			});
 		}
+	});
+
+	let mainEl = $state<HTMLElement | null>(null);
+	afterNavigate(({ from, to, type }) => {
+		if (!mainEl) return;
+		if (type === 'popstate') return;
+		if (from?.url.pathname === to?.url.pathname) return;
+		mainEl.scrollTop = 0;
+	});
+
+	onNavigate((nav) => {
+		if (typeof document === 'undefined') return;
+		const startViewTransition = (
+			document as Document & {
+				startViewTransition?: (cb: () => Promise<void>) => unknown;
+			}
+		).startViewTransition;
+		if (!startViewTransition) return;
+		if (nav.from?.url.pathname === nav.to?.url.pathname) return;
+		return new Promise((resolve) => {
+			startViewTransition.call(document, async () => {
+				resolve();
+				await nav.complete;
+			});
+		});
 	});
 
 	onMount(() => {
@@ -755,7 +780,10 @@
 			</div>
 
 			<!-- Main content -->
-			<main class="flex-1 overflow-y-auto bg-background p-4 pb-32 sm:p-6 sm:pb-36">
+			<main
+				bind:this={mainEl}
+				class="flex-1 overflow-y-auto bg-background p-4 pb-32 sm:p-6 sm:pb-36"
+			>
 				{@render children()}
 			</main>
 		</div>

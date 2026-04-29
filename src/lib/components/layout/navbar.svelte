@@ -57,7 +57,7 @@
 	}
 </script>
 
-<header class="flex h-14 items-center justify-between bg-background px-5">
+<header class="flex h-14 items-center justify-between bg-background px-2 sm:px-4">
 	<div class="flex items-center gap-3">
 		<button
 			onclick={onsidebarToggle}
