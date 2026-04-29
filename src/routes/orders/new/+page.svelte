@@ -2679,28 +2679,27 @@
 				}}
 			>
 				<input type="hidden" name="payload" value={JSON.stringify(payload)} />
-				<div class="flex items-center justify-between gap-3">
+				<div
+					class="flex flex-col items-stretch gap-4 min-[756px]:grid min-[756px]:grid-cols-2 min-[756px]:items-start"
+				>
 					<Button
 						type="submit"
+						size="lg"
 						variant="outline"
+						class="order-last w-full min-[756px]:order-none"
 						disabled={submitting}
 						onclick={() => {
 							cart.type = 'note';
 							submitStatus = 'submitted';
 						}}
 					>
-						{groups.length > 1 ? `Save ${groups.length} Notes` : 'Save as Note'}
+						{groups.length > 1 ? `Save ${groups.length} Notes` : 'Save as Notes'}
 					</Button>
-					<div class="flex items-center gap-4">
-						{#if termsBlockedBrands.length > 0 && !allBrandTermsAgreed}
-							<span class="text-sm text-muted-foreground/70">
-								{termsBlockedBrands.length === 1
-									? 'Check the terms box to submit'
-									: `Agree to each brand's terms to submit`}
-							</span>
-						{/if}
+					<div class="contents min-[756px]:flex min-[756px]:flex-col min-[756px]:gap-2">
 						<Button
 							type="submit"
+							size="lg"
+							class="order-1 w-full min-[756px]:order-none"
 							disabled={submitting ||
 								(isFreeform && !hasFreeformDetails) ||
 								(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
@@ -2711,6 +2710,15 @@
 						>
 							{groups.length > 1 ? `Submit ${groups.length} Orders` : 'Submit Order'}
 						</Button>
+						{#if termsBlockedBrands.length > 0 && !allBrandTermsAgreed}
+							<span
+								class="order-2 text-center text-sm text-muted-foreground/70 min-[756px]:order-none"
+							>
+								{termsBlockedBrands.length === 1
+									? 'Check the terms box to submit'
+									: `Agree to each brand's terms to submit`}
+							</span>
+						{/if}
 					</div>
 				</div>
 			</form>
@@ -2719,13 +2727,24 @@
 
 	<!-- Bottom nav: Next only (Back moved to top). -->
 	{#if stepName !== 'Finalize'}
-		<div class="mt-8 flex items-center justify-end gap-4">
+		<div class="mt-8 flex flex-col items-stretch gap-4 lg:flex-row lg:items-center lg:justify-end">
 			{#if stepName === 'Details'}
-				<button type="button" class="text-sm underline hover:no-underline" onclick={nextStep}>
+				<button
+					type="button"
+					class="text-center text-sm underline hover:no-underline lg:text-left"
+					onclick={nextStep}
+				>
 					Skip
 				</button>
 			{/if}
-			<Button onclick={nextStep} disabled={!canAdvance()}>Next</Button>
+			<Button
+				size="lg"
+				class="w-full lg:w-auto lg:min-w-[164px]"
+				onclick={nextStep}
+				disabled={!canAdvance()}
+			>
+				Next
+			</Button>
 		</div>
 	{/if}
 </div>

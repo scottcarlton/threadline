@@ -4,6 +4,11 @@ import { listFederatedOrders } from '$lib/server/federation.js';
 import { resolveOrderSearch, applyOrderSearch } from '$lib/server/orders/search.js';
 import { loadManagerScope } from '$lib/server/scoping.js';
 import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
+import {
+	classifyOrder,
+	parseSpotlightParam,
+	type SpotlightBucket
+} from '$lib/utils/order-spotlight.js';
 
 const PAGE_SIZE = 50;
 
@@ -18,6 +23,29 @@ function fromBoundary(yyyymmdd: string): string {
 }
 function toBoundary(yyyymmdd: string): string {
 	return `${yyyymmdd}T23:59:59.999-12:00`;
+}
+
+type SpotlightCounts = Record<SpotlightBucket, number> & { total: number };
+function emptySpotlight(): SpotlightCounts {
+	return {
+		total: 0,
+		overdue: 0,
+		approaching_start: 0,
+		in_window: 0,
+		approaching_complete: 0,
+		stale_draft: 0
+	};
+}
+function tallySpotlight<T extends Parameters<typeof classifyOrder>[0]>(
+	rows: readonly T[]
+): SpotlightCounts {
+	const counts = emptySpotlight();
+	for (const r of rows) {
+		const buckets = classifyOrder(r);
+		if (buckets.length > 0) counts.total++;
+		for (const b of buckets) counts[b]++;
+	}
+	return counts;
 }
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
@@ -64,6 +92,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const to = url.searchParams.get('to');
 	// Default the totals / pagination to orders-only; notes tab flips this.
 	const activeType = url.searchParams.get('type') ?? 'order';
+	const spotlight = parseSpotlightParam(url.searchParams.get('spotlight'));
 	const fromTs = from ? fromBoundary(from) : null;
 	const toTs = to ? toBoundary(to) : null;
 	const toTsMs = toTs ? new Date(toTs).getTime() : null;
@@ -124,6 +153,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 						? orders.reduce((s, o) => s + Number(o.total_amount), 0) / orders.length
 						: 0,
 				needsAttention: { staleDrafts: 0, overdueShipments: 0, total: 0 },
+				spotlight: emptySpotlight(),
 				conversion: { submitted: 0, converted: 0, rate: 0 }
 			}
 		};
@@ -390,10 +420,19 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		const allOrdersUnfiltered = [...orderMap.values()].sort((a, b) =>
 			String(b.created_at).localeCompare(String(a.created_at))
 		);
-		const allOrders =
+		const allOrdersTyped =
 			activeType === 'all'
 				? allOrdersUnfiltered
 				: allOrdersUnfiltered.filter((o) => o.order_type === activeType);
+		const spotlightCounts = tallySpotlight(allOrdersTyped);
+		const allOrders = spotlight
+			? allOrdersTyped.filter((o) => {
+					const buckets = classifyOrder(o);
+					if (buckets.length === 0) return false;
+					if (spotlight === 'all') return true;
+					return buckets.includes(spotlight);
+				})
+			: allOrdersTyped;
 		const orders = allOrders.slice(0, PAGE_SIZE);
 
 		// Per-row commission rate lookup. Direct orders → BOA's organization_member
@@ -512,7 +551,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			overdueShipments = 0,
 			submittedCount = 0,
 			convertedCount = 0;
-		for (const o of allOrders) {
+		for (const o of allOrdersTyped) {
 			const amount = Number(o.total_amount) || 0;
 			if (pipelineStatuses.has(o.status)) {
 				pipelineValue += amount;
@@ -552,14 +591,16 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				avgOrderValue:
 					deliveredCount > 0
 						? deliveredRevenue / deliveredCount
-						: allOrders.length > 0
-							? allOrders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) / allOrders.length
+						: allOrdersTyped.length > 0
+							? allOrdersTyped.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) /
+								allOrdersTyped.length
 							: 0,
 				needsAttention: {
 					staleDrafts,
 					overdueShipments,
 					total: staleDrafts + overdueShipments
 				},
+				spotlight: spotlightCounts,
 				conversion: {
 					submitted: submittedCount,
 					converted: convertedCount,
@@ -707,15 +748,45 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	// 2. Lightweight metrics query (all matching, minimal columns)
 	let metricsQuery = supabaseAdmin
 		.from('orders')
-		.select('id, status, total_amount, created_at, expected_ship_date')
+		.select(
+			'id, status, total_amount, created_at, expected_ship_date, start_ship_date, shipped_at, updated_at'
+		)
 		.eq('organization_id', organization.id);
 	metricsQuery = applyFilters(metricsQuery);
+	const metricsResult = await metricsQuery;
+	const metricsRows = (metricsResult.data ?? []) as Array<{
+		id: string;
+		status: string;
+		total_amount: number | string;
+		created_at: string;
+		expected_ship_date: string | null;
+		start_ship_date: string | null;
+		shipped_at: string | null;
+		updated_at: string | null;
+	}>;
+	const spotlightCounts = tallySpotlight(metricsRows);
 
-	const [displayResult, metricsResult] = await Promise.all([displayQuery, metricsQuery]);
+	// When spotlight is active, restrict the display query to matching IDs
+	if (spotlight) {
+		const matchingIds = metricsRows
+			.filter((r) => {
+				const buckets = classifyOrder(r);
+				if (buckets.length === 0) return false;
+				if (spotlight === 'all') return true;
+				return buckets.includes(spotlight);
+			})
+			.map((r) => r.id);
+		if (matchingIds.length === 0) {
+			displayQuery = displayQuery.eq('id', '__none__');
+		} else {
+			displayQuery = displayQuery.in('id', matchingIds);
+		}
+	}
+
+	const displayResult = await displayQuery;
 
 	const orders = displayResult.data ?? [];
 	const totalCount = displayResult.count ?? orders.length;
-	const metricsRows = metricsResult.data ?? [];
 
 	// Compute analytics metrics from ALL matching orders
 	const now = new Date();
@@ -783,6 +854,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			overdueShipments,
 			total: staleDrafts + overdueShipments
 		},
+		spotlight: spotlightCounts,
 		conversion: {
 			submitted: submittedCount,
 			converted: convertedCount,
