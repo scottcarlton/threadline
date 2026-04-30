@@ -86,6 +86,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 		createNotification({
 			organizationId: organization.id,
 			userId: order.created_by,
+			actorUserId: user.id,
 			type: 'order_confirmed',
 			title: 'Order confirmed',
 			body: `Order ${order.order_number} has been confirmed`,
@@ -95,6 +96,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 		createNotification({
 			organizationId: organization.id,
 			userId: order.created_by,
+			actorUserId: user.id,
 			type: 'order_shipped',
 			title: 'Order shipped',
 			body: `Order ${order.order_number} has shipped`,

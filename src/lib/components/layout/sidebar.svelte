@@ -504,7 +504,14 @@
 {/snippet}
 
 {#if mode === 'overlay'}
-	<OverlayPanel {open} {onclose} ariaLabel="Main navigation" side="left" width="240px">
+	<OverlayPanel
+		{open}
+		{onclose}
+		ariaLabel="Main navigation"
+		side="left"
+		width="240px"
+		closeOnEscape={false}
+	>
 		<aside class="flex h-full w-full flex-col overflow-y-auto bg-background text-foreground">
 			{@render sidebarContent()}
 		</aside>
