@@ -1090,7 +1090,7 @@
 
 <svelte:head><title>New Order — Threadline</title></svelte:head>
 
-<div class="w-full p-6">
+<div class="w-full">
 	<!-- Top nav: Back (left) + Cancel (right) -->
 	<div class="mb-4 flex items-center justify-between">
 		{#if currentStep > 0}

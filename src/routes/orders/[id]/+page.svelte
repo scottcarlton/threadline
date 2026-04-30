@@ -182,11 +182,12 @@
 	const canEdit = $derived(
 		data.isBuyer
 			? order.status === 'draft' && order.created_by === data.user?.id
-			: data.membership?.role !== 'guest'
+			: data.membership?.role !== 'guest' &&
+					order.status !== 'shipped' &&
+					order.status !== 'delivered' &&
+					order.status !== 'cancelled'
 	);
-	const canModify = $derived(
-		canEdit && order.status !== 'cancelled' && order.status !== 'delivered'
-	);
+	const canModify = $derived(canEdit);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
 	const repName = $derived(
 		(data.repName as string | null) ??
@@ -1089,7 +1090,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						/>
 					</svg>
 				{/if}
-				Clone
+				<span class="sr-only sm:not-sr-only">Clone</span>
 			</Button>
 			<Button variant="outline" size="sm" onclick={handleDownloadPdf} disabled={downloadingPdf}>
 				{#if downloadingPdf}
@@ -1112,7 +1113,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						/>
 					</svg>
 				{/if}
-				Download PDF
+				<span class="sr-only sm:not-sr-only">Download PDF</span>
 			</Button>
 			<Button size="sm" onclick={openSendDialog}>
 				<svg
@@ -1129,7 +1130,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
 					/>
 				</svg>
-				Send to Account
+				<span class="sr-only sm:not-sr-only">Send to Account</span>
 			</Button>
 		</div>
 	</div>

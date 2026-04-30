@@ -3,7 +3,6 @@
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
-	import { downloadCSV } from '$lib/utils/csv.js';
 	import AccountImportModal from '$lib/components/accounts/AccountImportModal.svelte';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
@@ -39,8 +38,6 @@
 		(data.accountTags ?? {}) as Record<string, { id: string; name: string; color: string }[]>
 	);
 	const canEdit = $derived(data.membership?.role !== 'guest');
-	// Brand-level sales reps shouldn't export org-wide data.
-	const canExport = $derived(!(data.orgType === 'brand' && data.membership?.role === 'sales'));
 
 	const tagColorMap: Record<string, string> = {
 		amber: 'bg-amber-50 text-amber-700',
@@ -135,21 +132,6 @@
 		observer.observe(sentinelEl);
 		return () => observer.disconnect();
 	});
-
-	function exportAccounts() {
-		const rows = filtered.map((a) => ({
-			business_name: a.business_name,
-			contact_first_name: a.contact_first_name ?? '',
-			contact_last_name: a.contact_last_name ?? '',
-			contact_email: a.contact_email ?? '',
-			phone: a.phone ?? '',
-			city: a.city ?? '',
-			state: a.state ?? '',
-			zip: a.zip ?? '',
-			status: a.archived_at ? 'Archived' : 'Active'
-		}));
-		downloadCSV(rows, 'accounts.csv');
-	}
 </script>
 
 <div class="space-y-6">
@@ -160,11 +142,7 @@
 			? 's'
 			: ''}"
 	>
-		{#if filtered.length > 0 && canExport}
-			<Button variant="outline" onclick={exportAccounts}>Export</Button>
-		{/if}
 		{#if canEdit}
-			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
 			<Button href="/accounts/new">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -175,7 +153,7 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				Add Account
+				Add<span class="hidden sm:inline"> Account</span>
 			</Button>
 		{/if}
 	</PageHeader>
@@ -230,19 +208,19 @@
 							>Account</th
 						>
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>Contact</th
 						>
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>Territory</th
 						>
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>Health</th
 						>
 						<th
-							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>YTD Total</th
 						>
 					</tr>
@@ -285,7 +263,7 @@
 									{/each}
 								</div>
 							</td>
-							<td class="px-4 py-3">
+							<td class="hidden px-4 py-3 sm:table-cell">
 								<div class="text-sm text-foreground">
 									{[account.contact_first_name, account.contact_last_name]
 										.filter(Boolean)
@@ -295,13 +273,13 @@
 									<div class="font-mono text-sm text-muted-foreground">{account.contact_email}</div>
 								{/if}
 							</td>
-							<td class="px-4 py-3">
+							<td class="hidden px-4 py-3 sm:table-cell">
 								<span class="text-sm text-muted-foreground"
 									>{(account as Account & { territories?: { name?: string } | null }).territories
 										?.name ?? '—'}</span
 								>
 							</td>
-							<td class="px-4 py-3">
+							<td class="hidden px-4 py-3 sm:table-cell">
 								{#if account.archived_at}
 									<span
 										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
@@ -318,7 +296,7 @@
 									</div>
 								{/if}
 							</td>
-							<td class="px-4 py-3 text-right font-mono">
+							<td class="hidden px-4 py-3 text-right font-mono sm:table-cell">
 								{#if accountTotals[account.id]}
 									<span class="text-sm">{fmt(accountTotals[account.id])}</span>
 								{:else}
