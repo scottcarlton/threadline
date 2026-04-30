@@ -6,8 +6,11 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
+	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
+	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
+	import { DropdownMenu } from 'bits-ui';
 	import {
 		Tooltip,
 		TooltipContent,
@@ -42,6 +45,13 @@
 	};
 
 	import { debounce } from '$lib/utils/debounce.js';
+	import {
+		classifyOrder,
+		SPOTLIGHT_BUCKETS,
+		SPOTLIGHT_LABELS,
+		type SpotlightBucket
+	} from '$lib/utils/order-spotlight.js';
+	import { Popover } from 'bits-ui';
 
 	const PAGE_SIZE = 50;
 
@@ -127,9 +137,38 @@
 			shippedCount: number;
 			avgOrderValue: number;
 			needsAttention: { staleDrafts: number; overdueShipments: number; total: number };
+			spotlight: Record<SpotlightBucket, number> & { total: number };
 			conversion: { submitted: number; converted: number; rate: number };
 		}
 	);
+	const activeSpotlight = $derived($page.url.searchParams.get('spotlight'));
+	const spotlightOn = $derived(activeSpotlight != null);
+	const spotlightCounts = $derived(
+		metrics.spotlight ?? {
+			total: 0,
+			overdue: 0,
+			approaching_start: 0,
+			in_window: 0,
+			approaching_complete: 0,
+			stale_draft: 0
+		}
+	);
+	let spotlightMenuOpen = $state(false);
+	function setSpotlight(value: SpotlightBucket | 'all' | null) {
+		spotlightMenuOpen = false;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		if (value == null) params.delete('spotlight');
+		else params.set('spotlight', value);
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}
+	function toggleSpotlight() {
+		setSpotlight(spotlightOn ? null : 'all');
+	}
 
 	const fmt = new Intl.NumberFormat('en-US', {
 		style: 'currency',
@@ -138,19 +177,52 @@
 		maximumFractionDigits: 0
 	});
 
-	const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-	function attentionReason(o: OrderRow): 'stale-draft' | 'overdue' | null {
-		const status = (o as { status?: string }).status;
-		if (status === 'draft') {
-			const created = (o as { created_at?: string }).created_at;
-			if (created && Date.now() - new Date(created).getTime() > SEVEN_DAYS_MS) return 'stale-draft';
+	function rowSpotlight(o: OrderRow): SpotlightBucket[] {
+		return classifyOrder({
+			status: o.status,
+			start_ship_date: o.start_ship_date,
+			expected_ship_date: o.expected_ship_date,
+			shipped_at: o.shipped_at,
+			updated_at: o.updated_at
+		});
+	}
+
+	const SHIP_DAY_MS = 24 * 60 * 60 * 1000;
+	function fmtShortDate(iso: string): string {
+		return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+	}
+	function daysBetween(targetIso: string): number {
+		const today = new Date();
+		const t = new Date(`${targetIso}T00:00:00`);
+		const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+		const targetUtc = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+		return Math.round((targetUtc - todayUtc) / SHIP_DAY_MS);
+	}
+	function shipWindowMeta(o: OrderRow): { text: string; overdue: boolean } | null {
+		if (o.shipped_at) {
+			return { text: `Shipped ${fmtShortDate(o.shipped_at)}`, overdue: false };
 		}
-		if (status === 'submitted' || status === 'confirmed') {
-			const expected = (o as { expected_ship_date?: string | null }).expected_ship_date;
-			if (expected) {
-				const todayStr = new Date().toISOString().slice(0, 10);
-				if (expected < todayStr) return 'overdue';
+		if (o.status === 'delivered' && o.delivered_at) {
+			return { text: `Delivered ${fmtShortDate(o.delivered_at)}`, overdue: false };
+		}
+		const expected = o.expected_ship_date;
+		const start = o.start_ship_date;
+		if (expected) {
+			const dExpected = daysBetween(expected);
+			if (dExpected < 0) return { text: `Overdue · ${Math.abs(dExpected)}d`, overdue: true };
+			if (start) {
+				const dStart = daysBetween(start);
+				if (dStart > 0) {
+					if (dStart > 7) return null;
+					return { text: `${dStart}d to start`, overdue: false };
+				}
+				return { text: `${dExpected}d to complete`, overdue: false };
 			}
+			return { text: `${dExpected}d to ship`, overdue: false };
+		}
+		if (start) {
+			const dStart = daysBetween(start);
+			if (dStart > 0 && dStart <= 7) return { text: `${dStart}d to start`, overdue: false };
 		}
 		return null;
 	}
@@ -419,21 +491,150 @@
 		{/if}
 	</PageHeader>
 
-	<!-- Type tabs: Orders / Notes -->
-	<div class="flex gap-1 border-b">
-		{#each ['order', 'note'] as t (t)}
-			{@const label = t === 'note' ? 'Notes' : 'Orders'}
+	<!-- Type tabs: Orders / Notes + Spotlight cluster -->
+	<div class="flex items-end justify-between border-b">
+		<div class="flex gap-1">
+			{#each ['order', 'note'] as t (t)}
+				{@const label = t === 'note' ? 'Notes' : 'Orders'}
+				<button
+					class="-mb-px px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors {activeType ===
+					t
+						? 'text-foreground'
+						: 'text-muted-foreground hover:text-foreground'}"
+					style="border-bottom: 1px solid {activeType === t ? 'currentColor' : 'transparent'}"
+					onclick={() => setFilter('type', t)}
+				>
+					{label}
+				</button>
+			{/each}
+		</div>
+
+		<div class="flex items-center pb-1">
 			<button
-				class="-mb-px px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors {activeType ===
-				t
-					? 'text-foreground'
-					: 'text-muted-foreground hover:text-foreground'}"
-				style="border-bottom: 1px solid {activeType === t ? 'currentColor' : 'transparent'}"
-				onclick={() => setFilter('type', t)}
+				type="button"
+				class="inline-flex items-center gap-2 rounded-l-md py-1 pr-2 pl-2 text-sm font-medium transition-colors hover:bg-muted/50"
+				onclick={toggleSpotlight}
+				aria-pressed={spotlightOn}
+				aria-label="Toggle spotlight filter"
 			>
-				{label}
+				<span class="relative flex h-2 w-2 items-center justify-center">
+					{#if spotlightOn}
+						<span
+							class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500/60"
+						></span>
+					{/if}
+					<span
+						class="relative inline-flex h-2 w-2 rounded-full {spotlightOn
+							? 'bg-amber-500'
+							: 'bg-amber-500/60'}"
+					></span>
+				</span>
+				<span>Spotlight</span>
+				<span
+					class="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1.5 text-xs tabular-nums {spotlightOn
+						? 'text-foreground'
+						: 'text-muted-foreground'}"
+				>
+					{spotlightCounts.total}
+				</span>
 			</button>
-		{/each}
+
+			<Popover.Root bind:open={spotlightMenuOpen}>
+				<Popover.Trigger
+					class="inline-flex h-7 w-6 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
+					aria-label="Narrow spotlight"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+					</svg>
+				</Popover.Trigger>
+				<Popover.Content
+					class="animate-in fade-in-0 zoom-in-95 z-50 w-72 rounded-md border bg-background p-1 shadow-lg"
+					sideOffset={6}
+					align="end"
+				>
+					<button
+						type="button"
+						class="flex w-full items-center justify-between gap-3 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted/60 {activeSpotlight ===
+						'all'
+							? 'bg-muted/40 font-medium'
+							: ''}"
+						onclick={() => setSpotlight('all')}
+					>
+						<span class="flex items-center gap-2">
+							{#if activeSpotlight === 'all'}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+									><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg
+								>
+							{:else}
+								<span class="inline-block h-4 w-4"></span>
+							{/if}
+							All issues
+						</span>
+						<span class="text-muted-foreground tabular-nums">{spotlightCounts.total}</span>
+					</button>
+					<div class="my-1 h-px bg-border"></div>
+					{#each SPOTLIGHT_BUCKETS as bucket (bucket)}
+						{@const fullLabel = SPOTLIGHT_LABELS[bucket]}
+						{@const hintIdx = fullLabel.indexOf(' (')}
+						{@const labelName = hintIdx >= 0 ? fullLabel.slice(0, hintIdx) : fullLabel}
+						{@const labelHint = hintIdx >= 0 ? fullLabel.slice(hintIdx + 1) : ''}
+						<button
+							type="button"
+							class="flex w-full items-center justify-between gap-3 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted/60 {activeSpotlight ===
+							bucket
+								? 'bg-muted/40 font-medium'
+								: ''}"
+							onclick={() => setSpotlight(bucket)}
+						>
+							<span class="flex items-center gap-2">
+								{#if activeSpotlight === bucket}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+										><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg
+									>
+								{:else}
+									<span class="inline-block h-4 w-4"></span>
+								{/if}
+								{labelName}{#if labelHint}
+									<span class="text-xs text-muted-foreground">{labelHint}</span>
+								{/if}
+							</span>
+							<span class="text-muted-foreground tabular-nums">{spotlightCounts[bucket]}</span>
+						</button>
+					{/each}
+					{#if spotlightOn}
+						<div class="my-1 h-px bg-border"></div>
+						<button
+							type="button"
+							class="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+							onclick={() => setSpotlight(null)}
+						>
+							<span class="inline-block h-4 w-4"></span>
+							Clear spotlight
+						</button>
+					{/if}
+				</Popover.Content>
+			</Popover.Root>
+		</div>
 	</div>
 
 	<!-- Analytics Cards -->
@@ -460,31 +661,13 @@
 			</CardContent>
 		</Card>
 
-		<Card
-			class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto {metrics.needsAttention.total > 0
-				? 'border-amber-300'
-				: ''}"
-		>
+		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
-				<p
-					class="font-mono text-sm font-medium {metrics.needsAttention.total > 0
-						? 'text-amber-700'
-						: 'text-muted-foreground'}"
-				>
-					Needs Attention
-				</p>
-				<p
-					class="mt-1 text-2xl font-semibold {metrics.needsAttention.total > 0
-						? 'text-amber-700'
-						: ''}"
-				>
+				<p class="font-mono text-sm font-medium text-muted-foreground">Needs Attention</p>
+				<p class="mt-1 text-2xl font-semibold">
 					{metrics.needsAttention.total}
 				</p>
-				<p
-					class="mt-0.5 font-mono text-sm {metrics.needsAttention.total > 0
-						? 'text-amber-600'
-						: 'text-muted-foreground'}"
-				>
+				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
 					{#if metrics.needsAttention.total === 0}
 						All orders on track
 					{:else}
@@ -566,14 +749,10 @@
 					onValueChange={(v) => setFilter('status', v)}
 				/>
 			{/if}
-			<SelectField
+			<SeasonFilter
 				class="min-w-[158px] shrink-0"
+				{seasons}
 				value={$page.url.searchParams.get('season') ?? ''}
-				items={[
-					{ value: '', label: 'All Seasons' },
-					...seasons.map((s) => ({ value: s.name, label: s.name }))
-				]}
-				placeholder="All Seasons"
 				onValueChange={(v) => setFilter('season', v)}
 			/>
 			<div class="hidden lg:block lg:flex-1"></div>
@@ -590,14 +769,11 @@
 				/>
 			{/if}
 			{#if !isBrandOrg}
-				<SelectField
+				<BrandFilter
 					class="min-w-[158px] shrink-0"
+					{brands}
+					valueKey="name"
 					value={$page.url.searchParams.get('brand') ?? ''}
-					items={[
-						{ value: '', label: 'All Brands' },
-						...brands.map((b) => ({ value: b.name, label: b.name }))
-					]}
-					placeholder="All Brands"
 					onValueChange={(v) => setFilter('brand', v)}
 				/>
 			{/if}
@@ -642,6 +818,23 @@
 			{#if search}
 				<p class="text-lg font-semibold">No orders match your search</p>
 				<p class="mt-2 text-sm text-muted-foreground">Try adjusting your filters</p>
+			{:else if spotlightOn}
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="mx-auto h-16 w-16 text-foreground"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="0.75"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+					/>
+				</svg>
+				<p class="mt-4 text-lg font-semibold">Nothing in the spotlight</p>
+				<p class="mt-2 text-sm text-muted-foreground">All orders are on track.</p>
 			{:else}
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -709,13 +902,10 @@
 							>Ship Window</th
 						>
 						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
-							>Shipped</th
-						>
-						<th
 							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Total</th
 						>
+						<th class="w-10 px-4 py-2.5"></th>
 					</tr>
 				</thead>
 				<tbody class="divide-y">
@@ -749,25 +939,44 @@
 						{@const shipWindowEnd = order.expected_ship_date
 							? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 							: null}
-						{@const reason = attentionReason(order)}
+						{@const rowBuckets = rowSpotlight(order)}
+						{@const rowTooltip = rowBuckets.map((b) => SPOTLIGHT_LABELS[b]).join(', ')}
+						{@const shipMeta = shipWindowMeta(order)}
 						<tr
-							class="group transition-colors hover:bg-muted/30 {selectedIds.has(order.id)
+							role="link"
+							tabindex="0"
+							aria-label={order.order_number}
+							onclick={() => goto(resolve(`/orders/${order.id}`))}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									goto(resolve(`/orders/${order.id}`));
+								}
+							}}
+							class="group cursor-pointer transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none {selectedIds.has(
+								order.id
+							)
 								? 'bg-primary/5'
 								: ''}"
 						>
 							<td class="w-8 py-3 pr-1 pl-4 align-top">
 								<div class="flex h-5 items-center justify-center text-sm">
-									{#if reason}
+									{#if rowBuckets.length > 0}
 										<TooltipProvider delayDuration={150}>
 											<Tooltip>
 												<TooltipTrigger
 													class="inline-flex"
-													aria-label={reason === 'stale-draft' ? 'Stale note' : 'Overdue shipment'}
+													aria-label={rowTooltip}
+													onclick={(e) => e.stopPropagation()}
 												>
-													<span class="block h-2 w-2 rounded-full bg-amber-500"></span>
+													<span
+														class="block h-2 w-2 rounded-full {rowBuckets.includes('overdue')
+															? 'bg-red-500'
+															: 'bg-amber-500'}"
+													></span>
 												</TooltipTrigger>
 												<TooltipContent side="right">
-													{reason === 'stale-draft' ? 'Stale note' : 'Overdue shipment'}
+													{rowTooltip}
 												</TooltipContent>
 											</Tooltip>
 										</TooltipProvider>
@@ -778,6 +987,8 @@
 									selectedIds.size > 0
 										? 'opacity-100'
 										: 'opacity-0 group-hover:opacity-100'} transition-opacity"
+									onclick={(e) => e.stopPropagation()}
+									role="presentation"
 								>
 									<Checkbox
 										checked={selectedIds.has(order.id)}
@@ -791,6 +1002,7 @@
 								</p>
 								<a
 									href={resolve(`/orders/${order.id}`)}
+									onclick={(e) => e.stopPropagation()}
 									class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 								>
 								<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
@@ -848,7 +1060,7 @@
 									{/if}
 								{/if}
 								{#if showDate && !isBrandOrg && sourceLocation}
-									<p class="mt-0.5 font-mono text-sm text-muted-foreground">{sourceLocation}</p>
+									<p class="mt-0.5 font-mono text-xs text-muted-foreground">{sourceLocation}</p>
 								{/if}
 							</td>
 							{#if isBrandOrg}
@@ -876,7 +1088,7 @@
 										>
 									{/if}
 									{#if showDate && sourceLocation}
-										<p class="mt-0.5 font-mono text-sm text-muted-foreground">{sourceLocation}</p>
+										<p class="mt-0.5 font-mono text-xs text-muted-foreground">{sourceLocation}</p>
 									{/if}
 								</td>
 							{/if}
@@ -884,7 +1096,7 @@
 								<span class="text-sm {creatorName === '—' ? 'text-muted-foreground/50' : ''}"
 									>{creatorName}</span
 								>
-								<p class="font-mono text-sm text-muted-foreground">
+								<p class="font-mono text-xs text-muted-foreground">
 									{new Date(order.created_at).toLocaleDateString('en-US', {
 										month: 'short',
 										day: 'numeric',
@@ -893,26 +1105,17 @@
 								</p>
 							</td>
 							<td class="hidden px-4 py-3 lg:table-cell">
-								{#if shipWindowStart}
-									<span class="text-sm text-muted-foreground">{shipWindowStart}</span>
-									<p class="text-sm text-muted-foreground">{shipWindowEnd ?? '—'}</p>
-								{:else if shipWindowEnd}
-									<span class="text-sm text-muted-foreground">{shipWindowEnd}</span>
+								{#if shipWindowStart && shipWindowEnd}
+									<p class="text-sm text-muted-foreground">{shipWindowStart} – {shipWindowEnd}</p>
+								{:else if shipWindowStart || shipWindowEnd}
+									<p class="text-sm text-muted-foreground">{shipWindowStart ?? shipWindowEnd}</p>
 								{:else}
-									<span class="text-sm text-muted-foreground/50">—</span>
+									<p class="text-sm text-muted-foreground/50">—</p>
 								{/if}
-							</td>
-							<td class="hidden px-4 py-3 lg:table-cell">
-								{#if order.shipped_at}
-									<span class="text-sm text-muted-foreground"
-										>{new Date(order.shipped_at).toLocaleDateString('en-US', {
-											month: 'short',
-											day: 'numeric',
-											year: 'numeric'
-										})}</span
-									>
-								{:else}
-									<span class="text-sm text-muted-foreground/50">—</span>
+								{#if shipMeta}
+									<p class="text-xs {shipMeta.overdue ? 'text-red-700' : 'text-muted-foreground'}">
+										{shipMeta.text}
+									</p>
 								{/if}
 							</td>
 							<td class="px-4 py-3 text-right font-mono">
@@ -927,6 +1130,57 @@
 									<span class="text-sm">{fmt.format(Number(order.total_amount))}</span>
 									<p class="text-xs text-muted-foreground/50">—</p>
 								{/if}
+							</td>
+							<td class="w-10 px-4 py-3 text-right align-middle">
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger
+										aria-label="More actions"
+										onclick={(e: Event) => e.stopPropagation()}
+										onkeydown={(e: KeyboardEvent) => {
+											if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+										}}
+										class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none [@media(hover:none)]:opacity-100"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="currentColor"
+											class="h-4 w-4"
+											aria-hidden="true"
+										>
+											<circle cx="12" cy="5" r="1.75" />
+											<circle cx="12" cy="12" r="1.75" />
+											<circle cx="12" cy="19" r="1.75" />
+										</svg>
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Portal>
+										<DropdownMenu.Content
+											align="end"
+											sideOffset={4}
+											class="z-50 min-w-[10rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+										>
+											<DropdownMenu.Item
+												disabled
+												class="flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm opacity-50 outline-none"
+											>
+												Duplicate
+											</DropdownMenu.Item>
+											<DropdownMenu.Item
+												disabled
+												class="flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm opacity-50 outline-none"
+											>
+												Archive
+											</DropdownMenu.Item>
+											<DropdownMenu.Separator class="my-1 h-px bg-border" />
+											<DropdownMenu.Item
+												disabled
+												class="flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm text-destructive opacity-50 outline-none"
+											>
+												Delete
+											</DropdownMenu.Item>
+										</DropdownMenu.Content>
+									</DropdownMenu.Portal>
+								</DropdownMenu.Root>
 							</td>
 						</tr>
 					{/each}

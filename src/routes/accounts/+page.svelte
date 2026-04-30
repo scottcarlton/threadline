@@ -87,7 +87,11 @@
 		const params = new URLSearchParams($page.url.searchParams);
 		if (value) params.set('search', value);
 		else params.delete('search');
-		goto(resolve(`/accounts?${params.toString()}`), { replaceState: true });
+		goto(resolve(`/accounts?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}, 300);
 
 	function onSearchInput(e: Event) {
@@ -246,11 +250,25 @@
 				<tbody class="divide-y">
 					{#each filtered as account (account.id)}
 						<tr
-							class="transition-colors hover:bg-muted/30 {account.archived_at ? 'opacity-50' : ''}"
+							role="link"
+							tabindex="0"
+							aria-label={account.business_name}
+							onclick={() => goto(resolve(`/accounts/${account.id}`))}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									goto(resolve(`/accounts/${account.id}`));
+								}
+							}}
+							class="cursor-pointer transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none {account.archived_at
+								? 'opacity-50'
+								: ''}"
 						>
 							<td class="px-4 py-3">
-								<a href={resolve(`/accounts/${account.id}`)} class="text-base hover:underline"
-									>{account.business_name}</a
+								<a
+									href={resolve(`/accounts/${account.id}`)}
+									onclick={(e) => e.stopPropagation()}
+									class="text-base hover:underline">{account.business_name}</a
 								>
 								<div class="mt-0.5 flex items-center gap-1.5">
 									{#if account.city || account.state}

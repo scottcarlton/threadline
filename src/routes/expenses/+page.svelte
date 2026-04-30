@@ -263,10 +263,23 @@
 				</thead>
 				<tbody class="divide-y">
 					{#each filtered as expense (expense.id)}
-						<tr class="transition-colors hover:bg-muted/30">
+						<tr
+							role="link"
+							tabindex="0"
+							aria-label={expense.expense_number}
+							onclick={() => goto(resolve(`/expenses/${expense.id}`))}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									goto(resolve(`/expenses/${expense.id}`));
+								}
+							}}
+							class="cursor-pointer transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none"
+						>
 							<td class="w-48 px-4 py-3 whitespace-nowrap">
 								<a
 									href={resolve(`/expenses/${expense.id}`)}
+									onclick={(e) => e.stopPropagation()}
 									class="font-mono text-base font-medium hover:underline"
 									>{expense.expense_number}</a
 								>

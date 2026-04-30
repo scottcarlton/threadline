@@ -18,6 +18,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const search = url.searchParams.get('search')?.trim() ?? '';
 	const seasonFilter = url.searchParams.get('season') ?? '';
 	const categoryFilter = url.searchParams.get('category') ?? '';
+	const brandFilter = url.searchParams.get('brand') ?? '';
 
 	if (nxBlsr) {
 		// Pull every active brand across the user's brand-org memberships.
@@ -42,13 +43,28 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			};
 		}
 
+		const scopedBrandIds = brandFilter && brandIds.includes(brandFilter) ? [brandFilter] : brandIds;
+
+		const { data: seasonsData } = await supabase
+			.from('seasons')
+			.select('id, name, organization_id')
+			.in('organization_id', brandOrgIds)
+			.eq('is_active', true)
+			.order('name');
+
+		const seasonIdsForFilter = seasonFilter
+			? (seasonsData ?? [])
+					.filter((s) => s.name.trim().toLowerCase() === seasonFilter.trim().toLowerCase())
+					.map((s) => s.id)
+			: null;
+
 		let productsQuery = supabase
 			.from('products')
 			.select(
 				'*, product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order), brands(id, name)',
 				{ count: 'exact' }
 			)
-			.in('brand_id', brandIds)
+			.in('brand_id', scopedBrandIds)
 			.is('archived_at', null)
 			.order('style_number')
 			.range(0, PAGE_SIZE - 1);
@@ -58,19 +74,10 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				`style_number.ilike.%${search}%,name.ilike.%${search}%,category.ilike.%${search}%`
 			);
 		}
-		if (seasonFilter) productsQuery = productsQuery.eq('season_id', seasonFilter);
+		if (seasonIdsForFilter) productsQuery = productsQuery.in('season_id', seasonIdsForFilter);
 		if (categoryFilter) productsQuery = productsQuery.eq('category', categoryFilter);
 
-		const [productsRes, seasonsRes] = await Promise.all([
-			productsQuery,
-			supabase
-				.from('seasons')
-				.select('id, name, organization_id')
-				.in('organization_id', brandOrgIds)
-				.eq('is_active', true)
-				.order('name')
-		]);
-
+		const productsRes = await productsQuery;
 		const totalCount = productsRes.count ?? (productsRes.data ?? []).length;
 
 		return {
@@ -79,7 +86,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			products: productsRes.data ?? [],
 			hasMore: totalCount > PAGE_SIZE,
 			totalCount,
-			seasons: seasonsRes.data ?? []
+			seasons: seasonsData ?? []
 		};
 	}
 
@@ -92,6 +99,19 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			.single();
 
 		if (!selfBrand) throw error(404, 'Self-brand not found for this organization.');
+
+		const { data: seasonsData } = await supabase
+			.from('seasons')
+			.select('id, name')
+			.eq('organization_id', organization.id)
+			.eq('is_active', true)
+			.order('name');
+
+		const seasonIdsForFilter = seasonFilter
+			? (seasonsData ?? [])
+					.filter((s) => s.name.trim().toLowerCase() === seasonFilter.trim().toLowerCase())
+					.map((s) => s.id)
+			: null;
 
 		let productsQuery = supabase
 			.from('products')
@@ -109,19 +129,10 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				`style_number.ilike.%${search}%,name.ilike.%${search}%,category.ilike.%${search}%`
 			);
 		}
-		if (seasonFilter) productsQuery = productsQuery.eq('season_id', seasonFilter);
+		if (seasonIdsForFilter) productsQuery = productsQuery.in('season_id', seasonIdsForFilter);
 		if (categoryFilter) productsQuery = productsQuery.eq('category', categoryFilter);
 
-		const [productsRes, seasonsRes] = await Promise.all([
-			productsQuery,
-			supabase
-				.from('seasons')
-				.select('id, name')
-				.eq('organization_id', organization.id)
-				.eq('is_active', true)
-				.order('name')
-		]);
-
+		const productsRes = await productsQuery;
 		const totalCount = productsRes.count ?? (productsRes.data ?? []).length;
 
 		return {
@@ -130,7 +141,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			products: productsRes.data ?? [],
 			hasMore: totalCount > PAGE_SIZE,
 			totalCount,
-			seasons: seasonsRes.data ?? []
+			seasons: seasonsData ?? []
 		};
 	}
 
@@ -157,13 +168,29 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			};
 		}
 
+		const scopedBrandIds = brandFilter && brandIds.includes(brandFilter) ? [brandFilter] : brandIds;
+
+		// Connected brand-orgs' season ids. RLS on seasons follows the same
+		// federation policy, so query without an org filter.
+		const { data: seasonsData } = await supabase
+			.from('seasons')
+			.select('id, name')
+			.eq('is_active', true)
+			.order('name');
+
+		const seasonIdsForFilter = seasonFilter
+			? (seasonsData ?? [])
+					.filter((s) => s.name.trim().toLowerCase() === seasonFilter.trim().toLowerCase())
+					.map((s) => s.id)
+			: null;
+
 		let productsQuery = supabase
 			.from('products')
 			.select(
 				'*, product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order), brands(id, name)',
 				{ count: 'exact' }
 			)
-			.in('brand_id', brandIds)
+			.in('brand_id', scopedBrandIds)
 			.is('archived_at', null)
 			.order('style_number')
 			.range(0, PAGE_SIZE - 1);
@@ -173,16 +200,10 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				`style_number.ilike.%${search}%,name.ilike.%${search}%,category.ilike.%${search}%`
 			);
 		}
-		if (seasonFilter) productsQuery = productsQuery.eq('season_id', seasonFilter);
+		if (seasonIdsForFilter) productsQuery = productsQuery.in('season_id', seasonIdsForFilter);
 		if (categoryFilter) productsQuery = productsQuery.eq('category', categoryFilter);
 
-		// Connected brand-orgs' season ids. RLS on seasons follows the same
-		// federation policy, so query without an org filter.
-		const [productsRes, seasonsRes] = await Promise.all([
-			productsQuery,
-			supabase.from('seasons').select('id, name').eq('is_active', true).order('name')
-		]);
-
+		const productsRes = await productsQuery;
 		const totalCount = productsRes.count ?? (productsRes.data ?? []).length;
 
 		return {
@@ -191,7 +212,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			products: productsRes.data ?? [],
 			hasMore: totalCount > PAGE_SIZE,
 			totalCount,
-			seasons: seasonsRes.data ?? []
+			seasons: seasonsData ?? []
 		};
 	}
 

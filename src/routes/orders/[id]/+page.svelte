@@ -4,7 +4,6 @@
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -222,16 +221,13 @@
 		cancelled: 'Cancelled'
 	};
 
-	const statusColors: Record<
-		string,
-		'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'
-	> = {
-		draft: 'secondary',
-		submitted: 'warning',
-		confirmed: 'default',
-		shipped: 'default',
-		delivered: 'success',
-		cancelled: 'destructive'
+	const statusBadgeColors: Record<string, string> = {
+		draft: 'bg-zinc-100 text-zinc-600',
+		submitted: 'bg-amber-50 text-amber-700',
+		confirmed: 'bg-blue-50 text-blue-700',
+		shipped: 'bg-indigo-50 text-indigo-700',
+		delivered: 'bg-emerald-50 text-emerald-700',
+		cancelled: 'bg-red-50 text-red-700'
 	};
 
 	const statusFlow: Record<string, OrderStatus[]> = {
@@ -1065,7 +1061,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	}
 </script>
 
-<div class="w-full space-y-6 p-6">
+<div class="w-full space-y-6 py-6">
 	<!-- ── Top bar ─────────────────────────────────────────────────────── -->
 	<div class="flex items-center justify-between">
 		<Button variant="ghost" size="sm" href="/orders"
@@ -1147,13 +1143,23 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			>
 		{/if}
 		<div class="mt-1 flex flex-wrap items-center gap-3">
-			<h1 class="font-mono text-4xl font-medium tracking-tight">{order.order_number}</h1>
+			<h1 class="font-mono text-2xl font-medium tracking-tight md:text-3xl lg:text-4xl">
+				{order.order_number}
+			</h1>
 			{#if order.order_type === 'note'}
-				<Badge variant="outline">Note</Badge>
-			{:else}
-				<Badge variant={statusColors[order.status] ?? 'secondary'}
-					>{statusLabels[order.status] ?? order.status}</Badge
+				<span
+					class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600"
 				>
+					Note
+				</span>
+			{:else}
+				<span
+					class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {statusBadgeColors[
+						order.status
+					] ?? 'bg-zinc-100 text-zinc-500'}"
+				>
+					{statusLabels[order.status] ?? order.status}
+				</span>
 			{/if}
 		</div>
 		<div class="mt-1 text-sm text-muted-foreground">
@@ -1255,7 +1261,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 								>{/if}
 						</div>
 						<div class="mt-1.5 flex items-center gap-3">
-							<span class="font-mono text-xl font-medium">
+							<span class="font-mono text-base font-medium sm:text-xl">
 								{shortDate(order.start_ship_date)}
 							</span>
 							<svg
@@ -1268,7 +1274,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 							>
 								<path d="M5 12h14M13 5l7 7-7 7" />
 							</svg>
-							<span class="font-mono text-xl font-medium">
+							<span class="font-mono text-base font-medium sm:text-xl">
 								{shortDate(order.expected_ship_date)}
 							</span>
 						</div>
@@ -1801,30 +1807,32 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 
 										{#if !draft.to_remove}
 											{#if sizesToShow.length > 0}
-												<div class="mt-3 grid grid-cols-6 gap-2">
+												<div class="mt-3 grid grid-cols-[repeat(6,minmax(0,7rem))] gap-3">
 													{#each sizesToShow as size (size)}
 														{@const qty = draft.qty_by_size[size] ?? 0}
 														<div
 															role="group"
 															aria-label="{draft.name} size {size} quantity"
-															class="rounded-md border bg-muted/40 px-2 py-2 text-center transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
+															class="grid min-h-14 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-md border bg-muted/40 transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
 															0
 																? 'border-dashed opacity-60'
 																: ''}"
 														>
-															<div class="text-xs text-muted-foreground">{size}</div>
-															<div class="mt-0.5 flex h-5 items-center justify-center gap-1">
-																<button
-																	type="button"
-																	aria-label="Decrease {size}"
-																	class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-30"
-																	disabled={qty === 0}
-																	onclick={() => {
-																		draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
-																	}}
-																>
-																	−
-																</button>
+															<button
+																type="button"
+																aria-label="Decrease {size}"
+																class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-30"
+																disabled={qty === 0}
+																onclick={() => {
+																	draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
+																}}
+															>
+																−
+															</button>
+															<div
+																class="flex flex-col items-center justify-center px-1 text-center"
+															>
+																<div class="text-xs text-muted-foreground">{size}</div>
 																<input
 																	type="text"
 																	inputmode="numeric"
@@ -1854,19 +1862,19 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 																			(e.currentTarget as HTMLInputElement).blur();
 																		}
 																	}}
-																	class="w-8 bg-transparent text-center font-mono text-sm outline-none"
+																	class="w-full bg-transparent text-center font-mono text-sm outline-none"
 																/>
-																<button
-																	type="button"
-																	aria-label="Increase {size}"
-																	class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none"
-																	onclick={() => {
-																		draftRows[idx].qty_by_size[size] = qty + 1;
-																	}}
-																>
-																	+
-																</button>
 															</div>
+															<button
+																type="button"
+																aria-label="Increase {size}"
+																class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset"
+																onclick={() => {
+																	draftRows[idx].qty_by_size[size] = qty + 1;
+																}}
+															>
+																+
+															</button>
 														</div>
 													{/each}
 												</div>
@@ -2187,11 +2195,11 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			</section>
 		</div>
 		<!-- ─── Right rail: Totals + Terms record ─── -->
-		<aside class="space-y-4 self-start lg:sticky lg:top-6">
-			<div class="overflow-hidden rounded-lg border bg-muted/30">
+		<aside class="contents lg:sticky lg:top-6 lg:block lg:space-y-4 lg:self-start">
+			<div class="order-first overflow-hidden rounded-lg border bg-muted/30 lg:order-none">
 				<div class="border-b px-5 py-4">
 					<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Total</div>
-					<div class="mt-1 font-mono text-3xl font-medium tracking-tight">
+					<div class="mt-1 font-mono text-2xl font-medium tracking-tight sm:text-3xl">
 						{fmt.format(Number(order.total_amount))}
 					</div>
 					<div class="mt-1 font-mono text-sm text-muted-foreground/70">
@@ -2222,7 +2230,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 
 			<!-- Terms panel: always renders. Brand-specific when the order has
 				 agreed terms on file, brand-specific-current or generic otherwise. -->
-			<div class="rounded-lg border bg-muted/30 p-5">
+			<div class="order-last rounded-lg border bg-muted/30 p-5 lg:order-none">
 				<div class="flex items-center justify-between">
 					<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Terms</div>
 					<Dialog.Root>

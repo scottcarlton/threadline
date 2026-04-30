@@ -172,19 +172,35 @@
 	{/if}
 
 	<!-- Action bar -->
-	<div class="flex items-center justify-between gap-3">
+	<div
+		class="flex flex-col items-stretch gap-4 min-[756px]:grid min-[756px]:grid-cols-2 min-[756px]:items-start"
+	>
 		{#if isSingle}
-			<Button href={`${resolve('/orders')}?type=${listType}`} variant="outline">
+			<Button
+				size="lg"
+				variant="outline"
+				class="order-last w-full min-[756px]:order-none"
+				href={`${resolve('/orders')}?type=${listType}`}
+			>
 				Back to {listType === 'order' ? 'orders' : 'notes'}
 			</Button>
-			<Button href={resolve(`/orders/${firstOrderNumber}`)}>
+			<Button
+				size="lg"
+				class="order-first w-full min-[756px]:order-none"
+				href={resolve(`/orders/${firstOrderNumber}`)}
+			>
 				View {listType === 'order' ? 'order' : 'note'}
 			</Button>
 		{:else}
-			<Button href={resolve(`/orders/${firstOrderNumber}`)} variant="outline">
+			<Button
+				size="lg"
+				variant="outline"
+				class="w-full"
+				href={resolve(`/orders/${firstOrderNumber}`)}
+			>
 				View first {listType === 'order' ? 'order' : 'note'}
 			</Button>
-			<Button href={`${resolve('/orders')}?type=${listType}`}>
+			<Button size="lg" class="w-full" href={`${resolve('/orders')}?type=${listType}`}>
 				Back to {listType === 'order' ? 'orders' : 'notes'}
 			</Button>
 		{/if}

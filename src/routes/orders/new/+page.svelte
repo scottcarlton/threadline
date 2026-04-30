@@ -14,12 +14,6 @@
 	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
-	import {
-		Tooltip,
-		TooltipContent,
-		TooltipProvider,
-		TooltipTrigger
-	} from '$lib/components/ui/tooltip/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Dialog } from 'bits-ui';
@@ -315,7 +309,9 @@
 				: []
 			: isBrandOrg
 				? ['Account']
-				: ['Brand', 'Account'];
+				: brands.length <= 1
+					? ['Account']
+					: ['Brand', 'Account'];
 		if (needsAccountDetailsStep) s.push('Details');
 		s.push('Items', 'Delivery');
 		if (needsLocationStep) s.push('Location');
@@ -329,6 +325,16 @@
 			const current = cart.brandFilter;
 			const alreadyPinned = current !== 'all' && current.length === 1 && current[0] === selfBrandId;
 			if (!alreadyPinned) cart.brandFilter = [selfBrandId];
+		}
+	});
+
+	// Auto-pin brandFilter when a rep org has exactly one brand — Brand step is skipped.
+	$effect(() => {
+		if (!isBuyer && !isBrandOrg && brands.length === 1) {
+			const only = brands[0].id;
+			const current = cart.brandFilter;
+			const alreadyPinned = current !== 'all' && current.length === 1 && current[0] === only;
+			if (!alreadyPinned) cart.brandFilter = [only];
 		}
 	});
 
@@ -519,28 +525,218 @@
 	function closeAddItemsModal() {
 		modalOpen = false;
 	}
-	// Auto-size: take the first non-zero size qty and apply it to every other size.
-	function autoSize(idx: number) {
-		const it = cart.items[idx];
-		const sizes = it.available_sizes;
-		if (sizes.length === 0) return;
-		let template = 0;
-		for (const s of sizes) {
+	// Apply All / Undo (per-row, transient — not persisted with the cart).
+	// `sizeTouches` records the order in which sizes were edited so the template
+	// for Apply All is the most-recently-typed value (with qty > 0). `applySnapshots`
+	// holds the pre-Apply qtys so Undo can restore them. Any value change clears
+	// the snapshot, flipping the button back to "Apply All" per spec.
+	const sizeTouches = $state<Record<string, string[]>>({});
+	const applySnapshots = $state<Record<string, Record<string, number>>>({});
+
+	function recordTouch(productId: string, size: string) {
+		const list = (sizeTouches[productId] ?? []).filter((s) => s !== size);
+		list.push(size);
+		sizeTouches[productId] = list;
+		if (applySnapshots[productId]) delete applySnapshots[productId];
+	}
+
+	function applyAllTemplate(it: OrderItem): number {
+		const list = sizeTouches[it.product_id] ?? [];
+		for (let i = list.length - 1; i >= 0; i--) {
+			const q = it.size_qtys[list[i]] ?? 0;
+			if (q > 0) return q;
+		}
+		// Fallback when nothing has been touched yet (e.g. seeded from another flow):
+		// pick any size with qty > 0, in declared order.
+		for (const s of it.available_sizes) {
 			const q = it.size_qtys[s] ?? 0;
-			if (q > 0) {
-				template = q;
-				break;
-			}
+			if (q > 0) return q;
 		}
+		return 0;
+	}
+
+	function applyAll(idx: number) {
+		const it = cart.items[idx];
+		const template = applyAllTemplate(it);
 		if (template === 0) return;
-		for (const s of sizes) {
-			cart.items[idx].size_qtys[s] = template;
+		const snapshot: Record<string, number> = {};
+		for (const s of it.available_sizes) snapshot[s] = it.size_qtys[s] ?? 0;
+		for (const s of it.available_sizes) {
+			if ((it.size_qtys[s] ?? 0) === 0) cart.items[idx].size_qtys[s] = template;
 		}
+		applySnapshots[it.product_id] = snapshot;
+	}
+
+	function undoApplyAll(idx: number) {
+		const it = cart.items[idx];
+		const snap = applySnapshots[it.product_id];
+		if (!snap) return;
+		for (const s of it.available_sizes) cart.items[idx].size_qtys[s] = snap[s] ?? 0;
+		delete applySnapshots[it.product_id];
 	}
 
 	function removeProduct(product_id: string) {
 		const i = cart.items.findIndex((it) => it.product_id === product_id);
 		if (i >= 0) cart.items.splice(i, 1);
+	}
+
+	// Undoable delete: splice immediately, stash a snapshot, render an inline
+	// placeholder until the user clicks Undo or the 6s window elapses.
+	type PendingUndo = {
+		snapshot: OrderItem;
+		originalIndex: number;
+		timeoutId: ReturnType<typeof setTimeout>;
+	};
+	const pendingUndos = $state<PendingUndo[]>([]);
+	const UNDO_WINDOW_MS = 6000;
+
+	function requestDelete(idx: number) {
+		const it = cart.items[idx];
+		if (!it) return;
+		const snapshot = $state.snapshot(it) as OrderItem;
+		const originalIndex = idx;
+		cart.items.splice(idx, 1);
+		const timeoutId = setTimeout(() => finalizeDelete(snapshot.product_id), UNDO_WINDOW_MS);
+		pendingUndos.push({ snapshot, originalIndex, timeoutId });
+	}
+
+	function undoDelete(product_id: string) {
+		const i = pendingUndos.findIndex((p) => p.snapshot.product_id === product_id);
+		if (i < 0) return;
+		const entry = pendingUndos[i];
+		clearTimeout(entry.timeoutId);
+		const insertAt = Math.min(entry.originalIndex, cart.items.length);
+		cart.items.splice(insertAt, 0, entry.snapshot);
+		pendingUndos.splice(i, 1);
+		// Wipe any Apply All snapshot for this row — the restored item is fresh
+		// and shouldn't carry a stale undo state.
+		if (applySnapshots[product_id]) delete applySnapshots[product_id];
+	}
+
+	function finalizeDelete(product_id: string) {
+		const i = pendingUndos.findIndex((p) => p.snapshot.product_id === product_id);
+		if (i >= 0) pendingUndos.splice(i, 1);
+	}
+
+	$effect(() => {
+		// Cleanup any in-flight undo timers when the page unmounts so they don't
+		// fire against a stale component.
+		return () => {
+			for (const p of pendingUndos) clearTimeout(p.timeoutId);
+		};
+	});
+
+	// iOS-Mail-style swipe-to-delete. Pointer events cover touch + mouse drag.
+	// Past MIN reveals a tap-to-confirm Delete button; past COMMIT_RATIO of the
+	// row width commits immediately. Vertical movement cancels (preserves scroll).
+	function swipeToDelete(
+		node: HTMLElement,
+		opts: { onCommit: () => void; onRevealChange?: (revealed: boolean) => void }
+	) {
+		const MIN_REVEAL = 88;
+		const COMMIT_RATIO = 0.45;
+		const SLOP = 8;
+		let startX = 0;
+		let startY = 0;
+		let currentDx = 0;
+		let pointerId: number | null = null;
+		let isSwiping = false;
+		let revealed = false;
+		let prevUserSelect = '';
+
+		function setOffset(px: number) {
+			node.style.transform = px === 0 ? '' : `translateX(${px}px)`;
+		}
+
+		function isInteractive(target: EventTarget | null) {
+			if (!(target instanceof HTMLElement)) return false;
+			return !!target.closest('button, input, select, textarea, a, [role="button"]');
+		}
+
+		function onPointerDown(e: PointerEvent) {
+			if (e.pointerType === 'mouse' && e.button !== 0) return;
+			if (isInteractive(e.target)) return;
+			startX = e.clientX;
+			startY = e.clientY;
+			currentDx = revealed ? -MIN_REVEAL : 0;
+			pointerId = e.pointerId;
+			isSwiping = false;
+			node.style.transition = 'none';
+		}
+
+		function onPointerMove(e: PointerEvent) {
+			if (pointerId !== e.pointerId) return;
+			const dx = e.clientX - startX;
+			const dy = e.clientY - startY;
+			if (!isSwiping) {
+				if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+				if (Math.abs(dx) <= Math.abs(dy)) {
+					pointerId = null;
+					return;
+				}
+				isSwiping = true;
+				prevUserSelect = node.style.userSelect;
+				node.style.userSelect = 'none';
+				try {
+					node.setPointerCapture(e.pointerId);
+				} catch {
+					/* noop */
+				}
+			}
+			const base = revealed ? -MIN_REVEAL : 0;
+			currentDx = Math.min(0, base + dx);
+			setOffset(currentDx);
+			e.preventDefault();
+		}
+
+		function onPointerUp(e: PointerEvent) {
+			if (pointerId !== e.pointerId) return;
+			pointerId = null;
+			if (!isSwiping) return;
+			isSwiping = false;
+			node.style.userSelect = prevUserSelect;
+			node.style.transition = 'transform 180ms ease-out';
+			const commitAt = node.clientWidth * COMMIT_RATIO;
+			if (Math.abs(currentDx) >= commitAt) {
+				setOffset(-node.clientWidth);
+				revealed = false;
+				opts.onRevealChange?.(false);
+				setTimeout(() => opts.onCommit(), 170);
+			} else if (Math.abs(currentDx) >= MIN_REVEAL) {
+				revealed = true;
+				setOffset(-MIN_REVEAL);
+				opts.onRevealChange?.(true);
+			} else {
+				revealed = false;
+				setOffset(0);
+				opts.onRevealChange?.(false);
+			}
+		}
+
+		function onPointerCancel(e: PointerEvent) {
+			if (pointerId !== e.pointerId) return;
+			pointerId = null;
+			if (!isSwiping) return;
+			isSwiping = false;
+			node.style.userSelect = prevUserSelect;
+			node.style.transition = 'transform 180ms ease-out';
+			setOffset(revealed ? -MIN_REVEAL : 0);
+		}
+
+		node.style.touchAction = 'pan-y';
+		node.addEventListener('pointerdown', onPointerDown);
+		node.addEventListener('pointermove', onPointerMove);
+		node.addEventListener('pointerup', onPointerUp);
+		node.addEventListener('pointercancel', onPointerCancel);
+
+		return {
+			destroy() {
+				node.removeEventListener('pointerdown', onPointerDown);
+				node.removeEventListener('pointermove', onPointerMove);
+				node.removeEventListener('pointerup', onPointerUp);
+				node.removeEventListener('pointercancel', onPointerCancel);
+			}
+		};
 	}
 
 	// Initialize group meta entries when groups change, and prune entries that no longer apply.
@@ -993,94 +1189,228 @@
 					<p class="mt-1 text-sm text-muted-foreground">Click Add to open the catalog.</p>
 				</div>
 			{:else}
+				{@const renderRows = (() => {
+					type Row =
+						| { kind: 'item'; it: OrderItem; idx: number }
+						| { kind: 'placeholder'; undo: PendingUndo };
+					const rows: Row[] = cart.items.map((it, idx) => ({ kind: 'item', it, idx }));
+					const sorted = [...pendingUndos].sort((a, b) => a.originalIndex - b.originalIndex);
+					for (const u of sorted) {
+						const at = Math.min(u.originalIndex, rows.length);
+						rows.splice(at, 0, { kind: 'placeholder', undo: u });
+					}
+					return rows;
+				})()}
 				<div class="space-y-3">
-					{#each cart.items as it, idx (it.product_id)}
-						{@const rowUnits = itemUnits(it)}
-						{@const rowTotal = itemTotal(it)}
-						<div class="group/item rounded-lg border p-4">
-							<div class="flex items-start gap-4">
-								<div class="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
-									{#if it.image_id}
-										<img
-											src={`/api/products/${it.product_id}/images/${it.image_id}`}
-											alt=""
-											class="h-full w-full object-cover"
-										/>
-									{:else}
-										<div
-											class="flex h-full w-full items-center justify-center text-muted-foreground/40"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												viewBox="0 0 24 24"
-												fill="none"
-												stroke="currentColor"
-												stroke-width="1.5"
-												class="h-6 w-6"
-											>
-												<rect x="3" y="3" width="18" height="18" rx="2" />
-												<circle cx="8.5" cy="8.5" r="1.5" />
-												<path d="M21 15l-5-5L5 21" />
-											</svg>
-										</div>
-									{/if}
-								</div>
-
-								<div class="min-w-0 flex-1">
-									<div class="font-mono text-sm">{it.style_number}</div>
-									<div class="text-sm font-medium">{it.name}</div>
-									<div class="text-sm text-muted-foreground">
-										{brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
-									</div>
-								</div>
-
-								<div class="shrink-0 self-center">
-									{#if it.available_colors.length > 1}
-										<ColorSwatchPicker
-											value={it.selected_color || null}
-											options={it.available_colors}
-											onChange={(c) => (cart.items[idx].selected_color = c ?? '')}
-										/>
-									{:else}
-										<div class="flex items-center justify-center gap-2 text-sm">
-											<ColorSwatch color={it.selected_color || null} size={28} />
-											{#if it.selected_color}
-												<span>{it.selected_color}</span>
-											{/if}
-										</div>
-									{/if}
-								</div>
-
-								<div class="shrink-0">
-									{#if it.available_sizes.length > 0}
-										<div class="flex flex-wrap items-end gap-2">
-											{#each it.available_sizes as size (size)}
-												<label class="flex flex-col items-center gap-1">
-													<span class="text-sm text-muted-foreground">{size}</span>
-													<input
-														type="number"
-														min="0"
-														class="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm"
-														value={it.size_qtys[size] ?? 0}
-														oninput={(e) => {
-															const n = parseInt((e.target as HTMLInputElement).value, 10);
-															cart.items[idx].size_qtys[size] = Number.isNaN(n)
-																? 0
-																: Math.max(0, n);
-														}}
-													/>
-												</label>
-											{/each}
-											<TooltipProvider>
-												<Tooltip>
-													<TooltipTrigger>
-														<button
-															type="button"
-															aria-label="Fill all sizes"
-															class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-40"
-															disabled={rowUnits === 0}
-															onclick={() => autoSize(idx)}
+					{#each renderRows as row (row.kind === 'item' ? row.it.product_id : `__pending__${row.undo.snapshot.product_id}`)}
+						{#if row.kind === 'placeholder'}
+							{@const p = row.undo}
+							<div
+								class="flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-6 py-4 text-sm"
+							>
+								<span class="text-muted-foreground">
+									Removed <span class="font-medium text-foreground">{p.snapshot.name}</span>
+								</span>
+								<button
+									type="button"
+									class="inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-foreground/70"
+									onclick={() => undoDelete(p.snapshot.product_id)}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.75"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										class="h-4 w-4"
+									>
+										<path d="M9 14l-4-4 4-4" />
+										<path d="M5 10h9a5 5 0 010 10h-2" />
+									</svg>
+									Undo
+								</button>
+							</div>
+						{:else}
+							{@const it = row.it}
+							{@const idx = row.idx}
+							{@const rowUnits = itemUnits(it)}
+							{@const rowTotal = itemTotal(it)}
+							<div class="group/item relative overflow-hidden rounded-lg border">
+								<button
+									type="button"
+									aria-label="Delete {it.name}"
+									class="absolute inset-y-0 right-0 flex w-22 items-center justify-center bg-destructive text-sm font-medium text-destructive-foreground"
+									onclick={() => requestDelete(idx)}
+								>
+									Delete
+								</button>
+								<div
+									class="relative bg-background"
+									use:swipeToDelete={{
+										onCommit: () => {
+											const i = cart.items.findIndex((x) => x.product_id === it.product_id);
+											if (i >= 0) requestDelete(i);
+										}
+									}}
+								>
+									<div class="px-6 py-4">
+										<div class="flex items-start justify-between gap-6">
+											<div class="flex min-w-0 flex-1 items-start gap-4">
+												<div class="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
+													{#if it.image_id}
+														<img
+															src={`/api/products/${it.product_id}/images/${it.image_id}`}
+															alt=""
+															class="h-full w-full object-cover"
+														/>
+													{:else}
+														<div
+															class="flex h-full w-full items-center justify-center text-muted-foreground/40"
 														>
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="none"
+																stroke="currentColor"
+																stroke-width="1.5"
+																class="h-6 w-6"
+															>
+																<rect x="3" y="3" width="18" height="18" rx="2" />
+																<circle cx="8.5" cy="8.5" r="1.5" />
+																<path d="M21 15l-5-5L5 21" />
+															</svg>
+														</div>
+													{/if}
+												</div>
+
+												<div class="min-w-0 flex-1">
+													<div class="font-mono text-sm">{it.style_number}</div>
+													<div class="text-sm font-medium">{it.name}</div>
+													<div class="text-sm text-muted-foreground">
+														{brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
+													</div>
+													<div class="mt-2">
+														{#if it.available_colors.length > 1}
+															<ColorSwatchPicker
+																value={it.selected_color || null}
+																options={it.available_colors}
+																onChange={(c) => (cart.items[idx].selected_color = c ?? '')}
+															/>
+														{:else}
+															<div class="flex items-center gap-2 text-sm">
+																<ColorSwatch color={it.selected_color || null} size={28} />
+																{#if it.selected_color}
+																	<span>{it.selected_color}</span>
+																{/if}
+															</div>
+														{/if}
+													</div>
+												</div>
+											</div>
+
+											<div class="shrink-0 text-right">
+												<div class="font-mono text-sm font-medium">{fmt.format(rowTotal)}</div>
+												<div class="text-sm text-muted-foreground">
+													{rowUnits}
+													{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(it.unit_price)}/ea
+												</div>
+											</div>
+										</div>
+
+										{#if it.available_sizes.length > 0}
+											{@const hasAnyValue = it.available_sizes.some(
+												(s) => (it.size_qtys[s] ?? 0) > 0
+											)}
+											{@const isUndo = !!applySnapshots[it.product_id]}
+											<div class="mt-3 flex flex-wrap items-start gap-3">
+												<div
+													class="grid gap-3"
+													style="grid-template-columns: repeat({it.available_sizes
+														.length}, minmax(0, 7rem));"
+												>
+													{#each it.available_sizes as size (size)}
+														{@const qty = it.size_qtys[size] ?? 0}
+														<div
+															role="group"
+															aria-label="{it.name} size {size} quantity"
+															class="grid min-h-14 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-md border bg-muted/40 transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
+															0
+																? 'border-dashed opacity-60'
+																: ''}"
+														>
+															<button
+																type="button"
+																aria-label="Decrease {size}"
+																class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-30"
+																disabled={qty === 0}
+																onclick={() => {
+																	cart.items[idx].size_qtys[size] = Math.max(0, qty - 1);
+																	recordTouch(it.product_id, size);
+																}}
+															>
+																−
+															</button>
+															<div
+																class="flex flex-col items-center justify-center px-1 text-center"
+															>
+																<div class="text-xs text-muted-foreground">{size}</div>
+																<input
+																	type="text"
+																	inputmode="numeric"
+																	pattern="[0-9]*"
+																	aria-label="{size} quantity"
+																	value={qty}
+																	oninput={(e) => {
+																		const raw = (e.currentTarget as HTMLInputElement).value.replace(
+																			/[^0-9]/g,
+																			''
+																		);
+																		const n = raw === '' ? 0 : parseInt(raw, 10);
+																		cart.items[idx].size_qtys[size] = Number.isNaN(n)
+																			? 0
+																			: Math.max(0, n);
+																		recordTouch(it.product_id, size);
+																	}}
+																	onkeydown={(e) => {
+																		if (e.key === 'ArrowUp') {
+																			e.preventDefault();
+																			cart.items[idx].size_qtys[size] = qty + 1;
+																			recordTouch(it.product_id, size);
+																		} else if (e.key === 'ArrowDown') {
+																			e.preventDefault();
+																			cart.items[idx].size_qtys[size] = Math.max(0, qty - 1);
+																			recordTouch(it.product_id, size);
+																		} else if (e.key === 'Enter') {
+																			e.preventDefault();
+																			(e.currentTarget as HTMLInputElement).blur();
+																		}
+																	}}
+																	class="w-full bg-transparent text-center font-mono text-sm outline-none"
+																/>
+															</div>
+															<button
+																type="button"
+																aria-label="Increase {size}"
+																class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset"
+																onclick={() => {
+																	cart.items[idx].size_qtys[size] = qty + 1;
+																	recordTouch(it.product_id, size);
+																}}
+															>
+																+
+															</button>
+														</div>
+													{/each}
+												</div>
+												{#if hasAnyValue || isUndo}
+													<button
+														type="button"
+														class="inline-flex h-14 shrink-0 items-center gap-1.5 px-3 text-sm text-foreground transition-colors hover:text-foreground/70"
+														onclick={() => (isUndo ? undoApplyAll(idx) : applyAll(idx))}
+													>
+														{#if isUndo}
 															<svg
 																xmlns="http://www.w3.org/2000/svg"
 																viewBox="0 0 24 24"
@@ -1091,75 +1421,67 @@
 																stroke-linejoin="round"
 																class="h-4 w-4"
 															>
-																<path d="M3 6h13" />
-																<path d="M3 12h13" />
-																<path d="M3 18h13" />
-																<path d="M19 9l3 3-3 3" />
+																<path d="M9 14l-4-4 4-4" />
+																<path d="M5 10h9a5 5 0 010 10h-2" />
 															</svg>
-														</button>
-													</TooltipTrigger>
-													<TooltipContent>
-														Apply this row's first non-zero qty to every size
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-										</div>
-									{:else}
-										<label class="flex flex-col items-center gap-1">
-											<span class="text-sm text-muted-foreground">Qty</span>
-											<input
-												type="number"
-												min="0"
-												class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center text-sm"
-												value={it.size_qtys[''] ?? 0}
-												oninput={(e) => {
-													const n = parseInt((e.target as HTMLInputElement).value, 10);
-													cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
-												}}
-											/>
-										</label>
-									{/if}
-								</div>
+															Undo
+														{:else}
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="currentColor"
+																class="h-4 w-4"
+															>
+																<path d="M8 5v14l11-7L8 5z" />
+															</svg>
+															Apply All
+														{/if}
+													</button>
+												{/if}
+											</div>
+										{:else}
+											<div class="mt-3 flex items-center gap-3">
+												<span class="text-sm text-muted-foreground">Qty</span>
+												<input
+													type="number"
+													min="0"
+													class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center font-mono text-sm"
+													value={it.size_qtys[''] ?? 0}
+													oninput={(e) => {
+														const n = parseInt((e.target as HTMLInputElement).value, 10);
+														cart.items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
+													}}
+												/>
+											</div>
+										{/if}
 
-								<div class="shrink-0 pt-[1.5rem] text-right font-mono text-sm">
-									{fmt.format(it.unit_price)}
-								</div>
-
-								<div class="shrink-0 pt-[1.5rem] text-right font-mono text-sm font-medium">
-									<div>{fmt.format(rowTotal)}</div>
-									<div class="text-sm font-normal text-muted-foreground">
-										{rowUnits}
-										{rowUnits === 1 ? 'unit' : 'units'}
+										<button
+											type="button"
+											aria-label="Remove {it.name}"
+											class="absolute right-3 bottom-3 inline-flex h-[42px] w-[42px] items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100"
+											onclick={() => requestDelete(idx)}
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.75"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												class="h-4 w-4"
+											>
+												<path d="M3 6h18" />
+												<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+												<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+												<path d="M10 11v6" />
+												<path d="M14 11v6" />
+											</svg>
+										</button>
 									</div>
 								</div>
-
-								<div class="shrink-0 pt-[1.5rem]">
-									<button
-										type="button"
-										aria-label="Remove item"
-										class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100"
-										onclick={() => removeProduct(it.product_id)}
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.75"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											class="h-4 w-4"
-										>
-											<path d="M3 6h18" />
-											<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-											<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-											<path d="M10 11v6" />
-											<path d="M14 11v6" />
-										</svg>
-									</button>
-								</div>
 							</div>
-						</div>
+						{/if}
 					{/each}
 				</div>
 			{/if}
@@ -2357,28 +2679,27 @@
 				}}
 			>
 				<input type="hidden" name="payload" value={JSON.stringify(payload)} />
-				<div class="flex items-center justify-between gap-3">
+				<div
+					class="flex flex-col items-stretch gap-4 min-[756px]:grid min-[756px]:grid-cols-2 min-[756px]:items-start"
+				>
 					<Button
 						type="submit"
+						size="lg"
 						variant="outline"
+						class="order-last w-full min-[756px]:order-none"
 						disabled={submitting}
 						onclick={() => {
 							cart.type = 'note';
 							submitStatus = 'submitted';
 						}}
 					>
-						{groups.length > 1 ? `Save ${groups.length} Notes` : 'Save as Note'}
+						{groups.length > 1 ? `Save ${groups.length} Notes` : 'Save as Notes'}
 					</Button>
-					<div class="flex items-center gap-4">
-						{#if termsBlockedBrands.length > 0 && !allBrandTermsAgreed}
-							<span class="text-sm text-muted-foreground/70">
-								{termsBlockedBrands.length === 1
-									? 'Check the terms box to submit'
-									: `Agree to each brand's terms to submit`}
-							</span>
-						{/if}
+					<div class="contents min-[756px]:flex min-[756px]:flex-col min-[756px]:gap-2">
 						<Button
 							type="submit"
+							size="lg"
+							class="order-1 w-full min-[756px]:order-none"
 							disabled={submitting ||
 								(isFreeform && !hasFreeformDetails) ||
 								(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
@@ -2389,6 +2710,15 @@
 						>
 							{groups.length > 1 ? `Submit ${groups.length} Orders` : 'Submit Order'}
 						</Button>
+						{#if termsBlockedBrands.length > 0 && !allBrandTermsAgreed}
+							<span
+								class="order-2 text-center text-sm text-muted-foreground/70 min-[756px]:order-none"
+							>
+								{termsBlockedBrands.length === 1
+									? 'Check the terms box to submit'
+									: `Agree to each brand's terms to submit`}
+							</span>
+						{/if}
 					</div>
 				</div>
 			</form>
@@ -2397,13 +2727,24 @@
 
 	<!-- Bottom nav: Next only (Back moved to top). -->
 	{#if stepName !== 'Finalize'}
-		<div class="mt-8 flex items-center justify-end gap-4">
+		<div class="mt-8 flex flex-col items-stretch gap-4 lg:flex-row lg:items-center lg:justify-end">
 			{#if stepName === 'Details'}
-				<button type="button" class="text-sm underline hover:no-underline" onclick={nextStep}>
+				<button
+					type="button"
+					class="text-center text-sm underline hover:no-underline lg:text-left"
+					onclick={nextStep}
+				>
 					Skip
 				</button>
 			{/if}
-			<Button onclick={nextStep} disabled={!canAdvance()}>Next</Button>
+			<Button
+				size="lg"
+				class="w-full lg:w-auto lg:min-w-[164px]"
+				onclick={nextStep}
+				disabled={!canAdvance()}
+			>
+				Next
+			</Button>
 		</div>
 	{/if}
 </div>
