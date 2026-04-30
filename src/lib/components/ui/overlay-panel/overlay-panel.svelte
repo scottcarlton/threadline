@@ -9,10 +9,19 @@
 		ariaLabel: string;
 		onclose: () => void;
 		width?: string;
+		closeOnEscape?: boolean;
 		children: Snippet;
 	};
 
-	let { open, side = 'left', ariaLabel, onclose, width = '320px', children }: Props = $props();
+	let {
+		open,
+		side = 'left',
+		ariaLabel,
+		onclose,
+		width = '320px',
+		closeOnEscape = true,
+		children
+	}: Props = $props();
 
 	let panelEl = $state<HTMLDivElement | null>(null);
 	let previouslyFocused: HTMLElement | null = null;
@@ -47,7 +56,7 @@
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
+		if (e.key === 'Escape' && closeOnEscape) {
 			e.preventDefault();
 			onclose();
 			return;

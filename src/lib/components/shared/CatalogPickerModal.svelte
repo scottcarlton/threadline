@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { fly } from 'svelte/transition';
+	import { expoOut, quintOut } from 'svelte/easing';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
@@ -18,6 +20,14 @@
 		itemTotal,
 		itemIsSized
 	} from './catalog-picker-types.js';
+
+	function asidePush(_node: Element, { width = 380, duration = 700 } = {}) {
+		return {
+			duration,
+			easing: expoOut,
+			css: (t: number) => `width: ${width * t}px; opacity: ${t};`
+		};
+	}
 
 	type Props = {
 		open: boolean;
@@ -249,21 +259,15 @@
 {#if open}
 	<div class="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-modal="true">
 		<!-- Top bar -->
-		<div class="flex items-center justify-between border-b px-5 py-3">
-			<div>
-				<h2 class="text-lg font-semibold">Add Items</h2>
-				<p class="text-sm text-muted-foreground">
-					{items.length} added · {items.filter(itemIsSized).length} sized
-				</p>
-			</div>
+		<div class="flex items-center justify-between px-5 py-3">
+			<h2 class="text-lg font-semibold">Add Items</h2>
 			<div class="flex items-center gap-2">
 				<Button variant="ghost" onclick={onclose}>Cancel</Button>
-				<Button onclick={handleDone}>Done</Button>
 			</div>
 		</div>
 
 		<!-- Filters -->
-		<div class="flex flex-wrap items-center gap-3 border-b px-5 py-3">
+		<div class="flex flex-wrap items-center gap-3 px-5 py-3">
 			<SearchInput
 				placeholder="Search style # or name…"
 				bind:value={modalSearch}
@@ -443,103 +447,133 @@
 				{@const it = findItem(sizingProductId)}
 				{#if it}
 					<aside
-						class="absolute top-0 right-0 bottom-0 z-10 flex w-[380px] flex-col border-l bg-background shadow-lg transition-transform duration-200"
+						transition:asidePush={{ width: 380, duration: 700 }}
+						class="flex shrink-0 flex-col overflow-hidden bg-background"
 					>
-						<div class="px-4 pt-5 pb-3">
-							<button
-								type="button"
-								class="mb-4 flex items-center gap-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-								onclick={() => (sizingProductId = null)}
-							>
-								<LongArrow direction="left" class="h-4 w-4" />
-								Back to products
-							</button>
-							<div class="text-sm text-muted-foreground">{it.style_number}</div>
-							<div class="text-base font-semibold">{it.name}</div>
-						</div>
-						<div class="flex-1 overflow-auto p-4">
-							{#if it.available_colors.length > 0}
-								<div class="mb-3">
-									<div class="mb-2 text-sm text-muted-foreground">Color</div>
-									<div class="flex flex-wrap gap-2">
-										{#each it.available_colors as color (color)}
-											{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
-											<button
-												type="button"
-												class="rounded-full px-3 py-1 text-sm font-medium transition {it.selected_color ===
-												color
-													? 'bg-foreground text-background'
-													: 'bg-muted text-muted-foreground hover:text-foreground'}"
-												onclick={() => (items[idx].selected_color = color)}
-											>
-												{color}
-											</button>
-										{/each}
+						<div class="flex w-[380px] flex-1 flex-col">
+							<div class="px-4 pt-5 pb-3">
+								<button
+									type="button"
+									class="mb-4 flex items-center gap-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+									onclick={() => (sizingProductId = null)}
+								>
+									<LongArrow direction="left" class="h-4 w-4" />
+									Back to products
+								</button>
+								<div class="text-sm text-muted-foreground">{it.style_number}</div>
+								<div class="text-base font-semibold">{it.name}</div>
+							</div>
+							<div class="flex-1 overflow-auto p-4">
+								{#if it.available_colors.length > 0}
+									<div class="mb-3">
+										<div class="mb-2 text-sm text-muted-foreground">Color</div>
+										<div class="flex flex-wrap gap-2">
+											{#each it.available_colors as color (color)}
+												{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
+												<button
+													type="button"
+													class="rounded-full px-3 py-1 text-sm font-medium transition {it.selected_color ===
+													color
+														? 'bg-foreground text-background'
+														: 'bg-muted text-muted-foreground hover:text-foreground'}"
+													onclick={() => (items[idx].selected_color = color)}
+												>
+													{color}
+												</button>
+											{/each}
+										</div>
 									</div>
-								</div>
-							{/if}
+								{/if}
 
-							{#if it.available_sizes.length > 0}
-								<div class="mb-2 text-sm text-muted-foreground">Sizes</div>
-								<div class="flex flex-wrap gap-3">
-									{#each it.available_sizes as size (size)}
-										{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
-										{@const prod = productForItem(it)}
-										<div class="flex flex-col items-center gap-1">
-											<span class="text-sm text-muted-foreground">{size}</span>
-											<input
-												type="number"
-												min="0"
-												class="h-10 w-16 rounded border bg-background px-2 text-center text-sm"
-												value={it.size_qtys[size] ?? 0}
-												oninput={(e) => {
-													const n = parseInt((e.target as HTMLInputElement).value, 10);
-													items[idx].size_qtys[size] = Number.isNaN(n) ? 0 : Math.max(0, n);
-												}}
-											/>
-											{#if prod?.ats}
-												{@const variant = findVariant(prod, it.selected_color, size)}
-												{#if variant}
-													{@const stat = deriveStockStatus(
-														variant.stock_qty,
-														variant.stock_threshold
-													)}
-													{#if stat}
-														<StockPill status={stat} qty={variant.stock_qty} />
+								{#if it.available_sizes.length > 0}
+									<div class="mb-2 text-sm text-muted-foreground">Sizes</div>
+									<div class="flex flex-wrap gap-3">
+										{#each it.available_sizes as size (size)}
+											{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
+											{@const prod = productForItem(it)}
+											<div class="flex flex-col items-center gap-1">
+												<span class="text-sm text-muted-foreground">{size}</span>
+												<input
+													type="number"
+													min="0"
+													class="h-10 w-16 rounded border bg-background px-2 text-center text-sm"
+													value={it.size_qtys[size] ?? 0}
+													oninput={(e) => {
+														const n = parseInt((e.target as HTMLInputElement).value, 10);
+														items[idx].size_qtys[size] = Number.isNaN(n) ? 0 : Math.max(0, n);
+													}}
+												/>
+												{#if prod?.ats}
+													{@const variant = findVariant(prod, it.selected_color, size)}
+													{#if variant}
+														{@const stat = deriveStockStatus(
+															variant.stock_qty,
+															variant.stock_threshold
+														)}
+														{#if stat}
+															<StockPill status={stat} qty={variant.stock_qty} />
+														{/if}
 													{/if}
 												{/if}
-											{/if}
-										</div>
-									{/each}
+											</div>
+										{/each}
+									</div>
+								{:else}
+									{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
+									<div class="flex items-center gap-2">
+										<span class="text-sm text-muted-foreground">Qty:</span>
+										<input
+											type="number"
+											min="0"
+											class="h-10 w-20 rounded border bg-background px-2 text-center text-sm"
+											value={it.size_qtys[''] ?? 0}
+											oninput={(e) => {
+												const n = parseInt((e.target as HTMLInputElement).value, 10);
+												items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
+											}}
+										/>
+									</div>
+								{/if}
+							</div>
+							<div class="p-4 text-sm">
+								<div class="flex items-center justify-between">
+									<span class="text-muted-foreground">Total</span>
+									<span class="font-semibold">
+										{itemUnits(it)} units · {fmt.format(itemTotal(it))}
+									</span>
 								</div>
-							{:else}
-								{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
-								<div class="flex items-center gap-2">
-									<span class="text-sm text-muted-foreground">Qty:</span>
-									<input
-										type="number"
-										min="0"
-										class="h-10 w-20 rounded border bg-background px-2 text-center text-sm"
-										value={it.size_qtys[''] ?? 0}
-										oninput={(e) => {
-											const n = parseInt((e.target as HTMLInputElement).value, 10);
-											items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
-										}}
-									/>
-								</div>
-							{/if}
-						</div>
-						<div class="border-t p-4 text-sm">
-							<div class="flex items-center justify-between">
-								<span class="text-muted-foreground">Total</span>
-								<span class="font-semibold">
-									{itemUnits(it)} units · {fmt.format(itemTotal(it))}
-								</span>
 							</div>
 						</div>
 					</aside>
 				{/if}
 			{/if}
 		</div>
+
+		{#if items.length > 0}
+			{@const unsizedCount = items.filter((i) => !itemIsSized(i)).length}
+			<div class="pointer-events-none fixed inset-x-0 bottom-6 z-10 flex justify-center px-4">
+				<div
+					transition:fly={{ y: 80, duration: 320, easing: quintOut }}
+					class="pointer-events-auto flex w-[420px] items-center justify-between gap-6 rounded-lg bg-foreground py-2 pr-2 pl-6 text-background shadow-lg md:w-[560px] md:py-3 md:pr-3 md:pl-8"
+				>
+					<div class="text-sm md:text-base">
+						{items.length}
+						{items.length === 1 ? 'Item' : 'Items'}
+						{#if unsizedCount > 0}
+							<span class="text-amber-400">
+								({unsizedCount} Unsized)
+							</span>
+						{/if}
+					</div>
+					<button
+						type="button"
+						class="inline-flex h-10 items-center rounded-md bg-background px-8 text-sm font-medium text-foreground transition-colors hover:bg-background/90 md:h-12 md:px-12 md:text-base"
+						onclick={handleDone}
+					>
+						Done
+					</button>
+				</div>
+			</div>
+		{/if}
 	</div>
 {/if}

@@ -20,7 +20,7 @@
 	import { acceptedMethodsOnly, acceptedTermsOnly } from '$lib/payment-methods';
 	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
 
-	type Brand = { id: string; name: string };
+	type Brand = { id: string; name: string; logo_url: string | null };
 	type Season = { id: string; name: string; sort_order: number | null };
 	type SeasonDeliveryRow = {
 		id: string;
@@ -65,7 +65,9 @@
 	let { data } = $props();
 	const accounts = $derived(data.accounts as Account[]);
 	const allLocations = $derived(data.locations as LocationRow[]);
-	const brands = $derived(data.brands as Brand[]);
+	const brands = $derived(
+		data.brands as Array<Brand & { products_count: number; seasons_count: number }>
+	);
 	const seasons = $derived(data.seasons as Season[]);
 	const deliveries = $derived(data.deliveries as SeasonDeliveryRow[]);
 	const isBuyer = $derived(data.isBuyer === true);
@@ -506,10 +508,17 @@
 		if (i >= 0) list.splice(i, 1);
 		else list.push(id);
 	}
+	function selectBrandAndAdvance(id: string) {
+		cart.brandFilter = [id];
+		nextStep();
+	}
 	function useAllBrands() {
 		cart.brandFilter = 'all';
 		nextStep();
 	}
+	const inMultiSelect = $derived(
+		cart.brandFilter !== 'all' && (cart.brandFilter as string[]).length > 0
+	);
 
 	const allowedBrandIds = $derived.by(() => {
 		if (cart.brandFilter === 'all') return brands.map((b) => b.id);
@@ -1113,41 +1122,89 @@
 
 	<!-- ── Brand step ─────────────────────────────────────────────────── -->
 	{#if stepName === 'Brand'}
-		<div>
-			<Label for="brand-search">Brands</Label>
-			<Input id="brand-search" class="mt-1" placeholder="Search brands…" bind:value={brandQuery} />
+		{@const showMulti = brands.length > 2}
+		{@const showSearch = brands.length > 7}
+		<div class="mx-auto max-w-[756px]">
+			{#if showSearch}
+				<Input
+					id="brand-search"
+					class="mb-4"
+					placeholder="Search brands…"
+					bind:value={brandQuery}
+				/>
+			{/if}
 
-			<div class="mt-3 max-h-80 overflow-auto rounded-lg border">
-				<ul class="divide-y">
-					{#each brandMatches as b (b.id)}
-						<li>
-							<button
-								type="button"
-								class="flex w-full items-center justify-between px-4 py-3 text-left text-sm transition hover:bg-muted/50"
-								onclick={() => toggleBrand(b.id)}
+			<ul class="space-y-2">
+				{#each brandMatches as b (b.id)}
+					{@const isSelected = brandSelected(b.id)}
+					<li class="group/card flex items-center gap-3">
+						{#if showMulti}
+							<div
+								class="shrink-0 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/card:opacity-100 {inMultiSelect
+									? '[@media(hover:hover)]:!opacity-100'
+									: ''}"
 							>
-								<span>{b.name}</span>
-								<span class="text-muted-foreground">
-									{brandSelected(b.id) ? '✓ Selected' : ''}
-								</span>
-							</button>
-						</li>
-					{/each}
-					{#if brandMatches.length === 0}
-						<li class="px-4 py-3 text-sm text-muted-foreground">No matching brands.</li>
-					{/if}
-				</ul>
-			</div>
+								<Checkbox checked={isSelected} onCheckedChange={() => toggleBrand(b.id)} />
+							</div>
+						{/if}
+						<button
+							type="button"
+							class="flex flex-1 items-center gap-4 rounded-lg border bg-background px-4 py-3 text-left transition-colors {isSelected
+								? 'border-foreground'
+								: '[@media(hover:hover)]:hover:border-foreground/40'}"
+							onclick={() => selectBrandAndAdvance(b.id)}
+						>
+							<div
+								class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-base font-semibold text-muted-foreground"
+							>
+								{#if b.logo_url}
+									<img src={b.logo_url} alt="" class="h-full w-full object-cover" />
+								{:else}
+									{b.name.charAt(0).toUpperCase()}
+								{/if}
+							</div>
+							<div class="min-w-0 flex-1">
+								<div class="font-semibold">{b.name}</div>
+								<div class="text-sm text-muted-foreground">
+									{b.products_count} products · {b.seasons_count}
+									{b.seasons_count === 1 ? 'Season' : 'Seasons'}
+								</div>
+							</div>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 24 24"
+								fill="currentColor"
+								class="h-5 w-5 shrink-0 text-muted-foreground transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/card:opacity-100"
+								aria-hidden="true"
+							>
+								<path
+									d="M13.1717 12.0007L8.22192 7.05093L9.63614 5.63672L16.0001 12.0007L9.63614 18.3646L8.22192 16.9504L13.1717 12.0007Z"
+								/>
+							</svg>
+						</button>
+					</li>
+				{/each}
+				{#if brandMatches.length === 0}
+					<li
+						class="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground"
+					>
+						No matching brands.
+					</li>
+				{/if}
+			</ul>
 
-			<div class="mt-3">
+			<div class="mt-4 flex items-center justify-between gap-3">
 				<button
 					type="button"
 					class="inline-flex items-center gap-1 text-sm underline hover:no-underline"
 					onclick={useAllBrands}
 				>
-					Continue with All Brands
+					Continue with all brands
 					<LongArrow direction="right" class="h-4 w-4" />
 				</button>
+				{#if showMulti && inMultiSelect}
+					<Button onclick={nextStep}>Next</Button>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -1157,10 +1214,11 @@
 		<div>
 			<div class="mb-4 flex items-center justify-between">
 				<div class="text-sm text-muted-foreground">
-					{cart.items.length} product{cart.items.length === 1 ? '' : 's'}
+					{cart.items.length}
+					{cart.items.length === 1 ? 'Item' : 'Items'}
 					{#if cart.items.some((i) => !itemIsSized(i))}
-						· <span class="text-amber-700">
-							{cart.items.filter((i) => !itemIsSized(i)).length} unsized
+						<span class="text-amber-700">
+							({cart.items.filter((i) => !itemIsSized(i)).length} Unsized)
 						</span>
 					{/if}
 				</div>
@@ -1238,14 +1296,27 @@
 							{@const rowUnits = itemUnits(it)}
 							{@const rowTotal = itemTotal(it)}
 							<div class="group/item relative overflow-hidden rounded-lg border">
-								<button
-									type="button"
-									aria-label="Delete {it.name}"
-									class="absolute inset-y-0 right-0 flex w-22 items-center justify-center bg-destructive text-sm font-medium text-destructive-foreground"
-									onclick={() => requestDelete(idx)}
+								<div
+									class="pointer-events-none absolute inset-y-0 right-0 flex w-22 items-center justify-center"
 								>
-									Delete
-								</button>
+									<button
+										type="button"
+										aria-label="Delete {it.name}"
+										class="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm transition-colors hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:outline-none"
+										onclick={() => requestDelete(idx)}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="currentColor"
+											class="h-5 w-5"
+										>
+											<path
+												d="M17 6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6ZM18 8H6V20H18V8ZM9 11H11V17H9V11ZM13 11H15V17H13V11ZM9 4V6H15V4H9Z"
+											/>
+										</svg>
+									</button>
+								</div>
 								<div
 									class="relative bg-background"
 									use:swipeToDelete={{
@@ -1256,9 +1327,9 @@
 									}}
 								>
 									<div class="px-6 py-4">
-										<div class="flex items-start justify-between gap-6">
-											<div class="flex min-w-0 flex-1 items-start gap-4">
-												<div class="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
+										<div class="flex items-center justify-between gap-6">
+											<div class="flex min-w-0 flex-1 items-center gap-4">
+												<div class="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
 													{#if it.image_id}
 														<img
 															src={`/api/products/${it.product_id}/images/${it.image_id}`}
@@ -1285,29 +1356,31 @@
 													{/if}
 												</div>
 
-												<div class="min-w-0 flex-1">
+												<div class="min-w-0">
 													<div class="font-mono text-sm">{it.style_number}</div>
 													<div class="text-sm font-medium">{it.name}</div>
 													<div class="text-sm text-muted-foreground">
 														{brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
 													</div>
-													<div class="mt-2">
-														{#if it.available_colors.length > 1}
-															<ColorSwatchPicker
-																value={it.selected_color || null}
-																options={it.available_colors}
-																onChange={(c) => (cart.items[idx].selected_color = c ?? '')}
-															/>
-														{:else}
-															<div class="flex items-center gap-2 text-sm">
-																<ColorSwatch color={it.selected_color || null} size={28} />
-																{#if it.selected_color}
-																	<span>{it.selected_color}</span>
-																{/if}
-															</div>
-														{/if}
-													</div>
 												</div>
+
+												<div class="shrink-0 self-center md:ml-4">
+													{#if it.available_colors.length > 1}
+														<ColorSwatchPicker
+															value={it.selected_color || null}
+															options={it.available_colors}
+															onChange={(c) => (cart.items[idx].selected_color = c ?? '')}
+														/>
+													{:else}
+														<div class="flex items-center gap-2 text-sm">
+															<ColorSwatch color={it.selected_color || null} size={28} />
+															{#if it.selected_color}
+																<span>{it.selected_color}</span>
+															{/if}
+														</div>
+													{/if}
+												</div>
+												<div class="flex-1"></div>
 											</div>
 
 											<div class="shrink-0 text-right">
@@ -1432,7 +1505,9 @@
 																fill="currentColor"
 																class="h-4 w-4"
 															>
-																<path d="M8 5v14l11-7L8 5z" />
+																<path
+																	d="M22 4C21.4477 4 21 4.44772 21 5V10.6665L11.7774 4.51806C11.6952 4.4633 11.5987 4.43408 11.5 4.43408C11.2239 4.43408 11 4.65794 11 4.93408V10.6665L1.77735 4.51806C1.69522 4.4633 1.59871 4.43408 1.5 4.43408C1.22386 4.43408 1 4.65794 1 4.93408V19.0656C1 19.1643 1.02922 19.2608 1.08397 19.3429C1.23715 19.5727 1.54759 19.6348 1.77735 19.4816L11 13.3332V19.0656C11 19.1643 11.0292 19.2608 11.084 19.3429C11.2372 19.5727 11.5476 19.6348 11.7774 19.4816L21 13.3332V19C21 19.5523 21.4477 20 22 20C22.5523 20 23 19.5523 23 19V5C23 4.44772 22.5523 4 22 4Z"
+																/>
 															</svg>
 															Apply All
 														{/if}
@@ -1458,24 +1533,18 @@
 										<button
 											type="button"
 											aria-label="Remove {it.name}"
-											class="absolute right-3 bottom-3 inline-flex h-[42px] w-[42px] items-center justify-center rounded text-muted-foreground opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100"
+											class="absolute right-3 bottom-3 inline-flex h-9 w-9 items-center justify-center rounded-md bg-destructive/10 text-destructive opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/20 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:outline-none"
 											onclick={() => requestDelete(idx)}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
 												viewBox="0 0 24 24"
-												fill="none"
-												stroke="currentColor"
-												stroke-width="1.75"
-												stroke-linecap="round"
-												stroke-linejoin="round"
+												fill="currentColor"
 												class="h-4 w-4"
 											>
-												<path d="M3 6h18" />
-												<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-												<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-												<path d="M10 11v6" />
-												<path d="M14 11v6" />
+												<path
+													d="M17 6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6ZM18 8H6V20H18V8ZM9 11H11V17H9V11ZM13 11H15V17H13V11ZM9 4V6H15V4H9Z"
+												/>
 											</svg>
 										</button>
 									</div>
@@ -1713,7 +1782,7 @@
 
 	<!-- ── Account step ───────────────────────────────────────────────── -->
 	{#if stepName === 'Account'}
-		<div>
+		<div class="mx-auto max-w-[756px]">
 			<Label for="account-input">Account</Label>
 			<div class="relative mt-1">
 				<Input
@@ -2726,7 +2795,7 @@
 	{/if}
 
 	<!-- Bottom nav: Next only (Back moved to top). -->
-	{#if stepName !== 'Finalize'}
+	{#if stepName !== 'Finalize' && stepName !== 'Account' && stepName !== 'Brand'}
 		<div class="mt-8 flex flex-col items-stretch gap-4 lg:flex-row lg:items-center lg:justify-end">
 			{#if stepName === 'Details'}
 				<button

@@ -11,6 +11,8 @@
 	import Sidebar from '$lib/components/layout/sidebar.svelte';
 	import Navbar from '$lib/components/layout/navbar.svelte';
 	import SearchDialog from '$lib/components/layout/SearchDialog.svelte';
+	import NotificationToasts from '$lib/components/notifications/NotificationToasts.svelte';
+	import NotificationCenter from '$lib/components/notifications/NotificationCenter.svelte';
 	import Markdown from '$lib/components/ai/Markdown.svelte';
 	import { startUnreadPolling } from '$lib/stores/unread.js';
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
@@ -189,6 +191,8 @@
 		}, 300);
 	}
 
+	let notificationsOpen = $state(false);
+
 	let sidebarOpen = $state<boolean>(
 		$preferences.sidebarOpen ?? (browser ? matchMedia('(min-width: 1024px)').matches : true)
 	);
@@ -289,13 +293,15 @@
 	const buyerAccountName = $derived(data.buyerAccounts?.[0]?.accounts?.business_name ?? null);
 
 	const orgDisplayName = $derived(
-		data.isBuyer && buyerAccountName
-			? buyerAccountName
-			: isNxBlsr
-				? 'Threadline'
-				: isBrandScoped && data.scopedBrandNames?.length
-					? data.scopedBrandNames.join(', ')
-					: (data.organization?.name ?? 'Threadline')
+		data.isSystemAdmin
+			? 'System'
+			: data.isBuyer && buyerAccountName
+				? buyerAccountName
+				: isNxBlsr
+					? 'Threadline'
+					: isBrandScoped && data.scopedBrandNames?.length
+						? data.scopedBrandNames.join(', ')
+						: (data.organization?.name ?? 'Threadline')
 	);
 
 	function handleAiKeydown(e: KeyboardEvent) {
@@ -718,6 +724,10 @@
 	<!-- Toaster is client-only — svelte-sonner calls setContext during child
 	     render, which throws `lifecycle_outside_component` during SvelteKit SSR. -->
 	<Toaster richColors position="top-center" />
+	{#if data.session && !isAuthRoute}
+		<NotificationToasts />
+		<NotificationCenter open={notificationsOpen} onclose={() => (notificationsOpen = false)} />
+	{/if}
 {/if}
 
 {#if $navigating}
@@ -740,7 +750,9 @@
 			role={data.membership?.role ?? null}
 			isBuyer={data.isBuyer === true}
 			{isNxBlsr}
+			{notificationsOpen}
 			onsidebarToggle={() => (sidebarOpen = !sidebarOpen)}
+			onNotificationsToggle={() => (notificationsOpen = !notificationsOpen)}
 		/>
 
 		<!-- Sidebar + Content below header. Both desktop (push) and mobile
@@ -770,11 +782,12 @@
 					mode="overlay"
 					open={sidebarOpen}
 					onclose={() => (sidebarOpen = false)}
-					role={data.membership?.role ?? 'guest'}
+					role={data.membership?.role ?? null}
 					orgType={data.orgType}
 					brandScope={data.brandScope}
 					isBuyer={data.isBuyer}
 					{isNxBlsr}
+					isSystemAdmin={data.isSystemAdmin}
 					bind:showHelp
 				/>
 			</div>
