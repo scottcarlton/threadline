@@ -11,6 +11,8 @@
 	import Sidebar from '$lib/components/layout/sidebar.svelte';
 	import Navbar from '$lib/components/layout/navbar.svelte';
 	import SearchDialog from '$lib/components/layout/SearchDialog.svelte';
+	import NotificationToasts from '$lib/components/notifications/NotificationToasts.svelte';
+	import NotificationCenter from '$lib/components/notifications/NotificationCenter.svelte';
 	import Markdown from '$lib/components/ai/Markdown.svelte';
 	import { startUnreadPolling } from '$lib/stores/unread.js';
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
@@ -188,6 +190,8 @@
 			if (!dockFocused) dockPeeking = false;
 		}, 300);
 	}
+
+	let notificationsOpen = $state(false);
 
 	let sidebarOpen = $state<boolean>(
 		$preferences.sidebarOpen ?? (browser ? matchMedia('(min-width: 1024px)').matches : true)
@@ -720,6 +724,10 @@
 	<!-- Toaster is client-only — svelte-sonner calls setContext during child
 	     render, which throws `lifecycle_outside_component` during SvelteKit SSR. -->
 	<Toaster richColors position="top-center" />
+	{#if data.session && !isAuthRoute}
+		<NotificationToasts />
+		<NotificationCenter open={notificationsOpen} onclose={() => (notificationsOpen = false)} />
+	{/if}
 {/if}
 
 {#if $navigating}
@@ -742,7 +750,9 @@
 			role={data.membership?.role ?? null}
 			isBuyer={data.isBuyer === true}
 			{isNxBlsr}
+			{notificationsOpen}
 			onsidebarToggle={() => (sidebarOpen = !sidebarOpen)}
+			onNotificationsToggle={() => (notificationsOpen = !notificationsOpen)}
 		/>
 
 		<!-- Sidebar + Content below header. Both desktop (push) and mobile
