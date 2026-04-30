@@ -194,7 +194,9 @@
 			: ''}"
 	>
 		{#if canEdit && !isMultiBrand && brand}
-			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
+			<Button variant="outline" class="hidden sm:inline-flex" onclick={() => (showImport = true)}
+				>Import</Button
+			>
 			<Button href="/products/new">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -205,16 +207,21 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				Add Product
+				Add<span class="hidden sm:inline"> Product</span>
 			</Button>
 		{/if}
 	</PageHeader>
 
 	<!-- Filters -->
-	<div class="flex flex-wrap gap-3">
-		<div class="max-w-xs flex-1">
-			<SearchInput placeholder="Search products..." value={search} oninput={onSearchInput} />
-		</div>
+	<div
+		class="-mx-4 flex min-h-[44px] items-center gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0"
+	>
+		<SearchInput
+			placeholder="Search products..."
+			value={search}
+			oninput={onSearchInput}
+			class="w-64 shrink-0"
+		/>
 		{#if (data.brands ?? []).length > 1}
 			<BrandFilter
 				brands={data.brands ?? []}
@@ -244,7 +251,7 @@
 			/>
 		{/if}
 		<PriceFilterDropdown bind:value={priceRange} maxPrice={maxProductPrice} />
-		<label class="ml-auto flex h-10 items-center gap-2 text-sm" for="ats-only">
+		<label class="flex h-10 shrink-0 items-center gap-2 text-sm lg:ml-auto" for="ats-only">
 			ATS Only
 			<Switch id="ats-only" bind:checked={atsOnly} aria-label="ATS Only" />
 		</label>
@@ -286,7 +293,7 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		<div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
 			{#each filtered as product (product.id)}
 				{@const primaryImage =
 					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
@@ -356,7 +363,9 @@
 					</div>
 					<div class="p-4">
 						<p class="text-xs text-muted-foreground">{product.style_number}</p>
-						<div class="mt-0.5 flex items-start justify-between gap-3">
+						<div
+							class="mt-0.5 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+						>
 							<div class="min-w-0">
 								<p class="text-sm font-medium">{product.name}</p>
 								{#if product.season_id || product.product_year}
@@ -366,7 +375,7 @@
 									</p>
 								{/if}
 							</div>
-							<div class="shrink-0 text-right">
+							<div class="shrink-0 sm:text-right">
 								<p class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</p>
 								<p class="mt-0.5 text-sm text-muted-foreground">
 									{getVariantSummary(product.product_variants ?? [])}

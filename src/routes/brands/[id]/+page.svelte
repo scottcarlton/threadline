@@ -275,8 +275,10 @@
 
 	<!-- Performance Dashboard -->
 	{#if performance && performance.totalOrders > 0}
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-			<Card>
+		<div
+			class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
+		>
+			<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 				<CardContent class="pt-4 pb-4">
 					<p class="text-sm font-medium text-muted-foreground">YTD Revenue</p>
 					<p class="mt-1 text-2xl font-semibold">{fmt.format(performance.ytdRevenue)}</p>
@@ -292,7 +294,7 @@
 					{/if}
 				</CardContent>
 			</Card>
-			<Card>
+			<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 				<CardContent class="pt-4 pb-4">
 					<p class="text-sm font-medium text-muted-foreground">YTD Orders</p>
 					<p class="mt-1 text-2xl font-semibold">{performance.ytdOrders}</p>
@@ -301,7 +303,7 @@
 					</p>
 				</CardContent>
 			</Card>
-			<Card>
+			<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 				<CardContent class="pt-4 pb-4">
 					<p class="text-sm font-medium text-muted-foreground">Active Accounts</p>
 					<p class="mt-1 text-2xl font-semibold">{performance.uniqueAccounts}</p>
@@ -310,7 +312,7 @@
 					</p>
 				</CardContent>
 			</Card>
-			<Card>
+			<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 				<CardContent class="pt-4 pb-4">
 					<p class="text-sm font-medium text-muted-foreground">Shipped Revenue</p>
 					<p class="mt-1 text-2xl font-semibold">{fmt.format(performance.ytdShipped)}</p>

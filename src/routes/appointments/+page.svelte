@@ -335,7 +335,7 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				Add Appointment
+				Add<span class="hidden sm:inline"> Appointment</span>
 			{/if}
 		</Button>
 	</PageHeader>

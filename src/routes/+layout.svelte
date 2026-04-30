@@ -78,6 +78,7 @@
 	$effect(() => {
 		if ($swUpdateAvailable) {
 			toast('A new version of Threadline is available.', {
+				id: 'sw-update',
 				action: {
 					label: 'Reload',
 					onClick: () => location.reload()
