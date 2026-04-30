@@ -289,13 +289,15 @@
 	const buyerAccountName = $derived(data.buyerAccounts?.[0]?.accounts?.business_name ?? null);
 
 	const orgDisplayName = $derived(
-		data.isBuyer && buyerAccountName
-			? buyerAccountName
-			: isNxBlsr
-				? 'Threadline'
-				: isBrandScoped && data.scopedBrandNames?.length
-					? data.scopedBrandNames.join(', ')
-					: (data.organization?.name ?? 'Threadline')
+		data.isSystemAdmin
+			? 'System'
+			: data.isBuyer && buyerAccountName
+				? buyerAccountName
+				: isNxBlsr
+					? 'Threadline'
+					: isBrandScoped && data.scopedBrandNames?.length
+						? data.scopedBrandNames.join(', ')
+						: (data.organization?.name ?? 'Threadline')
 	);
 
 	function handleAiKeydown(e: KeyboardEvent) {
@@ -770,11 +772,12 @@
 					mode="overlay"
 					open={sidebarOpen}
 					onclose={() => (sidebarOpen = false)}
-					role={data.membership?.role ?? 'guest'}
+					role={data.membership?.role ?? null}
 					orgType={data.orgType}
 					brandScope={data.brandScope}
 					isBuyer={data.isBuyer}
 					{isNxBlsr}
+					isSystemAdmin={data.isSystemAdmin}
 					bind:showHelp
 				/>
 			</div>
