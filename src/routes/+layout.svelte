@@ -18,10 +18,9 @@
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
-	import { registerServiceWorker, swUpdateAvailable, isOnline } from '$lib/stores/pwa.js';
+	import { registerServiceWorker, isOnline } from '$lib/stores/pwa.js';
 	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
 	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
-	import { toast } from 'svelte-sonner';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import { preferences } from '$lib/stores/preferences.js';
@@ -74,19 +73,9 @@
 		}
 	});
 
-	// SW update toast
-	$effect(() => {
-		if ($swUpdateAvailable) {
-			toast('A new version of Threadline is available.', {
-				id: 'sw-update',
-				action: {
-					label: 'Reload',
-					onClick: () => location.reload()
-				},
-				duration: Infinity
-			});
-		}
-	});
+	// New SW versions take over silently via clients.claim(); users pick up
+	// fresh code on the next navigation. A "Reload" toast on every deploy is
+	// noise on a continuously-deployed environment.
 
 	let mainEl = $state<HTMLElement | null>(null);
 	afterNavigate(({ from, to, type }) => {

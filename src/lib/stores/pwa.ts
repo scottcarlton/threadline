@@ -45,31 +45,14 @@ function createInstallPromptStore(): Writable<BeforeInstallPromptEvent | null> {
 
 export const isOnline = createOnlineStore();
 export const installPromptEvent = createInstallPromptStore();
-export const swUpdateAvailable = writable<boolean>(false);
 export const isStandalone = writable<boolean>(detectStandalone());
 
 export async function registerServiceWorker(): Promise<void> {
 	if (!browser) return;
 	if (!('serviceWorker' in navigator)) return;
 	try {
-		const reg = await navigator.serviceWorker.register('/service-worker.js', {
+		await navigator.serviceWorker.register('/service-worker.js', {
 			type: 'module'
-		});
-		// Listen for messages from the SW (update notification, etc.)
-		navigator.serviceWorker.addEventListener('message', (event) => {
-			if (event.data?.type === 'updateAvailable') {
-				swUpdateAvailable.set(true);
-			}
-		});
-		// Manual update check on focus — catches new builds without waiting for SW lifecycle.
-		reg.addEventListener('updatefound', () => {
-			const newWorker = reg.installing;
-			if (!newWorker) return;
-			newWorker.addEventListener('statechange', () => {
-				if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-					swUpdateAvailable.set(true);
-				}
-			});
 		});
 	} catch (err) {
 		console.error('Service worker registration failed:', err);

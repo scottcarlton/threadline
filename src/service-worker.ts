@@ -31,18 +31,8 @@ self.addEventListener('activate', (event) => {
 	event.waitUntil(
 		(async () => {
 			const keys = await caches.keys();
-			// A prior precache from a different version means this is a real update
-			// (not a first-install). Without this guard the toast fires on first
-			// install too, and re-fires for every client that loads the page after
-			// the SW activates — including immediately after the user reloads.
-			const hadPriorPrecache = keys.some((k) => k.startsWith('precache-') && k !== PRECACHE);
 			await Promise.all(keys.filter((k) => !ALL_CACHES.includes(k)).map((k) => caches.delete(k)));
 			await self.clients.claim();
-			if (!hadPriorPrecache) return;
-			const clients = await self.clients.matchAll({ type: 'window' });
-			for (const client of clients) {
-				client.postMessage({ type: 'updateAvailable' });
-			}
 		})()
 	);
 });
