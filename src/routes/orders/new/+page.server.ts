@@ -151,7 +151,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.in('organization_id', visibleOrgIds)
 			.order('sort_order'),
 		(() => {
-			let q = supabaseAdmin.from('brands').select('id, name, is_self_brand').eq('is_active', true);
+			let q = supabaseAdmin
+				.from('brands')
+				.select('id, name, logo_url, is_self_brand')
+				.eq('is_active', true);
 			if (buyerBrandIds) q = q.in('id', buyerBrandIds.length ? buyerBrandIds : ['__none__']);
 			else q = q.in('organization_id', visibleOrgIds);
 			return q.order('name');
@@ -230,10 +233,40 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
 
-	const brands = brandsRes.data ?? [];
+	const brandsRaw = brandsRes.data ?? [];
 	const selfBrandId = isBrandOrg
-		? (brands.find((b) => (b as { is_self_brand?: boolean }).is_self_brand)?.id ?? null)
+		? (brandsRaw.find((b) => (b as { is_self_brand?: boolean }).is_self_brand)?.id ?? null)
 		: null;
+
+	const brandIds = brandsRaw.map((b) => b.id);
+	const productsForCounts = brandIds.length
+		? await supabaseAdmin
+				.from('products')
+				.select('brand_id, season_id')
+				.in('brand_id', brandIds)
+				.is('archived_at', null)
+		: { data: [] as Array<{ brand_id: string; season_id: string | null }> };
+	const countsByBrand = new Map<string, { products: number; seasons: Set<string> }>();
+	for (const row of (productsForCounts.data ?? []) as Array<{
+		brand_id: string;
+		season_id: string | null;
+	}>) {
+		let entry = countsByBrand.get(row.brand_id);
+		if (!entry) {
+			entry = { products: 0, seasons: new Set<string>() };
+			countsByBrand.set(row.brand_id, entry);
+		}
+		entry.products += 1;
+		if (row.season_id) entry.seasons.add(row.season_id);
+	}
+	const brands = brandsRaw.map((b) => {
+		const c = countsByBrand.get(b.id);
+		return {
+			...b,
+			products_count: c?.products ?? 0,
+			seasons_count: c?.seasons.size ?? 0
+		};
+	});
 
 	const orgRow = organization as typeof organization & {
 		default_payment_terms?: string | null;
