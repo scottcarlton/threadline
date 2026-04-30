@@ -17,11 +17,12 @@
 	};
 
 	type Props = {
-		role: UserRole;
+		role: UserRole | null;
 		orgType?: OrgType;
 		brandScope?: string[] | null;
 		isBuyer?: boolean;
 		isNxBlsr?: boolean;
+		isSystemAdmin?: boolean;
 		showHelp?: boolean;
 		mode?: 'push' | 'overlay';
 		open?: boolean;
@@ -34,6 +35,7 @@
 		brandScope = null,
 		isBuyer = false,
 		isNxBlsr = false,
+		isSystemAdmin = false,
 		showHelp = $bindable(false),
 		mode = 'push',
 		open = true,
@@ -140,7 +142,40 @@
 			.filter(Boolean);
 	})();
 
-	const primaryNav = $derived(isNxBlsr ? nxBlsrNav : isBrandOrg ? brandNav : repNav);
+	// System super-admin nav: standalone, above-org. No role/org context applies.
+	const systemNav: NavItem[] = [
+		{
+			label: 'Overview',
+			href: '/system',
+			icon: 'M14.2458 10C14.6255 10 14.9393 10.2822 14.9889 10.6482L14.9958 10.75V12.2475C14.9958 13.7083 13.8567 14.9034 12.4177 14.9922L12.2504 14.9975L10.7513 15C10.3371 15.0007 10.0007 14.6655 10 14.2513C9.99936 13.8716 10.281 13.5573 10.647 13.507L10.7487 13.5L12.2479 13.4975C12.8943 13.4964 13.4255 13.0047 13.4893 12.3751L13.4958 12.2475V10.75C13.4958 10.3358 13.8316 10 14.2458 10ZM1.75 10C2.16421 10 2.5 10.3358 2.5 10.75V12.2475C2.5 12.937 3.05836 13.4963 3.74789 13.4975L5.24703 13.5C5.66125 13.5007 5.99646 13.8371 5.99576 14.2513C5.99506 14.6655 5.65871 15.0007 5.2445 15L3.74535 14.9975C2.22839 14.9949 1 13.7644 1 12.2475V10.75C1 10.3358 1.33579 10 1.75 10ZM8 6C9.10457 6 10 6.89543 10 8C10 9.10457 9.10457 10 8 10C6.89543 10 6 9.10457 6 8C6 6.89543 6.89543 6 8 6ZM10.7513 1L12.2504 1.00254C13.7674 1.0051 14.9958 2.23556 14.9958 3.75253V5.25C14.9958 5.66422 14.66 6 14.2458 6C13.8316 6 13.4958 5.66422 13.4958 5.25V3.75253C13.4958 3.063 12.9374 2.5037 12.2479 2.50253L10.7487 2.5C10.3345 2.4993 9.9993 2.16295 10 1.74873C10.0007 1.33452 10.3371 0.999302 10.7513 1ZM5.24873 1C5.66295 0.999303 5.9993 1.33452 6 1.74873C6.0007 2.16295 5.66548 2.4993 5.25127 2.5L3.75212 2.50253C3.06259 2.5037 2.50424 3.063 2.50424 3.75253V5.25C2.50424 5.66422 2.16845 6 1.75424 6C1.34002 6 1.00424 5.66422 1.00424 5.25V3.75253C1.00424 2.23556 2.23262 1.0051 3.74959 1.00254L5.24873 1Z',
+			fillIcon: true,
+			viewBox: '0 0 16 16'
+		},
+		{
+			label: 'Organizations',
+			href: '/system/organizations',
+			icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4'
+		},
+		{
+			label: 'Users',
+			href: '/system/users',
+			icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+		},
+		{
+			label: 'Feature flags',
+			href: '/system/flags',
+			icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z'
+		},
+		{
+			label: 'Invites',
+			href: '/system/invites',
+			icon: 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75'
+		}
+	];
+
+	const primaryNav = $derived(
+		isSystemAdmin ? systemNav : isNxBlsr ? nxBlsrNav : isBrandOrg ? brandNav : repNav
+	);
 
 	// Items a brand-scoped member (not sales) sees
 	const brandScopedNav = ['Insight', 'Accounts', 'Orders', 'Expenses', 'Reports'];
@@ -160,15 +195,17 @@
 	};
 	const salesAllowed = $derived(isBrandOrg ? salesBrandNav : salesRepNav);
 	const filteredPrimaryNav = $derived(
-		isBuyer
-			? [buyerHomeNav, shopNav, ...primaryNav.filter((item) => item.label === 'Orders')]
-			: isNxBlsr
-				? primaryNav
-				: isSales
-					? primaryNav.filter((item) => salesAllowed.includes(item.label))
-					: isBrandScoped
-						? primaryNav.filter((item) => brandScopedNav.includes(item.label))
-						: primaryNav
+		isSystemAdmin
+			? primaryNav
+			: isBuyer
+				? [buyerHomeNav, shopNav, ...primaryNav.filter((item) => item.label === 'Orders')]
+				: isNxBlsr
+					? primaryNav
+					: isSales
+						? primaryNav.filter((item) => salesAllowed.includes(item.label))
+						: isBrandScoped
+							? primaryNav.filter((item) => brandScopedNav.includes(item.label))
+							: primaryNav
 	);
 
 	const inboxNav: NavItem = {
@@ -236,7 +273,7 @@
 			</a>
 		{/each}
 
-		{#if !isBuyer && (!isBrandScoped || isSales)}
+		{#if !isSystemAdmin && !isBuyer && (!isBrandScoped || isSales)}
 			<div class="mt-6">
 				{#if !isBrandScoped || isSales}
 					<a

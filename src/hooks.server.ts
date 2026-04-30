@@ -9,6 +9,7 @@ import {
 	PUBLIC_SENTRY_DSN
 } from '$env/static/public';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 import type {
 	OrgType,
 	OrganizationMember,
@@ -98,6 +99,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.isBuyer = false;
 	event.locals.buyerAccounts = null;
 	event.locals.buyerBrandIds = null;
+	event.locals.isSystemAdmin = false;
 	event.locals.orgType = 'rep';
 	event.locals.allMemberships = [];
 
@@ -113,11 +115,28 @@ const authHandle: Handle = async ({ event, resolve }) => {
 		session &&
 		(event.url.pathname.startsWith('/login') || event.url.pathname.startsWith('/signup'))
 	) {
-		throw redirect(303, '/insight');
+		throw redirect(303, isSystemAdminEmail(user?.email) ? '/system' : '/insight');
 	}
 
 	// Load user context for authenticated routes
 	if (session && user && !isPublicRoute) {
+		// System super-admin path: above-org identity, no org/buyer context.
+		// Confines the session to /system/** and its API/logout escape hatches.
+		if (isSystemAdminEmail(user.email)) {
+			const { data: profile } = await supabaseAdmin
+				.from('profiles')
+				.select('*')
+				.eq('id', user.id)
+				.single();
+			event.locals.user = profile;
+			event.locals.isSystemAdmin = true;
+			const path = event.url.pathname;
+			const allowed =
+				path.startsWith('/system') || path.startsWith('/api/') || path.startsWith('/logout');
+			if (!allowed) throw redirect(303, '/system');
+			return resolve(event);
+		}
+
 		const [{ data: profile }, { data: allMemberships }] = await Promise.all([
 			supabaseAdmin.from('profiles').select('*').eq('id', user.id).single(),
 			supabase.from('organization_members').select('*, organizations(*)').eq('profile_id', user.id)
