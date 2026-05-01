@@ -35,6 +35,14 @@
 		}
 	});
 
+	// Local toggle for handling fee — purely UI sugar so the input collapses
+	// when the fee is "off". Persisted server-side as `handling_fee_amount = 0`.
+	let handlingFeeEnabled = $state(($form.handlingFeeAmount ?? 0) > 0);
+	function toggleHandlingFee(v: boolean) {
+		handlingFeeEnabled = v;
+		if (!v) $form.handlingFeeAmount = 0;
+	}
+
 	const sampleOrderNumber = $derived.by(() => {
 		const padded =
 			$form.orderNumberPadWidth > 0
@@ -156,25 +164,26 @@
 				/>
 			</div>
 
-			<div class="space-y-2">
-				<Label for="min-amount">Minimum amount</Label>
-				<div class="flex items-center gap-2">
-					<span class="text-sm text-muted-foreground">$</span>
-					<Input
-						id="min-amount"
-						type="number"
-						min={0}
-						step={0.01}
-						bind:value={$form.orderMinimumAmount}
-						disabled={!$form.orderMinimumEnabled}
-						class="w-40"
-						aria-invalid={$errors.orderMinimumAmount ? 'true' : undefined}
-					/>
+			{#if $form.orderMinimumEnabled}
+				<div class="space-y-2">
+					<Label for="min-amount">Minimum amount</Label>
+					<div class="flex items-center gap-2">
+						<span class="text-sm text-muted-foreground">$</span>
+						<Input
+							id="min-amount"
+							type="number"
+							min={0}
+							step={0.01}
+							bind:value={$form.orderMinimumAmount}
+							class="w-40"
+							aria-invalid={$errors.orderMinimumAmount ? 'true' : undefined}
+						/>
+					</div>
+					{#if $errors.orderMinimumAmount}
+						<p class="text-sm text-destructive">{$errors.orderMinimumAmount[0]}</p>
+					{/if}
 				</div>
-				{#if $errors.orderMinimumAmount}
-					<p class="text-sm text-destructive">{$errors.orderMinimumAmount[0]}</p>
-				{/if}
-			</div>
+			{/if}
 		</section>
 
 		<!-- Default commission rate -->
@@ -206,28 +215,34 @@
 
 		<!-- Handling fee -->
 		<section class="space-y-4">
-			<h3 class="text-sm font-semibold">Handling fee</h3>
-			<p class="text-sm text-muted-foreground">
-				Flat fee added to every new order. Set to 0 to disable.
-			</p>
-			<div class="space-y-2">
-				<Label for="handling-fee">Amount</Label>
-				<div class="flex items-center gap-2">
-					<span class="text-sm text-muted-foreground">$</span>
-					<Input
-						id="handling-fee"
-						type="number"
-						min={0}
-						step={0.01}
-						bind:value={$form.handlingFeeAmount}
-						class="w-40"
-						aria-invalid={$errors.handlingFeeAmount ? 'true' : undefined}
-					/>
+			<div class="flex items-center justify-between gap-3">
+				<div>
+					<h3 class="text-sm font-semibold">Handling fee</h3>
+					<p class="mt-0.5 text-sm text-muted-foreground">Flat fee added to every new order.</p>
 				</div>
-				{#if $errors.handlingFeeAmount}
-					<p class="text-sm text-destructive">{$errors.handlingFeeAmount[0]}</p>
-				{/if}
+				<Switch checked={handlingFeeEnabled} onCheckedChange={toggleHandlingFee} />
 			</div>
+
+			{#if handlingFeeEnabled}
+				<div class="space-y-2">
+					<Label for="handling-fee">Amount</Label>
+					<div class="flex items-center gap-2">
+						<span class="text-sm text-muted-foreground">$</span>
+						<Input
+							id="handling-fee"
+							type="number"
+							min={0}
+							step={0.01}
+							bind:value={$form.handlingFeeAmount}
+							class="w-40"
+							aria-invalid={$errors.handlingFeeAmount ? 'true' : undefined}
+						/>
+					</div>
+					{#if $errors.handlingFeeAmount}
+						<p class="text-sm text-destructive">{$errors.handlingFeeAmount[0]}</p>
+					{/if}
+				</div>
+			{/if}
 		</section>
 
 		<div>
