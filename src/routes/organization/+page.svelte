@@ -291,8 +291,8 @@
 		</section>
 
 		<div>
-			<Button type="submit" disabled={$profileSubmitting}>
-				{$profileSubmitting ? 'Saving…' : 'Save changes'}
+			<Button type="submit" loading={$profileSubmitting} class="w-full sm:w-auto">
+				Save changes
 			</Button>
 		</div>
 	</form>

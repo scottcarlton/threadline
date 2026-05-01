@@ -188,9 +188,7 @@
 		</div>
 
 		<div class="mt-6 flex items-center gap-3">
-			<Button onclick={handleSave} disabled={saving}>
-				{saving ? 'Saving...' : 'Save changes'}
-			</Button>
+			<Button onclick={handleSave} loading={saving}>Save changes</Button>
 			{#if message}
 				<p class="text-[13px] text-muted-foreground">{message}</p>
 			{/if}
@@ -349,9 +347,7 @@
 			</label>
 
 			<div class="flex items-center gap-3 pt-2">
-				<Button type="submit" disabled={prefsSaving}>
-					{prefsSaving ? 'Saving…' : 'Save Preferences'}
-				</Button>
+				<Button type="submit" loading={prefsSaving}>Save Preferences</Button>
 				{#if prefsSaved}
 					<span class="text-sm text-emerald-600">Saved</span>
 				{/if}

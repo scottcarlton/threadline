@@ -361,9 +361,10 @@
 						size="lg"
 						class="min-w-[180px]"
 						onclick={handleSubmit}
-						disabled={submitting || !email.trim() || !selectedRole}
+						loading={submitting}
+						disabled={!email.trim() || !selectedRole}
 					>
-						{submitting ? 'Sending...' : 'Send Invite'}
+						Send Invite
 					</Button>
 				</div>
 			</div>

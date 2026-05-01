@@ -231,9 +231,7 @@
 		</section>
 
 		<div>
-			<Button type="submit" disabled={$submitting}>
-				{$submitting ? 'Saving…' : 'Save changes'}
-			</Button>
+			<Button type="submit" loading={$submitting} class="w-full sm:w-auto">Save changes</Button>
 		</div>
 	</form>
 
@@ -281,7 +279,9 @@
 					{/if}
 				</div>
 
-				<div class="flex items-center justify-between gap-3">
+				<div
+					class="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between"
+				>
 					<p class="text-sm text-muted-foreground">
 						{#if currentTerms}
 							Current version: v{currentTerms.version}. Saving creates v{currentTerms.version + 1}
@@ -290,8 +290,8 @@
 							No terms on file. Saving creates v1.
 						{/if}
 					</p>
-					<Button type="submit" disabled={$termsSubmitting}>
-						{$termsSubmitting ? 'Saving…' : 'Save new version'}
+					<Button type="submit" loading={$termsSubmitting} class="w-full sm:w-auto">
+						Save new version
 					</Button>
 				</div>
 			</form>

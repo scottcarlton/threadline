@@ -482,7 +482,7 @@
 					</section>
 
 					<div class="flex justify-end pt-2">
-						<Button type="submit" disabled={$oSubmitting}>Save orders</Button>
+						<Button type="submit" loading={$oSubmitting}>Save orders</Button>
 					</div>
 				</form>
 			{:else if activeTab === 'taxes'}
@@ -592,7 +592,7 @@
 					</section>
 
 					<div class="flex justify-end pt-2">
-						<Button type="submit" disabled={$tSubmitting}>Save taxes</Button>
+						<Button type="submit" loading={$tSubmitting}>Save taxes</Button>
 					</div>
 				</form>
 
@@ -686,9 +686,9 @@
 							</div>
 						</div>
 						<div class="flex gap-2">
-							<Button type="submit" disabled={$trSubmitting}
-								>{editingRateId ? 'Update' : 'Add'}</Button
-							>
+							<Button type="submit" loading={$trSubmitting}>
+								{editingRateId ? 'Update' : 'Add'}
+							</Button>
 							{#if editingRateId}
 								<Button type="button" variant="outline" onclick={cancelEditRate}>Cancel</Button>
 							{/if}
@@ -772,7 +772,7 @@
 					</section>
 
 					<div class="flex justify-end pt-2">
-						<Button type="submit" disabled={$sSubmitting}>Save shipping</Button>
+						<Button type="submit" loading={$sSubmitting}>Save shipping</Button>
 					</div>
 				</form>
 
@@ -887,9 +887,9 @@
 							</div>
 						</div>
 						<div class="flex gap-2">
-							<Button type="submit" disabled={$smSubmitting}
-								>{editingMethodId ? 'Update' : 'Add'}</Button
-							>
+							<Button type="submit" loading={$smSubmitting}>
+								{editingMethodId ? 'Update' : 'Add'}
+							</Button>
 							{#if editingMethodId}
 								<Button type="button" variant="outline" onclick={cancelEditMethod}>Cancel</Button>
 							{/if}
@@ -1012,7 +1012,7 @@
 					</section>
 
 					<div class="flex justify-end pt-2">
-						<Button type="submit" disabled={$rSubmitting}>Save returns</Button>
+						<Button type="submit" loading={$rSubmitting}>Save returns</Button>
 					</div>
 				</form>
 			{:else if activeTab === 'payments'}
@@ -1119,7 +1119,7 @@
 					</section>
 
 					<div class="flex justify-end pt-2">
-						<Button type="submit" disabled={$pSubmitting}>Save payments</Button>
+						<Button type="submit" loading={$pSubmitting}>Save payments</Button>
 					</div>
 				</form>
 			{/if}

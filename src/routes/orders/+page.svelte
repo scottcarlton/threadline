@@ -680,7 +680,7 @@
 			<div class="h-5 w-px bg-border"></div>
 			{#if nextStatuses.length > 0}
 				{#each nextStatuses as status (status)}
-					<Button size="sm" onclick={() => bulkUpdateStatus(status)} disabled={bulkUpdating}>
+					<Button size="sm" onclick={() => bulkUpdateStatus(status)} loading={bulkUpdating}>
 						{status === 'submitted'
 							? 'Submit'
 							: status === 'confirmed'

@@ -134,9 +134,7 @@
 							{error}
 						</div>
 					{/if}
-					<Button disabled={submitting} onclick={submit}>
-						{submitting ? 'Accepting…' : 'Accept'}
-					</Button>
+					<Button loading={submitting} onclick={submit}>Accept</Button>
 				</div>
 			{/if}
 		{/if}
