@@ -24,6 +24,8 @@
 	const isOrder = $derived(data.order_type === 'order');
 	const isSingle = $derived(data.count === 1);
 	const listType = $derived(isOrder ? 'order' : 'note');
+	const firstIsDraft = $derived(isOrder && data.rows[0]?.status === 'draft');
+	const detailNoun = $derived(isOrder ? (firstIsDraft ? 'draft' : 'order') : 'note');
 
 	const createdLabel = $derived.by(() => {
 		if (!data.createdAt) return null;
@@ -32,12 +34,15 @@
 	});
 
 	const headline = $derived.by(() => {
-		if (isOrder) return isSingle ? 'Order submitted.' : `${data.count} orders submitted.`;
+		if (isOrder) {
+			if (firstIsDraft) return isSingle ? 'Draft saved.' : `${data.count} drafts saved.`;
+			return isSingle ? 'Order submitted.' : `${data.count} orders submitted.`;
+		}
 		return isSingle ? 'Note saved.' : `${data.count} notes saved.`;
 	});
 
 	const eyebrow = $derived.by(() => {
-		if (isOrder) return 'Submitted';
+		if (isOrder) return firstIsDraft ? 'Saved as draft' : 'Submitted';
 		return isSingle ? 'Saved as note' : 'Saved as notes';
 	});
 
@@ -189,7 +194,7 @@
 				class="order-first w-full min-[756px]:order-none"
 				href={resolve(`/orders/${firstOrderNumber}`)}
 			>
-				View {listType === 'order' ? 'order' : 'note'}
+				View {detailNoun}
 			</Button>
 		{:else}
 			<Button
@@ -198,7 +203,7 @@
 				class="w-full"
 				href={resolve(`/orders/${firstOrderNumber}`)}
 			>
-				View first {listType === 'order' ? 'order' : 'note'}
+				View first {detailNoun}
 			</Button>
 			<Button size="lg" class="w-full" href={`${resolve('/orders')}?type=${listType}`}>
 				Back to {listType === 'order' ? 'orders' : 'notes'}

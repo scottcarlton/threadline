@@ -348,7 +348,7 @@ type SubmitPayload = {
 	freeform_name: string | null;
 	freeformDetails?: FreeformDetails;
 	order_year: number | null;
-	submitStatus: OrderStatus; // 'draft' | 'submitted'
+	submitStatus: OrderStatus; // 'draft' | 'submitted' | 'confirmed'
 	payment_preference: string | null;
 	lines: CartLine[];
 	groups: Array<{
@@ -632,7 +632,7 @@ export const actions: Actions = {
 			const canStampTerms = Boolean(
 				finalizeData &&
 				finalizeData.submit_mode === 'order' &&
-				o.status === 'submitted' &&
+				(o.status === 'submitted' || o.status === 'confirmed') &&
 				ba?.agreed &&
 				ba.terms_id
 			);
@@ -673,7 +673,9 @@ export const actions: Actions = {
 					terms_agreed_by: canStampTerms ? user.id : null,
 					terms_agreed_at: canStampTerms ? new Date().toISOString() : null,
 					created_by: user.id,
-					submitted_at: o.status === 'submitted' ? new Date().toISOString() : null
+					submitted_at:
+						o.status === 'submitted' || o.status === 'confirmed' ? new Date().toISOString() : null,
+					confirmed_at: o.status === 'confirmed' ? new Date().toISOString() : null
 				})
 				.select('id, order_number')
 				.single();
@@ -719,10 +721,10 @@ export const actions: Actions = {
 				}
 			}
 
-			if (o.status === 'submitted') {
+			if (o.status === 'submitted' || o.status === 'confirmed') {
 				const origin = request.headers.get('origin') ?? '';
 				sendOrderEmail(
-					'submitted',
+					o.status,
 					{
 						id: orderRow.id,
 						order_number: orderRow.order_number,
@@ -733,10 +735,11 @@ export const actions: Actions = {
 					},
 					origin
 				);
+				const isConfirmed = o.status === 'confirmed';
 				notifyBrandAdmins(o.brand_id, user.id, {
-					type: 'order_submitted',
-					title: 'New order submitted',
-					body: `Order ${orderRow.order_number} has been submitted`,
+					type: isConfirmed ? 'order_confirmed' : 'order_submitted',
+					title: isConfirmed ? 'New order confirmed' : 'New order submitted',
+					body: `Order ${orderRow.order_number} has been ${isConfirmed ? 'confirmed' : 'submitted'}`,
 					link: `/orders/${orderRow.id}`
 				});
 			}
