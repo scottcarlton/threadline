@@ -314,9 +314,10 @@
 					<Button
 						size="sm"
 						onclick={handleAdd}
-						disabled={saving || !newStyleNumber.trim() || !newName.trim()}
+						loading={saving}
+						disabled={!newStyleNumber.trim() || !newName.trim()}
 					>
-						{saving ? 'Saving...' : 'Add Product'}
+						Add Product
 					</Button>
 					<Button variant="outline" size="sm" onclick={resetForm}>Cancel</Button>
 				</div>

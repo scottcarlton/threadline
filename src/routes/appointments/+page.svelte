@@ -316,6 +316,7 @@
 <div class="space-y-6">
 	<PageHeader title="Appointments" subtitle="Schedule and manage appointments">
 		<Button
+			class="min-w-[100px]"
 			variant={showAddForm ? 'outline' : 'default'}
 			onclick={() => {
 				showAddForm = !showAddForm;
@@ -335,7 +336,7 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				Add Appointment
+				Add<span class="hidden sm:inline"> Appointment</span>
 			{/if}
 		</Button>
 	</PageHeader>

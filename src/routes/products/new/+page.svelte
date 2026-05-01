@@ -598,9 +598,10 @@
 				{:else}
 					<Button
 						onclick={handleSave}
-						disabled={saving || !productName.trim() || !styleNumber.trim() || !wholesalePrice}
+						loading={saving}
+						disabled={!productName.trim() || !styleNumber.trim() || !wholesalePrice}
 					>
-						{saving ? 'Creating...' : 'Create Product'}
+						Create Product
 					</Button>
 				{/if}
 			</div>

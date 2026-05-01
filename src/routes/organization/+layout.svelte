@@ -188,7 +188,7 @@
 					{/each}
 				</nav>
 
-				<div class="min-w-0 flex-1">
+				<div class="min-w-0 flex-1 pb-32">
 					{@render children?.()}
 				</div>
 			</div>
@@ -212,7 +212,7 @@
 				<span>Sections{activeGroupItem ? ` · ${activeGroupItem.label}` : ''}</span>
 			</button>
 
-			<div class="mt-6">
+			<div class="mt-6 pb-32">
 				{@render children?.()}
 			</div>
 

@@ -121,11 +121,13 @@
 <div class="space-y-6">
 	<PageHeader title="Brands" subtitle="Manage your brand portfolio">
 		{#if filtered.length > 0}
-			<Button variant="outline" onclick={exportBrands}>Export</Button>
+			<Button variant="outline" class="hidden sm:inline-flex" onclick={exportBrands}>Export</Button>
 		{/if}
 		{#if canEdit}
-			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
-			<Button href="/brands/new">
+			<Button variant="outline" class="hidden sm:inline-flex" onclick={() => (showImport = true)}
+				>Import</Button
+			>
+			<Button href="/brands/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"
@@ -135,7 +137,7 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				Add Brand
+				Add<span class="hidden sm:inline"> Brand</span>
 			</Button>
 		{/if}
 	</PageHeader>
@@ -190,21 +192,21 @@
 							>Brand</th
 						>
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>Contact</th
 						>
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>Status</th
 						>
 						{#if isAdmin}
 							<th
-								class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+								class="hidden px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 								>Rate</th
 							>
 						{/if}
 						<th
-							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>YTD Sales</th
 						>
 					</tr>
@@ -249,7 +251,7 @@
 									>
 								{/if}
 							</td>
-							<td class="px-4 py-3">
+							<td class="hidden px-4 py-3 sm:table-cell">
 								<div class="text-sm text-foreground">
 									{[brand.contact_first_name, brand.contact_last_name].filter(Boolean).join(' ') ||
 										'—'}
@@ -258,7 +260,7 @@
 									<div class="font-mono text-sm text-muted-foreground">{brand.contact_email}</div>
 								{/if}
 							</td>
-							<td class="px-4 py-3">
+							<td class="hidden px-4 py-3 sm:table-cell">
 								{#if brand.archived_at}
 									<span
 										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
@@ -277,13 +279,13 @@
 								{/if}
 							</td>
 							{#if isAdmin}
-								<td class="px-4 py-3 text-right">
+								<td class="hidden px-4 py-3 text-right sm:table-cell">
 									<span class="text-sm"
 										>{brand.resolved_commission_rate ?? brand.commission_rate ?? 0}%</span
 									>
 								</td>
 							{/if}
-							<td class="px-4 py-3 text-right font-mono">
+							<td class="hidden px-4 py-3 text-right font-mono sm:table-cell">
 								{#if brandTotals[brand.id]}
 									<span class="text-sm">{fmt(brandTotals[brand.id])}</span>
 								{:else}

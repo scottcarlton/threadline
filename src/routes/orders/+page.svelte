@@ -18,7 +18,6 @@
 		TooltipTrigger
 	} from '$lib/components/ui/tooltip/index.js';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
-	import { downloadCSV } from '$lib/utils/csv.js';
 	import OrderImportModal from '$lib/components/orders/OrderImportModal.svelte';
 	import { toast } from 'svelte-sonner';
 	import type { Order, Season } from '$lib/types/database.js';
@@ -127,8 +126,6 @@
 	const hasSourceOptions = $derived(showDates.length > 0 || sourceTypes.length > 0);
 	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
 	const canCreate = $derived(data.membership?.role !== 'guest');
-	// Brand-level sales reps shouldn't export org-wide data.
-	const canExport = $derived(!(isBrandOrg && data.membership?.role === 'sales'));
 	const metrics = $derived(
 		data.metrics as {
 			pipelineValue: number;
@@ -378,6 +375,14 @@
 		delivered: 'bg-emerald-50 text-emerald-700',
 		cancelled: 'bg-red-50 text-red-700'
 	};
+	const statusDotColors: Record<string, string> = {
+		draft: 'bg-zinc-400',
+		submitted: 'bg-amber-500',
+		confirmed: 'bg-blue-500',
+		shipped: 'bg-indigo-500',
+		delivered: 'bg-emerald-500',
+		cancelled: 'bg-red-500'
+	};
 
 	function seasonLabel(order: Order): string {
 		const name = order.seasons?.name;
@@ -385,28 +390,6 @@
 		if (name) return name;
 		if (order.order_year) return String(order.order_year);
 		return '—';
-	}
-
-	function exportOrders() {
-		const rows = filtered.map((o) => ({
-			order_number: o.order_number,
-			account: o.accounts?.business_name ?? '',
-			brand: o.brands?.name ?? '',
-			season: o.seasons?.name ?? '',
-			year: o.order_year ?? '',
-			status: o.status,
-			created_by: o.profiles?.display_name ?? '',
-			source: o.show_dates?.shows?.name ?? o.source_types?.name ?? '',
-			ship_window_start: o.season_deliveries?.delivery_month
-				? `${o.season_deliveries.delivery_month}/01`
-				: '',
-			expected_ship_date: o.expected_ship_date ?? '',
-			shipped_at: o.shipped_at ?? '',
-			total_amount: o.total_amount,
-			shipped_amount: o.shipped_amount ?? '',
-			created_at: o.created_at
-		}));
-		downloadCSV(rows, 'orders.csv');
 	}
 
 	let showImport = $state(false);
@@ -469,14 +452,8 @@
 			? 'Note'
 			: 'Order'}{(data.totalCount ?? orderList.length) !== 1 ? 's' : ''}"
 	>
-		{#if filtered.length > 0 && canExport}
-			<Button variant="outline" onclick={exportOrders}>Export CSV</Button>
-		{/if}
-		{#if isBrandOrg && canCreate}
-			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
-		{/if}
 		{#if canCreate}
-			<Button href="/orders/new">
+			<Button href="/orders/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"
@@ -486,7 +463,7 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				New Order
+				New<span class="hidden sm:inline"> Order</span>
 			</Button>
 		{/if}
 	</PageHeader>
@@ -703,7 +680,7 @@
 			<div class="h-5 w-px bg-border"></div>
 			{#if nextStatuses.length > 0}
 				{#each nextStatuses as status (status)}
-					<Button size="sm" onclick={() => bulkUpdateStatus(status)} disabled={bulkUpdating}>
+					<Button size="sm" onclick={() => bulkUpdateStatus(status)} loading={bulkUpdating}>
 						{status === 'submitted'
 							? 'Submit'
 							: status === 'confirmed'
@@ -862,7 +839,7 @@
 			<table class="w-full">
 				<thead>
 					<tr class="border-b">
-						<th class="w-8 py-2.5 pr-1 pl-4">
+						<th class="hidden w-8 py-2.5 pr-1 pl-4 sm:table-cell">
 							<Checkbox
 								checked={allSelected}
 								indeterminate={selectedIds.size > 0 && !allSelected}
@@ -905,7 +882,7 @@
 							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Total</th
 						>
-						<th class="w-10 px-4 py-2.5"></th>
+						<th class="hidden w-10 px-4 py-2.5 sm:table-cell"></th>
 					</tr>
 				</thead>
 				<tbody class="divide-y">
@@ -959,7 +936,7 @@
 								? 'bg-primary/5'
 								: ''}"
 						>
-							<td class="w-8 py-3 pr-1 pl-4 align-top">
+							<td class="hidden w-8 py-3 pr-1 pl-4 align-top sm:table-cell">
 								<div class="flex h-5 items-center justify-center text-sm">
 									{#if rowBuckets.length > 0}
 										<TooltipProvider delayDuration={150}>
@@ -1012,7 +989,13 @@
 									<span class="text-sm font-medium text-muted-foreground">Note</span>
 								{:else}
 									<span
-										class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {statusBadgeColors[
+										class="inline-block h-2.5 w-2.5 rounded-full sm:hidden {statusDotColors[
+											order.status
+										] ?? 'bg-zinc-400'}"
+										aria-label={statusLabels[order.status] ?? order.status}
+									></span>
+									<span
+										class="hidden items-center rounded-full px-2.5 py-0.5 text-xs font-medium sm:inline-flex {statusBadgeColors[
 											order.status
 										] ?? 'bg-zinc-100 text-zinc-500'}"
 									>
@@ -1131,7 +1114,7 @@
 									<p class="text-xs text-muted-foreground/50">—</p>
 								{/if}
 							</td>
-							<td class="w-10 px-4 py-3 text-right align-middle">
+							<td class="hidden w-10 px-4 py-3 text-right align-middle sm:table-cell">
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger
 										aria-label="More actions"

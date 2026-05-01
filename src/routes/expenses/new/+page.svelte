@@ -227,7 +227,8 @@
 				variant="outline"
 				type="submit"
 				form="expense-form"
-				disabled={loading}
+				loading={loading && asDraft}
+				disabled={loading && !asDraft}
 				onclick={() => (asDraft = true)}
 			>
 				Save as Draft
@@ -235,10 +236,11 @@
 			<Button
 				type="submit"
 				form="expense-form"
-				disabled={loading}
+				loading={loading && !asDraft}
+				disabled={loading && asDraft}
 				onclick={() => (asDraft = false)}
 			>
-				{loading ? 'Submitting...' : 'Submit Expense'}
+				Submit Expense
 			</Button>
 		</CardFooter>
 	</Card>

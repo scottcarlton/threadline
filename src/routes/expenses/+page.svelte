@@ -114,7 +114,7 @@
 			<Button variant="outline" onclick={exportExpenses}>Export CSV</Button>
 		{/if}
 		{#if canCreate}
-			<Button href="/expenses/new">
+			<Button href="/expenses/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"
@@ -124,7 +124,7 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				New Expense
+				New<span class="hidden sm:inline"> Expense</span>
 			</Button>
 		{/if}
 	</PageHeader>

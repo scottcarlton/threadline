@@ -137,10 +137,8 @@
 						</div>
 					{/if}
 
-					<Button disabled={submitting} onclick={submit}>
-						{#if submitting}
-							Connecting…
-						{:else if data.autoApprove}
+					<Button loading={submitting} onclick={submit}>
+						{#if data.autoApprove}
 							Accept & Connect
 						{:else}
 							Accept

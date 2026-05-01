@@ -75,9 +75,7 @@
 		</CardContent>
 		<CardFooter class="justify-between">
 			<Button variant="outline" href="/organization/shows">Cancel</Button>
-			<Button type="submit" form="show-form" disabled={loading}>
-				{loading ? 'Creating...' : 'Create Show'}
-			</Button>
+			<Button type="submit" form="show-form" {loading}>Create Show</Button>
 		</CardFooter>
 	</Card>
 </div>

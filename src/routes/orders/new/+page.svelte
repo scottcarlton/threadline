@@ -11,12 +11,14 @@
 	import DateSelect from '$lib/components/ui/date-select.svelte';
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
+	import SizeStepperSheet from '$lib/components/shared/SizeStepperSheet.svelte';
+	import ColorPickerSheet from '$lib/components/shared/ColorPickerSheet.svelte';
 	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { Dialog } from 'bits-ui';
+	import { Dialog, DropdownMenu } from 'bits-ui';
 	import { acceptedMethodsOnly, acceptedTermsOnly } from '$lib/payment-methods';
 	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
 
@@ -527,6 +529,16 @@
 
 	// ── Items / catalog picker ──────────────────────────────────────────────
 	let modalOpen = $state(false);
+	let sizingSheetProductId = $state<string | null>(null);
+	const sizingSheetIdx = $derived(
+		sizingSheetProductId ? cart.items.findIndex((x) => x.product_id === sizingSheetProductId) : -1
+	);
+	const sizingSheetItem = $derived(sizingSheetIdx >= 0 ? cart.items[sizingSheetIdx] : null);
+	let colorPickerProductId = $state<string | null>(null);
+	const colorPickerIdx = $derived(
+		colorPickerProductId ? cart.items.findIndex((x) => x.product_id === colorPickerProductId) : -1
+	);
+	const colorPickerItem = $derived(colorPickerIdx >= 0 ? cart.items[colorPickerIdx] : null);
 
 	function openAddItemsModal() {
 		modalOpen = true;
@@ -905,7 +917,14 @@
 	}
 	// ── Submit ──────────────────────────────────────────────────────────────
 	let submitting = $state(false);
-	let submitStatus = $state<'draft' | 'submitted'>('draft');
+	let submitStatus = $state<'draft' | 'submitted' | 'confirmed'>('draft');
+	let submitFormEl: HTMLFormElement | null = $state(null);
+	let submitComboEl: HTMLDivElement | null = $state(null);
+	function submitOrderAs(status: 'draft' | 'submitted' | 'confirmed') {
+		cart.type = 'order';
+		submitStatus = status;
+		submitFormEl?.requestSubmit();
+	}
 	let finalizeExpandedKey = $state<string | null>(null);
 	let finalizeExpandAll = $state(false);
 	let shipEditOpen = $state(false);
@@ -1090,7 +1109,7 @@
 
 <svelte:head><title>New Order — Threadline</title></svelte:head>
 
-<div class="w-full p-6">
+<div class="w-full">
 	<!-- Top nav: Back (left) + Cancel (right) -->
 	<div class="mb-4 flex items-center justify-between">
 		{#if currentStep > 0}
@@ -1326,7 +1345,92 @@
 										}
 									}}
 								>
-									<div class="px-6 py-4">
+									<!-- Mobile: compact card, tap sizes to edit ──────────────────── -->
+									<div class="block sm:hidden">
+										<div class="px-4 py-3">
+											<div class="flex items-start gap-3">
+												<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
+													{#if it.image_id}
+														<img
+															src={`/api/products/${it.product_id}/images/${it.image_id}`}
+															alt=""
+															class="h-full w-full object-cover"
+														/>
+													{:else}
+														<div
+															class="flex h-full w-full items-center justify-center text-muted-foreground/40"
+														>
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="none"
+																stroke="currentColor"
+																stroke-width="1.5"
+																class="h-5 w-5"
+															>
+																<rect x="3" y="3" width="18" height="18" rx="2" />
+																<circle cx="8.5" cy="8.5" r="1.5" />
+																<path d="M21 15l-5-5L5 21" />
+															</svg>
+														</div>
+													{/if}
+												</div>
+												<div class="min-w-0 flex-1">
+													<div class="font-mono text-sm text-muted-foreground/70">
+														{it.style_number}
+													</div>
+													<div class="truncate text-sm font-semibold">{it.name}</div>
+													<div class="truncate text-sm text-muted-foreground">
+														{brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
+													</div>
+												</div>
+												<button
+													type="button"
+													class="shrink-0 self-start pt-1 transition active:scale-95 disabled:pointer-events-none"
+													aria-label="Choose color for {it.name}"
+													disabled={it.available_colors.length === 0}
+													onclick={() => (colorPickerProductId = it.product_id)}
+												>
+													<ColorSwatch color={it.selected_color || null} size={20} />
+												</button>
+											</div>
+
+											{#if it.available_sizes.length > 0}
+												<button
+													type="button"
+													class="mt-3 grid w-full gap-1.5 transition-opacity active:opacity-60"
+													style="grid-template-columns: repeat({it.available_sizes
+														.length}, minmax(0, 1fr));"
+													aria-label="Edit sizes for {it.name}"
+													onclick={() => (sizingSheetProductId = it.product_id)}
+												>
+													{#each it.available_sizes as size (size)}
+														{@const qty = it.size_qtys[size] ?? 0}
+														<div
+															class="flex flex-col items-center justify-center rounded-md border bg-muted/40 py-1.5 {qty ===
+															0
+																? 'border-dashed opacity-60'
+																: ''}"
+														>
+															<div class="text-sm text-muted-foreground">{size}</div>
+															<div class="font-mono text-sm">{qty}</div>
+														</div>
+													{/each}
+												</button>
+											{/if}
+
+											<div class="mt-3 flex items-center justify-between">
+												<div class="text-sm text-muted-foreground">
+													{rowUnits}
+													{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(it.unit_price)}/ea
+												</div>
+												<div class="font-mono text-sm font-medium">{fmt.format(rowTotal)}</div>
+											</div>
+										</div>
+									</div>
+
+									<!-- Desktop: full inline editor ─────────────────────────────── -->
+									<div class="hidden px-6 py-4 sm:block">
 										<div class="flex items-center justify-between gap-6">
 											<div class="flex min-w-0 flex-1 items-center gap-4">
 												<div class="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
@@ -1533,7 +1637,7 @@
 										<button
 											type="button"
 											aria-label="Remove {it.name}"
-											class="absolute right-3 bottom-3 inline-flex h-9 w-9 items-center justify-center rounded-md bg-destructive/10 text-destructive opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/20 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:outline-none"
+											class="absolute right-3 bottom-3 hidden h-9 w-9 items-center justify-center rounded-md bg-destructive/10 text-destructive opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/20 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:outline-none sm:inline-flex"
 											onclick={() => requestDelete(idx)}
 										>
 											<svg
@@ -2732,6 +2836,7 @@
 
 			<!-- ─────── Actions ─────── -->
 			<form
+				bind:this={submitFormEl}
 				method="POST"
 				action="?/submit"
 				use:enhance={() => {
@@ -2765,20 +2870,110 @@
 						{groups.length > 1 ? `Save ${groups.length} Notes` : 'Save as Notes'}
 					</Button>
 					<div class="contents min-[756px]:flex min-[756px]:flex-col min-[756px]:gap-2">
-						<Button
-							type="submit"
-							size="lg"
-							class="order-1 w-full min-[756px]:order-none"
-							disabled={submitting ||
-								(isFreeform && !hasFreeformDetails) ||
-								(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
-							onclick={() => {
-								cart.type = 'order';
-								submitStatus = 'submitted';
-							}}
-						>
-							{groups.length > 1 ? `Submit ${groups.length} Orders` : 'Submit Order'}
-						</Button>
+						<div bind:this={submitComboEl} class="order-1 flex w-full min-[756px]:order-none">
+							<Button
+								type="submit"
+								size="lg"
+								class="flex-1 rounded-none"
+								disabled={submitting ||
+									(isFreeform && !hasFreeformDetails) ||
+									(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
+								onclick={() => {
+									cart.type = 'order';
+									submitStatus = 'confirmed';
+								}}
+							>
+								{groups.length > 1
+									? `Submit & Confirm ${groups.length} Orders`
+									: 'Submit & Confirm'}
+							</Button>
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger
+									type="button"
+									aria-label="More submit options"
+									disabled={submitting ||
+										(isFreeform && !hasFreeformDetails) ||
+										(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
+									class="inline-flex h-11 w-11 shrink-0 items-center justify-center border-l border-l-primary-foreground/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										class="h-4 w-4"
+										aria-hidden="true"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+									</svg>
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Portal>
+									<DropdownMenu.Content
+										customAnchor={submitComboEl}
+										align="end"
+										sideOffset={6}
+										class="z-50 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+										style="width: var(--bits-dropdown-menu-anchor-width); min-width: 16rem;"
+									>
+										<DropdownMenu.Item
+											onSelect={() => submitOrderAs('submitted')}
+											class="flex cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.6"
+												class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+												aria-hidden="true"
+											>
+												<circle cx="12" cy="12" r="9" />
+												<path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2" />
+											</svg>
+											<span class="flex flex-col">
+												<span class="font-medium">Submit as Pending</span>
+												<span class="text-sm text-muted-foreground"
+													>Send to the brand for review.</span
+												>
+											</span>
+										</DropdownMenu.Item>
+										<DropdownMenu.Item
+											onSelect={() => submitOrderAs('draft')}
+											class="flex cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.6"
+												class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+												aria-hidden="true"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"
+												/>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M18.5 3.5a2.121 2.121 0 0 1 3 3L12 16l-4 1 1-4 9.5-9.5Z"
+												/>
+											</svg>
+											<span class="flex flex-col">
+												<span class="font-medium">Save as Draft</span>
+												<span class="text-sm text-muted-foreground"
+													>Keep editing — nothing is sent yet.</span
+												>
+											</span>
+										</DropdownMenu.Item>
+									</DropdownMenu.Content>
+								</DropdownMenu.Portal>
+							</DropdownMenu.Root>
+						</div>
 						{#if termsBlockedBrands.length > 0 && !allBrandTermsAgreed}
 							<span
 								class="order-2 text-center text-sm text-muted-foreground/70 min-[756px]:order-none"
@@ -2828,4 +3023,50 @@
 	showBrandFilter={cart.brandFilter === 'all' || (cart.brandFilter as string[]).length > 1}
 	onclose={closeAddItemsModal}
 	ondone={() => {}}
+/>
+
+<!-- ── Mobile per-item size editor ─────────────────────────────────────── -->
+<SizeStepperSheet
+	open={sizingSheetProductId !== null}
+	onClose={() => (sizingSheetProductId = null)}
+	styleNumber={sizingSheetItem?.style_number}
+	name={sizingSheetItem?.name}
+	brand={sizingSheetItem ? brandName(sizingSheetItem.brand_id) : null}
+	season={sizingSheetItem
+		? seasonLabel(sizingSheetItem.season_id, sizingSheetItem.product_year)
+		: null}
+	color={sizingSheetItem?.selected_color || null}
+	imageUrl={sizingSheetItem?.image_id
+		? `/api/products/${sizingSheetItem.product_id}/images/${sizingSheetItem.image_id}`
+		: null}
+	unitPrice={sizingSheetItem?.unit_price}
+	sizes={sizingSheetItem?.available_sizes}
+	qtys={sizingSheetItem?.size_qtys}
+	onChange={(size, qty) => {
+		if (sizingSheetIdx >= 0) cart.items[sizingSheetIdx].size_qtys[size] = qty;
+	}}
+	onColorPickerOpen={() => {
+		const id = sizingSheetItem?.product_id ?? null;
+		sizingSheetProductId = null;
+		if (id) colorPickerProductId = id;
+	}}
+/>
+
+<ColorPickerSheet
+	open={colorPickerProductId !== null}
+	onClose={() => (colorPickerProductId = null)}
+	styleNumber={colorPickerItem?.style_number}
+	name={colorPickerItem?.name}
+	brand={colorPickerItem ? brandName(colorPickerItem.brand_id) : null}
+	season={colorPickerItem
+		? seasonLabel(colorPickerItem.season_id, colorPickerItem.product_year)
+		: null}
+	imageUrl={colorPickerItem?.image_id
+		? `/api/products/${colorPickerItem.product_id}/images/${colorPickerItem.image_id}`
+		: null}
+	colors={colorPickerItem?.available_colors}
+	selected={colorPickerItem?.selected_color || null}
+	onSelect={(color) => {
+		if (colorPickerIdx >= 0) cart.items[colorPickerIdx].selected_color = color;
+	}}
 />

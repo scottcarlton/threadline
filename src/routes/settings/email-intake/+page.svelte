@@ -61,9 +61,7 @@
 			</div>
 
 			<div class="flex items-center gap-3">
-				<Button type="submit" disabled={saving}>
-					{saving ? 'Saving…' : 'Save'}
-				</Button>
+				<Button type="submit" loading={saving}>Save</Button>
 				{#if saved}
 					<span class="text-sm text-emerald-600 dark:text-emerald-400">Saved</span>
 				{/if}

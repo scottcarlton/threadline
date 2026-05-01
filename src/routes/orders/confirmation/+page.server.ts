@@ -103,6 +103,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		createdAt,
 		rows: ordered.map((r) => ({
 			order_number: r.order_number,
+			status: r.status,
 			brand_name: r.brands?.name ?? '—',
 			season_label: seasonLabel(r.seasons?.name, r.order_year),
 			units: (r.order_lines ?? []).reduce((n, l) => n + (l.qty ?? 0), 0),

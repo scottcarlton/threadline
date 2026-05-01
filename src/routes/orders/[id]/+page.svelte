@@ -13,6 +13,8 @@
 	import { entityContext } from '$lib/stores/entityContext.js';
 	import { fetchOrderAttentionCount } from '$lib/stores/orderAttention.js';
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
+	import SizeStepperSheet from '$lib/components/shared/SizeStepperSheet.svelte';
+	import ColorPickerSheet from '$lib/components/shared/ColorPickerSheet.svelte';
 	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
@@ -182,11 +184,12 @@
 	const canEdit = $derived(
 		data.isBuyer
 			? order.status === 'draft' && order.created_by === data.user?.id
-			: data.membership?.role !== 'guest'
+			: data.membership?.role !== 'guest' &&
+					order.status !== 'shipped' &&
+					order.status !== 'delivered' &&
+					order.status !== 'cancelled'
 	);
-	const canModify = $derived(
-		canEdit && order.status !== 'cancelled' && order.status !== 'delivered'
-	);
+	const canModify = $derived(canEdit);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
 	const repName = $derived(
 		(data.repName as string | null) ??
@@ -622,6 +625,31 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 
 	let editMode = $state(false);
 	let draftRows = $state<DraftRow[]>([]);
+	let sizingSheetDraftIdx = $state<number | null>(null);
+	const sizingSheetDraft = $derived(
+		sizingSheetDraftIdx !== null && sizingSheetDraftIdx >= 0
+			? (draftRows[sizingSheetDraftIdx] ?? null)
+			: null
+	);
+	let colorPickerDraftIdx = $state<number | null>(null);
+	const colorPickerDraft = $derived(
+		colorPickerDraftIdx !== null && colorPickerDraftIdx >= 0
+			? (draftRows[colorPickerDraftIdx] ?? null)
+			: null
+	);
+	const colorPickerUsedColors = $derived(
+		colorPickerDraft
+			? draftRows
+					.filter(
+						(r, i) =>
+							i !== colorPickerDraftIdx &&
+							r.product_id === colorPickerDraft.product_id &&
+							!r.to_remove
+					)
+					.map((r) => r.color_edit)
+					.filter((c): c is string => !!c)
+			: []
+	);
 	let savingEdits = $state(false);
 
 	// Count of DB ops that would be generated if the user saves right now.
@@ -1089,30 +1117,24 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						/>
 					</svg>
 				{/if}
-				Clone
+				<span class="sr-only sm:not-sr-only">Clone</span>
 			</Button>
-			<Button variant="outline" size="sm" onclick={handleDownloadPdf} disabled={downloadingPdf}>
-				{#if downloadingPdf}
-					<div
-						class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
-					></div>
-				{:else}
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-						/>
-					</svg>
-				{/if}
-				Download PDF
+			<Button variant="outline" size="sm" onclick={handleDownloadPdf} loading={downloadingPdf}>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+					/>
+				</svg>
+				<span class="sr-only sm:not-sr-only">Download PDF</span>
 			</Button>
 			<Button size="sm" onclick={openSendDialog}>
 				<svg
@@ -1129,7 +1151,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
 					/>
 				</svg>
-				Send to Account
+				<span class="sr-only sm:not-sr-only">Send to Account</span>
 			</Button>
 		</div>
 	</div>
@@ -1182,7 +1204,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 				</div>
 				{#if canEdit}
-					<Button onclick={openConvertModal} disabled={convertSubmitting}>Convert to Order</Button>
+					<Button onclick={openConvertModal} loading={convertSubmitting}>Convert to Order</Button>
 				{/if}
 			</div>
 		</section>
@@ -1328,9 +1350,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						<Button variant="outline" size="sm" onclick={() => (editingShipDate = false)}>
 							Cancel
 						</Button>
-						<Button size="sm" onclick={saveShipDate} disabled={savingShipDate}>
-							{savingShipDate ? 'Saving…' : 'Save'}
-						</Button>
+						<Button size="sm" onclick={saveShipDate} loading={savingShipDate}>Save</Button>
 					</div>
 				</div>
 			{/if}
@@ -1565,8 +1585,8 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 												shippedAmountInput = (e.target as HTMLInputElement).value;
 											}}
 										/>
-										<Button size="sm" onclick={saveShippedAmount} disabled={savingShipped}>
-											{savingShipped ? 'Saving…' : 'Save'}
+										<Button size="sm" onclick={saveShippedAmount} loading={savingShipped}>
+											Save
 										</Button>
 									</div>
 								{/if}
@@ -1608,9 +1628,10 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									<Button
 										size="sm"
 										onclick={saveEdits}
-										disabled={savingEdits || pendingChanges === 0}
+										loading={savingEdits}
+										disabled={pendingChanges === 0}
 									>
-										{savingEdits ? 'Saving…' : 'Save Items'}
+										Save Items
 									</Button>
 								{:else}
 									{#if lineRows.length > 0 || customLines.length > 0}
@@ -1673,115 +1694,85 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 														)
 												)
 											: []}
-									<div class="px-6 py-4 {draft.to_remove ? 'bg-destructive/5' : ''}">
-										<div class="flex items-start justify-between gap-6">
-											<div class="flex min-w-0 items-center gap-4">
-												{#if draft.image_id}
-													<img
-														src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
-														alt=""
-														class="h-20 w-20 shrink-0 rounded-md border object-cover {draft.to_remove
-															? 'opacity-50'
-															: ''}"
-													/>
-												{:else}
+									<div class={draft.to_remove ? 'bg-destructive/5' : ''}>
+										<!-- Mobile: compact card, tap sizes to edit ──────────────────── -->
+										<div class="block sm:hidden">
+											<div class="flex items-start gap-3 px-4 py-3">
+												<div
+													class="flex min-w-0 flex-1 items-start gap-3 {draft.to_remove
+														? 'opacity-60'
+														: ''}"
+												>
 													<div
-														class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40 text-muted-foreground/50 {draft.to_remove
-															? 'opacity-50'
-															: ''}"
+														class="h-12 w-12 shrink-0 overflow-hidden rounded-md border bg-muted"
 													>
-														<svg
-															xmlns="http://www.w3.org/2000/svg"
-															viewBox="0 0 24 24"
-															fill="none"
-															stroke="currentColor"
-															stroke-width="1.5"
-															class="h-7 w-7"
-														>
-															<rect x="3" y="3" width="18" height="18" rx="2" />
-															<circle cx="8.5" cy="8.5" r="1.5" />
-															<path d="M21 15l-5-5L5 21" />
-														</svg>
-													</div>
-												{/if}
-												<div class="min-w-0">
-													<div
-														class="truncate font-mono text-sm text-muted-foreground/70 {draft.to_remove
-															? 'line-through'
-															: ''}"
-													>
-														{draft.style_number}
-													</div>
-													<div
-														class="mt-0.5 truncate text-sm font-medium {draft.to_remove
-															? 'line-through'
-															: ''}"
-													>
-														{draft.name}
-													</div>
-													<div class="mt-1 flex items-center gap-2">
-														{#if draft.available_colors && draft.available_colors.length > 0 && !draft.to_remove}
-															<ColorSwatchPicker
-																value={draft.color_edit}
-																options={draft.available_colors}
-																disabledColors={usedColors}
-																onChange={(c) => (draftRows[idx].color_edit = c)}
-																disabled={draft.to_remove}
+														{#if draft.image_id}
+															<img
+																src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
+																alt=""
+																class="h-full w-full object-cover"
 															/>
-															{#if draft.color_edit}
-																<span class="text-sm text-muted-foreground">
-																	{draft.color_edit}
-																</span>
-															{/if}
 														{:else}
-															<ColorSwatch color={draft.color_edit} size={16} />
-															<span
-																class="text-sm {draft.color_edit
-																	? 'text-muted-foreground'
-																	: 'text-muted-foreground/50'}"
+															<div
+																class="flex h-full w-full items-center justify-center text-muted-foreground/40"
 															>
-																{draft.color_edit ?? '—'}
-															</span>
+																<svg
+																	xmlns="http://www.w3.org/2000/svg"
+																	viewBox="0 0 24 24"
+																	fill="none"
+																	stroke="currentColor"
+																	stroke-width="1.5"
+																	class="h-5 w-5"
+																>
+																	<rect x="3" y="3" width="18" height="18" rx="2" />
+																	<circle cx="8.5" cy="8.5" r="1.5" />
+																	<path d="M21 15l-5-5L5 21" />
+																</svg>
+															</div>
 														{/if}
 													</div>
-													{#if draft.to_remove}
-														<div class="mt-2 text-sm text-destructive">
-															Will be removed on save.
+													<div class="min-w-0 flex-1">
+														<div
+															class="font-mono text-sm text-muted-foreground/70 {draft.to_remove
+																? 'line-through'
+																: ''}"
+														>
+															{draft.style_number}
 														</div>
-													{/if}
-												</div>
-											</div>
-											<div class="flex shrink-0 items-start gap-3">
-												<div class="pt-1 text-right">
-													<div
-														class="font-mono text-sm {draft.to_remove
-															? 'text-muted-foreground line-through'
-															: ''}"
+														<div
+															class="truncate text-sm font-semibold {draft.to_remove
+																? 'line-through'
+																: ''}"
+														>
+															{draft.name}
+														</div>
+														{#if draft.season_label}
+															<div class="truncate text-sm text-muted-foreground">
+																{draft.season_label}
+															</div>
+														{/if}
+													</div>
+													<button
+														type="button"
+														class="shrink-0 self-start pt-1 transition active:scale-95 disabled:pointer-events-none"
+														aria-label="Choose color for {draft.name}"
+														disabled={draft.to_remove ||
+															!draft.available_colors ||
+															draft.available_colors.length === 0}
+														onclick={() => (colorPickerDraftIdx = idx)}
 													>
-														{fmt.format(rowTotal)}
-													</div>
-													<div class="font-mono text-sm text-muted-foreground/70">
-														{rowUnits}
-														{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(draft.unit_price)}/ea
-													</div>
+														<ColorSwatch color={draft.color_edit} size={20} />
+													</button>
 												</div>
 												{#if draft.to_remove}
 													<Button size="sm" variant="outline" onclick={() => restoreDraftRow(idx)}>
 														Undo
 													</Button>
 												{:else}
-													{#if unusedColors.length > 0}
-														<ColorSwatchPicker
-															value={null}
-															options={unusedColors}
-															onChange={(c) => c && addColorFor(idx, c)}
-															triggerLabel="+ color"
-														/>
-													{/if}
 													<button
 														type="button"
 														aria-label="Remove style"
-														class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+														class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
 														onclick={() => removeDraftRow(idx)}
 													>
 														<svg
@@ -1803,97 +1794,271 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 													</button>
 												{/if}
 											</div>
-										</div>
-
-										{#if !draft.to_remove}
-											{#if sizesToShow.length > 0}
-												<div class="mt-3 grid grid-cols-[repeat(6,minmax(0,7rem))] gap-3">
-													{#each sizesToShow as size (size)}
-														{@const qty = draft.qty_by_size[size] ?? 0}
-														<div
-															role="group"
-															aria-label="{draft.name} size {size} quantity"
-															class="grid min-h-14 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-md border bg-muted/40 transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
-															0
-																? 'border-dashed opacity-60'
-																: ''}"
-														>
-															<button
-																type="button"
-																aria-label="Decrease {size}"
-																class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-30"
-																disabled={qty === 0}
-																onclick={() => {
-																	draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
-																}}
-															>
-																−
-															</button>
+											{#if !draft.to_remove && sizesToShow.length > 0}
+												<div class="px-4 pb-3">
+													<button
+														type="button"
+														class="grid w-full gap-1.5 transition-opacity active:opacity-60"
+														style="grid-template-columns: repeat({sizesToShow.length}, minmax(0, 1fr));"
+														aria-label="Edit sizes for {draft.name}"
+														onclick={() => (sizingSheetDraftIdx = idx)}
+													>
+														{#each sizesToShow as size (size)}
+															{@const qty = draft.qty_by_size[size] ?? 0}
 															<div
-																class="flex flex-col items-center justify-center px-1 text-center"
+																class="flex flex-col items-center justify-center rounded-md border bg-muted/40 py-1.5 {qty ===
+																0
+																	? 'border-dashed opacity-60'
+																	: ''}"
 															>
-																<div class="text-xs text-muted-foreground">{size}</div>
-																<input
-																	type="text"
-																	inputmode="numeric"
-																	pattern="[0-9]*"
-																	aria-label="{size} quantity"
-																	value={qty}
-																	oninput={(e) => {
-																		const raw = (e.currentTarget as HTMLInputElement).value.replace(
-																			/[^0-9]/g,
-																			''
-																		);
-																		const n = raw === '' ? 0 : parseInt(raw, 10);
-																		draftRows[idx].qty_by_size[size] = Number.isNaN(n)
-																			? 0
-																			: Math.max(0, n);
-																	}}
-																	onkeydown={(e) => {
-																		// Arrow keys step qty up/down; Enter blurs to commit.
-																		if (e.key === 'ArrowUp') {
-																			e.preventDefault();
-																			draftRows[idx].qty_by_size[size] = qty + 1;
-																		} else if (e.key === 'ArrowDown') {
-																			e.preventDefault();
-																			draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
-																		} else if (e.key === 'Enter') {
-																			e.preventDefault();
-																			(e.currentTarget as HTMLInputElement).blur();
-																		}
-																	}}
-																	class="w-full bg-transparent text-center font-mono text-sm outline-none"
-																/>
+																<div class="text-sm text-muted-foreground">{size}</div>
+																<div class="font-mono text-sm">{qty}</div>
 															</div>
-															<button
-																type="button"
-																aria-label="Increase {size}"
-																class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset"
-																onclick={() => {
-																	draftRows[idx].qty_by_size[size] = qty + 1;
-																}}
-															>
-																+
-															</button>
+														{/each}
+													</button>
+													<div class="mt-3 flex items-center justify-between">
+														<div class="text-sm text-muted-foreground">
+															{rowUnits}
+															{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(
+																draft.unit_price
+															)}/ea
 														</div>
-													{/each}
-												</div>
-											{:else}
-												<div class="mt-3 flex items-center gap-3">
-													<span class="text-sm text-muted-foreground">Qty</span>
-													<input
-														type="number"
-														min="0"
-														value={draft.qty_by_size[''] ?? 0}
-														oninput={(e) => {
-															const n = parseInt((e.currentTarget as HTMLInputElement).value, 10);
-															draftRows[idx].qty_by_size[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
-														}}
-														class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center font-mono text-sm"
-													/>
+														<div class="font-mono text-sm font-medium">{fmt.format(rowTotal)}</div>
+													</div>
 												</div>
 											{/if}
-										{/if}
+										</div>
+
+										<!-- Desktop: full inline editor ───────────────────────────── -->
+										<div class="hidden px-6 py-4 sm:block">
+											<div class="flex items-start justify-between gap-6">
+												<div class="flex min-w-0 items-center gap-4">
+													{#if draft.image_id}
+														<img
+															src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
+															alt=""
+															class="h-20 w-20 shrink-0 rounded-md border object-cover {draft.to_remove
+																? 'opacity-50'
+																: ''}"
+														/>
+													{:else}
+														<div
+															class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40 text-muted-foreground/50 {draft.to_remove
+																? 'opacity-50'
+																: ''}"
+														>
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="none"
+																stroke="currentColor"
+																stroke-width="1.5"
+																class="h-7 w-7"
+															>
+																<rect x="3" y="3" width="18" height="18" rx="2" />
+																<circle cx="8.5" cy="8.5" r="1.5" />
+																<path d="M21 15l-5-5L5 21" />
+															</svg>
+														</div>
+													{/if}
+													<div class="min-w-0">
+														<div
+															class="truncate font-mono text-sm text-muted-foreground/70 {draft.to_remove
+																? 'line-through'
+																: ''}"
+														>
+															{draft.style_number}
+														</div>
+														<div
+															class="mt-0.5 truncate text-sm font-medium {draft.to_remove
+																? 'line-through'
+																: ''}"
+														>
+															{draft.name}
+														</div>
+														<div class="mt-1 flex items-center gap-2">
+															{#if draft.available_colors && draft.available_colors.length > 0 && !draft.to_remove}
+																<ColorSwatchPicker
+																	value={draft.color_edit}
+																	options={draft.available_colors}
+																	disabledColors={usedColors}
+																	onChange={(c) => (draftRows[idx].color_edit = c)}
+																	disabled={draft.to_remove}
+																/>
+																{#if draft.color_edit}
+																	<span class="text-sm text-muted-foreground">
+																		{draft.color_edit}
+																	</span>
+																{/if}
+															{:else}
+																<ColorSwatch color={draft.color_edit} size={16} />
+																<span
+																	class="text-sm {draft.color_edit
+																		? 'text-muted-foreground'
+																		: 'text-muted-foreground/50'}"
+																>
+																	{draft.color_edit ?? '—'}
+																</span>
+															{/if}
+														</div>
+														{#if draft.to_remove}
+															<div class="mt-2 text-sm text-destructive">
+																Will be removed on save.
+															</div>
+														{/if}
+													</div>
+												</div>
+												<div class="flex shrink-0 items-start gap-3">
+													<div class="pt-1 text-right">
+														<div
+															class="font-mono text-sm {draft.to_remove
+																? 'text-muted-foreground line-through'
+																: ''}"
+														>
+															{fmt.format(rowTotal)}
+														</div>
+														<div class="font-mono text-sm text-muted-foreground/70">
+															{rowUnits}
+															{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(
+																draft.unit_price
+															)}/ea
+														</div>
+													</div>
+													{#if draft.to_remove}
+														<Button
+															size="sm"
+															variant="outline"
+															onclick={() => restoreDraftRow(idx)}
+														>
+															Undo
+														</Button>
+													{:else}
+														{#if unusedColors.length > 0}
+															<ColorSwatchPicker
+																value={null}
+																options={unusedColors}
+																onChange={(c) => c && addColorFor(idx, c)}
+																triggerLabel="+ color"
+															/>
+														{/if}
+														<button
+															type="button"
+															aria-label="Remove style"
+															class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+															onclick={() => removeDraftRow(idx)}
+														>
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="none"
+																stroke="currentColor"
+																stroke-width="1.75"
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																class="h-4 w-4"
+															>
+																<path d="M3 6h18" />
+																<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+																<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+																<path d="M10 11v6" />
+																<path d="M14 11v6" />
+															</svg>
+														</button>
+													{/if}
+												</div>
+											</div>
+
+											{#if !draft.to_remove}
+												{#if sizesToShow.length > 0}
+													<div class="mt-3 grid grid-cols-[repeat(6,minmax(0,7rem))] gap-3">
+														{#each sizesToShow as size (size)}
+															{@const qty = draft.qty_by_size[size] ?? 0}
+															<div
+																role="group"
+																aria-label="{draft.name} size {size} quantity"
+																class="grid min-h-14 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-md border bg-muted/40 transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
+																0
+																	? 'border-dashed opacity-60'
+																	: ''}"
+															>
+																<button
+																	type="button"
+																	aria-label="Decrease {size}"
+																	class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-30"
+																	disabled={qty === 0}
+																	onclick={() => {
+																		draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
+																	}}
+																>
+																	−
+																</button>
+																<div
+																	class="flex flex-col items-center justify-center px-1 text-center"
+																>
+																	<div class="text-xs text-muted-foreground">{size}</div>
+																	<input
+																		type="text"
+																		inputmode="numeric"
+																		pattern="[0-9]*"
+																		aria-label="{size} quantity"
+																		value={qty}
+																		oninput={(e) => {
+																			const raw = (
+																				e.currentTarget as HTMLInputElement
+																			).value.replace(/[^0-9]/g, '');
+																			const n = raw === '' ? 0 : parseInt(raw, 10);
+																			draftRows[idx].qty_by_size[size] = Number.isNaN(n)
+																				? 0
+																				: Math.max(0, n);
+																		}}
+																		onkeydown={(e) => {
+																			// Arrow keys step qty up/down; Enter blurs to commit.
+																			if (e.key === 'ArrowUp') {
+																				e.preventDefault();
+																				draftRows[idx].qty_by_size[size] = qty + 1;
+																			} else if (e.key === 'ArrowDown') {
+																				e.preventDefault();
+																				draftRows[idx].qty_by_size[size] = Math.max(0, qty - 1);
+																			} else if (e.key === 'Enter') {
+																				e.preventDefault();
+																				(e.currentTarget as HTMLInputElement).blur();
+																			}
+																		}}
+																		class="w-full bg-transparent text-center font-mono text-sm outline-none"
+																	/>
+																</div>
+																<button
+																	type="button"
+																	aria-label="Increase {size}"
+																	class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset"
+																	onclick={() => {
+																		draftRows[idx].qty_by_size[size] = qty + 1;
+																	}}
+																>
+																	+
+																</button>
+															</div>
+														{/each}
+													</div>
+												{:else}
+													<div class="mt-3 flex items-center gap-3">
+														<span class="text-sm text-muted-foreground">Qty</span>
+														<input
+															type="number"
+															min="0"
+															value={draft.qty_by_size[''] ?? 0}
+															oninput={(e) => {
+																const n = parseInt((e.currentTarget as HTMLInputElement).value, 10);
+																draftRows[idx].qty_by_size[''] = Number.isNaN(n)
+																	? 0
+																	: Math.max(0, n);
+															}}
+															class="h-9 w-20 rounded-md border border-input bg-background px-2 text-center font-mono text-sm"
+														/>
+													</div>
+												{/if}
+											{/if}
+										</div>
 									</div>
 								{/each}
 							</div>
@@ -2314,6 +2479,51 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	ondone={handleCatalogDone}
 />
 
+<!-- Mobile per-item size editor (edit mode) -->
+<SizeStepperSheet
+	open={sizingSheetDraftIdx !== null}
+	onClose={() => (sizingSheetDraftIdx = null)}
+	styleNumber={sizingSheetDraft?.style_number}
+	name={sizingSheetDraft?.name}
+	season={sizingSheetDraft?.season_label}
+	color={sizingSheetDraft?.color_edit ?? null}
+	imageUrl={sizingSheetDraft?.image_id
+		? `/api/products/${sizingSheetDraft.product_id}/images/${sizingSheetDraft.image_id}`
+		: null}
+	unitPrice={sizingSheetDraft?.unit_price}
+	sizes={sizingSheetDraft?.available_sizes}
+	qtys={sizingSheetDraft?.qty_by_size}
+	onChange={(size, qty) => {
+		if (sizingSheetDraftIdx !== null && sizingSheetDraftIdx >= 0) {
+			draftRows[sizingSheetDraftIdx].qty_by_size[size] = qty;
+		}
+	}}
+	onColorPickerOpen={() => {
+		const idx = sizingSheetDraftIdx;
+		sizingSheetDraftIdx = null;
+		if (idx !== null) colorPickerDraftIdx = idx;
+	}}
+/>
+
+<ColorPickerSheet
+	open={colorPickerDraftIdx !== null}
+	onClose={() => (colorPickerDraftIdx = null)}
+	styleNumber={colorPickerDraft?.style_number}
+	name={colorPickerDraft?.name}
+	season={colorPickerDraft?.season_label}
+	imageUrl={colorPickerDraft?.image_id
+		? `/api/products/${colorPickerDraft.product_id}/images/${colorPickerDraft.image_id}`
+		: null}
+	colors={colorPickerDraft?.available_colors}
+	selected={colorPickerDraft?.color_edit ?? null}
+	disabledColors={colorPickerUsedColors}
+	onSelect={(color) => {
+		if (colorPickerDraftIdx !== null && colorPickerDraftIdx >= 0) {
+			draftRows[colorPickerDraftIdx].color_edit = color;
+		}
+	}}
+/>
+
 <!-- ══ Convert-to-Order Modal ════════════════════════════════════════════ -->
 <Dialog.Root bind:open={convertOpen}>
 	<Dialog.Portal>
@@ -2572,8 +2782,8 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					>
 						Cancel
 					</Dialog.Close>
-					<Button type="submit" disabled={!convertCanSubmit || convertSubmitting}>
-						{convertSubmitting ? 'Converting…' : 'Convert to order'}
+					<Button type="submit" loading={convertSubmitting} disabled={!convertCanSubmit}>
+						Convert to order
 					</Button>
 				</footer>
 			</form>
@@ -2733,16 +2943,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				<!-- Footer -->
 				<div class="flex items-center justify-end gap-3 border-t px-5 py-4">
 					<Button variant="outline" onclick={closeSendDialog} disabled={sendLoading}>Cancel</Button>
-					<Button onclick={handleSendOrder} disabled={sendLoading}>
-						{#if sendLoading}
-							<div
-								class="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
-							></div>
-							Sending...
-						{:else}
-							Send
-						{/if}
-					</Button>
+					<Button onclick={handleSendOrder} loading={sendLoading}>Send</Button>
 				</div>
 			{/if}
 		</div>

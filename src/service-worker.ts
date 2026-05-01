@@ -33,11 +33,6 @@ self.addEventListener('activate', (event) => {
 			const keys = await caches.keys();
 			await Promise.all(keys.filter((k) => !ALL_CACHES.includes(k)).map((k) => caches.delete(k)));
 			await self.clients.claim();
-			// Notify clients that an update is available (only if a previous SW was controlling).
-			const clients = await self.clients.matchAll({ type: 'window' });
-			for (const client of clients) {
-				client.postMessage({ type: 'updateAvailable' });
-			}
 		})()
 	);
 });
@@ -47,6 +42,12 @@ function shouldSkipCache(request: Request): boolean {
 	if (request.method !== 'GET') return true;
 	if (url.pathname.startsWith('/api/')) return true;
 	if (url.pathname.startsWith('/auth/')) return true;
+	// SvelteKit fetches `__data.json` on every client-side navigation to get
+	// the destination's load data. If we serve those from cache (even
+	// stale-while-revalidate), the user sees the previous render's data on
+	// the next visit — newly created accounts/orders/products don't appear
+	// until a hard reload. Always go to network for load data.
+	if (url.pathname.endsWith('/__data.json')) return true;
 	if (url.hostname.endsWith('.supabase.co')) return true;
 	if (url.hostname === '127.0.0.1' && url.port === '54322') return true; // local Supabase
 	if (url.hostname.includes('sentry.io') || url.hostname.includes('ingest.sentry')) return true;
