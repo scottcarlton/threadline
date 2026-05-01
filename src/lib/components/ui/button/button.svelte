@@ -55,7 +55,7 @@
 {/snippet}
 
 {#if href}
-	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- generic Button accepts any href; callers resolve() their own paths -->
+	<!-- eslint-disable svelte/no-navigation-without-resolve -- generic Button accepts any href; callers resolve() their own paths -->
 	<a
 		{href}
 		class={cn(buttonVariants({ variant, size }), 'relative', className)}
@@ -64,6 +64,7 @@
 	>
 		{@render content()}
 	</a>
+	<!-- eslint-enable svelte/no-navigation-without-resolve -->
 {:else}
 	<button
 		{type}
