@@ -183,10 +183,14 @@
 
 	let notificationsOpen = $state(false);
 
+	// Mobile-first: default closed everywhere, including SSR. On the desktop
+	// client, the matchMedia check + saved preference open it back up. This
+	// avoids an SSR=open / mobile-client=closed mismatch that flashes the
+	// sidebar in-then-out on every initial render and route transition.
 	let sidebarOpen = $state<boolean>(
 		browser && matchMedia('(min-width: 1024px)').matches
 			? ($preferences.sidebarOpen ?? true)
-			: !browser
+			: false
 	);
 
 	$effect(() => {
