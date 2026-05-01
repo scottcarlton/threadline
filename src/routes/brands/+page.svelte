@@ -127,7 +127,7 @@
 			<Button variant="outline" class="hidden sm:inline-flex" onclick={() => (showImport = true)}
 				>Import</Button
 			>
-			<Button href="/brands/new">
+			<Button href="/brands/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"

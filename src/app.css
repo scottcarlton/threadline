@@ -144,7 +144,9 @@ label[for] {
 
 select:not([data-size='sm']),
 textarea:not([data-size='sm']) {
-	font-size: 0.875rem;
+	/* iOS Safari zooms on focus when font-size < 16px on any viewport.
+	   Keep at 16px everywhere — there is no safe breakpoint to drop below. */
+	font-size: 1rem;
 	min-height: 44px;
 }
 

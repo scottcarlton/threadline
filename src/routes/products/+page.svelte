@@ -197,7 +197,7 @@
 			<Button variant="outline" class="hidden sm:inline-flex" onclick={() => (showImport = true)}
 				>Import</Button
 			>
-			<Button href="/products/new">
+			<Button href="/products/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"
@@ -293,7 +293,7 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+		<div class="grid grid-cols-2 gap-1 sm:gap-4 lg:grid-cols-3">
 			{#each filtered as product (product.id)}
 				{@const primaryImage =
 					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}

@@ -556,7 +556,7 @@
 					transition:fly={{ y: 80, duration: 320, easing: quintOut }}
 					class="pointer-events-auto flex w-[420px] items-center justify-between gap-6 rounded-lg bg-foreground py-2 pr-2 pl-6 text-background shadow-lg md:w-[560px] md:py-3 md:pr-3 md:pl-8"
 				>
-					<div class="text-sm md:text-base">
+					<div class="text-sm">
 						{items.length}
 						{items.length === 1 ? 'Item' : 'Items'}
 						{#if unsizedCount > 0}

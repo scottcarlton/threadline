@@ -316,6 +316,7 @@
 <div class="space-y-6">
 	<PageHeader title="Appointments" subtitle="Schedule and manage appointments">
 		<Button
+			class="min-w-[100px]"
 			variant={showAddForm ? 'outline' : 'default'}
 			onclick={() => {
 				showAddForm = !showAddForm;
