@@ -12,6 +12,8 @@
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 	import type { CatalogProduct, CatalogCartItem, ProductVariant } from './catalog-picker-types.js';
+	import SizeStepperSheet from './SizeStepperSheet.svelte';
+	import ColorPickerSheet from './ColorPickerSheet.svelte';
 	import {
 		primaryImageId,
 		productColors,
@@ -66,6 +68,7 @@
 	let modalLoading = $state(false);
 	let modalDebounce: ReturnType<typeof setTimeout> | undefined;
 	let sizingProductId = $state<string | null>(null);
+	let colorPickerProductId = $state<string | null>(null);
 
 	// Deduplicated seasons for dropdown display
 	const dedupedSeasons = $derived.by(() => {
@@ -320,7 +323,7 @@
 
 		<!-- Body: grid + overlay sizing panel -->
 		<div class="relative flex flex-1 overflow-hidden">
-			<div class="flex-1 overflow-auto p-5">
+			<div class="flex-1 overflow-auto p-5 pb-32">
 				{#if modalLoading}
 					<div class="p-10 text-center text-sm text-muted-foreground">Loading…</div>
 				{:else if modalProducts.length === 0}
@@ -329,7 +332,7 @@
 						<p class="mt-1 text-sm text-muted-foreground">Adjust the filters above.</p>
 					</div>
 				{:else}
-					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+					<div class="grid grid-cols-2 gap-1 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
 						{#each modalProducts as p (p.id)}
 							{@const added = productInCart(p)}
 							{@const imgId = primaryImageId(p)}
@@ -448,7 +451,7 @@
 				{#if it}
 					<aside
 						transition:asidePush={{ width: 380, duration: 700 }}
-						class="flex shrink-0 flex-col overflow-hidden bg-background"
+						class="hidden shrink-0 flex-col overflow-hidden bg-background sm:flex"
 					>
 						<div class="flex w-[380px] flex-1 flex-col">
 							<div class="px-4 pt-5 pb-3">
@@ -573,6 +576,68 @@
 						Done
 					</button>
 				</div>
+			</div>
+		{/if}
+
+		{#if true}
+			{@const sheetItem = sizingProductId ? findItem(sizingProductId) : undefined}
+			{@const sheetIdx = sheetItem
+				? items.findIndex((x) => x.product_id === sheetItem.product_id)
+				: -1}
+			{@const sheetProd = sheetItem ? productForItem(sheetItem) : null}
+			{@const sheetImg = sheetProd ? primaryImageId(sheetProd) : null}
+			<div class="sm:hidden">
+				<SizeStepperSheet
+					open={!!sheetItem}
+					onClose={() => (sizingProductId = null)}
+					styleNumber={sheetItem?.style_number}
+					name={sheetItem?.name}
+					brand={sheetItem ? brandName(sheetItem.brand_id) : null}
+					season={sheetItem?.season_id
+						? seasonLabel(sheetItem.season_id, sheetItem.product_year)
+						: null}
+					color={sheetItem?.selected_color || null}
+					imageUrl={sheetItem && sheetImg
+						? `/api/products/${sheetItem.product_id}/images/${sheetImg}`
+						: null}
+					unitPrice={sheetItem?.unit_price}
+					sizes={sheetItem?.available_sizes}
+					qtys={sheetItem?.size_qtys}
+					onChange={(size, qty) => {
+						if (sheetIdx >= 0) items[sheetIdx].size_qtys[size] = qty;
+					}}
+					onColorPickerOpen={() => {
+						const id = sheetItem?.product_id ?? null;
+						sizingProductId = null;
+						if (id) colorPickerProductId = id;
+					}}
+				/>
+			</div>
+			{@const colorItem = colorPickerProductId ? findItem(colorPickerProductId) : undefined}
+			{@const colorIdx = colorItem
+				? items.findIndex((x) => x.product_id === colorItem.product_id)
+				: -1}
+			{@const colorProd = colorItem ? productForItem(colorItem) : null}
+			{@const colorImg = colorProd ? primaryImageId(colorProd) : null}
+			<div class="sm:hidden">
+				<ColorPickerSheet
+					open={!!colorItem}
+					onClose={() => (colorPickerProductId = null)}
+					styleNumber={colorItem?.style_number}
+					name={colorItem?.name}
+					brand={colorItem ? brandName(colorItem.brand_id) : null}
+					season={colorItem?.season_id
+						? seasonLabel(colorItem.season_id, colorItem.product_year)
+						: null}
+					imageUrl={colorItem && colorImg
+						? `/api/products/${colorItem.product_id}/images/${colorImg}`
+						: null}
+					colors={colorItem?.available_colors}
+					selected={colorItem?.selected_color || null}
+					onSelect={(c) => {
+						if (colorIdx >= 0) items[colorIdx].selected_color = c;
+					}}
+				/>
 			</div>
 		{/if}
 	</div>

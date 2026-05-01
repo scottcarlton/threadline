@@ -236,6 +236,42 @@
 		{/if}
 	</div>
 
+	{#snippet metaBanner()}
+		<div class="flex items-center justify-between gap-4">
+			<div>
+				<div class="mb-1 flex items-center gap-2">
+					<span class="font-mono text-sm text-muted-foreground">{product.style_number}</span>
+					<Badge variant={product.archived_at ? 'destructive' : 'success'}>
+						{product.archived_at ? 'Archived' : 'Active'}
+					</Badge>
+				</div>
+				<h2 class="text-xl font-semibold">{product.name}</h2>
+				{#if product.season_id || product.product_year || product.category}
+					{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+					{@const seasonYear = [seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+					<div class="mt-1 flex items-center gap-2">
+						{#if seasonYear}
+							<span class="text-sm text-muted-foreground">{seasonYear}</span>
+						{/if}
+						{#if product.category}
+							<Badge variant="secondary"
+								>{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}</Badge
+							>
+						{/if}
+					</div>
+				{/if}
+			</div>
+			<div class="shrink-0 text-xl font-semibold">
+				{fmt.format(Number(product.wholesale_price))}
+			</div>
+		</div>
+	{/snippet}
+
+	<!-- Mobile: meta banner above image. -->
+	<div class="mb-6 lg:hidden">
+		{@render metaBanner()}
+	</div>
+
 	<div class="grid gap-6 lg:grid-cols-[420px_1fr]">
 		<!-- Left: primary image -->
 		<div
@@ -267,32 +303,9 @@
 
 		<!-- Right: details column -->
 		<div class="min-w-0 space-y-6">
-			<!-- Name + price banner -->
-			<div class="flex items-center justify-between gap-4">
-				<div>
-					<div class="mb-1 flex items-center gap-2">
-						<span class="font-mono text-sm text-muted-foreground">{product.style_number}</span>
-						<Badge variant={product.archived_at ? 'destructive' : 'success'}>
-							{product.archived_at ? 'Archived' : 'Active'}
-						</Badge>
-					</div>
-					<h2 class="text-xl font-semibold">{product.name}</h2>
-					{#if product.season_id || product.product_year || product.category}
-						{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-						{@const seasonYear = [seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
-						<div class="mt-1 flex items-center gap-2">
-							{#if seasonYear}
-								<span class="text-sm text-muted-foreground">{seasonYear}</span>
-							{/if}
-							{#if product.category}
-								<Badge variant="secondary"
-									>{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}</Badge
-								>
-							{/if}
-						</div>
-					{/if}
-				</div>
-				<div class="text-xl font-semibold">{fmt.format(Number(product.wholesale_price))}</div>
+			<!-- Desktop: meta banner stays in the right column -->
+			<div class="hidden lg:block">
+				{@render metaBanner()}
 			</div>
 
 			<!-- Style Velocity -->
