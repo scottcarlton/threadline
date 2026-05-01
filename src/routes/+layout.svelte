@@ -184,7 +184,9 @@
 	let notificationsOpen = $state(false);
 
 	let sidebarOpen = $state<boolean>(
-		$preferences.sidebarOpen ?? (browser ? matchMedia('(min-width: 1024px)').matches : true)
+		browser && matchMedia('(min-width: 1024px)').matches
+			? ($preferences.sidebarOpen ?? true)
+			: !browser
 	);
 
 	$effect(() => {
