@@ -803,16 +803,7 @@
 			<!-- Footer -->
 			<div class="flex items-center justify-end gap-3 px-5 py-4">
 				<Button variant="outline" onclick={ontoggle} disabled={sending}>Cancel</Button>
-				<Button onclick={handleSend} disabled={sending}>
-					{#if sending}
-						<div
-							class="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
-						></div>
-						Sending...
-					{:else}
-						Send
-					{/if}
-				</Button>
+				<Button onclick={handleSend} loading={sending}>Send</Button>
 			</div>
 		</div>
 	</div>

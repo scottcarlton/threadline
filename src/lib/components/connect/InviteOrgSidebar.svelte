@@ -222,9 +222,7 @@
 					>
 						Cancel
 					</Button>
-					<Button type="submit" size="sm" disabled={$emailSubmitting}>
-						{$emailSubmitting ? 'Sending…' : 'Send invite'}
-					</Button>
+					<Button type="submit" size="sm" loading={$emailSubmitting}>Send invite</Button>
 				</div>
 			</form>
 		</Dialog.Content>

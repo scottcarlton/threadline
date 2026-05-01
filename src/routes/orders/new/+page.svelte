@@ -18,7 +18,7 @@
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { Dialog } from 'bits-ui';
+	import { Dialog, DropdownMenu } from 'bits-ui';
 	import { acceptedMethodsOnly, acceptedTermsOnly } from '$lib/payment-methods';
 	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
 
@@ -917,7 +917,14 @@
 	}
 	// ── Submit ──────────────────────────────────────────────────────────────
 	let submitting = $state(false);
-	let submitStatus = $state<'draft' | 'submitted'>('draft');
+	let submitStatus = $state<'draft' | 'submitted' | 'confirmed'>('draft');
+	let submitFormEl: HTMLFormElement | null = $state(null);
+	let submitComboEl: HTMLDivElement | null = $state(null);
+	function submitOrderAs(status: 'draft' | 'submitted' | 'confirmed') {
+		cart.type = 'order';
+		submitStatus = status;
+		submitFormEl?.requestSubmit();
+	}
 	let finalizeExpandedKey = $state<string | null>(null);
 	let finalizeExpandAll = $state(false);
 	let shipEditOpen = $state(false);
@@ -2829,6 +2836,7 @@
 
 			<!-- ─────── Actions ─────── -->
 			<form
+				bind:this={submitFormEl}
 				method="POST"
 				action="?/submit"
 				use:enhance={() => {
@@ -2862,20 +2870,110 @@
 						{groups.length > 1 ? `Save ${groups.length} Notes` : 'Save as Notes'}
 					</Button>
 					<div class="contents min-[756px]:flex min-[756px]:flex-col min-[756px]:gap-2">
-						<Button
-							type="submit"
-							size="lg"
-							class="order-1 w-full min-[756px]:order-none"
-							disabled={submitting ||
-								(isFreeform && !hasFreeformDetails) ||
-								(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
-							onclick={() => {
-								cart.type = 'order';
-								submitStatus = 'submitted';
-							}}
-						>
-							{groups.length > 1 ? `Submit ${groups.length} Orders` : 'Submit Order'}
-						</Button>
+						<div bind:this={submitComboEl} class="order-1 flex w-full min-[756px]:order-none">
+							<Button
+								type="submit"
+								size="lg"
+								class="flex-1 rounded-none"
+								disabled={submitting ||
+									(isFreeform && !hasFreeformDetails) ||
+									(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
+								onclick={() => {
+									cart.type = 'order';
+									submitStatus = 'confirmed';
+								}}
+							>
+								{groups.length > 1
+									? `Submit & Confirm ${groups.length} Orders`
+									: 'Submit & Confirm'}
+							</Button>
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger
+									type="button"
+									aria-label="More submit options"
+									disabled={submitting ||
+										(isFreeform && !hasFreeformDetails) ||
+										(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
+									class="inline-flex h-11 w-11 shrink-0 items-center justify-center border-l border-l-primary-foreground/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										class="h-4 w-4"
+										aria-hidden="true"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+									</svg>
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Portal>
+									<DropdownMenu.Content
+										customAnchor={submitComboEl}
+										align="end"
+										sideOffset={6}
+										class="z-50 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+										style="width: var(--bits-dropdown-menu-anchor-width); min-width: 16rem;"
+									>
+										<DropdownMenu.Item
+											onSelect={() => submitOrderAs('submitted')}
+											class="flex cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.6"
+												class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+												aria-hidden="true"
+											>
+												<circle cx="12" cy="12" r="9" />
+												<path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2" />
+											</svg>
+											<span class="flex flex-col">
+												<span class="font-medium">Submit as Pending</span>
+												<span class="text-sm text-muted-foreground"
+													>Send to the brand for review.</span
+												>
+											</span>
+										</DropdownMenu.Item>
+										<DropdownMenu.Item
+											onSelect={() => submitOrderAs('draft')}
+											class="flex cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.6"
+												class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+												aria-hidden="true"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"
+												/>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M18.5 3.5a2.121 2.121 0 0 1 3 3L12 16l-4 1 1-4 9.5-9.5Z"
+												/>
+											</svg>
+											<span class="flex flex-col">
+												<span class="font-medium">Save as Draft</span>
+												<span class="text-sm text-muted-foreground"
+													>Keep editing — nothing is sent yet.</span
+												>
+											</span>
+										</DropdownMenu.Item>
+									</DropdownMenu.Content>
+								</DropdownMenu.Portal>
+							</DropdownMenu.Root>
+						</div>
 						{#if termsBlockedBrands.length > 0 && !allBrandTermsAgreed}
 							<span
 								class="order-2 text-center text-sm text-muted-foreground/70 min-[756px]:order-none"

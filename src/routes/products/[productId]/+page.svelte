@@ -482,9 +482,7 @@
 					{#if editing}
 						<CardFooter class="justify-between">
 							<Button variant="outline" onclick={() => (editing = false)}>Cancel</Button>
-							<Button type="submit" form="edit-form" disabled={saving}
-								>{saving ? 'Saving...' : 'Save'}</Button
-							>
+							<Button type="submit" form="edit-form" loading={saving}>Save</Button>
 						</CardFooter>
 					{/if}
 				</Card>

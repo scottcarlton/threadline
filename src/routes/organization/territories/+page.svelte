@@ -145,8 +145,8 @@
 						Assign reps to this territory after creating it from its detail page.
 					</p>
 					<div class="flex gap-2">
-						<Button type="submit" size="sm" disabled={loading || !newName.trim()}>
-							{loading ? 'Creating...' : 'Create Territory'}
+						<Button type="submit" size="sm" {loading} disabled={!newName.trim()}>
+							Create Territory
 						</Button>
 						<Button variant="outline" size="sm" onclick={() => (adding = false)}>Cancel</Button>
 					</div>

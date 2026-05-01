@@ -312,8 +312,8 @@
 							/>
 						</div>
 						<div class="flex gap-2">
-							<Button type="submit" size="sm" disabled={saving || !domain || !metadataUrl}>
-								{saving ? 'Creating...' : 'Add Provider'}
+							<Button type="submit" size="sm" loading={saving} disabled={!domain || !metadataUrl}>
+								Add Provider
 							</Button>
 							<Button type="button" variant="outline" size="sm" onclick={() => (showForm = false)}>
 								Cancel

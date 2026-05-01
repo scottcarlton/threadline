@@ -7,6 +7,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
+	import { toast } from 'svelte-sonner';
 	import {
 		preferences,
 		type Appearance,
@@ -115,6 +116,15 @@
 	let message = $state('');
 	let disconnecting = $state(false);
 
+	// Account email — managed by Supabase Auth, not by the profiles table.
+	const isGoogleManaged = $derived((data.authProviders ?? []).includes('google'));
+	const isSsoManaged = $derived((data.authProviders ?? []).includes('sso'));
+	const emailReadOnly = $derived(isGoogleManaged || isSsoManaged);
+	let accountEmail = $state('');
+	$effect(() => {
+		accountEmail = data.authEmail ?? '';
+	});
+
 	const emailJustConnected = $derived($page.url.searchParams.get('email_connected') === 'true');
 
 	$effect(() => {
@@ -138,10 +148,27 @@
 
 		if (error) {
 			message = 'Failed to save changes.';
-		} else {
-			message = 'Profile updated.';
-			invalidateAll();
+			saving = false;
+			return;
 		}
+
+		// Email is managed by Supabase Auth — only update if it actually changed
+		// and the user isn't on Google/SSO.
+		const trimmedEmail = accountEmail.trim();
+		const emailChanged = !emailReadOnly && trimmedEmail && trimmedEmail !== data.authEmail;
+		if (emailChanged) {
+			const { error: emailErr } = await supabase.auth.updateUser({ email: trimmedEmail });
+			if (emailErr) {
+				message = '';
+				toast.error(emailErr.message);
+				saving = false;
+				return;
+			}
+			toast.success('Confirmation sent — check both inboxes to finish updating your email.');
+		}
+
+		message = 'Profile updated.';
+		invalidateAll();
 		saving = false;
 	}
 
@@ -172,6 +199,26 @@
 				<Input id="display-name" bind:value={displayName} placeholder="Your name" />
 			</div>
 			<div class="space-y-2">
+				<Label for="account-email">Email</Label>
+				<Input
+					id="account-email"
+					type="email"
+					autocomplete="email"
+					bind:value={accountEmail}
+					disabled={emailReadOnly}
+					placeholder="you@company.com"
+				/>
+				{#if isGoogleManaged}
+					<p class="text-[13px] text-muted-foreground">Managed by Google.</p>
+				{:else if isSsoManaged}
+					<p class="text-[13px] text-muted-foreground">Managed by your identity provider.</p>
+				{:else if data.authPendingEmail}
+					<p class="text-[13px] text-amber-600 dark:text-amber-500">
+						Pending: <span class="font-medium">{data.authPendingEmail}</span> — confirm in both inboxes.
+					</p>
+				{/if}
+			</div>
+			<div class="space-y-2">
 				<Label for="avatar-url">Avatar URL</Label>
 				<Input
 					id="avatar-url"
@@ -188,9 +235,7 @@
 		</div>
 
 		<div class="mt-6 flex items-center gap-3">
-			<Button onclick={handleSave} disabled={saving}>
-				{saving ? 'Saving...' : 'Save changes'}
-			</Button>
+			<Button onclick={handleSave} loading={saving} class="w-full sm:w-auto">Save changes</Button>
 			{#if message}
 				<p class="text-[13px] text-muted-foreground">{message}</p>
 			{/if}
@@ -241,13 +286,13 @@
 							variant="outline"
 							size="sm"
 							onclick={handleDisconnectEmail}
-							disabled={disconnecting}
+							loading={disconnecting}
 						>
-							{disconnecting ? 'Disconnecting...' : 'Disconnect'}
+							Disconnect
 						</Button>
 					</div>
 				{:else}
-					<Button href="/api/email/connect">
+					<Button href="/api/email/connect" class="w-full sm:w-auto">
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							class="h-4 w-4"
@@ -349,9 +394,9 @@
 			</label>
 
 			<div class="flex items-center gap-3 pt-2">
-				<Button type="submit" disabled={prefsSaving}>
-					{prefsSaving ? 'Saving…' : 'Save Preferences'}
-				</Button>
+				<Button type="submit" loading={prefsSaving} class="w-full sm:w-auto"
+					>Save Preferences</Button
+				>
 				{#if prefsSaved}
 					<span class="text-sm text-emerald-600">Saved</span>
 				{/if}
@@ -369,10 +414,10 @@
 			<div>
 				<p class="text-sm font-medium">Color mode</p>
 				<p class="text-[13px] text-muted-foreground">Choose your preferred theme</p>
-				<div class="mt-3 inline-flex rounded-lg border p-1">
+				<div class="mt-3 flex w-full rounded-lg border p-1 sm:inline-flex sm:w-auto">
 					{#each appearanceOptions as opt (opt.value)}
 						<button
-							class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors {$preferences.appearance ===
+							class="flex-1 rounded-md px-4 py-1.5 text-sm font-medium transition-colors sm:flex-initial {$preferences.appearance ===
 							opt.value
 								? 'bg-primary text-primary-foreground'
 								: 'text-muted-foreground hover:text-foreground'}"

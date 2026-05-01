@@ -1119,27 +1119,21 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				{/if}
 				<span class="sr-only sm:not-sr-only">Clone</span>
 			</Button>
-			<Button variant="outline" size="sm" onclick={handleDownloadPdf} disabled={downloadingPdf}>
-				{#if downloadingPdf}
-					<div
-						class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
-					></div>
-				{:else}
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-						/>
-					</svg>
-				{/if}
+			<Button variant="outline" size="sm" onclick={handleDownloadPdf} loading={downloadingPdf}>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+					/>
+				</svg>
 				<span class="sr-only sm:not-sr-only">Download PDF</span>
 			</Button>
 			<Button size="sm" onclick={openSendDialog}>
@@ -1210,7 +1204,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 				</div>
 				{#if canEdit}
-					<Button onclick={openConvertModal} disabled={convertSubmitting}>Convert to Order</Button>
+					<Button onclick={openConvertModal} loading={convertSubmitting}>Convert to Order</Button>
 				{/if}
 			</div>
 		</section>
@@ -1356,9 +1350,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						<Button variant="outline" size="sm" onclick={() => (editingShipDate = false)}>
 							Cancel
 						</Button>
-						<Button size="sm" onclick={saveShipDate} disabled={savingShipDate}>
-							{savingShipDate ? 'Saving…' : 'Save'}
-						</Button>
+						<Button size="sm" onclick={saveShipDate} loading={savingShipDate}>Save</Button>
 					</div>
 				</div>
 			{/if}
@@ -1593,8 +1585,8 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 												shippedAmountInput = (e.target as HTMLInputElement).value;
 											}}
 										/>
-										<Button size="sm" onclick={saveShippedAmount} disabled={savingShipped}>
-											{savingShipped ? 'Saving…' : 'Save'}
+										<Button size="sm" onclick={saveShippedAmount} loading={savingShipped}>
+											Save
 										</Button>
 									</div>
 								{/if}
@@ -1636,9 +1628,10 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									<Button
 										size="sm"
 										onclick={saveEdits}
-										disabled={savingEdits || pendingChanges === 0}
+										loading={savingEdits}
+										disabled={pendingChanges === 0}
 									>
-										{savingEdits ? 'Saving…' : 'Save Items'}
+										Save Items
 									</Button>
 								{:else}
 									{#if lineRows.length > 0 || customLines.length > 0}
@@ -2789,8 +2782,8 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					>
 						Cancel
 					</Dialog.Close>
-					<Button type="submit" disabled={!convertCanSubmit || convertSubmitting}>
-						{convertSubmitting ? 'Converting…' : 'Convert to order'}
+					<Button type="submit" loading={convertSubmitting} disabled={!convertCanSubmit}>
+						Convert to order
 					</Button>
 				</footer>
 			</form>
@@ -2950,16 +2943,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				<!-- Footer -->
 				<div class="flex items-center justify-end gap-3 border-t px-5 py-4">
 					<Button variant="outline" onclick={closeSendDialog} disabled={sendLoading}>Cancel</Button>
-					<Button onclick={handleSendOrder} disabled={sendLoading}>
-						{#if sendLoading}
-							<div
-								class="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
-							></div>
-							Sending...
-						{:else}
-							Send
-						{/if}
-					</Button>
+					<Button onclick={handleSendOrder} loading={sendLoading}>Send</Button>
 				</div>
 			{/if}
 		</div>

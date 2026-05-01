@@ -593,8 +593,8 @@
 						></textarea>
 					</div>
 					<div class="mt-3 flex justify-end">
-						<Button onclick={sendReply} disabled={replySending || !replyBody.trim()}>
-							{replySending ? 'Sending...' : 'Send Reply'}
+						<Button onclick={sendReply} loading={replySending} disabled={!replyBody.trim()}>
+							Send Reply
 						</Button>
 					</div>
 				</div>

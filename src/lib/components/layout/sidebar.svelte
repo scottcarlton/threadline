@@ -509,7 +509,7 @@
 		{onclose}
 		ariaLabel="Main navigation"
 		side="left"
-		width="240px"
+		width="100vw"
 		closeOnEscape={false}
 	>
 		<aside class="flex h-full w-full flex-col overflow-y-auto bg-background text-foreground">
