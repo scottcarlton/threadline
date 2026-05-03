@@ -395,8 +395,16 @@
 	// Groups are keyed by (brand, season), so year stays constant for now.
 	function moveTargetsFor(source_season_id: string | null) {
 		const srcSort = seasonSort(source_season_id);
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const seen = new Set<string>();
 		return seasons
 			.filter((s) => s.sort_order != null && s.sort_order > srcSort)
+			.filter((s) => {
+				const key = s.name.trim().toLowerCase();
+				if (seen.has(key)) return false;
+				seen.add(key);
+				return true;
+			})
 			.map((s) => ({ season_id: s.id, label: s.name }));
 	}
 
@@ -1706,6 +1714,17 @@
 								{#if moveTargets.length > 0}
 									<details
 										class="relative ml-1 marker:hidden [&>summary::-webkit-details-marker]:hidden"
+										ontoggle={(e) => {
+											const el = e.currentTarget as HTMLDetailsElement;
+											if (!el.open) return;
+											const close = (ev: MouseEvent) => {
+												if (!el.contains(ev.target as Node)) {
+													el.removeAttribute('open');
+													document.removeEventListener('click', close);
+												}
+											};
+											setTimeout(() => document.addEventListener('click', close), 0);
+										}}
 									>
 										<summary
 											class="cursor-pointer list-none text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"

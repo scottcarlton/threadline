@@ -353,6 +353,7 @@
 											images={p.product_images ?? []}
 											alt={p.name}
 											aspect="aspect-square"
+											activeImageId={findItem(p.id)?.image_id}
 											onselect={(imageId) => {
 												const idx = items.findIndex((it) => it.product_id === p.id);
 												if (idx >= 0) items[idx].image_id = imageId;

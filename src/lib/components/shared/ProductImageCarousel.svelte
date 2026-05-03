@@ -10,10 +10,18 @@
 		images: ProductImage[];
 		alt: string;
 		aspect?: string;
+		activeImageId?: string | null;
 		onselect?: (imageId: string) => void;
 	};
 
-	let { productId, images, alt, aspect = 'aspect-[4/3]', onselect }: Props = $props();
+	let {
+		productId,
+		images,
+		alt,
+		aspect = 'aspect-[4/3]',
+		activeImageId = null,
+		onselect
+	}: Props = $props();
 
 	const sorted = $derived(
 		[...images].sort((a, b) => {
@@ -29,7 +37,13 @@
 	let hovered = $state(false);
 
 	$effect(() => {
-		if (sorted.length) activeIndex = 0;
+		if (!sorted.length) return;
+		if (activeImageId) {
+			const idx = sorted.findIndex((img) => img.id === activeImageId);
+			activeIndex = idx >= 0 ? idx : 0;
+		} else {
+			activeIndex = 0;
+		}
 	});
 
 	function setActive(index: number) {
