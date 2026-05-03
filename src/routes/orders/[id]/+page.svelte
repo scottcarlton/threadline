@@ -9,7 +9,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { Order, OrderLine, OrderStatus, BrandAsset } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
-	import DateSelect from '$lib/components/ui/date-select.svelte';
+	import { ShipWindowPicker } from '$lib/components/ui/ship-window-picker/index.js';
 	import { entityContext } from '$lib/stores/entityContext.js';
 	import { fetchOrderAttentionCount } from '$lib/stores/orderAttention.js';
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
@@ -585,31 +585,8 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	});
 
 	// Ship window dates
-	let editingShipDate = $state(false);
-	let startShipValue = $state('');
-	let shipDateValue = $state('');
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- used in template
 	let savingShipDate = $state(false);
-
-	function startEditShipDate() {
-		startShipValue = order.start_ship_date ?? '';
-		shipDateValue = order.expected_ship_date ?? '';
-		editingShipDate = true;
-	}
-
-	async function saveShipDate() {
-		savingShipDate = true;
-		await supabase
-			.from('orders')
-			.update({
-				start_ship_date: startShipValue || null,
-				expected_ship_date: shipDateValue || null,
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', order.id);
-		savingShipDate = false;
-		editingShipDate = false;
-		invalidateAll();
-	}
 
 	// Line item editing — bulk edit mode
 	// ── Line Items edit mode ────────────────────────────────────────────────
@@ -1322,38 +1299,29 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						</div>
 					{/if}
 				</div>
-				{#if canEdit && !editingShipDate}
-					<button
-						type="button"
-						class="rounded-md border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
-						onclick={startEditShipDate}
-					>
-						Edit window
-					</button>
+				{#if canEdit}
+					<ShipWindowPicker
+						variant="button"
+						deliveries={[]}
+						orderYear={new Date().getFullYear()}
+						startShipDate={order.start_ship_date ?? ''}
+						completeShipDate={order.expected_ship_date ?? ''}
+						onApply={async (range) => {
+							savingShipDate = true;
+							await supabase
+								.from('orders')
+								.update({
+									start_ship_date: range.startShipDate || null,
+									expected_ship_date: range.completeShipDate || null,
+									updated_at: new Date().toISOString()
+								})
+								.eq('id', order.id);
+							savingShipDate = false;
+							invalidateAll();
+						}}
+					/>
 				{/if}
 			</div>
-
-			<!-- Inline ship-window editor (when editingShipDate) -->
-			{#if editingShipDate}
-				<div class="border-t bg-muted/30 px-6 py-4">
-					<div class="grid gap-3 sm:grid-cols-2">
-						<div>
-							<div class="mb-1 text-sm text-muted-foreground">Start ship</div>
-							<DateSelect value={startShipValue} onchange={(v) => (startShipValue = v)} />
-						</div>
-						<div>
-							<div class="mb-1 text-sm text-muted-foreground">Complete ship</div>
-							<DateSelect value={shipDateValue} onchange={(v) => (shipDateValue = v)} />
-						</div>
-					</div>
-					<div class="mt-3 flex justify-end gap-2">
-						<Button variant="outline" size="sm" onclick={() => (editingShipDate = false)}>
-							Cancel
-						</Button>
-						<Button size="sm" onclick={saveShipDate} loading={savingShipDate}>Save</Button>
-					</div>
-				</div>
-			{/if}
 		</section>
 	{/if}
 
@@ -2589,29 +2557,18 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				<div class="max-h-[calc(90vh-11rem)] space-y-5 overflow-y-auto px-6 py-5">
 					<!-- Ship window -->
 					<div>
-						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Ship window</div>
-						<div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-							<div>
-								<DateSelect
-									value={convertForm.start_ship_date}
-									onchange={(v) => (convertForm.start_ship_date = v ?? '')}
-								/>
-								<div class="mt-1 text-sm text-muted-foreground">Start ship</div>
-								<input type="hidden" name="start_ship_date" value={convertForm.start_ship_date} />
-							</div>
-							<div>
-								<DateSelect
-									value={convertForm.expected_ship_date}
-									onchange={(v) => (convertForm.expected_ship_date = v ?? '')}
-								/>
-								<div class="mt-1 text-sm text-muted-foreground">Complete ship</div>
-								<input
-									type="hidden"
-									name="expected_ship_date"
-									value={convertForm.expected_ship_date}
-								/>
-							</div>
-						</div>
+						<ShipWindowPicker
+							deliveries={[]}
+							orderYear={new Date().getFullYear()}
+							startShipDate={convertForm.start_ship_date}
+							completeShipDate={convertForm.expected_ship_date}
+							onApply={(range) => {
+								convertForm.start_ship_date = range.startShipDate;
+								convertForm.expected_ship_date = range.completeShipDate;
+							}}
+						/>
+						<input type="hidden" name="start_ship_date" value={convertForm.start_ship_date} />
+						<input type="hidden" name="expected_ship_date" value={convertForm.expected_ship_date} />
 					</div>
 
 					<!-- Ship to / Bill to -->
