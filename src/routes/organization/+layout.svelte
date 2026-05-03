@@ -30,13 +30,27 @@
 
 	const navGroups = $derived<NavGroup[]>([
 		{
-			label: 'General',
+			label: '',
 			items: [
 				{ label: 'Profile', href: '/organization' },
 				{
 					label: 'Members',
 					href: '/organization/members',
 					badge: (data.teamCount as number) ?? 0
+				},
+				...(data.orgType === 'brand'
+					? [
+							{
+								label: 'Partners',
+								href: '/organization/partners' as const,
+								badge: (data.partnersCount as number) ?? 0
+							}
+						]
+					: []),
+				{
+					label: 'Contacts',
+					href: '/organization/contacts' as const,
+					badge: (data.contactsCount as number) ?? 0
 				},
 				{ label: 'Security', href: '/organization/security' },
 				{ label: 'Billing', href: '/organization/billing' }
@@ -62,7 +76,6 @@
 			? [
 					{
 						label: 'Commerce',
-						pill: 'new' as const,
 						items: [
 							{ label: 'Orders', href: '/organization/orders' as const },
 							{ label: 'Taxes', href: '/organization/taxes' as const },
@@ -73,25 +86,6 @@
 					}
 				]
 			: []),
-		{
-			label: 'Network',
-			items: [
-				...(data.orgType === 'brand'
-					? [
-							{
-								label: 'Partners',
-								href: '/organization/partners' as const,
-								badge: (data.partnersCount as number) ?? 0
-							}
-						]
-					: []),
-				{
-					label: 'Contacts',
-					href: '/organization/contacts' as const,
-					badge: (data.contactsCount as number) ?? 0
-				}
-			]
-		},
 		{
 			label: 'Automation',
 			items: [
@@ -147,27 +141,29 @@
 		{#if $isLgUp}
 			<div class="flex gap-8">
 				<nav class="sticky top-0 w-48 shrink-0 space-y-5 self-start">
-					{#each navGroups as group (group.label)}
+					{#each navGroups as group, i (group.label || i)}
 						<div>
-							<div class="mb-1.5 flex items-center gap-2 px-3">
-								<span class="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-									{group.label}
-								</span>
-								{#if group.pill === 'new'}
-									<span
-										class="inline-flex items-center rounded-full bg-foreground px-2 py-0.5 text-xs font-medium text-background"
-									>
-										New
+							{#if group.label}
+								<div class="mb-1.5 flex items-center gap-2 px-3">
+									<span class="text-xs text-muted-foreground">
+										{group.label}
 									</span>
-								{/if}
-							</div>
+									{#if group.pill === 'new'}
+										<span
+											class="inline-flex items-center rounded-full bg-foreground px-2 py-0.5 text-xs font-medium text-background"
+										>
+											New
+										</span>
+									{/if}
+								</div>
+							{/if}
 							<ul class="space-y-0.5">
 								{#each group.items as item (item.href)}
 									<li>
 										<a
 											href={resolve(item.href)}
 											class={cn(
-												'flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors',
+												'flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors',
 												isActive(item.href)
 													? 'bg-muted text-foreground'
 													: 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'

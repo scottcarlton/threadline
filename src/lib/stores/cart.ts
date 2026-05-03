@@ -12,6 +12,10 @@ export type CartItem = {
 	colors: string[];
 	sizes: string[];
 	addedAt: string;
+	seasonId: string | null;
+	seasonName: string | null;
+	selectedColor: string;
+	sizeQtys: Record<string, number>;
 };
 
 async function postAdd(productId: string) {
@@ -60,6 +64,9 @@ function createCartStore() {
 				return [...items, item];
 			});
 			postAdd(item.productId);
+		},
+		updateItem(productId: string, patch: Partial<CartItem>) {
+			update((items) => items.map((i) => (i.productId === productId ? { ...i, ...patch } : i)));
 		},
 		removeItem(productId: string) {
 			update((items) => items.filter((i) => i.productId !== productId));

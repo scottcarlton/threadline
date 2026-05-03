@@ -68,3 +68,25 @@ export function itemTotal(it: CatalogCartItem): number {
 export function itemIsSized(it: CatalogCartItem): boolean {
 	return itemUnits(it) > 0;
 }
+
+export function catalogProductToCartItem(p: CatalogProduct): CatalogCartItem {
+	const colors = productColors(p);
+	const sizes = productSizes(p);
+	const size_qtys: Record<string, number> = {};
+	for (const s of sizes) size_qtys[s] = 0;
+	return {
+		product_id: p.id,
+		brand_id: p.brand_id,
+		season_id: p.season_id,
+		original_season_id: p.season_id,
+		product_year: p.product_year,
+		style_number: p.style_number,
+		name: p.name,
+		unit_price: p.wholesale_price,
+		image_id: primaryImageId(p),
+		available_colors: colors,
+		available_sizes: sizes,
+		selected_color: colors[0] ?? '',
+		size_qtys
+	};
+}

@@ -30,7 +30,9 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 			style_number: string;
 			wholesale_price: number | null;
 			brand_id: string;
+			season_id: string | null;
 			brands: { id: string; name: string } | { id: string; name: string }[] | null;
+			seasons: { id: string; name: string } | { id: string; name: string }[] | null;
 			product_variants: { color: string | null; size: string | null }[] | null;
 			product_images: { id: string; is_primary: boolean }[] | null;
 		};
@@ -42,7 +44,7 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 		const { data } = await supabaseAdmin
 			.from('cart_items')
 			.select(
-				'added_at, products(id, name, style_number, wholesale_price, brand_id, brands(id, name), product_variants(color, size), product_images(id, is_primary))'
+				'added_at, products(id, name, style_number, wholesale_price, brand_id, season_id, brands(id, name), product_variants(color, size), product_images(id, is_primary), seasons(id, name))'
 			)
 			.eq('profile_id', locals.user.id)
 			.order('added_at', { ascending: true });
@@ -61,6 +63,8 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 				const primaryImage =
 					(p.product_images ?? []).find((img) => img.is_primary) ?? (p.product_images ?? [])[0];
 
+				const season = Array.isArray(p.seasons) ? p.seasons[0] : p.seasons;
+
 				return {
 					productId: p.id,
 					brandId: p.brand_id,
@@ -71,7 +75,11 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 					imageUrl: primaryImage ? `/api/products/${p.id}/images/${primaryImage.id}` : null,
 					colors,
 					sizes,
-					addedAt: row.added_at
+					addedAt: row.added_at,
+					seasonId: p.season_id ?? null,
+					seasonName: season?.name ?? null,
+					selectedColor: colors[0] ?? '',
+					sizeQtys: {}
 				};
 			})
 			.filter((row): row is CartItem => row !== null);

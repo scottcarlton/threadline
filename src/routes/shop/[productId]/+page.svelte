@@ -12,6 +12,7 @@
 	const product = $derived(
 		data.product as Product & {
 			brands: { id: string; name: string } | null;
+			seasons: { id: string; name: string } | null;
 			product_variants: {
 				id: string;
 				color: string | null;
@@ -69,7 +70,11 @@
 			imageUrl: primaryImage ? `/api/products/${product.id}/images/${primaryImage.id}` : null,
 			colors: colors as string[],
 			sizes: sizes as string[],
-			addedAt: new Date().toISOString()
+			addedAt: new Date().toISOString(),
+			seasonId: product.season_id ?? null,
+			seasonName: product.seasons?.name ?? null,
+			selectedColor: (colors as string[])[0] ?? '',
+			sizeQtys: {}
 		});
 	}
 

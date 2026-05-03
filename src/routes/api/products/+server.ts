@@ -16,6 +16,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	const offset = parseInt(url.searchParams.get('offset') ?? '0', 10) || 0;
 	const category = url.searchParams.get('category') ?? '';
 	const showArchived = url.searchParams.get('archived') === 'true';
+	const ids = url.searchParams.getAll('id').filter(Boolean);
 
 	let query = locals.supabase
 		.from('products')
@@ -29,6 +30,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		.order('style_number')
 		.range(offset, offset + limit - 1);
 
+	if (ids.length > 0) query = query.in('id', ids);
 	if (!showArchived) query = query.is('archived_at', null);
 	if (brandIds.length > 0) query = query.in('brand_id', brandIds);
 	if (seasonIds.length > 0) query = query.in('season_id', seasonIds);
