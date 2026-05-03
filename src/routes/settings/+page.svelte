@@ -540,7 +540,7 @@
 	<!-- Voice settings -->
 	<div class="pb-8">
 		<h3 class="text-[14px] font-semibold">Voice</h3>
-		<p class="mt-1 text-[13px] text-muted-foreground">Choose the AI assistant's voice</p>
+		<p class="mt-1 text-[13px] text-muted-foreground">Choose Stitch's voice</p>
 
 		<div class="mt-4 grid max-w-md grid-cols-2 gap-3 sm:grid-cols-3">
 			{#each voiceOptions as voice (voice.id)}

@@ -874,7 +874,7 @@
 				<div>
 					<h2 class="text-lg font-semibold">Try asking</h2>
 					<p class="mt-1 text-sm text-muted-foreground">
-						Use the AI assistant at the bottom of the screen anytime.
+						Use Stitch at the bottom of the screen anytime.
 					</p>
 					<div class="mt-4 flex flex-wrap gap-2">
 						<button
