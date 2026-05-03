@@ -562,7 +562,7 @@
 						<button
 							onclick={() => handleSend()}
 							disabled={$loading}
-							class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+							class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
 							aria-label="Send message"
 						>
 							<svg
