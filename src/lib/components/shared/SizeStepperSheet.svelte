@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { OverlayPanel } from '$lib/components/ui/overlay-panel/index.js';
+	import QtyStepper from './QtyStepper.svelte';
 	import ColorSwatch from './ColorSwatch.svelte';
 
 	type Props = {
@@ -14,6 +15,7 @@
 		unitPrice?: number;
 		sizes?: string[];
 		qtys?: Record<string, number>;
+		stockBySize?: Record<string, number | null>;
 		onChange: (size: string, qty: number) => void;
 		onColorPickerOpen?: () => void;
 	};
@@ -63,16 +65,6 @@
 
 	function setQty(size: string, n: number) {
 		props.onChange(size, Math.max(0, Number.isNaN(n) ? 0 : n));
-	}
-
-	function inc(size: string) {
-		if (!view) return;
-		setQty(size, (view.qtys[size] ?? 0) + 1);
-	}
-
-	function dec(size: string) {
-		if (!view) return;
-		setQty(size, (view.qtys[size] ?? 0) - 1);
 	}
 </script>
 
@@ -137,53 +129,18 @@
 				<div class="mx-auto flex w-full max-w-[300px] flex-col gap-3">
 					{#each v.sizes as size (size)}
 						{@const qty = v.qtys[size] ?? 0}
+						{@const stockQty = props.stockBySize?.[size] ?? null}
 						<div class="flex items-center gap-4">
 							<div class="w-8 shrink-0 text-sm font-medium">{size}</div>
-							<div
-								class="flex h-11 flex-1 items-center overflow-hidden rounded-lg border border-input bg-background focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20"
-							>
-								<button
-									type="button"
-									aria-label="Decrease {size}"
-									disabled={qty === 0}
-									onclick={() => dec(size)}
-									class="flex h-full shrink-0 items-center justify-center px-6 text-base text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
-								>
-									−
-								</button>
-								<input
-									type="text"
-									inputmode="numeric"
-									pattern="[0-9]*"
-									aria-label="{size} quantity"
-									value={qty}
-									oninput={(e) => {
-										const raw = (e.currentTarget as HTMLInputElement).value.replace(/[^0-9]/g, '');
-										setQty(size, raw === '' ? 0 : parseInt(raw, 10));
-									}}
-									onkeydown={(e) => {
-										if (e.key === 'ArrowUp') {
-											e.preventDefault();
-											inc(size);
-										} else if (e.key === 'ArrowDown') {
-											e.preventDefault();
-											dec(size);
-										} else if (e.key === 'Enter') {
-											e.preventDefault();
-											(e.currentTarget as HTMLInputElement).blur();
-										}
-									}}
-									class="h-full w-full min-w-0 bg-transparent text-center font-mono text-base outline-none"
-								/>
-								<button
-									type="button"
-									aria-label="Increase {size}"
-									onclick={() => inc(size)}
-									class="flex h-full shrink-0 items-center justify-center px-6 text-base text-muted-foreground transition-colors hover:text-foreground"
-								>
-									+
-								</button>
+							<div class="flex-1">
+								<QtyStepper value={qty} label={size} onchange={(n) => setQty(size, n)} />
 							</div>
+							{#if stockQty !== null}
+								<span
+									class="shrink-0 rounded-sm bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-600 dark:text-emerald-400"
+									>{stockQty}</span
+								>
+							{/if}
 						</div>
 					{/each}
 				</div>
