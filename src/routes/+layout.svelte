@@ -1248,7 +1248,7 @@
 										<button
 											onclick={() => sendAiMessage()}
 											disabled={!$isOnline}
-											class="flex h-11 w-11 items-center justify-center rounded-none bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+											class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
 											aria-label={$isOnline ? 'Send message' : 'Offline — cannot send'}
 										>
 											<svg
