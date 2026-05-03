@@ -14,6 +14,10 @@ function makeCartItem(overrides: Partial<CartItem> = {}): CartItem {
 		colors: ['Red'],
 		sizes: ['S', 'M', 'L'],
 		addedAt: new Date().toISOString(),
+		seasonId: null,
+		seasonName: null,
+		selectedColor: '',
+		sizeQtys: {},
 		...overrides
 	};
 }

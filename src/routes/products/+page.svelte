@@ -19,6 +19,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { debounce } from '$lib/utils/debounce.js';
+	import { selectedProductIds } from '$lib/stores/productSelection.js';
 
 	const PAGE_SIZE = 50;
 
@@ -46,10 +47,11 @@
 
 	// Mutable list — initial page from server, appended via infinite scroll
 	let productList = $state<ProductRow[]>([]);
-	let selectedIds = $state<string[]>([]);
+	const selectedIds = $derived($selectedProductIds);
 	function toggleSelected(id: string, v: boolean) {
-		if (v) selectedIds = selectedIds.includes(id) ? selectedIds : [...selectedIds, id];
-		else selectedIds = selectedIds.filter((x) => x !== id);
+		const current = $selectedProductIds;
+		if (v) selectedProductIds.set(current.includes(id) ? current : [...current, id]);
+		else selectedProductIds.set(current.filter((x) => x !== id));
 	}
 	let hasMore = $state(false);
 	let loadingMore = $state(false);

@@ -26,6 +26,8 @@
 	import { preferences } from '$lib/stores/preferences.js';
 	import { isLgUp } from '$lib/utils/viewport.js';
 	import { cart } from '$lib/stores/cart.js';
+	import MobileBottomNav from '$lib/components/layout/MobileBottomNav.svelte';
+	import { selectedProductIds } from '$lib/stores/productSelection.js';
 
 	const { messages, loading } = conversation;
 
@@ -198,6 +200,7 @@
 	});
 	let showHelp = $state(false);
 	let aiPanelOpen = $state(false);
+	let mobileAiDockOpen = $state(false);
 	let messagesContainer = $state<HTMLDivElement | null>(null);
 	let aiInputEl = $state<HTMLDivElement | null>(null);
 
@@ -773,20 +776,7 @@
 					/>
 				</div>
 			</div>
-			<div class="lg:hidden">
-				<Sidebar
-					mode="overlay"
-					open={sidebarOpen}
-					onclose={() => (sidebarOpen = false)}
-					role={data.membership?.role ?? null}
-					orgType={data.orgType}
-					brandScope={data.brandScope}
-					isBuyer={data.isBuyer}
-					{isNxBlsr}
-					isSystemAdmin={data.isSystemAdmin}
-					bind:showHelp
-				/>
-			</div>
+			<!-- Mobile sidebar removed — bottom nav replaces it on mobile -->
 
 			<!-- Main content -->
 			<main
@@ -797,8 +787,8 @@
 			</main>
 		</div>
 
-		<!-- Fixed AI dock at bottom -->
-		{#if !hideAiDock || dockPeeking}
+		<!-- Fixed AI dock at bottom — desktop always, mobile only when toggled -->
+		{#if ($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen)}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out {sidebarOpen
@@ -929,6 +919,42 @@
 						class="hidden"
 					/>
 
+					<!-- Product selection bar -->
+					{#if $selectedProductIds.length > 0}
+						<div
+							class="flex items-center justify-between rounded-2xl bg-zinc-900 px-5 py-3 shadow-2xl ring-1 ring-white/10"
+						>
+							<div class="flex items-center gap-3">
+								<span class="text-sm text-zinc-300"
+									>{$selectedProductIds.length} Items selected</span
+								>
+								<button
+									class="flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+									onclick={() => selectedProductIds.set([])}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<circle cx="12" cy="12" r="10" />
+										<path stroke-linecap="round" d="m15 9-6 6m0-6 6 6" />
+									</svg>
+									Clear
+								</button>
+							</div>
+							<button
+								class="rounded-xl bg-white px-5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
+								onclick={() => goto(resolve('/products/order'))}
+							>
+								Start Order
+							</button>
+						</div>
+					{/if}
+
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
@@ -937,6 +963,19 @@
 							if (!(e.target as HTMLElement).closest('button')) focusAiInput();
 						}}
 					>
+						<!-- Mobile drag handle to close -->
+						{#if !$isLgUp}
+							<button
+								class="flex w-full items-center justify-center pt-2 pb-0"
+								onclick={(e) => {
+									e.stopPropagation();
+									mobileAiDockOpen = false;
+								}}
+								aria-label="Close AI dock"
+							>
+								<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
+							</button>
+						{/if}
 						<div class="px-5 pt-4 pb-3">
 							<!-- Agent indicator -->
 							{#if $activeAgent}
@@ -1249,6 +1288,11 @@
 					</div>
 				</div>
 			</div>
+		{/if}
+
+		<!-- Mobile bottom nav — hidden when AI dock is open -->
+		{#if !$isLgUp && !mobileAiDockOpen}
+			<MobileBottomNav onAiToggle={() => (mobileAiDockOpen = true)} />
 		{/if}
 
 		{#if data.user?.id}

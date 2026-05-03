@@ -12,6 +12,7 @@
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 	import type { CatalogProduct, CatalogCartItem, ProductVariant } from './catalog-picker-types.js';
+	import { catalogProductToCartItem } from './catalog-picker-types.js';
 	import SizeStepperSheet from './SizeStepperSheet.svelte';
 	import ColorPickerSheet from './ColorPickerSheet.svelte';
 	import {
@@ -175,25 +176,7 @@
 
 	function addProduct(p: CatalogProduct) {
 		if (productInCart(p)) return;
-		const colors = productColors(p);
-		const sizes = productSizes(p);
-		const size_qtys: Record<string, number> = {};
-		for (const s of sizes) size_qtys[s] = 0;
-		items.push({
-			product_id: p.id,
-			brand_id: p.brand_id,
-			season_id: p.season_id,
-			original_season_id: p.season_id,
-			product_year: p.product_year,
-			style_number: p.style_number,
-			name: p.name,
-			unit_price: p.wholesale_price,
-			image_id: primaryImageId(p),
-			available_colors: colors,
-			available_sizes: sizes,
-			selected_color: colors[0] ?? '',
-			size_qtys
-		});
+		items.push(catalogProductToCartItem(p));
 	}
 
 	function removeProduct(product_id: string) {

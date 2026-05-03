@@ -222,16 +222,17 @@
 				{/if}
 			</div>
 		{:else}
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			<div class="grid grid-cols-2 gap-1 sm:gap-4 lg:grid-cols-3">
 				{#each filtered as product (product.id)}
 					{@const primaryImage =
 						product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 					{@const inCart = $cart.some((i) => i.productId === product.id)}
+					{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
 					<div
 						class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md"
 					>
 						<a href={resolve(`/shop/${product.id}`)} class="block">
-							<div class="aspect-[4/3] overflow-hidden rounded-t-xl bg-muted">
+							<div class="relative aspect-[4/3] overflow-hidden bg-muted">
 								{#if primaryImage}
 									<img
 										src="/api/products/{product.id}/images/{primaryImage.id}"
@@ -256,37 +257,33 @@
 										</svg>
 									</div>
 								{/if}
-							</div>
-							<div class="p-4 pb-2">
-								{#if !brandFilter}
-									<p class="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-										{product.brands?.name}
-									</p>
-								{/if}
-								<p class="text-sm text-muted-foreground">{product.style_number}</p>
-								<p class="mt-0.5 text-base font-normal">{product.name}</p>
-								<div class="mt-2 flex items-center justify-between">
-									<span class="text-base font-normal"
-										>{fmt.format(Number(product.wholesale_price))}</span
-									>
-									<span class="text-sm text-muted-foreground"
-										>{getVariantSummary(product.product_variants ?? [])}</span
-									>
-								</div>
 								{#if product.ats}
-									{@const agg = aggregateStockStatus(product.product_variants ?? [])}
-									{#if agg}
-										<div class="mt-2">
-											<StockPill status={agg} qty={null} hideQty />
+									{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
+									{#if stockAgg}
+										<div class="absolute top-4 left-4">
+											<StockPill status={stockAgg} qty={null} hideQty />
 										</div>
 									{/if}
 								{/if}
-								{#if product.category}
-									<span
-										class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-										>{product.category}</span
-									>
-								{/if}
+							</div>
+							<div class="p-4">
+								<p class="text-sm text-muted-foreground">{product.style_number}</p>
+								<div
+									class="mt-0.5 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+								>
+									<div class="min-w-0">
+										<p class="text-sm font-medium">{product.name}</p>
+										<p class="mt-0.5 text-sm text-muted-foreground">
+											{[product.brands?.name, seasonRow?.name].filter(Boolean).join(' · ')}
+										</p>
+									</div>
+									<div class="shrink-0 sm:text-right">
+										<p class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</p>
+										<p class="mt-0.5 text-sm text-muted-foreground">
+											{getVariantSummary(product.product_variants ?? [])}
+										</p>
+									</div>
+								</div>
 							</div>
 						</a>
 						<div class="px-4 pb-4">
@@ -334,7 +331,14 @@
 														.filter((s): s is string => Boolean(s))
 												)
 											],
-											addedAt: new Date().toISOString()
+											addedAt: new Date().toISOString(),
+											seasonId: product.season_id ?? null,
+											seasonName: seasonRow?.name ?? null,
+											selectedColor:
+												(product.product_variants ?? [])
+													.map((v) => v.color)
+													.filter((c): c is string => Boolean(c))[0] ?? '',
+											sizeQtys: {}
 										})}
 									class="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
 								>
