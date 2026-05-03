@@ -10,6 +10,7 @@
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
 	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 
 	let { data } = $props();
@@ -27,7 +28,12 @@
 				stock_threshold: number | null;
 				shopify_variant_id: string | null;
 			}[];
-			product_images: { id: string; file_path: string; is_primary: boolean }[];
+			product_images: {
+				id: string;
+				file_path: string;
+				is_primary: boolean;
+				sort_order: number | null;
+			}[];
 		})[]
 	);
 
@@ -232,35 +238,18 @@
 						class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md"
 					>
 						<a href={resolve(`/shop/${product.id}`)} class="block">
-							<div class="relative aspect-[4/3] overflow-hidden bg-muted">
-								{#if primaryImage}
-									<img
-										src="/api/products/{product.id}/images/{primaryImage.id}"
-										alt={product.name}
-										class="h-full w-full object-cover"
-									/>
-								{:else}
-									<div class="flex h-full items-center justify-center text-muted-foreground">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-10 w-10"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="1"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-											/>
-										</svg>
-									</div>
-								{/if}
+							<div class="relative">
+								<ProductImageCarousel
+									productId={product.id}
+									images={product.product_images ?? []}
+									alt={product.name}
+								/>
 								{#if product.ats}
 									{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
 									{#if stockAgg}
-										<div class="absolute top-4 left-4">
+										<div
+											class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+										>
 											<StockPill status={stockAgg} qty={null} hideQty />
 										</div>
 									{/if}

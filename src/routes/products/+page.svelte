@@ -8,6 +8,7 @@
 	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
 	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
@@ -32,7 +33,12 @@
 			stock_threshold: number | null;
 			shopify_variant_id: string | null;
 		}[];
-		product_images: { id: string; file_path: string; is_primary: boolean }[];
+		product_images: {
+			id: string;
+			file_path: string;
+			is_primary: boolean;
+			sort_order: number | null;
+		}[];
 	};
 
 	let { data } = $props();
@@ -297,8 +303,6 @@
 	{:else}
 		<div class="grid grid-cols-2 gap-1 sm:gap-4 lg:grid-cols-3">
 			{#each filtered as product (product.id)}
-				{@const primaryImage =
-					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 				<a
 					href={resolve(`/products/${product.id}`)}
 					class="group rounded-none border bg-card transition-all duration-200 hover:shadow-md {selectedIds.includes(
@@ -307,35 +311,18 @@
 						? 'border-foreground'
 						: 'border-border hover:border-foreground/20'} {product.archived_at ? 'opacity-50' : ''}"
 				>
-					<div class="relative aspect-[4/3] overflow-hidden bg-muted">
-						{#if primaryImage}
-							<img
-								src="/api/products/{product.id}/images/{primaryImage.id}"
-								alt={product.name}
-								class="h-full w-full object-cover"
-							/>
-						{:else}
-							<div class="flex h-full items-center justify-center text-muted-foreground">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-10 w-10"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-									/>
-								</svg>
-							</div>
-						{/if}
+					<div class="relative">
+						<ProductImageCarousel
+							productId={product.id}
+							images={product.product_images ?? []}
+							alt={product.name}
+						/>
 						{#if product.ats}
 							{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
 							{#if stockAgg}
-								<div class="absolute top-4 left-4">
+								<div
+									class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+								>
 									<StockPill status={stockAgg} qty={null} hideQty />
 								</div>
 							{/if}
@@ -355,7 +342,7 @@
 								toggleSelected(product.id, !selectedIds.includes(product.id));
 							}}
 						>
-							<span class="pointer-events-none block">
+							<span class="pointer-events-none flex rounded-sm bg-white">
 								<Checkbox
 									checked={selectedIds.includes(product.id)}
 									class="h-6 w-6 group-hover/check:border-foreground"
