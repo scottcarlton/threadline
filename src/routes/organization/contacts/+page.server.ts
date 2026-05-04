@@ -10,32 +10,53 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// orgs, whose `brands` table holds the partners they represent.
 	const includeBrandContacts = orgType === 'rep';
 
-	// Federation view: accounts are contacts-of-record on both sides of an
-	// active org_connection (MBISR ↔ Brand). A rep connected to a brand should
-	// see contacts for that brand's accounts, and vice versa — the accounts are
-	// shared context between the two orgs. Scope by active connections; rely on
-	// supabaseAdmin for cross-org reads (authenticated SSR client can't reliably
-	// attach session to RLS in this version of @supabase/ssr).
+	// Federation is asymmetric for accounts (and their contacts):
+	//   Rep orgs see contacts from own + connected brand orgs (implicit).
+	//   Brand orgs see contacts from own accounts + only rep accounts explicitly
+	//   linked via federated_account_links.
+	const isBrandOrg = orgType === 'brand';
 	const { data: conns } = await supabaseAdmin
 		.from('org_connections')
 		.select('rep_org_id, brand_org_id')
 		.eq('status', 'active')
 		.or(`rep_org_id.eq.${organization.id},brand_org_id.eq.${organization.id}`);
 	const visibleOrgIdSet = new Set<string>([organization.id]);
-	for (const c of conns ?? []) {
-		if (c.rep_org_id && c.rep_org_id !== organization.id) visibleOrgIdSet.add(c.rep_org_id);
-		if (c.brand_org_id && c.brand_org_id !== organization.id) visibleOrgIdSet.add(c.brand_org_id);
+	let federatedAccountIds: string[] = [];
+
+	if (isBrandOrg) {
+		for (const c of conns ?? []) {
+			if (c.brand_org_id) visibleOrgIdSet.add(c.brand_org_id);
+		}
+		const { data: linkedAccounts } = await supabaseAdmin
+			.from('federated_account_links')
+			.select('account_id')
+			.eq('target_org_id', organization.id);
+		federatedAccountIds = (linkedAccounts ?? []).map((r) => r.account_id);
+	} else {
+		for (const c of conns ?? []) {
+			if (c.rep_org_id) visibleOrgIdSet.add(c.rep_org_id);
+			if (c.brand_org_id) visibleOrgIdSet.add(c.brand_org_id);
+		}
 	}
 	const visibleOrgIds = Array.from(visibleOrgIdSet);
 
+	let accountsQuery = supabaseAdmin
+		.from('accounts')
+		.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone')
+		.is('archived_at', null)
+		.not('contact_email', 'is', null)
+		.order('contact_first_name');
+
+	if (isBrandOrg && federatedAccountIds.length > 0) {
+		const orgList = visibleOrgIds.join(',');
+		const idList = federatedAccountIds.join(',');
+		accountsQuery = accountsQuery.or(`organization_id.in.(${orgList}),id.in.(${idList})`);
+	} else {
+		accountsQuery = accountsQuery.in('organization_id', visibleOrgIds);
+	}
+
 	const [accountsRes, brandsRes, discoveredRes] = await Promise.all([
-		supabaseAdmin
-			.from('accounts')
-			.select('id, business_name, contact_first_name, contact_last_name, contact_email, phone')
-			.in('organization_id', visibleOrgIds)
-			.is('archived_at', null)
-			.not('contact_email', 'is', null)
-			.order('contact_first_name'),
+		accountsQuery,
 		includeBrandContacts
 			? supabase
 					.from('brands')
