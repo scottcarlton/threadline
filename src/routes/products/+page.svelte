@@ -301,16 +301,19 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="grid grid-cols-2 gap-1 sm:gap-4 lg:grid-cols-3">
+		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 			{#each filtered as product (product.id)}
 				<a
 					href={resolve(`/products/${product.id}`)}
-					class="group rounded-none border bg-card transition-all duration-200 hover:shadow-md {selectedIds.includes(
-						product.id
-					)
-						? 'border-foreground'
-						: 'border-border hover:border-foreground/20'} {product.archived_at ? 'opacity-50' : ''}"
+					class="group relative rounded-none bg-card transition-all duration-200 {product.archived_at
+						? 'opacity-50'
+						: ''}"
 				>
+					{#if selectedIds.includes(product.id)}
+						<div
+							class="pointer-events-none absolute inset-0 z-10 border-6 border-foreground/20"
+						></div>
+					{/if}
 					<div class="relative">
 						<ProductImageCarousel
 							productId={product.id}
