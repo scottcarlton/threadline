@@ -549,6 +549,49 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 		}
 	},
 	{
+		name: 'get_sales_analytics',
+		description:
+			'Fast, pre-computed sales analytics with date range support. Use this for any time-scoped sales question ("this month", "Q2", "last 30 days", "May vs April"). Returns revenue, order count, units sold, and avg order value. Can group by brand, account, rep, season, date, status, or source (in-house vs agency — brand orgs only). Prefer this over get_dashboard_metrics and get_sales_report for any question involving a time period.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				date_from: {
+					type: 'string',
+					description:
+						'Start date in YYYY-MM-DD format. Derive from natural language: "this month" → first day of current month, "Q2 2026" → 2026-04-01, "last 30 days" → today minus 30.'
+				},
+				date_to: {
+					type: 'string',
+					description:
+						'End date in YYYY-MM-DD format. Derive from natural language: "this month" → today or last day of month, "Q2 2026" → 2026-06-30.'
+				},
+				season_name: {
+					type: 'string',
+					description: 'Filter by season name (fuzzy match). E.g. "Fall", "Spring 2026".'
+				},
+				brand_name: {
+					type: 'string',
+					description: 'Filter by brand name (fuzzy match).'
+				},
+				account_name: {
+					type: 'string',
+					description: 'Filter by account name (fuzzy match).'
+				},
+				rep_name: {
+					type: 'string',
+					description: 'Filter by rep name (fuzzy match).'
+				},
+				group_by: {
+					type: 'string',
+					enum: ['total', 'brand', 'account', 'rep', 'season', 'date', 'status', 'source'],
+					description:
+						'How to group results. "total" returns a single aggregate. "date" returns one row per day. "source" splits in-house vs agency (brand orgs only). Default: "total".'
+				}
+			},
+			required: []
+		}
+	},
+	{
 		name: 'get_style_velocity',
 		description:
 			'Get trending/hot-selling styles. Shows which styles are being ordered by the most accounts in a given time window. Useful for identifying demand signals and trending products.',
@@ -943,7 +986,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 - Brand access: ${brandScopeInfo}
 - Current date/time: ${dateStr} at ${timeStr}
 - Currently viewing: ${pageContext}${entityInfo}
-${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_commission_report, and get_style_velocity.' : ''}`;
+${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_sales_analytics, get_commission_report, and get_style_velocity.' : ''}`;
 
 	// Use structured system blocks for prompt caching
 	const systemBlocks: Anthropic.TextBlockParam[] = [

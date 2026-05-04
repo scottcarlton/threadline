@@ -10,6 +10,7 @@
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
 	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 
 	let { data } = $props();
@@ -27,7 +28,12 @@
 				stock_threshold: number | null;
 				shopify_variant_id: string | null;
 			}[];
-			product_images: { id: string; file_path: string; is_primary: boolean }[];
+			product_images: {
+				id: string;
+				file_path: string;
+				is_primary: boolean;
+				sort_order: number | null;
+			}[];
 		})[]
 	);
 
@@ -222,71 +228,49 @@
 				{/if}
 			</div>
 		{:else}
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 				{#each filtered as product (product.id)}
 					{@const primaryImage =
 						product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 					{@const inCart = $cart.some((i) => i.productId === product.id)}
-					<div
-						class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md"
-					>
+					{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+					<div class="group rounded-none bg-card transition-all duration-200">
 						<a href={resolve(`/shop/${product.id}`)} class="block">
-							<div class="aspect-[4/3] overflow-hidden rounded-t-xl bg-muted">
-								{#if primaryImage}
-									<img
-										src="/api/products/{product.id}/images/{primaryImage.id}"
-										alt={product.name}
-										class="h-full w-full object-cover"
-									/>
-								{:else}
-									<div class="flex h-full items-center justify-center text-muted-foreground">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-10 w-10"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="1"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-											/>
-										</svg>
-									</div>
-								{/if}
-							</div>
-							<div class="p-4 pb-2">
-								{#if !brandFilter}
-									<p class="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-										{product.brands?.name}
-									</p>
-								{/if}
-								<p class="text-sm text-muted-foreground">{product.style_number}</p>
-								<p class="mt-0.5 text-base font-normal">{product.name}</p>
-								<div class="mt-2 flex items-center justify-between">
-									<span class="text-base font-normal"
-										>{fmt.format(Number(product.wholesale_price))}</span
-									>
-									<span class="text-sm text-muted-foreground"
-										>{getVariantSummary(product.product_variants ?? [])}</span
-									>
-								</div>
+							<div class="relative">
+								<ProductImageCarousel
+									productId={product.id}
+									images={product.product_images ?? []}
+									alt={product.name}
+								/>
 								{#if product.ats}
-									{@const agg = aggregateStockStatus(product.product_variants ?? [])}
-									{#if agg}
-										<div class="mt-2">
-											<StockPill status={agg} qty={null} hideQty />
+									{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
+									{#if stockAgg}
+										<div
+											class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+										>
+											<StockPill status={stockAgg} qty={null} hideQty />
 										</div>
 									{/if}
 								{/if}
-								{#if product.category}
-									<span
-										class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-										>{product.category}</span
-									>
-								{/if}
+							</div>
+							<div class="p-4">
+								<p class="text-sm text-muted-foreground">{product.style_number}</p>
+								<div
+									class="mt-0.5 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+								>
+									<div class="min-w-0">
+										<p class="text-sm font-medium">{product.name}</p>
+										<p class="mt-0.5 text-sm text-muted-foreground">
+											{[product.brands?.name, seasonRow?.name].filter(Boolean).join(' · ')}
+										</p>
+									</div>
+									<div class="shrink-0 sm:text-right">
+										<p class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</p>
+										<p class="mt-0.5 text-sm text-muted-foreground">
+											{getVariantSummary(product.product_variants ?? [])}
+										</p>
+									</div>
+								</div>
 							</div>
 						</a>
 						<div class="px-4 pb-4">
@@ -334,7 +318,14 @@
 														.filter((s): s is string => Boolean(s))
 												)
 											],
-											addedAt: new Date().toISOString()
+											addedAt: new Date().toISOString(),
+											seasonId: product.season_id ?? null,
+											seasonName: seasonRow?.name ?? null,
+											selectedColor:
+												(product.product_variants ?? [])
+													.map((v) => v.color)
+													.filter((c): c is string => Boolean(c))[0] ?? '',
+											sizeQtys: {}
 										})}
 									class="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
 								>

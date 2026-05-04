@@ -8,7 +8,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { OrderType } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
-	import DateSelect from '$lib/components/ui/date-select.svelte';
+	import { ShipWindowPicker } from '$lib/components/ui/ship-window-picker/index.js';
 	import type { CartLine, DeliveryChoice } from '$lib/server/orders/cart.js';
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
 	import SizeStepperSheet from '$lib/components/shared/SizeStepperSheet.svelte';
@@ -395,8 +395,16 @@
 	// Groups are keyed by (brand, season), so year stays constant for now.
 	function moveTargetsFor(source_season_id: string | null) {
 		const srcSort = seasonSort(source_season_id);
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const seen = new Set<string>();
 		return seasons
 			.filter((s) => s.sort_order != null && s.sort_order > srcSort)
+			.filter((s) => {
+				const key = s.name.trim().toLowerCase();
+				if (seen.has(key)) return false;
+				seen.add(key);
+				return true;
+			})
 			.map((s) => ({ season_id: s.id, label: s.name }));
 	}
 
@@ -1706,6 +1714,17 @@
 								{#if moveTargets.length > 0}
 									<details
 										class="relative ml-1 marker:hidden [&>summary::-webkit-details-marker]:hidden"
+										ontoggle={(e) => {
+											const el = e.currentTarget as HTMLDetailsElement;
+											if (!el.open) return;
+											const close = (ev: MouseEvent) => {
+												if (!el.contains(ev.target as Node)) {
+													el.removeAttribute('open');
+													document.removeEventListener('click', close);
+												}
+											};
+											setTimeout(() => document.addEventListener('click', close), 0);
+										}}
 									>
 										<summary
 											class="cursor-pointer list-none text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -1760,8 +1779,27 @@
 							</div>
 						</div>
 
+						<!-- Ship window picker -->
+						<div class="mb-4">
+							<ShipWindowPicker
+								id={`ship-window-${groupKey(g.brand_id, g.season_id)}`}
+								deliveries={deliveries.filter((d) => d.season_id === g.season_id)}
+								orderYear={cart.order_year}
+								startShipDate={customDates.start_ship_date}
+								completeShipDate={customDates.expected_ship_date}
+								onApply={(range) =>
+									setMeta(g.brand_id, g.season_id, {
+										delivery: {
+											kind: 'custom',
+											start_ship_date: range.startShipDate,
+											expected_ship_date: range.completeShipDate
+										}
+									})}
+							/>
+						</div>
+
 						<!-- Items list — drag each row to another group card -->
-						<div class="mb-4 space-y-2">
+						<div class="space-y-2">
 							{#each g.items as it (it.product_id)}
 								<div
 									class="group/item flex cursor-grab items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm transition-opacity {draggingItemId ===
@@ -1814,48 +1852,6 @@
 									</button>
 								</div>
 							{/each}
-						</div>
-
-						<!-- Delivery selection: MM / DD / YYYY dropdowns, always visible -->
-						<div class="flex flex-wrap gap-6">
-							<div>
-								<Label for={`start-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
-									Start Ship
-								</Label>
-								<div class="mt-1">
-									<DateSelect
-										id={`start-${groupKey(g.brand_id, g.season_id)}`}
-										value={customDates.start_ship_date}
-										onchange={(v) =>
-											setMeta(g.brand_id, g.season_id, {
-												delivery: {
-													kind: 'custom',
-													start_ship_date: v,
-													expected_ship_date: customDates.expected_ship_date
-												}
-											})}
-									/>
-								</div>
-							</div>
-							<div>
-								<Label for={`end-${groupKey(g.brand_id, g.season_id)}`} class="text-sm">
-									Complete Ship
-								</Label>
-								<div class="mt-1">
-									<DateSelect
-										id={`end-${groupKey(g.brand_id, g.season_id)}`}
-										value={customDates.expected_ship_date}
-										onchange={(v) =>
-											setMeta(g.brand_id, g.season_id, {
-												delivery: {
-													kind: 'custom',
-													start_ship_date: customDates.start_ship_date,
-													expected_ship_date: v
-												}
-											})}
-									/>
-								</div>
-							</div>
 						</div>
 					</div>
 				{/each}

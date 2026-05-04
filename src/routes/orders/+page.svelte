@@ -495,15 +495,17 @@
 				aria-label="Toggle spotlight filter"
 			>
 				<span class="relative flex h-2 w-2 items-center justify-center">
-					{#if spotlightOn}
+					{#if spotlightOn && spotlightCounts.total > 0}
 						<span
 							class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500/60"
 						></span>
 					{/if}
 					<span
-						class="relative inline-flex h-2 w-2 rounded-full {spotlightOn
-							? 'bg-amber-500'
-							: 'bg-amber-500/60'}"
+						class="relative inline-flex h-2 w-2 rounded-full {spotlightCounts.total === 0
+							? 'bg-muted-foreground/40'
+							: spotlightOn
+								? 'bg-amber-500'
+								: 'bg-amber-500/60'}"
 					></span>
 				</span>
 				<span>Spotlight</span>

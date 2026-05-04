@@ -9,9 +9,12 @@
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
+	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
+	import QtyStepper from '$lib/components/shared/QtyStepper.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
 	import type { CatalogProduct, CatalogCartItem, ProductVariant } from './catalog-picker-types.js';
+	import { catalogProductToCartItem } from './catalog-picker-types.js';
 	import SizeStepperSheet from './SizeStepperSheet.svelte';
 	import ColorPickerSheet from './ColorPickerSheet.svelte';
 	import {
@@ -175,25 +178,7 @@
 
 	function addProduct(p: CatalogProduct) {
 		if (productInCart(p)) return;
-		const colors = productColors(p);
-		const sizes = productSizes(p);
-		const size_qtys: Record<string, number> = {};
-		for (const s of sizes) size_qtys[s] = 0;
-		items.push({
-			product_id: p.id,
-			brand_id: p.brand_id,
-			season_id: p.season_id,
-			original_season_id: p.season_id,
-			product_year: p.product_year,
-			style_number: p.style_number,
-			name: p.name,
-			unit_price: p.wholesale_price,
-			image_id: primaryImageId(p),
-			available_colors: colors,
-			available_sizes: sizes,
-			selected_color: colors[0] ?? '',
-			size_qtys
-		});
+		items.push(catalogProductToCartItem(p));
 	}
 
 	function removeProduct(product_id: string) {
@@ -323,7 +308,7 @@
 
 		<!-- Body: grid + overlay sizing panel -->
 		<div class="relative flex flex-1 overflow-hidden">
-			<div class="flex-1 overflow-auto p-5 pb-32">
+			<div class="flex-1 overflow-auto pt-5 pb-32">
 				{#if modalLoading}
 					<div class="p-10 text-center text-sm text-muted-foreground">Loading…</div>
 				{:else if modalProducts.length === 0}
@@ -332,15 +317,14 @@
 						<p class="mt-1 text-sm text-muted-foreground">Adjust the filters above.</p>
 					</div>
 				{:else}
-					<div class="grid grid-cols-2 gap-1 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+					<div class="grid grid-cols-2 gap-0 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
 						{#each modalProducts as p (p.id)}
 							{@const added = productInCart(p)}
-							{@const imgId = primaryImageId(p)}
 							{@const locked = lockedProductIds.includes(p.id)}
 							<div
-								class="group/card relative flex flex-col border transition {added
-									? 'border-foreground'
-									: 'border-border'} {locked ? 'pointer-events-none' : 'cursor-pointer'}"
+								class="group/card relative flex flex-col transition {locked
+									? 'pointer-events-none'
+									: 'cursor-pointer'}"
 								role="button"
 								tabindex={locked ? -1 : 0}
 								aria-pressed={added}
@@ -355,6 +339,11 @@
 									}
 								}}
 							>
+								{#if added && !locked}
+									<div
+										class="pointer-events-none absolute inset-0 z-10 border-6 border-foreground/20"
+									></div>
+								{/if}
 								{#if locked}
 									<span
 										class="absolute top-2 right-2 z-10 rounded-full bg-foreground px-2 py-0.5 text-sm font-medium text-background shadow-sm"
@@ -363,33 +352,24 @@
 									</span>
 								{/if}
 								<div class="flex flex-1 flex-col {locked ? 'opacity-50' : ''}">
-									<div class="relative aspect-square overflow-hidden bg-muted">
-										{#if imgId}
-											<img
-												src={`/api/products/${p.id}/images/${imgId}`}
-												alt=""
-												class="h-full w-full object-cover"
-											/>
-										{:else}
-											<div class="flex h-full w-full items-center justify-center">
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.5"
-													class="h-10 w-10 text-muted-foreground/40"
-												>
-													<rect x="3" y="3" width="18" height="18" rx="2" />
-													<circle cx="8.5" cy="8.5" r="1.5" />
-													<path d="M21 15l-5-5L5 21" />
-												</svg>
-											</div>
-										{/if}
+									<div class="relative">
+										<ProductImageCarousel
+											productId={p.id}
+											images={p.product_images ?? []}
+											alt={p.name}
+											aspect="aspect-square"
+											activeImageId={findItem(p.id)?.image_id}
+											onselect={(imageId) => {
+												const idx = items.findIndex((it) => it.product_id === p.id);
+												if (idx >= 0) items[idx].image_id = imageId;
+											}}
+										/>
 										{#if p.ats}
 											{@const agg = aggregateStockStatus(p.product_variants ?? [])}
 											{#if agg}
-												<div class="absolute top-4 left-4">
+												<div
+													class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+												>
 													<StockPill status={agg} qty={null} hideQty />
 												</div>
 											{/if}
@@ -400,7 +380,7 @@
 													? 'opacity-100'
 													: 'opacity-0 group-focus-within/card:opacity-100 group-hover/card:opacity-100'}"
 											>
-												<span class="pointer-events-none block">
+												<span class="pointer-events-none flex rounded-sm bg-white">
 													<Checkbox
 														checked={added}
 														class="h-6 w-6 group-hover/card:border-foreground"
@@ -410,7 +390,7 @@
 											{#if added}
 												<button
 													type="button"
-													class="absolute right-4 bottom-4 left-4 inline-flex h-10 items-center justify-center rounded-md border border-foreground bg-background text-sm font-medium transition-colors hover:bg-muted"
+													class="absolute right-4 bottom-14 left-4 inline-flex h-10 items-center justify-center rounded-md border bg-background text-sm font-medium transition-colors hover:bg-muted"
 													onclick={(e) => {
 														e.stopPropagation();
 														openSizing(p);
@@ -423,16 +403,18 @@
 									</div>
 									<div class="flex flex-1 flex-col gap-1 p-3">
 										<div class="text-sm text-muted-foreground">{p.style_number}</div>
-										<div class="flex items-start justify-between gap-3">
+										<div
+											class="mt-0.5 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+										>
 											<div class="min-w-0">
-												<div class="line-clamp-2 text-sm font-semibold">{p.name}</div>
+												<div class="text-sm font-semibold">{p.name}</div>
 												<div class="text-sm text-muted-foreground">
 													{brandName(p.brand_id)}{p.season_id
 														? ' · ' + seasonLabel(p.season_id, p.product_year)
 														: ''}
 												</div>
 											</div>
-											<div class="shrink-0 text-right">
+											<div class="shrink-0 sm:text-right">
 												<div class="text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
 												<div class="mt-0.5 text-sm text-muted-foreground">{variantSummary(p)}</div>
 											</div>
@@ -490,52 +472,45 @@
 
 								{#if it.available_sizes.length > 0}
 									<div class="mb-2 text-sm text-muted-foreground">Sizes</div>
-									<div class="flex flex-wrap gap-3">
+									<div class="flex flex-col gap-3">
 										{#each it.available_sizes as size (size)}
 											{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
 											{@const prod = productForItem(it)}
-											<div class="flex flex-col items-center gap-1">
-												<span class="text-sm text-muted-foreground">{size}</span>
-												<input
-													type="number"
-													min="0"
-													class="h-10 w-16 rounded border bg-background px-2 text-center text-sm"
-													value={it.size_qtys[size] ?? 0}
-													oninput={(e) => {
-														const n = parseInt((e.target as HTMLInputElement).value, 10);
-														items[idx].size_qtys[size] = Number.isNaN(n) ? 0 : Math.max(0, n);
+											{@const qty = it.size_qtys[size] ?? 0}
+											{@const variant = prod?.ats
+												? findVariant(prod, it.selected_color, size)
+												: null}
+											<div
+												class="grid items-center gap-3"
+												style="grid-template-columns: 32px 2fr 1fr;"
+											>
+												<span class="text-sm font-medium">{size}</span>
+												<QtyStepper
+													value={qty}
+													label={size}
+													onchange={(n) => {
+														items[idx].size_qtys[size] = n;
 													}}
 												/>
-												{#if prod?.ats}
-													{@const variant = findVariant(prod, it.selected_color, size)}
-													{#if variant}
-														{@const stat = deriveStockStatus(
-															variant.stock_qty,
-															variant.stock_threshold
-														)}
-														{#if stat}
-															<StockPill status={stat} qty={variant.stock_qty} />
-														{/if}
-													{/if}
+												{#if variant && variant.stock_qty !== null}
+													<span
+														class="w-fit rounded-sm bg-emerald-500/10 px-1.5 py-0.5 text-xs whitespace-nowrap text-emerald-600 dark:text-emerald-400"
+														>{variant.stock_qty} in stock</span
+													>
 												{/if}
 											</div>
 										{/each}
 									</div>
 								{:else}
 									{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
-									<div class="flex items-center gap-2">
-										<span class="text-sm text-muted-foreground">Qty:</span>
-										<input
-											type="number"
-											min="0"
-											class="h-10 w-20 rounded border bg-background px-2 text-center text-sm"
-											value={it.size_qtys[''] ?? 0}
-											oninput={(e) => {
-												const n = parseInt((e.target as HTMLInputElement).value, 10);
-												items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
-											}}
-										/>
-									</div>
+									{@const qty = it.size_qtys[''] ?? 0}
+									<div class="mb-2 text-sm text-muted-foreground">Qty</div>
+									<QtyStepper
+										value={qty}
+										onchange={(n) => {
+											items[idx].size_qtys[''] = n;
+										}}
+									/>
 								{/if}
 							</div>
 							<div class="p-4 text-sm">
@@ -586,6 +561,15 @@
 				: -1}
 			{@const sheetProd = sheetItem ? productForItem(sheetItem) : null}
 			{@const sheetImg = sheetProd ? primaryImageId(sheetProd) : null}
+			{@const sheetStockBySize = (() => {
+				if (!sheetProd?.ats || !sheetItem) return undefined;
+				const map: Record<string, number | null> = {};
+				for (const size of sheetItem.available_sizes) {
+					const v = findVariant(sheetProd, sheetItem.selected_color, size);
+					map[size] = v?.stock_qty ?? null;
+				}
+				return map;
+			})()}
 			<div class="sm:hidden">
 				<SizeStepperSheet
 					open={!!sheetItem}
@@ -603,6 +587,7 @@
 					unitPrice={sheetItem?.unit_price}
 					sizes={sheetItem?.available_sizes}
 					qtys={sheetItem?.size_qtys}
+					stockBySize={sheetStockBySize}
 					onChange={(size, qty) => {
 						if (sheetIdx >= 0) items[sheetIdx].size_qtys[size] = qty;
 					}}
