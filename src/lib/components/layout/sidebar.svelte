@@ -615,7 +615,7 @@
 						</div>
 					</div>
 					<div class="flex items-center justify-between">
-						<span>AI assistant</span>
+						<span>Stitch</span>
 						<div class="flex items-center gap-1">
 							<kbd class={kbdClass}>/</kbd><kbd class={kbdClass}>K</kbd>
 						</div>

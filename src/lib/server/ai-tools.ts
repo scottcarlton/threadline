@@ -117,6 +117,8 @@ export async function executeToolCall(
 			return archiveEntity(toolInput, ctx);
 		case 'get_sales_report':
 			return getSalesReport(toolInput, ctx);
+		case 'get_sales_analytics':
+			return getSalesAnalytics(toolInput, ctx);
 		case 'get_style_velocity':
 			return getStyleVelocity(toolInput, ctx);
 		case 'get_commission_report':
@@ -1549,6 +1551,105 @@ async function getSalesReport(
 		}));
 
 	return { success: true, data: { group_by: groupBy, report } };
+}
+
+async function getSalesAnalytics(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		let seasonId: string | null = null;
+		let brandId: string | null = null;
+		let accountId: string | null = null;
+		let repUserId: string | null = null;
+
+		if (input.season_name) {
+			const { data: seasons } = await ctx.supabase
+				.from('seasons')
+				.select('id')
+				.eq('organization_id', ctx.organizationId)
+				.ilike('name', `%${input.season_name as string}%`)
+				.limit(1);
+			if (seasons?.[0]) seasonId = seasons[0].id;
+			else return { success: false, error: `Season "${input.season_name}" not found.` };
+		}
+
+		if (input.brand_name) {
+			let brandQuery = ctx.supabase
+				.from('brands')
+				.select('id')
+				.ilike('name', `%${input.brand_name as string}%`)
+				.limit(1);
+			if (ctx.brandScope) brandQuery = brandQuery.in('id', ctx.brandScope);
+			const { data: brands } = await brandQuery;
+			if (brands?.[0]) brandId = brands[0].id;
+			else return { success: false, error: `Brand "${input.brand_name}" not found.` };
+		}
+
+		if (input.account_name) {
+			const { data: accounts } = await ctx.supabase
+				.from('accounts')
+				.select('id')
+				.eq('organization_id', ctx.organizationId)
+				.ilike('business_name', `%${input.account_name as string}%`)
+				.limit(1);
+			if (accounts?.[0]) accountId = accounts[0].id;
+			else return { success: false, error: `Account "${input.account_name}" not found.` };
+		}
+
+		if (input.rep_name) {
+			const { data: members } = await ctx.supabase
+				.from('organization_members')
+				.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
+				.eq('organization_id', ctx.organizationId);
+			type MemberRow = {
+				profile_id: string;
+				profiles?: { display_name?: string } | { display_name?: string }[] | null;
+			};
+			const match = (members as MemberRow[] | null)?.find((m) => {
+				const p = m.profiles;
+				const name = Array.isArray(p) ? p[0]?.display_name : p?.display_name;
+				return name?.toLowerCase().includes((input.rep_name as string).toLowerCase());
+			});
+			if (match) repUserId = match.profile_id;
+			else return { success: false, error: `Rep "${input.rep_name}" not found.` };
+		}
+
+		const { data, error } = await ctx.supabase.rpc('get_sales_analytics', {
+			p_org_id: ctx.organizationId,
+			p_org_type: ctx.orgType,
+			p_date_from: (input.date_from as string) ?? null,
+			p_date_to: (input.date_to as string) ?? null,
+			p_season_id: seasonId,
+			p_brand_id: brandId,
+			p_account_id: accountId,
+			p_rep_user_id: repUserId,
+			p_group_by: (input.group_by as string) ?? 'total'
+		});
+
+		if (error) return { success: false, error: error.message };
+
+		return {
+			success: true,
+			data: {
+				filters: {
+					date_from: input.date_from ?? null,
+					date_to: input.date_to ?? null,
+					season: input.season_name ?? null,
+					brand: input.brand_name ?? null,
+					account: input.account_name ?? null,
+					rep: input.rep_name ?? null
+				},
+				group_by: input.group_by ?? 'total',
+				results: data
+			}
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to get sales analytics'
+		};
+	}
 }
 
 async function getStyleVelocity(
