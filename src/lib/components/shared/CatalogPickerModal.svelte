@@ -308,7 +308,7 @@
 
 		<!-- Body: grid + overlay sizing panel -->
 		<div class="relative flex flex-1 overflow-hidden">
-			<div class="flex-1 overflow-auto p-5 pb-32">
+			<div class="flex-1 overflow-auto pt-5 pb-32">
 				{#if modalLoading}
 					<div class="p-10 text-center text-sm text-muted-foreground">Loading…</div>
 				{:else if modalProducts.length === 0}
@@ -317,14 +317,14 @@
 						<p class="mt-1 text-sm text-muted-foreground">Adjust the filters above.</p>
 					</div>
 				{:else}
-					<div class="grid grid-cols-2 gap-1 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+					<div class="grid grid-cols-2 gap-0 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
 						{#each modalProducts as p (p.id)}
 							{@const added = productInCart(p)}
 							{@const locked = lockedProductIds.includes(p.id)}
 							<div
-								class="group/card relative flex flex-col border transition {added
-									? 'border-foreground'
-									: 'border-border'} {locked ? 'pointer-events-none' : 'cursor-pointer'}"
+								class="group/card relative flex flex-col transition {locked
+									? 'pointer-events-none'
+									: 'cursor-pointer'}"
 								role="button"
 								tabindex={locked ? -1 : 0}
 								aria-pressed={added}
@@ -339,6 +339,11 @@
 									}
 								}}
 							>
+								{#if added && !locked}
+									<div
+										class="pointer-events-none absolute inset-0 z-10 border-6 border-foreground/20"
+									></div>
+								{/if}
 								{#if locked}
 									<span
 										class="absolute top-2 right-2 z-10 rounded-full bg-foreground px-2 py-0.5 text-sm font-medium text-background shadow-sm"
