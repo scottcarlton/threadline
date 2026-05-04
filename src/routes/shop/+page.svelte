@@ -228,15 +228,13 @@
 				{/if}
 			</div>
 		{:else}
-			<div class="grid grid-cols-2 gap-1 sm:gap-4 lg:grid-cols-3">
+			<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 				{#each filtered as product (product.id)}
 					{@const primaryImage =
 						product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 					{@const inCart = $cart.some((i) => i.productId === product.id)}
 					{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-					<div
-						class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md"
-					>
+					<div class="group rounded-none bg-card transition-all duration-200">
 						<a href={resolve(`/shop/${product.id}`)} class="block">
 							<div class="relative">
 								<ProductImageCarousel
