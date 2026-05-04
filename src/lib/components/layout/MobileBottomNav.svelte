@@ -287,7 +287,7 @@
 	<button
 		onclick={onAiToggle}
 		class="flex w-[3.75rem] shrink-0 items-center justify-center rounded-2xl bg-zinc-900 text-zinc-300 transition-transform active:scale-95"
-		aria-label="Open AI assistant"
+		aria-label="Open Stitch"
 	>
 		<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
 			<path
