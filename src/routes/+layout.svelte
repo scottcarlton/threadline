@@ -787,201 +787,220 @@
 			</main>
 		</div>
 
-		<!-- Fixed AI dock at bottom — desktop always, mobile only when toggled -->
-		{#if ($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen)}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out {sidebarOpen
-					? 'lg:left-60'
-					: 'lg:left-0'}"
-				transition:fly={{ y: 100, duration: 300 }}
-				onmouseenter={() => {
-					if (dockPeeking) clearTimeout(peekTimeout);
-				}}
-				onmouseleave={() => {
-					if (dockPeeking && !dockFocused)
-						peekTimeout = setTimeout(() => {
-							if (!dockFocused) dockPeeking = false;
-						}, 200);
-				}}
-				onfocusin={handleDockFocusIn}
-				onfocusout={handleDockFocusOut}
-			>
-				<div class="pointer-events-auto w-full max-w-[754px] space-y-3 px-4">
-					<!-- Conversation panel (separate floating panel above input) -->
-					{#if aiPanelOpen && $messages.length > 0}
-						<div class="animate-in rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10">
-							<div class="flex items-center justify-between px-5 pt-4 pb-2">
-								<span class="text-xs font-medium text-zinc-500">Conversation</span>
-								<div class="flex items-center gap-1">
-									<button
-										class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
-										onclick={() => {
-											aiPanelOpen = false;
-										}}
-										aria-label="Minimize chat"
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-4 w-4"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
-										</svg>
-									</button>
-									<button
-										class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
-										onclick={() => {
-											aiPanelOpen = false;
-											conversation.clear();
-										}}
-										aria-label="Close conversation"
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-4 w-4"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M6 18L18 6M6 6l12 12"
-											/>
-										</svg>
-									</button>
-								</div>
-							</div>
-							<div
-								bind:this={messagesContainer}
-								class="max-h-[50dvh] space-y-3 overflow-y-auto px-5 pb-5"
-								style={chatFontStyle}
-							>
-								{#each $messages as msg, i (i)}
-									<div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
-										<div
-											class="max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed {msg.role === 'user'
-												? 'bg-zinc-700 text-zinc-100'
-												: 'bg-zinc-800 text-zinc-100'}"
-											style={chatFontStyle}
-										>
-											{#if msg.role === 'assistant'}
-												<Markdown content={msg.content} />
-											{:else}
-												<p class="whitespace-pre-wrap">{msg.content}</p>
-											{/if}
-										</div>
-									</div>
-									{#if msg.role === 'assistant' && i === $messages.length - 1 && msg.suggestions?.length && !$loading}
-										<div class="flex flex-wrap gap-2 pl-1">
-											{#each msg.suggestions as suggestion (suggestion)}
-												<button
-													onclick={() => sendAiMessage(suggestion)}
-													class="rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
-												>
-													{suggestion}
-												</button>
-											{/each}
-										</div>
-									{/if}
-								{/each}
-								{#if $loading}
-									<div class="flex justify-start">
-										<div class="flex items-center gap-1.5 rounded-2xl bg-zinc-800 px-4 py-3">
-											<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"></div>
-											<div
-												class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
-												style="animation-delay: 0.15s"
-											></div>
-											<div
-												class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
-												style="animation-delay: 0.3s"
-											></div>
-										</div>
-									</div>
-								{/if}
-							</div>
-						</div>
-					{/if}
+		{#if data.user?.id}
+			<InstallPrompt userId={data.user.id} />
+		{/if}
+	</div>
 
-					<!-- Hidden file input -->
-					<input
-						bind:this={fileInput}
-						type="file"
-						multiple
-						accept="image/*,.pdf,.csv,.txt,.json,.xlsx,.xls,.doc,.docx"
-						onchange={handleFileSelect}
-						class="hidden"
-					/>
-
-					<!-- Product selection bar -->
-					{#if $selectedProductIds.length > 0}
-						<div
-							class="flex items-center justify-between rounded-2xl bg-zinc-900 px-5 py-3 shadow-2xl ring-1 ring-white/10"
-						>
-							<div class="flex items-center gap-3">
-								<span class="text-sm text-zinc-300"
-									>{$selectedProductIds.length} Items selected</span
-								>
+	<!-- Fixed AI dock — outside overflow-hidden for iPad Safari fixed positioning -->
+	{#if ($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen)}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out {sidebarOpen
+				? 'lg:left-60'
+				: 'lg:left-0'}"
+			transition:fly={{ y: 100, duration: 300 }}
+			onmouseenter={() => {
+				if (dockPeeking) clearTimeout(peekTimeout);
+			}}
+			onmouseleave={() => {
+				if (dockPeeking && !dockFocused)
+					peekTimeout = setTimeout(() => {
+						if (!dockFocused) dockPeeking = false;
+					}, 200);
+			}}
+			onfocusin={handleDockFocusIn}
+			onfocusout={handleDockFocusOut}
+		>
+			<div class="pointer-events-auto w-full max-w-[754px] space-y-3 px-4">
+				<!-- Conversation panel (separate floating panel above input) -->
+				{#if aiPanelOpen && $messages.length > 0}
+					<div class="animate-in rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10">
+						<div class="flex items-center justify-between px-5 pt-4 pb-2">
+							<span class="text-xs font-medium text-zinc-500">Conversation</span>
+							<div class="flex items-center gap-1">
 								<button
-									class="flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
-									onclick={() => selectedProductIds.set([])}
+									class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
+									onclick={() => {
+										aiPanelOpen = false;
+									}}
+									aria-label="Minimize chat"
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										class="h-4 w-4"
-										viewBox="0 0 24 24"
 										fill="none"
+										viewBox="0 0 24 24"
 										stroke="currentColor"
 										stroke-width="2"
 									>
-										<circle cx="12" cy="12" r="10" />
-										<path stroke-linecap="round" d="m15 9-6 6m0-6 6 6" />
+										<path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
 									</svg>
-									Clear
+								</button>
+								<button
+									class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
+									onclick={() => {
+										aiPanelOpen = false;
+										conversation.clear();
+									}}
+									aria-label="Close conversation"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+									</svg>
 								</button>
 							</div>
+						</div>
+						<div
+							bind:this={messagesContainer}
+							class="max-h-[50dvh] space-y-3 overflow-y-auto px-5 pb-5"
+							style={chatFontStyle}
+						>
+							{#each $messages as msg, i (i)}
+								<div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
+									<div
+										class="max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed {msg.role === 'user'
+											? 'bg-zinc-700 text-zinc-100'
+											: 'bg-zinc-800 text-zinc-100'}"
+										style={chatFontStyle}
+									>
+										{#if msg.role === 'assistant'}
+											<Markdown content={msg.content} />
+										{:else}
+											<p class="whitespace-pre-wrap">{msg.content}</p>
+										{/if}
+									</div>
+								</div>
+								{#if msg.role === 'assistant' && i === $messages.length - 1 && msg.suggestions?.length && !$loading}
+									<div class="flex flex-wrap gap-2 pl-1">
+										{#each msg.suggestions as suggestion (suggestion)}
+											<button
+												onclick={() => sendAiMessage(suggestion)}
+												class="rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+											>
+												{suggestion}
+											</button>
+										{/each}
+									</div>
+								{/if}
+							{/each}
+							{#if $loading}
+								<div class="flex justify-start">
+									<div class="flex items-center gap-1.5 rounded-2xl bg-zinc-800 px-4 py-3">
+										<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"></div>
+										<div
+											class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
+											style="animation-delay: 0.15s"
+										></div>
+										<div
+											class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
+											style="animation-delay: 0.3s"
+										></div>
+									</div>
+								</div>
+							{/if}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Hidden file input -->
+				<input
+					bind:this={fileInput}
+					type="file"
+					multiple
+					accept="image/*,.pdf,.csv,.txt,.json,.xlsx,.xls,.doc,.docx"
+					onchange={handleFileSelect}
+					class="hidden"
+				/>
+
+				<!-- Product selection bar -->
+				{#if $selectedProductIds.length > 0}
+					<div
+						class="flex items-center justify-between rounded-2xl bg-zinc-900 px-5 py-3 shadow-2xl ring-1 ring-white/10"
+					>
+						<div class="flex items-center gap-3">
+							<span class="text-sm text-zinc-300">{$selectedProductIds.length} Items selected</span>
 							<button
-								class="rounded-xl bg-white px-5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
-								onclick={() => goto(resolve('/products/order'))}
+								class="flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+								onclick={() => selectedProductIds.set([])}
 							>
-								Start Order
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<circle cx="12" cy="12" r="10" />
+									<path stroke-linecap="round" d="m15 9-6 6m0-6 6 6" />
+								</svg>
+								Clear
 							</button>
 						</div>
-					{/if}
+						<button
+							class="rounded-xl bg-white px-5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
+							onclick={() => goto(resolve('/products/order'))}
+						>
+							Start Order
+						</button>
+					</div>
+				{/if}
 
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div
-						class="cursor-text rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10"
-						onclick={(e) => {
-							if (!(e.target as HTMLElement).closest('button')) focusAiInput();
-						}}
-					>
-						<!-- Mobile drag handle to close -->
-						{#if !$isLgUp}
-							<button
-								class="flex w-full items-center justify-center pt-2 pb-0"
-								onclick={(e) => {
-									e.stopPropagation();
-									mobileAiDockOpen = false;
-								}}
-								aria-label="Close AI dock"
-							>
-								<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
-							</button>
-						{/if}
-						<div class="px-5 pt-4 pb-3">
-							<!-- Agent indicator -->
-							{#if $activeAgent}
-								<div class="mb-2 flex items-center gap-2">
-									<span
-										class="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 px-2.5 py-1 text-sm text-blue-400"
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="cursor-text rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10"
+					onclick={(e) => {
+						if (!(e.target as HTMLElement).closest('button')) focusAiInput();
+					}}
+				>
+					<!-- Mobile drag handle to close -->
+					{#if !$isLgUp}
+						<button
+							class="flex w-full items-center justify-center pt-2 pb-0"
+							onclick={(e) => {
+								e.stopPropagation();
+								mobileAiDockOpen = false;
+							}}
+							aria-label="Close AI dock"
+						>
+							<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
+						</button>
+					{/if}
+					<div class="px-5 pt-4 pb-3">
+						<!-- Agent indicator -->
+						{#if $activeAgent}
+							<div class="mb-2 flex items-center gap-2">
+								<span
+									class="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 px-2.5 py-1 text-sm text-blue-400"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-3 w-3"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+										/>
+									</svg>
+									{$activeAgent.name}
+									<button
+										onclick={() => conversation.setAgent(null)}
+										aria-label="Clear agent"
+										class="ml-0.5 hover:text-blue-200"
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -994,18 +1013,71 @@
 											<path
 												stroke-linecap="round"
 												stroke-linejoin="round"
-												d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+												d="M6 18L18 6M6 6l12 12"
 											/>
 										</svg>
-										{$activeAgent.name}
+									</button>
+								</span>
+							</div>
+						{/if}
+
+						<!-- Text input row -->
+						<div class="flex items-center gap-4">
+							<div
+								bind:this={aiInputEl}
+								id="ai-dock-input"
+								contenteditable="true"
+								role="textbox"
+								tabindex="0"
+								aria-label="Ask anything about your business"
+								aria-multiline="true"
+								onkeydown={handleAiKeydown}
+								oninput={handleAiInput}
+								class="ai-input max-h-40 min-h-6 flex-1 overflow-y-auto bg-transparent text-base leading-6 break-words text-zinc-100 outline-none"
+								data-placeholder="Ask anything about your business..."
+								style={chatFontStyle}
+							></div>
+						</div>
+
+						<!-- Attached files -->
+						{#if hasAttachments}
+							<div class="mt-3 ml-10 flex flex-wrap gap-2">
+								{#each attachedFiles as { file, preview }, i (i)}
+									<div
+										class="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-2 py-1 ring-1 ring-white/5"
+									>
+										{#if preview}
+											<img src={preview} alt={file.name} class="h-8 w-8 rounded object-cover" />
+										{:else}
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-4 w-4 text-zinc-400"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="2"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+												/>
+											</svg>
+										{/if}
+										<div class="flex flex-col">
+											<span class="max-w-[120px] truncate text-[11px] font-medium text-zinc-300"
+												>{file.name}</span
+											>
+											<span class="text-[10px] text-zinc-500">{formatFileSize(file.size)}</span>
+										</div>
 										<button
-											onclick={() => conversation.setAgent(null)}
-											aria-label="Clear agent"
-											class="ml-0.5 hover:text-blue-200"
+											onclick={() => removeFile(i)}
+											class="ml-1 rounded-full p-0.5 text-zinc-500 transition-colors hover:text-red-400"
+											aria-label="Remove file"
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
-												class="h-3 w-3"
+												class="h-3.5 w-3.5"
 												fill="none"
 												viewBox="0 0 24 24"
 												stroke="currentColor"
@@ -1018,295 +1090,216 @@
 												/>
 											</svg>
 										</button>
-									</span>
-								</div>
-							{/if}
-
-							<!-- Text input row -->
-							<div class="flex items-center gap-4">
-								<div
-									bind:this={aiInputEl}
-									id="ai-dock-input"
-									contenteditable="true"
-									role="textbox"
-									tabindex="0"
-									aria-label="Ask anything about your business"
-									aria-multiline="true"
-									onkeydown={handleAiKeydown}
-									oninput={handleAiInput}
-									class="ai-input max-h-40 min-h-6 flex-1 overflow-y-auto bg-transparent text-base leading-6 break-words text-zinc-100 outline-none"
-									data-placeholder="Ask anything about your business..."
-									style={chatFontStyle}
-								></div>
+									</div>
+								{/each}
 							</div>
+						{/if}
 
-							<!-- Attached files -->
-							{#if hasAttachments}
-								<div class="mt-3 ml-10 flex flex-wrap gap-2">
-									{#each attachedFiles as { file, preview }, i (i)}
-										<div
-											class="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-2 py-1 ring-1 ring-white/5"
-										>
-											{#if preview}
-												<img src={preview} alt={file.name} class="h-8 w-8 rounded object-cover" />
-											{:else}
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													class="h-4 w-4 text-zinc-400"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke="currentColor"
-													stroke-width="2"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-													/>
-												</svg>
-											{/if}
-											<div class="flex flex-col">
-												<span class="max-w-[120px] truncate text-[11px] font-medium text-zinc-300"
-													>{file.name}</span
-												>
-												<span class="text-[10px] text-zinc-500">{formatFileSize(file.size)}</span>
-											</div>
-											<button
-												onclick={() => removeFile(i)}
-												class="ml-1 rounded-full p-0.5 text-zinc-500 transition-colors hover:text-red-400"
-												aria-label="Remove file"
-											>
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													class="h-3.5 w-3.5"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke="currentColor"
-													stroke-width="2"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M6 18L18 6M6 6l12 12"
-													/>
-												</svg>
-											</button>
-										</div>
-									{/each}
-								</div>
-							{/if}
-
-							<!-- Toolbar row: +file & agent on left, mic/send on right -->
-							<div class="mt-2 flex items-center justify-between">
-								<div class="flex items-center gap-1">
-									<button
-										onclick={() => fileInput?.click()}
-										disabled={$loading}
-										class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
-										aria-label="Attach file"
+						<!-- Toolbar row: +file & agent on left, mic/send on right -->
+						<div class="mt-2 flex items-center justify-between">
+							<div class="flex items-center gap-1">
+								<button
+									onclick={() => fileInput?.click()}
+									disabled={$loading}
+									class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
+									aria-label="Attach file"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
 									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-5 w-5"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="1.5"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M12 4.5v15m7.5-7.5h-15"
-											/>
-										</svg>
-									</button>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M12 4.5v15m7.5-7.5h-15"
+										/>
+									</svg>
+								</button>
 
-									{#if availableAgents.length > 0}
-										<div class="relative">
-											<button
-												onclick={() => (showAgentPicker = !showAgentPicker)}
-												class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1.5 {$activeAgent
-													? 'text-blue-400'
-													: ''}"
-												aria-label="Select agent"
-											>
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													class="h-5 w-5"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke="currentColor"
-													stroke-width="1.5"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
-													/>
-												</svg>
-											</button>
-
-											{#if showAgentPicker}
-												<div
-													class="absolute bottom-full left-0 mb-2 w-56 rounded-xl bg-zinc-800 p-2 shadow-xl ring-1 ring-white/10"
-												>
-													<button
-														class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {!$activeAgent
-															? 'bg-zinc-700 text-zinc-100'
-															: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
-														onclick={() => {
-															conversation.setAgent(null);
-															showAgentPicker = false;
-														}}
-													>
-														<span class="text-sm">Default Assistant</span>
-													</button>
-													{#each availableAgents as agent (agent.id)}
-														<button
-															class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {$activeAgent?.id ===
-															agent.id
-																? 'bg-zinc-700 text-zinc-100'
-																: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
-															onclick={() => {
-																conversation.setAgent({
-																	id: agent.id,
-																	name: agent.name,
-																	slug: agent.slug
-																});
-																showAgentPicker = false;
-															}}
-														>
-															<div>
-																<span class="text-sm font-medium">{agent.name}</span>
-																{#if agent.description}
-																	<p class="line-clamp-1 text-[11px] text-zinc-500">
-																		{agent.description}
-																	</p>
-																{/if}
-															</div>
-														</button>
-													{/each}
-												</div>
-											{/if}
-										</div>
-									{/if}
-								</div>
-
-								<div class="shrink-0">
-									{#if voiceMode}
-										<!-- Voice mode active — always show voice button regardless of $loading -->
+								{#if availableAgents.length > 0}
+									<div class="relative">
 										<button
-											onclick={toggleVoice}
-											class="flex h-11 w-11 items-center justify-center rounded-full lg:h-9 lg:w-9 {voiceState ===
-											'listening'
-												? 'bg-blue-500 text-white'
-												: voiceState === 'speaking'
-													? 'bg-white text-zinc-900'
-													: 'bg-zinc-600 text-white'}"
-											aria-label="Stop voice mode"
-										>
-											{#if voiceState === 'processing'}
-												<div
-													class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-												></div>
-											{:else}
-												<div class="flex items-center gap-[2px]">
-													<span
-														class="{voiceState === 'listening' || voiceState === 'speaking'
-															? 'voice-bar'
-															: ''} h-[8px] w-[3px] rounded-full bg-current"
-													></span>
-													<span
-														class="{voiceState === 'listening' || voiceState === 'speaking'
-															? 'voice-bar'
-															: ''} h-[18px] w-[3px] rounded-full bg-current"
-														style="animation-delay: 0.15s"
-													></span>
-													<span
-														class="{voiceState === 'listening' || voiceState === 'speaking'
-															? 'voice-bar'
-															: ''} h-[12px] w-[3px] rounded-full bg-current"
-														style="animation-delay: 0.3s"
-													></span>
-													<span
-														class="{voiceState === 'listening' || voiceState === 'speaking'
-															? 'voice-bar'
-															: ''} h-[6px] w-[3px] rounded-full bg-current"
-														style="animation-delay: 0.45s"
-													></span>
-												</div>
-											{/if}
-										</button>
-									{:else if $loading}
-										<div class="flex h-11 w-11 items-center justify-center lg:h-9 lg:w-9">
-											<div
-												class="h-5 w-5 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
-											></div>
-										</div>
-									{:else if hasAiInput || hasAttachments}
-										<!-- Send button -->
-										<button
-											onclick={() => sendAiMessage()}
-											disabled={!$isOnline}
-											class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
-											aria-label={$isOnline ? 'Send message' : 'Offline — cannot send'}
+											onclick={() => (showAgentPicker = !showAgentPicker)}
+											class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1.5 {$activeAgent
+												? 'text-blue-400'
+												: ''}"
+											aria-label="Select agent"
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
-												class="h-4 w-4"
+												class="h-5 w-5"
 												fill="none"
 												viewBox="0 0 24 24"
 												stroke="currentColor"
-												stroke-width="2.5"
+												stroke-width="1.5"
 											>
 												<path
 													stroke-linecap="round"
 													stroke-linejoin="round"
-													d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
+													d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
 												/>
 											</svg>
 										</button>
-									{:else}
-										<!-- Voice idle: static wave icon -->
-										<button
-											onclick={toggleVoice}
-											disabled={!$isOnline}
-											class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
-											aria-label={$isOnline ? 'Voice input' : 'Offline — voice unavailable'}
-										>
-											<div class="flex items-center gap-[2px]">
-												<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
-												<span class="h-[18px] w-[3px] rounded-full bg-current"></span>
-												<span class="h-[12px] w-[3px] rounded-full bg-current"></span>
-												<span class="h-[6px] w-[3px] rounded-full bg-current"></span>
+
+										{#if showAgentPicker}
+											<div
+												class="absolute bottom-full left-0 mb-2 w-56 rounded-xl bg-zinc-800 p-2 shadow-xl ring-1 ring-white/10"
+											>
+												<button
+													class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {!$activeAgent
+														? 'bg-zinc-700 text-zinc-100'
+														: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
+													onclick={() => {
+														conversation.setAgent(null);
+														showAgentPicker = false;
+													}}
+												>
+													<span class="text-sm">Default Assistant</span>
+												</button>
+												{#each availableAgents as agent (agent.id)}
+													<button
+														class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {$activeAgent?.id ===
+														agent.id
+															? 'bg-zinc-700 text-zinc-100'
+															: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
+														onclick={() => {
+															conversation.setAgent({
+																id: agent.id,
+																name: agent.name,
+																slug: agent.slug
+															});
+															showAgentPicker = false;
+														}}
+													>
+														<div>
+															<span class="text-sm font-medium">{agent.name}</span>
+															{#if agent.description}
+																<p class="line-clamp-1 text-[11px] text-zinc-500">
+																	{agent.description}
+																</p>
+															{/if}
+														</div>
+													</button>
+												{/each}
 											</div>
-										</button>
-									{/if}
-								</div>
+										{/if}
+									</div>
+								{/if}
+							</div>
+
+							<div class="shrink-0">
+								{#if voiceMode}
+									<!-- Voice mode active — always show voice button regardless of $loading -->
+									<button
+										onclick={toggleVoice}
+										class="flex h-11 w-11 items-center justify-center rounded-full lg:h-9 lg:w-9 {voiceState ===
+										'listening'
+											? 'bg-blue-500 text-white'
+											: voiceState === 'speaking'
+												? 'bg-white text-zinc-900'
+												: 'bg-zinc-600 text-white'}"
+										aria-label="Stop voice mode"
+									>
+										{#if voiceState === 'processing'}
+											<div
+												class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+											></div>
+										{:else}
+											<div class="flex items-center gap-[2px]">
+												<span
+													class="{voiceState === 'listening' || voiceState === 'speaking'
+														? 'voice-bar'
+														: ''} h-[8px] w-[3px] rounded-full bg-current"
+												></span>
+												<span
+													class="{voiceState === 'listening' || voiceState === 'speaking'
+														? 'voice-bar'
+														: ''} h-[18px] w-[3px] rounded-full bg-current"
+													style="animation-delay: 0.15s"
+												></span>
+												<span
+													class="{voiceState === 'listening' || voiceState === 'speaking'
+														? 'voice-bar'
+														: ''} h-[12px] w-[3px] rounded-full bg-current"
+													style="animation-delay: 0.3s"
+												></span>
+												<span
+													class="{voiceState === 'listening' || voiceState === 'speaking'
+														? 'voice-bar'
+														: ''} h-[6px] w-[3px] rounded-full bg-current"
+													style="animation-delay: 0.45s"
+												></span>
+											</div>
+										{/if}
+									</button>
+								{:else if $loading}
+									<div class="flex h-11 w-11 items-center justify-center lg:h-9 lg:w-9">
+										<div
+											class="h-5 w-5 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
+										></div>
+									</div>
+								{:else if hasAiInput || hasAttachments}
+									<!-- Send button -->
+									<button
+										onclick={() => sendAiMessage()}
+										disabled={!$isOnline}
+										class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+										aria-label={$isOnline ? 'Send message' : 'Offline — cannot send'}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2.5"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
+											/>
+										</svg>
+									</button>
+								{:else}
+									<!-- Voice idle: static wave icon -->
+									<button
+										onclick={toggleVoice}
+										disabled={!$isOnline}
+										class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+										aria-label={$isOnline ? 'Voice input' : 'Offline — voice unavailable'}
+									>
+										<div class="flex items-center gap-[2px]">
+											<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
+											<span class="h-[18px] w-[3px] rounded-full bg-current"></span>
+											<span class="h-[12px] w-[3px] rounded-full bg-current"></span>
+											<span class="h-[6px] w-[3px] rounded-full bg-current"></span>
+										</div>
+									</button>
+								{/if}
 							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-		{/if}
+		</div>
+	{/if}
 
-		<!-- Mobile bottom nav — hidden when AI dock is open -->
-		{#if !$isLgUp && !mobileAiDockOpen}
-			<MobileBottomNav
-				onAiToggle={() => (mobileAiDockOpen = true)}
-				role={data.membership?.role ?? 'guest'}
-				orgType={data.orgType}
-				brandScope={data.brandScope}
-				isBuyer={data.isBuyer}
-				{isNxBlsr}
-			/>
-		{/if}
-
-		{#if data.user?.id}
-			<InstallPrompt userId={data.user.id} />
-		{/if}
-	</div>
-
+	<!-- Mobile bottom nav — hidden when AI dock is open -->
+	{#if !$isLgUp && !mobileAiDockOpen}
+		<MobileBottomNav
+			onAiToggle={() => (mobileAiDockOpen = true)}
+			role={data.membership?.role ?? 'guest'}
+			orgType={data.orgType}
+			brandScope={data.brandScope}
+			isBuyer={data.isBuyer}
+			{isNxBlsr}
+		/>
+	{/if}
 	<SearchDialog
 		isBrandOrg={data.orgType === 'brand'}
 		isBuyer={data.isBuyer === true}
