@@ -21,6 +21,8 @@
 <svelte:window onkeydown={onKey} />
 
 {#if open}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 z-[59]" onmousedown={onclose}></div>
 	<aside
 		class="pointer-events-none fixed top-12 right-0 z-[60] flex h-[calc(100dvh-3rem)] w-full flex-col gap-2 overflow-y-auto bg-transparent p-3 sm:w-[400px]"
 		transition:fly={{ x: 420, duration: 280, easing: quintOut }}
