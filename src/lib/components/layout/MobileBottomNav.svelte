@@ -7,18 +7,41 @@
 	import { orderAttentionCount } from '$lib/stores/orderAttention.js';
 	import { upcomingAppointmentCount } from '$lib/stores/appointments.js';
 	import { selectedProductIds } from '$lib/stores/productSelection.js';
+	import type { UserRole, OrgType } from '$lib/types/database.js';
 
 	type Props = {
 		onAiToggle: () => void;
+		role: UserRole | null;
+		orgType?: OrgType;
+		brandScope?: string[] | null;
+		isBuyer?: boolean;
+		isNxBlsr?: boolean;
 	};
+
+	let {
+		onAiToggle,
+		role,
+		orgType = 'rep',
+		brandScope = null,
+		isBuyer = false,
+		isNxBlsr = false
+	}: Props = $props();
 
 	const hasProductSelection = $derived($selectedProductIds.length > 0);
 
-	let { onAiToggle }: Props = $props();
 	let moreOpen = $state(false);
 
+	const isSales = $derived(role === 'sales');
+	const isBrandOrg = $derived(orgType === 'brand');
+	const isBrandScoped = $derived(
+		isBuyer ||
+			(brandScope !== null &&
+				brandScope.length > 0 &&
+				(role === 'member' || role === 'sales' || role === 'guest'))
+	);
+
 	function isActive(href: string): boolean {
-		if (href === '/insight') return $page.url.pathname === '/insight';
+		if (href === '/insight' || href === '/dashboard') return $page.url.pathname === href;
 		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
 	}
 
@@ -31,7 +54,9 @@
 		badge?: () => number;
 	};
 
-	const tabs: NavItem[] = [
+	// --- Tab bar items ---
+
+	const defaultTabs: NavItem[] = [
 		{
 			label: 'Insight',
 			href: '/insight',
@@ -40,49 +65,47 @@
 			viewBox: '0 0 16 16'
 		},
 		{
+			label: 'Orders',
+			href: '/orders',
+			icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+			badge: () => $orderAttentionCount
+		},
+		{
 			label: 'Accounts',
 			href: '/accounts',
 			icon: 'M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z'
+		}
+	];
+
+	const buyerTabs: NavItem[] = [
+		{
+			label: 'Home',
+			href: '/dashboard',
+			icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1'
+		},
+		{
+			label: 'Shop',
+			href: '/shop',
+			icon: 'M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z'
 		},
 		{
 			label: 'Orders',
 			href: '/orders',
 			icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
 			badge: () => $orderAttentionCount
+		},
+		{
+			label: 'Account',
+			href: '/account',
+			icon: 'M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21'
 		}
 	];
 
-	const moreListItems: NavItem[] = [
-		{
-			label: 'Plan',
-			href: '/plan',
-			icon: 'M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z'
-		},
-		{
-			label: 'Workspace',
-			href: '/workspace',
-			icon: 'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z'
-		},
-		{
-			label: 'Inbox',
-			href: '/inbox',
-			icon: 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75',
-			badge: () => $unreadCount
-		},
-		{
-			label: 'Appointments',
-			href: '/appointments',
-			icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5',
-			badge: () => $upcomingAppointmentCount
-		},
-		{
-			label: 'Reports',
-			href: '/reports',
-			icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z'
-		}
-	];
+	const tabs = $derived(isBuyer ? buyerTabs : defaultTabs);
 
-	const moreGridItems: NavItem[] = [
+	// --- More menu: grid items (top row with backgrounds) ---
+
+	const allGridItems: NavItem[] = [
 		{
 			label: 'Products',
 			href: '/products',
@@ -100,199 +123,286 @@
 		}
 	];
 
+	const gridItemLabels = $derived<string[]>(
+		isNxBlsr
+			? ['Products', 'Brands', 'Expenses']
+			: isBrandScoped && !isSales
+				? []
+				: isSales
+					? isBrandOrg
+						? ['Products', 'Expenses']
+						: ['Expenses']
+					: isBrandOrg
+						? ['Products', 'Expenses']
+						: ['Products', 'Brands', 'Expenses']
+	);
+
+	const moreGridItems = $derived(
+		allGridItems.filter((item) => gridItemLabels.includes(item.label))
+	);
+
+	// --- More menu: list items ---
+
+	const allListItems: NavItem[] = [
+		{
+			label: 'Reports',
+			href: '/reports',
+			icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z'
+		},
+		{
+			label: 'Inbox',
+			href: '/inbox',
+			icon: 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75',
+			badge: () => $unreadCount
+		},
+		{
+			label: 'Appointments',
+			href: '/appointments',
+			icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5',
+			badge: () => $upcomingAppointmentCount
+		},
+		{
+			label: 'Workspace',
+			href: '/workspace',
+			icon: 'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z'
+		},
+		{
+			label: 'Plan',
+			href: '/plan',
+			icon: 'M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z'
+		}
+	];
+
+	const listItemLabels = $derived<string[]>(
+		isNxBlsr
+			? ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan']
+			: isBrandScoped && !isSales
+				? ['Reports']
+				: ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan']
+	);
+
+	const moreListItems = $derived(
+		allListItems.filter((item) => listItemLabels.includes(item.label))
+	);
+
+	const showMoreMenu = $derived(!isBuyer);
+	const hasMoreItems = $derived(moreGridItems.length > 0 || moreListItems.length > 0);
+
 	function handleNavClick() {
 		moreOpen = false;
 	}
 </script>
 
 <!-- More menu backdrop -->
-{#if moreOpen}
+{#if moreOpen && showMoreMenu}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="fixed inset-0 z-40" onclick={() => (moreOpen = false)}></div>
 {/if}
 
-<!-- More menu popover -->
-{#if moreOpen}
-	<div
-		class="fixed bottom-[6rem] left-4 z-50 w-[calc(100vw-6.5rem)] rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
-	>
-		<!-- List items -->
-		<div class="space-y-1">
-			{#each moreListItems as item (item.href)}
-				<a
-					href={resolve(item.href as '/plan')}
-					onclick={handleNavClick}
+<!-- Bottom bar wrapper — shared centering for popup + bar -->
+<div class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6">
+	<!-- More menu popover -->
+	{#if moreOpen && showMoreMenu && hasMoreItems}
+		<div class="mr-[4.75rem] mb-3 rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10">
+			{#if moreGridItems.length > 0}
+				<!-- Grid items -->
+				<div
 					class={cn(
-						'flex items-center gap-3 rounded-xl px-3 py-3 text-xs transition-colors',
-						isActive(item.href) ? 'bg-zinc-800 text-white' : 'text-zinc-300 active:bg-zinc-800'
+						'grid gap-1',
+						moreGridItems.length === 1
+							? 'grid-cols-1'
+							: moreGridItems.length === 2
+								? 'grid-cols-2'
+								: 'grid-cols-3'
 					)}
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5 shrink-0"
-						fill={item.fill ? 'currentColor' : 'none'}
-						viewBox={item.viewBox ?? '0 0 24 24'}
-						stroke={item.fill ? 'none' : 'currentColor'}
-						stroke-width={item.fill ? 0 : 1.5}
-					>
-						{#if item.fill}
-							<path d={item.icon} />
-						{:else}
-							<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
-						{/if}
-					</svg>
-					<span class="flex-1">{item.label}</span>
-					{#if item.badge}
-						{@const count = item.badge()}
-						{#if count > 0}
-							<span
-								class="flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-700 px-1.5 text-[10px] font-bold text-zinc-300"
-							>
-								{count > 99 ? '99+' : count}
-							</span>
-						{/if}
-					{/if}
-				</a>
-			{/each}
-		</div>
-
-		<!-- Grid items -->
-		<div class="mt-2 grid grid-cols-3 gap-1 border-t border-white/5 pt-2">
-			{#each moreGridItems as item (item.href)}
-				<a
-					href={resolve(item.href as '/products')}
-					onclick={handleNavClick}
-					class={cn(
-						'flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-xs transition-colors',
-						isActive(item.href) ? 'bg-zinc-800 text-white' : 'text-zinc-300 active:bg-zinc-800'
-					)}
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="1.5"
-					>
-						<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
-					</svg>
-					<span>{item.label}</span>
-				</a>
-			{/each}
-		</div>
-	</div>
-{/if}
-
-<!-- Bottom bar -->
-<div class="fixed right-0 bottom-0 left-0 z-40 flex items-stretch gap-3 px-4 pb-6">
-	{#if hasProductSelection}
-		<!-- Product selection dock -->
-		<div class="flex flex-1 items-center justify-between rounded-2xl bg-zinc-900 px-4 py-3">
-			<div class="flex flex-col gap-0.5">
-				<span class="text-sm font-medium text-white"
-					>{$selectedProductIds.length} Items Selected</span
-				>
-				<button
-					class="flex items-center gap-1 text-xs text-zinc-400"
-					onclick={() => selectedProductIds.set([])}
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-3.5 w-3.5"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<circle cx="12" cy="12" r="10" />
-						<path stroke-linecap="round" d="m15 9-6 6m0-6 6 6" />
-					</svg>
-					Clear Items
-				</button>
-			</div>
-			<button
-				class="rounded-xl bg-white px-5 py-2.5 text-sm font-medium text-zinc-900"
-				onclick={() => goto(resolve('/products/order'))}
-			>
-				Start Order
-			</button>
-		</div>
-	{:else}
-		<!-- Tab bar -->
-		<div class="flex flex-1 items-stretch rounded-2xl bg-zinc-900">
-			{#each tabs as tab (tab.href)}
-				<a
-					href={resolve(tab.href as '/insight')}
-					class={cn(
-						'flex flex-1 flex-col items-center gap-1 py-3 text-xs transition-colors',
-						isActive(tab.href) ? 'text-white' : 'text-zinc-400'
-					)}
-				>
-					<div class="relative">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill={tab.fill ? 'currentColor' : 'none'}
-							viewBox={tab.viewBox ?? '0 0 24 24'}
-							stroke={tab.fill ? 'none' : 'currentColor'}
-							stroke-width={tab.fill ? 0 : 1.5}
+					{#each moreGridItems as item (item.href)}
+						<a
+							href={resolve(item.href as '/products')}
+							onclick={handleNavClick}
+							class={cn(
+								'flex flex-col items-center gap-1.5 rounded-xl bg-zinc-800 px-2 py-3 text-sm transition-colors',
+								isActive(item.href) ? 'text-white' : 'text-zinc-300 active:bg-zinc-700'
+							)}
 						>
-							{#if tab.fill}
-								<path d={tab.icon} />
-							{:else}
-								<path stroke-linecap="round" stroke-linejoin="round" d={tab.icon} />
-							{/if}
-						</svg>
-						{#if tab.badge}
-							{@const count = tab.badge()}
-							{#if count > 0}
-								<span
-									class="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white"
-								>
-									{count > 99 ? '99+' : count}
-								</span>
-							{/if}
-						{/if}
-					</div>
-					<span>{tab.label}</span>
-				</a>
-			{/each}
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-5 w-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
+							</svg>
+							<span>{item.label}</span>
+						</a>
+					{/each}
+				</div>
+			{/if}
 
-			<!-- More button -->
-			<button
-				onclick={() => (moreOpen = !moreOpen)}
-				class={cn(
-					'flex flex-1 flex-col items-center gap-1 py-3 text-xs transition-colors',
-					moreOpen ? 'text-white' : 'text-zinc-400'
-				)}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					fill="currentColor"
-					viewBox="0 0 24 24"
+			{#if moreListItems.length > 0}
+				<!-- List items -->
+				<div
+					class={cn('space-y-1', moreGridItems.length > 0 && 'mt-2 border-t border-white/5 pt-2')}
 				>
-					<circle cx="12" cy="5" r="2" />
-					<circle cx="12" cy="12" r="2" />
-					<circle cx="12" cy="19" r="2" />
-				</svg>
-				<span>More</span>
-			</button>
+					{#each moreListItems as item (item.href)}
+						<a
+							href={resolve(item.href as '/plan')}
+							onclick={handleNavClick}
+							class={cn(
+								'flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition-colors',
+								isActive(item.href) ? 'bg-zinc-800 text-white' : 'text-zinc-300 active:bg-zinc-800'
+							)}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-5 w-5 shrink-0"
+								fill={item.fill ? 'currentColor' : 'none'}
+								viewBox={item.viewBox ?? '0 0 24 24'}
+								stroke={item.fill ? 'none' : 'currentColor'}
+								stroke-width={item.fill ? 0 : 1.5}
+							>
+								{#if item.fill}
+									<path d={item.icon} />
+								{:else}
+									<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
+								{/if}
+							</svg>
+							<span class="flex-1">{item.label}</span>
+							{#if item.badge}
+								{@const count = item.badge()}
+								{#if count > 0}
+									<span
+										class="flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-700 px-1.5 text-[10px] font-bold text-zinc-300"
+									>
+										{count > 99 ? '99+' : count}
+									</span>
+								{/if}
+							{/if}
+						</a>
+					{/each}
+				</div>
+			{/if}
 		</div>
 	{/if}
 
-	<!-- AI button -->
-	<button
-		onclick={onAiToggle}
-		class="flex w-[3.75rem] shrink-0 items-center justify-center rounded-2xl bg-zinc-900 text-zinc-300 transition-transform active:scale-95"
-		aria-label="Open AI assistant"
-	>
-		<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-			<path
-				d="M14 4.4375C15.3462 4.4375 16.4375 3.34619 16.4375 2H17.5625C17.5625 3.34619 18.6538 4.4375 20 4.4375V5.5625C18.6538 5.5625 17.5625 6.65381 17.5625 8H16.4375C16.4375 6.65381 15.3462 5.5625 14 5.5625V4.4375ZM1 11C4.31371 11 7 8.31371 7 5H9C9 8.31371 11.6863 11 15 11V13C11.6863 13 9 15.6863 9 19H7C7 15.6863 4.31371 13 1 13V11ZM4.87601 12C6.18717 12.7276 7.27243 13.8128 8 15.124 8.72757 13.8128 9.81283 12.7276 11.124 12 9.81283 11.2724 8.72757 10.1872 8 8.87601 7.27243 10.1872 6.18717 11.2724 4.87601 12ZM17.25 14C17.25 15.7949 15.7949 17.25 14 17.25V18.75C15.7949 18.75 17.25 20.2051 17.25 22H18.75C18.75 20.2051 20.2051 18.75 22 18.75V17.25C20.2051 17.25 18.75 15.7949 18.75 14H17.25Z"
-			/>
-		</svg>
-	</button>
+	<div class="flex items-stretch gap-3">
+		{#if hasProductSelection}
+			<!-- Product selection dock -->
+			<div class="flex flex-1 items-center justify-between rounded-2xl bg-zinc-900 px-4 py-3">
+				<div class="flex flex-col gap-0.5">
+					<span class="text-sm font-medium text-white"
+						>{$selectedProductIds.length} Items Selected</span
+					>
+					<button
+						class="flex items-center gap-1 text-xs text-zinc-400"
+						onclick={() => selectedProductIds.set([])}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-3.5 w-3.5"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<circle cx="12" cy="12" r="10" />
+							<path stroke-linecap="round" d="m15 9-6 6m0-6 6 6" />
+						</svg>
+						Clear Items
+					</button>
+				</div>
+				<button
+					class="rounded-xl bg-white px-5 py-2.5 text-sm font-medium text-zinc-900"
+					onclick={() => goto(resolve('/products/order'))}
+				>
+					Start Order
+				</button>
+			</div>
+		{:else}
+			<!-- Tab bar -->
+			<div class="flex flex-1 items-stretch rounded-2xl bg-zinc-900">
+				{#each tabs as tab (tab.href)}
+					<a
+						href={resolve(tab.href as '/insight')}
+						class={cn(
+							'flex flex-1 flex-col items-center gap-1 py-3 text-xs transition-colors',
+							isActive(tab.href) ? 'text-white' : 'text-zinc-400'
+						)}
+					>
+						<div class="relative">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-5 w-5"
+								fill={tab.fill ? 'currentColor' : 'none'}
+								viewBox={tab.viewBox ?? '0 0 24 24'}
+								stroke={tab.fill ? 'none' : 'currentColor'}
+								stroke-width={tab.fill ? 0 : 1.5}
+							>
+								{#if tab.fill}
+									<path d={tab.icon} />
+								{:else}
+									<path stroke-linecap="round" stroke-linejoin="round" d={tab.icon} />
+								{/if}
+							</svg>
+							{#if tab.badge}
+								{@const count = tab.badge()}
+								{#if count > 0}
+									<span
+										class="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white"
+									>
+										{count > 99 ? '99+' : count}
+									</span>
+								{/if}
+							{/if}
+						</div>
+						<span>{tab.label}</span>
+					</a>
+				{/each}
+
+				{#if showMoreMenu && hasMoreItems}
+					<!-- More button -->
+					<button
+						onclick={() => (moreOpen = !moreOpen)}
+						class={cn(
+							'flex flex-1 flex-col items-center gap-1 py-3 text-xs transition-colors',
+							moreOpen ? 'text-white' : 'text-zinc-400'
+						)}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-5 w-5"
+							fill="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<circle cx="12" cy="5" r="2" />
+							<circle cx="12" cy="12" r="2" />
+							<circle cx="12" cy="19" r="2" />
+						</svg>
+						<span>More</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- AI button -->
+		<button
+			onclick={onAiToggle}
+			class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-zinc-900 text-zinc-300 transition-transform active:scale-95"
+			aria-label="Open AI assistant"
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-6 w-6"
+				viewBox="0 0 24 24"
+				fill="currentColor"
+			>
+				<path
+					d="M14 4.4375C15.3462 4.4375 16.4375 3.34619 16.4375 2H17.5625C17.5625 3.34619 18.6538 4.4375 20 4.4375V5.5625C18.6538 5.5625 17.5625 6.65381 17.5625 8H16.4375C16.4375 6.65381 15.3462 5.5625 14 5.5625V4.4375ZM1 11C4.31371 11 7 8.31371 7 5H9C9 8.31371 11.6863 11 15 11V13C11.6863 13 9 15.6863 9 19H7C7 15.6863 4.31371 13 1 13V11ZM4.87601 12C6.18717 12.7276 7.27243 13.8128 8 15.124 8.72757 13.8128 9.81283 12.7276 11.124 12 9.81283 11.2724 8.72757 10.1872 8 8.87601 7.27243 10.1872 6.18717 11.2724 4.87601 12ZM17.25 14C17.25 15.7949 15.7949 17.25 14 17.25V18.75C15.7949 18.75 17.25 20.2051 17.25 22H18.75C18.75 20.2051 20.2051 18.75 22 18.75V17.25C20.2051 17.25 18.75 15.7949 18.75 14H17.25Z"
+				/>
+			</svg>
+		</button>
+	</div>
 </div>

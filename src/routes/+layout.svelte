@@ -1292,7 +1292,14 @@
 
 		<!-- Mobile bottom nav — hidden when AI dock is open -->
 		{#if !$isLgUp && !mobileAiDockOpen}
-			<MobileBottomNav onAiToggle={() => (mobileAiDockOpen = true)} />
+			<MobileBottomNav
+				onAiToggle={() => (mobileAiDockOpen = true)}
+				role={data.membership?.role ?? 'guest'}
+				orgType={data.orgType}
+				brandScope={data.brandScope}
+				isBuyer={data.isBuyer}
+				{isNxBlsr}
+			/>
 		{/if}
 
 		{#if data.user?.id}
