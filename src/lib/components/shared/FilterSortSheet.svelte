@@ -70,16 +70,18 @@
 		</div>
 
 		<!-- Sticky footer — visible when filters are active -->
-		{#if activeCount > 0}
-			<div
-				class="flex shrink-0 items-center gap-3 px-5 py-4"
-				transition:fly={{ y: 20, duration: 200 }}
-			>
-				<Button variant="outline" class="flex-1" onclick={handleClear}>
-					Clear ({activeCount})
-				</Button>
-				<Button class="flex-1" onclick={handleApply}>Apply</Button>
-			</div>
-		{/if}
+		<div class="shrink-0 overflow-hidden">
+			{#if activeCount > 0}
+				<div
+					class="flex items-center gap-3 bg-transparent px-5 py-4"
+					transition:fly={{ y: 60, duration: 250 }}
+				>
+					<Button variant="outline" class="flex-1" onclick={handleClear}>
+						Clear ({activeCount})
+					</Button>
+					<Button class="flex-1" onclick={handleApply}>Apply</Button>
+				</div>
+			{/if}
+		</div>
 	</div>
 </OverlayPanel>
