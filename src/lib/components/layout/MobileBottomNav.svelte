@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
+	import { scale, fly } from 'svelte/transition';
 	import { cn } from '$lib/utils.js';
 	import { unreadCount } from '$lib/stores/unread.js';
 	import { orderAttentionCount } from '$lib/stores/orderAttention.js';
@@ -16,6 +17,9 @@
 		brandScope?: string[] | null;
 		isBuyer?: boolean;
 		isNxBlsr?: boolean;
+		userInitials?: string;
+		onSignOut?: () => void;
+		onHelp?: () => void;
 	};
 
 	let {
@@ -24,7 +28,10 @@
 		orgType = 'rep',
 		brandScope = null,
 		isBuyer = false,
-		isNxBlsr = false
+		isNxBlsr = false,
+		userInitials = '??',
+		onSignOut,
+		onHelp
 	}: Props = $props();
 
 	const hasProductSelection = $derived($selectedProductIds.length > 0);
@@ -71,9 +78,9 @@
 			badge: () => $orderAttentionCount
 		},
 		{
-			label: 'Accounts',
-			href: '/accounts',
-			icon: 'M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z'
+			label: 'Products',
+			href: '/products',
+			icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
 		}
 	];
 
@@ -107,14 +114,14 @@
 
 	const allGridItems: NavItem[] = [
 		{
+			label: 'Accounts',
+			href: '/accounts',
+			icon: 'M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z'
+		},
+		{
 			label: 'Brands',
 			href: '/brands',
 			icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
-		},
-		{
-			label: 'Products',
-			href: '/products',
-			icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
 		},
 		{
 			label: 'Expenses',
@@ -125,16 +132,16 @@
 
 	const gridItemLabels = $derived<string[]>(
 		isNxBlsr
-			? ['Brands', 'Products', 'Expenses']
+			? ['Accounts', 'Brands', 'Expenses']
 			: isBrandScoped && !isSales
 				? []
 				: isSales
 					? isBrandOrg
-						? ['Products', 'Expenses']
+						? ['Accounts', 'Expenses']
 						: ['Expenses']
 					: isBrandOrg
-						? ['Products', 'Expenses']
-						: ['Brands', 'Products', 'Expenses']
+						? ['Accounts', 'Expenses']
+						: ['Accounts', 'Brands', 'Expenses']
 	);
 
 	const moreGridItems = $derived(
@@ -170,15 +177,20 @@
 			label: 'Plan',
 			href: '/plan',
 			icon: 'M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z'
+		},
+		{
+			label: 'Organization',
+			href: '/organization',
+			icon: 'M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21'
 		}
 	];
 
 	const listItemLabels = $derived<string[]>(
 		isNxBlsr
-			? ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan']
+			? ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan', 'Organization']
 			: isBrandScoped && !isSales
 				? ['Reports']
-				: ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan']
+				: ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan', 'Organization']
 	);
 
 	const moreListItems = $derived(
@@ -201,10 +213,76 @@
 {/if}
 
 <!-- Bottom bar wrapper — shared centering for popup + bar -->
-<div class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6">
+<div
+	class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6"
+	transition:fly={{ y: 80, duration: 250 }}
+>
 	<!-- More menu popover -->
 	{#if moreOpen && showMoreMenu && hasMoreItems}
-		<div class="mr-[4.75rem] mb-3 rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10">
+		<div
+			transition:scale={{ duration: 200, start: 0.95, opacity: 0 }}
+			class="mr-[4.75rem] mb-3 ml-auto max-w-[280px] rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
+		>
+			<!-- Utility row: help, settings, user avatar -->
+			<div class="mb-2 flex items-center justify-end gap-2">
+				<button
+					onclick={() => {
+						handleNavClick();
+						onHelp?.();
+					}}
+					class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
+					aria-label="Help"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"
+						/>
+					</svg>
+				</button>
+				<button
+					onclick={() => {
+						handleNavClick();
+						goto(resolve('/settings' as '/orders'));
+					}}
+					class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
+					aria-label="Settings"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+						/>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+						/>
+					</svg>
+				</button>
+				<div
+					class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[11px] font-bold text-zinc-900"
+				>
+					{userInitials}
+				</div>
+			</div>
+
 			{#if moreGridItems.length > 0}
 				<!-- Grid items -->
 				<div
@@ -280,6 +358,33 @@
 										{count > 99 ? '99+' : count}
 									</span>
 								{/if}
+							{/if}
+							{#if item.label === 'Organization' && onSignOut}
+								<button
+									onclick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										onSignOut();
+										handleNavClick();
+									}}
+									class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
+									aria-label="Sign out"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"
+										/>
+									</svg>
+								</button>
 							{/if}
 						</a>
 					{/each}
@@ -389,7 +494,10 @@
 
 		<!-- AI button -->
 		<button
-			onclick={onAiToggle}
+			onclick={() => {
+				moreOpen = false;
+				onAiToggle();
+			}}
 			class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-zinc-900 text-zinc-300 transition-transform active:scale-95"
 			aria-label="Open Stitch"
 		>

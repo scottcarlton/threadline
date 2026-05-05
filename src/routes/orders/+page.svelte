@@ -4,11 +4,15 @@
 	import { page } from '$app/stores';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
 	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import FilterBySheet from '$lib/components/shared/FilterBySheet.svelte';
+	import FilterSortSheet from '$lib/components/shared/FilterSortSheet.svelte';
+	import Switch from '$lib/components/ui/switch.svelte';
+	import { isLgUp } from '$lib/utils/viewport.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { DropdownMenu } from 'bits-ui';
 	import {
@@ -242,7 +246,9 @@
 		delivered: 'Delivered',
 		cancelled: 'Cancelled'
 	};
-	const activeStatus = $derived($page.url.searchParams.get('status') ?? 'all');
+	const activeStatuses = $derived(
+		($page.url.searchParams.get('status') ?? '').split(',').filter(Boolean)
+	);
 	const activeType = $derived($page.url.searchParams.get('type') ?? 'order');
 	const activeFrom = $derived($page.url.searchParams.get('from'));
 	const activeTo = $derived($page.url.searchParams.get('to'));
@@ -413,6 +419,53 @@
 			noScroll: true
 		});
 	}
+
+	function setMultiFilter(key: string, values: string[]) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		if (values.length === 0) {
+			params.delete(key);
+		} else {
+			params.set(key, values.join(','));
+		}
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}
+
+	let filterSortOpen = $state(false);
+	let statusSheetOpen = $state(false);
+	let seasonSheetOpen = $state(false);
+	let brandSheetOpen = $state(false);
+	let sourceSheetOpen = $state(false);
+	let repSheetOpen = $state(false);
+	let dateSheetOpen = $state(false);
+	let atsOnly = $state(false);
+
+	const activeSeasonCount = $derived(
+		($page.url.searchParams.get('season') ?? '').split(',').filter(Boolean).length
+	);
+	const activeBrandCount = $derived(
+		($page.url.searchParams.get('brand') ?? '').split(',').filter(Boolean).length
+	);
+	const activeRepCount = $derived(
+		($page.url.searchParams.get('rep') ?? '').split(',').filter(Boolean).length
+	);
+	const activeSourceCount = $derived(
+		($page.url.searchParams.get('source') ?? '').split(',').filter(Boolean).length
+	);
+
+	const hasActiveFilters = $derived(
+		atsOnly ||
+			activeStatuses.length > 0 ||
+			($page.url.searchParams.get('season') ?? '') !== '' ||
+			($page.url.searchParams.get('brand') ?? '') !== '' ||
+			($page.url.searchParams.get('source') ?? '') !== '' ||
+			($page.url.searchParams.get('from') ?? '') !== '' ||
+			($page.url.searchParams.get('rep') ?? '') !== ''
+	);
 
 	function setDateRange(from: string | null, to: string | null) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
@@ -618,7 +671,7 @@
 
 	<!-- Analytics Cards -->
 	<div
-		class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
+		class="hide-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
 	>
 		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
@@ -673,11 +726,11 @@
 	</div>
 
 	<!-- Filters / Bulk action bar -->
-	<div
-		class="-mx-4 flex min-h-[44px] items-center gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0"
-	>
-		{#if selectedIds.size > 0}
-			{@const nextStatuses = bulkNextStatuses()}
+	{#if selectedIds.size > 0}
+		{@const nextStatuses = bulkNextStatuses()}
+		<div
+			class="-mx-4 flex min-h-[44px] items-center gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0"
+		>
 			<span class="text-sm font-medium">{selectedIds.size} selected</span>
 			<div class="h-5 w-px bg-border"></div>
 			{#if nextStatuses.length > 0}
@@ -712,85 +765,230 @@
 					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 				</svg>
 			</button>
-		{:else}
-			<SearchInput
-				placeholder="Search orders..."
-				value={search}
-				oninput={onSearchInput}
-				class="w-64 shrink-0"
-			/>
+		</div>
+	{:else}
+		<ListPageToolbar
+			{search}
+			{onSearchInput}
+			searchPlaceholder="Search orders..."
+			showFilterToggle={true}
+			{hasActiveFilters}
+			onFilterToggle={() => (filterSortOpen = true)}
+		>
 			{#if activeType !== 'note'}
-				<SelectField
-					value={activeStatus}
-					items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
-					placeholder="Status"
-					class="min-w-[120px] shrink-0"
-					onValueChange={(v) => setFilter('status', v)}
-				/>
+				{#if $isLgUp}
+					<SelectField
+						value={activeStatuses.length === 1 ? activeStatuses[0] : 'all'}
+						items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+						placeholder="Status"
+						class="min-w-[120px] shrink-0"
+						onValueChange={(v) => setMultiFilter('status', v && v !== 'all' ? [v] : [])}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (statusSheetOpen = true)}
+					>
+						Status<span class={activeStatuses.length > 0 ? '' : 'invisible'}>
+							({activeStatuses.length})</span
+						>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/>
+						</svg>
+					</button>
+				{/if}
 			{/if}
-			<SeasonFilter
-				class="min-w-[158px] shrink-0"
-				{seasons}
-				value={$page.url.searchParams.get('season') ?? ''}
-				onValueChange={(v) => setFilter('season', v)}
-			/>
+			<!-- Season -->
+			{#if $isLgUp}
+				<SeasonFilter
+					class="min-w-[158px] shrink-0"
+					{seasons}
+					value={$page.url.searchParams.get('season') ?? ''}
+					onValueChange={(v) => setFilter('season', v)}
+				/>
+			{:else}
+				<button
+					class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+					onclick={() => (seasonSheetOpen = true)}
+				>
+					Season<span class={activeSeasonCount > 0 ? '' : 'invisible'}> ({activeSeasonCount})</span>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4 text-muted-foreground"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+						><path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+						/></svg
+					>
+				</button>
+			{/if}
 			<div class="hidden lg:block lg:flex-1"></div>
+			<!-- Rep (brand orgs) -->
 			{#if isBrandOrg && reps.length > 0}
-				<SelectField
-					class="min-w-[158px] shrink-0"
-					value={$page.url.searchParams.get('rep') ?? ''}
-					items={[
-						{ value: '', label: 'All Reps' },
-						...reps.map((r) => ({ value: r.id, label: r.name }))
-					]}
-					placeholder="All Reps"
-					onValueChange={(v) => setFilter('rep', v)}
-				/>
+				{#if $isLgUp}
+					<SelectField
+						class="min-w-[158px] shrink-0"
+						value={$page.url.searchParams.get('rep') ?? ''}
+						items={[
+							{ value: '', label: 'All Reps' },
+							...reps.map((r) => ({ value: r.id, label: r.name }))
+						]}
+						placeholder="All Reps"
+						onValueChange={(v) => setFilter('rep', v)}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (repSheetOpen = true)}
+					>
+						Rep<span class={activeRepCount > 0 ? '' : 'invisible'}> ({activeRepCount})</span>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/></svg
+						>
+					</button>
+				{/if}
 			{/if}
+			<!-- Brand (rep orgs) -->
 			{#if !isBrandOrg}
-				<BrandFilter
-					class="min-w-[158px] shrink-0"
-					{brands}
-					valueKey="name"
-					value={$page.url.searchParams.get('brand') ?? ''}
-					onValueChange={(v) => setFilter('brand', v)}
-				/>
+				{#if $isLgUp}
+					<BrandFilter
+						class="min-w-[158px] shrink-0"
+						{brands}
+						valueKey="name"
+						value={$page.url.searchParams.get('brand') ?? ''}
+						onValueChange={(v) => setFilter('brand', v)}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (brandSheetOpen = true)}
+					>
+						Brand<span class={activeBrandCount > 0 ? '' : 'invisible'}> ({activeBrandCount})</span>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/></svg
+						>
+					</button>
+				{/if}
 			{/if}
+			<!-- Source -->
 			{#if hasSourceOptions}
+				{#if $isLgUp}
+					<SelectField
+						class="max-w-[240px] min-w-[158px] shrink-0"
+						value={$page.url.searchParams.get('source') ?? ''}
+						items={sourceItems}
+						placeholder="All Sources"
+						onValueChange={(v) => setFilter('source', v)}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (sourceSheetOpen = true)}
+					>
+						Source<span class={activeSourceCount > 0 ? '' : 'invisible'}>
+							({activeSourceCount})</span
+						>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/></svg
+						>
+					</button>
+				{/if}
+			{/if}
+			<!-- Date -->
+			{#if $isLgUp}
 				<SelectField
-					class="max-w-[240px] min-w-[158px] shrink-0"
-					value={$page.url.searchParams.get('source') ?? ''}
-					items={sourceItems}
-					placeholder="All Sources"
-					onValueChange={(v) => setFilter('source', v)}
+					class="min-w-[158px] shrink-0"
+					value={activeDatePreset}
+					items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
+					placeholder="All Time"
+					onValueChange={(v) => onDatePresetChange(v as DatePresetId)}
 				/>
+				{#if activeDatePreset === 'custom'}
+					<input
+						type="date"
+						aria-label="From date"
+						class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+						value={activeFrom ?? ''}
+						onchange={(e) => setDateRange((e.target as HTMLInputElement).value || null, activeTo)}
+					/>
+					<span class="text-sm text-muted-foreground">to</span>
+					<input
+						type="date"
+						aria-label="To date"
+						class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+						value={activeTo ?? ''}
+						onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
+					/>
+				{/if}
+			{:else}
+				<button
+					class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+					onclick={() => (dateSheetOpen = true)}
+				>
+					{activeDatePreset !== 'all' ? DATE_PRESET_LABELS[activeDatePreset] : 'Time'}
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4 text-muted-foreground"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+						><path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+						/></svg
+					>
+				</button>
 			{/if}
-			<SelectField
-				class="min-w-[158px] shrink-0"
-				value={activeDatePreset}
-				items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
-				placeholder="All Time"
-				onValueChange={(v) => onDatePresetChange(v as DatePresetId)}
-			/>
-			{#if activeDatePreset === 'custom'}
-				<input
-					type="date"
-					aria-label="From date"
-					class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
-					value={activeFrom ?? ''}
-					onchange={(e) => setDateRange((e.target as HTMLInputElement).value || null, activeTo)}
-				/>
-				<span class="text-sm text-muted-foreground">to</span>
-				<input
-					type="date"
-					aria-label="To date"
-					class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
-					value={activeTo ?? ''}
-					onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
-				/>
-			{/if}
-		{/if}
-	</div>
+		</ListPageToolbar>
+	{/if}
 
 	{#if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
@@ -1183,6 +1381,237 @@
 		{/if}
 	{/if}
 </div>
+
+<FilterBySheet
+	open={statusSheetOpen}
+	onclose={() => (statusSheetOpen = false)}
+	title="Filter by Status"
+	options={statusTabs
+		.filter((s) => s !== 'all')
+		.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+	selected={activeStatuses}
+	onApply={(values) => setMultiFilter('status', values)}
+/>
+
+<FilterBySheet
+	open={seasonSheetOpen}
+	onclose={() => (seasonSheetOpen = false)}
+	title="Filter by Season"
+	options={seasons.map((s) => ({ value: s.name, label: s.name }))}
+	selected={($page.url.searchParams.get('season') ?? '').split(',').filter(Boolean)}
+	onApply={(values) => setMultiFilter('season', values)}
+/>
+
+{#if isBrandOrg && reps.length > 0}
+	<FilterBySheet
+		open={repSheetOpen}
+		onclose={() => (repSheetOpen = false)}
+		title="Filter by Rep"
+		options={reps.map((r) => ({ value: r.id, label: r.name }))}
+		selected={($page.url.searchParams.get('rep') ?? '').split(',').filter(Boolean)}
+		onApply={(values) => setMultiFilter('rep', values)}
+	/>
+{/if}
+
+{#if !isBrandOrg}
+	<FilterBySheet
+		open={brandSheetOpen}
+		onclose={() => (brandSheetOpen = false)}
+		title="Filter by Brand"
+		options={brands.map((b) => ({ value: b.name, label: b.name }))}
+		selected={($page.url.searchParams.get('brand') ?? '').split(',').filter(Boolean)}
+		onApply={(values) => setMultiFilter('brand', values)}
+	/>
+{/if}
+
+{#if hasSourceOptions}
+	<FilterBySheet
+		open={sourceSheetOpen}
+		onclose={() => (sourceSheetOpen = false)}
+		title="Filter by Source"
+		options={sourceItems
+			.filter((s) => s.value !== '')
+			.map((s) => ({ value: s.value, label: s.label }))}
+		selected={($page.url.searchParams.get('source') ?? '').split(',').filter(Boolean)}
+		onApply={(values) => setMultiFilter('source', values)}
+	/>
+{/if}
+
+<FilterBySheet
+	open={dateSheetOpen}
+	onclose={() => (dateSheetOpen = false)}
+	title="Filter by Time"
+	options={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
+	selected={activeDatePreset !== 'all' ? [activeDatePreset] : []}
+	onApply={(values) => onDatePresetChange((values[0] ?? 'all') as DatePresetId)}
+	singleSelect={true}
+/>
+
+<FilterSortSheet
+	open={filterSortOpen}
+	onclose={() => (filterSortOpen = false)}
+	onApply={() => {}}
+	onClear={() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		params.delete('status');
+		params.delete('season');
+		params.delete('brand');
+		params.delete('source');
+		params.delete('rep');
+		params.delete('from');
+		params.delete('to');
+		atsOnly = false;
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}}
+	activeCount={[
+		atsOnly,
+		activeStatuses.length > 0,
+		($page.url.searchParams.get('season') ?? '') !== '',
+		($page.url.searchParams.get('brand') ?? '') !== '',
+		($page.url.searchParams.get('source') ?? '') !== '',
+		($page.url.searchParams.get('from') ?? '') !== '',
+		($page.url.searchParams.get('rep') ?? '') !== ''
+	].filter(Boolean).length}
+>
+	<div class="space-y-6">
+		<!-- ATS toggle -->
+		<div class="flex items-center justify-between">
+			<span class="text-sm font-medium">ATS Only</span>
+			<Switch
+				checked={atsOnly}
+				onCheckedChange={(v) => (atsOnly = v === true)}
+				aria-label="ATS Only"
+			/>
+		</div>
+
+		<div class="h-px bg-border"></div>
+
+		<!-- Status -->
+		<div>
+			<h3 class="mb-3 text-sm font-medium text-muted-foreground">Status</h3>
+			<div class="space-y-2">
+				{#each statusTabs.filter((s) => s !== 'all') as s (s)}
+					<label class="flex items-center gap-3">
+						<Checkbox
+							checked={activeStatuses.includes(s)}
+							onCheckedChange={(v) => {
+								const next = v ? [...activeStatuses, s] : activeStatuses.filter((x) => x !== s);
+								setMultiFilter('status', next);
+							}}
+						/>
+						<span class="text-base">{statusLabels[s] ?? s}</span>
+					</label>
+				{/each}
+			</div>
+		</div>
+
+		<div class="h-px bg-border"></div>
+
+		<!-- Season -->
+		{#if seasons.length > 0}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Season</h3>
+				<div class="space-y-2">
+					{#each seasons as season (season.id)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('season') ?? '') === season.name}
+								onCheckedChange={(v) => setFilter('season', v ? season.name : '')}
+							/>
+							<span class="text-base">{season.name}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Brand (rep orgs only) -->
+		{#if !isBrandOrg && brands.length > 0}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Brand</h3>
+				<div class="space-y-2">
+					{#each brands as brand (brand.id)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('brand') ?? '') === brand.name}
+								onCheckedChange={(v) => setFilter('brand', v ? brand.name : '')}
+							/>
+							<span class="text-base">{brand.name}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Rep (brand orgs only) -->
+		{#if isBrandOrg && reps.length > 0}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Rep</h3>
+				<div class="space-y-2">
+					{#each reps as rep (rep.id)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('rep') ?? '') === rep.id}
+								onCheckedChange={(v) => setFilter('rep', v ? rep.id : '')}
+							/>
+							<span class="text-base">{rep.name}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Source -->
+		{#if hasSourceOptions}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Source</h3>
+				<div class="space-y-2">
+					{#each sourceItems.filter((s) => s.value !== '') as source (source.value)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('source') ?? '') === source.value}
+								onCheckedChange={(v) => setFilter('source', v ? source.value : '')}
+							/>
+							<span class="text-base">{source.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Date -->
+		<div>
+			<h3 class="mb-3 text-sm font-medium text-muted-foreground">Time Period</h3>
+			<div class="space-y-2">
+				{#each Object.entries(DATE_PRESET_LABELS) as [value, label] (value)}
+					<label class="flex items-center gap-3">
+						<input
+							type="radio"
+							name="date-filter"
+							class="h-5 w-5 accent-foreground"
+							checked={activeDatePreset === value}
+							onchange={() => onDatePresetChange(value as DatePresetId)}
+						/>
+						<span class="text-base">{label}</span>
+					</label>
+				{/each}
+			</div>
+		</div>
+	</div>
+</FilterSortSheet>
 
 {#if isBrandOrg}
 	<OrderImportModal
