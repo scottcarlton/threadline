@@ -542,13 +542,13 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
-		transition:fly={{ y: 100, duration: 250 }}
 		class="fixed inset-0 z-50 flex items-end lg:items-start lg:justify-center lg:pt-[12vh]"
 		onclick={closeDialog}
 	>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
+			transition:fly={{ y: 300, duration: 250 }}
 			class="h-[85dvh] w-full overflow-hidden rounded-t-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10 lg:h-auto lg:max-h-[70vh] lg:max-w-2xl lg:rounded-none"
 			onclick={(e: MouseEvent) => e.stopPropagation()}
 			ontouchstart={handleTouchStart}
