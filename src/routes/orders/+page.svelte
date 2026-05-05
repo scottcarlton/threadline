@@ -1247,12 +1247,20 @@
 	onclose={() => (filterSortOpen = false)}
 	onApply={() => {}}
 	onClear={() => {
-		setMultiFilter('status', []);
-		setFilter('season', '');
-		setFilter('brand', '');
-		setFilter('source', '');
-		setFilter('rep', '');
-		setDateRange(null, null);
+		const params = new URLSearchParams($page.url.searchParams);
+		params.delete('status');
+		params.delete('season');
+		params.delete('brand');
+		params.delete('source');
+		params.delete('rep');
+		params.delete('from');
+		params.delete('to');
+		atsOnly = false;
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}}
 	activeCount={[
 		activeStatuses.length > 0,
