@@ -529,7 +529,7 @@
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="max-h-[85dvh] w-full overflow-hidden rounded-t-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10 lg:max-w-2xl lg:rounded-none"
+			class="h-[85dvh] w-full overflow-hidden rounded-t-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10 lg:h-auto lg:max-h-[70vh] lg:max-w-2xl lg:rounded-none"
 			onclick={(e: MouseEvent) => e.stopPropagation()}
 		>
 			<!-- Mobile drag handle -->
