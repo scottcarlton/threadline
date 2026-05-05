@@ -4,7 +4,7 @@
 	import { page } from '$app/stores';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
 	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
@@ -673,11 +673,11 @@
 	</div>
 
 	<!-- Filters / Bulk action bar -->
-	<div
-		class="-mx-4 flex min-h-[44px] items-center gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0"
-	>
-		{#if selectedIds.size > 0}
-			{@const nextStatuses = bulkNextStatuses()}
+	{#if selectedIds.size > 0}
+		{@const nextStatuses = bulkNextStatuses()}
+		<div
+			class="-mx-4 flex min-h-[44px] items-center gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0"
+		>
 			<span class="text-sm font-medium">{selectedIds.size} selected</span>
 			<div class="h-5 w-px bg-border"></div>
 			{#if nextStatuses.length > 0}
@@ -712,13 +712,9 @@
 					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 				</svg>
 			</button>
-		{:else}
-			<SearchInput
-				placeholder="Search orders..."
-				value={search}
-				oninput={onSearchInput}
-				class="w-64 shrink-0"
-			/>
+		</div>
+	{:else}
+		<ListPageToolbar {search} {onSearchInput} searchPlaceholder="Search orders...">
 			{#if activeType !== 'note'}
 				<SelectField
 					value={activeStatus}
@@ -789,8 +785,8 @@
 					onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
 				/>
 			{/if}
-		{/if}
-	</div>
+		</ListPageToolbar>
+	{/if}
 
 	{#if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
