@@ -10,6 +10,7 @@
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import ProductCard from '$lib/components/products/ProductCard.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import Skeleton from '$lib/components/ui/skeleton/skeleton.svelte';
 	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
 	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
 	import CategoryFilter from '$lib/components/shared/CategoryFilter.svelte';
@@ -18,7 +19,7 @@
 	import type { Product } from '$lib/types/database.js';
 
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import { debounce } from '$lib/utils/debounce.js';
 	import { selectedProductIds } from '$lib/stores/productSelection.js';
 
@@ -53,6 +54,8 @@
 	const isMultiBrand = $derived(brand === null);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
 	const canEdit = $derived(['admin', 'owner', 'member'].includes(data.membership?.role ?? ''));
+
+	const isLoading = $derived(!!$navigating);
 
 	// Mutable list — initial page from server, appended via infinite scroll
 	let productList = $state<ProductRow[]>([]);
@@ -254,7 +257,20 @@
 	</div>
 
 	<!-- Product grid -->
-	{#if filtered.length === 0}
+	{#if isLoading}
+		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
+			{#each Array(6) as _}
+				<div>
+					<Skeleton class="aspect-square w-full rounded-none" />
+					<div class="p-4">
+						<Skeleton class="h-3 w-20" />
+						<Skeleton class="mt-2 h-4 w-32" />
+						<Skeleton class="mt-2 h-4 w-16" />
+					</div>
+				</div>
+			{/each}
+		</div>
+	{:else if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
 			{#if search || brandFilter || seasonFilter || categoryFilter || atsOnly}
 				<p class="text-lg font-semibold">No products match your filters</p>
