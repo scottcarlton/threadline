@@ -55,7 +55,7 @@
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
 	const canEdit = $derived(['admin', 'owner', 'member'].includes(data.membership?.role ?? ''));
 
-	const isLoading = $derived(!!$navigating);
+	const isLoading = $derived(!!$navigating && $navigating.to?.url.pathname === '/products');
 
 	// Mutable list — initial page from server, appended via infinite scroll
 	let productList = $state<ProductRow[]>([]);
