@@ -770,15 +770,8 @@
 						class="flex min-h-[44px] items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm transition-colors hover:bg-muted/50"
 						onclick={() => (statusSheetOpen = true)}
 					>
-						{activeStatuses.length > 0
-							? activeStatuses.map((s) => statusLabels[s] ?? s).join(', ')
-							: 'Status'}
-						{#if activeStatuses.length > 0}
-							<span
-								class="flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-bold text-background"
-								>{activeStatuses.length}</span
-							>
-						{/if}
+						Status{#if activeStatuses.length > 0}
+							({activeStatuses.length}){/if}
 					</button>
 				{/if}
 			{/if}
