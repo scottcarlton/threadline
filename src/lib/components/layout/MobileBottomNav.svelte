@@ -220,9 +220,11 @@
 		>
 			<!-- Utility row: help, settings, user avatar -->
 			<div class="mb-2 flex items-center justify-end gap-2">
-				<a
-					href={resolve('/help' as '/orders')}
-					onclick={handleNavClick}
+				<button
+					onclick={() => {
+						handleNavClick();
+						goto(resolve('/settings' as '/orders'));
+					}}
 					class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
 					aria-label="Help"
 				>
@@ -240,10 +242,12 @@
 							d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"
 						/>
 					</svg>
-				</a>
-				<a
-					href={resolve('/settings' as '/orders')}
-					onclick={handleNavClick}
+				</button>
+				<button
+					onclick={() => {
+						handleNavClick();
+						goto(resolve('/settings' as '/orders'));
+					}}
 					class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
 					aria-label="Settings"
 				>
@@ -266,7 +270,7 @@
 							d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
 						/>
 					</svg>
-				</a>
+				</button>
 				<div
 					class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[11px] font-bold text-zinc-900"
 				>
