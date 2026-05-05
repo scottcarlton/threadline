@@ -437,6 +437,11 @@
 
 	let filterSortOpen = $state(false);
 	let statusSheetOpen = $state(false);
+	let seasonSheetOpen = $state(false);
+	let brandSheetOpen = $state(false);
+	let sourceSheetOpen = $state(false);
+	let repSheetOpen = $state(false);
+	let dateSheetOpen = $state(false);
 	let atsOnly = $state(false);
 
 	const hasActiveFilters = $derived(
@@ -789,66 +794,181 @@
 					</button>
 				{/if}
 			{/if}
-			<SeasonFilter
-				class="min-w-[158px] shrink-0"
-				{seasons}
-				value={$page.url.searchParams.get('season') ?? ''}
-				onValueChange={(v) => setFilter('season', v)}
-			/>
+			<!-- Season -->
+			{#if $isLgUp}
+				<SeasonFilter
+					class="min-w-[158px] shrink-0"
+					{seasons}
+					value={$page.url.searchParams.get('season') ?? ''}
+					onValueChange={(v) => setFilter('season', v)}
+				/>
+			{:else}
+				<button
+					class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+					onclick={() => (seasonSheetOpen = true)}
+				>
+					Season{#if ($page.url.searchParams.get('season') ?? '') !== ''}{' '}(1){/if}
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4 text-muted-foreground"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+						><path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+						/></svg
+					>
+				</button>
+			{/if}
 			<div class="hidden lg:block lg:flex-1"></div>
+			<!-- Rep (brand orgs) -->
 			{#if isBrandOrg && reps.length > 0}
-				<SelectField
-					class="min-w-[158px] shrink-0"
-					value={$page.url.searchParams.get('rep') ?? ''}
-					items={[
-						{ value: '', label: 'All Reps' },
-						...reps.map((r) => ({ value: r.id, label: r.name }))
-					]}
-					placeholder="All Reps"
-					onValueChange={(v) => setFilter('rep', v)}
-				/>
+				{#if $isLgUp}
+					<SelectField
+						class="min-w-[158px] shrink-0"
+						value={$page.url.searchParams.get('rep') ?? ''}
+						items={[
+							{ value: '', label: 'All Reps' },
+							...reps.map((r) => ({ value: r.id, label: r.name }))
+						]}
+						placeholder="All Reps"
+						onValueChange={(v) => setFilter('rep', v)}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (repSheetOpen = true)}
+					>
+						Rep{#if ($page.url.searchParams.get('rep') ?? '') !== ''}{' '}(1){/if}
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/></svg
+						>
+					</button>
+				{/if}
 			{/if}
+			<!-- Brand (rep orgs) -->
 			{#if !isBrandOrg}
-				<BrandFilter
-					class="min-w-[158px] shrink-0"
-					{brands}
-					valueKey="name"
-					value={$page.url.searchParams.get('brand') ?? ''}
-					onValueChange={(v) => setFilter('brand', v)}
-				/>
+				{#if $isLgUp}
+					<BrandFilter
+						class="min-w-[158px] shrink-0"
+						{brands}
+						valueKey="name"
+						value={$page.url.searchParams.get('brand') ?? ''}
+						onValueChange={(v) => setFilter('brand', v)}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (brandSheetOpen = true)}
+					>
+						Brand{#if ($page.url.searchParams.get('brand') ?? '') !== ''}{' '}(1){/if}
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/></svg
+						>
+					</button>
+				{/if}
 			{/if}
+			<!-- Source -->
 			{#if hasSourceOptions}
-				<SelectField
-					class="max-w-[240px] min-w-[158px] shrink-0"
-					value={$page.url.searchParams.get('source') ?? ''}
-					items={sourceItems}
-					placeholder="All Sources"
-					onValueChange={(v) => setFilter('source', v)}
-				/>
+				{#if $isLgUp}
+					<SelectField
+						class="max-w-[240px] min-w-[158px] shrink-0"
+						value={$page.url.searchParams.get('source') ?? ''}
+						items={sourceItems}
+						placeholder="All Sources"
+						onValueChange={(v) => setFilter('source', v)}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (sourceSheetOpen = true)}
+					>
+						Source{#if ($page.url.searchParams.get('source') ?? '') !== ''}{' '}(1){/if}
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/></svg
+						>
+					</button>
+				{/if}
 			{/if}
-			<SelectField
-				class="min-w-[158px] shrink-0"
-				value={activeDatePreset}
-				items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
-				placeholder="All Time"
-				onValueChange={(v) => onDatePresetChange(v as DatePresetId)}
-			/>
-			{#if activeDatePreset === 'custom'}
-				<input
-					type="date"
-					aria-label="From date"
-					class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
-					value={activeFrom ?? ''}
-					onchange={(e) => setDateRange((e.target as HTMLInputElement).value || null, activeTo)}
+			<!-- Date -->
+			{#if $isLgUp}
+				<SelectField
+					class="min-w-[158px] shrink-0"
+					value={activeDatePreset}
+					items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
+					placeholder="All Time"
+					onValueChange={(v) => onDatePresetChange(v as DatePresetId)}
 				/>
-				<span class="text-sm text-muted-foreground">to</span>
-				<input
-					type="date"
-					aria-label="To date"
-					class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
-					value={activeTo ?? ''}
-					onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
-				/>
+				{#if activeDatePreset === 'custom'}
+					<input
+						type="date"
+						aria-label="From date"
+						class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+						value={activeFrom ?? ''}
+						onchange={(e) => setDateRange((e.target as HTMLInputElement).value || null, activeTo)}
+					/>
+					<span class="text-sm text-muted-foreground">to</span>
+					<input
+						type="date"
+						aria-label="To date"
+						class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+						value={activeTo ?? ''}
+						onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
+					/>
+				{/if}
+			{:else}
+				<button
+					class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+					onclick={() => (dateSheetOpen = true)}
+				>
+					{activeDatePreset !== 'all' ? DATE_PRESET_LABELS[activeDatePreset] : 'Time'}
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4 text-muted-foreground"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+						><path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+						/></svg
+					>
+				</button>
 			{/if}
 		</ListPageToolbar>
 	{/if}
@@ -1254,6 +1374,67 @@
 		.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
 	selected={activeStatuses}
 	onApply={(values) => setMultiFilter('status', values)}
+/>
+
+<FilterBySheet
+	open={seasonSheetOpen}
+	onclose={() => (seasonSheetOpen = false)}
+	title="Filter by Season"
+	options={seasons.map((s) => ({ value: s.name, label: s.name }))}
+	selected={($page.url.searchParams.get('season') ?? '') !== ''
+		? [$page.url.searchParams.get('season') ?? '']
+		: []}
+	onApply={(values) => setFilter('season', values[0] ?? '')}
+/>
+
+{#if isBrandOrg && reps.length > 0}
+	<FilterBySheet
+		open={repSheetOpen}
+		onclose={() => (repSheetOpen = false)}
+		title="Filter by Rep"
+		options={reps.map((r) => ({ value: r.id, label: r.name }))}
+		selected={($page.url.searchParams.get('rep') ?? '') !== ''
+			? [$page.url.searchParams.get('rep') ?? '']
+			: []}
+		onApply={(values) => setFilter('rep', values[0] ?? '')}
+	/>
+{/if}
+
+{#if !isBrandOrg}
+	<FilterBySheet
+		open={brandSheetOpen}
+		onclose={() => (brandSheetOpen = false)}
+		title="Filter by Brand"
+		options={brands.map((b) => ({ value: b.name, label: b.name }))}
+		selected={($page.url.searchParams.get('brand') ?? '') !== ''
+			? [$page.url.searchParams.get('brand') ?? '']
+			: []}
+		onApply={(values) => setFilter('brand', values[0] ?? '')}
+	/>
+{/if}
+
+{#if hasSourceOptions}
+	<FilterBySheet
+		open={sourceSheetOpen}
+		onclose={() => (sourceSheetOpen = false)}
+		title="Filter by Source"
+		options={sourceItems
+			.filter((s) => s.value !== '')
+			.map((s) => ({ value: s.value, label: s.label }))}
+		selected={($page.url.searchParams.get('source') ?? '') !== ''
+			? [$page.url.searchParams.get('source') ?? '']
+			: []}
+		onApply={(values) => setFilter('source', values[0] ?? '')}
+	/>
+{/if}
+
+<FilterBySheet
+	open={dateSheetOpen}
+	onclose={() => (dateSheetOpen = false)}
+	title="Filter by Time"
+	options={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
+	selected={activeDatePreset !== 'all' ? [activeDatePreset] : []}
+	onApply={(values) => onDatePresetChange((values[0] ?? 'all') as DatePresetId)}
 />
 
 <FilterSortSheet
