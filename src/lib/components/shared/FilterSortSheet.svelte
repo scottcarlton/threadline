@@ -41,7 +41,7 @@
 	maxHeight="100dvh"
 	showDragHandle={false}
 >
-	<div class="flex max-h-[100dvh] flex-col">
+	<div class="flex h-full flex-col overflow-hidden">
 		<!-- Header -->
 		<div class="flex shrink-0 items-center justify-between px-5 py-4">
 			<h2 class="text-lg font-semibold">{title}</h2>
