@@ -518,17 +518,24 @@
 
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- Desktop: centered dialog — Mobile: bottom sheet -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
-		transition:fly={{ y: 20, duration: 200 }}
-		class="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]"
+		transition:fly={{ y: 100, duration: 250 }}
+		class="fixed inset-0 z-50 flex items-end lg:items-start lg:justify-center lg:pt-[12vh]"
 		onclick={closeDialog}
 	>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="w-full max-w-2xl overflow-hidden rounded-none bg-zinc-900 shadow-2xl ring-1 ring-white/10"
+			class="max-h-[85dvh] w-full overflow-hidden rounded-t-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10 lg:max-w-2xl lg:rounded-none"
 			onclick={(e: MouseEvent) => e.stopPropagation()}
 		>
+			<!-- Mobile drag handle -->
+			<div class="flex items-center justify-center pt-2 pb-1 lg:hidden">
+				<div class="h-1 w-10 rounded-full bg-muted-foreground/30"></div>
+			</div>
 			<!-- Input bar -->
 			<div class="flex items-center gap-3 px-5 py-4">
 				<svg
@@ -1016,8 +1023,8 @@
 				{/if}
 			</div>
 
-			<!-- Footer -->
-			<div class="flex items-center gap-5 px-5 py-2.5">
+			<!-- Footer — keyboard hints, desktop only -->
+			<div class="hidden items-center gap-5 px-5 py-2.5 lg:flex">
 				<div class="flex items-center gap-1.5">
 					<kbd class="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-zinc-400">↑↓</kbd
 					>
