@@ -336,7 +336,6 @@
 					wholesalePrice={Number(product.wholesale_price)}
 					images={product.product_images ?? []}
 					seasonLabel={[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
-					category={product.category}
 					archived={!!product.archived_at}
 					border
 				/>

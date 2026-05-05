@@ -19,7 +19,6 @@
 		images: CardImage[];
 		seasonLabel?: string | null;
 		brandName?: string | null;
-		category?: string | null;
 		archived?: boolean;
 		border?: boolean;
 		overlay?: Snippet;
@@ -35,7 +34,6 @@
 		images,
 		seasonLabel = null,
 		brandName = null,
-		category = null,
 		archived = false,
 		border = false,
 		overlay,
@@ -75,13 +73,6 @@
 					<p class="text-sm font-medium">{fmt.format(wholesalePrice)}</p>
 				</div>
 			</div>
-			{#if category}
-				<span
-					class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-				>
-					{category}
-				</span>
-			{/if}
 		</div>
 	</a>
 	{#if action}
