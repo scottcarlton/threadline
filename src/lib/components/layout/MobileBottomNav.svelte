@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
+	import { scale } from 'svelte/transition';
 	import { cn } from '$lib/utils.js';
 	import { unreadCount } from '$lib/stores/unread.js';
 	import { orderAttentionCount } from '$lib/stores/orderAttention.js';
@@ -204,7 +205,10 @@
 <div class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6">
 	<!-- More menu popover -->
 	{#if moreOpen && showMoreMenu && hasMoreItems}
-		<div class="mr-[4.75rem] mb-3 rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10">
+		<div
+			transition:scale={{ duration: 200, start: 0.95, opacity: 0 }}
+			class="mr-[4.75rem] mb-3 rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
+		>
 			{#if moreGridItems.length > 0}
 				<!-- Grid items -->
 				<div
