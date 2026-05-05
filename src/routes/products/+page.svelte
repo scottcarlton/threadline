@@ -259,7 +259,8 @@
 	<!-- Product grid -->
 	{#if isLoading}
 		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
-			{#each Array(6) as _}
+			<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
+			{#each Array(6) as _, i (i)}
 				<div>
 					<Skeleton class="aspect-square w-full rounded-none" />
 					<div class="p-4">

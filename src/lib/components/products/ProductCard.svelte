@@ -24,6 +24,7 @@
 		action?: Snippet;
 	};
 
+	/* eslint-disable @typescript-eslint/no-unused-vars */
 	let {
 		productId,
 		href,
@@ -37,6 +38,7 @@
 		overlay,
 		action
 	}: Props = $props();
+	/* eslint-enable @typescript-eslint/no-unused-vars */
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -44,6 +46,7 @@
 </script>
 
 <div class="group rounded-none transition-all duration-200 {archived ? 'opacity-50' : ''}">
+	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- caller passes pre-resolved href -->
 	<a {href} class="block">
 		<ProductImageCarousel {productId} {images} alt={name} aspect="aspect-square">
 			{#snippet overlay()}
