@@ -43,6 +43,15 @@
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 	let inputEl = $state<HTMLInputElement | undefined>(undefined);
 
+	let touchStartY = 0;
+	function handleTouchStart(e: TouchEvent) {
+		touchStartY = e.touches[0].clientY;
+	}
+	function handleTouchEnd(e: TouchEvent) {
+		const deltaY = e.changedTouches[0].clientY - touchStartY;
+		if (deltaY > 60) closeDialog();
+	}
+
 	// Filtered groups
 	const contactResults = $derived(results.filter((r) => r.type === 'contact'));
 	const brandResults = $derived(results.filter((r) => r.type === 'brand'));
@@ -531,11 +540,17 @@
 		<div
 			class="h-[85dvh] w-full overflow-hidden rounded-t-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10 lg:h-auto lg:max-h-[70vh] lg:max-w-2xl lg:rounded-none"
 			onclick={(e: MouseEvent) => e.stopPropagation()}
+			ontouchstart={handleTouchStart}
+			ontouchend={handleTouchEnd}
 		>
-			<!-- Mobile drag handle -->
-			<div class="flex items-center justify-center pt-2 pb-1 lg:hidden">
+			<!-- Mobile drag handle — tap or swipe down to close -->
+			<button
+				class="flex w-full items-center justify-center pt-2 pb-1 lg:hidden"
+				onclick={closeDialog}
+				aria-label="Close"
+			>
 				<div class="h-1 w-10 rounded-full bg-muted-foreground/30"></div>
-			</div>
+			</button>
 			<!-- Input bar -->
 			<div class="flex items-center gap-3 px-5 py-4">
 				<svg
