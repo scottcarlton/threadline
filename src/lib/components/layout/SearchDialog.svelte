@@ -43,12 +43,19 @@
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 	let inputEl = $state<HTMLInputElement | undefined>(undefined);
 
-	let touchStartY = 0;
+	let dragStartY = 0;
 	function handleTouchStart(e: TouchEvent) {
-		touchStartY = e.touches[0].clientY;
+		dragStartY = e.touches[0].clientY;
 	}
 	function handleTouchEnd(e: TouchEvent) {
-		const deltaY = e.changedTouches[0].clientY - touchStartY;
+		const deltaY = e.changedTouches[0].clientY - dragStartY;
+		if (deltaY > 60) closeDialog();
+	}
+	function handleMouseDown(e: MouseEvent) {
+		dragStartY = e.clientY;
+	}
+	function handleMouseUp(e: MouseEvent) {
+		const deltaY = e.clientY - dragStartY;
 		if (deltaY > 60) closeDialog();
 	}
 
@@ -542,6 +549,8 @@
 			onclick={(e: MouseEvent) => e.stopPropagation()}
 			ontouchstart={handleTouchStart}
 			ontouchend={handleTouchEnd}
+			onmousedown={handleMouseDown}
+			onmouseup={handleMouseUp}
 		>
 			<!-- Mobile drag handle — tap or swipe down to close -->
 			<button
