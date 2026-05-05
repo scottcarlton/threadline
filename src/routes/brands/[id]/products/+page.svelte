@@ -335,7 +335,6 @@
 					styleNumber={product.style_number}
 					wholesalePrice={Number(product.wholesale_price)}
 					images={product.product_images ?? []}
-					variants={product.product_variants ?? []}
 					seasonLabel={[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
 					category={product.category}
 					archived={!!product.archived_at}

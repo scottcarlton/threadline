@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
-	import { getVariantSummary } from '$lib/utils/products';
 
 	type CardImage = {
 		id: string;
@@ -11,12 +10,6 @@
 		variant_id?: string | null;
 	};
 
-	type CardVariant = {
-		id: string;
-		color: string | null;
-		size: string | null;
-	};
-
 	type Props = {
 		productId: string;
 		href: string;
@@ -24,7 +17,6 @@
 		styleNumber: string;
 		wholesalePrice: number;
 		images: CardImage[];
-		variants: CardVariant[];
 		seasonLabel?: string | null;
 		brandName?: string | null;
 		category?: string | null;
@@ -41,7 +33,6 @@
 		styleNumber,
 		wholesalePrice,
 		images,
-		variants,
 		seasonLabel = null,
 		brandName = null,
 		category = null,
@@ -53,7 +44,6 @@
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
-	const variantSummary = $derived(getVariantSummary(variants));
 	const metaLine = $derived([brandName, seasonLabel].filter(Boolean).join(' · '));
 </script>
 
@@ -83,7 +73,6 @@
 				</div>
 				<div class="shrink-0 sm:text-right">
 					<p class="text-sm font-medium">{fmt.format(wholesalePrice)}</p>
-					<p class="mt-0.5 text-xs text-muted-foreground">{variantSummary}</p>
 				</div>
 			</div>
 			{#if category}
