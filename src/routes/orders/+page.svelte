@@ -444,6 +444,19 @@
 	let dateSheetOpen = $state(false);
 	let atsOnly = $state(false);
 
+	const activeSeasonCount = $derived(
+		($page.url.searchParams.get('season') ?? '').split(',').filter(Boolean).length
+	);
+	const activeBrandCount = $derived(
+		($page.url.searchParams.get('brand') ?? '').split(',').filter(Boolean).length
+	);
+	const activeRepCount = $derived(
+		($page.url.searchParams.get('rep') ?? '').split(',').filter(Boolean).length
+	);
+	const activeSourceCount = $derived(
+		($page.url.searchParams.get('source') ?? '').split(',').filter(Boolean).length
+	);
+
 	const hasActiveFilters = $derived(
 		atsOnly ||
 			activeStatuses.length > 0 ||
@@ -773,7 +786,7 @@
 					/>
 				{:else}
 					<button
-						class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 						onclick={() => (statusSheetOpen = true)}
 					>
 						Status{#if activeStatuses.length > 0}{' '}({activeStatuses.length}){/if}
@@ -807,7 +820,7 @@
 					class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 					onclick={() => (seasonSheetOpen = true)}
 				>
-					Season{#if ($page.url.searchParams.get('season') ?? '') !== ''}{' '}(1){/if}
+					Season{#if activeSeasonCount > 0}{' '}({activeSeasonCount}){/if}
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						class="h-4 w-4 text-muted-foreground"
@@ -839,10 +852,10 @@
 					/>
 				{:else}
 					<button
-						class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 						onclick={() => (repSheetOpen = true)}
 					>
-						Rep{#if ($page.url.searchParams.get('rep') ?? '') !== ''}{' '}(1){/if}
+						Rep{#if activeRepCount > 0}{' '}({activeRepCount}){/if}
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							class="h-4 w-4 text-muted-foreground"
@@ -871,10 +884,10 @@
 					/>
 				{:else}
 					<button
-						class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 						onclick={() => (brandSheetOpen = true)}
 					>
-						Brand{#if ($page.url.searchParams.get('brand') ?? '') !== ''}{' '}(1){/if}
+						Brand{#if activeBrandCount > 0}{' '}({activeBrandCount}){/if}
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							class="h-4 w-4 text-muted-foreground"
@@ -903,10 +916,10 @@
 					/>
 				{:else}
 					<button
-						class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 						onclick={() => (sourceSheetOpen = true)}
 					>
-						Source{#if ($page.url.searchParams.get('source') ?? '') !== ''}{' '}(1){/if}
+						Source{#if activeSourceCount > 0}{' '}({activeSourceCount}){/if}
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							class="h-4 w-4 text-muted-foreground"
@@ -1381,10 +1394,8 @@
 	onclose={() => (seasonSheetOpen = false)}
 	title="Filter by Season"
 	options={seasons.map((s) => ({ value: s.name, label: s.name }))}
-	selected={($page.url.searchParams.get('season') ?? '') !== ''
-		? [$page.url.searchParams.get('season') ?? '']
-		: []}
-	onApply={(values) => setFilter('season', values[0] ?? '')}
+	selected={($page.url.searchParams.get('season') ?? '').split(',').filter(Boolean)}
+	onApply={(values) => setMultiFilter('season', values)}
 />
 
 {#if isBrandOrg && reps.length > 0}
@@ -1393,10 +1404,8 @@
 		onclose={() => (repSheetOpen = false)}
 		title="Filter by Rep"
 		options={reps.map((r) => ({ value: r.id, label: r.name }))}
-		selected={($page.url.searchParams.get('rep') ?? '') !== ''
-			? [$page.url.searchParams.get('rep') ?? '']
-			: []}
-		onApply={(values) => setFilter('rep', values[0] ?? '')}
+		selected={($page.url.searchParams.get('rep') ?? '').split(',').filter(Boolean)}
+		onApply={(values) => setMultiFilter('rep', values)}
 	/>
 {/if}
 
@@ -1406,10 +1415,8 @@
 		onclose={() => (brandSheetOpen = false)}
 		title="Filter by Brand"
 		options={brands.map((b) => ({ value: b.name, label: b.name }))}
-		selected={($page.url.searchParams.get('brand') ?? '') !== ''
-			? [$page.url.searchParams.get('brand') ?? '']
-			: []}
-		onApply={(values) => setFilter('brand', values[0] ?? '')}
+		selected={($page.url.searchParams.get('brand') ?? '').split(',').filter(Boolean)}
+		onApply={(values) => setMultiFilter('brand', values)}
 	/>
 {/if}
 
@@ -1421,10 +1428,8 @@
 		options={sourceItems
 			.filter((s) => s.value !== '')
 			.map((s) => ({ value: s.value, label: s.label }))}
-		selected={($page.url.searchParams.get('source') ?? '') !== ''
-			? [$page.url.searchParams.get('source') ?? '']
-			: []}
-		onApply={(values) => setFilter('source', values[0] ?? '')}
+		selected={($page.url.searchParams.get('source') ?? '').split(',').filter(Boolean)}
+		onApply={(values) => setMultiFilter('source', values)}
 	/>
 {/if}
 

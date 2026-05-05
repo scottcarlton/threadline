@@ -74,6 +74,6 @@
 			{/each}
 		</div>
 
-		<Button class="mt-6 w-full" onclick={handleApply}>Apply</Button>
+		<Button size="lg" class="mt-6 w-full" onclick={handleApply}>Apply</Button>
 	</div>
 </OverlayPanel>
