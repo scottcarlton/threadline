@@ -544,6 +544,10 @@
 	<div
 		class="fixed inset-0 z-50 flex items-end lg:items-start lg:justify-center lg:pt-[12vh]"
 		onclick={closeDialog}
+		ontouchstart={handleTouchStart}
+		ontouchend={handleTouchEnd}
+		onmousedown={handleMouseDown}
+		onmouseup={handleMouseUp}
 	>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
