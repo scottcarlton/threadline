@@ -530,6 +530,10 @@
 		transition:fade={{ duration: 150 }}
 		class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
 		onclick={closeDialog}
+		ontouchstart={handleTouchStart}
+		ontouchend={handleTouchEnd}
+		onmousedown={handleMouseDown}
+		onmouseup={handleMouseUp}
 	></div>
 
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
