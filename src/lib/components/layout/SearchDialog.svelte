@@ -536,8 +536,6 @@
 		onmouseup={handleMouseUp}
 	></div>
 
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<!-- Desktop: centered dialog — Mobile: bottom sheet -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->

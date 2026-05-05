@@ -789,8 +789,8 @@
 						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 						onclick={() => (statusSheetOpen = true)}
 					>
-						Status<span class={activeStatuses.length > 0 ? '' : 'invisible'}
-							>{' '}({activeStatuses.length})</span
+						Status<span class={activeStatuses.length > 0 ? '' : 'invisible'}>
+							({activeStatuses.length})</span
 						>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
@@ -822,9 +822,7 @@
 					class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 					onclick={() => (seasonSheetOpen = true)}
 				>
-					Season<span class={activeSeasonCount > 0 ? '' : 'invisible'}
-						>{' '}({activeSeasonCount})</span
-					>
+					Season<span class={activeSeasonCount > 0 ? '' : 'invisible'}> ({activeSeasonCount})</span>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						class="h-4 w-4 text-muted-foreground"
@@ -859,7 +857,7 @@
 						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 						onclick={() => (repSheetOpen = true)}
 					>
-						Rep<span class={activeRepCount > 0 ? '' : 'invisible'}>{' '}({activeRepCount})</span>
+						Rep<span class={activeRepCount > 0 ? '' : 'invisible'}> ({activeRepCount})</span>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							class="h-4 w-4 text-muted-foreground"
@@ -891,9 +889,7 @@
 						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 						onclick={() => (brandSheetOpen = true)}
 					>
-						Brand<span class={activeBrandCount > 0 ? '' : 'invisible'}
-							>{' '}({activeBrandCount})</span
-						>
+						Brand<span class={activeBrandCount > 0 ? '' : 'invisible'}> ({activeBrandCount})</span>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							class="h-4 w-4 text-muted-foreground"
@@ -925,8 +921,8 @@
 						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 						onclick={() => (sourceSheetOpen = true)}
 					>
-						Source<span class={activeSourceCount > 0 ? '' : 'invisible'}
-							>{' '}({activeSourceCount})</span
+						Source<span class={activeSourceCount > 0 ? '' : 'invisible'}>
+							({activeSourceCount})</span
 						>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
@@ -1456,6 +1452,7 @@
 	onclose={() => (filterSortOpen = false)}
 	onApply={() => {}}
 	onClear={() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams($page.url.searchParams);
 		params.delete('status');
 		params.delete('season');

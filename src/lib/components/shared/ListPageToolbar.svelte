@@ -2,7 +2,6 @@
 	import type { Snippet } from 'svelte';
 	import { cn } from '$lib/utils.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
-	import FilterBadge from '$lib/components/shared/FilterBadge.svelte';
 	import { fly } from 'svelte/transition';
 
 	type Props = {
