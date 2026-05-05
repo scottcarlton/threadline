@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { OverlayPanel } from '$lib/components/ui/overlay-panel/index.js';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 
 	type FilterOption = {
@@ -26,11 +27,11 @@
 		}
 	});
 
-	function toggle(value: string) {
-		if (localSelected.includes(value)) {
-			localSelected = localSelected.filter((v) => v !== value);
-		} else {
+	function toggle(value: string, checked: boolean) {
+		if (checked) {
 			localSelected = [...localSelected, value];
+		} else {
+			localSelected = localSelected.filter((v) => v !== value);
 		}
 	}
 
@@ -44,31 +45,15 @@
 	<div class="flex flex-col px-5 pb-5">
 		<h3 class="mb-4 text-lg font-semibold">{title}</h3>
 
-		<div class="space-y-1">
+		<div class="space-y-3">
 			{#each options as option (option.value)}
-				<button
-					type="button"
-					class="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-base transition-colors {localSelected.includes(
-						option.value
-					)
-						? 'bg-muted font-medium'
-						: 'hover:bg-muted/50'}"
-					onclick={() => toggle(option.value)}
-				>
-					{option.label}
-					{#if localSelected.includes(option.value)}
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5 text-foreground"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-						</svg>
-					{/if}
-				</button>
+				<label class="flex items-center gap-3">
+					<Checkbox
+						checked={localSelected.includes(option.value)}
+						onCheckedChange={(v) => toggle(option.value, v === true)}
+					/>
+					<span class="text-base">{option.label}</span>
+				</label>
 			{/each}
 		</div>
 
