@@ -2,11 +2,11 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
+	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
@@ -223,15 +223,7 @@
 	</PageHeader>
 
 	<!-- Filters -->
-	<div
-		class="-mx-4 flex min-h-[44px] items-center gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0"
-	>
-		<SearchInput
-			placeholder="Search products..."
-			value={search}
-			oninput={onSearchInput}
-			class="w-64 shrink-0"
-		/>
+	<ListPageToolbar {search} {onSearchInput} searchPlaceholder="Search products...">
 		{#if (data.brands ?? []).length > 1}
 			<BrandFilter
 				brands={data.brands ?? []}
@@ -273,7 +265,7 @@
 				{showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
 			</button>
 		{/if}
-	</div>
+	</ListPageToolbar>
 
 	<!-- Product grid -->
 	{#if filtered.length === 0}
