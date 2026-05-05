@@ -52,7 +52,7 @@
 						checked={localSelected.includes(option.value)}
 						onCheckedChange={(v) => toggle(option.value, v === true)}
 					/>
-					<span class="text-sm">{option.label}</span>
+					<span class="text-base">{option.label}</span>
 				</label>
 			{/each}
 		</div>

@@ -658,7 +658,7 @@
 
 	<!-- Analytics Cards -->
 	<div
-		class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
+		class="hide-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
 	>
 		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
@@ -1493,7 +1493,7 @@
 								setMultiFilter('status', next);
 							}}
 						/>
-						<span class="text-sm">{statusLabels[s] ?? s}</span>
+						<span class="text-base">{statusLabels[s] ?? s}</span>
 					</label>
 				{/each}
 			</div>
@@ -1512,7 +1512,7 @@
 								checked={($page.url.searchParams.get('season') ?? '') === season.name}
 								onCheckedChange={(v) => setFilter('season', v ? season.name : '')}
 							/>
-							<span class="text-sm">{season.name}</span>
+							<span class="text-base">{season.name}</span>
 						</label>
 					{/each}
 				</div>
@@ -1532,7 +1532,7 @@
 								checked={($page.url.searchParams.get('brand') ?? '') === brand.name}
 								onCheckedChange={(v) => setFilter('brand', v ? brand.name : '')}
 							/>
-							<span class="text-sm">{brand.name}</span>
+							<span class="text-base">{brand.name}</span>
 						</label>
 					{/each}
 				</div>
@@ -1552,7 +1552,7 @@
 								checked={($page.url.searchParams.get('rep') ?? '') === rep.id}
 								onCheckedChange={(v) => setFilter('rep', v ? rep.id : '')}
 							/>
-							<span class="text-sm">{rep.name}</span>
+							<span class="text-base">{rep.name}</span>
 						</label>
 					{/each}
 				</div>
@@ -1572,7 +1572,7 @@
 								checked={($page.url.searchParams.get('source') ?? '') === source.value}
 								onCheckedChange={(v) => setFilter('source', v ? source.value : '')}
 							/>
-							<span class="text-sm">{source.label}</span>
+							<span class="text-base">{source.label}</span>
 						</label>
 					{/each}
 				</div>
@@ -1594,7 +1594,7 @@
 							checked={activeDatePreset === value}
 							onchange={() => onDatePresetChange(value as DatePresetId)}
 						/>
-						<span class="text-sm">{label}</span>
+						<span class="text-base">{label}</span>
 					</label>
 				{/each}
 			</div>
