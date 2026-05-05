@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import { scale } from 'svelte/transition';
+	import { scale, fly } from 'svelte/transition';
 	import { cn } from '$lib/utils.js';
 	import { unreadCount } from '$lib/stores/unread.js';
 	import { orderAttentionCount } from '$lib/stores/orderAttention.js';
@@ -213,12 +213,15 @@
 {/if}
 
 <!-- Bottom bar wrapper — shared centering for popup + bar -->
-<div class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6">
+<div
+	class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6"
+	transition:fly={{ y: 80, duration: 250 }}
+>
 	<!-- More menu popover -->
 	{#if moreOpen && showMoreMenu && hasMoreItems}
 		<div
 			transition:scale={{ duration: 200, start: 0.95, opacity: 0 }}
-			class="mr-[4.75rem] mb-3 rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
+			class="mr-[4.75rem] mb-3 ml-auto max-w-[280px] rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
 		>
 			<!-- Utility row: help, settings, user avatar -->
 			<div class="mb-2 flex items-center justify-end gap-2">
@@ -491,7 +494,10 @@
 
 		<!-- AI button -->
 		<button
-			onclick={onAiToggle}
+			onclick={() => {
+				moreOpen = false;
+				onAiToggle();
+			}}
 			class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-zinc-900 text-zinc-300 transition-transform active:scale-95"
 			aria-label="Open Stitch"
 		>
