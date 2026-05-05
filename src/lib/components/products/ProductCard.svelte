@@ -48,9 +48,9 @@
 </script>
 
 <div
-	class="group rounded-none bg-card transition-all duration-200 {archived
-		? 'opacity-50'
-		: ''} {border ? 'border hover:border-foreground/20 hover:shadow-md' : ''}"
+	class="group rounded-none transition-all duration-200 {archived ? 'opacity-50' : ''} {border
+		? 'border hover:border-foreground/20 hover:shadow-md'
+		: ''}"
 >
 	<a {href} class="block">
 		<ProductImageCarousel {productId} {images} alt={name} aspect="aspect-square">
