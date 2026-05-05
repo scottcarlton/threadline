@@ -5,7 +5,7 @@
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
-	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
+	import { aggregateStockStatus } from '$lib/utils/products';
 
 	let { data } = $props();
 
@@ -25,18 +25,6 @@
 			product_images: { id: string; file_path: string; is_primary: boolean; sort_order: number }[];
 		}
 	);
-
-	function aggregateStockStatus(
-		variants: { stock_qty: number | null; stock_threshold: number | null }[]
-	): StockStatus | null {
-		const statuses = variants
-			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
-			.filter((s): s is StockStatus => s !== null);
-		if (statuses.length === 0) return null;
-		if (statuses.includes('out')) return 'out';
-		if (statuses.includes('low')) return 'low';
-		return 'in';
-	}
 
 	const stockAgg = $derived(
 		product.ats ? aggregateStockStatus(product.product_variants ?? []) : null
