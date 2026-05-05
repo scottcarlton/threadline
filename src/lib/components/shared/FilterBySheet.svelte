@@ -55,7 +55,7 @@
 						<input
 							type="radio"
 							name={title}
-							class="h-4 w-4 accent-foreground"
+							class="h-5 w-5 accent-foreground"
 							checked={localSelected.includes(option.value)}
 							onchange={() => toggle(option.value, true)}
 						/>
@@ -66,6 +66,7 @@
 						<Checkbox
 							checked={localSelected.includes(option.value)}
 							onCheckedChange={(v) => toggle(option.value, v === true)}
+							class="h-5 w-5 rounded-[5px]"
 						/>
 						<span class="text-base">{option.label}</span>
 					</label>

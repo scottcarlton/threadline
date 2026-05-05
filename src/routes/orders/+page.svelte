@@ -1591,7 +1591,7 @@
 						<input
 							type="radio"
 							name="date-filter"
-							class="h-4 w-4 accent-foreground"
+							class="h-5 w-5 accent-foreground"
 							checked={activeDatePreset === value}
 							onchange={() => onDatePresetChange(value as DatePresetId)}
 						/>
