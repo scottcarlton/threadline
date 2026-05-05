@@ -1,8 +1,12 @@
 <script lang="ts">
+	import { SvelteMap } from 'svelte/reactivity';
+
 	type ProductImage = {
 		id: string;
 		is_primary: boolean;
 		sort_order?: number | null;
+		role?: 'primary' | 'hover' | null;
+		variant_id?: string | null;
 	};
 
 	type Props = {
@@ -12,154 +16,122 @@
 		aspect?: string;
 		activeImageId?: string | null;
 		onselect?: (imageId: string) => void;
+		overlay?: import('svelte').Snippet;
 	};
 
+	/* eslint-disable @typescript-eslint/no-unused-vars */
 	let {
 		productId,
 		images,
 		alt,
-		aspect = 'aspect-[4/3]',
-		activeImageId = null,
-		onselect
+		aspect = 'aspect-square',
+		activeImageId,
+		onselect,
+		overlay
 	}: Props = $props();
+	/* eslint-enable @typescript-eslint/no-unused-vars */
 
-	const sorted = $derived(
-		[...images].sort((a, b) => {
-			if (a.is_primary && !b.is_primary) return -1;
-			if (!a.is_primary && b.is_primary) return 1;
-			return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-		})
-	);
+	// Group images by variant — each variant can have a primary + hover pair.
+	// Images with no variant_id are product-level (no-variant case).
+	const variantGroups = $derived(() => {
+		const groups = new SvelteMap<
+			string,
+			{ primary: ProductImage | null; hover: ProductImage | null }
+		>();
 
-	const hasMultiple = $derived(sorted.length > 1);
+		for (const img of images) {
+			const key = img.variant_id ?? '__product__';
+			if (!groups.has(key)) groups.set(key, { primary: null, hover: null });
+			const group = groups.get(key)!;
 
-	let activeIndex = $state(0);
-	let hovered = $state(false);
-
-	$effect(() => {
-		if (!sorted.length) return;
-		if (activeImageId) {
-			const idx = sorted.findIndex((img) => img.id === activeImageId);
-			activeIndex = idx >= 0 ? idx : 0;
-		} else {
-			activeIndex = 0;
+			if (img.role === 'primary') {
+				group.primary = img;
+			} else if (img.role === 'hover') {
+				group.hover = img;
+			} else if (img.is_primary && !group.primary) {
+				group.primary = img;
+			} else if (!group.hover) {
+				group.hover = img;
+			}
 		}
+
+		return [...groups.values()]
+			.filter((g) => g.primary)
+			.sort((a, b) => {
+				const aIsPrimary = a.primary?.is_primary ? 1 : 0;
+				const bIsPrimary = b.primary?.is_primary ? 1 : 0;
+				return bIsPrimary - aIsPrimary;
+			});
 	});
 
-	function setActive(index: number) {
-		activeIndex = index;
-		onselect?.(sorted[index].id);
-	}
+	let activeGroupIndex = $state(0);
+	let hovered = $state(false);
 
-	function prev(e: MouseEvent) {
-		e.preventDefault();
-		e.stopPropagation();
-		setActive((activeIndex - 1 + sorted.length) % sorted.length);
-	}
+	const activeGroup = $derived(variantGroups()[activeGroupIndex] ?? variantGroups()[0] ?? null);
 
-	function next(e: MouseEvent) {
-		e.preventDefault();
-		e.stopPropagation();
-		setActive((activeIndex + 1) % sorted.length);
-	}
+	const activeImage = $derived(
+		activeGroup ? (hovered && activeGroup.hover ? activeGroup.hover : activeGroup.primary) : null
+	);
 
-	function goTo(e: MouseEvent, index: number) {
-		e.preventDefault();
-		e.stopPropagation();
-		setActive(index);
-	}
+	const thumbnails = $derived(variantGroups().map((g) => g.primary!));
+	const showThumbnails = $derived(thumbnails.length > 1);
 </script>
 
-<div
-	class="relative h-full w-full overflow-hidden bg-muted {aspect}"
-	role="group"
-	aria-label="Product images"
-	onmouseenter={() => (hovered = true)}
-	onmouseleave={() => (hovered = false)}
->
-	{#if sorted.length > 0}
-		{#each sorted as image, i (image.id)}
-			{#if i === activeIndex}
-				<img
-					src="/api/products/{productId}/images/{image.id}"
-					{alt}
-					class="absolute inset-0 h-full w-full object-cover"
-				/>
-			{/if}
-		{/each}
-	{:else}
-		<div class="flex h-full items-center justify-center text-muted-foreground">
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-10 w-10"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				stroke-width="1"
-			>
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-				/>
-			</svg>
-		</div>
-	{/if}
+<div>
+	<!-- Main image -->
+	<div
+		class="relative w-full overflow-hidden bg-muted {aspect}"
+		role="group"
+		aria-label="Product image"
+		onmouseenter={() => (hovered = true)}
+		onmouseleave={() => (hovered = false)}
+	>
+		{#if activeImage}
+			<img
+				src="/api/products/{productId}/images/{activeImage.id}"
+				{alt}
+				class="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
+			/>
+		{:else}
+			<div class="flex h-full items-center justify-center text-muted-foreground">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-10 w-10"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="1"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
+					/>
+				</svg>
+			</div>
+		{/if}
 
-	{#if hasMultiple}
-		<!-- Left/right arrows — desktop hover only -->
-		<button
-			type="button"
-			class="absolute top-1/2 left-2 hidden -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-sm transition-opacity dark:bg-black/70 {hovered
-				? 'sm:flex'
-				: ''} h-8 w-8"
-			aria-label="Previous image"
-			onclick={prev}
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-4 w-4"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-			</svg>
-		</button>
-		<button
-			type="button"
-			class="absolute top-1/2 right-2 hidden -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-sm transition-opacity dark:bg-black/70 {hovered
-				? 'sm:flex'
-				: ''} h-8 w-8"
-			aria-label="Next image"
-			onclick={next}
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-4 w-4"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-			</svg>
-		</button>
+		{#if overlay}
+			{@render overlay()}
+		{/if}
+	</div>
 
-		<!-- Thumbnails — always visible -->
-		<div class="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1">
-			{#each sorted as image, i (image.id)}
+	<!-- Variant thumbnails — left-aligned strip below the image -->
+	{#if showThumbnails}
+		<div class="mt-1.5 flex gap-1 px-4">
+			{#each thumbnails as thumb, i (thumb.id)}
 				<button
 					type="button"
-					class="h-10 w-10 overflow-hidden rounded-sm border-2 transition-all {i === activeIndex
-						? 'border-white shadow-md'
-						: 'border-transparent opacity-70 hover:opacity-100'}"
-					aria-label="View image {i + 1}"
-					onclick={(e) => goTo(e, i)}
+					class="h-12 w-12 shrink-0 overflow-hidden transition-all"
+					aria-label="View color {i + 1}"
+					onmouseenter={() => (activeGroupIndex = i)}
+					onclick={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+					}}
 				>
 					<img
-						src="/api/products/{productId}/images/{image.id}"
+						src="/api/products/{productId}/images/{thumb.id}"
 						alt=""
 						class="h-full w-full object-cover"
 					/>

@@ -12,6 +12,8 @@ export type ProductImage = {
 	id: string;
 	is_primary: boolean;
 	sort_order: number | null;
+	role?: 'primary' | 'hover' | null;
+	variant_id?: string | null;
 };
 
 export type CatalogProduct = {

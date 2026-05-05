@@ -36,6 +36,7 @@ const ALLOWED_IMAGE_MIMES = new Set([
 	'image/jpg',
 	'image/png',
 	'image/webp',
+	'image/avif',
 	'image/gif'
 ]);
 
@@ -56,6 +57,8 @@ function extensionForMime(mime: string): string {
 			return 'png';
 		case 'image/webp':
 			return 'webp';
+		case 'image/avif':
+			return 'avif';
 		case 'image/gif':
 			return 'gif';
 		default:
@@ -78,9 +81,12 @@ export async function uploadProductImageFromBlob(
 		fileName?: string;
 		fileSize?: number;
 		uploadedBy: string;
+		variantId?: string | null;
+		role?: 'primary' | 'hover' | null;
 	}
 ): Promise<UploadProductImageResult> {
-	const { productId, orgId, buffer, mimeType, fileName, fileSize, uploadedBy } = params;
+	const { productId, orgId, buffer, mimeType, fileName, fileSize, uploadedBy, variantId, role } =
+		params;
 
 	const ext = extensionForMime(mimeType);
 	const safeName = safeFileName(fileName ?? `image.${ext}`);
@@ -118,7 +124,9 @@ export async function uploadProductImageFromBlob(
 			mime_type: mimeType,
 			sort_order: count ?? 0,
 			is_primary: (count ?? 0) === 0,
-			uploaded_by: uploadedBy
+			uploaded_by: uploadedBy,
+			variant_id: variantId ?? null,
+			role: role ?? null
 		})
 		.select('id, file_path')
 		.single();
