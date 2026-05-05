@@ -768,7 +768,7 @@
 					/>
 				{:else}
 					<button
-						class="flex min-h-[44px] items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm transition-colors hover:bg-muted/50"
+						class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
 						onclick={() => (statusSheetOpen = true)}
 					>
 						Status{#if activeStatuses.length > 0}{' '}({activeStatuses.length}){/if}
