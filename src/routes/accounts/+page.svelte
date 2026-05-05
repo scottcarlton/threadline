@@ -2,7 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import AccountImportModal from '$lib/components/accounts/AccountImportModal.svelte';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
@@ -158,10 +158,12 @@
 		{/if}
 	</PageHeader>
 
-	<div class="flex items-center gap-3">
-		<div class="max-w-xs flex-1">
-			<SearchInput placeholder="Search accounts..." value={search} oninput={onSearchInput} />
-		</div>
+	<ListPageToolbar
+		{search}
+		{onSearchInput}
+		searchPlaceholder="Search accounts..."
+		searchClass="max-w-xs flex-1"
+	>
 		{#if archivedCount > 0}
 			<button
 				class="text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -170,7 +172,7 @@
 				{showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
 			</button>
 		{/if}
-	</div>
+	</ListPageToolbar>
 
 	{#if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
