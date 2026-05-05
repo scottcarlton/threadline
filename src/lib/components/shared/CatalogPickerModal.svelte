@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { fly } from 'svelte/transition';
-	import { expoOut, quintOut } from 'svelte/easing';
+	import { quintOut } from 'svelte/easing';
+	import { browser } from '$app/environment';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchInput } from '$lib/components/ui/input/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
@@ -26,12 +27,53 @@
 		itemIsSized
 	} from './catalog-picker-types.js';
 
-	function asidePush(_node: Element, { width = 380, duration = 700 } = {}) {
-		return {
-			duration,
-			easing: expoOut,
-			css: (t: number) => `width: ${width * t}px; opacity: ${t};`
-		};
+	let asideEl = $state<HTMLElement | null>(null);
+	let asideMounted = $state(false);
+	let asideAnimating = $state(false);
+	let lastSizingProductId = $state<string | null>(null);
+
+	$effect(() => {
+		if (!browser) return;
+		if (sizingProductId && !asideMounted) {
+			lastSizingProductId = sizingProductId;
+			asideMounted = true;
+			queueMicrotask(() => animateAsideIn());
+		} else if (sizingProductId && asideMounted) {
+			lastSizingProductId = sizingProductId;
+		} else if (!sizingProductId && asideMounted && !asideAnimating) {
+			animateAsideOut();
+		}
+	});
+
+	async function animateAsideIn() {
+		await new Promise((r) => requestAnimationFrame(r));
+		await new Promise((r) => requestAnimationFrame(r));
+		if (!asideEl) return;
+		const { animate } = await import('motion');
+		asideAnimating = true;
+		await animate(asideEl, { width: '380px', opacity: 1 } as Parameters<typeof animate>[1], {
+			type: 'spring',
+			stiffness: 300,
+			damping: 34,
+			mass: 1
+		}).finished?.catch(() => {});
+		asideAnimating = false;
+	}
+
+	async function animateAsideOut() {
+		if (!asideEl) {
+			asideMounted = false;
+			return;
+		}
+		const { animate } = await import('motion');
+		asideAnimating = true;
+		await animate(asideEl, { width: '0px', opacity: 0 } as Parameters<typeof animate>[1], {
+			duration: 0.28,
+			ease: [0.32, 0, 0.67, 0]
+		}).finished?.catch(() => {});
+		asideAnimating = false;
+		asideMounted = false;
+		lastSizingProductId = null;
 	}
 
 	type Props = {
@@ -352,55 +394,56 @@
 									</span>
 								{/if}
 								<div class="flex flex-1 flex-col {locked ? 'opacity-50' : ''}">
-									<div class="relative">
-										<ProductImageCarousel
-											productId={p.id}
-											images={p.product_images ?? []}
-											alt={p.name}
-											aspect="aspect-square"
-											activeImageId={findItem(p.id)?.image_id}
-											onselect={(imageId) => {
-												const idx = items.findIndex((it) => it.product_id === p.id);
-												if (idx >= 0) items[idx].image_id = imageId;
-											}}
-										/>
-										{#if p.ats}
-											{@const agg = aggregateStockStatus(p.product_variants ?? [])}
-											{#if agg}
+									<ProductImageCarousel
+										productId={p.id}
+										images={p.product_images ?? []}
+										alt={p.name}
+										aspect="aspect-square"
+										activeImageId={findItem(p.id)?.image_id}
+										onselect={(imageId) => {
+											const idx = items.findIndex((it) => it.product_id === p.id);
+											if (idx >= 0) items[idx].image_id = imageId;
+										}}
+									>
+										{#snippet overlay()}
+											{#if p.ats}
+												{@const agg = aggregateStockStatus(p.product_variants ?? [])}
+												{#if agg}
+													<div
+														class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+													>
+														<StockPill status={agg} qty={null} hideQty />
+													</div>
+												{/if}
+											{/if}
+											{#if !locked}
 												<div
-													class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+													class="absolute top-2 right-2 p-2 transition-opacity [@media(hover:none)]:opacity-100 {added
+														? 'opacity-100'
+														: 'opacity-0 group-focus-within/card:opacity-100 group-hover/card:opacity-100'}"
 												>
-													<StockPill status={agg} qty={null} hideQty />
+													<span class="pointer-events-none flex rounded-sm bg-white">
+														<Checkbox
+															checked={added}
+															class="h-6 w-6 group-hover/card:border-foreground"
+														/>
+													</span>
 												</div>
+												{#if added}
+													<button
+														type="button"
+														class="absolute right-4 bottom-4 left-4 inline-flex h-10 items-center justify-center rounded-md bg-background/80 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-background"
+														onclick={(e) => {
+															e.stopPropagation();
+															openSizing(p);
+														}}
+													>
+														Set Sizes
+													</button>
+												{/if}
 											{/if}
-										{/if}
-										{#if !locked}
-											<div
-												class="absolute top-2 right-2 p-2 transition-opacity [@media(hover:none)]:opacity-100 {added
-													? 'opacity-100'
-													: 'opacity-0 group-focus-within/card:opacity-100 group-hover/card:opacity-100'}"
-											>
-												<span class="pointer-events-none flex rounded-sm bg-white">
-													<Checkbox
-														checked={added}
-														class="h-6 w-6 group-hover/card:border-foreground"
-													/>
-												</span>
-											</div>
-											{#if added}
-												<button
-													type="button"
-													class="absolute right-4 bottom-14 left-4 inline-flex h-10 items-center justify-center rounded-md border bg-background text-sm font-medium transition-colors hover:bg-muted"
-													onclick={(e) => {
-														e.stopPropagation();
-														openSizing(p);
-													}}
-												>
-													Set Sizes
-												</button>
-											{/if}
-										{/if}
-									</div>
+										{/snippet}
+									</ProductImageCarousel>
 									<div class="flex flex-1 flex-col gap-1 p-3">
 										<div class="text-sm text-muted-foreground">{p.style_number}</div>
 										<div
@@ -428,12 +471,13 @@
 			</div>
 
 			<!-- Sizing panel (overlay) -->
-			{#if sizingProductId}
-				{@const it = findItem(sizingProductId)}
+			{#if asideMounted && lastSizingProductId}
+				{@const it = findItem(lastSizingProductId)}
 				{#if it}
 					<aside
-						transition:asidePush={{ width: 380, duration: 700 }}
+						bind:this={asideEl}
 						class="hidden shrink-0 flex-col overflow-hidden bg-background sm:flex"
+						style="width: 0px; opacity: 0; will-change: width, opacity;"
 					>
 						<div class="flex w-[380px] flex-1 flex-col">
 							<div class="px-4 pt-5 pb-3">

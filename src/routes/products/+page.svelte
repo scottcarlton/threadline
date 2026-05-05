@@ -38,6 +38,8 @@
 			file_path: string;
 			is_primary: boolean;
 			sort_order: number | null;
+			role: 'primary' | 'hover' | null;
+			variant_id: string | null;
 		}[];
 	};
 
@@ -314,45 +316,49 @@
 							class="pointer-events-none absolute inset-0 z-10 border-6 border-foreground/20"
 						></div>
 					{/if}
-					<div class="relative">
-						<ProductImageCarousel
-							productId={product.id}
-							images={product.product_images ?? []}
-							alt={product.name}
-						/>
-						{#if product.ats}
-							{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
-							{#if stockAgg}
-								<div
-									class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
-								>
-									<StockPill status={stockAgg} qty={null} hideQty />
-								</div>
+					<ProductImageCarousel
+						productId={product.id}
+						images={product.product_images ?? []}
+						alt={product.name}
+						aspect="aspect-square"
+					>
+						{#snippet overlay()}
+							{#if product.ats}
+								{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
+								{#if stockAgg}
+									<div
+										class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+									>
+										<StockPill status={stockAgg} qty={null} hideQty />
+									</div>
+								{/if}
 							{/if}
-						{/if}
-						<button
-							type="button"
-							aria-label={selectedIds.includes(product.id) ? 'Deselect product' : 'Select product'}
-							aria-pressed={selectedIds.includes(product.id)}
-							class="group/check absolute top-2 right-2 p-2 transition-opacity [@media(hover:none)]:opacity-100 {selectedIds.includes(
-								product.id
-							)
-								? 'opacity-100'
-								: 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'}"
-							onclick={(e) => {
-								e.preventDefault();
-								e.stopPropagation();
-								toggleSelected(product.id, !selectedIds.includes(product.id));
-							}}
-						>
-							<span class="pointer-events-none flex rounded-sm bg-white">
-								<Checkbox
-									checked={selectedIds.includes(product.id)}
-									class="h-6 w-6 group-hover/check:border-foreground"
-								/>
-							</span>
-						</button>
-					</div>
+							<button
+								type="button"
+								aria-label={selectedIds.includes(product.id)
+									? 'Deselect product'
+									: 'Select product'}
+								aria-pressed={selectedIds.includes(product.id)}
+								class="group/check absolute top-2 right-2 p-2 transition-opacity [@media(hover:none)]:opacity-100 {selectedIds.includes(
+									product.id
+								)
+									? 'opacity-100'
+									: 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'}"
+								onclick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									toggleSelected(product.id, !selectedIds.includes(product.id));
+								}}
+							>
+								<span class="pointer-events-none flex rounded-sm bg-white">
+									<Checkbox
+										checked={selectedIds.includes(product.id)}
+										class="h-6 w-6 group-hover/check:border-foreground"
+									/>
+								</span>
+							</button>
+						{/snippet}
+					</ProductImageCarousel>
 					<div class="p-4">
 						<p class="text-xs text-muted-foreground">{product.style_number}</p>
 						<div

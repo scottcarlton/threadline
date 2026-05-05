@@ -1,18 +1,13 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { SvelteMap } from 'svelte/reactivity';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import {
-		Card,
-		CardHeader,
-		CardTitle,
-		CardContent,
-		CardFooter
-	} from '$lib/components/ui/card/index.js';
+	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
 	import type { Product, ProductVariant, ProductImage } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import VariantStockEditor from '$lib/components/inventory/VariantStockEditor.svelte';
@@ -20,12 +15,53 @@
 
 	let { data } = $props();
 	const product = $derived(
-		data.product as Product & { product_variants: ProductVariant[]; product_images: ProductImage[] }
+		data.product as Product & {
+			product_variants: ProductVariant[];
+			product_images: ProductImage[];
+			seasons: { name?: string } | { name?: string }[] | null;
+		}
 	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
-	const primaryImage = $derived(
-		product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]
+	// Group images by variant for the thumbnail strip
+	const variantImageGroups = $derived(() => {
+		const groups = new SvelteMap<
+			string,
+			{ primary: ProductImage | null; hover: ProductImage | null }
+		>();
+		for (const img of product.product_images ?? []) {
+			const key = img.variant_id ?? '__product__';
+			if (!groups.has(key)) groups.set(key, { primary: null, hover: null });
+			const group = groups.get(key)!;
+			if (img.role === 'primary') group.primary = img;
+			else if (img.role === 'hover') group.hover = img;
+			else if (img.is_primary && !group.primary) group.primary = img;
+			else if (!group.hover) group.hover = img;
+		}
+		return [...groups.values()]
+			.filter((g) => g.primary)
+			.sort((a, b) => {
+				const ap = a.primary?.is_primary ? 1 : 0;
+				const bp = b.primary?.is_primary ? 1 : 0;
+				return bp - ap;
+			});
+	});
+
+	let activeGroupIndex = $state(0);
+	let selectedSubImage = $state<ProductImage | null>(null);
+
+	const activeGroup = $derived(
+		variantImageGroups()[activeGroupIndex] ?? variantImageGroups()[0] ?? null
 	);
+	const activeImage = $derived(
+		selectedSubImage ?? activeGroup?.primary ?? product.product_images?.[0] ?? null
+	);
+
+	$effect(() => {
+		void activeGroupIndex;
+		selectedSubImage = null;
+	});
+	const variantThumbnails = $derived(variantImageGroups().map((g) => g.primary!));
+
 	const canEdit = $derived(data.membership?.role !== 'guest');
 	const canEditStock = $derived(
 		canEdit &&
@@ -79,34 +115,6 @@
 		editProductYear = product.product_year ?? new Date().getFullYear();
 		editAts = product.ats ?? false;
 		editing = true;
-	}
-
-	async function handleSave() {
-		saving = true;
-		saveError = '';
-		const { error } = await supabase
-			.from('products')
-			.update({
-				style_number: editStyle,
-				name: editName,
-				description: editDescription || null,
-				wholesale_price: parseFloat(editWholesale) || 0,
-				retail_price: parseFloat(editRetail) || null,
-				category: editCategory || null,
-				subcategory: editSubcategory || null,
-				season_id: editSeasonId || null,
-				product_year: editProductYear || null,
-				ats: editAts,
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', product.id);
-		saving = false;
-		if (error) {
-			saveError = error.message;
-			return;
-		}
-		editing = false;
-		invalidateAll();
 	}
 
 	async function toggleArchive() {
@@ -184,43 +192,46 @@
 	}
 
 	// Image management
-	let uploading = $state(false);
-	let fileInput: HTMLInputElement | undefined = $state();
-
-	async function handleImageUpload() {
-		const files = fileInput?.files;
-		if (!files || files.length === 0) return;
-		uploading = true;
-		const formData = new FormData();
-		formData.append('file', files[0]);
-		await fetch(`/api/products/${product.id}/images`, { method: 'POST', body: formData });
-		uploading = false;
-		if (fileInput) fileInput.value = '';
-		invalidateAll();
-	}
-
 	async function deleteImage(imageId: string) {
 		await fetch(`/api/products/${product.id}/images`, {
 			method: 'DELETE',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ imageId })
 		});
+		selectedSubImage = null;
 		invalidateAll();
 	}
 
-	async function setPrimaryImage(imageId: string) {
-		// Unset all, then set the one
-		for (const img of product.product_images) {
-			if (img.is_primary) {
-				await supabase.from('product_images').update({ is_primary: false }).eq('id', img.id);
-			}
-		}
-		await supabase.from('product_images').update({ is_primary: true }).eq('id', imageId);
+	let replaceInput: HTMLInputElement | undefined = $state();
+	let replacingImageId = $state<string | null>(null);
+
+	function startReplace(imageId: string) {
+		replacingImageId = imageId;
+		replaceInput?.click();
+	}
+
+	async function handleReplace() {
+		const files = replaceInput?.files;
+		if (!files || files.length === 0 || !replacingImageId) return;
+		const old = product.product_images.find((i) => i.id === replacingImageId);
+		const formData = new FormData();
+		formData.append('file', files[0]);
+		if (old?.variant_id) formData.append('variant_id', old.variant_id);
+		if (old?.role) formData.append('role', old.role);
+		await fetch(`/api/products/${product.id}/images`, { method: 'POST', body: formData });
+		await fetch(`/api/products/${product.id}/images`, {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ imageId: replacingImageId })
+		});
+		replacingImageId = null;
+		selectedSubImage = null;
+		if (replaceInput) replaceInput.value = '';
 		invalidateAll();
 	}
 </script>
 
-<div class="mx-auto max-w-7xl space-y-6">
+<div class="space-y-6">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<Button variant="ghost" size="sm" href="/products">
@@ -247,8 +258,9 @@
 				</div>
 				<h2 class="text-xl font-semibold">{product.name}</h2>
 				{#if product.season_id || product.product_year || product.category}
-					{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-					{@const seasonYear = [seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+					{@const seasonJoin = product.seasons as { name?: string } | { name?: string }[] | null}
+					{@const seasonName = Array.isArray(seasonJoin) ? seasonJoin[0]?.name : seasonJoin?.name}
+					{@const seasonYear = [seasonName, product.product_year].filter(Boolean).join(' ')}
 					<div class="mt-1 flex items-center gap-2">
 						{#if seasonYear}
 							<span class="text-sm text-muted-foreground">{seasonYear}</span>
@@ -261,8 +273,14 @@
 					</div>
 				{/if}
 			</div>
-			<div class="shrink-0 text-xl font-semibold">
-				{fmt.format(Number(product.wholesale_price))}
+			<div class="shrink-0 text-right">
+				<p class="text-sm text-muted-foreground">Wholesale</p>
+				<p class="text-xl font-semibold">{fmt.format(Number(product.wholesale_price))}</p>
+				{#if product.retail_price}
+					<p class="text-sm text-muted-foreground">
+						Retail — {fmt.format(Number(product.retail_price))}
+					</p>
+				{/if}
 			</div>
 		</div>
 	{/snippet}
@@ -272,31 +290,113 @@
 		{@render metaBanner()}
 	</div>
 
-	<div class="grid gap-6 lg:grid-cols-[420px_1fr]">
-		<!-- Left: primary image -->
-		<div
-			class="aspect-square w-full overflow-hidden rounded-lg border bg-muted lg:sticky lg:top-6 lg:self-start"
-		>
-			{#if primaryImage}
-				<img
-					src={`/api/products/${product.id}/images/${primaryImage.id}`}
-					alt={product.name}
-					class="h-full w-full object-cover"
-				/>
-			{:else}
-				<div class="flex h-full w-full items-center justify-center text-muted-foreground">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
-						class="h-16 w-16 opacity-40"
-					>
-						<rect x="3" y="3" width="18" height="18" rx="2" />
-						<circle cx="8.5" cy="8.5" r="1.5" />
-						<path d="M21 15l-5-5L5 21" />
-					</svg>
+	<div class="grid gap-6 min-[960px]:grid-cols-[1fr_1fr] lg:grid-cols-[480px_1fr]">
+		<!-- Left: primary image + variant thumbnails -->
+		<div class="lg:sticky lg:top-6 lg:self-start">
+			<div class="group/main relative aspect-[4/5] w-full overflow-hidden bg-muted">
+				{#if activeImage}
+					<img
+						src={`/api/products/${product.id}/images/${activeImage.id}`}
+						alt={product.name}
+						class="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
+					/>
+					{#if canEdit && !(activeGroup?.primary && activeGroup?.hover)}
+						<div
+							class="absolute inset-0 flex items-end justify-center gap-2 pb-4 opacity-0 transition-all group-hover/main:opacity-100"
+						>
+							<button
+								class="rounded bg-white/90 px-2.5 py-1 text-sm font-medium text-foreground"
+								onclick={() => startReplace(activeImage!.id)}>Replace</button
+							>
+							<button
+								class="rounded bg-red-500/90 px-2.5 py-1 text-sm font-medium text-white"
+								onclick={() => deleteImage(activeImage!.id)}>Remove</button
+							>
+						</div>
+					{/if}
+				{:else}
+					<div class="flex h-full w-full items-center justify-center text-muted-foreground">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.5"
+							class="h-16 w-16 opacity-40"
+						>
+							<rect x="3" y="3" width="18" height="18" rx="2" />
+							<circle cx="8.5" cy="8.5" r="1.5" />
+							<path d="M21 15l-5-5L5 21" />
+						</svg>
+					</div>
+				{/if}
+			</div>
+
+			<input
+				bind:this={replaceInput}
+				type="file"
+				accept="image/jpeg,image/png,image/webp,image/avif"
+				class="hidden"
+				onchange={handleReplace}
+			/>
+			{#if activeGroup && activeGroup.primary && activeGroup.hover}
+				<div class="mt-2 grid grid-cols-2 gap-2">
+					{#if activeGroup.primary}
+						<div
+							role="button"
+							tabindex="-1"
+							class="group/img relative aspect-square overflow-hidden bg-muted"
+							onmouseenter={() => (selectedSubImage = activeGroup.primary)}
+						>
+							<img
+								src="/api/products/{product.id}/images/{activeGroup.primary.id}"
+								alt="{product.name} — primary"
+								class="h-full w-full object-cover"
+							/>
+							{#if canEdit}
+								<div
+									class="absolute inset-0 flex items-end justify-center gap-2 pb-3 opacity-0 transition-all group-hover/img:opacity-100"
+								>
+									<button
+										class="rounded bg-white/90 px-2.5 py-1 text-sm font-medium text-foreground"
+										onclick={() => startReplace(activeGroup.primary!.id)}>Replace</button
+									>
+									<button
+										class="rounded bg-red-500/90 px-2.5 py-1 text-sm font-medium text-white"
+										onclick={() => deleteImage(activeGroup.primary!.id)}>Remove</button
+									>
+								</div>
+							{/if}
+						</div>
+					{/if}
+					{#if activeGroup.hover}
+						<div
+							role="button"
+							tabindex="-1"
+							class="group/img relative aspect-square overflow-hidden bg-muted"
+							onmouseenter={() => (selectedSubImage = activeGroup.hover)}
+						>
+							<img
+								src="/api/products/{product.id}/images/{activeGroup.hover.id}"
+								alt="{product.name} — hover"
+								class="h-full w-full object-cover"
+							/>
+							{#if canEdit}
+								<div
+									class="absolute inset-0 flex items-end justify-center gap-2 pb-3 opacity-0 transition-all group-hover/img:opacity-100"
+								>
+									<button
+										class="rounded bg-white/90 px-2.5 py-1 text-sm font-medium text-foreground"
+										onclick={() => startReplace(activeGroup.hover!.id)}>Replace</button
+									>
+									<button
+										class="rounded bg-red-500/90 px-2.5 py-1 text-sm font-medium text-white"
+										onclick={() => deleteImage(activeGroup.hover!.id)}>Remove</button
+									>
+								</div>
+							{/if}
+						</div>
+					{/if}
 				</div>
 			{/if}
 		</div>
@@ -307,6 +407,29 @@
 			<div class="hidden lg:block">
 				{@render metaBanner()}
 			</div>
+
+			<!-- Variant thumbnails -->
+			{#if variantThumbnails.length > 1}
+				<div class="flex gap-1.5">
+					{#each variantThumbnails as thumb, i (thumb.id)}
+						<button
+							type="button"
+							class="relative h-16 w-16 shrink-0 overflow-hidden transition-all"
+							onclick={() => (activeGroupIndex = i)}
+						>
+							<img
+								src="/api/products/{product.id}/images/{thumb.id}"
+								alt=""
+								class="h-full w-full object-cover"
+							/>
+							{#if i === activeGroupIndex}
+								<span class="pointer-events-none absolute inset-0 border-[3px] border-black/70"
+								></span>
+							{/if}
+						</button>
+					{/each}
+				</div>
+			{/if}
 
 			<!-- Style Velocity -->
 			{#if velocity && (velocity.units30d > 0 || velocity.units90d > 0)}
@@ -382,39 +505,69 @@
 						{#if editing}
 							<form
 								id="edit-form"
-								onsubmit={(e) => {
+								onsubmit={async (e) => {
 									e.preventDefault();
-									handleSave();
+									saving = true;
+									saveError = '';
+									const fd = new FormData(e.currentTarget as HTMLFormElement);
+									try {
+										const res = await fetch('?/save', { method: 'POST', body: fd });
+										if (!res.ok) {
+											saving = false;
+											saveError = `Save failed (${res.status})`;
+											return;
+										}
+										editing = false;
+										saving = false;
+										await invalidateAll();
+									} catch (err) {
+										saving = false;
+										saveError = String(err);
+									}
 								}}
 								class="space-y-4"
 							>
+								<input type="hidden" name="subcategory" value={editSubcategory} />
 								<div class="grid gap-4 sm:grid-cols-3">
 									<div class="space-y-2">
 										<Label for="style">Style Number *</Label>
-										<Input id="style" bind:value={editStyle} required />
+										<Input id="style" name="style_number" bind:value={editStyle} required />
 									</div>
 									<div class="space-y-2 sm:col-span-2">
 										<Label for="name">Name *</Label>
-										<Input id="name" bind:value={editName} required />
+										<Input id="name" name="name" bind:value={editName} required />
 									</div>
 								</div>
 								<div class="grid gap-4 sm:grid-cols-3">
 									<div class="space-y-2">
 										<Label for="wholesale">Wholesale</Label>
-										<Input id="wholesale" type="number" step="0.01" bind:value={editWholesale} />
+										<Input
+											id="wholesale"
+											name="wholesale_price"
+											type="number"
+											step="0.01"
+											bind:value={editWholesale}
+										/>
 									</div>
 									<div class="space-y-2">
 										<Label for="retail">Retail</Label>
-										<Input id="retail" type="number" step="0.01" bind:value={editRetail} />
+										<Input
+											id="retail"
+											name="retail_price"
+											type="number"
+											step="0.01"
+											bind:value={editRetail}
+										/>
 									</div>
 									<div class="space-y-2">
 										<Label for="category">Category</Label>
-										<Input id="category" bind:value={editCategory} />
+										<Input id="category" name="category" bind:value={editCategory} />
 									</div>
 									<div class="space-y-2 sm:col-span-2">
 										<Label for="season">Season</Label>
 										<select
 											id="season"
+											name="season_id"
 											bind:value={editSeasonId}
 											class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 										>
@@ -428,6 +581,7 @@
 										<Label for="productYear">Year</Label>
 										<Input
 											id="productYear"
+											name="product_year"
 											type="number"
 											min="2000"
 											max="2100"
@@ -436,6 +590,7 @@
 									</div>
 									<div class="space-y-2 sm:col-span-2">
 										<label class="flex items-start gap-3">
+											<input type="hidden" name="ats" value={String(editAts)} />
 											<input
 												type="checkbox"
 												bind:checked={editAts}
@@ -456,10 +611,23 @@
 									<Label for="desc">Description</Label>
 									<textarea
 										id="desc"
+										name="description"
 										bind:value={editDescription}
 										rows="3"
 										class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 									></textarea>
+								</div>
+								<div class="flex justify-between pt-4">
+									<button
+										type="button"
+										class="inline-flex h-9 items-center justify-center gap-2 border border-black/80 bg-background px-4 py-2 text-[13px] font-medium hover:bg-ghost dark:border-white/20"
+										onclick={() => (editing = false)}>Cancel</button
+									>
+									<button
+										type="submit"
+										class="inline-flex h-9 items-center justify-center gap-2 bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50"
+										disabled={saving}>{saving ? 'Saving…' : 'Save'}</button
+									>
 								</div>
 							</form>
 						{:else}
@@ -479,12 +647,6 @@
 							</dl>
 						{/if}
 					</CardContent>
-					{#if editing}
-						<CardFooter class="justify-between">
-							<Button variant="outline" onclick={() => (editing = false)}>Cancel</Button>
-							<Button type="submit" form="edit-form" loading={saving}>Save</Button>
-						</CardFooter>
-					{/if}
 				</Card>
 			{/if}
 
@@ -650,77 +812,6 @@
 											>
 										{/if}
 									</div>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</CardContent>
-			</Card>
-
-			<!-- Images -->
-			<Card>
-				<CardHeader>
-					<div class="flex items-center justify-between">
-						<CardTitle class="text-base">Images ({product.product_images?.length ?? 0})</CardTitle>
-						{#if canEdit}
-							<div>
-								<input
-									type="file"
-									accept="image/*"
-									bind:this={fileInput}
-									onchange={handleImageUpload}
-									class="hidden"
-								/>
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() => fileInput?.click()}
-									disabled={uploading}
-								>
-									{uploading ? 'Uploading...' : 'Upload Image'}
-								</Button>
-							</div>
-						{/if}
-					</div>
-				</CardHeader>
-				<CardContent>
-					{#if (product.product_images?.length ?? 0) === 0}
-						<p class="text-sm text-muted-foreground">No images yet.</p>
-					{:else}
-						<div class="grid grid-cols-3 gap-3">
-							{#each (product.product_images ?? []).sort((a, b) => a.sort_order - b.sort_order) as image (image.id)}
-								<div
-									class="group relative aspect-square overflow-hidden rounded-lg border {image.is_primary
-										? 'ring-2 ring-primary'
-										: ''}"
-								>
-									<img
-										src="/api/products/{product.id}/images/{image.id}"
-										alt="Product"
-										class="h-full w-full object-cover"
-									/>
-									{#if image.is_primary}
-										<span
-											class="absolute top-2 left-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground"
-											>Primary</span
-										>
-									{/if}
-									{#if canEdit}
-										<div
-											class="absolute inset-0 flex items-end justify-center gap-2 bg-black/0 pb-2 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100"
-										>
-											{#if !image.is_primary}
-												<button
-													class="rounded bg-white/90 px-2 py-1 text-[11px] font-medium text-zinc-900"
-													onclick={() => setPrimaryImage(image.id)}>Set Primary</button
-												>
-											{/if}
-											<button
-												class="rounded bg-red-500/90 px-2 py-1 text-[11px] font-medium text-white"
-												onclick={() => deleteImage(image.id)}>Delete</button
-											>
-										</div>
-									{/if}
 								</div>
 							{/each}
 						</div>
