@@ -9,6 +9,9 @@
 	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
 	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import FilterBySheet from '$lib/components/shared/FilterBySheet.svelte';
+	import FilterSortSheet from '$lib/components/shared/FilterSortSheet.svelte';
+	import { isLgUp } from '$lib/utils/viewport.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { DropdownMenu } from 'bits-ui';
 	import {
@@ -242,7 +245,9 @@
 		delivered: 'Delivered',
 		cancelled: 'Cancelled'
 	};
-	const activeStatus = $derived($page.url.searchParams.get('status') ?? 'all');
+	const activeStatuses = $derived(
+		($page.url.searchParams.get('status') ?? '').split(',').filter(Boolean)
+	);
 	const activeType = $derived($page.url.searchParams.get('type') ?? 'order');
 	const activeFrom = $derived($page.url.searchParams.get('from'));
 	const activeTo = $derived($page.url.searchParams.get('to'));
@@ -413,6 +418,33 @@
 			noScroll: true
 		});
 	}
+
+	function setMultiFilter(key: string, values: string[]) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		if (values.length === 0) {
+			params.delete(key);
+		} else {
+			params.set(key, values.join(','));
+		}
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}
+
+	let filterSortOpen = $state(false);
+	let statusSheetOpen = $state(false);
+
+	const hasActiveFilters = $derived(
+		activeStatuses.length > 0 ||
+			($page.url.searchParams.get('season') ?? '') !== '' ||
+			($page.url.searchParams.get('brand') ?? '') !== '' ||
+			($page.url.searchParams.get('source') ?? '') !== '' ||
+			($page.url.searchParams.get('from') ?? '') !== '' ||
+			($page.url.searchParams.get('rep') ?? '') !== ''
+	);
 
 	function setDateRange(from: string | null, to: string | null) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
@@ -714,15 +746,39 @@
 			</button>
 		</div>
 	{:else}
-		<ListPageToolbar {search} {onSearchInput} searchPlaceholder="Search orders...">
+		<ListPageToolbar
+			{search}
+			{onSearchInput}
+			searchPlaceholder="Search orders..."
+			showFilterToggle={true}
+			{hasActiveFilters}
+			onFilterToggle={() => (filterSortOpen = true)}
+		>
 			{#if activeType !== 'note'}
-				<SelectField
-					value={activeStatus}
-					items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
-					placeholder="Status"
-					class="min-w-[120px] shrink-0"
-					onValueChange={(v) => setFilter('status', v)}
-				/>
+				{#if $isLgUp}
+					<SelectField
+						value={activeStatuses.length === 1 ? activeStatuses[0] : 'all'}
+						items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+						placeholder="Status"
+						class="min-w-[120px] shrink-0"
+						onValueChange={(v) => setMultiFilter('status', v && v !== 'all' ? [v] : [])}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm transition-colors hover:bg-muted/50"
+						onclick={() => (statusSheetOpen = true)}
+					>
+						{activeStatuses.length > 0
+							? activeStatuses.map((s) => statusLabels[s] ?? s).join(', ')
+							: 'Status'}
+						{#if activeStatuses.length > 0}
+							<span
+								class="flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-bold text-background"
+								>{activeStatuses.length}</span
+							>
+						{/if}
+					</button>
+				{/if}
 			{/if}
 			<SeasonFilter
 				class="min-w-[158px] shrink-0"
@@ -1179,6 +1235,59 @@
 		{/if}
 	{/if}
 </div>
+
+<FilterBySheet
+	open={statusSheetOpen}
+	onclose={() => (statusSheetOpen = false)}
+	title="Filter by Status"
+	options={statusTabs
+		.filter((s) => s !== 'all')
+		.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+	selected={activeStatuses}
+	onApply={(values) => setMultiFilter('status', values)}
+/>
+
+<FilterSortSheet
+	open={filterSortOpen}
+	onclose={() => (filterSortOpen = false)}
+	onApply={() => {}}
+	onClear={() => {
+		setMultiFilter('status', []);
+		setFilter('season', '');
+		setFilter('brand', '');
+		setFilter('source', '');
+		setFilter('rep', '');
+		setDateRange(null, null);
+	}}
+	activeCount={[
+		activeStatuses.length > 0,
+		($page.url.searchParams.get('season') ?? '') !== '',
+		($page.url.searchParams.get('brand') ?? '') !== '',
+		($page.url.searchParams.get('source') ?? '') !== '',
+		($page.url.searchParams.get('from') ?? '') !== '',
+		($page.url.searchParams.get('rep') ?? '') !== ''
+	].filter(Boolean).length}
+>
+	<div class="space-y-6">
+		<div>
+			<h3 class="mb-3 text-sm font-medium text-muted-foreground">Status</h3>
+			<div class="space-y-2">
+				{#each statusTabs.filter((s) => s !== 'all') as s (s)}
+					<label class="flex items-center gap-3">
+						<Checkbox
+							checked={activeStatuses.includes(s)}
+							onCheckedChange={(v) => {
+								const next = v ? [...activeStatuses, s] : activeStatuses.filter((x) => x !== s);
+								setMultiFilter('status', next);
+							}}
+						/>
+						<span class="text-sm">{statusLabels[s] ?? s}</span>
+					</label>
+				{/each}
+			</div>
+		</div>
+	</div>
+</FilterSortSheet>
 
 {#if isBrandOrg}
 	<OrderImportModal
