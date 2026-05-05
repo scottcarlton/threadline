@@ -25,6 +25,7 @@
 	const PAGE_SIZE = 50;
 
 	type ProductRow = Product & {
+		brands: { id: string; name: string } | null;
 		product_variants: {
 			id: string;
 			color: string | null;
@@ -296,6 +297,7 @@
 						styleNumber={product.style_number}
 						wholesalePrice={Number(product.wholesale_price)}
 						images={product.product_images ?? []}
+						brandName={product.brands?.name}
 						seasonLabel={[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
 						archived={!!product.archived_at}
 					>
