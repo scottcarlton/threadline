@@ -38,12 +38,12 @@
 	side="bottom"
 	ariaLabel={title}
 	{onclose}
-	maxHeight="90dvh"
+	maxHeight="100dvh"
 	showDragHandle={false}
 >
 	<div class="flex h-full flex-col">
 		<!-- Header -->
-		<div class="flex items-center justify-between border-b px-5 py-4">
+		<div class="flex items-center justify-between px-5 py-4">
 			<h2 class="text-lg font-semibold">{title}</h2>
 			<button
 				onclick={onclose}
@@ -68,12 +68,14 @@
 			{@render children()}
 		</div>
 
-		<!-- Sticky footer -->
-		<div class="flex items-center gap-3 border-t px-5 py-4">
-			<Button variant="outline" class="flex-1" onclick={handleClear}>
-				{activeCount > 0 ? `Clear (${activeCount})` : 'Clear'}
-			</Button>
-			<Button class="flex-1" onclick={handleApply}>Apply</Button>
-		</div>
+		<!-- Sticky footer — only visible when filters are active -->
+		{#if activeCount > 0}
+			<div class="flex items-center gap-3 px-5 py-4">
+				<Button variant="outline" class="flex-1" onclick={handleClear}>
+					Clear ({activeCount})
+				</Button>
+				<Button class="flex-1" onclick={handleApply}>Apply</Button>
+			</div>
+		{/if}
 	</div>
 </OverlayPanel>

@@ -11,6 +11,7 @@
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import FilterBySheet from '$lib/components/shared/FilterBySheet.svelte';
 	import FilterSortSheet from '$lib/components/shared/FilterSortSheet.svelte';
+	import Switch from '$lib/components/ui/switch.svelte';
 	import { isLgUp } from '$lib/utils/viewport.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { DropdownMenu } from 'bits-ui';
@@ -436,6 +437,7 @@
 
 	let filterSortOpen = $state(false);
 	let statusSheetOpen = $state(false);
+	let atsOnly = $state(false);
 
 	const hasActiveFilters = $derived(
 		activeStatuses.length > 0 ||
@@ -1269,6 +1271,19 @@
 	].filter(Boolean).length}
 >
 	<div class="space-y-6">
+		<!-- ATS toggle -->
+		<div class="flex items-center justify-between">
+			<span class="text-sm font-medium">ATS Only</span>
+			<Switch
+				checked={atsOnly}
+				onCheckedChange={(v) => (atsOnly = v === true)}
+				aria-label="ATS Only"
+			/>
+		</div>
+
+		<div class="h-px bg-border"></div>
+
+		<!-- Status -->
 		<div>
 			<h3 class="mb-3 text-sm font-medium text-muted-foreground">Status</h3>
 			<div class="space-y-2">
@@ -1282,6 +1297,107 @@
 							}}
 						/>
 						<span class="text-sm">{statusLabels[s] ?? s}</span>
+					</label>
+				{/each}
+			</div>
+		</div>
+
+		<div class="h-px bg-border"></div>
+
+		<!-- Season -->
+		{#if seasons.length > 0}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Season</h3>
+				<div class="space-y-2">
+					{#each seasons as season (season.id)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('season') ?? '') === season.name}
+								onCheckedChange={(v) => setFilter('season', v ? season.name : '')}
+							/>
+							<span class="text-sm">{season.name}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Brand (rep orgs only) -->
+		{#if !isBrandOrg && brands.length > 0}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Brand</h3>
+				<div class="space-y-2">
+					{#each brands as brand (brand.id)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('brand') ?? '') === brand.name}
+								onCheckedChange={(v) => setFilter('brand', v ? brand.name : '')}
+							/>
+							<span class="text-sm">{brand.name}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Rep (brand orgs only) -->
+		{#if isBrandOrg && reps.length > 0}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Rep</h3>
+				<div class="space-y-2">
+					{#each reps as rep (rep.id)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('rep') ?? '') === rep.id}
+								onCheckedChange={(v) => setFilter('rep', v ? rep.id : '')}
+							/>
+							<span class="text-sm">{rep.name}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Source -->
+		{#if hasSourceOptions}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Source</h3>
+				<div class="space-y-2">
+					{#each sourceItems.filter((s) => s.value !== '') as source (source.value)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('source') ?? '') === source.value}
+								onCheckedChange={(v) => setFilter('source', v ? source.value : '')}
+							/>
+							<span class="text-sm">{source.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Date -->
+		<div>
+			<h3 class="mb-3 text-sm font-medium text-muted-foreground">Time Period</h3>
+			<div class="space-y-2">
+				{#each Object.entries(DATE_PRESET_LABELS) as [value, label] (value)}
+					<label class="flex items-center gap-3">
+						<input
+							type="radio"
+							name="date-filter"
+							class="h-4 w-4 accent-foreground"
+							checked={activeDatePreset === value}
+							onchange={() => onDatePresetChange(value as DatePresetId)}
+						/>
+						<span class="text-sm">{label}</span>
 					</label>
 				{/each}
 			</div>
