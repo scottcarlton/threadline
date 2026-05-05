@@ -49,14 +49,14 @@
 	}
 	function handleTouchEnd(e: TouchEvent) {
 		const deltaY = e.changedTouches[0].clientY - dragStartY;
-		if (deltaY > 60) closeDialog();
+		if (deltaY > 120) closeDialog();
 	}
 	function handleMouseDown(e: MouseEvent) {
 		dragStartY = e.clientY;
 	}
 	function handleMouseUp(e: MouseEvent) {
 		const deltaY = e.clientY - dragStartY;
-		if (deltaY > 60) closeDialog();
+		if (deltaY > 120) closeDialog();
 	}
 
 	// Filtered groups
