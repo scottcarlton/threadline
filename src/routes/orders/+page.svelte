@@ -440,7 +440,8 @@
 	let atsOnly = $state(false);
 
 	const hasActiveFilters = $derived(
-		activeStatuses.length > 0 ||
+		atsOnly ||
+			activeStatuses.length > 0 ||
 			($page.url.searchParams.get('season') ?? '') !== '' ||
 			($page.url.searchParams.get('brand') ?? '') !== '' ||
 			($page.url.searchParams.get('source') ?? '') !== '' ||
@@ -1263,6 +1264,7 @@
 		});
 	}}
 	activeCount={[
+		atsOnly,
 		activeStatuses.length > 0,
 		($page.url.searchParams.get('season') ?? '') !== '',
 		($page.url.searchParams.get('brand') ?? '') !== '',
