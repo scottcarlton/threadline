@@ -218,7 +218,7 @@
 	{#if moreOpen && showMoreMenu && hasMoreItems}
 		<div
 			transition:scale={{ duration: 200, start: 0.95, opacity: 0 }}
-			class="relative mr-[4.75rem] mb-3 rounded-2xl bg-zinc-900 p-3 pb-5 shadow-2xl ring-1 ring-white/10"
+			class="mr-[4.75rem] mb-3 rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
 		>
 			<!-- Utility row: help, settings, user avatar -->
 			<div class="mb-2 flex items-center justify-end gap-2">
@@ -356,36 +356,36 @@
 									</span>
 								{/if}
 							{/if}
+							{#if item.label === 'Organization' && onSignOut}
+								<button
+									onclick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										onSignOut();
+										handleNavClick();
+									}}
+									class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
+									aria-label="Sign out"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"
+										/>
+									</svg>
+								</button>
+							{/if}
 						</a>
 					{/each}
 				</div>
-			{/if}
-
-			<!-- Logout — bottom-right of card, no extra row -->
-			{#if onSignOut}
-				<button
-					onclick={() => {
-						onSignOut();
-						handleNavClick();
-					}}
-					class="absolute right-3 bottom-3 flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
-					aria-label="Sign out"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="1.5"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"
-						/>
-					</svg>
-				</button>
 			{/if}
 		</div>
 	{/if}
