@@ -355,9 +355,9 @@
 				</div>
 			{/if}
 
-			<!-- Logout -->
+			<!-- Logout — inline at bottom-right of list -->
 			{#if onSignOut}
-				<div class="mt-2 flex justify-end border-t border-white/5 pt-2">
+				<div class="mt-1 flex justify-end px-3">
 					<button
 						onclick={() => {
 							onSignOut();
