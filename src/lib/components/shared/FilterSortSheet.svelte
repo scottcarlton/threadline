@@ -1,7 +1,23 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { browser } from '$app/environment';
 	import { OverlayPanel } from '$lib/components/ui/overlay-panel/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+
+	let footerEl = $state<HTMLDivElement | null>(null);
+
+	$effect(() => {
+		if (!browser || !footerEl) return;
+		if (activeCount > 0) {
+			import('motion').then(({ animate }) => {
+				if (!footerEl) return;
+				animate(footerEl, { y: [40, 0], opacity: [0, 1] } as Parameters<typeof animate>[1], {
+					duration: 0.25,
+					ease: [0.16, 1, 0.3, 1]
+				});
+			});
+		}
+	});
 
 	type Props = {
 		open: boolean;
@@ -71,7 +87,7 @@
 		<!-- Sticky footer — visible when filters are active -->
 		<div class="shrink-0 overflow-hidden">
 			{#if activeCount > 0}
-				<div class="footer-slide-in flex items-center gap-3 px-5 py-4">
+				<div bind:this={footerEl} class="flex items-center gap-3 px-5 py-4">
 					<Button variant="outline" class="flex-1" onclick={handleClear}>
 						Clear ({activeCount})
 					</Button>
@@ -81,19 +97,3 @@
 		</div>
 	</div>
 </OverlayPanel>
-
-<style>
-	@keyframes slide-up {
-		from {
-			transform: translateY(100%);
-			opacity: 0;
-		}
-		to {
-			transform: translateY(0);
-			opacity: 1;
-		}
-	}
-	.footer-slide-in {
-		animation: slide-up 0.25s ease-out;
-	}
-</style>
