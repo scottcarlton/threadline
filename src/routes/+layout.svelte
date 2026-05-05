@@ -85,6 +85,12 @@
 		if (type === 'popstate') return;
 		if (from?.url.pathname === to?.url.pathname) return;
 		mainEl.scrollTop = 0;
+
+		const leftProducts =
+			from?.url.pathname.startsWith('/products') && !to?.url.pathname.startsWith('/products');
+		if (leftProducts && $selectedProductIds.length > 0) {
+			selectedProductIds.set([]);
+		}
 	});
 
 	onNavigate((nav) => {
