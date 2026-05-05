@@ -15,9 +15,10 @@
 		options: FilterOption[];
 		selected: string[];
 		onApply: (selected: string[]) => void;
+		singleSelect?: boolean;
 	};
 
-	let { open, onclose, title, options, selected, onApply }: Props = $props();
+	let { open, onclose, title, options, selected, onApply, singleSelect = false }: Props = $props();
 
 	let localSelected = $state<string[]>([]);
 
@@ -28,7 +29,9 @@
 	});
 
 	function toggle(value: string, checked: boolean) {
-		if (checked) {
+		if (singleSelect) {
+			localSelected = checked ? [value] : [];
+		} else if (checked) {
 			localSelected = [...localSelected, value];
 		} else {
 			localSelected = localSelected.filter((v) => v !== value);
@@ -47,13 +50,26 @@
 
 		<div class="space-y-3">
 			{#each options as option (option.value)}
-				<label class="flex items-center gap-3">
-					<Checkbox
-						checked={localSelected.includes(option.value)}
-						onCheckedChange={(v) => toggle(option.value, v === true)}
-					/>
-					<span class="text-base">{option.label}</span>
-				</label>
+				{#if singleSelect}
+					<label class="flex items-center gap-3">
+						<input
+							type="radio"
+							name={title}
+							class="h-4 w-4 accent-foreground"
+							checked={localSelected.includes(option.value)}
+							onchange={() => toggle(option.value, true)}
+						/>
+						<span class="text-base">{option.label}</span>
+					</label>
+				{:else}
+					<label class="flex items-center gap-3">
+						<Checkbox
+							checked={localSelected.includes(option.value)}
+							onCheckedChange={(v) => toggle(option.value, v === true)}
+						/>
+						<span class="text-base">{option.label}</span>
+					</label>
+				{/if}
 			{/each}
 		</div>
 

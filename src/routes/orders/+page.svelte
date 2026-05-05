@@ -1435,6 +1435,7 @@
 	options={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
 	selected={activeDatePreset !== 'all' ? [activeDatePreset] : []}
 	onApply={(values) => onDatePresetChange((values[0] ?? 'all') as DatePresetId)}
+	singleSelect={true}
 />
 
 <FilterSortSheet
