@@ -17,6 +17,8 @@
 		brandScope?: string[] | null;
 		isBuyer?: boolean;
 		isNxBlsr?: boolean;
+		userInitials?: string;
+		onSignOut?: () => void;
 	};
 
 	let {
@@ -25,7 +27,9 @@
 		orgType = 'rep',
 		brandScope = null,
 		isBuyer = false,
-		isNxBlsr = false
+		isNxBlsr = false,
+		userInitials = '??',
+		onSignOut
 	}: Props = $props();
 
 	const hasProductSelection = $derived($selectedProductIds.length > 0);
@@ -171,15 +175,20 @@
 			label: 'Plan',
 			href: '/plan',
 			icon: 'M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z'
+		},
+		{
+			label: 'Organization',
+			href: '/organization',
+			icon: 'M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21'
 		}
 	];
 
 	const listItemLabels = $derived<string[]>(
 		isNxBlsr
-			? ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan']
+			? ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan', 'Organization']
 			: isBrandScoped && !isSales
 				? ['Reports']
-				: ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan']
+				: ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan', 'Organization']
 	);
 
 	const moreListItems = $derived(
@@ -209,6 +218,62 @@
 			transition:scale={{ duration: 200, start: 0.95, opacity: 0 }}
 			class="mr-[4.75rem] mb-3 rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
 		>
+			<!-- Utility row: help, settings, user avatar -->
+			<div class="mb-2 flex items-center justify-end gap-2">
+				<a
+					href={resolve('/help' as '/orders')}
+					onclick={handleNavClick}
+					class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
+					aria-label="Help"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"
+						/>
+					</svg>
+				</a>
+				<a
+					href={resolve('/settings' as '/orders')}
+					onclick={handleNavClick}
+					class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
+					aria-label="Settings"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+						/>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+						/>
+					</svg>
+				</a>
+				<div
+					class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[11px] font-bold text-zinc-900"
+				>
+					{userInitials}
+				</div>
+			</div>
+
 			{#if moreGridItems.length > 0}
 				<!-- Grid items -->
 				<div
@@ -287,6 +352,35 @@
 							{/if}
 						</a>
 					{/each}
+				</div>
+			{/if}
+
+			<!-- Logout -->
+			{#if onSignOut}
+				<div class="mt-2 flex justify-end border-t border-white/5 pt-2">
+					<button
+						onclick={() => {
+							onSignOut();
+							handleNavClick();
+						}}
+						class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
+						aria-label="Sign out"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-5 w-5"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="1.5"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"
+							/>
+						</svg>
+					</button>
 				</div>
 			{/if}
 		</div>

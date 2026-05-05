@@ -28,8 +28,24 @@
 	import { cart } from '$lib/stores/cart.js';
 	import MobileBottomNav from '$lib/components/layout/MobileBottomNav.svelte';
 	import { selectedProductIds } from '$lib/stores/productSelection.js';
+	import { supabase } from '$lib/supabase.js';
 
 	const { messages, loading } = conversation;
+
+	function getUserInitials(name?: string | null): string {
+		if (!name) return '??';
+		return name
+			.split(' ')
+			.map((w) => w[0])
+			.join('')
+			.toUpperCase()
+			.slice(0, 2);
+	}
+
+	async function handleSignOut() {
+		await supabase.auth.signOut();
+		goto(resolve('/login'));
+	}
 
 	let { children, data } = $props();
 
@@ -1304,6 +1320,8 @@
 			brandScope={data.brandScope}
 			isBuyer={data.isBuyer}
 			{isNxBlsr}
+			userInitials={getUserInitials(data.user?.display_name)}
+			onSignOut={handleSignOut}
 		/>
 	{/if}
 	<SearchDialog
