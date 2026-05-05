@@ -4,10 +4,12 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
 
 	let { data } = $props();
 	const report = $derived(data.report as string);
+	const title = $derived(data.title as string);
 	const year = $derived(data.year as number);
 	const variant = $derived((data as { variant?: string }).variant);
 	const hasCustomEmptyState = $derived(
@@ -107,11 +109,11 @@
 </script>
 
 <div class="space-y-6">
-	<!-- Toolbar -->
-	<div class="flex items-center justify-between">
+	<div>
 		<Button variant="ghost" size="sm" href="/reports"><LongArrow direction="left" /> Reports</Button
 		>
-		<div class="flex items-center gap-2">
+
+		<PageHeader {title}>
 			{#if report === 'product-performance'}
 				<SelectField items={daysItems} bind:value={selectedDays} onValueChange={changeDaysBack} />
 			{:else if report !== 'pipeline'}
@@ -120,7 +122,7 @@
 			{#if rows.length > 0}
 				<Button variant="outline" size="sm" onclick={exportReport}>Export CSV</Button>
 			{/if}
-		</div>
+		</PageHeader>
 	</div>
 
 	{#if rows.length === 0 && !hasCustomEmptyState}

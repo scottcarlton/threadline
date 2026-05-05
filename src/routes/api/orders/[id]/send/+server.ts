@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { getGmailClient, buildRawEmail } from '$lib/server/gmail';
 import { generateOrderPdf } from '$lib/server/pdf';
+import { sendEmail } from '$lib/server/email';
 
 export const POST: RequestHandler = async ({ request, locals, params }) => {
 	if (!locals.session || !locals.user || !locals.organization) {
@@ -17,7 +18,6 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 		assetIds?: string[];
 	};
 
-	// Load order with relations
 	const [orderResult, linesResult] = await Promise.all([
 		supabaseAdmin
 			.from('orders')
@@ -46,24 +46,6 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 
 	if (!recipientEmail) {
 		return json({ error: 'No recipient email address' }, { status: 400 });
-	}
-
-	// Get Gmail client
-	const gmail = await getGmailClient(locals.user.id);
-	if (!gmail) {
-		return json({ error: 'Gmail not connected' }, { status: 400 });
-	}
-
-	// Get sender email
-	const { data: connection } = await supabaseAdmin
-		.from('email_connections')
-		.select('email_address')
-		.eq('profile_id', locals.user.id)
-		.eq('provider', 'gmail')
-		.single();
-
-	if (!connection) {
-		return json({ error: 'Gmail not connected' }, { status: 400 });
 	}
 
 	// Generate order PDF
@@ -119,34 +101,78 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 			''
 		].join('\n');
 
-	const raw = buildRawEmail(
-		connection.email_address,
-		recipientEmail,
-		emailSubject,
-		emailBody,
-		undefined,
-		attachments
-	);
+	// Try Gmail first — sends from user's own inbox
+	const gmail = await getGmailClient(locals.user.id);
+	const { data: connection } = gmail
+		? await supabaseAdmin
+				.from('email_connections')
+				.select('email_address')
+				.eq('profile_id', locals.user.id)
+				.eq('provider', 'gmail')
+				.single()
+		: { data: null };
 
-	const sendResult = await gmail.users.messages.send({
-		userId: 'me',
-		requestBody: { raw }
-	});
+	if (gmail && connection) {
+		const raw = buildRawEmail(
+			connection.email_address,
+			recipientEmail,
+			emailSubject,
+			emailBody,
+			undefined,
+			attachments
+		);
 
-	const messageId = sendResult.data.id ?? '';
+		const sendResult = await gmail.users.messages.send({
+			userId: 'me',
+			requestBody: { raw }
+		});
 
-	// Log to email_log
-	await supabaseAdmin.from('email_log').insert({
-		organization_id: locals.organization.id,
-		sent_by: locals.user.id,
-		to_email: recipientEmail,
+		const messageId = sendResult.data.id ?? '';
+
+		await supabaseAdmin.from('email_log').insert({
+			organization_id: locals.organization.id,
+			sent_by: locals.user.id,
+			to_email: recipientEmail,
+			subject: emailSubject,
+			body: emailBody,
+			gmail_message_id: messageId,
+			gmail_thread_id: sendResult.data.threadId ?? null,
+			related_type: 'order',
+			related_id: orderId
+		});
+
+		return json({ success: true, messageId });
+	}
+
+	// Fallback: send via Resend with user's name + reply-to
+	const { data: profile } = await supabaseAdmin
+		.from('profiles')
+		.select('first_name, last_name')
+		.eq('id', locals.user.id)
+		.single();
+
+	const senderName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Team';
+	const userEmail =
+		(await supabaseAdmin.auth.admin.getUserById(locals.user.id)).data?.user?.email ?? undefined;
+
+	const result = await sendEmail({
+		to: recipientEmail,
 		subject: emailSubject,
-		body: emailBody,
-		gmail_message_id: messageId,
-		gmail_thread_id: sendResult.data.threadId ?? null,
-		related_type: 'order',
-		related_id: orderId
+		html: `<pre style="font-family: sans-serif; white-space: pre-wrap;">${emailBody}</pre>`,
+		text: emailBody,
+		from: `${senderName} via Threadline <orders@threadline.systems>`,
+		replyTo: userEmail,
+		attachments: attachments.map((a) => ({ filename: a.filename, content: a.content })),
+		template: 'order-send',
+		relatedType: 'order',
+		relatedId: orderId,
+		profileId: locals.user.id,
+		organizationId: locals.organization.id
 	});
 
-	return json({ success: true, messageId });
+	if (!result.ok) {
+		return json({ error: result.error }, { status: 500 });
+	}
+
+	return json({ success: true, messageId: result.id });
 };
