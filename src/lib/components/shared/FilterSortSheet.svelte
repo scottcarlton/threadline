@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { fly } from 'svelte/transition';
 	import { OverlayPanel } from '$lib/components/ui/overlay-panel/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 
@@ -72,10 +71,7 @@
 		<!-- Sticky footer — visible when filters are active -->
 		<div class="shrink-0 overflow-hidden">
 			{#if activeCount > 0}
-				<div
-					class="flex items-center gap-3 bg-transparent px-5 py-4"
-					transition:fly={{ y: 60, duration: 250 }}
-				>
+				<div class="footer-slide-in flex items-center gap-3 px-5 py-4">
 					<Button variant="outline" class="flex-1" onclick={handleClear}>
 						Clear ({activeCount})
 					</Button>
@@ -85,3 +81,19 @@
 		</div>
 	</div>
 </OverlayPanel>
+
+<style>
+	@keyframes slide-up {
+		from {
+			transform: translateY(100%);
+			opacity: 0;
+		}
+		to {
+			transform: translateY(0);
+			opacity: 1;
+		}
+	}
+	.footer-slide-in {
+		animation: slide-up 0.25s ease-out;
+	}
+</style>
