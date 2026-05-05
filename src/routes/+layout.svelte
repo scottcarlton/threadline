@@ -1322,6 +1322,7 @@
 			{isNxBlsr}
 			userInitials={getUserInitials(data.user?.display_name)}
 			onSignOut={handleSignOut}
+			onHelp={() => (showHelp = true)}
 		/>
 	{/if}
 	<SearchDialog

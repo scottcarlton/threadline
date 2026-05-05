@@ -19,6 +19,7 @@
 		isNxBlsr?: boolean;
 		userInitials?: string;
 		onSignOut?: () => void;
+		onHelp?: () => void;
 	};
 
 	let {
@@ -29,7 +30,8 @@
 		isBuyer = false,
 		isNxBlsr = false,
 		userInitials = '??',
-		onSignOut
+		onSignOut,
+		onHelp
 	}: Props = $props();
 
 	const hasProductSelection = $derived($selectedProductIds.length > 0);
@@ -223,7 +225,7 @@
 				<button
 					onclick={() => {
 						handleNavClick();
-						goto(resolve('/settings' as '/orders'));
+						onHelp?.();
 					}}
 					class="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors active:bg-zinc-700"
 					aria-label="Help"
