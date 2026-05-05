@@ -13,7 +13,7 @@
 	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
 	import QtyStepper from '$lib/components/shared/QtyStepper.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
+	import { aggregateStockStatus } from '$lib/utils/products';
 	import type { CatalogProduct, CatalogCartItem, ProductVariant } from './catalog-picker-types.js';
 	import { catalogProductToCartItem } from './catalog-picker-types.js';
 	import SizeStepperSheet from './SizeStepperSheet.svelte';
@@ -250,18 +250,6 @@
 		if (colors > 0) parts.push(`${colors} color${colors > 1 ? 's' : ''}`);
 		if (sizes > 0) parts.push(`${sizes} size${sizes > 1 ? 's' : ''}`);
 		return parts.join(', ') || 'No variants';
-	}
-
-	function aggregateStockStatus(
-		variants: { stock_qty: number | null; stock_threshold: number | null }[]
-	): StockStatus | null {
-		const statuses = variants
-			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
-			.filter((s): s is StockStatus => s !== null);
-		if (statuses.length === 0) return null;
-		if (statuses.includes('out')) return 'out';
-		if (statuses.includes('low')) return 'low';
-		return 'in';
 	}
 
 	function findVariant(

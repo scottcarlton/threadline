@@ -8,23 +8,25 @@
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
-	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
+	import ProductCard from '$lib/components/products/ProductCard.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import Skeleton from '$lib/components/ui/skeleton/skeleton.svelte';
 	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
 	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
 	import CategoryFilter from '$lib/components/shared/CategoryFilter.svelte';
 	import { seasonIdsByName } from '$lib/utils/seasons.js';
-	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
+	import { aggregateStockStatus } from '$lib/utils/products';
 	import type { Product } from '$lib/types/database.js';
 
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import { debounce } from '$lib/utils/debounce.js';
 	import { selectedProductIds } from '$lib/stores/productSelection.js';
 
 	const PAGE_SIZE = 50;
 
 	type ProductRow = Product & {
+		brands: { id: string; name: string } | null;
 		product_variants: {
 			id: string;
 			color: string | null;
@@ -52,6 +54,8 @@
 	const isMultiBrand = $derived(brand === null);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
 	const canEdit = $derived(['admin', 'owner', 'member'].includes(data.membership?.role ?? ''));
+
+	const isLoading = $derived(!!$navigating);
 
 	// Mutable list — initial page from server, appended via infinite scroll
 	let productList = $state<ProductRow[]>([]);
@@ -167,32 +171,9 @@
 		observer.observe(sentinelEl);
 		return () => observer.disconnect();
 	});
-	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
 	// Import is now handled by <ProductImportModal>, which wraps
 	// <ProductImportFlow> and POSTs to /api/products/import on commit.
 	// We just need to know when it finishes so we can refresh the list.
-
-	function aggregateStockStatus(
-		variants: { stock_qty: number | null; stock_threshold: number | null }[]
-	): StockStatus | null {
-		const statuses = variants
-			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
-			.filter((s): s is StockStatus => s !== null);
-		if (statuses.length === 0) return null;
-		if (statuses.includes('out')) return 'out';
-		if (statuses.includes('low')) return 'low';
-		return 'in';
-	}
-
-	function getVariantSummary(variants: { color: string | null; size: string | null }[]): string {
-		const colors = new Set(variants.map((v) => v.color).filter(Boolean));
-		const sizes = new Set(variants.map((v) => v.size).filter(Boolean));
-		const parts: string[] = [];
-		if (colors.size > 0) parts.push(`${colors.size} color${colors.size > 1 ? 's' : ''}`);
-		if (sizes.size > 0) parts.push(`${sizes.size} size${sizes.size > 1 ? 's' : ''}`);
-		return parts.join(', ') || 'No variants';
-	}
 </script>
 
 <div class="space-y-6">
@@ -268,7 +249,21 @@
 	</ListPageToolbar>
 
 	<!-- Product grid -->
-	{#if filtered.length === 0}
+	{#if isLoading}
+		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
+			<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
+			{#each Array(6) as _, i (i)}
+				<div>
+					<Skeleton class="aspect-square w-full rounded-none" />
+					<div class="p-4">
+						<Skeleton class="h-3 w-20" />
+						<Skeleton class="mt-2 h-4 w-32" />
+						<Skeleton class="mt-2 h-4 w-16" />
+					</div>
+				</div>
+			{/each}
+		</div>
+	{:else if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
 			{#if search || brandFilter || seasonFilter || categoryFilter || atsOnly}
 				<p class="text-lg font-semibold">No products match your filters</p>
@@ -297,22 +292,23 @@
 	{:else}
 		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 			{#each filtered as product (product.id)}
-				<a
-					href={resolve(`/products/${product.id}`)}
-					class="group relative rounded-none bg-card transition-all duration-200 {product.archived_at
-						? 'opacity-50'
-						: ''}"
-				>
+				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+				<div class="relative">
 					{#if selectedIds.includes(product.id)}
 						<div
 							class="pointer-events-none absolute inset-0 z-10 border-6 border-foreground/20"
 						></div>
 					{/if}
-					<ProductImageCarousel
+					<ProductCard
 						productId={product.id}
+						href={resolve(`/products/${product.id}`)}
+						name={product.name}
+						styleNumber={product.style_number}
+						wholesalePrice={Number(product.wholesale_price)}
 						images={product.product_images ?? []}
-						alt={product.name}
-						aspect="aspect-square"
+						brandName={product.brands?.name}
+						seasonLabel={[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+						archived={!!product.archived_at}
 					>
 						{#snippet overlay()}
 							{#if product.ats}
@@ -350,30 +346,8 @@
 								</span>
 							</button>
 						{/snippet}
-					</ProductImageCarousel>
-					<div class="p-4">
-						<p class="text-xs text-muted-foreground">{product.style_number}</p>
-						<div
-							class="mt-0.5 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
-						>
-							<div class="min-w-0">
-								<p class="text-sm font-medium">{product.name}</p>
-								{#if product.season_id || product.product_year}
-									{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-									<p class="mt-0.5 text-sm text-muted-foreground">
-										{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
-									</p>
-								{/if}
-							</div>
-							<div class="shrink-0 sm:text-right">
-								<p class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									{getVariantSummary(product.product_variants ?? [])}
-								</p>
-							</div>
-						</div>
-					</div>
-				</a>
+					</ProductCard>
+				</div>
 			{/each}
 		</div>
 
