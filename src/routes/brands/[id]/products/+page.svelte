@@ -13,7 +13,7 @@
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
-	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
+	import ProductCard from '$lib/components/products/ProductCard.svelte';
 	import type { Product } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -71,8 +71,6 @@
 	);
 
 	const archivedCount = $derived(products.filter((p) => p.archived_at).length);
-	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
 	// Add product form
 	let adding = $state(false);
 	let newStyleNumber = $state('');
@@ -177,15 +175,6 @@
 		a.download = `${brand.name}-products-${new Date().toISOString().slice(0, 10)}.csv`;
 		a.click();
 		URL.revokeObjectURL(url);
-	}
-
-	function getVariantSummary(variants: { color: string | null; size: string | null }[]): string {
-		const colors = new Set(variants.map((v) => v.color).filter(Boolean));
-		const sizes = new Set(variants.map((v) => v.size).filter(Boolean));
-		const parts: string[] = [];
-		if (colors.size > 0) parts.push(`${colors.size} color${colors.size > 1 ? 's' : ''}`);
-		if (sizes.size > 0) parts.push(`${sizes.size} size${sizes.size > 1 ? 's' : ''}`);
-		return parts.join(', ') || 'No variants';
 	}
 </script>
 
@@ -336,42 +325,19 @@
 			</p>
 		</div>
 	{:else}
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 			{#each filtered as product (product.id)}
-				<a
+				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+				<ProductCard
+					productId={product.id}
 					href={resolve(`/brands/${brand.id}/products/${product.id}`)}
-					class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md {product.archived_at
-						? 'opacity-50'
-						: ''}"
-				>
-					<ProductImageCarousel
-						productId={product.id}
-						images={product.product_images ?? []}
-						alt={product.name}
-					/>
-					<div class="p-4">
-						<p class="text-xs text-muted-foreground">{product.style_number}</p>
-						<p class="mt-0.5 text-sm font-medium">{product.name}</p>
-						{#if product.season_id || product.product_year}
-							{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
-							</p>
-						{/if}
-						<div class="mt-2 flex items-center justify-between">
-							<span class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</span>
-							<span class="text-xs text-muted-foreground"
-								>{getVariantSummary(product.product_variants ?? [])}</span
-							>
-						</div>
-						{#if product.category}
-							<span
-								class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-								>{product.category}</span
-							>
-						{/if}
-					</div>
-				</a>
+					name={product.name}
+					styleNumber={product.style_number}
+					wholesalePrice={Number(product.wholesale_price)}
+					images={product.product_images ?? []}
+					seasonLabel={[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+					archived={!!product.archived_at}
+				/>
 			{/each}
 		</div>
 	{/if}

@@ -10,8 +10,8 @@
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
-	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
-	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
+	import ProductCard from '$lib/components/products/ProductCard.svelte';
+	import { aggregateStockStatus } from '$lib/utils/products';
 
 	let { data } = $props();
 
@@ -73,18 +73,6 @@
 		});
 	}
 
-	function aggregateStockStatus(
-		variants: { stock_qty: number | null; stock_threshold: number | null }[]
-	): StockStatus | null {
-		const statuses = variants
-			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
-			.filter((s): s is StockStatus => s !== null);
-		if (statuses.length === 0) return null;
-		if (statuses.includes('out')) return 'out';
-		if (statuses.includes('low')) return 'low';
-		return 'in';
-	}
-
 	const selectedSeasonIds = $derived(
 		seasonFilter ? new Set(seasonIdsByName(seasons, seasonFilter)) : null
 	);
@@ -113,16 +101,6 @@
 	);
 
 	const activeBrandName = $derived(brands.find((b) => b.id === brandFilter)?.name ?? '');
-	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-	function getVariantSummary(variants: { color: string | null; size: string | null }[]): string {
-		const colors = new Set(variants.map((v) => v.color).filter(Boolean));
-		const sizes = new Set(variants.map((v) => v.size).filter(Boolean));
-		const parts: string[] = [];
-		if (colors.size > 0) parts.push(`${colors.size} color${colors.size > 1 ? 's' : ''}`);
-		if (sizes.size > 0) parts.push(`${sizes.size} size${sizes.size > 1 ? 's' : ''}`);
-		return parts.join(', ') || 'No variants';
-	}
 </script>
 
 <div class="space-y-6">
@@ -234,46 +212,29 @@
 						product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
 					{@const inCart = $cart.some((i) => i.productId === product.id)}
 					{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-					<div class="group rounded-none bg-card transition-all duration-200">
-						<a href={resolve(`/shop/${product.id}`)} class="block">
-							<div class="relative">
-								<ProductImageCarousel
-									productId={product.id}
-									images={product.product_images ?? []}
-									alt={product.name}
-								/>
-								{#if product.ats}
-									{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
-									{#if stockAgg}
-										<div
-											class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
-										>
-											<StockPill status={stockAgg} qty={null} hideQty />
-										</div>
-									{/if}
+					<ProductCard
+						productId={product.id}
+						href={resolve(`/shop/${product.id}`)}
+						name={product.name}
+						styleNumber={product.style_number}
+						wholesalePrice={Number(product.wholesale_price)}
+						images={product.product_images ?? []}
+						seasonLabel={seasonRow?.name}
+						brandName={product.brands?.name}
+					>
+						{#snippet overlay()}
+							{#if product.ats}
+								{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
+								{#if stockAgg}
+									<div
+										class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+									>
+										<StockPill status={stockAgg} qty={null} hideQty />
+									</div>
 								{/if}
-							</div>
-							<div class="p-4">
-								<p class="text-sm text-muted-foreground">{product.style_number}</p>
-								<div
-									class="mt-0.5 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
-								>
-									<div class="min-w-0">
-										<p class="text-sm font-medium">{product.name}</p>
-										<p class="mt-0.5 text-sm text-muted-foreground">
-											{[product.brands?.name, seasonRow?.name].filter(Boolean).join(' · ')}
-										</p>
-									</div>
-									<div class="shrink-0 sm:text-right">
-										<p class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</p>
-										<p class="mt-0.5 text-sm text-muted-foreground">
-											{getVariantSummary(product.product_variants ?? [])}
-										</p>
-									</div>
-								</div>
-							</div>
-						</a>
-						<div class="px-4 pb-4">
+							{/if}
+						{/snippet}
+						{#snippet action()}
 							{#if inCart}
 								<button
 									onclick={() => cart.removeItem(product.id)}
@@ -346,8 +307,8 @@
 									Add to Cart
 								</button>
 							{/if}
-						</div>
-					</div>
+						{/snippet}
+					</ProductCard>
 				{/each}
 			</div>
 		{/if}
