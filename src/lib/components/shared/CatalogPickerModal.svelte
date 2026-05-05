@@ -350,7 +350,7 @@
 
 		<!-- Body: grid + overlay sizing panel -->
 		<div class="relative flex flex-1 overflow-hidden">
-			<div class="flex-1 overflow-auto pt-5 pb-32">
+			<div class="flex-1 overflow-auto pt-5 pb-32 md:px-5">
 				{#if modalLoading}
 					<div class="p-10 text-center text-sm text-muted-foreground">Loading…</div>
 				{:else if modalProducts.length === 0}

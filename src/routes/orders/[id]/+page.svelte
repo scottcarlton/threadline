@@ -687,29 +687,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		draftRows[idx].to_remove = false;
 	}
 
-	function addColorFor(idx: number, color: string) {
-		const row = draftRows[idx];
-		const qty_by_size: Record<string, number> = {};
-		for (const s of row.available_sizes) qty_by_size[s] = 0;
-		draftRows.push({
-			key: `${row.product_id}|${color}|new-${Date.now()}`,
-			product_id: row.product_id,
-			style_number: row.style_number,
-			name: row.name,
-			season_label: row.season_label,
-			image_id: row.image_id,
-			color,
-			color_edit: color,
-			unit_price: row.unit_price,
-			available_sizes: row.available_sizes,
-			available_colors: row.available_colors,
-			qty_by_size,
-			lines: [],
-			to_remove: false,
-			added_here: true
-		});
-	}
-
 	async function saveEdits() {
 		savingEdits = true;
 		try {
@@ -1650,18 +1627,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									)}
 									{@const sizesToShow =
 										draft.available_sizes.length > 0 ? draft.available_sizes : fallbackSizes}
-									{@const unusedColors =
-										draft.available_colors && draft.available_colors.length > 1
-											? draft.available_colors.filter(
-													(c) =>
-														!draftRows.some(
-															(r) =>
-																!r.to_remove &&
-																r.product_id === draft.product_id &&
-																r.color_edit === c
-														)
-												)
-											: []}
 									<div class={draft.to_remove ? 'bg-destructive/5' : ''}>
 										<!-- Mobile: compact card, tap sizes to edit ──────────────────── -->
 										<div class="block sm:hidden">
@@ -1853,11 +1818,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 																	onChange={(c) => (draftRows[idx].color_edit = c)}
 																	disabled={draft.to_remove}
 																/>
-																{#if draft.color_edit}
-																	<span class="text-sm text-muted-foreground">
-																		{draft.color_edit}
-																	</span>
-																{/if}
 															{:else}
 																<ColorSwatch color={draft.color_edit} size={16} />
 																<span
@@ -1901,14 +1861,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 															Undo
 														</Button>
 													{:else}
-														{#if unusedColors.length > 0}
-															<ColorSwatchPicker
-																value={null}
-																options={unusedColors}
-																onChange={(c) => c && addColorFor(idx, c)}
-																triggerLabel="+ color"
-															/>
-														{/if}
 														<button
 															type="button"
 															aria-label="Remove style"
