@@ -41,9 +41,9 @@
 	maxHeight="100dvh"
 	showDragHandle={false}
 >
-	<div class="flex h-full flex-col">
+	<div class="flex max-h-[100dvh] flex-col">
 		<!-- Header -->
-		<div class="flex items-center justify-between px-5 py-4">
+		<div class="flex shrink-0 items-center justify-between px-5 py-4">
 			<h2 class="text-lg font-semibold">{title}</h2>
 			<button
 				onclick={onclose}
@@ -64,13 +64,13 @@
 		</div>
 
 		<!-- Scrollable content -->
-		<div class="flex-1 overflow-y-auto px-5 py-4">
+		<div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
 			{@render children()}
 		</div>
 
-		<!-- Sticky footer — only visible when filters are active -->
+		<!-- Sticky footer — visible when filters are active -->
 		{#if activeCount > 0}
-			<div class="flex items-center gap-3 px-5 py-4">
+			<div class="flex shrink-0 items-center gap-3 px-5 py-4">
 				<Button variant="outline" class="flex-1" onclick={handleClear}>
 					Clear ({activeCount})
 				</Button>
