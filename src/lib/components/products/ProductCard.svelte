@@ -20,7 +20,6 @@
 		seasonLabel?: string | null;
 		brandName?: string | null;
 		archived?: boolean;
-		border?: boolean;
 		overlay?: Snippet;
 		action?: Snippet;
 	};
@@ -35,7 +34,6 @@
 		seasonLabel = null,
 		brandName = null,
 		archived = false,
-		border = false,
 		overlay,
 		action
 	}: Props = $props();
@@ -45,11 +43,7 @@
 	const metaLine = $derived([brandName, seasonLabel].filter(Boolean).join(' · '));
 </script>
 
-<div
-	class="group rounded-none transition-all duration-200 {archived ? 'opacity-50' : ''} {border
-		? 'border hover:border-foreground/20 hover:shadow-md'
-		: ''}"
->
+<div class="group rounded-none transition-all duration-200 {archived ? 'opacity-50' : ''}">
 	<a {href} class="block">
 		<ProductImageCarousel {productId} {images} alt={name} aspect="aspect-square">
 			{#snippet overlay()}

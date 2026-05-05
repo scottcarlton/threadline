@@ -325,7 +325,7 @@
 			</p>
 		</div>
 	{:else}
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 			{#each filtered as product (product.id)}
 				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
 				<ProductCard
@@ -337,7 +337,6 @@
 					images={product.product_images ?? []}
 					seasonLabel={[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
 					archived={!!product.archived_at}
-					border
 				/>
 			{/each}
 		</div>
