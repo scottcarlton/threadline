@@ -12,6 +12,8 @@
 	import SelectField from '$lib/components/ui/select/select-field.svelte';
 	import VariantMatrix from '$lib/components/products/VariantMatrix.svelte';
 	import AddVariantModal from '$lib/components/products/AddVariantModal.svelte';
+	import AttributePicker from '$lib/components/products/AttributePicker.svelte';
+	import { getAttributeLabel } from '$lib/data/product-attributes';
 	import type { Product, ProductVariant, ProductImage } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -117,6 +119,7 @@
 	let editProductYear = $state<number>(new Date().getFullYear());
 	let editAts = $state(false);
 	let editFeatured = $state(false);
+	let editAttributes = $state<string[]>([]);
 	let saveError = $state('');
 	let saving = $state(false);
 
@@ -136,6 +139,7 @@
 		editProductYear = product.product_year ?? new Date().getFullYear();
 		editAts = product.ats ?? false;
 		editFeatured = product.is_featured ?? false;
+		editAttributes = [...(product.attributes ?? [])];
 		editing = true;
 	}
 
@@ -159,6 +163,7 @@
 		fd.set('product_year', String(editProductYear));
 		fd.set('ats', String(editAts));
 		fd.set('is_featured', String(editFeatured));
+		fd.set('attributes', JSON.stringify(editAttributes));
 		try {
 			const res = await fetch('?/save', { method: 'POST', body: fd });
 			if (!res.ok) {
@@ -556,6 +561,24 @@
 				</div>
 			{:else if product.description}
 				<p class="text-sm whitespace-pre-wrap">{product.description}</p>
+			{/if}
+
+			<!-- Attributes -->
+			{#if editing}
+				<div>
+					<p class="mb-1.5 text-sm text-muted-foreground">Attributes</p>
+					<AttributePicker selected={editAttributes} onchange={(v) => (editAttributes = v)} />
+				</div>
+			{:else if product.attributes && product.attributes.length > 0}
+				<div>
+					<p class="mb-1.5 text-sm text-muted-foreground">Attributes</p>
+					<div class="flex flex-wrap gap-1.5">
+						{#each product.attributes as attr (attr)}
+							<span class="border border-border px-2.5 py-1 text-sm">{getAttributeLabel(attr)}</span
+							>
+						{/each}
+					</div>
+				</div>
 			{/if}
 
 			<!-- Save error -->

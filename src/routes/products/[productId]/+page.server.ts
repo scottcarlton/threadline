@@ -77,7 +77,8 @@ export const actions: Actions = {
 				ats: fd.get('ats') === 'true',
 				is_featured: fd.get('is_featured') === 'true',
 				updated_at: new Date().toISOString(),
-				updated_by: user?.id ?? null
+				updated_by: user?.id ?? null,
+				attributes: JSON.parse((fd.get('attributes') as string) || '[]')
 			})
 			.eq('id', params.productId);
 
