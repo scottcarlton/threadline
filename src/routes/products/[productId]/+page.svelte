@@ -68,6 +68,25 @@
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
+	const existingSizes = $derived(() => {
+		const sizeSet = new Set<string>();
+		for (const v of product.product_variants ?? []) {
+			if (v.size) sizeSet.add(v.size);
+		}
+		const letterOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+		return [...sizeSet].sort((a, b) => {
+			const ai = letterOrder.indexOf(a.toUpperCase());
+			const bi = letterOrder.indexOf(b.toUpperCase());
+			if (ai !== -1 && bi !== -1) return ai - bi;
+			if (ai !== -1) return -1;
+			if (bi !== -1) return 1;
+			const an = parseFloat(a);
+			const bn = parseFloat(b);
+			if (!isNaN(an) && !isNaN(bn)) return an - bn;
+			return a.localeCompare(b);
+		});
+	});
+
 	const updatedByName = $derived(data.updatedByName as string | null);
 	const updatedAtFormatted = $derived(
 		product.updated_at
@@ -618,7 +637,11 @@
 	</div>
 </div>
 
-<AddVariantModal bind:open={addVariantOpen} productId={product.id} />
+<AddVariantModal
+	bind:open={addVariantOpen}
+	productId={product.id}
+	existingSizes={existingSizes()}
+/>
 
 <Dialog.Root bind:open={deleteConfirmOpen}>
 	<DialogUI.DialogContent class="max-w-sm p-6">
