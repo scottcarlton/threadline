@@ -14,6 +14,11 @@ function getResend(): Resend {
 	return _resend;
 }
 
+export type EmailAttachment = {
+	filename: string;
+	content: Buffer;
+};
+
 export type SendEmailArgs = {
 	to: string | string[];
 	subject: string;
@@ -21,6 +26,7 @@ export type SendEmailArgs = {
 	text?: string;
 	from?: string;
 	replyTo?: string;
+	attachments?: EmailAttachment[];
 	template: string;
 	relatedType?: string;
 	relatedId?: string;
@@ -40,7 +46,11 @@ export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
 		subject: args.subject,
 		html: args.html,
 		text: args.text,
-		replyTo: args.replyTo
+		replyTo: args.replyTo,
+		attachments: args.attachments?.map((a) => ({
+			filename: a.filename,
+			content: a.content
+		}))
 	});
 
 	const logBase = {

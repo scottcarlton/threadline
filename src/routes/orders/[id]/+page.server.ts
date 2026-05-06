@@ -64,7 +64,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		const { data: productsData } = await supabase
 			.from('products')
 			.select(
-				'id, product_year, seasons(name), product_variants(color, size), product_images(id, is_primary, sort_order)'
+				'id, product_year, seasons(name), product_variants(color, size), product_images(id, is_primary, sort_order, role, variant_id)'
 			)
 			.in('id', productIds);
 		for (const p of productsData ?? []) {

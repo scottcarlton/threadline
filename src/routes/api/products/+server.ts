@@ -21,7 +21,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	let query = locals.supabase
 		.from('products')
 		.select(
-			'id, brand_id, season_id, product_year, style_number, name, wholesale_price, category, ats, archived_at, product_variants(id, color, size, price_override, stock_qty, stock_threshold, shopify_variant_id), product_images(id, is_primary, sort_order)',
+			'id, brand_id, season_id, product_year, style_number, name, wholesale_price, category, ats, archived_at, product_variants(id, color, size, price_override, stock_qty, stock_threshold, shopify_variant_id), product_images(id, is_primary, sort_order, role, variant_id)',
 			{ count: 'exact' }
 		)
 		// RLS handles org + federation visibility — no org_id filter here so

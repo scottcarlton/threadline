@@ -28,8 +28,24 @@
 	import { cart } from '$lib/stores/cart.js';
 	import MobileBottomNav from '$lib/components/layout/MobileBottomNav.svelte';
 	import { selectedProductIds } from '$lib/stores/productSelection.js';
+	import { supabase } from '$lib/supabase.js';
 
 	const { messages, loading } = conversation;
+
+	function getUserInitials(name?: string | null): string {
+		if (!name) return '??';
+		return name
+			.split(' ')
+			.map((w) => w[0])
+			.join('')
+			.toUpperCase()
+			.slice(0, 2);
+	}
+
+	async function handleSignOut() {
+		await supabase.auth.signOut();
+		goto(resolve('/login'));
+	}
 
 	let { children, data } = $props();
 
@@ -85,6 +101,12 @@
 		if (type === 'popstate') return;
 		if (from?.url.pathname === to?.url.pathname) return;
 		mainEl.scrollTop = 0;
+
+		const leftProducts =
+			from?.url.pathname.startsWith('/products') && !to?.url.pathname.startsWith('/products');
+		if (leftProducts && $selectedProductIds.length > 0) {
+			selectedProductIds.set([]);
+		}
 	});
 
 	onNavigate((nav) => {
@@ -105,6 +127,7 @@
 	});
 
 	onMount(() => {
+		document.getElementById('splash')?.remove();
 		if (data.session) {
 			const stopUnread = startUnreadPolling(60000);
 			const stopAppointments = startAppointmentPolling(60000);
@@ -1298,6 +1321,9 @@
 			brandScope={data.brandScope}
 			isBuyer={data.isBuyer}
 			{isNxBlsr}
+			userInitials={getUserInitials(data.user?.display_name)}
+			onSignOut={handleSignOut}
+			onHelp={() => (showHelp = true)}
 		/>
 	{/if}
 	<SearchDialog
