@@ -2969,16 +2969,20 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		<Dialog.Content
 			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
 		>
-			<header class="flex items-start justify-between gap-4 px-6 py-5">
+			<header class="flex items-start justify-between gap-4 border-b px-6 py-5">
 				<div class="min-w-0">
 					<Dialog.Title class="text-lg font-medium">Prepare Shipment</Dialog.Title>
-					<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-						{order.accounts?.business_name ?? '—'}
-						{!isBrandOrg && order.brands?.name ? ` · ${order.brands.name}` : ''}
-						· {order.order_number}
-						· {fmt.format(Number(order.total_amount))}
-						· {savedOrderUnits} unit{savedOrderUnits === 1 ? '' : 's'}
+					<Dialog.Description class="sr-only">
+						Prepare order {order.order_number} for shipment
 					</Dialog.Description>
+					<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+						<span class="font-mono font-medium">{order.order_number}</span>
+						<span class="text-muted-foreground">{order.accounts?.business_name ?? '—'}</span>
+						<span class="font-medium">{fmt.format(Number(order.total_amount))}</span>
+						<span class="text-muted-foreground"
+							>{savedOrderUnits} unit{savedOrderUnits === 1 ? '' : 's'}</span
+						>
+					</div>
 				</div>
 				<Dialog.Close
 					type="button"
@@ -3006,9 +3010,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						<div class="text-sm text-muted-foreground">Ship to</div>
 						{#if orderLocation}
 							<div class="mt-1 text-sm">
-								{orderLocation.label
-									? `${orderLocation.label} — `
-									: ''}{orderLocation.address_line1 ?? ''}{orderLocation.city
+								{orderLocation.address_line1 ?? ''}{orderLocation.city
 									? `, ${orderLocation.city}`
 									: ''}{orderLocation.state ? `, ${orderLocation.state}` : ''}
 								{orderLocation.zip ?? ''}
@@ -3030,7 +3032,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 							{#if order.start_ship_date && order.expected_ship_date}
 								{shortDate(order.start_ship_date)} → {shortDate(order.expected_ship_date)}
 								{#if shipWindowLength !== null}
-									<span class="text-muted-foreground">({shipWindowLength}-day window)</span>
+									<span class="text-muted-foreground">({shipWindowLength}d)</span>
 								{/if}
 							{:else if order.start_ship_date}
 								Ships {shortDate(order.start_ship_date)}
@@ -3045,10 +3047,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 
 				<!-- Shipment details -->
 				<div>
-					<div class="text-sm font-medium">Shipment Details</div>
-					<p class="mt-1 text-sm text-muted-foreground">
-						All fields are optional. You can update them anytime before shipping.
-					</p>
+					<div class="text-sm font-medium">
+						Shipment Details <span class="font-normal text-muted-foreground">(optional)</span>
+					</div>
 					<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
 						<div>
 							<div class="text-sm text-muted-foreground">Carrier</div>
@@ -3099,14 +3100,17 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		<Dialog.Content
 			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
 		>
-			<header class="flex items-start justify-between gap-4 px-6 py-5">
+			<header class="flex items-start justify-between gap-4 border-b px-6 py-5">
 				<div class="min-w-0">
 					<Dialog.Title class="text-lg font-medium">Ship Order</Dialog.Title>
-					<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-						{order.accounts?.business_name ?? '—'}
-						· {order.order_number}
-						· {fmt.format(Number(order.total_amount))}
+					<Dialog.Description class="sr-only">
+						Confirm shipment for order {order.order_number}
 					</Dialog.Description>
+					<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+						<span class="font-mono font-medium">{order.order_number}</span>
+						<span class="text-muted-foreground">{order.accounts?.business_name ?? '—'}</span>
+						<span class="font-medium">{fmt.format(Number(order.total_amount))}</span>
+					</div>
 				</div>
 				<Dialog.Close
 					type="button"
@@ -3130,7 +3134,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			<div class="space-y-5 px-6 py-5">
 				<!-- Shipment details -->
 				<div>
-					<div class="text-sm font-medium">Confirm Shipment Details</div>
+					<div class="text-sm font-medium">Shipment Details</div>
 					<p class="mt-1 text-sm text-muted-foreground">
 						Review and update before marking as shipped. Empty fields can still be updated after
 						shipping.
