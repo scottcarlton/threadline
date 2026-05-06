@@ -31,6 +31,7 @@
 		paymentMethodLabel
 	} from '$lib/payment-methods';
 	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
+	import { CARRIERS, trackingUrl } from '$lib/utils/carriers.js';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
 	// just marked the order viewed; status changes below also call this.
@@ -185,6 +186,7 @@
 		data.isBuyer
 			? order.status === 'draft' && order.created_by === data.user?.id
 			: data.membership?.role !== 'guest' &&
+					order.status !== 'preparing' &&
 					order.status !== 'shipped' &&
 					order.status !== 'delivered' &&
 					order.status !== 'cancelled'
@@ -219,6 +221,7 @@
 		draft: 'Draft',
 		submitted: 'Submitted',
 		confirmed: 'Confirmed',
+		preparing: 'Preparing',
 		shipped: 'Shipped',
 		delivered: 'Delivered',
 		cancelled: 'Cancelled'
@@ -228,6 +231,7 @@
 		draft: 'bg-zinc-100 text-zinc-600',
 		submitted: 'bg-amber-50 text-amber-700',
 		confirmed: 'bg-blue-50 text-blue-700',
+		preparing: 'bg-violet-50 text-violet-700',
 		shipped: 'bg-indigo-50 text-indigo-700',
 		delivered: 'bg-emerald-50 text-emerald-700',
 		cancelled: 'bg-red-50 text-red-700'
@@ -236,7 +240,8 @@
 	const statusFlow: Record<string, OrderStatus[]> = {
 		draft: ['submitted', 'cancelled'],
 		submitted: ['confirmed', 'cancelled'],
-		confirmed: ['shipped', 'cancelled'],
+		confirmed: ['preparing', 'cancelled'],
+		preparing: ['shipped', 'cancelled'],
 		shipped: ['delivered'],
 		delivered: [],
 		cancelled: []
@@ -258,7 +263,8 @@
 	// differently (via return/credit), so it's removed from the allowed set.
 	const brandAllowedNext: Record<string, OrderStatus[]> = {
 		submitted: ['confirmed', 'cancelled'],
-		confirmed: ['shipped', 'cancelled'],
+		confirmed: ['preparing', 'cancelled'],
+		preparing: ['shipped', 'cancelled'],
 		shipped: ['delivered']
 	};
 	const nextStatuses = $derived(
@@ -394,6 +400,11 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		{ status: 'draft', label: 'Draft', date: order.created_at },
 		{ status: 'submitted', label: 'Submitted', date: order.submitted_at },
 		{ status: 'confirmed', label: 'Confirmed', date: order.confirmed_at },
+		{
+			status: 'preparing',
+			label: 'Preparing',
+			date: (order as Record<string, unknown>).preparing_at as string | null
+		},
 		{ status: 'shipped', label: 'Shipped', date: order.shipped_at },
 		{ status: 'delivered', label: 'Delivered', date: order.delivered_at }
 	]);
@@ -475,8 +486,16 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			case 'confirmed': {
 				const head = `Confirmed${order.confirmed_at ? ` · ${longDate(order.confirmed_at as string)}` : ''}.`;
 				const tail = isBrandSide
-					? 'Move to Shipped when the order leaves your warehouse.'
-					: 'Move to Shipped when the order leaves the brand.';
+					? 'Start preparing this order for shipment.'
+					: 'Awaiting preparation — the brand will begin fulfillment.';
+				return `${head} ${tail}`;
+			}
+			case 'preparing': {
+				const preparingAt = (order as Record<string, unknown>).preparing_at as string | null;
+				const head = `Preparing${preparingAt ? ` · ${longDate(preparingAt)}` : ''}.`;
+				const tail = isBrandSide
+					? 'Fill in shipment details. Mark as Shipped when the order leaves your warehouse.'
+					: 'The brand is preparing this order for shipment.';
 				return `${head} ${tail}`;
 			}
 			case 'shipped':
@@ -494,6 +513,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	const advanceActionLabel: Record<string, string> = {
 		submitted: 'Submit',
 		confirmed: 'Mark confirmed',
+		preparing: 'Prepare shipment',
 		shipped: 'Mark shipped',
 		delivered: 'Mark delivered'
 	};
@@ -845,6 +865,73 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			.eq('id', order.id);
 		savingShipped = false;
 		invalidateAll();
+	}
+
+	// ── Shipment details (preparing + shipped) ──────────────────────────
+	const carrierItems = CARRIERS.map((c) => ({ value: c, label: c }));
+	const isPreparingOrLater = $derived(
+		order.status === 'preparing' || order.status === 'shipped' || order.status === 'delivered'
+	);
+	const isPreparing = $derived(order.status === 'preparing');
+
+	let shipCarrier = $state('');
+	let shipTracking = $state('');
+	let shipCost = $state('');
+	let savingShipmentField = $state(false);
+
+	$effect(() => {
+		shipCarrier = ((order as Record<string, unknown>).carrier as string) ?? '';
+		shipTracking = ((order as Record<string, unknown>).tracking_number as string) ?? '';
+		const cost = (order as Record<string, unknown>).shipping_cost;
+		shipCost = cost != null ? String(cost) : '';
+	});
+
+	async function saveShipmentField(field: string, value: unknown) {
+		savingShipmentField = true;
+		await supabase
+			.from('orders')
+			.update({ [field]: value, updated_at: new Date().toISOString() })
+			.eq('id', order.id);
+		savingShipmentField = false;
+		invalidateAll();
+	}
+
+	// ── Ship confirmation dialog ────────────────────────────────────────
+	let shipConfirmOpen = $state(false);
+	let shipConfirmCarrier = $state('');
+	let shipConfirmTracking = $state('');
+	let shipConfirmCost = $state('');
+	let shippingOrder = $state(false);
+
+	function openShipConfirm() {
+		shipConfirmCarrier = shipCarrier;
+		shipConfirmTracking = shipTracking;
+		shipConfirmCost = shipCost;
+		shipConfirmOpen = true;
+	}
+
+	async function confirmShip() {
+		shippingOrder = true;
+		const res = await fetch(`/api/orders/${order.id}/status`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				status: 'shipped',
+				tracking_number: shipConfirmTracking || null,
+				carrier: shipConfirmCarrier || null,
+				shipping_cost: shipConfirmCost || null
+			})
+		});
+		shippingOrder = false;
+		shipConfirmOpen = false;
+		if (!res.ok) {
+			const body = await res.json().catch(() => ({}));
+			toast.error((body as { error?: string }).error ?? 'Could not mark as shipped');
+			return;
+		}
+		toast.success('Order marked as shipped');
+		invalidateAll();
+		fetchOrderAttentionCount();
 	}
 
 	// PDF download
@@ -1204,7 +1291,16 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					{#if canEdit && nextStatuses.length > 0 && order.status !== 'cancelled'}
 						<div class="flex items-center gap-2 border-l pl-4">
 							{#each nextStatuses.filter((s) => s !== 'cancelled') as nextStatus (nextStatus)}
-								<Button size="sm" onclick={() => updateStatus(nextStatus)}>
+								<Button
+									size="sm"
+									onclick={() => {
+										if (nextStatus === 'shipped') {
+											openShipConfirm();
+										} else {
+											updateStatus(nextStatus);
+										}
+									}}
+								>
 									{advanceActionLabel[nextStatus] ?? statusLabels[nextStatus] ?? nextStatus}
 								</Button>
 							{/each}
@@ -1377,6 +1473,70 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 				</div>
 			</section>
+
+			<!-- ── Shipment Details (preparing + shipped + delivered) ──────── -->
+			{#if isPreparingOrLater && order.order_type !== 'note'}
+				<section class="rounded-lg border bg-muted/30 px-6 py-5">
+					<h2 class="text-sm font-medium">Shipment Details</h2>
+					<div class="mt-4 grid gap-4 sm:grid-cols-3">
+						<div>
+							<Label>Carrier</Label>
+							{#if isPreparing}
+								<SelectField
+									items={carrierItems}
+									bind:value={shipCarrier}
+									placeholder="Select carrier"
+									onValueChange={(v) => saveShipmentField('carrier', v || null)}
+								/>
+							{:else}
+								<p class="mt-1 text-sm">{shipCarrier || '—'}</p>
+							{/if}
+						</div>
+						<div>
+							<Label>Tracking number</Label>
+							{#if isPreparing}
+								<Input
+									bind:value={shipTracking}
+									placeholder="Enter tracking number"
+									onblur={() => saveShipmentField('tracking_number', shipTracking || null)}
+								/>
+							{:else if shipTracking}
+								{@const url = trackingUrl(shipCarrier, shipTracking)}
+								{#if url}
+									<a
+										href={url}
+										target="_blank"
+										rel="noopener"
+										class="mt-1 block text-sm text-blue-600 hover:underline"
+									>
+										{shipTracking}
+									</a>
+								{:else}
+									<p class="mt-1 text-sm">{shipTracking}</p>
+								{/if}
+							{:else}
+								<p class="mt-1 text-sm text-muted-foreground">—</p>
+							{/if}
+						</div>
+						<div>
+							<Label>Shipping cost</Label>
+							{#if isPreparing}
+								<Input
+									type="number"
+									bind:value={shipCost}
+									placeholder="0.00"
+									onblur={() => {
+										const v = parseFloat(shipCost);
+										saveShipmentField('shipping_cost', isNaN(v) ? null : v);
+									}}
+								/>
+							{:else}
+								<p class="mt-1 text-sm">{shipCost ? fmt.format(Number(shipCost)) : '—'}</p>
+							{/if}
+						</div>
+					</div>
+				</section>
+			{/if}
 
 			<!-- ── Ship to / Bill to / Payment (order-only) ────────────── -->
 			{#if order.order_type !== 'note'}
@@ -2738,6 +2898,51 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		</div>
 	</div>
 {/if}
+
+<!-- ── Ship Confirmation Dialog ───────────────────────────────── -->
+<Dialog.Root bind:open={shipConfirmOpen}>
+	<Dialog.Portal>
+		<Dialog.Overlay class="fixed inset-0 z-50 bg-black/50" />
+		<Dialog.Content
+			class="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-6 shadow-lg"
+		>
+			<Dialog.Title class="text-lg font-semibold">Ship Order</Dialog.Title>
+			<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+				Confirm shipment details for {order.order_number}. Empty fields can be updated later.
+			</Dialog.Description>
+
+			<div class="mt-4 space-y-4">
+				<div>
+					<Label>Carrier</Label>
+					<SelectField
+						items={carrierItems}
+						bind:value={shipConfirmCarrier}
+						placeholder="Select carrier"
+					/>
+				</div>
+				<div>
+					<Label>Tracking number</Label>
+					<Input bind:value={shipConfirmTracking} placeholder="Enter tracking number" />
+				</div>
+				<div>
+					<Label>Shipping cost</Label>
+					<Input type="number" bind:value={shipConfirmCost} placeholder="0.00" />
+				</div>
+			</div>
+
+			<div class="mt-6 flex justify-end gap-3">
+				<Button
+					variant="outline"
+					onclick={() => (shipConfirmOpen = false)}
+					disabled={shippingOrder}
+				>
+					Cancel
+				</Button>
+				<Button onclick={confirmShip} loading={shippingOrder}>Ship Order</Button>
+			</div>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
 
 <!-- Send to Account Modal -->
 <svelte:window onkeydown={handleSendKeydown} />
