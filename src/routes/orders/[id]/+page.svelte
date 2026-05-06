@@ -495,7 +495,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				const head = `Confirmed${order.confirmed_at ? ` · ${longDate(order.confirmed_at as string)}` : ''}.`;
 				const tail = isBrandSide
 					? 'Start preparing this order for shipment.'
-					: 'Awaiting preparation — the brand will begin fulfillment.';
+					: 'Move to Preparing when the brand starts fulfillment.';
 				return `${head} ${tail}`;
 			}
 			case 'preparing': {
