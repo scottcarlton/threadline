@@ -6,6 +6,7 @@
 	import type { Product } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import { aggregateStockStatus } from '$lib/utils/products';
+	import { getAttributeLabel } from '$lib/data/product-attributes';
 
 	let { data } = $props();
 
@@ -192,6 +193,14 @@
 
 			{#if product.description}
 				<p class="text-base leading-relaxed text-muted-foreground">{product.description}</p>
+			{/if}
+
+			{#if product.attributes && product.attributes.length > 0}
+				<div class="flex flex-wrap gap-1.5">
+					{#each product.attributes as attr (attr)}
+						<span class="border border-border px-2.5 py-1 text-sm">{getAttributeLabel(attr)}</span>
+					{/each}
+				</div>
 			{/if}
 
 			{#if product.category}
