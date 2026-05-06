@@ -16,6 +16,7 @@
 	};
 
 	const allSizes = $derived(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient computation inside $derived
 		const sizeSet = new Set<string>();
 		for (const v of variants) {
 			if (v.size) sizeSet.add(v.size);
@@ -35,6 +36,7 @@
 	});
 
 	const colorGroups = $derived(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient computation inside $derived
 		const map = new Map<string, ColorGroup>();
 		for (const v of variants) {
 			const key = v.color ?? '__none__';

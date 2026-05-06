@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll, goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { DropdownMenu, Dialog } from 'bits-ui';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
@@ -69,6 +70,7 @@
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 	const existingSizes = $derived(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient computation inside $derived
 		const sizeSet = new Set<string>();
 		for (const v of product.product_variants ?? []) {
 			if (v.size) sizeSet.add(v.size);
@@ -191,7 +193,7 @@
 			const fd = new FormData();
 			const res = await fetch('?/delete', { method: 'POST', body: fd });
 			if (res.ok) {
-				await goto('/products');
+				await goto(resolve('/products'));
 			} else {
 				deleting = false;
 				deleteConfirmOpen = false;
