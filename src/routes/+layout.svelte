@@ -996,18 +996,16 @@
 					}}
 				>
 					<!-- Mobile drag handle to close -->
-					{#if !$isLgUp}
-						<button
-							class="flex w-full items-center justify-center pt-2 pb-0"
-							onclick={(e) => {
-								e.stopPropagation();
-								mobileAiDockOpen = false;
-							}}
-							aria-label="Close AI dock"
-						>
-							<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
-						</button>
-					{/if}
+					<button
+						class="flex w-full items-center justify-center pt-2 pb-0 lg:hidden"
+						onclick={(e) => {
+							e.stopPropagation();
+							mobileAiDockOpen = false;
+						}}
+						aria-label="Close AI dock"
+					>
+						<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
+					</button>
 					<div class="px-5 pt-4 pb-3">
 						<!-- Agent indicator -->
 						{#if $activeAgent}
@@ -1322,8 +1320,8 @@
 		</div>
 	{/if}
 
-	<!-- Mobile bottom nav — hidden when AI dock is open -->
-	{#if !$isLgUp && !mobileAiDockOpen}
+	<!-- Mobile bottom nav — CSS hides on desktop, JS hides when AI dock is open -->
+	<div class="lg:hidden {mobileAiDockOpen ? 'hidden' : ''}">
 		<MobileBottomNav
 			onAiToggle={() => (mobileAiDockOpen = true)}
 			role={data.membership?.role ?? 'guest'}
@@ -1335,7 +1333,7 @@
 			onSignOut={handleSignOut}
 			onHelp={() => (showHelp = true)}
 		/>
-	{/if}
+	</div>
 	<SearchDialog
 		isBrandOrg={data.orgType === 'brand'}
 		isBuyer={data.isBuyer === true}
