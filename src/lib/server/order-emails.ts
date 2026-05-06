@@ -2,7 +2,13 @@ import { supabaseAdmin } from './supabase.js';
 import { sendEmail } from './email.js';
 import { notification } from './email-templates.js';
 
-export type OrderEmailEvent = 'submitted' | 'created' | 'confirmed' | 'shipped' | 'delivered';
+export type OrderEmailEvent =
+	| 'submitted'
+	| 'created'
+	| 'confirmed'
+	| 'preparing'
+	| 'shipped'
+	| 'delivered';
 
 type OrderContext = {
 	id: string;
@@ -145,6 +151,50 @@ export async function sendOrderEmail(
 		const orderUrl = `${origin}/orders/${order.id}`;
 		const total = fmt.format(order.total_amount);
 
+		// For shipped emails, fetch current shipment fields from DB
+		let shipmentInfo = '';
+		if (event === 'shipped') {
+			const { data: freshOrder } = await supabaseAdmin
+				.from('orders')
+				.select('tracking_number, carrier, expected_ship_date')
+				.eq('id', order.id)
+				.single();
+			if (freshOrder) {
+				const parts: string[] = [];
+				if (freshOrder.carrier) parts.push(`Carrier: ${freshOrder.carrier}`);
+				if (freshOrder.tracking_number) {
+					const { trackingUrl } = await import('$lib/utils/carriers.js');
+					const url = trackingUrl(freshOrder.carrier, freshOrder.tracking_number);
+					parts.push(
+						url
+							? `Tracking: <a href="${url}">${freshOrder.tracking_number}</a>`
+							: `Tracking: ${freshOrder.tracking_number}`
+					);
+				}
+				if (parts.length > 0) shipmentInfo = `<br>${parts.join('<br>')}`;
+			}
+		}
+
+		// For preparing emails, fetch expected ship date
+		let prepInfo = '';
+		if (event === 'preparing') {
+			const { data: freshOrder } = await supabaseAdmin
+				.from('orders')
+				.select('start_ship_date, expected_ship_date')
+				.eq('id', order.id)
+				.single();
+			if (freshOrder?.start_ship_date) {
+				const d = new Date(freshOrder.start_ship_date + 'T00:00:00Z');
+				const formatted = d.toLocaleDateString('en-US', {
+					month: 'long',
+					day: 'numeric',
+					year: 'numeric',
+					timeZone: 'UTC'
+				});
+				prepInfo = `<br>Expected ship date: ${formatted}`;
+			}
+		}
+
 		const emailConfigs: Record<
 			OrderEmailEvent,
 			{ recipients: () => Promise<Recipient[]>; subject: string; body: string }
@@ -180,7 +230,7 @@ export async function sendOrderEmail(
 				subject: `Order confirmed: ${order.order_number}`,
 				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) has been confirmed.<br>Total: ${total}`
 			},
-			shipped: {
+			preparing: {
 				recipients: async () => {
 					const r: Recipient[] = await resolveBuyerRecipients(order.account_id);
 					const repEmail = await resolveAuthEmail(order.created_by);
@@ -188,8 +238,15 @@ export async function sendOrderEmail(
 					if (repEmail) r.push({ email: repEmail, profileId: order.created_by, orgId: repOrgId });
 					return r;
 				},
+				subject: `Order preparing to ship: ${order.order_number}`,
+				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) is being prepared for shipment.${prepInfo}<br>Total: ${total}`
+			},
+			shipped: {
+				recipients: async () => {
+					return resolveBuyerRecipients(order.account_id);
+				},
 				subject: `Order shipped: ${order.order_number}`,
-				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) has shipped.<br>Total: ${total}`
+				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) has shipped.${shipmentInfo}<br>Total: ${total}`
 			},
 			delivered: {
 				recipients: async () => {
