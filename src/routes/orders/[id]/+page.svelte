@@ -390,7 +390,8 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		});
 		if (!res.ok) {
 			const body = await res.json().catch(() => ({}));
-			console.error('Status update failed:', body.error);
+			toast.error((body as { error?: string }).error ?? 'Status update failed');
+			return;
 		}
 		invalidateAll();
 		fetchOrderAttentionCount();
