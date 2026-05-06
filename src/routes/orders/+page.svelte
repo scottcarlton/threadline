@@ -61,8 +61,8 @@
 	let { data } = $props();
 
 	// Mutable orders list — initial page from server, appended via infinite scroll
-	let orderList = $state<OrderRow[]>([]);
-	let hasMore = $state(false);
+	let orderList = $state<OrderRow[]>((data.orders ?? []) as OrderRow[]);
+	let hasMore = $state(Boolean(data.hasMore));
 	let loadingMore = $state(false);
 	let sentinelEl = $state<HTMLDivElement | null>(null);
 
