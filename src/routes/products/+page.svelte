@@ -58,14 +58,14 @@
 	const isLoading = $derived(!!$navigating);
 
 	// Mutable list — initial page from server, appended via infinite scroll
-	let productList = $state<ProductRow[]>([]);
+	let productList = $state<ProductRow[]>((data.products ?? []) as ProductRow[]);
 	const selectedIds = $derived($selectedProductIds);
 	function toggleSelected(id: string, v: boolean) {
 		const current = $selectedProductIds;
 		if (v) selectedProductIds.set(current.includes(id) ? current : [...current, id]);
 		else selectedProductIds.set(current.filter((x) => x !== id));
 	}
-	let hasMore = $state(false);
+	let hasMore = $state(Boolean(data.hasMore));
 	let loadingMore = $state(false);
 	let sentinelEl = $state<HTMLDivElement | null>(null);
 
