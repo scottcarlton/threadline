@@ -84,7 +84,8 @@ export const actions: Actions = {
 				season_id: nn(d.seasonId),
 				product_year: d.productYear ?? null,
 				ats: d.ats,
-				is_featured: d.featured
+				is_featured: d.featured,
+				attributes: d.attributes.length > 0 ? d.attributes : []
 			})
 			.select('id')
 			.single();

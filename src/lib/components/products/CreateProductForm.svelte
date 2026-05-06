@@ -18,6 +18,7 @@
 	import ImagePair from './ImagePair.svelte';
 	import VariantRow from './VariantRow.svelte';
 	import ProductCardPreview from './ProductCardPreview.svelte';
+	import AttributePicker from './AttributePicker.svelte';
 
 	type Props = {
 		formData: SuperValidated<CreateProductInput>;
@@ -598,6 +599,17 @@
 							placeholder="A relaxed boyfriend cut in midweight European linen…"
 							bind:value={$form.description}
 						></textarea>
+					</div>
+				</div>
+
+				<!-- Attributes -->
+				<div class="mt-6 border-t border-dashed border-border pt-6">
+					<h2 class="text-lg font-medium">Attributes</h2>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Tag this product with relevant attributes. Buyers see these on the product page.
+					</p>
+					<div class="mt-3.5">
+						<AttributePicker selected={$form.attributes} onchange={(v) => ($form.attributes = v)} />
 					</div>
 				</div>
 
