@@ -909,9 +909,19 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		invalidateAll();
 	}
 
-	// ── Prepare shipment confirmation dialog ────────────────────────────
+	// ── Prepare shipment dialog ─────────────────────────────────────────
 	let prepareConfirmOpen = $state(false);
 	let preparingOrder = $state(false);
+	let prepCarrier = $state('');
+	let prepTracking = $state('');
+	let prepCost = $state('');
+
+	function openPrepareDialog() {
+		prepCarrier = '';
+		prepTracking = '';
+		prepCost = '';
+		prepareConfirmOpen = true;
+	}
 
 	async function confirmPrepare() {
 		preparingOrder = true;
@@ -920,13 +930,26 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ status: 'preparing' })
 		});
-		preparingOrder = false;
-		prepareConfirmOpen = false;
 		if (!res.ok) {
+			preparingOrder = false;
+			prepareConfirmOpen = false;
 			const body = await res.json().catch(() => ({}));
 			toast.error((body as { error?: string }).error ?? 'Could not prepare shipment');
 			return;
 		}
+		// Save any shipment fields the user entered
+		const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+		if (prepCarrier) updates.carrier = prepCarrier;
+		if (prepTracking) updates.tracking_number = prepTracking;
+		if (prepCost !== '') {
+			const v = parseFloat(prepCost);
+			if (!isNaN(v)) updates.shipping_cost = v;
+		}
+		if (Object.keys(updates).length > 1) {
+			await supabase.from('orders').update(updates).eq('id', order.id);
+		}
+		preparingOrder = false;
+		prepareConfirmOpen = false;
 		toast.success('Order is now being prepared for shipment');
 		invalidateAll();
 		fetchOrderAttentionCount();
@@ -1331,7 +1354,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									size="sm"
 									onclick={() => {
 										if (nextStatus === 'preparing') {
-											prepareConfirmOpen = true;
+											openPrepareDialog();
 										} else if (nextStatus === 'shipped') {
 											openShipConfirm();
 										} else {
@@ -2937,7 +2960,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	</div>
 {/if}
 
-<!-- ── Prepare Shipment Confirmation Dialog ────────────────────── -->
+<!-- ── Prepare Shipment Dialog ─────────────────────────────────── -->
 <Dialog.Root bind:open={prepareConfirmOpen}>
 	<Dialog.Portal>
 		<Dialog.Overlay class="fixed inset-0 z-50 bg-black/50" />
@@ -2946,9 +2969,24 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		>
 			<Dialog.Title class="text-lg font-semibold">Prepare Shipment</Dialog.Title>
 			<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-				This will move order {order.order_number} to preparing status. You can then enter shipment details
-				like carrier, tracking number, and shipping cost.
+				Enter shipment details for {order.order_number}. All fields are optional and can be updated
+				later.
 			</Dialog.Description>
+
+			<div class="mt-4 space-y-4">
+				<div>
+					<Label>Carrier</Label>
+					<SelectField items={carrierItems} bind:value={prepCarrier} placeholder="Select carrier" />
+				</div>
+				<div>
+					<Label>Tracking number</Label>
+					<Input bind:value={prepTracking} placeholder="Enter tracking number" />
+				</div>
+				<div>
+					<Label>Shipping cost</Label>
+					<Input type="number" bind:value={prepCost} placeholder="0.00" />
+				</div>
+			</div>
 
 			<div class="mt-6 flex justify-end gap-3">
 				<Button
