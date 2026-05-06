@@ -220,6 +220,13 @@
 	$effect(() => {
 		preferences.setSidebarOpen(sidebarOpen);
 	});
+	let sidebarMounted = $state(false);
+	onMount(() => {
+		requestAnimationFrame(() => {
+			sidebarMounted = true;
+		});
+	});
+
 	let showHelp = $state(false);
 	let aiPanelOpen = $state(false);
 	let mobileAiDockOpen = $state(false);
@@ -783,7 +790,9 @@
 		     flash from the media-query store seeding to false on SSR. -->
 		<div class="flex flex-1 overflow-hidden">
 			<div
-				class="hidden h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out lg:block"
+				class="hidden h-full shrink-0 overflow-hidden lg:block {sidebarMounted
+					? 'transition-all duration-300 ease-in-out'
+					: ''}"
 				style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
 			>
 				<div class="h-full w-60">
@@ -818,9 +827,9 @@
 	{#if ($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen)}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out {sidebarOpen
-				? 'lg:left-60'
-				: 'lg:left-0'}"
+			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 {sidebarMounted
+				? 'transition-[left] duration-300 ease-in-out'
+				: ''} {sidebarOpen ? 'lg:left-60' : 'lg:left-0'}"
 			transition:fly={{ y: 100, duration: 300 }}
 			onmouseenter={() => {
 				if (dockPeeking) clearTimeout(peekTimeout);
