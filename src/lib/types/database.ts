@@ -521,6 +521,7 @@ export interface Product {
 	created_at: string;
 	updated_at: string;
 	updated_by: string | null;
+	attributes: string[];
 }
 
 export interface ProductVariant {

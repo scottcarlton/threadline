@@ -37,7 +37,8 @@ export const createProductSchema = z
 
 		variants: z.array(variantSchema).default([]),
 
-		description: z.string().trim().max(5000).default('')
+		description: z.string().trim().max(5000).default(''),
+		attributes: z.array(z.string().trim().min(1).max(100)).max(20).default([])
 	})
 	.refine(
 		(data) => {
