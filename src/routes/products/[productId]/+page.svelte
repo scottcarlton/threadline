@@ -285,6 +285,7 @@
 							{product.archived_at ? 'Archived' : 'Active'}
 						</Badge>
 					</div>
+					<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 					<h2
 						contenteditable="true"
 						role="textbox"
@@ -329,6 +330,7 @@
 			<div class="shrink-0 text-right">
 				<p class="text-sm text-muted-foreground">Wholesale</p>
 				{#if editing}
+					<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 					<p
 						contenteditable="true"
 						role="textbox"
@@ -342,6 +344,7 @@
 						{editWholesale}
 					</p>
 					<p class="mt-1 text-sm text-muted-foreground">Retail</p>
+					<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 					<p
 						contenteditable="true"
 						role="textbox"
@@ -523,6 +526,7 @@
 			{#if editing}
 				<div>
 					<p class="mb-1.5 text-sm text-muted-foreground">Description</p>
+					<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 					<p
 						contenteditable="true"
 						role="textbox"
