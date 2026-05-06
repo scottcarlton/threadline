@@ -520,6 +520,7 @@ export interface Product {
 	archived_at: string | null;
 	created_at: string;
 	updated_at: string;
+	updated_by: string | null;
 }
 
 export interface ProductVariant {
