@@ -192,6 +192,14 @@
 					order.status !== 'cancelled'
 	);
 	const canModify = $derived(canEdit);
+	const canAdvanceStatus = $derived(
+		data.isBuyer
+			? false
+			: data.membership?.role !== 'guest' &&
+					order.status !== 'shipped' &&
+					order.status !== 'delivered' &&
+					order.status !== 'cancelled'
+	);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
 	const repName = $derived(
 		(data.repName as string | null) ??
@@ -1291,7 +1299,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 							{/if}
 						{/each}
 					</ol>
-					{#if canEdit && nextStatuses.length > 0 && order.status !== 'cancelled'}
+					{#if canAdvanceStatus && nextStatuses.length > 0 && order.status !== 'cancelled'}
 						<div class="flex items-center gap-2 border-l pl-4">
 							{#each nextStatuses.filter((s) => s !== 'cancelled') as nextStatus (nextStatus)}
 								<Button
@@ -1413,70 +1421,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	<div class="grid gap-6 lg:grid-cols-[1fr_340px]">
 		<!-- ─── Left column ─── -->
 		<div class="space-y-6">
-			<!-- ── Meta strip: Source · Contact · Rep ────────────────────── -->
-			<section class="rounded-lg border bg-muted/30 p-5">
-				<div class="grid gap-5 sm:grid-cols-3">
-					<div>
-						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Source</div>
-						{#if sourceDisplay}
-							<div class="mt-1.5 text-sm">{sourceDisplay}</div>
-							{#if showDateData && showDateData.month}
-								<div class="font-mono text-sm text-muted-foreground/70">
-									{monthNames[showDateData.month - 1]}{sourceLocation ? ` · ${sourceLocation}` : ''}
-								</div>
-							{/if}
-						{:else}
-							<div class="mt-1.5 text-sm text-muted-foreground/50">—</div>
-						{/if}
-					</div>
-					<div class="min-w-0">
-						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Contact</div>
-						<div class="mt-1.5 text-sm">
-							{#if accountAddress?.contact_first_name || accountAddress?.contact_last_name}
-								{[accountAddress.contact_first_name, accountAddress.contact_last_name]
-									.filter(Boolean)
-									.join(' ')}
-							{:else}
-								<span class="text-muted-foreground/50">—</span>
-							{/if}
-						</div>
-						{#if accountAddress?.contact_email}
-							<a
-								href="mailto:{accountAddress.contact_email}"
-								class="block truncate text-sm text-muted-foreground/70 hover:underline"
-							>
-								{accountAddress.contact_email}
-							</a>
-						{/if}
-						{#if accountAddress?.contact_phone || accountAddress?.phone}
-							<a
-								href="tel:{accountAddress.contact_phone ?? accountAddress.phone}"
-								class="text-sm text-muted-foreground/70 hover:underline"
-							>
-								{accountAddress.contact_phone ?? accountAddress.phone}
-							</a>
-						{/if}
-					</div>
-					<div>
-						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Sales Rep</div>
-						<div class="mt-1.5 text-sm">
-							{#if isFederatedView}
-								{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}
-							{:else}
-								{repName ?? createdByName ?? '—'}
-							{/if}
-						</div>
-						<div class="text-sm text-muted-foreground/70">
-							Created {new Date(order.created_at).toLocaleDateString('en-US', {
-								month: 'short',
-								day: 'numeric',
-								year: 'numeric'
-							})}
-						</div>
-					</div>
-				</div>
-			</section>
-
 			<!-- ── Shipment Details (preparing + shipped + delivered) ──────── -->
 			{#if isPreparingOrLater && order.order_type !== 'note'}
 				<section class="rounded-lg border bg-muted/30 px-6 py-5">
@@ -1540,6 +1484,70 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 				</section>
 			{/if}
+
+			<!-- ── Meta strip: Source · Contact · Rep ────────────────────── -->
+			<section class="rounded-lg border bg-muted/30 p-5">
+				<div class="grid gap-5 sm:grid-cols-3">
+					<div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Source</div>
+						{#if sourceDisplay}
+							<div class="mt-1.5 text-sm">{sourceDisplay}</div>
+							{#if showDateData && showDateData.month}
+								<div class="font-mono text-sm text-muted-foreground/70">
+									{monthNames[showDateData.month - 1]}{sourceLocation ? ` · ${sourceLocation}` : ''}
+								</div>
+							{/if}
+						{:else}
+							<div class="mt-1.5 text-sm text-muted-foreground/50">—</div>
+						{/if}
+					</div>
+					<div class="min-w-0">
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Contact</div>
+						<div class="mt-1.5 text-sm">
+							{#if accountAddress?.contact_first_name || accountAddress?.contact_last_name}
+								{[accountAddress.contact_first_name, accountAddress.contact_last_name]
+									.filter(Boolean)
+									.join(' ')}
+							{:else}
+								<span class="text-muted-foreground/50">—</span>
+							{/if}
+						</div>
+						{#if accountAddress?.contact_email}
+							<a
+								href="mailto:{accountAddress.contact_email}"
+								class="block truncate text-sm text-muted-foreground/70 hover:underline"
+							>
+								{accountAddress.contact_email}
+							</a>
+						{/if}
+						{#if accountAddress?.contact_phone || accountAddress?.phone}
+							<a
+								href="tel:{accountAddress.contact_phone ?? accountAddress.phone}"
+								class="text-sm text-muted-foreground/70 hover:underline"
+							>
+								{accountAddress.contact_phone ?? accountAddress.phone}
+							</a>
+						{/if}
+					</div>
+					<div>
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Sales Rep</div>
+						<div class="mt-1.5 text-sm">
+							{#if isFederatedView}
+								{federation?.repDisplayName ?? federation?.sourceOrg?.name ?? 'Rep'}
+							{:else}
+								{repName ?? createdByName ?? '—'}
+							{/if}
+						</div>
+						<div class="text-sm text-muted-foreground/70">
+							Created {new Date(order.created_at).toLocaleDateString('en-US', {
+								month: 'short',
+								day: 'numeric',
+								year: 'numeric'
+							})}
+						</div>
+					</div>
+				</div>
+			</section>
 
 			<!-- ── Ship to / Bill to / Payment (order-only) ────────────── -->
 			{#if order.order_type !== 'note'}
