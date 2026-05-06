@@ -1,17 +1,18 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidateAll, goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { SvelteMap } from 'svelte/reactivity';
+	import { DropdownMenu, Dialog } from 'bits-ui';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
+	import * as DialogUI from '$lib/components/ui/dialog/index.js';
+	import Switch from '$lib/components/ui/switch.svelte';
+	import SelectField from '$lib/components/ui/select/select-field.svelte';
+	import VariantMatrix from '$lib/components/products/VariantMatrix.svelte';
+	import AddVariantModal from '$lib/components/products/AddVariantModal.svelte';
 	import type { Product, ProductVariant, ProductImage } from '$lib/types/database.js';
-	import StockPill from '$lib/components/inventory/StockPill.svelte';
-	import VariantStockEditor from '$lib/components/inventory/VariantStockEditor.svelte';
-	import { deriveStockStatus } from '$lib/inventory/status';
 
 	let { data } = $props();
 	const product = $derived(
@@ -22,7 +23,7 @@
 		}
 	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
-	// Group images by variant for the thumbnail strip
+
 	const variantImageGroups = $derived(() => {
 		const groups = new SvelteMap<
 			string,
@@ -60,33 +61,48 @@
 		void activeGroupIndex;
 		selectedSubImage = null;
 	});
+
 	const variantThumbnails = $derived(variantImageGroups().map((g) => g.primary!));
 
 	const canEdit = $derived(data.membership?.role !== 'guest');
-	const canEditStock = $derived(
-		canEdit &&
-			product.ats &&
-			product.organization_id === data.organization?.id &&
-			['admin', 'owner', 'member'].includes(data.membership?.role ?? '')
-	);
-	const velocity = $derived(
-		data.velocity as {
-			orders30d: number;
-			units30d: number;
-			revenue30d: number;
-			orders90d: number;
-			units90d: number;
-			revenue90d: number;
-		}
-	);
+	const canDelete = $derived(['admin', 'owner'].includes(data.membership?.role ?? ''));
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-	const fmtShort = new Intl.NumberFormat('en-US', {
-		style: 'currency',
-		currency: 'USD',
-		minimumFractionDigits: 0,
-		maximumFractionDigits: 0
+
+	const existingSizes = $derived(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient computation inside $derived
+		const sizeSet = new Set<string>();
+		for (const v of product.product_variants ?? []) {
+			if (v.size) sizeSet.add(v.size);
+		}
+		const letterOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+		return [...sizeSet].sort((a, b) => {
+			const ai = letterOrder.indexOf(a.toUpperCase());
+			const bi = letterOrder.indexOf(b.toUpperCase());
+			if (ai !== -1 && bi !== -1) return ai - bi;
+			if (ai !== -1) return -1;
+			if (bi !== -1) return 1;
+			const an = parseFloat(a);
+			const bn = parseFloat(b);
+			if (!isNaN(an) && !isNaN(bn)) return an - bn;
+			return a.localeCompare(b);
+		});
 	});
+
+	const updatedByName = $derived(data.updatedByName as string | null);
+	const updatedAtFormatted = $derived(
+		product.updated_at
+			? new Intl.DateTimeFormat('en-US', {
+					month: 'short',
+					day: 'numeric',
+					year: 'numeric'
+				}).format(new Date(product.updated_at))
+			: null
+	);
+	const seasonItems = $derived([
+		{ value: '', label: 'None' },
+		...seasons.map((s) => ({ value: s.id, label: s.name }))
+	]);
 
 	// Edit state
 	let editing = $state(false);
@@ -100,21 +116,63 @@
 	let editSeasonId = $state('');
 	let editProductYear = $state<number>(new Date().getFullYear());
 	let editAts = $state(false);
+	let editFeatured = $state(false);
 	let saveError = $state('');
 	let saving = $state(false);
+
+	let addVariantOpen = $state(false);
+	let deleteConfirmOpen = $state(false);
+	let deleting = $state(false);
 
 	function startEdit() {
 		editStyle = product.style_number;
 		editName = product.name;
 		editDescription = product.description ?? '';
 		editWholesale = String(product.wholesale_price);
-		editRetail = product.retail_price ? String(product.retail_price) : '';
+		editRetail = product.retail_price ? String(product.retail_price) : '0';
 		editCategory = product.category ?? '';
 		editSubcategory = product.subcategory ?? '';
 		editSeasonId = product.season_id ?? '';
 		editProductYear = product.product_year ?? new Date().getFullYear();
 		editAts = product.ats ?? false;
+		editFeatured = product.is_featured ?? false;
 		editing = true;
+	}
+
+	function cancelEdit() {
+		editing = false;
+		saveError = '';
+	}
+
+	async function saveEdit() {
+		saving = true;
+		saveError = '';
+		const fd = new FormData();
+		fd.set('style_number', editStyle);
+		fd.set('name', editName);
+		fd.set('description', editDescription);
+		fd.set('wholesale_price', editWholesale);
+		fd.set('retail_price', editRetail);
+		fd.set('category', editCategory);
+		fd.set('subcategory', editSubcategory);
+		fd.set('season_id', editSeasonId);
+		fd.set('product_year', String(editProductYear));
+		fd.set('ats', String(editAts));
+		fd.set('is_featured', String(editFeatured));
+		try {
+			const res = await fetch('?/save', { method: 'POST', body: fd });
+			if (!res.ok) {
+				saving = false;
+				saveError = `Save failed (${res.status})`;
+				return;
+			}
+			editing = false;
+			saving = false;
+			await invalidateAll();
+		} catch (err) {
+			saving = false;
+			saveError = String(err);
+		}
 	}
 
 	async function toggleArchive() {
@@ -129,66 +187,21 @@
 		invalidateAll();
 	}
 
-	// Variant management
-	let addingVariants = $state(false);
-	let newColor = $state('');
-	let newColorHex = $state('#000000');
-	const commonSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-	const numberedSizes = ['0', '2', '4', '6', '8', '10', '12', '14'];
-	let selectedNewSizes = $state<Set<string>>(new Set());
-	let sizeMode = $state<'letter' | 'number'>('letter');
-	let customSize = $state('');
-	let savingVariants = $state(false);
-
-	function toggleNewSize(size: string) {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
-		const next = new Set(selectedNewSizes);
-		if (next.has(size)) next.delete(size);
-		else next.add(size);
-		selectedNewSizes = next;
-	}
-
-	function addCustomSize() {
-		if (customSize.trim() && !selectedNewSizes.has(customSize.trim())) {
-			selectedNewSizes = new Set([...selectedNewSizes, customSize.trim()]);
-			customSize = '';
-		}
-	}
-
-	async function addSizeRun() {
-		if (!newColor.trim() && selectedNewSizes.size === 0) return;
-		savingVariants = true;
-
-		const sizes = Array.from(selectedNewSizes);
-		const variants: { product_id: string; color: string | null; size: string | null }[] = [];
-
-		if (newColor.trim() && sizes.length > 0) {
-			for (const size of sizes) {
-				variants.push({ product_id: product.id, color: newColor.trim(), size });
+	async function deleteProduct() {
+		deleting = true;
+		try {
+			const fd = new FormData();
+			const res = await fetch('?/delete', { method: 'POST', body: fd });
+			if (res.ok) {
+				await goto(resolve('/products'));
+			} else {
+				deleting = false;
+				deleteConfirmOpen = false;
 			}
-		} else if (newColor.trim()) {
-			variants.push({ product_id: product.id, color: newColor.trim(), size: null });
-		} else if (sizes.length > 0) {
-			for (const size of sizes) {
-				variants.push({ product_id: product.id, color: null, size });
-			}
+		} catch {
+			deleting = false;
+			deleteConfirmOpen = false;
 		}
-
-		if (variants.length > 0) {
-			await supabase.from('product_variants').insert(variants);
-		}
-
-		savingVariants = false;
-		newColor = '';
-		newColorHex = '#000000';
-		selectedNewSizes = new Set();
-		addingVariants = false;
-		invalidateAll();
-	}
-
-	async function removeVariant(id: string) {
-		await supabase.from('product_variants').delete().eq('id', id);
-		invalidateAll();
 	}
 
 	// Image management
@@ -238,11 +251,38 @@
 			<LongArrow direction="left" /> Products
 		</Button>
 		{#if canEdit && !editing}
-			<div class="flex gap-2">
-				<Button variant="outline" size="sm" onclick={toggleArchive}>
-					{product.archived_at ? 'Unarchive' : 'Archive'}
-				</Button>
+			<div class="flex items-center gap-2">
 				<Button size="sm" onclick={startEdit}>Edit</Button>
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger
+						class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-sm transition-colors hover:bg-muted"
+						aria-label="More actions"
+					>
+						&middot;&middot;&middot;
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Portal>
+						<DropdownMenu.Content
+							align="end"
+							sideOffset={4}
+							class="z-50 min-w-[140px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+						>
+							<DropdownMenu.Item
+								class="flex cursor-pointer items-center rounded-sm px-3 py-2 text-sm transition-colors select-none data-[highlighted]:bg-muted"
+								onSelect={toggleArchive}
+							>
+								{product.archived_at ? 'Unarchive' : 'Archive'}
+							</DropdownMenu.Item>
+							{#if canDelete}
+								<DropdownMenu.Item
+									class="flex cursor-pointer items-center rounded-sm px-3 py-2 text-sm text-destructive transition-colors select-none data-[highlighted]:bg-destructive/10"
+									onSelect={() => (deleteConfirmOpen = true)}
+								>
+									Delete
+								</DropdownMenu.Item>
+							{/if}
+						</DropdownMenu.Content>
+					</DropdownMenu.Portal>
+				</DropdownMenu.Root>
 			</div>
 		{/if}
 	</div>
@@ -250,42 +290,104 @@
 	{#snippet metaBanner()}
 		<div class="flex items-center justify-between gap-4">
 			<div>
-				<div class="mb-1 flex items-center gap-2">
-					<span class="font-mono text-sm text-muted-foreground">{product.style_number}</span>
-					<Badge variant={product.archived_at ? 'destructive' : 'success'}>
-						{product.archived_at ? 'Archived' : 'Active'}
-					</Badge>
-				</div>
-				<h2 class="text-xl font-semibold">{product.name}</h2>
-				{#if product.season_id || product.product_year || product.category}
-					{@const seasonJoin = product.seasons as { name?: string } | { name?: string }[] | null}
-					{@const seasonName = Array.isArray(seasonJoin) ? seasonJoin[0]?.name : seasonJoin?.name}
-					{@const seasonYear = [seasonName, product.product_year].filter(Boolean).join(' ')}
-					<div class="mt-1 flex items-center gap-2">
-						{#if seasonYear}
-							<span class="text-sm text-muted-foreground">{seasonYear}</span>
-						{/if}
-						{#if product.category}
-							<Badge variant="secondary"
-								>{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}</Badge
-							>
-						{/if}
+				{#if editing}
+					<div class="mb-1 flex items-center gap-2">
+						<span
+							contenteditable="true"
+							role="textbox"
+							aria-label="Style number"
+							class="min-w-[60px] border-b-2 border-dotted border-muted-foreground/40 pb-0.5 font-mono text-sm text-muted-foreground outline-none"
+							bind:textContent={editStyle}
+						></span>
+						<Badge variant={product.archived_at ? 'destructive' : 'success'}>
+							{product.archived_at ? 'Archived' : 'Active'}
+						</Badge>
 					</div>
+					<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+					<h2
+						contenteditable="true"
+						role="textbox"
+						aria-label="Product name"
+						class="min-w-[120px] border-b-2 border-dotted border-muted-foreground/40 pb-0.5 text-xl font-semibold outline-none"
+						bind:textContent={editName}
+					></h2>
+					<div class="mt-2 flex flex-wrap items-center gap-2">
+						<SelectField
+							bind:value={editSeasonId}
+							items={seasonItems}
+							placeholder="Season"
+							class="w-40"
+						/>
+						<input
+							type="number"
+							min="2000"
+							max="2100"
+							bind:value={editProductYear}
+							class="w-20 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus:border-ring"
+							aria-label="Year"
+						/>
+					</div>
+				{:else}
+					<div class="mb-1 flex items-center gap-2">
+						<span class="font-mono text-sm text-muted-foreground">{product.style_number}</span>
+						<Badge variant={product.archived_at ? 'destructive' : 'success'}>
+							{product.archived_at ? 'Archived' : 'Active'}
+						</Badge>
+					</div>
+					<h2 class="text-xl font-semibold">{product.name}</h2>
+					{#if product.season_id || product.product_year}
+						{@const seasonJoin = product.seasons as { name?: string } | { name?: string }[] | null}
+						{@const seasonName = Array.isArray(seasonJoin) ? seasonJoin[0]?.name : seasonJoin?.name}
+						{@const seasonYear = [seasonName, product.product_year].filter(Boolean).join(' ')}
+						{#if seasonYear}
+							<p class="mt-1 text-sm text-muted-foreground">{seasonYear}</p>
+						{/if}
+					{/if}
 				{/if}
 			</div>
 			<div class="shrink-0 text-right">
 				<p class="text-sm text-muted-foreground">Wholesale</p>
-				<p class="text-xl font-semibold">{fmt.format(Number(product.wholesale_price))}</p>
-				{#if product.retail_price}
-					<p class="text-sm text-muted-foreground">
-						Retail — {fmt.format(Number(product.retail_price))}
+				{#if editing}
+					<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+					<p
+						contenteditable="true"
+						role="textbox"
+						aria-label="Wholesale price"
+						class="border-b-2 border-dotted border-muted-foreground/40 pb-0.5 text-right text-xl font-semibold outline-none"
+						oninput={(e) => {
+							const raw = (e.currentTarget as HTMLElement).textContent ?? '';
+							editWholesale = raw.replace(/[^0-9.]/g, '');
+						}}
+					>
+						{editWholesale}
 					</p>
+					<p class="mt-1 text-sm text-muted-foreground">Retail</p>
+					<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+					<p
+						contenteditable="true"
+						role="textbox"
+						aria-label="Retail price"
+						class="border-b-2 border-dotted border-muted-foreground/40 pb-0.5 text-right text-sm outline-none"
+						oninput={(e) => {
+							const raw = (e.currentTarget as HTMLElement).textContent ?? '';
+							editRetail = raw.replace(/[^0-9.]/g, '');
+						}}
+					>
+						{editRetail}
+					</p>
+				{:else}
+					<p class="text-xl font-semibold">{fmt.format(Number(product.wholesale_price))}</p>
+					{#if product.retail_price}
+						<p class="text-sm text-muted-foreground">
+							Retail — {fmt.format(Number(product.retail_price))}
+						</p>
+					{/if}
 				{/if}
 			</div>
 		</div>
 	{/snippet}
 
-	<!-- Mobile: meta banner above image. -->
+	<!-- Mobile: meta banner above image -->
 	<div class="mb-6 lg:hidden">
 		{@render metaBanner()}
 	</div>
@@ -403,421 +505,158 @@
 
 		<!-- Right: details column -->
 		<div class="min-w-0 space-y-6">
-			<!-- Desktop: meta banner stays in the right column -->
+			<!-- Desktop: meta banner stays in right column -->
 			<div class="hidden lg:block">
 				{@render metaBanner()}
 			</div>
 
-			<!-- Variant thumbnails -->
-			{#if variantThumbnails.length > 1}
-				<div class="flex gap-1.5">
-					{#each variantThumbnails as thumb, i (thumb.id)}
-						<button
-							type="button"
-							class="relative h-16 w-16 shrink-0 overflow-hidden transition-all"
-							onclick={() => (activeGroupIndex = i)}
-						>
-							<img
-								src="/api/products/{product.id}/images/{thumb.id}"
-								alt=""
-								class="h-full w-full object-cover"
-							/>
-							{#if i === activeGroupIndex}
-								<span class="pointer-events-none absolute inset-0 border-[3px] border-black/70"
-								></span>
-							{/if}
-						</button>
-					{/each}
+			<!-- Variant thumbnails + add button -->
+			<div class="flex flex-wrap gap-1.5">
+				{#each variantThumbnails as thumb, i (thumb.id)}
+					<button
+						type="button"
+						class="relative h-14 w-14 shrink-0 overflow-hidden transition-all"
+						onclick={() => (activeGroupIndex = i)}
+					>
+						<img
+							src="/api/products/{product.id}/images/{thumb.id}"
+							alt=""
+							class="h-full w-full object-cover"
+						/>
+						{#if i === activeGroupIndex}
+							<span class="pointer-events-none absolute inset-0 border-[3px] border-black/70"
+							></span>
+						{/if}
+					</button>
+				{/each}
+				{#if canEdit}
+					<button
+						type="button"
+						class="flex h-14 w-14 shrink-0 items-center justify-center border-2 border-dashed border-muted-foreground/30 text-lg text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+						onclick={() => (addVariantOpen = true)}
+					>
+						+
+					</button>
+				{/if}
+			</div>
+
+			<!-- Description -->
+			{#if editing}
+				<div>
+					<p class="mb-1.5 text-sm text-muted-foreground">Description</p>
+					<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+					<p
+						contenteditable="true"
+						role="textbox"
+						aria-label="Description"
+						aria-multiline="true"
+						class="min-h-[3em] w-full border-b-2 border-dotted border-muted-foreground/40 pb-0.5 text-sm whitespace-pre-wrap outline-none"
+						bind:textContent={editDescription}
+					></p>
+				</div>
+			{:else if product.description}
+				<p class="text-sm whitespace-pre-wrap">{product.description}</p>
+			{/if}
+
+			<!-- Save error -->
+			{#if saveError}
+				<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+					{saveError}
 				</div>
 			{/if}
 
-			<!-- Style Velocity -->
-			{#if velocity && (velocity.units30d > 0 || velocity.units90d > 0)}
-				<div class="grid gap-4 sm:grid-cols-3">
-					<Card>
-						<CardContent class="pt-4 pb-4">
-							<p class="text-sm font-medium text-muted-foreground">Last 30 Days</p>
-							<p class="mt-1 text-2xl font-semibold">
-								{velocity.units30d}
-								<span class="text-sm font-normal text-muted-foreground">units</span>
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{velocity.orders30d} account{velocity.orders30d !== 1 ? 's' : ''} · {fmtShort.format(
-									velocity.revenue30d
-								)}
-							</p>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent class="pt-4 pb-4">
-							<p class="text-sm font-medium text-muted-foreground">Last 90 Days</p>
-							<p class="mt-1 text-2xl font-semibold">
-								{velocity.units90d}
-								<span class="text-sm font-normal text-muted-foreground">units</span>
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{velocity.orders90d} account{velocity.orders90d !== 1 ? 's' : ''} · {fmtShort.format(
-									velocity.revenue90d
-								)}
-							</p>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent class="pt-4 pb-4">
-							<p class="text-sm font-medium text-muted-foreground">Velocity</p>
-							{@const trend =
-								velocity.units30d > 0 && velocity.units90d > 0
-									? velocity.units30d / (velocity.units90d / 3)
-									: 0}
-							<p
-								class="mt-1 text-2xl font-semibold {trend >= 1.2
-									? 'text-emerald-600'
-									: trend <= 0.8
-										? 'text-red-600'
-										: ''}"
-							>
-								{trend > 0 ? `${Math.round(trend * 100)}%` : '—'}
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{trend >= 1.2
-									? 'Accelerating'
-									: trend <= 0.8
-										? 'Slowing'
-										: trend > 0
-											? 'Steady'
-											: 'No data'}
-							</p>
-						</CardContent>
-					</Card>
-				</div>
-			{/if}
+			<!-- Variant matrix -->
+			<VariantMatrix variants={product.product_variants ?? []} ats={product.ats} />
 
-			<!-- Product Details -->
-			{#if editing || product.retail_price || product.description}
-				<Card>
-					<CardContent class="pt-6">
-						{#if saveError}
-							<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-								{saveError}
-							</div>
-						{/if}
-
-						{#if editing}
-							<form
-								id="edit-form"
-								onsubmit={async (e) => {
-									e.preventDefault();
-									saving = true;
-									saveError = '';
-									const fd = new FormData(e.currentTarget as HTMLFormElement);
-									try {
-										const res = await fetch('?/save', { method: 'POST', body: fd });
-										if (!res.ok) {
-											saving = false;
-											saveError = `Save failed (${res.status})`;
-											return;
-										}
-										editing = false;
-										saving = false;
-										await invalidateAll();
-									} catch (err) {
-										saving = false;
-										saveError = String(err);
-									}
-								}}
-								class="space-y-4"
-							>
-								<input type="hidden" name="subcategory" value={editSubcategory} />
-								<div class="grid gap-4 sm:grid-cols-3">
-									<div class="space-y-2">
-										<Label for="style">Style Number *</Label>
-										<Input id="style" name="style_number" bind:value={editStyle} required />
-									</div>
-									<div class="space-y-2 sm:col-span-2">
-										<Label for="name">Name *</Label>
-										<Input id="name" name="name" bind:value={editName} required />
-									</div>
-								</div>
-								<div class="grid gap-4 sm:grid-cols-3">
-									<div class="space-y-2">
-										<Label for="wholesale">Wholesale</Label>
-										<Input
-											id="wholesale"
-											name="wholesale_price"
-											type="number"
-											step="0.01"
-											bind:value={editWholesale}
-										/>
-									</div>
-									<div class="space-y-2">
-										<Label for="retail">Retail</Label>
-										<Input
-											id="retail"
-											name="retail_price"
-											type="number"
-											step="0.01"
-											bind:value={editRetail}
-										/>
-									</div>
-									<div class="space-y-2">
-										<Label for="category">Category</Label>
-										<Input id="category" name="category" bind:value={editCategory} />
-									</div>
-									<div class="space-y-2 sm:col-span-2">
-										<Label for="season">Season</Label>
-										<select
-											id="season"
-											name="season_id"
-											bind:value={editSeasonId}
-											class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-										>
-											<option value="">None</option>
-											{#each seasons as season (season.id)}
-												<option value={season.id}>{season.name}</option>
-											{/each}
-										</select>
-									</div>
-									<div class="space-y-2">
-										<Label for="productYear">Year</Label>
-										<Input
-											id="productYear"
-											name="product_year"
-											type="number"
-											min="2000"
-											max="2100"
-											bind:value={editProductYear}
-										/>
-									</div>
-									<div class="space-y-2 sm:col-span-2">
-										<label class="flex items-start gap-3">
-											<input type="hidden" name="ats" value={String(editAts)} />
-											<input
-												type="checkbox"
-												bind:checked={editAts}
-												class="mt-0.5 h-4 w-4 rounded border-input"
-											/>
-											<span class="space-y-1">
-												<span class="block text-sm leading-none font-medium"
-													>Available to Ship (ATS)</span
-												>
-												<span class="block text-sm text-muted-foreground"
-													>In stock and shippable now. Leave off for futures / pre-orders.</span
-												>
-											</span>
-										</label>
-									</div>
-								</div>
-								<div class="space-y-2">
-									<Label for="desc">Description</Label>
-									<textarea
-										id="desc"
-										name="description"
-										bind:value={editDescription}
-										rows="3"
-										class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-									></textarea>
-								</div>
-								<div class="flex justify-between pt-4">
-									<button
-										type="button"
-										class="inline-flex h-9 items-center justify-center gap-2 border border-black/80 bg-background px-4 py-2 text-[13px] font-medium hover:bg-ghost dark:border-white/20"
-										onclick={() => (editing = false)}>Cancel</button
-									>
-									<button
-										type="submit"
-										class="inline-flex h-9 items-center justify-center gap-2 bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50"
-										disabled={saving}>{saving ? 'Saving…' : 'Save'}</button
-									>
-								</div>
-							</form>
-						{:else}
-							<dl class="space-y-3 text-sm">
-								{#if product.retail_price}
-									<div class="flex justify-between">
-										<dt class="text-muted-foreground">Retail</dt>
-										<dd>{fmt.format(Number(product.retail_price))}</dd>
-									</div>
-								{/if}
-								{#if product.description}
-									<div>
-										<dt class="text-muted-foreground">Description</dt>
-										<dd class="mt-1 whitespace-pre-wrap">{product.description}</dd>
-									</div>
-								{/if}
-							</dl>
-						{/if}
-					</CardContent>
-				</Card>
-			{/if}
-
-			<!-- Variants -->
-			<Card>
-				<CardHeader>
-					<div class="flex items-center justify-between">
-						<CardTitle class="text-base"
-							>Variants ({product.product_variants?.length ?? 0})</CardTitle
-						>
-						{#if canEdit && !addingVariants}
-							<Button variant="outline" size="sm" onclick={() => (addingVariants = true)}
-								>Add Variants</Button
-							>
-						{/if}
+			<!-- Categories -->
+			{#if editing}
+				<div class="flex gap-3">
+					<div class="flex-1">
+						<p class="mb-1 text-sm text-muted-foreground">Category</p>
+						<input
+							type="text"
+							bind:value={editCategory}
+							placeholder="e.g. Tops"
+							class="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus:border-ring"
+						/>
 					</div>
-				</CardHeader>
-				<CardContent>
-					{#if addingVariants}
-						<div class="mb-4 space-y-4 rounded-none border border-dashed p-4">
-							<!-- Color / Print -->
-							<div class="space-y-2">
-								<p class="text-sm font-medium">Color or Print</p>
-								<p class="text-sm text-muted-foreground">
-									Solid colors, prints, or patterns (e.g. Navy, Leopard, Floral Stripe)
-								</p>
-								<div class="flex items-center gap-3">
-									<input
-										type="color"
-										bind:value={newColorHex}
-										class="h-9 w-9 shrink-0 cursor-pointer rounded border-0 p-0"
-										title="Pick a swatch color (optional)"
-									/>
-									<Input
-										bind:value={newColor}
-										placeholder="e.g. Navy, Leopard Print, Floral"
-										class="flex-1"
-									/>
-								</div>
-							</div>
+					<div class="flex-1">
+						<p class="mb-1 text-sm text-muted-foreground">Subcategory</p>
+						<input
+							type="text"
+							bind:value={editSubcategory}
+							placeholder="e.g. Blouses"
+							class="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus:border-ring"
+						/>
+					</div>
+				</div>
+			{:else if product.category}
+				<p class="text-sm text-muted-foreground">
+					{product.category}{product.subcategory ? ` / ${product.subcategory}` : ''}
+				</p>
+			{/if}
 
-							<!-- Sizes -->
-							<div class="space-y-2">
-								<p class="text-sm font-medium">Sizes</p>
-								<div class="mb-2 flex w-fit gap-1 rounded-lg bg-muted p-1">
-									<button
-										class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode ===
-										'letter'
-											? 'bg-background text-foreground shadow-sm'
-											: 'text-muted-foreground'}"
-										onclick={() => (sizeMode = 'letter')}>Letter</button
-									>
-									<button
-										class="rounded-md px-3 py-1 text-sm font-medium transition-colors {sizeMode ===
-										'number'
-											? 'bg-background text-foreground shadow-sm'
-											: 'text-muted-foreground'}"
-										onclick={() => (sizeMode = 'number')}>Numeric</button
-									>
-								</div>
-								<div class="flex flex-wrap gap-2">
-									{#each sizeMode === 'letter' ? commonSizes : numberedSizes as size (size)}
-										<button
-											class="flex h-9 w-11 items-center justify-center rounded-lg border-2 text-sm font-medium transition-all {selectedNewSizes.has(
-												size
-											)
-												? 'border-primary bg-primary/10 text-primary'
-												: 'border-muted text-muted-foreground hover:border-foreground/20'}"
-											onclick={() => toggleNewSize(size)}
-										>
-											{size}
-										</button>
-									{/each}
-									<div class="flex items-center gap-1">
-										<input
-											type="text"
-											bind:value={customSize}
-											placeholder="Custom"
-											class="h-9 w-20 rounded-lg border-2 border-dashed border-muted bg-background px-2 text-center text-sm focus:border-primary focus:outline-none"
-											onkeydown={(e) => {
-												if (e.key === 'Enter') addCustomSize();
-											}}
-										/>
-										{#if customSize.trim()}
-											<button class="text-xs text-primary" onclick={addCustomSize}>Add</button>
-										{/if}
-									</div>
-								</div>
-							</div>
-
-							{#if newColor.trim() && selectedNewSizes.size > 0}
-								<p class="text-sm text-muted-foreground">
-									This will create <span class="font-medium text-foreground"
-										>{selectedNewSizes.size}</span
-									>
-									variant{selectedNewSizes.size > 1 ? 's' : ''} for {newColor.trim()}
-								</p>
-							{/if}
-
-							<div class="flex gap-2">
-								<Button
-									size="sm"
-									onclick={addSizeRun}
-									disabled={savingVariants || (!newColor.trim() && selectedNewSizes.size === 0)}
-								>
-									{savingVariants ? 'Adding...' : 'Add Variants'}
-								</Button>
-								<Button variant="outline" size="sm" onclick={() => (addingVariants = false)}
-									>Cancel</Button
-								>
-							</div>
-						</div>
+			<!-- Bottom metadata row -->
+			{#if editing}
+				<div class="flex flex-wrap items-center gap-x-6 gap-y-3 border-t pt-4">
+					<label class="flex items-center gap-2">
+						<Switch bind:checked={editAts} aria-label="Available to Ship" />
+						<span class="text-sm">ATS</span>
+					</label>
+					<label class="flex items-center gap-2">
+						<Switch bind:checked={editFeatured} aria-label="Featured" />
+						<span class="text-sm">Featured</span>
+					</label>
+				</div>
+			{:else}
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t pt-4">
+					{#if updatedByName || updatedAtFormatted}
+						<p class="text-sm text-muted-foreground">
+							Updated{updatedByName ? ` by ${updatedByName}` : ''}{updatedAtFormatted
+								? ` · ${updatedAtFormatted}`
+								: ''}
+						</p>
 					{/if}
-
-					{#if (product.product_variants?.length ?? 0) === 0 && !addingVariants}
-						<p class="text-sm text-muted-foreground">No variants. Add color/size combinations.</p>
-					{:else}
-						<div class="space-y-2">
-							{#each product.product_variants ?? [] as variant (variant.id)}
-								<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
-									<div class="flex items-center gap-4 text-sm">
-										{#if variant.color}
-											<span class="font-medium">{variant.color}</span>
-										{/if}
-										{#if variant.size}
-											<span class="rounded border px-2 py-0.5 text-xs font-medium"
-												>{variant.size}</span
-											>
-										{/if}
-										{#if !variant.color && !variant.size}
-											<span class="text-muted-foreground">Default</span>
-										{/if}
-										{#if variant.sku}
-											<span class="text-xs text-muted-foreground">SKU: {variant.sku}</span>
-										{/if}
-										{#if variant.price_override}
-											<span class="text-xs text-muted-foreground"
-												>{fmt.format(Number(variant.price_override))}</span
-											>
-										{/if}
-									</div>
-									<div class="flex items-center gap-3">
-										{#if product.ats}
-											{@const stockStatus = deriveStockStatus(
-												variant.stock_qty,
-												variant.stock_threshold
-											)}
-											{#if stockStatus !== null}
-												<StockPill status={stockStatus} qty={variant.stock_qty} />
-											{/if}
-											{#if canEditStock}
-												<VariantStockEditor
-													variantId={variant.id}
-													stockQty={variant.stock_qty}
-													isShopifyManaged={variant.shopify_variant_id !== null}
-												/>
-											{/if}
-										{/if}
-										{#if canEdit}
-											<button
-												class="text-xs text-muted-foreground transition-colors hover:text-destructive"
-												onclick={() => removeVariant(variant.id)}>Remove</button
-											>
-										{/if}
-									</div>
-								</div>
-							{/each}
-						</div>
+					{#if product.ats}
+						<Badge variant="secondary">ATS</Badge>
 					{/if}
-				</CardContent>
-			</Card>
+					{#if product.is_featured}
+						<Badge variant="secondary">Featured</Badge>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Save/Cancel bar (edit mode only) -->
+			{#if editing}
+				<div class="flex justify-end gap-2 border-t pt-4">
+					<Button variant="outline" onclick={cancelEdit}>Cancel</Button>
+					<Button onclick={saveEdit} disabled={saving}>
+						{saving ? 'Saving…' : 'Save'}
+					</Button>
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>
+
+<AddVariantModal
+	bind:open={addVariantOpen}
+	productId={product.id}
+	existingSizes={existingSizes()}
+/>
+
+<Dialog.Root bind:open={deleteConfirmOpen}>
+	<DialogUI.DialogContent class="max-w-sm p-6">
+		<DialogUI.DialogTitle class="text-lg font-semibold">Delete Product</DialogUI.DialogTitle>
+		<DialogUI.DialogDescription class="mt-2 text-sm text-muted-foreground">
+			This will permanently delete <span class="font-medium text-foreground">{product.name}</span> and
+			all its variants. This action cannot be undone.
+		</DialogUI.DialogDescription>
+		<div class="mt-6 flex justify-end gap-2">
+			<Button variant="outline" onclick={() => (deleteConfirmOpen = false)}>Cancel</Button>
+			<Button variant="destructive" onclick={deleteProduct} disabled={deleting}>
+				{deleting ? 'Deleting…' : 'Delete'}
+			</Button>
+		</div>
+	</DialogUI.DialogContent>
+</Dialog.Root>
