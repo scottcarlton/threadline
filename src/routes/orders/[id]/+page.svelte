@@ -403,7 +403,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		{
 			status: 'preparing',
 			label: 'Preparing',
-			date: (order as Record<string, unknown>).preparing_at as string | null
+			date: (order as unknown as Record<string, unknown>).preparing_at as string | null
 		},
 		{ status: 'shipped', label: 'Shipped', date: order.shipped_at },
 		{ status: 'delivered', label: 'Delivered', date: order.delivered_at }
@@ -491,7 +491,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				return `${head} ${tail}`;
 			}
 			case 'preparing': {
-				const preparingAt = (order as Record<string, unknown>).preparing_at as string | null;
+				const preparingAt = (order as unknown as Record<string, unknown>).preparing_at as
+					| string
+					| null;
 				const head = `Preparing${preparingAt ? ` · ${longDate(preparingAt)}` : ''}.`;
 				const tail = isBrandSide
 					? 'Fill in shipment details. Mark as Shipped when the order leaves your warehouse.'
@@ -880,9 +882,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	let savingShipmentField = $state(false);
 
 	$effect(() => {
-		shipCarrier = ((order as Record<string, unknown>).carrier as string) ?? '';
-		shipTracking = ((order as Record<string, unknown>).tracking_number as string) ?? '';
-		const cost = (order as Record<string, unknown>).shipping_cost;
+		shipCarrier = ((order as unknown as Record<string, unknown>).carrier as string) ?? '';
+		shipTracking = ((order as unknown as Record<string, unknown>).tracking_number as string) ?? '';
+		const cost = (order as unknown as Record<string, unknown>).shipping_cost;
 		shipCost = cost != null ? String(cost) : '';
 	});
 
