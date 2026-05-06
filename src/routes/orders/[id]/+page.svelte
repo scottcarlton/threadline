@@ -2963,41 +2963,129 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 <!-- ── Prepare Shipment Dialog ─────────────────────────────────── -->
 <Dialog.Root bind:open={prepareConfirmOpen}>
 	<Dialog.Portal>
-		<Dialog.Overlay class="fixed inset-0 z-50 bg-black/50" />
+		<Dialog.Overlay
+			class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+		/>
 		<Dialog.Content
-			class="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-6 shadow-lg"
+			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
 		>
-			<Dialog.Title class="text-lg font-semibold">Prepare Shipment</Dialog.Title>
-			<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-				Enter shipment details for {order.order_number}. All fields are optional and can be updated
-				later.
-			</Dialog.Description>
+			<header class="flex items-start justify-between gap-4 px-6 py-5">
+				<div class="min-w-0">
+					<Dialog.Title class="text-lg font-medium">Prepare Shipment</Dialog.Title>
+					<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+						{order.accounts?.business_name ?? '—'}
+						{!isBrandOrg && order.brands?.name ? ` · ${order.brands.name}` : ''}
+						· {order.order_number}
+						· {fmt.format(Number(order.total_amount))}
+						· {savedOrderUnits} unit{savedOrderUnits === 1 ? '' : 's'}
+					</Dialog.Description>
+				</div>
+				<Dialog.Close
+					type="button"
+					class="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+					aria-label="Close"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.75"
+					>
+						<path d="M18 6 6 18M6 6l12 12" />
+					</svg>
+				</Dialog.Close>
+			</header>
 
-			<div class="mt-4 space-y-4">
-				<div>
-					<Label>Carrier</Label>
-					<SelectField items={carrierItems} bind:value={prepCarrier} placeholder="Select carrier" />
+			<div class="space-y-5 px-6 py-5">
+				<!-- Ship-to + Ship window -->
+				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+					<div>
+						<div class="text-sm text-muted-foreground">Ship to</div>
+						{#if orderLocation}
+							<div class="mt-1 text-sm">
+								{orderLocation.label
+									? `${orderLocation.label} — `
+									: ''}{orderLocation.address_line1 ?? ''}{orderLocation.city
+									? `, ${orderLocation.city}`
+									: ''}{orderLocation.state ? `, ${orderLocation.state}` : ''}
+								{orderLocation.zip ?? ''}
+							</div>
+						{:else if accountAddress}
+							<div class="mt-1 text-sm">
+								{accountAddress.address_line1 ?? ''}{accountAddress.city
+									? `, ${accountAddress.city}`
+									: ''}{accountAddress.state ? `, ${accountAddress.state}` : ''}
+								{accountAddress.zip ?? ''}
+							</div>
+						{:else}
+							<div class="mt-1 text-sm text-muted-foreground">No address on file</div>
+						{/if}
+					</div>
+					<div>
+						<div class="text-sm text-muted-foreground">Ship window</div>
+						<div class="mt-1 text-sm">
+							{#if order.start_ship_date && order.expected_ship_date}
+								{shortDate(order.start_ship_date)} → {shortDate(order.expected_ship_date)}
+								{#if shipWindowLength !== null}
+									<span class="text-muted-foreground">({shipWindowLength}-day window)</span>
+								{/if}
+							{:else if order.start_ship_date}
+								Ships {shortDate(order.start_ship_date)}
+							{:else}
+								<span class="text-muted-foreground">Not set</span>
+							{/if}
+						</div>
+					</div>
 				</div>
+
+				<div class="h-px bg-border"></div>
+
+				<!-- Shipment details -->
 				<div>
-					<Label>Tracking number</Label>
-					<Input bind:value={prepTracking} placeholder="Enter tracking number" />
-				</div>
-				<div>
-					<Label>Shipping cost</Label>
-					<Input type="number" bind:value={prepCost} placeholder="0.00" />
+					<div class="text-sm font-medium">Shipment Details</div>
+					<p class="mt-1 text-sm text-muted-foreground">
+						All fields are optional. You can update them anytime before shipping.
+					</p>
+					<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+						<div>
+							<div class="text-sm text-muted-foreground">Carrier</div>
+							<div class="mt-1.5">
+								<SelectField
+									items={carrierItems}
+									bind:value={prepCarrier}
+									placeholder="Select carrier"
+									class="w-full"
+								/>
+							</div>
+						</div>
+						<div>
+							<div class="text-sm text-muted-foreground">Tracking number</div>
+							<div class="mt-1.5">
+								<Input bind:value={prepTracking} placeholder="Enter tracking number" />
+							</div>
+						</div>
+						<div>
+							<div class="text-sm text-muted-foreground">Shipping cost</div>
+							<div class="mt-1.5">
+								<Input type="number" bind:value={prepCost} placeholder="0.00" />
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
 
-			<div class="mt-6 flex justify-end gap-3">
-				<Button
-					variant="outline"
-					onclick={() => (prepareConfirmOpen = false)}
-					disabled={preparingOrder}
+			<footer class="flex items-center justify-end gap-3 border-t bg-muted/30 px-6 py-4">
+				<Dialog.Close
+					type="button"
+					class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
 				>
 					Cancel
-				</Button>
+				</Dialog.Close>
 				<Button onclick={confirmPrepare} loading={preparingOrder}>Prepare Shipment</Button>
-			</div>
+			</footer>
 		</Dialog.Content>
 	</Dialog.Portal>
 </Dialog.Root>
@@ -3005,44 +3093,85 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 <!-- ── Ship Confirmation Dialog ───────────────────────────────── -->
 <Dialog.Root bind:open={shipConfirmOpen}>
 	<Dialog.Portal>
-		<Dialog.Overlay class="fixed inset-0 z-50 bg-black/50" />
+		<Dialog.Overlay
+			class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+		/>
 		<Dialog.Content
-			class="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-6 shadow-lg"
+			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
 		>
-			<Dialog.Title class="text-lg font-semibold">Ship Order</Dialog.Title>
-			<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-				Confirm shipment details for {order.order_number}. Empty fields can be updated later.
-			</Dialog.Description>
+			<header class="flex items-start justify-between gap-4 px-6 py-5">
+				<div class="min-w-0">
+					<Dialog.Title class="text-lg font-medium">Ship Order</Dialog.Title>
+					<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+						{order.accounts?.business_name ?? '—'}
+						· {order.order_number}
+						· {fmt.format(Number(order.total_amount))}
+					</Dialog.Description>
+				</div>
+				<Dialog.Close
+					type="button"
+					class="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+					aria-label="Close"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.75"
+					>
+						<path d="M18 6 6 18M6 6l12 12" />
+					</svg>
+				</Dialog.Close>
+			</header>
 
-			<div class="mt-4 space-y-4">
+			<div class="space-y-5 px-6 py-5">
+				<!-- Shipment details -->
 				<div>
-					<Label>Carrier</Label>
-					<SelectField
-						items={carrierItems}
-						bind:value={shipConfirmCarrier}
-						placeholder="Select carrier"
-					/>
-				</div>
-				<div>
-					<Label>Tracking number</Label>
-					<Input bind:value={shipConfirmTracking} placeholder="Enter tracking number" />
-				</div>
-				<div>
-					<Label>Shipping cost</Label>
-					<Input type="number" bind:value={shipConfirmCost} placeholder="0.00" />
+					<div class="text-sm font-medium">Confirm Shipment Details</div>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Review and update before marking as shipped. Empty fields can still be updated after
+						shipping.
+					</p>
+					<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+						<div>
+							<div class="text-sm text-muted-foreground">Carrier</div>
+							<div class="mt-1.5">
+								<SelectField
+									items={carrierItems}
+									bind:value={shipConfirmCarrier}
+									placeholder="Select carrier"
+									class="w-full"
+								/>
+							</div>
+						</div>
+						<div>
+							<div class="text-sm text-muted-foreground">Tracking number</div>
+							<div class="mt-1.5">
+								<Input bind:value={shipConfirmTracking} placeholder="Enter tracking number" />
+							</div>
+						</div>
+						<div>
+							<div class="text-sm text-muted-foreground">Shipping cost</div>
+							<div class="mt-1.5">
+								<Input type="number" bind:value={shipConfirmCost} placeholder="0.00" />
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
 
-			<div class="mt-6 flex justify-end gap-3">
-				<Button
-					variant="outline"
-					onclick={() => (shipConfirmOpen = false)}
-					disabled={shippingOrder}
+			<footer class="flex items-center justify-end gap-3 border-t bg-muted/30 px-6 py-4">
+				<Dialog.Close
+					type="button"
+					class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
 				>
 					Cancel
-				</Button>
+				</Dialog.Close>
 				<Button onclick={confirmShip} loading={shippingOrder}>Ship Order</Button>
-			</div>
+			</footer>
 		</Dialog.Content>
 	</Dialog.Portal>
 </Dialog.Root>
