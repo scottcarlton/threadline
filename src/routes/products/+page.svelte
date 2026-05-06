@@ -55,23 +55,25 @@
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
 	const canEdit = $derived(['admin', 'owner', 'member'].includes(data.membership?.role ?? ''));
 
-	const isLoading = $derived(!!$navigating);
+	const isLoading = $derived(initialLoad || !!$navigating);
 
 	// Mutable list — initial page from server, appended via infinite scroll
-	let productList = $state<ProductRow[]>((data.products ?? []) as ProductRow[]);
+	let productList = $state<ProductRow[]>([]);
 	const selectedIds = $derived($selectedProductIds);
 	function toggleSelected(id: string, v: boolean) {
 		const current = $selectedProductIds;
 		if (v) selectedProductIds.set(current.includes(id) ? current : [...current, id]);
 		else selectedProductIds.set(current.filter((x) => x !== id));
 	}
-	let hasMore = $state(Boolean(data.hasMore));
+	let hasMore = $state(false);
+	let initialLoad = $state(true);
 	let loadingMore = $state(false);
 	let sentinelEl = $state<HTMLDivElement | null>(null);
 
 	$effect(() => {
 		productList = data.products as ProductRow[];
 		hasMore = Boolean(data.hasMore);
+		initialLoad = false;
 	});
 
 	let search = $state($page.url.searchParams.get('search') ?? '');
