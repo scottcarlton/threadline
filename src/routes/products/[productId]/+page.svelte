@@ -19,7 +19,6 @@
 			product_variants: ProductVariant[];
 			product_images: ProductImage[];
 			seasons: { name?: string } | { name?: string }[] | null;
-			profiles: { display_name: string | null } | null;
 		}
 	);
 	const seasons = $derived(data.seasons as { id: string; name: string }[]);
@@ -69,9 +68,7 @@
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
-	const updatedByName = $derived(
-		(product.profiles as { display_name: string | null } | null)?.display_name ?? null
-	);
+	const updatedByName = $derived(data.updatedByName as string | null);
 	const updatedAtFormatted = $derived(
 		product.updated_at
 			? new Intl.DateTimeFormat('en-US', {

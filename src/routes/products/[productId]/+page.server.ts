@@ -14,12 +14,20 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// RLS handles federation visibility — query by id only.
 	const { data: product, error: productErr } = await supabase
 		.from('products')
-		.select(
-			'*, product_variants(*), product_images(*), seasons(name), profiles:updated_by(display_name)'
-		)
+		.select('*, product_variants(*), product_images(*), seasons(name)')
 		.eq('id', params.productId)
 		.single();
 	if (productErr || !product) throw error(404, 'Product not found');
+
+	let updatedByName: string | null = null;
+	if (product.updated_by) {
+		const { data: profile } = await supabase
+			.from('profiles')
+			.select('display_name')
+			.eq('id', product.updated_by)
+			.single();
+		updatedByName = profile?.display_name ?? null;
+	}
 
 	// Resolve the brand off the product so the page header still renders.
 	const { data: brand } = await supabase
@@ -39,7 +47,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	return {
 		brand,
 		product,
-		seasons: seasonsRes.data ?? []
+		seasons: seasonsRes.data ?? [],
+		updatedByName
 	};
 };
 
