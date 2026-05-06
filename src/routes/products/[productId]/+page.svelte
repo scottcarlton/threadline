@@ -69,17 +69,6 @@
 			product.organization_id === data.organization?.id &&
 			['admin', 'owner', 'member'].includes(data.membership?.role ?? '')
 	);
-	const velocity = $derived(
-		data.velocity as {
-			orders30d: number;
-			units30d: number;
-			revenue30d: number;
-			orders90d: number;
-			units90d: number;
-			revenue90d: number;
-		}
-	);
-
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 	const fmtShort = new Intl.NumberFormat('en-US', {
 		style: 'currency',
@@ -428,67 +417,6 @@
 							{/if}
 						</button>
 					{/each}
-				</div>
-			{/if}
-
-			<!-- Style Velocity -->
-			{#if velocity && (velocity.units30d > 0 || velocity.units90d > 0)}
-				<div class="grid gap-4 sm:grid-cols-3">
-					<Card>
-						<CardContent class="pt-4 pb-4">
-							<p class="text-sm font-medium text-muted-foreground">Last 30 Days</p>
-							<p class="mt-1 text-2xl font-semibold">
-								{velocity.units30d}
-								<span class="text-sm font-normal text-muted-foreground">units</span>
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{velocity.orders30d} account{velocity.orders30d !== 1 ? 's' : ''} · {fmtShort.format(
-									velocity.revenue30d
-								)}
-							</p>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent class="pt-4 pb-4">
-							<p class="text-sm font-medium text-muted-foreground">Last 90 Days</p>
-							<p class="mt-1 text-2xl font-semibold">
-								{velocity.units90d}
-								<span class="text-sm font-normal text-muted-foreground">units</span>
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{velocity.orders90d} account{velocity.orders90d !== 1 ? 's' : ''} · {fmtShort.format(
-									velocity.revenue90d
-								)}
-							</p>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent class="pt-4 pb-4">
-							<p class="text-sm font-medium text-muted-foreground">Velocity</p>
-							{@const trend =
-								velocity.units30d > 0 && velocity.units90d > 0
-									? velocity.units30d / (velocity.units90d / 3)
-									: 0}
-							<p
-								class="mt-1 text-2xl font-semibold {trend >= 1.2
-									? 'text-emerald-600'
-									: trend <= 0.8
-										? 'text-red-600'
-										: ''}"
-							>
-								{trend > 0 ? `${Math.round(trend * 100)}%` : '—'}
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{trend >= 1.2
-									? 'Accelerating'
-									: trend <= 0.8
-										? 'Slowing'
-										: trend > 0
-											? 'Steady'
-											: 'No data'}
-							</p>
-						</CardContent>
-					</Card>
 				</div>
 			{/if}
 
