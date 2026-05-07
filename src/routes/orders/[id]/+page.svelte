@@ -3099,12 +3099,12 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 										</div>
 									{/if}
 								</div>
+								{#if c === 'Other'}
+									<span class="absolute top-2.5 left-3 text-sm text-muted-foreground">Other</span>
+								{/if}
 								<div class="flex h-10 w-full items-center justify-center">
 									{#if c === 'FedEx'}
-										<svg
-											viewBox="0 0 2400 800"
-											class="h-7 w-auto"
-											xmlns="http://www.w3.org/2000/svg"
+										<svg viewBox="0 0 2400 800" class="h-5" xmlns="http://www.w3.org/2000/svg"
 											><g fill="none" fill-rule="evenodd" transform="translate(0 67)"
 												><path
 													d="m1978.44411 641.669151-88.84649-99.791357-88.20269 99.791357h-185.41878l181.34129-203.660209-181.34129-203.660209h191.21312l89.70492 98.932936 86.48584-98.932936h184.56036l-180.48286 202.801789 183.05812 204.518629zm-718.49776 0v-641.669151h356.0298v143.14158h-205.16244v91.207153h205.16244v137.561848h-205.16244v126.18778h205.16244v143.57079z"
@@ -3116,10 +3116,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 											></svg
 										>
 									{:else if c === 'UPS'}
-										<svg
-											viewBox="0 0 52.24 61.98"
-											class="h-8 w-auto"
-											xmlns="http://www.w3.org/2000/svg"
+										<svg viewBox="0 0 52.24 61.98" class="h-7" xmlns="http://www.w3.org/2000/svg"
 											><g transform="matrix(1.25 0 0 -1.25 -47.372 728.76)"
 												><g transform="translate(.36060 .36060)"
 													><path
@@ -3135,7 +3132,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 											></svg
 										>
 									{:else if c === 'USPS'}
-										<svg viewBox="0 0 193 193" class="h-8 w-auto" xmlns="http://www.w3.org/2000/svg"
+										<svg viewBox="20 20 165 110" class="h-6" xmlns="http://www.w3.org/2000/svg"
 											><g fill-rule="evenodd" clip-rule="evenodd"
 												><path
 													d="M117.109 46.547c-11.365-1.48-72.746-.947-81.767-.86l-16.284 75.56c24.929-12.545 47.12-23.373 71.807-35.152 31.386-14.974 52.978-18.812 57.457-19.03 3.014-.146 1.305-1.459-.127-1.775-17.531-3.866-60.051 15.849-60.051 15.849l-9.29-28.186 60.533.057c-3.34-4.946-10.004-4.864-22.278-6.463z"
@@ -3152,15 +3149,15 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									{:else}
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
-											class="h-8 w-8 text-muted-foreground"
+											class="h-7 w-7 text-muted-foreground"
 											fill="none"
 											viewBox="0 0 24 24"
 											stroke="currentColor"
-											stroke-width="1.5"
+											stroke-width="1.2"
 											><path
 												stroke-linecap="round"
 												stroke-linejoin="round"
-												d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m16.5 0h-16.5m16.5 0L18 2.25H6L3.75 7.5"
+												d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
 											/></svg
 										>
 									{/if}
@@ -3198,7 +3195,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 										<path
 											stroke-linecap="round"
 											stroke-linejoin="round"
-											d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75Z"
+											d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"
 										/>
 									{:else}
 										<path
