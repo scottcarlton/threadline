@@ -3169,7 +3169,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 
 					<!-- Service level cards -->
-					<div class="mt-5 grid grid-cols-3 gap-3 sm:mt-3">
+					<div class="mt-8 grid grid-cols-3 gap-3 sm:mt-3">
 						{#each SERVICE_LEVELS as level (level)}
 							<button
 								type="button"
