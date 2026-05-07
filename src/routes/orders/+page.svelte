@@ -442,7 +442,6 @@
 	let sourceSheetOpen = $state(false);
 	let repSheetOpen = $state(false);
 	let dateSheetOpen = $state(false);
-	let atsOnly = $state(false);
 
 	const activeSeasonCount = $derived(
 		($page.url.searchParams.get('season') ?? '').split(',').filter(Boolean).length
@@ -458,8 +457,7 @@
 	);
 
 	const hasActiveFilters = $derived(
-		atsOnly ||
-			activeStatuses.length > 0 ||
+		activeStatuses.length > 0 ||
 			($page.url.searchParams.get('season') ?? '') !== '' ||
 			($page.url.searchParams.get('brand') ?? '') !== '' ||
 			($page.url.searchParams.get('source') ?? '') !== '' ||
@@ -1461,7 +1459,6 @@
 		params.delete('rep');
 		params.delete('from');
 		params.delete('to');
-		atsOnly = false;
 		goto(resolve(`/orders?${params.toString()}`), {
 			replaceState: true,
 			keepFocus: true,
@@ -1469,7 +1466,6 @@
 		});
 	}}
 	activeCount={[
-		atsOnly,
 		activeStatuses.length > 0,
 		($page.url.searchParams.get('season') ?? '') !== '',
 		($page.url.searchParams.get('brand') ?? '') !== '',
@@ -1479,18 +1475,6 @@
 	].filter(Boolean).length}
 >
 	<div class="space-y-6">
-		<!-- ATS toggle -->
-		<div class="flex items-center justify-between">
-			<span class="text-sm font-medium">ATS Only</span>
-			<Switch
-				checked={atsOnly}
-				onCheckedChange={(v) => (atsOnly = v === true)}
-				aria-label="ATS Only"
-			/>
-		</div>
-
-		<div class="h-px bg-border"></div>
-
 		<!-- Status -->
 		<div>
 			<h3 class="mb-3 text-sm font-medium text-muted-foreground">Status</h3>

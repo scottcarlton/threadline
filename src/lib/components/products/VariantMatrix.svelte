@@ -5,13 +5,73 @@
 	type Props = {
 		variants: ProductVariant[];
 		ats: boolean;
+		onRenameColor?: (oldColor: string | null, newColor: string) => void;
+		onChangeColorHex?: (color: string | null, newHex: string) => void;
 	};
 
-	let { variants, ats }: Props = $props();
+	let { variants, ats, onRenameColor, onChangeColorHex }: Props = $props();
+
+	let colorPickerRef = $state<HTMLInputElement | null>(null);
+	let pickingColorFor = $state<string | null | false>(false);
+
+	function openColorPicker(color: string | null) {
+		pickingColorFor = color;
+		requestAnimationFrame(() => colorPickerRef?.click());
+	}
+
+	function handleColorPicked(e: Event) {
+		if (pickingColorFor === false || !onChangeColorHex) return;
+		const hex = (e.target as HTMLInputElement).value;
+		onChangeColorHex(pickingColorFor, hex);
+		pickingColorFor = false;
+	}
+
+	let editingColor = $state<string | null | false>(false);
+	let editColorValue = $state('');
+
+	function startRename(color: string | null, e?: Event) {
+		editingColor = color;
+		editColorValue = color ?? 'Default';
+		if (e) {
+			const el = e.target as HTMLElement;
+			requestAnimationFrame(() => {
+				el.focus();
+				const range = document.createRange();
+				range.selectNodeContents(el);
+				range.collapse(false);
+				const sel = window.getSelection();
+				sel?.removeAllRanges();
+				sel?.addRange(range);
+			});
+		}
+	}
+
+	function commitRename() {
+		if (editingColor === false) return;
+		const trimmed = editColorValue.trim();
+		if (trimmed && trimmed !== (editingColor ?? 'Default') && onRenameColor) {
+			onRenameColor(editingColor, trimmed);
+		}
+		editingColor = false;
+	}
+
+	function handleRenameKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			editColorValue = (e.target as HTMLElement).textContent?.trim() ?? '';
+			commitRename();
+			(e.target as HTMLElement).blur();
+		} else if (e.key === 'Escape') {
+			editingColor = false;
+			(e.target as HTMLElement).blur();
+		}
+	}
 
 	type ColorGroup = {
+		id: string;
 		color: string | null;
 		colorHex: string | null;
+		createdAt: string;
 		sizes: Map<string, ProductVariant>;
 	};
 
@@ -41,13 +101,19 @@
 		for (const v of variants) {
 			const key = v.color ?? '__none__';
 			if (!map.has(key)) {
-				map.set(key, { color: v.color, colorHex: v.color_hex, sizes: new Map() });
+				map.set(key, {
+					id: v.id,
+					color: v.color,
+					colorHex: v.color_hex,
+					createdAt: v.created_at,
+					sizes: new Map()
+				});
 			}
 			if (v.size) {
 				map.get(key)!.sizes.set(v.size, v);
 			}
 		}
-		return [...map.values()];
+		return [...map.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 	});
 
 	const totalStock = $derived(() => {
@@ -78,6 +144,13 @@
 		return sum;
 	}
 </script>
+
+<input
+	bind:this={colorPickerRef}
+	type="color"
+	class="invisible absolute h-0 w-0"
+	onchange={handleColorPicked}
+/>
 
 <div class="mt-7">
 	<div class="mb-3.5 flex items-baseline justify-between">
@@ -121,13 +194,21 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each colorGroups() as group (group.color ?? '__none__')}
+					{#each colorGroups() as group (group.id)}
 						<tr class="border-b border-border/50">
 							<td class="px-3 py-3.5">
 								<div class="flex items-center gap-2.5">
 									<div
-										class="relative h-6 w-6 shrink-0 overflow-hidden rounded border border-border"
+										class="relative h-6 w-6 shrink-0 overflow-hidden rounded border border-border {onChangeColorHex
+											? 'cursor-pointer'
+											: ''}"
 										style:background={group.colorHex ?? '#f5f5f5'}
+										ondblclick={() => {
+											if (onChangeColorHex) {
+												if (colorPickerRef) colorPickerRef.value = group.colorHex ?? '#000000';
+												openColorPicker(group.color);
+											}
+										}}
 									>
 										{#if !group.colorHex}
 											<div class="absolute inset-0">
@@ -137,7 +218,30 @@
 											</div>
 										{/if}
 									</div>
-									<span class="font-medium">{group.color ?? 'Default'}</span>
+									<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+									<span
+										class="cursor-text font-medium outline-none"
+										contenteditable={editingColor !== false && editingColor === group.color
+											? 'true'
+											: 'false'}
+										role={editingColor !== false && editingColor === group.color
+											? 'textbox'
+											: undefined}
+										ondblclick={(e) => {
+											if (onRenameColor) startRename(group.color, e);
+										}}
+										onblur={(e) => {
+											if (editingColor !== false && editingColor === group.color) {
+												editColorValue = (e.target as HTMLElement).textContent?.trim() ?? '';
+												commitRename();
+												(e.target as HTMLElement).textContent = group.color ?? 'Default';
+											}
+										}}
+										onkeydown={(e) => {
+											if (editingColor !== false && editingColor === group.color)
+												handleRenameKeydown(e);
+										}}>{group.color ?? 'Default'}</span
+									>
 								</div>
 							</td>
 							{#each allSizes() as size (size)}
