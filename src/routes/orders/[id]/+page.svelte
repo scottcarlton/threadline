@@ -3100,7 +3100,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									{/if}
 								</div>
 								{#if c === 'Other'}
-									<span class="absolute top-2.5 left-3 text-sm text-muted-foreground">Other</span>
+									<span class="absolute top-2 left-2.5 text-xs text-muted-foreground">Other</span>
 								{/if}
 								<div class="flex h-10 w-full items-center justify-center">
 									{#if c === 'FedEx'}
