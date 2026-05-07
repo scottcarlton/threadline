@@ -221,6 +221,13 @@
 	$effect(() => {
 		preferences.setSidebarOpen(sidebarOpen);
 	});
+	let sidebarMounted = $state(false);
+	onMount(() => {
+		requestAnimationFrame(() => {
+			sidebarMounted = true;
+		});
+	});
+
 	let showHelp = $state(false);
 	let aiPanelOpen = $state(false);
 	let mobileAiDockOpen = $state(false);
@@ -784,8 +791,12 @@
 		     flash from the media-query store seeding to false on SSR. -->
 		<div class="flex flex-1 overflow-hidden">
 			<div
-				class="hidden h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out lg:block"
-				style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
+				class="hidden h-full shrink-0 overflow-hidden lg:block {sidebarMounted
+					? 'transition-all duration-300 ease-in-out'
+					: 'lg:w-60'}"
+				style={sidebarMounted
+					? `width: ${sidebarOpen ? '240px' : '0px'}; opacity: ${sidebarOpen ? '1' : '0'}`
+					: ''}
 			>
 				<div class="h-full w-60">
 					<Sidebar
@@ -819,9 +830,9 @@
 	{#if ($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen)}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out {sidebarOpen
-				? 'lg:left-60'
-				: 'lg:left-0'}"
+			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 {sidebarMounted
+				? `transition-[left] duration-300 ease-in-out ${sidebarOpen ? 'lg:left-60' : 'lg:left-0'}`
+				: 'lg:left-60'}"
 			transition:fly={{ y: 100, duration: 300 }}
 			onmouseenter={() => {
 				if (dockPeeking) clearTimeout(peekTimeout);
@@ -986,18 +997,16 @@
 					}}
 				>
 					<!-- Mobile drag handle to close -->
-					{#if !$isLgUp}
-						<button
-							class="flex w-full items-center justify-center pt-2 pb-0"
-							onclick={(e) => {
-								e.stopPropagation();
-								mobileAiDockOpen = false;
-							}}
-							aria-label="Close AI dock"
-						>
-							<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
-						</button>
-					{/if}
+					<button
+						class="flex w-full items-center justify-center pt-2 pb-0 lg:hidden"
+						onclick={(e) => {
+							e.stopPropagation();
+							mobileAiDockOpen = false;
+						}}
+						aria-label="Close AI dock"
+					>
+						<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
+					</button>
 					<div class="px-5 pt-4 pb-3">
 						<!-- Agent indicator -->
 						{#if $activeAgent}
@@ -1312,8 +1321,8 @@
 		</div>
 	{/if}
 
-	<!-- Mobile bottom nav — hidden when AI dock is open -->
-	{#if !$isLgUp && !mobileAiDockOpen}
+	<!-- Mobile bottom nav — CSS hides on desktop, JS hides when AI dock is open -->
+	<div class="lg:hidden {mobileAiDockOpen ? 'hidden' : ''}">
 		<MobileBottomNav
 			onAiToggle={() => (mobileAiDockOpen = true)}
 			role={data.membership?.role ?? 'guest'}
@@ -1325,7 +1334,7 @@
 			onSignOut={handleSignOut}
 			onHelp={() => (showHelp = true)}
 		/>
-	{/if}
+	</div>
 	<SearchDialog
 		isBrandOrg={data.orgType === 'brand'}
 		isBuyer={data.isBuyer === true}

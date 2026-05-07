@@ -11,6 +11,7 @@ export type OrderStatus =
 	| 'draft'
 	| 'submitted'
 	| 'confirmed'
+	| 'preparing'
 	| 'shipped'
 	| 'delivered'
 	| 'cancelled';

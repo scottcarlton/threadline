@@ -93,7 +93,7 @@
 		</p>
 	</div>
 
-	<form method="POST" use:enhance class="space-y-8">
+	<form method="POST" action="?/saveSettings" use:enhance class="space-y-8">
 		<!-- Order number format -->
 		<section class="space-y-4">
 			<h3 class="text-sm font-semibold">Order number format</h3>
