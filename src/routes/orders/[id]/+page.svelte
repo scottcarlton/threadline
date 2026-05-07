@@ -23,7 +23,7 @@
 	import { enhance } from '$app/forms';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { Dialog } from 'bits-ui';
+	import { Dialog, DropdownMenu } from 'bits-ui';
 	import {
 		acceptedPaymentMethods,
 		acceptedMethodsOnly,
@@ -1198,46 +1198,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			><LongArrow direction="left" /> Back to orders</Button
 		>
 		<div class="flex gap-2">
-			<Button variant="outline" size="sm" onclick={handleCloneOrder} disabled={cloning}>
-				{#if cloning}
-					<div
-						class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
-					></div>
-				{:else}
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-						/>
-					</svg>
-				{/if}
-				<span class="sr-only sm:not-sr-only">Clone</span>
-			</Button>
-			<Button variant="outline" size="sm" onclick={handleDownloadPdf} loading={downloadingPdf}>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-					/>
-				</svg>
-				<span class="sr-only sm:not-sr-only">Download PDF</span>
-			</Button>
 			<Button size="sm" onclick={openSendDialog}>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -1255,6 +1215,96 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</svg>
 				<span class="sr-only sm:not-sr-only">Send to Account</span>
 			</Button>
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger
+					class="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+					aria-label="More actions"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"
+						/>
+					</svg>
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Portal>
+					<DropdownMenu.Content
+						align="end"
+						sideOffset={4}
+						class="z-50 min-w-[10rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+					>
+						<DropdownMenu.Item
+							onSelect={handleCloneOrder}
+							disabled={cloning}
+							class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2m-6 12h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2Z"
+								/>
+							</svg>
+							Clone order
+						</DropdownMenu.Item>
+						<DropdownMenu.Item
+							onSelect={handleDownloadPdf}
+							disabled={downloadingPdf}
+							class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+								/>
+							</svg>
+							Download PDF
+						</DropdownMenu.Item>
+						{#if order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'cancelled'}
+							<DropdownMenu.Separator class="my-1 h-px bg-border" />
+							<DropdownMenu.Item
+								onSelect={() => (cancelOpen = true)}
+								class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm text-destructive outline-none data-[highlighted]:bg-destructive/10"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="1.5"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+								</svg>
+								Cancel order
+							</DropdownMenu.Item>
+						{/if}
+					</DropdownMenu.Content>
+				</DropdownMenu.Portal>
+			</DropdownMenu.Root>
 		</div>
 	</div>
 
@@ -1367,15 +1417,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									{advanceActionLabel[nextStatus] ?? statusLabels[nextStatus] ?? nextStatus}
 								</Button>
 							{/each}
-							{#if nextStatuses.includes('cancelled')}
-								<button
-									type="button"
-									class="px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-									onclick={() => (cancelOpen = true)}
-								>
-									Cancel order
-								</button>
-							{/if}
 						</div>
 					{/if}
 				</div>
@@ -3042,18 +3083,14 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						{#each CARRIERS as c (c)}
 							<button
 								type="button"
-								class="flex flex-col items-center justify-center gap-2 rounded-lg border-2 px-3 py-4 text-sm transition-colors {prepCarrier ===
+								class="relative flex flex-col items-center justify-center rounded-lg border-2 px-3 py-4 text-sm transition-colors {prepCarrier ===
 								c
 									? 'border-foreground'
 									: 'border-border hover:border-foreground/30'}"
 								onclick={() => (prepCarrier = prepCarrier === c ? '' : c)}
 							>
-								<!-- Placeholder icon area -->
-								<div class="flex h-10 w-full items-center justify-center text-base font-semibold">
-									{c}
-								</div>
 								<div
-									class="h-4 w-4 rounded-full border-2 {prepCarrier === c
+									class="absolute top-2.5 right-2.5 h-4 w-4 rounded-full border-2 {prepCarrier === c
 										? 'border-foreground bg-foreground'
 										: 'border-muted-foreground/40'}"
 								>
@@ -3062,6 +3099,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
 										</div>
 									{/if}
+								</div>
+								<div class="flex h-10 w-full items-center justify-center text-base font-semibold">
+									{c}
 								</div>
 							</button>
 						{/each}
