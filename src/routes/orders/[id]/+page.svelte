@@ -3132,7 +3132,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 											></svg
 										>
 									{:else if c === 'USPS'}
-										<svg viewBox="20 20 165 110" class="h-8" xmlns="http://www.w3.org/2000/svg"
+										<svg viewBox="20 20 165 110" class="h-6" xmlns="http://www.w3.org/2000/svg"
 											><g fill-rule="evenodd" clip-rule="evenodd"
 												><path
 													d="M117.109 46.547c-11.365-1.48-72.746-.947-81.767-.86l-16.284 75.56c24.929-12.545 47.12-23.373 71.807-35.152 31.386-14.974 52.978-18.812 57.457-19.03 3.014-.146 1.305-1.459-.127-1.775-17.531-3.866-60.051 15.849-60.051 15.849l-9.29-28.186 60.533.057c-3.34-4.946-10.004-4.864-22.278-6.463z"
