@@ -3151,9 +3151,15 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 											xmlns="http://www.w3.org/2000/svg"
 											class="h-7 w-7 text-muted-foreground"
 											viewBox="0 0 24 24"
-											fill="currentColor"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.5"
+											stroke-linecap="round"
+											stroke-linejoin="round"
 											><path
-												d="M3 10H2V4.00293C2 3.44903 2.45531 3 2.9918 3H21.0082C21.556 3 22 3.43788 22 4.00293V10H21V20.0015C21 20.553 20.5551 21 20.0066 21H3.9934C3.44476 21 3 20.5525 3 20.0015V10ZM19 10H5V19H19V10ZM4 5V8H20V5H4ZM9 12H15V14H9V12Z"
+												d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"
+											/><path d="M12 22V12" /><polyline points="3.29 7 12 12 20.71 7" /><path
+												d="m7.5 4.27 9 5.15"
 											/></svg
 										>
 									{/if}
