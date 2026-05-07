@@ -3179,18 +3179,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									: 'border-border grayscale hover:border-foreground/30'}"
 								onclick={() => (prepServiceLevel = prepServiceLevel === level ? '' : level)}
 							>
-								<div
-									class="absolute top-2 right-2 h-4 w-4 rounded-full border-2 {prepServiceLevel ===
-									level
-										? 'border-foreground bg-foreground'
-										: 'border-muted-foreground/40'}"
-								>
-									{#if prepServiceLevel === level}
-										<div class="flex h-full w-full items-center justify-center">
-											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
-										</div>
-									{/if}
-								</div>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									class="h-6 w-6 text-muted-foreground"
@@ -3212,6 +3200,18 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									{/if}
 								</svg>
 								<span class="text-xs font-medium">{level}</span>
+								<div
+									class="absolute top-2 right-2 h-4 w-4 shrink-0 rounded-full border-2 sm:static sm:ml-auto {prepServiceLevel ===
+									level
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if prepServiceLevel === level}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
+								</div>
 							</button>
 						{/each}
 					</div>
