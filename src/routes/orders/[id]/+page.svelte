@@ -3211,7 +3211,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 										/>
 									{/if}
 								</svg>
-								<span class="text-sm font-medium">{level}</span>
+								<span class="text-xs font-medium">{level}</span>
 							</button>
 						{/each}
 					</div>
