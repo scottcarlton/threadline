@@ -3069,7 +3069,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</div>
 
 				<!-- Shipment details -->
-				<div class="mt-6">
+				<div class="mt-10">
 					<div class="text-sm font-semibold">
 						Shipment Details <span class="font-normal text-muted-foreground">(optional)</span>
 					</div>
@@ -3162,7 +3162,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 
 					<!-- Tracking + Cost -->
-					<div class="mt-4 grid grid-cols-[1fr_auto] gap-3">
+					<div class="mt-6 grid grid-cols-[1fr_auto] gap-3">
 						<div>
 							<div class="text-sm text-muted-foreground">Tracking number</div>
 							<div class="mt-1.5">
