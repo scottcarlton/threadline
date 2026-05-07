@@ -1564,7 +1564,8 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 								<Input
 									type="number"
 									bind:value={shipCost}
-									placeholder="0.00"
+									placeholder="$0.00"
+									class="text-right"
 									onblur={() => {
 										const v = parseFloat(shipCost);
 										saveShipmentField('shipping_cost', isNaN(v) ? null : v);
@@ -3067,16 +3068,11 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 				</div>
 
-				<div class="mt-6 h-px bg-border"></div>
-
 				<!-- Shipment details -->
 				<div class="mt-6">
 					<div class="text-sm font-semibold">
 						Shipment Details <span class="font-normal text-muted-foreground">(optional)</span>
 					</div>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Provide available shipment details that might be helpful.
-					</p>
 
 					<!-- Carrier cards -->
 					<div class="mt-4 grid grid-cols-4 gap-3">
@@ -3173,7 +3169,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						<div class="w-36">
 							<div class="text-sm text-muted-foreground">Shipping cost</div>
 							<div class="mt-1.5">
-								<Input type="number" bind:value={prepCost} placeholder="$0.00" />
+								<Input type="number" bind:value={prepCost} placeholder="$0.00" class="text-right" />
 							</div>
 						</div>
 					</div>
@@ -3262,7 +3258,12 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						<div>
 							<div class="text-sm text-muted-foreground">Shipping cost</div>
 							<div class="mt-1.5">
-								<Input type="number" bind:value={shipConfirmCost} placeholder="0.00" />
+								<Input
+									type="number"
+									bind:value={shipConfirmCost}
+									placeholder="$0.00"
+									class="text-right"
+								/>
 							</div>
 						</div>
 					</div>
