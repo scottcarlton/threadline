@@ -11,7 +11,6 @@
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import FilterBySheet from '$lib/components/shared/FilterBySheet.svelte';
 	import FilterSortSheet from '$lib/components/shared/FilterSortSheet.svelte';
-	import Switch from '$lib/components/ui/switch.svelte';
 	import { isLgUp } from '$lib/utils/viewport.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { DropdownMenu } from 'bits-ui';

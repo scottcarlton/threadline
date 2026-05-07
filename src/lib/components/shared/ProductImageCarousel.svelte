@@ -92,7 +92,6 @@
 		onmouseleave={() => (hovered = false)}
 	>
 		{#if showVideo && activeGroup?.video}
-			<!-- svelte-ignore a11y_media_has_caption -->
 			<video
 				src="/api/products/{productId}/images/{activeGroup.video.id}"
 				class="absolute inset-0 h-full w-full object-cover"

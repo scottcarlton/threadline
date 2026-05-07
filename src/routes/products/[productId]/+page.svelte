@@ -74,14 +74,6 @@
 
 	const variantThumbnails = $derived(variantImageGroups().map((g) => g.primary!));
 
-	const variantSwatchMap = $derived(() => {
-		const map = new Map<string, { color: string | null; hex: string | null }>();
-		for (const v of product.product_variants ?? []) {
-			map.set(v.id, { color: v.color, hex: v.color_hex });
-		}
-		return map;
-	});
-
 	const canEdit = $derived(data.membership?.role !== 'guest');
 	const canDelete = $derived(['admin', 'owner'].includes(data.membership?.role ?? ''));
 
@@ -464,7 +456,6 @@
 		<div class="lg:sticky lg:top-6 lg:self-start">
 			<div class="group/main relative aspect-[4/5] w-full overflow-hidden bg-muted">
 				{#if playingVideo && activeGroup?.video}
-					<!-- svelte-ignore a11y_media_has_caption -->
 					<video
 						bind:this={videoEl}
 						src={`/api/products/${product.id}/images/${activeGroup.video.id}`}
@@ -474,9 +465,8 @@
 						muted
 						playsinline
 						onclick={() => {
-							if (videoEl) {
-								videoEl.paused ? videoEl.play() : videoEl.pause();
-							}
+							if (videoEl?.paused) videoEl.play();
+							else if (videoEl) videoEl.pause();
 						}}
 					></video>
 				{:else if activeImage}
@@ -719,7 +709,6 @@
 					></p>
 				</div>
 			{:else}
-				<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 				<p
 					class="cursor-text text-sm whitespace-pre-wrap outline-none"
 					contenteditable={editingDescription ? 'true' : 'false'}

@@ -40,9 +40,7 @@ const ALLOWED_IMAGE_MIMES = new Set([
 	'image/gif'
 ]);
 
-const ALLOWED_VIDEO_MIMES = new Set(['video/mp4', 'video/quicktime']);
-
-const ALLOWED_MEDIA_MIMES = new Set([...ALLOWED_IMAGE_MIMES, ...ALLOWED_VIDEO_MIMES]);
+export const ALLOWED_VIDEO_MIMES = new Set(['video/mp4', 'video/quicktime']);
 
 function safeFileName(name: string): string {
 	return (name || 'upload')
