@@ -58,7 +58,9 @@
 	// Mutable list — initial page from server, appended via infinite scroll
 	let productList = $state<ProductRow[]>([]);
 	let initialLoad = $state(true);
-	const isLoading = $derived(initialLoad || !!$navigating);
+	const isLoading = $derived(
+		initialLoad || (!!$navigating && $navigating.to?.url.pathname === '/products')
+	);
 	const selectedIds = $derived($selectedProductIds);
 	function toggleSelected(id: string, v: boolean) {
 		const current = $selectedProductIds;

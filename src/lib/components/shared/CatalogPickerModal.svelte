@@ -243,15 +243,6 @@
 		return items.find((it) => it.product_id === product_id);
 	}
 
-	function variantSummary(p: CatalogProduct): string {
-		const colors = productColors(p).length;
-		const sizes = productSizes(p).length;
-		const parts: string[] = [];
-		if (colors > 0) parts.push(`${colors} color${colors > 1 ? 's' : ''}`);
-		if (sizes > 0) parts.push(`${sizes} size${sizes > 1 ? 's' : ''}`);
-		return parts.join(', ') || 'No variants';
-	}
-
 	function findVariant(
 		product: CatalogProduct,
 		color: string | null,
@@ -447,7 +438,6 @@
 											</div>
 											<div class="shrink-0 sm:text-right">
 												<div class="text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
-												<div class="mt-0.5 text-sm text-muted-foreground">{variantSummary(p)}</div>
 											</div>
 										</div>
 									</div>
