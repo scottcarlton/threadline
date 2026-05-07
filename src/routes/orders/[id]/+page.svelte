@@ -3073,6 +3073,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					<div class="text-sm font-semibold">
 						Shipment Details <span class="font-normal text-muted-foreground">(optional)</span>
 					</div>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Provide available shipment details that might be helpful.
+					</p>
 
 					<!-- Carrier cards -->
 					<div class="mt-4 grid grid-cols-4 gap-3">
