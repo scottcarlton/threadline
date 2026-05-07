@@ -3234,11 +3234,11 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</div>
 			</div>
 
-			<footer class="mt-8 flex items-center justify-between px-6 pb-6">
+			<footer class="mt-8 grid grid-cols-2 gap-3 px-6 pb-6">
 				<Dialog.Close>
-					<Button variant="outline" size="lg">Cancel</Button>
+					<Button variant="outline" size="lg" class="w-full">Cancel</Button>
 				</Dialog.Close>
-				<Button size="lg" onclick={confirmPrepare} loading={preparingOrder}>
+				<Button size="lg" class="w-full" onclick={confirmPrepare} loading={preparingOrder}>
 					Prepare Shipment
 				</Button>
 			</footer>
