@@ -3179,14 +3179,16 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</div>
 			</div>
 
-			<footer class="mt-6 flex items-center justify-end gap-3 px-6 py-4">
+			<footer class="mt-8 flex items-center gap-3 px-6 pb-6">
+				<Button size="lg" class="flex-1" onclick={confirmPrepare} loading={preparingOrder}
+					>Prepare Shipment</Button
+				>
 				<Dialog.Close
 					type="button"
-					class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+					class="px-5 py-3 text-sm text-muted-foreground hover:text-foreground"
 				>
 					Cancel
 				</Dialog.Close>
-				<Button onclick={confirmPrepare} loading={preparingOrder}>Prepare Shipment</Button>
 			</footer>
 		</Dialog.Content>
 	</Dialog.Portal>
