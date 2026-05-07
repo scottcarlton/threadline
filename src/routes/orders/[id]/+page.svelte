@@ -959,14 +959,17 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	// ── Ship confirmation dialog ────────────────────────────────────────
 	let shipConfirmOpen = $state(false);
 	let shipConfirmCarrier = $state('');
+	let shipConfirmServiceLevel = $state('');
 	let shipConfirmTracking = $state('');
 	let shipConfirmCost = $state(0);
 	let shippingOrder = $state(false);
 
 	function openShipConfirm() {
-		shipConfirmCarrier = shipCarrier;
-		shipConfirmTracking = shipTracking;
-		shipConfirmCost = shipCost ? Number(shipCost) : 0;
+		shipConfirmCarrier = ((order as unknown as Record<string, unknown>).carrier as string) ?? '';
+		shipConfirmServiceLevel = prepServiceLevel;
+		shipConfirmTracking =
+			((order as unknown as Record<string, unknown>).tracking_number as string) ?? '';
+		shipConfirmCost = Number((order as unknown as Record<string, unknown>).shipping_cost) || 0;
 		shipConfirmOpen = true;
 	}
 
@@ -3280,7 +3283,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 				</div>
 
-				<!-- Shipment summary / edit -->
+				<!-- Shipment details -->
 				<div class="mt-10">
 					<div class="text-sm font-semibold">
 						Shipment Details <span class="font-normal text-muted-foreground">(review)</span>
@@ -3288,24 +3291,154 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					<p class="mt-1 text-sm text-muted-foreground">
 						Confirm or update before shipping. Empty fields can be added later.
 					</p>
-					<div class="mt-4 grid grid-cols-[1fr_auto] gap-3">
-						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-							<div>
-								<div class="text-sm text-muted-foreground">Carrier</div>
-								<div class="mt-1.5">
-									<SelectField
-										items={carrierItems}
-										bind:value={shipConfirmCarrier}
-										placeholder="Select carrier"
-										class="w-full"
-									/>
+
+					<!-- Carrier cards -->
+					<div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+						{#each CARRIERS as c (c)}
+							<button
+								type="button"
+								class="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 px-3 py-4 text-sm transition-all {shipConfirmCarrier ===
+								c
+									? 'border-foreground'
+									: 'border-border grayscale hover:border-foreground/30'}"
+								onclick={() => (shipConfirmCarrier = shipConfirmCarrier === c ? '' : c)}
+							>
+								<div
+									class="absolute top-2.5 right-2.5 h-4 w-4 rounded-full border-2 {shipConfirmCarrier ===
+									c
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if shipConfirmCarrier === c}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
 								</div>
-							</div>
-							<div>
-								<div class="text-sm text-muted-foreground">Tracking number</div>
-								<div class="mt-1.5">
-									<Input bind:value={shipConfirmTracking} placeholder="Enter tracking number" />
+								{#if c === 'Other'}
+									<span class="absolute top-2 left-2.5 text-xs text-muted-foreground">Other</span>
+								{/if}
+								<div class="flex h-8 w-full items-center justify-center">
+									{#if c === 'FedEx'}
+										<svg viewBox="0 0 2400 800" class="h-5" xmlns="http://www.w3.org/2000/svg"
+											><g fill="none" fill-rule="evenodd" transform="translate(0 67)"
+												><path
+													d="m1978.44411 641.669151-88.84649-99.791357-88.20269 99.791357h-185.41878l181.34129-203.660209-181.34129-203.660209h191.21312l89.70492 98.932936 86.48584-98.932936h184.56036l-180.48286 202.801789 183.05812 204.518629zm-718.49776 0v-641.669151h356.0298v143.14158h-205.16244v91.207153h205.16244v137.561848h-205.16244v126.18778h205.16244v143.57079z"
+													fill="#f60"
+												/><path
+													d="m1109.7228 0v262.676602h-1.71684c-30.88596-35.168048-76.23916-54.164173-122.968702-51.505216-94.013115.826229-175.725783 64.752429-199.153502 155.803279-29.830105-97.859911-107.302534-157.734725-220.399404-157.734725-92.494784 0-165.460507 41.418778-203.660209 109.23398v-84.125187h-191.42772v-91.421758h208.596125v-142.926975h-378.992548v641.669151h170.396423v-269.75857h169.752608c-5.298082 21.045486-7.89423 42.680051-7.725782 64.38152 0 133.913562 102.152012 227.695976 232.846498 227.695976 109.663189 0 181.985097-51.505216 220.184798-145.502235h-145.931445c-14.824918 26.364233-44.305216 40.933771-74.253353 36.697466-47.553622-1.046199-85.620984-39.779552-85.842027-87.344262h297.871833c12.876304 107.302534 95.71386 197.865872 209.23994 197.865872 48.637377.1538 94.135437-24.004292 121.251867-64.38152h1.71684v40.345753h150.22354v-641.669151zm-625.144559 373.842027c7.123458-38.896096 40.934129-67.207154 80.476901-67.385991 40.490611-2.04769 75.818181 27.220864 81.33532 67.385991zm533.722799 170.181818c-55.368104 0-89.704915-51.505216-89.704915-105.585693 0-57.514158 30.04471-112.882265 89.704915-112.882265 59.66021 0 85.84203 55.368107 85.84203 112.882265s-25.10879 105.585693-85.62742 105.585693z"
+													fill="#4d148c"
+												/></g
+											></svg
+										>
+									{:else if c === 'UPS'}
+										<svg viewBox="0 0 52.24 61.98" class="h-7" xmlns="http://www.w3.org/2000/svg"
+											><g transform="matrix(1.25 0 0 -1.25 -47.372 728.76)"
+												><g transform="translate(.36060 .36060)"
+													><path
+														d="m38.962 567.66 0.17739-20.134 4.5235-5.5879 13.571-7.1844 16.675 8.1601 3.4592 8.2488-0.35478 26.698-12.595 0.35478-13.127-2.1287-11.974-6.9183z"
+														fill-rule="evenodd"
+														fill="#301506"
+													/><path
+														d="m25.619 0c-9.881 0-18.5 1.913-25.619 5.6855v30.16c0 6.3462 2.3845 11.653 6.8945 15.35 4.1875 3.435 17.138 9.0957 18.725 9.7832 1.505-0.655 14.609-6.4032 18.73-9.7832 4.5075-3.695 6.8926-9.0034 6.8926-15.35v-30.16c-7.12-3.773-15.739-5.686-25.624-5.686zm14.631 5.8398c2.9466 0.038525 5.8399 0.22055 8.6367 0.48047v29.525c0 5.6738-2.0588 10.257-6.0312 13.529-3.5488 2.9225-14.25 7.717-17.236 9.0332-3.026-1.334-13.754-6.189-17.239-9.032-3.9489-3.216-6.0275-7.908-6.0275-13.529v-17.252c11.348-10.407 25.128-12.921 37.896-12.754zm-13.963 13.748c-2.4312 0-4.3928 0.54344-6.0078 1.5859v29.049h4.459v-9.3848c0.445 0.13125 1.0909 0.25391 2.0059 0.25391 4.9462 0 7.7891-4.4588 7.7891-10.969 0-6.4975-2.9273-10.535-8.2461-10.535zm15.236 0c-2.9325 0.085-5.9992 2.2093-5.9805 5.8105 0.0075 2.3712 0.66484 4.1445 4.3398 6.3008 1.9612 1.1512 2.7514 1.9098 2.7852 3.3086 0.0375 1.555-1.0369 2.4926-2.6719 2.4863-1.4225-0.01125-3.123-0.8007-4.2617-1.8145v4.1035c1.3962 0.8325 3.1384 1.3828 4.8984 1.3828 4.405 0 6.372-3.1116 6.457-5.9629 0.08375-2.5988-.63438-4.5652-4.3594-6.7539-1.6625-.975-2.9754-1.6158-2.9316-3.2383 0.04375-1.5838 1.3586-2.1402 2.6211-2.1289 1.5575 0.01375 3.0641 0.87633 3.9941 1.8301v-3.875c-0.78375-0.60375-2.4431-1.5242-4.8906-1.4492zm-36.893 0.45117v14.012c0 4.7238 2.2345 7.1152 6.6445 7.1152 2.7288 0 5.0143-0.63156 6.7168-1.7891v-19.338h-4.4492v16.801c-0.485 0.3325-1.2044 0.54492-2.1094 0.54492-2.0425 0-2.3477-1.873-2.3477-3.1367v-14.209h-4.4551zm21.687 3.1387c2.5862 0 3.6582 2.0648 3.6582 7.0586 0.000001 4.8725-1.226 7.2266-3.791 7.2266-0.60375 0-1.1285-0.14953-1.4473-0.26953v-13.693c0.36125-0.18 0.97508-0.32227 1.5801-0.32227z"
+														transform="matrix(.8 0 0 -.8 37.897 582.21)"
+														fill="#fab80a"
+													/></g
+												></g
+											></svg
+										>
+									{:else if c === 'USPS'}
+										<svg viewBox="20 20 165 110" class="h-6" xmlns="http://www.w3.org/2000/svg"
+											><g fill-rule="evenodd" clip-rule="evenodd"
+												><path
+													d="M117.109 46.547c-11.365-1.48-72.746-.947-81.767-.86l-16.284 75.56c24.929-12.545 47.12-23.373 71.807-35.152 31.386-14.974 52.978-18.812 57.457-19.03 3.014-.146 1.305-1.459-.127-1.775-17.531-3.866-60.051 15.849-60.051 15.849l-9.29-28.186 60.533.057c-3.34-4.946-10.004-4.864-22.278-6.463z"
+													fill="#004B87"
+												/><path
+													d="M44.553 23.971a206015 206015 0 0 1 83.037 18.242c13.309 2.934 15.01 7.494 15.01 7.494s14.564-1.76 17.236 3.309c3.426 6.494-5.334 18.833-5.334 18.833L28.603 121.246h130.743l21.441-97.275H44.553z"
+													fill="#004B87"
+												/><path
+													d="M139.932 53.105s-.625 3.505-13.564 4.59c-1.186.099-1.469.857.096.907 1.562.05 23.189-.695 25.598-.459 2.41.236 2.088 1.691 1.779 3.1-.312 1.408-1.932 5.629-2.348 6.62-.414.992.377.969 1.014.322.635-.648 4.521-8.454 4.633-10.3.111-1.846-.549-3.763-3.553-4.425-3.005-.665-13.655-.355-13.655-.355z"
+													fill="#004B87"
+												/></g
+											></svg
+										>
+									{:else}
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-9 w-9 text-muted-foreground"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.5"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											><path
+												d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"
+											/><path d="M12 22V12" /><polyline points="3.29 7 12 12 20.71 7" /><path
+												d="m7.5 4.27 9 5.15"
+											/></svg
+										>
+									{/if}
 								</div>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Service level cards -->
+					<div class="mt-8 grid grid-cols-3 gap-3 sm:mt-3">
+						{#each SERVICE_LEVELS as level (level)}
+							<button
+								type="button"
+								class="relative flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-3 text-sm transition-all sm:flex-row sm:justify-start sm:gap-3 sm:px-4 {shipConfirmServiceLevel ===
+								level
+									? 'border-foreground'
+									: 'border-border grayscale hover:border-foreground/30'}"
+								onclick={() =>
+									(shipConfirmServiceLevel = shipConfirmServiceLevel === level ? '' : level)}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-6 w-6 text-muted-foreground"
+									viewBox="0 0 24 24"
+									fill="currentColor"
+								>
+									{#if level === 'Ground'}
+										<path
+											d="M8.96456 18C8.72194 19.6961 7.26324 21 5.5 21C3.73676 21 2.27806 19.6961 2.03544 18H1V6C1 5.44772 1.44772 5 2 5H16C16.5523 5 17 5.44772 17 6V8H20L23 12.0557V18H20.9646C20.7219 19.6961 19.2632 21 17.5 21C15.7368 21 14.2781 19.6961 14.0354 18H8.96456ZM15 7H3V15.0505C3.63526 14.4022 4.52066 14 5.5 14C6.8962 14 8.10145 14.8175 8.66318 16H14.3368C14.5045 15.647 14.7296 15.3264 15 15.0505V7ZM17 13H21V12.715L18.9917 10H17V13ZM17.5 19C18.1531 19 18.7087 18.5826 18.9146 18C18.9699 17.8436 19 17.6753 19 17.5C19 16.6716 18.3284 16 17.5 16C16.6716 16 16 16.6716 16 17.5C16 17.6753 16.0301 17.8436 16.0854 18C16.2913 18.5826 16.8469 19 17.5 19ZM7 17.5C7 16.6716 6.32843 16 5.5 16C4.67157 16 4 16.6716 4 17.5C4 17.6753 4.03008 17.8436 4.08535 18C4.29127 18.5826 4.84689 19 5.5 19C6.15311 19 6.70873 18.5826 6.91465 18C6.96992 17.8436 7 17.6753 7 17.5Z"
+										/>
+									{:else if level === 'Next Day Air'}
+										<path
+											d="M14 8.94737L22 14V16L14 13.4737V18.8333L17 20.5V22L12.5 21L8 22V20.5L11 18.8333V13.4737L3 16V14L11 8.94737V3.5C11 2.67157 11.6716 2 12.5 2C13.3284 2 14 2.67157 14 3.5V8.94737Z"
+										/>
+									{:else}
+										<path
+											d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM13 12H17V14H11V7H13V12Z"
+										/>
+									{/if}
+								</svg>
+								<span class="text-xs font-medium">{level}</span>
+								<div
+									class="absolute top-2 right-2 h-4 w-4 shrink-0 rounded-full border-2 sm:static sm:ml-auto {shipConfirmServiceLevel ===
+									level
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if shipConfirmServiceLevel === level}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Tracking + Cost -->
+					<div class="mt-8 grid grid-cols-[1fr_auto] gap-3 sm:mt-6">
+						<div>
+							<div class="text-sm text-muted-foreground">Tracking number</div>
+							<div class="mt-1.5">
+								<Input bind:value={shipConfirmTracking} placeholder="Enter tracking number" />
 							</div>
 						</div>
 						<div class="w-28 sm:w-36">
