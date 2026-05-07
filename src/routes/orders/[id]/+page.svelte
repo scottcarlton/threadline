@@ -3234,7 +3234,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</div>
 			</div>
 
-			<footer class="mt-8 flex items-center justify-end gap-3 px-6 pb-6">
+			<footer class="mt-8 flex items-center justify-between px-6 pb-6">
 				<Dialog.Close>
 					<Button variant="outline" size="lg">Cancel</Button>
 				</Dialog.Close>
