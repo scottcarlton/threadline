@@ -255,6 +255,18 @@
 		);
 	}
 
+	function colorImageId(product: CatalogProduct, color: string): string | null {
+		const variantIds = product.product_variants.filter((v) => v.color === color).map((v) => v.id);
+		const img = product.product_images?.find(
+			(i) => i.variant_id && variantIds.includes(i.variant_id)
+		);
+		return img?.id ?? null;
+	}
+
+	function colorHex(product: CatalogProduct, color: string): string | null {
+		return product.product_variants.find((v) => v.color === color)?.color_hex ?? null;
+	}
+
 	function productForItem(it: CatalogCartItem): CatalogProduct | null {
 		return modalProducts.find((p) => p.id === it.product_id) ?? null;
 	}
@@ -328,7 +340,7 @@
 		</div>
 
 		<!-- Body: grid + overlay sizing panel -->
-		<div class="relative flex flex-1 overflow-hidden">
+		<div class="relative flex flex-1 gap-4 overflow-hidden">
 			<div class="flex-1 overflow-auto pt-5 pb-32 md:px-5">
 				{#if modalLoading}
 					<div class="p-10 text-center text-sm text-muted-foreground">Loading…</div>
@@ -409,6 +421,9 @@
 													</span>
 												</div>
 												{#if added}
+													{@const totalUnits = Object.values(
+														findItem(p.id)?.size_qtys ?? {}
+													).reduce((s, q) => s + (q || 0), 0)}
 													<button
 														type="button"
 														class="absolute right-4 bottom-4 left-4 inline-flex h-10 items-center justify-center rounded-md bg-background/80 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-background"
@@ -417,7 +432,9 @@
 															openSizing(p);
 														}}
 													>
-														Set Sizes
+														{totalUnits > 0
+															? `${totalUnits} ${totalUnits === 1 ? 'unit' : 'units'}`
+															: 'Set Sizes'}
 													</button>
 												{/if}
 											{/if}
@@ -454,7 +471,7 @@
 				{#if it}
 					<aside
 						bind:this={asideEl}
-						class="hidden shrink-0 flex-col overflow-hidden bg-background sm:flex"
+						class="mr-4 mb-4 hidden shrink-0 flex-col overflow-hidden rounded-md border bg-background sm:flex"
 						style="width: 0px; opacity: 0; will-change: width, opacity;"
 					>
 						<div class="flex w-[380px] flex-1 flex-col">
@@ -474,18 +491,47 @@
 								{#if it.available_colors.length > 0}
 									<div class="mb-3">
 										<div class="mb-2 text-sm text-muted-foreground">Color</div>
-										<div class="flex flex-wrap gap-2">
+										<div class="flex flex-wrap gap-3">
 											{#each it.available_colors as color (color)}
 												{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
+												{@const prod = productForItem(it)}
+												{@const thumbId = prod ? colorImageId(prod, color) : null}
+												{@const hex = prod ? colorHex(prod, color) : null}
+												{@const selected = it.selected_color === color}
 												<button
 													type="button"
-													class="rounded-full px-3 py-1 text-sm font-medium transition {it.selected_color ===
-													color
-														? 'bg-foreground text-background'
-														: 'bg-muted text-muted-foreground hover:text-foreground'}"
+													class="flex flex-col items-center gap-1.5"
 													onclick={() => (items[idx].selected_color = color)}
 												>
-													{color}
+													{#if thumbId}
+														<img
+															src={`/api/products/${it.product_id}/images/${thumbId}`}
+															alt={color}
+															class="h-12 w-12 rounded-full object-cover ring-2 ring-offset-2 transition {selected
+																? 'ring-foreground'
+																: 'ring-transparent hover:ring-muted-foreground/40'}"
+														/>
+													{:else if hex}
+														<span
+															class="block h-12 w-12 rounded-full ring-2 ring-offset-2 transition {selected
+																? 'ring-foreground'
+																: 'ring-transparent hover:ring-muted-foreground/40'}"
+															style="background-color: {hex};"
+														></span>
+													{:else}
+														<span
+															class="flex h-12 w-12 items-center justify-center rounded-full text-sm font-medium ring-2 ring-offset-2 transition {selected
+																? 'bg-foreground text-background ring-foreground'
+																: 'bg-muted text-muted-foreground ring-transparent hover:ring-muted-foreground/40'}"
+														>
+															{color.slice(0, 2)}
+														</span>
+													{/if}
+													<span
+														class="text-sm {selected
+															? 'font-medium text-foreground'
+															: 'text-muted-foreground'}">{color}</span
+													>
 												</button>
 											{/each}
 										</div>
@@ -494,7 +540,7 @@
 
 								{#if it.available_sizes.length > 0}
 									<div class="mb-2 text-sm text-muted-foreground">Sizes</div>
-									<div class="flex flex-col gap-3">
+									<div class="grid grid-cols-2 gap-3">
 										{#each it.available_sizes as size (size)}
 											{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
 											{@const prod = productForItem(it)}
@@ -502,21 +548,19 @@
 											{@const variant = prod?.ats
 												? findVariant(prod, it.selected_color, size)
 												: null}
-											<div
-												class="grid items-center gap-3"
-												style="grid-template-columns: 32px 2fr 1fr;"
-											>
-												<span class="text-sm font-medium">{size}</span>
-												<QtyStepper
-													value={qty}
-													label={size}
-													onchange={(n) => {
-														items[idx].size_qtys[size] = n;
-													}}
-												/>
+											<div class="flex items-center gap-2">
+												<div class="flex-1">
+													<QtyStepper
+														value={qty}
+														label={size}
+														onchange={(n) => {
+															items[idx].size_qtys[size] = n;
+														}}
+													/>
+												</div>
 												{#if variant && variant.stock_qty !== null}
 													<span
-														class="w-fit rounded-sm bg-emerald-500/10 px-1.5 py-0.5 text-xs whitespace-nowrap text-emerald-600 dark:text-emerald-400"
+														class="shrink-0 rounded-sm bg-emerald-500/10 px-1.5 py-0.5 text-xs whitespace-nowrap text-emerald-600 dark:text-emerald-400"
 														>{variant.stock_qty} in stock</span
 													>
 												{/if}

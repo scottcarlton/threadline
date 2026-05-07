@@ -1,6 +1,7 @@
 export type ProductVariant = {
 	id: string;
 	color: string | null;
+	color_hex: string | null;
 	size: string | null;
 	price_override: number | null;
 	stock_qty: number | null;

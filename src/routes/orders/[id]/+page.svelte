@@ -186,7 +186,6 @@
 		data.isBuyer
 			? order.status === 'draft' && order.created_by === data.user?.id
 			: data.membership?.role !== 'guest' &&
-					order.status !== 'preparing' &&
 					order.status !== 'shipped' &&
 					order.status !== 'delivered' &&
 					order.status !== 'cancelled'

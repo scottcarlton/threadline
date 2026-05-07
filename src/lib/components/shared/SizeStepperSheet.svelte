@@ -131,7 +131,6 @@
 						{@const qty = v.qtys[size] ?? 0}
 						{@const stockQty = props.stockBySize?.[size] ?? null}
 						<div class="flex items-center gap-4">
-							<div class="w-8 shrink-0 text-sm font-medium">{size}</div>
 							<div class="flex-1">
 								<QtyStepper value={qty} label={size} onchange={(n) => setQty(size, n)} />
 							</div>

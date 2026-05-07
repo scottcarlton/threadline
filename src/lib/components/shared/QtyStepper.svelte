@@ -19,6 +19,9 @@
 <div
 	class="flex h-11 items-center overflow-hidden rounded-lg border border-input bg-background focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20"
 >
+	{#if label}
+		<span class="shrink-0 pl-4 text-sm font-medium">{label}</span>
+	{/if}
 	<button
 		type="button"
 		aria-label={label ? `Decrease ${label}` : 'Decrease'}
