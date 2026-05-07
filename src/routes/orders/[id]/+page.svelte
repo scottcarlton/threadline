@@ -3149,7 +3149,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									{:else}
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
-											class="h-7 w-7 text-muted-foreground"
+											class="h-9 w-9 text-muted-foreground"
 											viewBox="0 0 24 24"
 											fill="none"
 											stroke="currentColor"
