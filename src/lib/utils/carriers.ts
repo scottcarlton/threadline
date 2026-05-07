@@ -1,5 +1,8 @@
-export const CARRIERS = ['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other'] as const;
+export const CARRIERS = ['FedEx', 'UPS', 'USPS', 'Other'] as const;
 export type Carrier = (typeof CARRIERS)[number];
+
+export const SERVICE_LEVELS = ['Ground', 'Next Day Air', 'Overnight'] as const;
+export type ServiceLevel = (typeof SERVICE_LEVELS)[number];
 
 const TRACKING_URLS: Partial<Record<Carrier, (trackingNumber: string) => string>> = {
 	UPS: (t) => `https://www.ups.com/track?tracknum=${encodeURIComponent(t)}`,

@@ -31,7 +31,7 @@
 		paymentMethodLabel
 	} from '$lib/payment-methods';
 	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
-	import { CARRIERS, trackingUrl } from '$lib/utils/carriers.js';
+	import { CARRIERS, SERVICE_LEVELS, trackingUrl } from '$lib/utils/carriers.js';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
 	// just marked the order viewed; status changes below also call this.
@@ -913,11 +913,13 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	let prepareConfirmOpen = $state(false);
 	let preparingOrder = $state(false);
 	let prepCarrier = $state('');
+	let prepServiceLevel = $state('');
 	let prepTracking = $state('');
 	let prepCost = $state('');
 
 	function openPrepareDialog() {
 		prepCarrier = '';
+		prepServiceLevel = '';
 		prepTracking = '';
 		prepCost = '';
 		prepareConfirmOpen = true;
@@ -2969,57 +2971,41 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		<Dialog.Content
 			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
 		>
-			<header class="flex items-start justify-between gap-4 border-b px-6 py-5">
-				<div class="min-w-0">
-					<Dialog.Title class="text-lg font-medium">Prepare Shipment</Dialog.Title>
-					<Dialog.Description class="sr-only">
-						Prepare order {order.order_number} for shipment
-					</Dialog.Description>
-					<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-						<span class="font-mono font-medium">{order.order_number}</span>
-						<span class="text-muted-foreground">{order.accounts?.business_name ?? '—'}</span>
-						<span class="font-medium">{fmt.format(Number(order.total_amount))}</span>
-						<span class="text-muted-foreground"
-							>{savedOrderUnits} unit{savedOrderUnits === 1 ? '' : 's'}</span
-						>
+			<div class="max-h-[calc(90vh-4rem)] overflow-y-auto px-6 pt-6 pb-0">
+				<!-- Title -->
+				<Dialog.Title class="text-xl font-semibold">Prepare Shipment</Dialog.Title>
+				<Dialog.Description class="sr-only">
+					Prepare order {order.order_number} for shipment
+				</Dialog.Description>
+
+				<!-- Order context -->
+				<div class="mt-4 flex items-start justify-between">
+					<div>
+						<div class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</div>
+						<div class="font-mono text-lg font-semibold">{order.order_number}</div>
+					</div>
+					<div class="text-right">
+						<div class="text-sm text-muted-foreground">
+							{savedOrderUnits} Unit{savedOrderUnits === 1 ? '' : 's'}
+						</div>
+						<div class="text-lg font-semibold">{fmt.format(Number(order.total_amount))}</div>
 					</div>
 				</div>
-				<Dialog.Close
-					type="button"
-					class="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-					aria-label="Close"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						width="18"
-						height="18"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.75"
-					>
-						<path d="M18 6 6 18M6 6l12 12" />
-					</svg>
-				</Dialog.Close>
-			</header>
 
-			<div class="space-y-5 px-6 py-5">
 				<!-- Ship-to + Ship window -->
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+				<div class="mt-5 grid grid-cols-2 gap-6">
 					<div>
 						<div class="text-sm text-muted-foreground">Ship to</div>
 						{#if orderLocation}
-							<div class="mt-1 text-sm">
-								{orderLocation.address_line1 ?? ''}{orderLocation.city
-									? `, ${orderLocation.city}`
-									: ''}{orderLocation.state ? `, ${orderLocation.state}` : ''}
+							<div class="mt-1 text-sm leading-relaxed">
+								{orderLocation.address_line1 ?? ''}<br />
+								{orderLocation.city ?? ''}{orderLocation.state ? `, ${orderLocation.state}` : ''}
 								{orderLocation.zip ?? ''}
 							</div>
 						{:else if accountAddress}
-							<div class="mt-1 text-sm">
-								{accountAddress.address_line1 ?? ''}{accountAddress.city
-									? `, ${accountAddress.city}`
-									: ''}{accountAddress.state ? `, ${accountAddress.state}` : ''}
+							<div class="mt-1 text-sm leading-relaxed">
+								{accountAddress.address_line1 ?? ''}<br />
+								{accountAddress.city ?? ''}{accountAddress.state ? `, ${accountAddress.state}` : ''}
 								{accountAddress.zip ?? ''}
 							</div>
 						{:else}
@@ -3031,9 +3017,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						<div class="mt-1 text-sm">
 							{#if order.start_ship_date && order.expected_ship_date}
 								{shortDate(order.start_ship_date)} → {shortDate(order.expected_ship_date)}
-								{#if shipWindowLength !== null}
-									<span class="text-muted-foreground">({shipWindowLength}d)</span>
-								{/if}
 							{:else if order.start_ship_date}
 								Ships {shortDate(order.start_ship_date)}
 							{:else}
@@ -3043,42 +3026,121 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 				</div>
 
-				<div class="h-px bg-border"></div>
+				<div class="mt-6 h-px bg-border"></div>
 
 				<!-- Shipment details -->
-				<div>
-					<div class="text-sm font-medium">
+				<div class="mt-6">
+					<div class="text-sm font-semibold">
 						Shipment Details <span class="font-normal text-muted-foreground">(optional)</span>
 					</div>
-					<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-						<div>
-							<div class="text-sm text-muted-foreground">Carrier</div>
-							<div class="mt-1.5">
-								<SelectField
-									items={carrierItems}
-									bind:value={prepCarrier}
-									placeholder="Select carrier"
-									class="w-full"
-								/>
-							</div>
-						</div>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Provide available shipment details that might be helpful.
+					</p>
+
+					<!-- Carrier cards -->
+					<div class="mt-4 grid grid-cols-4 gap-3">
+						{#each CARRIERS as c (c)}
+							<button
+								type="button"
+								class="flex flex-col items-center justify-center gap-2 rounded-lg border-2 px-3 py-4 text-sm transition-colors {prepCarrier ===
+								c
+									? 'border-foreground'
+									: 'border-border hover:border-foreground/30'}"
+								onclick={() => (prepCarrier = prepCarrier === c ? '' : c)}
+							>
+								<!-- Placeholder icon area -->
+								<div class="flex h-10 w-full items-center justify-center text-base font-semibold">
+									{c}
+								</div>
+								<div
+									class="h-4 w-4 rounded-full border-2 {prepCarrier === c
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if prepCarrier === c}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Service level cards -->
+					<div class="mt-3 grid grid-cols-3 gap-3">
+						{#each SERVICE_LEVELS as level (level)}
+							<button
+								type="button"
+								class="flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-sm transition-colors {prepServiceLevel ===
+								level
+									? 'border-foreground'
+									: 'border-border hover:border-foreground/30'}"
+								onclick={() => (prepServiceLevel = prepServiceLevel === level ? '' : level)}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4 shrink-0 text-muted-foreground"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="1.5"
+								>
+									{#if level === 'Ground'}
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"
+										/>
+									{:else if level === 'Next Day Air'}
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"
+										/>
+									{:else}
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"
+										/>
+									{/if}
+								</svg>
+								<span class="font-medium">{level}</span>
+								<div
+									class="ml-auto h-4 w-4 shrink-0 rounded-full border-2 {prepServiceLevel === level
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if prepServiceLevel === level}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Tracking + Cost -->
+					<div class="mt-4 grid grid-cols-[1fr_auto] gap-3">
 						<div>
 							<div class="text-sm text-muted-foreground">Tracking number</div>
 							<div class="mt-1.5">
-								<Input bind:value={prepTracking} placeholder="Enter tracking number" />
+								<Input bind:value={prepTracking} placeholder="SH-1234567890" />
 							</div>
 						</div>
-						<div>
+						<div class="w-36">
 							<div class="text-sm text-muted-foreground">Shipping cost</div>
 							<div class="mt-1.5">
-								<Input type="number" bind:value={prepCost} placeholder="0.00" />
+								<Input type="number" bind:value={prepCost} placeholder="$0.00" />
 							</div>
 						</div>
 					</div>
 				</div>
 			</div>
 
-			<footer class="flex items-center justify-end gap-3 border-t bg-muted/30 px-6 py-4">
+			<footer class="mt-6 flex items-center justify-end gap-3 border-t bg-muted/30 px-6 py-4">
 				<Dialog.Close
 					type="button"
 					class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"

@@ -22,10 +22,6 @@ describe('trackingUrl', () => {
 		expect(url).toBe('https://www.dhl.com/us-en/home/tracking.html?tracking-id=1234567890');
 	});
 
-	it('returns null for Freight carrier', () => {
-		expect(trackingUrl('Freight', 'ABC123')).toBeNull();
-	});
-
 	it('returns null for Other carrier', () => {
 		expect(trackingUrl('Other', 'ABC123')).toBeNull();
 	});
@@ -44,6 +40,6 @@ describe('trackingUrl', () => {
 	});
 
 	it('exports expected carrier list', () => {
-		expect(CARRIERS).toEqual(['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other']);
+		expect(CARRIERS).toEqual(['FedEx', 'UPS', 'USPS', 'Other']);
 	});
 });
