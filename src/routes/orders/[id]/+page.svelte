@@ -3225,66 +3225,91 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
 		/>
 		<Dialog.Content
-			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
+			class="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background sm:inset-auto sm:top-[50%] sm:left-[50%] sm:max-h-[90vh] sm:w-full sm:max-w-2xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg sm:border sm:shadow-lg"
 		>
-			<header class="flex items-start justify-between gap-4 px-6 py-5">
-				<div class="min-w-0">
-					<Dialog.Title class="text-lg font-medium">Ship Order</Dialog.Title>
-					<Dialog.Description class="sr-only">
-						Confirm shipment for order {order.order_number}
-					</Dialog.Description>
-					<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-						<span class="font-mono font-medium">{order.order_number}</span>
-						<span class="text-muted-foreground">{order.accounts?.business_name ?? '—'}</span>
-						<span class="font-medium">{fmt.format(Number(order.total_amount))}</span>
+			<div class="flex-1 overflow-y-auto px-6 pt-6 pb-0">
+				<Dialog.Title class="text-xl font-semibold">Ship Order</Dialog.Title>
+				<Dialog.Description class="sr-only">
+					Confirm shipment for order {order.order_number}
+				</Dialog.Description>
+
+				<!-- Order context -->
+				<div class="mt-4 flex items-start justify-between">
+					<div>
+						<div class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</div>
+						<div class="font-mono text-lg font-semibold">{order.order_number}</div>
+					</div>
+					<div class="text-right">
+						<div class="text-sm text-muted-foreground">
+							{savedOrderUnits} Unit{savedOrderUnits === 1 ? '' : 's'}
+						</div>
+						<div class="text-lg font-semibold">{fmt.format(Number(order.total_amount))}</div>
 					</div>
 				</div>
-				<Dialog.Close
-					type="button"
-					class="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-					aria-label="Close"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						width="18"
-						height="18"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.75"
-					>
-						<path d="M18 6 6 18M6 6l12 12" />
-					</svg>
-				</Dialog.Close>
-			</header>
 
-			<div class="space-y-5 px-6 py-5">
-				<!-- Shipment details -->
-				<div>
-					<div class="text-sm font-medium">Shipment Details</div>
+				<!-- Ship-to + Ship window -->
+				<div class="mt-5 grid grid-cols-2 gap-6">
+					<div>
+						<div class="text-sm text-muted-foreground">Ship to</div>
+						{#if orderLocation}
+							<div class="mt-1 text-sm leading-relaxed">
+								{orderLocation.address_line1 ?? ''}<br />
+								{orderLocation.city ?? ''}{orderLocation.state ? `, ${orderLocation.state}` : ''}
+								{orderLocation.zip ?? ''}
+							</div>
+						{:else if accountAddress}
+							<div class="mt-1 text-sm leading-relaxed">
+								{accountAddress.address_line1 ?? ''}<br />
+								{accountAddress.city ?? ''}{accountAddress.state ? `, ${accountAddress.state}` : ''}
+								{accountAddress.zip ?? ''}
+							</div>
+						{:else}
+							<div class="mt-1 text-sm text-muted-foreground">No address on file</div>
+						{/if}
+					</div>
+					<div>
+						<div class="text-sm text-muted-foreground">Ship window</div>
+						<div class="mt-1 text-sm">
+							{#if order.start_ship_date && order.expected_ship_date}
+								{shortDate(order.start_ship_date)} → {shortDate(order.expected_ship_date)}
+							{:else if order.start_ship_date}
+								Ships {shortDate(order.start_ship_date)}
+							{:else}
+								<span class="text-muted-foreground">Not set</span>
+							{/if}
+						</div>
+					</div>
+				</div>
+
+				<!-- Shipment summary / edit -->
+				<div class="mt-10">
+					<div class="text-sm font-semibold">
+						Shipment Details <span class="font-normal text-muted-foreground">(review)</span>
+					</div>
 					<p class="mt-1 text-sm text-muted-foreground">
-						Review and update before marking as shipped. Empty fields can still be updated after
-						shipping.
+						Confirm or update before shipping. Empty fields can be added later.
 					</p>
-					<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-						<div>
-							<div class="text-sm text-muted-foreground">Carrier</div>
-							<div class="mt-1.5">
-								<SelectField
-									items={carrierItems}
-									bind:value={shipConfirmCarrier}
-									placeholder="Select carrier"
-									class="w-full"
-								/>
+					<div class="mt-4 grid grid-cols-[1fr_auto] gap-3">
+						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+							<div>
+								<div class="text-sm text-muted-foreground">Carrier</div>
+								<div class="mt-1.5">
+									<SelectField
+										items={carrierItems}
+										bind:value={shipConfirmCarrier}
+										placeholder="Select carrier"
+										class="w-full"
+									/>
+								</div>
+							</div>
+							<div>
+								<div class="text-sm text-muted-foreground">Tracking number</div>
+								<div class="mt-1.5">
+									<Input bind:value={shipConfirmTracking} placeholder="Enter tracking number" />
+								</div>
 							</div>
 						</div>
-						<div>
-							<div class="text-sm text-muted-foreground">Tracking number</div>
-							<div class="mt-1.5">
-								<Input bind:value={shipConfirmTracking} placeholder="Enter tracking number" />
-							</div>
-						</div>
-						<div>
+						<div class="w-28 sm:w-36">
 							<div class="text-sm text-muted-foreground">Shipping cost</div>
 							<div class="mt-1.5">
 								<Input
@@ -3299,14 +3324,13 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</div>
 			</div>
 
-			<footer class="flex items-center justify-end gap-3 px-6 py-4">
-				<Dialog.Close
-					type="button"
-					class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-				>
-					Cancel
+			<footer class="mt-8 grid grid-cols-2 gap-3 px-6 pb-6">
+				<Dialog.Close>
+					<Button variant="outline" size="lg" class="w-full">Cancel</Button>
 				</Dialog.Close>
-				<Button onclick={confirmShip} loading={shippingOrder}>Ship Order</Button>
+				<Button size="lg" class="w-full" onclick={confirmShip} loading={shippingOrder}>
+					Ship Order
+				</Button>
 			</footer>
 		</Dialog.Content>
 	</Dialog.Portal>
