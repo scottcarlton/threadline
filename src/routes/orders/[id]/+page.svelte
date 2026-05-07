@@ -3173,7 +3173,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						{#each SERVICE_LEVELS as level (level)}
 							<button
 								type="button"
-								class="relative flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-3 text-sm transition-all {prepServiceLevel ===
+								class="relative flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-3 text-sm transition-all sm:flex-row sm:justify-start sm:gap-3 sm:px-4 {prepServiceLevel ===
 								level
 									? 'border-foreground'
 									: 'border-border grayscale hover:border-foreground/30'}"
