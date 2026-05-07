@@ -3082,10 +3082,10 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						{#each CARRIERS as c (c)}
 							<button
 								type="button"
-								class="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 px-3 py-4 text-sm transition-colors {prepCarrier ===
+								class="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 px-3 py-4 text-sm transition-all {prepCarrier ===
 								c
 									? 'border-foreground'
-									: 'border-border hover:border-foreground/30'}"
+									: 'border-border grayscale hover:border-foreground/30'}"
 								onclick={() => (prepCarrier = prepCarrier === c ? '' : c)}
 							>
 								<div
@@ -3136,13 +3136,13 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 											><g fill-rule="evenodd" clip-rule="evenodd"
 												><path
 													d="M117.109 46.547c-11.365-1.48-72.746-.947-81.767-.86l-16.284 75.56c24.929-12.545 47.12-23.373 71.807-35.152 31.386-14.974 52.978-18.812 57.457-19.03 3.014-.146 1.305-1.459-.127-1.775-17.531-3.866-60.051 15.849-60.051 15.849l-9.29-28.186 60.533.057c-3.34-4.946-10.004-4.864-22.278-6.463z"
-													fill="#1F2937"
+													fill="#004B87"
 												/><path
 													d="M44.553 23.971a206015 206015 0 0 1 83.037 18.242c13.309 2.934 15.01 7.494 15.01 7.494s14.564-1.76 17.236 3.309c3.426 6.494-5.334 18.833-5.334 18.833L28.603 121.246h130.743l21.441-97.275H44.553z"
-													fill="#1F2937"
+													fill="#004B87"
 												/><path
 													d="M139.932 53.105s-.625 3.505-13.564 4.59c-1.186.099-1.469.857.096.907 1.562.05 23.189-.695 25.598-.459 2.41.236 2.088 1.691 1.779 3.1-.312 1.408-1.932 5.629-2.348 6.62-.414.992.377.969 1.014.322.635-.648 4.521-8.454 4.633-10.3.111-1.846-.549-3.763-3.553-4.425-3.005-.665-13.655-.355-13.655-.355z"
-													fill="#1F2937"
+													fill="#004B87"
 												/></g
 											></svg
 										>
