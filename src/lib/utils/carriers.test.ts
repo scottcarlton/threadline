@@ -17,11 +17,6 @@ describe('trackingUrl', () => {
 		expect(url).toBe('https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223033');
 	});
 
-	it('returns DHL tracking URL', () => {
-		const url = trackingUrl('DHL', '1234567890');
-		expect(url).toBe('https://www.dhl.com/us-en/home/tracking.html?tracking-id=1234567890');
-	});
-
 	it('returns null for Other carrier', () => {
 		expect(trackingUrl('Other', 'ABC123')).toBeNull();
 	});

@@ -22,8 +22,8 @@
 	import type { AccountHealth } from '$lib/server/account-health.js';
 
 	// Mutable list — initial page from server, appended via infinite scroll
-	let accountList = $state<Account[]>((data.accounts ?? []) as Account[]);
-	let hasMore = $state(Boolean(data.hasMore));
+	let accountList = $state<Account[]>([]);
+	let hasMore = $state(false);
 	let loadingMore = $state(false);
 	let sentinelEl = $state<HTMLDivElement | null>(null);
 

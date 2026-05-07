@@ -4,18 +4,11 @@
 	type Props = {
 		class?: string;
 		value?: number;
-		placeholder?: string;
 		disabled?: boolean;
 		onchange?: (value: number) => void;
 	};
 
-	let {
-		class: className = '',
-		value = $bindable(0),
-		placeholder: _placeholder,
-		disabled = false,
-		onchange
-	}: Props = $props();
+	let { class: className = '', value = $bindable(0), disabled = false, onchange }: Props = $props();
 
 	let cents = $state(Math.round(value * 100));
 	let focused = $state(false);

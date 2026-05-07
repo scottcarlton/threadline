@@ -877,17 +877,10 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		invalidateAll();
 	}
 
-	// ── Shipment details (preparing + shipped) ──────────────────────────
-	const carrierItems = CARRIERS.map((c) => ({ value: c, label: c }));
-	const isPreparingOrLater = $derived(
-		order.status === 'preparing' || order.status === 'shipped' || order.status === 'delivered'
-	);
-	const isPreparing = $derived(order.status === 'preparing');
-
+	// ── Shipment field sync (for ship confirm dialog pre-fill) ──────────
 	let shipCarrier = $state('');
 	let shipTracking = $state('');
 	let shipCost = $state('');
-	let savingShipmentField = $state(false);
 
 	$effect(() => {
 		shipCarrier = ((order as unknown as Record<string, unknown>).carrier as string) ?? '';
@@ -895,19 +888,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		const cost = (order as unknown as Record<string, unknown>).shipping_cost;
 		shipCost = cost != null ? String(cost) : '';
 	});
-
-	async function saveShipmentField(field: string, value: unknown) {
-		savingShipmentField = true;
-		const { error } = await supabase
-			.from('orders')
-			.update({ [field]: value, updated_at: new Date().toISOString() })
-			.eq('id', order.id);
-		savingShipmentField = false;
-		if (error) {
-			toast.error('Could not save shipment detail');
-		}
-		invalidateAll();
-	}
 
 	// ── Prepare shipment dialog ─────────────────────────────────────────
 	let prepareConfirmOpen = $state(false);
@@ -1530,6 +1510,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 							{#if shipTracking}
 								{@const url = trackingUrl(shipCarrier, shipTracking)}
 								{#if url}
+									<!-- eslint-disable svelte/no-navigation-without-resolve -- external carrier tracking URL -->
 									<a
 										href={url}
 										target="_blank"
@@ -1538,6 +1519,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									>
 										{shipTracking}
 									</a>
+									<!-- eslint-enable svelte/no-navigation-without-resolve -->
 								{:else}
 									<p class="mt-1 text-sm">{shipTracking}</p>
 								{/if}
