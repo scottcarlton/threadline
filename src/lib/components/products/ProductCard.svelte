@@ -6,7 +6,7 @@
 		id: string;
 		is_primary: boolean;
 		sort_order?: number | null;
-		role?: 'primary' | 'hover' | null;
+		role?: 'primary' | 'hover' | 'video' | null;
 		variant_id?: string | null;
 	};
 

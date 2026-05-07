@@ -12,6 +12,8 @@
 	import SelectField from '$lib/components/ui/select/select-field.svelte';
 	import VariantMatrix from '$lib/components/products/VariantMatrix.svelte';
 	import AddVariantModal from '$lib/components/products/AddVariantModal.svelte';
+	import AttributePicker from '$lib/components/products/AttributePicker.svelte';
+	import { getAttributeLabel } from '$lib/data/product-attributes';
 	import type { Product, ProductVariant, ProductImage } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -27,14 +29,19 @@
 	const variantImageGroups = $derived(() => {
 		const groups = new SvelteMap<
 			string,
-			{ primary: ProductImage | null; hover: ProductImage | null }
+			{
+				primary: ProductImage | null;
+				hover: ProductImage | null;
+				video: ProductImage | null;
+			}
 		>();
 		for (const img of product.product_images ?? []) {
 			const key = img.variant_id ?? '__product__';
-			if (!groups.has(key)) groups.set(key, { primary: null, hover: null });
+			if (!groups.has(key)) groups.set(key, { primary: null, hover: null, video: null });
 			const group = groups.get(key)!;
 			if (img.role === 'primary') group.primary = img;
 			else if (img.role === 'hover') group.hover = img;
+			else if (img.role === 'video') group.video = img;
 			else if (img.is_primary && !group.primary) group.primary = img;
 			else if (!group.hover) group.hover = img;
 		}
@@ -49,6 +56,8 @@
 
 	let activeGroupIndex = $state(0);
 	let selectedSubImage = $state<ProductImage | null>(null);
+	let playingVideo = $state(false);
+	let videoEl = $state<HTMLVideoElement | null>(null);
 
 	const activeGroup = $derived(
 		variantImageGroups()[activeGroupIndex] ?? variantImageGroups()[0] ?? null
@@ -60,6 +69,7 @@
 	$effect(() => {
 		void activeGroupIndex;
 		selectedSubImage = null;
+		playingVideo = false;
 	});
 
 	const variantThumbnails = $derived(variantImageGroups().map((g) => g.primary!));
@@ -117,9 +127,11 @@
 	let editProductYear = $state<number>(new Date().getFullYear());
 	let editAts = $state(false);
 	let editFeatured = $state(false);
+	let editAttributes = $state<string[]>([]);
 	let saveError = $state('');
 	let saving = $state(false);
 
+	let editingDescription = $state(false);
 	let addVariantOpen = $state(false);
 	let deleteConfirmOpen = $state(false);
 	let deleting = $state(false);
@@ -136,7 +148,18 @@
 		editProductYear = product.product_year ?? new Date().getFullYear();
 		editAts = product.ats ?? false;
 		editFeatured = product.is_featured ?? false;
+		editAttributes = [...(product.attributes ?? [])];
 		editing = true;
+	}
+
+	async function commitDescription(text: string) {
+		editingDescription = false;
+		if (text === (product.description ?? '')) return;
+		await supabase
+			.from('products')
+			.update({ description: text || null, updated_at: new Date().toISOString() })
+			.eq('id', product.id);
+		invalidateAll();
 	}
 
 	function cancelEdit() {
@@ -159,6 +182,7 @@
 		fd.set('product_year', String(editProductYear));
 		fd.set('ats', String(editAts));
 		fd.set('is_featured', String(editFeatured));
+		fd.set('attributes', JSON.stringify(editAttributes));
 		try {
 			const res = await fetch('?/save', { method: 'POST', body: fd });
 			if (!res.ok) {
@@ -217,6 +241,41 @@
 
 	let replaceInput: HTMLInputElement | undefined = $state();
 	let replacingImageId = $state<string | null>(null);
+	let videoUploadInput: HTMLInputElement | undefined = $state();
+	let addHoverInput: HTMLInputElement | undefined = $state();
+
+	async function handleAddHover() {
+		const files = addHoverInput?.files;
+		if (!files || files.length === 0 || !activeGroup?.primary) return;
+		const formData = new FormData();
+		formData.append('file', files[0]);
+		if (activeGroup.primary.variant_id)
+			formData.append('variant_id', activeGroup.primary.variant_id);
+		formData.append('role', 'hover');
+		await fetch(`/api/products/${product.id}/images`, { method: 'POST', body: formData });
+		if (addHoverInput) addHoverInput.value = '';
+		invalidateAll();
+	}
+
+	async function handleVideoUpload() {
+		const files = videoUploadInput?.files;
+		if (!files || files.length === 0 || !activeGroup) return;
+		const variantId = activeGroup.primary?.variant_id ?? null;
+		const formData = new FormData();
+		formData.append('file', files[0]);
+		if (variantId) formData.append('variant_id', variantId);
+		formData.append('role', 'video');
+		if (activeGroup.video) {
+			await fetch(`/api/products/${product.id}/images`, {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ imageId: activeGroup.video.id })
+			});
+		}
+		await fetch(`/api/products/${product.id}/images`, { method: 'POST', body: formData });
+		if (videoUploadInput) videoUploadInput.value = '';
+		invalidateAll();
+	}
 
 	function startReplace(imageId: string) {
 		replacingImageId = imageId;
@@ -396,7 +455,21 @@
 		<!-- Left: primary image + variant thumbnails -->
 		<div class="lg:sticky lg:top-6 lg:self-start">
 			<div class="group/main relative aspect-[4/5] w-full overflow-hidden bg-muted">
-				{#if activeImage}
+				{#if playingVideo && activeGroup?.video}
+					<video
+						bind:this={videoEl}
+						src={`/api/products/${product.id}/images/${activeGroup.video.id}`}
+						class="absolute inset-0 h-full w-full cursor-pointer object-cover"
+						autoplay
+						loop
+						muted
+						playsinline
+						onclick={() => {
+							if (videoEl?.paused) videoEl.play();
+							else if (videoEl) videoEl.pause();
+						}}
+					></video>
+				{:else if activeImage}
 					<img
 						src={`/api/products/${product.id}/images/${activeImage.id}`}
 						alt={product.name}
@@ -410,10 +483,12 @@
 								class="rounded bg-white/90 px-2.5 py-1 text-sm font-medium text-foreground"
 								onclick={() => startReplace(activeImage!.id)}>Replace</button
 							>
-							<button
-								class="rounded bg-red-500/90 px-2.5 py-1 text-sm font-medium text-white"
-								onclick={() => deleteImage(activeImage!.id)}>Remove</button
-							>
+							{#if activeGroup?.primary && !activeGroup?.hover}
+								<button
+									class="rounded bg-white/90 px-2.5 py-1 text-sm font-medium text-foreground"
+									onclick={() => addHoverInput?.click()}>+ Hover</button
+								>
+							{/if}
 						</div>
 					{/if}
 				{:else}
@@ -441,6 +516,20 @@
 				class="hidden"
 				onchange={handleReplace}
 			/>
+			<input
+				bind:this={addHoverInput}
+				type="file"
+				accept="image/jpeg,image/png,image/webp,image/avif"
+				class="hidden"
+				onchange={handleAddHover}
+			/>
+			<input
+				bind:this={videoUploadInput}
+				type="file"
+				accept="video/mp4,video/quicktime"
+				class="hidden"
+				onchange={handleVideoUpload}
+			/>
 			{#if activeGroup && activeGroup.primary && activeGroup.hover}
 				<div class="mt-2 grid grid-cols-2 gap-2">
 					{#if activeGroup.primary}
@@ -448,7 +537,10 @@
 							role="button"
 							tabindex="-1"
 							class="group/img relative aspect-square overflow-hidden bg-muted"
-							onmouseenter={() => (selectedSubImage = activeGroup.primary)}
+							onmouseenter={() => {
+								playingVideo = false;
+								selectedSubImage = activeGroup.primary;
+							}}
 						>
 							<img
 								src="/api/products/{product.id}/images/{activeGroup.primary.id}"
@@ -463,10 +555,6 @@
 										class="rounded bg-white/90 px-2.5 py-1 text-sm font-medium text-foreground"
 										onclick={() => startReplace(activeGroup.primary!.id)}>Replace</button
 									>
-									<button
-										class="rounded bg-red-500/90 px-2.5 py-1 text-sm font-medium text-white"
-										onclick={() => deleteImage(activeGroup.primary!.id)}>Remove</button
-									>
 								</div>
 							{/if}
 						</div>
@@ -476,13 +564,36 @@
 							role="button"
 							tabindex="-1"
 							class="group/img relative aspect-square overflow-hidden bg-muted"
-							onmouseenter={() => (selectedSubImage = activeGroup.hover)}
+							onmouseenter={() => {
+								if (activeGroup.video) {
+									playingVideo = true;
+									selectedSubImage = null;
+								} else {
+									selectedSubImage = activeGroup.hover;
+								}
+							}}
 						>
 							<img
 								src="/api/products/{product.id}/images/{activeGroup.hover.id}"
 								alt="{product.name} — hover"
 								class="h-full w-full object-cover"
 							/>
+							{#if activeGroup.video}
+								<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+									<div class="flex h-10 w-10 items-center justify-center rounded-full bg-black/50">
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="currentColor"
+											class="h-5 w-5 text-white"
+										>
+											<path
+												d="M6 20.1957V3.80421C6 3.01878 6.86395 2.53993 7.53 2.95621L20.6432 11.152C21.2699 11.5436 21.2699 12.4563 20.6432 12.848L7.53 21.0437C6.86395 21.46 6 20.9812 6 20.1957Z"
+											></path>
+										</svg>
+									</div>
+								</div>
+							{/if}
 							{#if canEdit}
 								<div
 									class="absolute inset-0 flex items-end justify-center gap-2 pb-3 opacity-0 transition-all group-hover/img:opacity-100"
@@ -495,6 +606,20 @@
 										class="rounded bg-red-500/90 px-2.5 py-1 text-sm font-medium text-white"
 										onclick={() => deleteImage(activeGroup.hover!.id)}>Remove</button
 									>
+									<button
+										class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white/90 text-foreground transition-colors hover:bg-white dark:bg-black/90 dark:hover:bg-black"
+										onclick={() => videoUploadInput?.click()}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="currentColor"
+											class="h-4 w-4"
+											><path
+												d="M17 9.2L22.2133 5.55071C22.4395 5.39235 22.7513 5.44737 22.9096 5.6736C22.9684 5.75764 23 5.85774 23 5.96033V18.0397C23 18.3158 22.7761 18.5397 22.5 18.5397C22.3974 18.5397 22.2973 18.5081 22.2133 18.4493L17 14.8V19C17 19.5523 16.5523 20 16 20H2C1.44772 20 1 19.5523 1 19V5C1 4.44772 1.44772 4 2 4H16C16.5523 4 17 4.44772 17 5V9.2Z"
+											></path></svg
+										>
+									</button>
 								</div>
 							{/if}
 						</div>
@@ -513,21 +638,50 @@
 			<!-- Variant thumbnails + add button -->
 			<div class="flex flex-wrap gap-1.5">
 				{#each variantThumbnails as thumb, i (thumb.id)}
-					<button
-						type="button"
-						class="relative h-14 w-14 shrink-0 overflow-hidden transition-all"
-						onclick={() => (activeGroupIndex = i)}
-					>
-						<img
-							src="/api/products/{product.id}/images/{thumb.id}"
-							alt=""
-							class="h-full w-full object-cover"
-						/>
-						{#if i === activeGroupIndex}
-							<span class="pointer-events-none absolute inset-0 border-[3px] border-black/70"
-							></span>
+					<div class="group/thumb relative">
+						<button
+							type="button"
+							class="relative h-14 w-14 shrink-0 overflow-hidden transition-all"
+							onclick={() => (activeGroupIndex = i)}
+						>
+							<img
+								src="/api/products/{product.id}/images/{thumb.id}"
+								alt=""
+								class="h-full w-full object-cover"
+							/>
+							{#if i === activeGroupIndex}
+								<span class="pointer-events-none absolute inset-0 border-[3px] border-black/70"
+								></span>
+							{/if}
+						</button>
+						{#if canEdit && thumb.variant_id && variantThumbnails.length > 1}
+							<button
+								type="button"
+								class="absolute -top-2.5 -right-2 z-10 cursor-pointer rounded-full bg-white text-red-500 opacity-0 transition-opacity group-hover/thumb:opacity-100 dark:bg-black"
+								onclick={async () => {
+									const color = (product.product_variants ?? []).find(
+										(v) => v.id === thumb.variant_id
+									)?.color;
+									const ids = (product.product_variants ?? [])
+										.filter((v) => v.color === color)
+										.map((v) => v.id);
+									if (ids.length === 0) return;
+									await supabase.from('product_variants').delete().in('id', ids);
+									invalidateAll();
+								}}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 24 24"
+									fill="currentColor"
+									class="h-5 w-5"
+									><path
+										d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM7 11V13H17V11H7Z"
+									></path></svg
+								>
+							</button>
 						{/if}
-					</button>
+					</div>
 				{/each}
 				{#if canEdit}
 					<button
@@ -554,8 +708,47 @@
 						bind:textContent={editDescription}
 					></p>
 				</div>
-			{:else if product.description}
-				<p class="text-sm whitespace-pre-wrap">{product.description}</p>
+			{:else}
+				<p
+					class="cursor-text text-sm whitespace-pre-wrap outline-none"
+					contenteditable={editingDescription ? 'true' : 'false'}
+					role={editingDescription ? 'textbox' : undefined}
+					ondblclick={() => {
+						if (canEdit) editingDescription = true;
+					}}
+					onblur={(e) => {
+						if (editingDescription) {
+							commitDescription((e.target as HTMLElement).textContent?.trim() ?? '');
+						}
+					}}
+					onkeydown={(e) => {
+						if (editingDescription && e.key === 'Escape') {
+							editingDescription = false;
+							(e.target as HTMLElement).textContent = product.description ?? '';
+							(e.target as HTMLElement).blur();
+						}
+					}}
+				>
+					{product.description || 'Double-click to add a description'}
+				</p>
+			{/if}
+
+			<!-- Attributes -->
+			{#if editing}
+				<div>
+					<p class="mb-1.5 text-sm text-muted-foreground">Attributes</p>
+					<AttributePicker selected={editAttributes} onchange={(v) => (editAttributes = v)} />
+				</div>
+			{:else if product.attributes && product.attributes.length > 0}
+				<div>
+					<p class="mb-1.5 text-sm text-muted-foreground">Attributes</p>
+					<div class="flex flex-wrap gap-1.5">
+						{#each product.attributes as attr (attr)}
+							<span class="border border-border px-2.5 py-1 text-sm">{getAttributeLabel(attr)}</span
+							>
+						{/each}
+					</div>
+				</div>
 			{/if}
 
 			<!-- Save error -->
@@ -566,7 +759,26 @@
 			{/if}
 
 			<!-- Variant matrix -->
-			<VariantMatrix variants={product.product_variants ?? []} ats={product.ats} />
+			<VariantMatrix
+				variants={product.product_variants ?? []}
+				ats={product.ats}
+				onRenameColor={async (oldColor, newColor) => {
+					const ids = (product.product_variants ?? [])
+						.filter((v) => v.color === oldColor)
+						.map((v) => v.id);
+					if (ids.length === 0) return;
+					await supabase.from('product_variants').update({ color: newColor }).in('id', ids);
+					invalidateAll();
+				}}
+				onChangeColorHex={async (color, newHex) => {
+					const ids = (product.product_variants ?? [])
+						.filter((v) => v.color === color)
+						.map((v) => v.id);
+					if (ids.length === 0) return;
+					await supabase.from('product_variants').update({ color_hex: newHex }).in('id', ids);
+					invalidateAll();
+				}}
+			/>
 
 			<!-- Categories -->
 			{#if editing}

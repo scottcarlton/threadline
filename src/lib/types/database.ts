@@ -522,6 +522,7 @@ export interface Product {
 	created_at: string;
 	updated_at: string;
 	updated_by: string | null;
+	attributes: string[];
 }
 
 export interface ProductVariant {
@@ -550,7 +551,7 @@ export interface ProductImage {
 	mime_type: string | null;
 	sort_order: number;
 	is_primary: boolean;
-	role: 'primary' | 'hover' | null;
+	role: 'primary' | 'hover' | 'video' | null;
 	uploaded_by: string | null;
 	created_at: string;
 }

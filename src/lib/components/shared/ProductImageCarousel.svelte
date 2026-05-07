@@ -5,7 +5,7 @@
 		id: string;
 		is_primary: boolean;
 		sort_order?: number | null;
-		role?: 'primary' | 'hover' | null;
+		role?: 'primary' | 'hover' | 'video' | null;
 		variant_id?: string | null;
 	};
 
@@ -31,23 +31,23 @@
 	}: Props = $props();
 	/* eslint-enable @typescript-eslint/no-unused-vars */
 
-	// Group images by variant — each variant can have a primary + hover pair.
-	// Images with no variant_id are product-level (no-variant case).
 	const variantGroups = $derived(() => {
 		const groups = new SvelteMap<
 			string,
-			{ primary: ProductImage | null; hover: ProductImage | null }
+			{ primary: ProductImage | null; hover: ProductImage | null; video: ProductImage | null }
 		>();
 
 		for (const img of images) {
 			const key = img.variant_id ?? '__product__';
-			if (!groups.has(key)) groups.set(key, { primary: null, hover: null });
+			if (!groups.has(key)) groups.set(key, { primary: null, hover: null, video: null });
 			const group = groups.get(key)!;
 
 			if (img.role === 'primary') {
 				group.primary = img;
 			} else if (img.role === 'hover') {
 				group.hover = img;
+			} else if (img.role === 'video') {
+				group.video = img;
 			} else if (img.is_primary && !group.primary) {
 				group.primary = img;
 			} else if (!group.hover) {
@@ -69,8 +69,13 @@
 
 	const activeGroup = $derived(variantGroups()[activeGroupIndex] ?? variantGroups()[0] ?? null);
 
+	const showVideo = $derived(hovered && activeGroup?.video);
 	const activeImage = $derived(
-		activeGroup ? (hovered && activeGroup.hover ? activeGroup.hover : activeGroup.primary) : null
+		activeGroup
+			? hovered && !activeGroup.video && activeGroup.hover
+				? activeGroup.hover
+				: activeGroup.primary
+			: null
 	);
 
 	const thumbnails = $derived(variantGroups().map((g) => g.primary!));
@@ -86,7 +91,16 @@
 		onmouseenter={() => (hovered = true)}
 		onmouseleave={() => (hovered = false)}
 	>
-		{#if activeImage}
+		{#if showVideo && activeGroup?.video}
+			<video
+				src="/api/products/{productId}/images/{activeGroup.video.id}"
+				class="absolute inset-0 h-full w-full object-cover"
+				autoplay
+				loop
+				muted
+				playsinline
+			></video>
+		{:else if activeImage}
 			<img
 				src="/api/products/{productId}/images/{activeImage.id}"
 				{alt}

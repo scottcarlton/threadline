@@ -40,6 +40,8 @@ const ALLOWED_IMAGE_MIMES = new Set([
 	'image/gif'
 ]);
 
+export const ALLOWED_VIDEO_MIMES = new Set(['video/mp4', 'video/quicktime']);
+
 function safeFileName(name: string): string {
 	return (name || 'upload')
 		.normalize('NFKD')
@@ -61,6 +63,10 @@ function extensionForMime(mime: string): string {
 			return 'avif';
 		case 'image/gif':
 			return 'gif';
+		case 'video/mp4':
+			return 'mp4';
+		case 'video/quicktime':
+			return 'mov';
 		default:
 			return 'bin';
 	}
@@ -82,7 +88,7 @@ export async function uploadProductImageFromBlob(
 		fileSize?: number;
 		uploadedBy: string;
 		variantId?: string | null;
-		role?: 'primary' | 'hover' | null;
+		role?: 'primary' | 'hover' | 'video' | null;
 	}
 ): Promise<UploadProductImageResult> {
 	const { productId, orgId, buffer, mimeType, fileName, fileSize, uploadedBy, variantId, role } =

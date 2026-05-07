@@ -3,6 +3,7 @@ import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import type { PageServerLoad, Actions } from './$types';
 import { createProductSchema } from '$lib/schemas/product';
+import { supabaseAdmin } from '$lib/server/supabase';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, organization, membership, orgType } = locals;
@@ -70,7 +71,7 @@ export const actions: Actions = {
 		const d = form.data;
 		const nn = (v: string | undefined) => (v && v.length ? v : null);
 
-		const { data: product, error: prodErr } = await supabase
+		const { data: product, error: prodErr } = await supabaseAdmin
 			.from('products')
 			.insert({
 				organization_id: organization.id,
@@ -84,7 +85,8 @@ export const actions: Actions = {
 				season_id: nn(d.seasonId),
 				product_year: d.productYear ?? null,
 				ats: d.ats,
-				is_featured: d.featured
+				is_featured: d.featured,
+				attributes: d.attributes.length > 0 ? d.attributes : []
 			})
 			.select('id')
 			.single();
@@ -135,7 +137,7 @@ export const actions: Actions = {
 		const colorToVariantId: Record<string, string> = {};
 
 		if (variantRows.length > 0) {
-			const { data: inserted, error: varErr } = await supabase
+			const { data: inserted, error: varErr } = await supabaseAdmin
 				.from('product_variants')
 				.insert(variantRows)
 				.select('id, color');

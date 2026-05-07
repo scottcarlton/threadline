@@ -17,7 +17,7 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 
 	const variantId = (formData.get('variant_id') as string) || null;
 	const role = (formData.get('role') as string) || null;
-	const validRole = role === 'primary' || role === 'hover' ? role : null;
+	const validRole = role === 'primary' || role === 'hover' || role === 'video' ? role : null;
 
 	const arrayBuffer = await file.arrayBuffer();
 

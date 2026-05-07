@@ -19,6 +19,7 @@
 	let colorHex = $state('#000000');
 	let primaryImage = $state<File | null>(null);
 	let hoverImage = $state<File | null>(null);
+	let videoFile = $state<File | null>(null);
 	let saving = $state(false);
 
 	function reset() {
@@ -26,10 +27,15 @@
 		colorHex = '#000000';
 		primaryImage = null;
 		hoverImage = null;
+		videoFile = null;
 		saving = false;
 	}
 
-	async function uploadImage(file: File, variantId: string | null, role: 'primary' | 'hover') {
+	async function uploadImage(
+		file: File,
+		variantId: string | null,
+		role: 'primary' | 'hover' | 'video'
+	) {
 		const body = new FormData();
 		body.append('file', file);
 		if (variantId) body.append('variant_id', variantId);
@@ -53,7 +59,7 @@
 				rows.push({
 					product_id: productId,
 					color: colorName.trim(),
-					color_hex: colorHex !== '#000000' ? colorHex : null,
+					color_hex: colorHex || null,
 					size
 				});
 			}
@@ -61,7 +67,7 @@
 			rows.push({
 				product_id: productId,
 				color: colorName.trim(),
-				color_hex: colorHex !== '#000000' ? colorHex : null,
+				color_hex: colorHex || null,
 				size: null
 			});
 		}
@@ -72,6 +78,7 @@
 
 		if (primaryImage) await uploadImage(primaryImage, firstVariantId, 'primary');
 		if (hoverImage) await uploadImage(hoverImage, firstVariantId, 'hover');
+		if (videoFile) await uploadImage(videoFile, firstVariantId, 'video');
 
 		reset();
 		open = false;
@@ -120,8 +127,10 @@
 				<ImagePair
 					primaryFile={primaryImage}
 					hoverFile={hoverImage}
+					{videoFile}
 					onPrimaryChange={(f) => (primaryImage = f)}
 					onHoverChange={(f) => (hoverImage = f)}
+					onVideoChange={(f) => (videoFile = f)}
 				/>
 			</div>
 		</div>
