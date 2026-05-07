@@ -549,11 +549,71 @@
 	);
 	const colorPickerItem = $derived(colorPickerIdx >= 0 ? cart.items[colorPickerIdx] : null);
 
+	function mergeColorItems() {
+		const byProduct = new Map<string, OrderItem>();
+		for (const it of cart.items) {
+			const color = it.selected_color || '';
+			const liveSizeQtys = { ...it.size_qtys };
+			const existing = byProduct.get(it.product_id);
+			if (!existing) {
+				const merged: OrderItem = {
+					...it,
+					color_size_qtys: { [color]: liveSizeQtys },
+					color_image_ids: {
+						...(it.color_image_ids ?? {}),
+						...(it.image_id ? { [color]: it.image_id } : {})
+					}
+				};
+				byProduct.set(it.product_id, merged);
+			} else {
+				existing.color_size_qtys[color] = liveSizeQtys;
+				if (it.image_id) {
+					if (!existing.color_image_ids) existing.color_image_ids = {};
+					existing.color_image_ids[color] = it.image_id;
+				}
+			}
+		}
+		cart.items = [...byProduct.values()];
+	}
+
+	function expandColorItems() {
+		const expanded: OrderItem[] = [];
+		for (const it of cart.items) {
+			const colorEntries = Object.entries(it.color_size_qtys);
+			if (colorEntries.length === 0) {
+				expanded.push(it);
+				continue;
+			}
+			let anyExpanded = false;
+			for (const [color, sizeMap] of colorEntries) {
+				const hasQty = Object.values(sizeMap).some((q) => q > 0);
+				if (!hasQty) continue;
+				anyExpanded = true;
+				const size_qtys: Record<string, number> = {};
+				for (const s of it.available_sizes) size_qtys[s] = sizeMap[s] ?? 0;
+				expanded.push({
+					...it,
+					product_id: it.product_id,
+					selected_color: color,
+					image_id: it.color_image_ids?.[color] ?? it.image_id,
+					size_qtys,
+					color_size_qtys: { [color]: sizeMap }
+				});
+			}
+			if (!anyExpanded) {
+				expanded.push(it);
+			}
+		}
+		cart.items = expanded;
+	}
+
 	function openAddItemsModal() {
+		mergeColorItems();
 		modalOpen = true;
 	}
 	function closeAddItemsModal() {
 		modalOpen = false;
+		expandColorItems();
 	}
 	// Apply All / Undo (per-row, transient — not persisted with the cart).
 	// `sizeTouches` records the order in which sizes were edited so the template
@@ -1289,7 +1349,7 @@
 					return rows;
 				})()}
 				<div class="space-y-3">
-					{#each renderRows as row (row.kind === 'item' ? row.it.product_id : `__pending__${row.undo.snapshot.product_id}`)}
+					{#each renderRows as row (row.kind === 'item' ? `${row.it.product_id}|${row.it.selected_color}` : `__pending__${row.undo.snapshot.product_id}`)}
 						{#if row.kind === 'placeholder'}
 							{@const p = row.undo}
 							<div
@@ -1802,7 +1862,7 @@
 
 						<!-- Items list — drag each row to another group card -->
 						<div class="space-y-2">
-							{#each g.items as it (it.product_id)}
+							{#each g.items as it (`${it.product_id}|${it.selected_color}`)}
 								<div
 									class="group/item flex cursor-grab items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm transition-opacity {draggingItemId ===
 									it.product_id

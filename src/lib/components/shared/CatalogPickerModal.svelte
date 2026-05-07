@@ -20,11 +20,14 @@
 	import ColorPickerSheet from './ColorPickerSheet.svelte';
 	import {
 		primaryImageId,
+		colorPrimaryImageId,
 		productColors,
 		productSizes,
 		itemUnits,
+		itemColorCount,
 		itemTotal,
-		itemIsSized
+		itemIsSized,
+		colorUnits
 	} from './catalog-picker-types.js';
 
 	let asideEl = $state<HTMLElement | null>(null);
@@ -114,6 +117,7 @@
 	let modalDebounce: ReturnType<typeof setTimeout> | undefined;
 	let sizingProductId = $state<string | null>(null);
 	let colorPickerProductId = $state<string | null>(null);
+	const hoveredImageByProduct = new Map<string, string>();
 
 	// Deduplicated seasons for dropdown display
 	const dedupedSeasons = $derived.by(() => {
@@ -196,6 +200,12 @@
 				if (!items[i].image_id) {
 					items[i].image_id = primaryImageId(product);
 				}
+				const cImgMap: Record<string, string> = {};
+				for (const c of items[i].available_colors) {
+					const imgId = colorPrimaryImageId(product, c);
+					if (imgId) cImgMap[c] = imgId;
+				}
+				items[i].color_image_ids = cImgMap;
 			}
 		});
 	});
@@ -236,6 +246,17 @@
 
 	function openSizing(p: CatalogProduct) {
 		if (!productInCart(p)) addProduct(p);
+		const hoveredImg = hoveredImageByProduct.get(p.id);
+		if (hoveredImg) {
+			const img = p.product_images?.find((i) => i.id === hoveredImg);
+			if (img?.variant_id) {
+				const v = p.product_variants.find((pv) => pv.id === img.variant_id);
+				if (v?.color) {
+					const item = findItem(p.id);
+					if (item) item.selected_color = v.color;
+				}
+			}
+		}
 		sizingProductId = p.id;
 	}
 
@@ -256,11 +277,7 @@
 	}
 
 	function colorImageId(product: CatalogProduct, color: string): string | null {
-		const variantIds = product.product_variants.filter((v) => v.color === color).map((v) => v.id);
-		const img = product.product_images?.find(
-			(i) => i.variant_id && variantIds.includes(i.variant_id)
-		);
-		return img?.id ?? null;
+		return colorPrimaryImageId(product, color);
 	}
 
 	function colorHex(product: CatalogProduct, color: string): string | null {
@@ -392,6 +409,7 @@
 										aspect="aspect-square"
 										activeImageId={findItem(p.id)?.image_id}
 										onselect={(imageId) => {
+											hoveredImageByProduct.set(p.id, imageId);
 											const idx = items.findIndex((it) => it.product_id === p.id);
 											if (idx >= 0) items[idx].image_id = imageId;
 										}}
@@ -421,9 +439,9 @@
 													</span>
 												</div>
 												{#if added}
-													{@const totalUnits = Object.values(
-														findItem(p.id)?.size_qtys ?? {}
-													).reduce((s, q) => s + (q || 0), 0)}
+													{@const cartItem = findItem(p.id)}
+													{@const totalUnits = cartItem ? itemUnits(cartItem) : 0}
+													{@const numColors = cartItem ? itemColorCount(cartItem) : 0}
 													<button
 														type="button"
 														class="absolute right-4 bottom-4 left-4 inline-flex h-10 items-center justify-center rounded-md bg-background/80 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-background"
@@ -432,9 +450,13 @@
 															openSizing(p);
 														}}
 													>
-														{totalUnits > 0
-															? `${totalUnits} ${totalUnits === 1 ? 'unit' : 'units'}`
-															: 'Set Sizes'}
+														{#if totalUnits > 0}
+															{numColors}
+															{numColors === 1 ? 'color' : 'colors'} · {totalUnits}
+															{totalUnits === 1 ? 'unit' : 'units'}
+														{:else}
+															Set Sizes
+														{/if}
 													</button>
 												{/if}
 											{/if}
@@ -481,8 +503,16 @@
 									class="mb-4 flex items-center gap-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
 									onclick={() => (sizingProductId = null)}
 								>
-									<LongArrow direction="left" class="h-4 w-4" />
-									Back to products
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="currentColor"
+										class="h-4 w-4"
+										><path
+											d="M5 5H13V19H5V5ZM19 19H15V5H19V19ZM4 3C3.44772 3 3 3.44772 3 4V20C3 20.5523 3.44772 21 4 21H20C20.5523 21 21 20.5523 21 20V4C21 3.44772 20.5523 3 20 3H4ZM11 12L7 8.5V15.5L11 12Z"
+										></path></svg
+									>
+									Close
 								</button>
 								<div class="text-sm text-muted-foreground">{it.style_number}</div>
 								<div class="text-base font-semibold">{it.name}</div>
@@ -498,35 +528,45 @@
 												{@const thumbId = prod ? colorImageId(prod, color) : null}
 												{@const hex = prod ? colorHex(prod, color) : null}
 												{@const selected = it.selected_color === color}
+												{@const cUnits = colorUnits(it, color)}
 												<button
 													type="button"
 													class="flex flex-col items-center gap-1.5"
 													onclick={() => (items[idx].selected_color = color)}
 												>
-													{#if thumbId}
-														<img
-															src={`/api/products/${it.product_id}/images/${thumbId}`}
-															alt={color}
-															class="h-12 w-12 rounded-full object-cover ring-2 ring-offset-2 transition {selected
-																? 'ring-foreground'
-																: 'ring-transparent hover:ring-muted-foreground/40'}"
-														/>
-													{:else if hex}
-														<span
-															class="block h-12 w-12 rounded-full ring-2 ring-offset-2 transition {selected
-																? 'ring-foreground'
-																: 'ring-transparent hover:ring-muted-foreground/40'}"
-															style="background-color: {hex};"
-														></span>
-													{:else}
-														<span
-															class="flex h-12 w-12 items-center justify-center rounded-full text-sm font-medium ring-2 ring-offset-2 transition {selected
-																? 'bg-foreground text-background ring-foreground'
-																: 'bg-muted text-muted-foreground ring-transparent hover:ring-muted-foreground/40'}"
-														>
-															{color.slice(0, 2)}
-														</span>
-													{/if}
+													<div class="relative">
+														{#if thumbId}
+															<img
+																src={`/api/products/${it.product_id}/images/${thumbId}`}
+																alt={color}
+																class="h-12 w-12 rounded-full object-cover ring-2 ring-offset-2 transition {selected
+																	? 'ring-foreground'
+																	: 'ring-transparent hover:ring-muted-foreground/40'}"
+															/>
+														{:else if hex}
+															<span
+																class="block h-12 w-12 rounded-full ring-2 ring-offset-2 transition {selected
+																	? 'ring-foreground'
+																	: 'ring-transparent hover:ring-muted-foreground/40'}"
+																style="background-color: {hex};"
+															></span>
+														{:else}
+															<span
+																class="flex h-12 w-12 items-center justify-center rounded-full text-sm font-medium ring-2 ring-offset-2 transition {selected
+																	? 'bg-foreground text-background ring-foreground'
+																	: 'bg-muted text-muted-foreground ring-transparent hover:ring-muted-foreground/40'}"
+															>
+																{color.slice(0, 2)}
+															</span>
+														{/if}
+														{#if cUnits > 0}
+															<span
+																class="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-md bg-[#6BC154] px-1 text-[11px] font-semibold text-white"
+															>
+																{cUnits}
+															</span>
+														{/if}
+													</div>
 													<span
 														class="text-sm {selected
 															? 'font-medium text-foreground'
@@ -539,12 +579,24 @@
 								{/if}
 
 								{#if it.available_sizes.length > 0}
-									<div class="mb-2 text-sm text-muted-foreground">Sizes</div>
+									{@const cUnits = colorUnits(it, it.selected_color)}
+									<div class="mb-2 flex items-baseline justify-between">
+										<span class="text-sm text-muted-foreground">Sizes</span>
+										{#if cUnits > 0}
+											<span class="text-sm text-muted-foreground"
+												>{cUnits}
+												{cUnits === 1 ? 'unit' : 'units'} · {fmt.format(
+													cUnits * it.unit_price
+												)}</span
+											>
+										{/if}
+									</div>
 									<div class="grid grid-cols-2 gap-3">
 										{#each it.available_sizes as size (size)}
 											{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
 											{@const prod = productForItem(it)}
-											{@const qty = it.size_qtys[size] ?? 0}
+											{@const sizeQtys = it.color_size_qtys[it.selected_color]}
+											{@const qty = sizeQtys?.[size] ?? 0}
 											{@const variant = prod?.ats
 												? findVariant(prod, it.selected_color, size)
 												: null}
@@ -554,7 +606,10 @@
 														value={qty}
 														label={size}
 														onchange={(n) => {
-															items[idx].size_qtys[size] = n;
+															if (!items[idx].color_size_qtys[it.selected_color]) {
+																items[idx].color_size_qtys[it.selected_color] = {};
+															}
+															items[idx].color_size_qtys[it.selected_color][size] = n;
 														}}
 													/>
 												</div>
@@ -569,23 +624,19 @@
 									</div>
 								{:else}
 									{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
-									{@const qty = it.size_qtys[''] ?? 0}
+									{@const activeColor = it.selected_color || ''}
+									{@const qty = it.color_size_qtys[activeColor]?.[''] ?? 0}
 									<div class="mb-2 text-sm text-muted-foreground">Qty</div>
 									<QtyStepper
 										value={qty}
 										onchange={(n) => {
-											items[idx].size_qtys[''] = n;
+											if (!items[idx].color_size_qtys[activeColor]) {
+												items[idx].color_size_qtys[activeColor] = {};
+											}
+											items[idx].color_size_qtys[activeColor][''] = n;
 										}}
 									/>
 								{/if}
-							</div>
-							<div class="p-4 text-sm">
-								<div class="flex items-center justify-between">
-									<span class="text-muted-foreground">Total</span>
-									<span class="font-semibold">
-										{itemUnits(it)} units · {fmt.format(itemTotal(it))}
-									</span>
-								</div>
 							</div>
 						</div>
 					</aside>
@@ -595,18 +646,29 @@
 
 		{#if items.length > 0}
 			{@const unsizedCount = items.filter((i) => !itemIsSized(i)).length}
+			{@const allUnits = items.reduce((s, i) => s + itemUnits(i), 0)}
+			{@const allTotal = items.reduce((s, i) => s + itemTotal(i), 0)}
 			<div class="pointer-events-none fixed inset-x-0 bottom-6 z-10 flex justify-center px-4">
 				<div
 					transition:fly={{ y: 80, duration: 320, easing: quintOut }}
 					class="pointer-events-auto flex w-[420px] items-center justify-between gap-6 rounded-lg bg-foreground py-2 pr-2 pl-6 text-background shadow-lg md:w-[560px] md:py-3 md:pr-3 md:pl-8"
 				>
-					<div class="text-sm">
-						{items.length}
-						{items.length === 1 ? 'Item' : 'Items'}
-						{#if unsizedCount > 0}
-							<span class="text-amber-400">
-								({unsizedCount} Unsized)
-							</span>
+					<div>
+						<div class="text-sm">
+							{items.length}
+							{items.length === 1 ? 'Item' : 'Items'}
+							{#if unsizedCount > 0}
+								<span class="text-amber-400">
+									({unsizedCount} Unsized)
+								</span>
+							{/if}
+						</div>
+						{#if allUnits > 0}
+							<div class="text-sm opacity-70">
+								{allUnits}
+								{allUnits === 1 ? 'unit' : 'units'} ·
+								<span class="font-semibold">{fmt.format(allTotal)}</span>
+							</div>
 						{/if}
 					</div>
 					<button
@@ -652,10 +714,16 @@
 						: null}
 					unitPrice={sheetItem?.unit_price}
 					sizes={sheetItem?.available_sizes}
-					qtys={sheetItem?.size_qtys}
+					qtys={sheetItem ? sheetItem.color_size_qtys[sheetItem.selected_color] : undefined}
 					stockBySize={sheetStockBySize}
 					onChange={(size, qty) => {
-						if (sheetIdx >= 0) items[sheetIdx].size_qtys[size] = qty;
+						if (sheetIdx >= 0 && sheetItem) {
+							const c = sheetItem.selected_color || '';
+							if (!items[sheetIdx].color_size_qtys[c]) {
+								items[sheetIdx].color_size_qtys[c] = {};
+							}
+							items[sheetIdx].color_size_qtys[c][size] = qty;
+						}
 					}}
 					onColorPickerOpen={() => {
 						const id = sheetItem?.product_id ?? null;

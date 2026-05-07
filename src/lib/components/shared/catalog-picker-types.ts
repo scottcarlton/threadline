@@ -31,6 +31,9 @@ export type CatalogProduct = {
 	product_images: ProductImage[];
 };
 
+/** color → size → qty */
+export type ColorSizeQtys = Record<string, Record<string, number>>;
+
 export type CatalogCartItem = {
 	product_id: string;
 	brand_id: string;
@@ -44,12 +47,23 @@ export type CatalogCartItem = {
 	available_colors: string[];
 	available_sizes: string[];
 	selected_color: string;
+	/** Legacy single-color qty map — used by /orders/new and /products/order */
 	size_qtys: Record<string, number>;
+	/** Per-color qty map — used by catalog picker modal on /orders/[id] */
+	color_size_qtys: ColorSizeQtys;
+	/** color → primary image_id */
+	color_image_ids: Record<string, string>;
 };
 
 export function primaryImageId(p: CatalogProduct): string | null {
 	const primary = p.product_images?.find((i) => i.is_primary);
 	return primary?.id ?? p.product_images?.[0]?.id ?? null;
+}
+
+export function colorPrimaryImageId(p: CatalogProduct, color: string): string | null {
+	const variantIds = new Set(p.product_variants.filter((v) => v.color === color).map((v) => v.id));
+	const imgs = (p.product_images ?? []).filter((i) => i.variant_id && variantIds.has(i.variant_id));
+	return imgs.find((i) => i.role === 'primary')?.id ?? imgs[0]?.id ?? null;
 }
 
 export function productColors(p: CatalogProduct): string[] {
@@ -61,7 +75,20 @@ export function productSizes(p: CatalogProduct): string[] {
 }
 
 export function itemUnits(it: CatalogCartItem): number {
-	return Object.values(it.size_qtys).reduce((s, q) => s + (q || 0), 0);
+	let total = 0;
+	for (const sizeMap of Object.values(it.color_size_qtys)) {
+		for (const q of Object.values(sizeMap)) total += q || 0;
+	}
+	return total;
+}
+
+export function itemColorCount(it: CatalogCartItem): number {
+	let count = 0;
+	for (const sizeMap of Object.values(it.color_size_qtys)) {
+		const units = Object.values(sizeMap).reduce((s, q) => s + (q || 0), 0);
+		if (units > 0) count++;
+	}
+	return count;
 }
 
 export function itemTotal(it: CatalogCartItem): number {
@@ -72,11 +99,35 @@ export function itemIsSized(it: CatalogCartItem): boolean {
 	return itemUnits(it) > 0;
 }
 
+export function colorQtys(it: CatalogCartItem, color: string): Record<string, number> {
+	return it.color_size_qtys[color] ?? {};
+}
+
+export function colorUnits(it: CatalogCartItem, color: string): number {
+	const sq = it.color_size_qtys[color];
+	if (!sq) return 0;
+	return Object.values(sq).reduce((s, q) => s + (q || 0), 0);
+}
+
 export function catalogProductToCartItem(p: CatalogProduct): CatalogCartItem {
 	const colors = productColors(p);
 	const sizes = productSizes(p);
 	const size_qtys: Record<string, number> = {};
 	for (const s of sizes) size_qtys[s] = 0;
+	const color_size_qtys: ColorSizeQtys = {};
+	for (const c of colors) {
+		color_size_qtys[c] = {};
+		for (const s of sizes) color_size_qtys[c][s] = 0;
+	}
+	if (colors.length === 0) {
+		color_size_qtys[''] = {};
+		for (const s of sizes) color_size_qtys[''][s] = 0;
+	}
+	const color_image_ids: Record<string, string> = {};
+	for (const c of colors) {
+		const imgId = colorPrimaryImageId(p, c);
+		if (imgId) color_image_ids[c] = imgId;
+	}
 	return {
 		product_id: p.id,
 		brand_id: p.brand_id,
@@ -90,6 +141,8 @@ export function catalogProductToCartItem(p: CatalogProduct): CatalogCartItem {
 		available_colors: colors,
 		available_sizes: sizes,
 		selected_color: colors[0] ?? '',
-		size_qtys
+		size_qtys,
+		color_size_qtys,
+		color_image_ids
 	};
 }
