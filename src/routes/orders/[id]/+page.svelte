@@ -3011,9 +3011,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
 		/>
 		<Dialog.Content
-			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
+			class="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background sm:inset-auto sm:top-[50%] sm:left-[50%] sm:max-h-[90vh] sm:w-full sm:max-w-2xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg sm:border sm:shadow-lg"
 		>
-			<div class="max-h-[calc(90vh-4rem)] overflow-y-auto px-6 pt-6 pb-0">
+			<div class="flex-1 overflow-y-auto px-6 pt-6 pb-0">
 				<!-- Title -->
 				<Dialog.Title class="text-xl font-semibold">Prepare Shipment</Dialog.Title>
 				<Dialog.Description class="sr-only">
@@ -3078,7 +3078,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</p>
 
 					<!-- Carrier cards -->
-					<div class="mt-4 grid grid-cols-4 gap-3">
+					<div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
 						{#each CARRIERS as c (c)}
 							<button
 								type="button"
@@ -3173,15 +3173,27 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						{#each SERVICE_LEVELS as level (level)}
 							<button
 								type="button"
-								class="flex cursor-pointer items-center gap-3 rounded-lg border-2 px-4 py-3 text-sm transition-colors {prepServiceLevel ===
+								class="relative flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-3 text-sm transition-all {prepServiceLevel ===
 								level
 									? 'border-foreground'
-									: 'border-border hover:border-foreground/30'}"
+									: 'border-border grayscale hover:border-foreground/30'}"
 								onclick={() => (prepServiceLevel = prepServiceLevel === level ? '' : level)}
 							>
+								<div
+									class="absolute top-2 right-2 h-4 w-4 rounded-full border-2 {prepServiceLevel ===
+									level
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if prepServiceLevel === level}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
+								</div>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 shrink-0 text-muted-foreground"
+									class="h-6 w-6 text-muted-foreground"
 									viewBox="0 0 24 24"
 									fill="currentColor"
 								>
@@ -3199,24 +3211,13 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 										/>
 									{/if}
 								</svg>
-								<span class="font-medium">{level}</span>
-								<div
-									class="ml-auto h-4 w-4 shrink-0 rounded-full border-2 {prepServiceLevel === level
-										? 'border-foreground bg-foreground'
-										: 'border-muted-foreground/40'}"
-								>
-									{#if prepServiceLevel === level}
-										<div class="flex h-full w-full items-center justify-center">
-											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
-										</div>
-									{/if}
-								</div>
+								<span class="text-sm font-medium">{level}</span>
 							</button>
 						{/each}
 					</div>
 
 					<!-- Tracking + Cost -->
-					<div class="mt-6 grid grid-cols-[1fr_auto] gap-3">
+					<div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
 						<div>
 							<div class="text-sm text-muted-foreground">Tracking number</div>
 							<div class="mt-1.5">
