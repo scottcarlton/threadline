@@ -5,7 +5,7 @@
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { Input, CurrencyInput } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { Order, OrderLine, OrderStatus, BrandAsset } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
@@ -915,13 +915,13 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	let prepCarrier = $state('');
 	let prepServiceLevel = $state('');
 	let prepTracking = $state('');
-	let prepCost = $state('');
+	let prepCost = $state(0);
 
 	function openPrepareDialog() {
 		prepCarrier = '';
 		prepServiceLevel = '';
 		prepTracking = '';
-		prepCost = '';
+		prepCost = 0;
 		prepareConfirmOpen = true;
 	}
 
@@ -943,9 +943,8 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 		if (prepCarrier) updates.carrier = prepCarrier;
 		if (prepTracking) updates.tracking_number = prepTracking;
-		if (prepCost !== '') {
-			const v = parseFloat(prepCost);
-			if (!isNaN(v)) updates.shipping_cost = v;
+		if (prepCost > 0) {
+			updates.shipping_cost = prepCost;
 		}
 		if (Object.keys(updates).length > 1) {
 			await supabase.from('orders').update(updates).eq('id', order.id);
@@ -961,13 +960,13 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	let shipConfirmOpen = $state(false);
 	let shipConfirmCarrier = $state('');
 	let shipConfirmTracking = $state('');
-	let shipConfirmCost = $state('');
+	let shipConfirmCost = $state(0);
 	let shippingOrder = $state(false);
 
 	function openShipConfirm() {
 		shipConfirmCarrier = shipCarrier;
 		shipConfirmTracking = shipTracking;
-		shipConfirmCost = shipCost;
+		shipConfirmCost = shipCost ? Number(shipCost) : 0;
 		shipConfirmOpen = true;
 	}
 
@@ -980,7 +979,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				status: 'shipped',
 				tracking_number: shipConfirmTracking !== '' ? shipConfirmTracking : null,
 				carrier: shipConfirmCarrier !== '' ? shipConfirmCarrier : null,
-				shipping_cost: shipConfirmCost !== '' ? shipConfirmCost : null
+				shipping_cost: shipConfirmCost > 0 ? shipConfirmCost : null
 			})
 		});
 		shippingOrder = false;
@@ -3199,7 +3198,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						<div class="w-28 sm:w-36">
 							<div class="text-sm text-muted-foreground">Shipping cost</div>
 							<div class="mt-1.5">
-								<Input type="number" bind:value={prepCost} placeholder="$0.00" class="text-right" />
+								<CurrencyInput bind:value={prepCost} />
 							</div>
 						</div>
 					</div>
@@ -3312,12 +3311,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						<div class="w-28 sm:w-36">
 							<div class="text-sm text-muted-foreground">Shipping cost</div>
 							<div class="mt-1.5">
-								<Input
-									type="number"
-									bind:value={shipConfirmCost}
-									placeholder="$0.00"
-									class="text-right"
-								/>
+								<CurrencyInput bind:value={shipConfirmCost} />
 							</div>
 						</div>
 					</div>
