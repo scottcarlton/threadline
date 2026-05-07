@@ -3224,7 +3224,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 								<Input bind:value={prepTracking} placeholder="SH-1234567890" />
 							</div>
 						</div>
-						<div class="w-28">
+						<div class="w-28 sm:w-36">
 							<div class="text-sm text-muted-foreground">Shipping cost</div>
 							<div class="mt-1.5">
 								<Input type="number" bind:value={prepCost} placeholder="$0.00" class="text-right" />
