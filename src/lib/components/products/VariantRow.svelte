@@ -12,6 +12,7 @@
 		images: {
 			primary: File | null;
 			hover: File | null;
+			video: File | null;
 		};
 		inventory: Record<string, number | null>;
 		stockThreshold: number | null;
@@ -139,9 +140,11 @@
 				<ImagePair
 					primaryFile={variant.images.primary}
 					hoverFile={variant.images.hover}
+					videoFile={variant.images.video}
 					onPrimaryChange={(f) =>
 						onChange({ ...variant, images: { ...variant.images, primary: f } })}
 					onHoverChange={(f) => onChange({ ...variant, images: { ...variant.images, hover: f } })}
+					onVideoChange={(f) => onChange({ ...variant, images: { ...variant.images, video: f } })}
 				/>
 			</div>
 

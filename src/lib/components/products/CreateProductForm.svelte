@@ -35,7 +35,7 @@
 		productId: string,
 		file: File,
 		variantId: string | null,
-		role: 'primary' | 'hover'
+		role: 'primary' | 'hover' | 'video'
 	): Promise<boolean> {
 		const body = new FormData();
 		body.append('file', file);
@@ -72,6 +72,11 @@
 					failures.push('product hover');
 				}
 			}
+			if (productVideoFile) {
+				if (!(await uploadImage(productId, productVideoFile, variantId, 'video'))) {
+					failures.push('product video');
+				}
+			}
 		} else {
 			for (const v of snap.variants) {
 				const variantId = colorToVariantId[v.colorName] ?? null;
@@ -84,6 +89,11 @@
 				if (imgs?.hover) {
 					if (!(await uploadImage(productId, imgs.hover, variantId, 'hover'))) {
 						failures.push(`${v.colorName} hover`);
+					}
+				}
+				if (imgs?.video) {
+					if (!(await uploadImage(productId, imgs.video, variantId, 'video'))) {
+						failures.push(`${v.colorName} video`);
 					}
 				}
 			}
@@ -166,6 +176,7 @@
 	// Image state (not part of superforms — Files can't serialize)
 	let productPrimaryImage = $state<File | null>(null);
 	let productHoverImage = $state<File | null>(null);
+	let productVideoFile = $state<File | null>(null);
 
 	// Variant accordion
 	let expandedVariantId = $state<string | null>(null);
@@ -203,12 +214,18 @@
 	}
 
 	// Variant image state (keyed by variant id)
-	let variantImages = $state(new Map<string, { primary: File | null; hover: File | null }>());
+	let variantImages = $state(
+		new Map<string, { primary: File | null; hover: File | null; video: File | null }>()
+	);
 
-	function getVariantImages(id: string): { primary: File | null; hover: File | null } {
+	function getVariantImages(id: string): {
+		primary: File | null;
+		hover: File | null;
+		video: File | null;
+	} {
 		let entry = variantImages.get(id);
 		if (!entry) {
-			entry = { primary: null, hover: null };
+			entry = { primary: null, hover: null, video: null };
 			variantImages.set(id, entry);
 		}
 		return entry;
@@ -476,8 +493,10 @@
 								<ImagePair
 									primaryFile={productPrimaryImage}
 									hoverFile={productHoverImage}
+									videoFile={productVideoFile}
 									onPrimaryChange={(f) => (productPrimaryImage = f)}
 									onHoverChange={(f) => (productHoverImage = f)}
+									onVideoChange={(f) => (productVideoFile = f)}
 								/>
 							</div>
 						</div>

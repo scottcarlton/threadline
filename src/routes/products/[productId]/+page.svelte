@@ -29,14 +29,19 @@
 	const variantImageGroups = $derived(() => {
 		const groups = new SvelteMap<
 			string,
-			{ primary: ProductImage | null; hover: ProductImage | null }
+			{
+				primary: ProductImage | null;
+				hover: ProductImage | null;
+				video: ProductImage | null;
+			}
 		>();
 		for (const img of product.product_images ?? []) {
 			const key = img.variant_id ?? '__product__';
-			if (!groups.has(key)) groups.set(key, { primary: null, hover: null });
+			if (!groups.has(key)) groups.set(key, { primary: null, hover: null, video: null });
 			const group = groups.get(key)!;
 			if (img.role === 'primary') group.primary = img;
 			else if (img.role === 'hover') group.hover = img;
+			else if (img.role === 'video') group.video = img;
 			else if (img.is_primary && !group.primary) group.primary = img;
 			else if (!group.hover) group.hover = img;
 		}
@@ -51,6 +56,8 @@
 
 	let activeGroupIndex = $state(0);
 	let selectedSubImage = $state<ProductImage | null>(null);
+	let playingVideo = $state(false);
+	let videoEl = $state<HTMLVideoElement | null>(null);
 
 	const activeGroup = $derived(
 		variantImageGroups()[activeGroupIndex] ?? variantImageGroups()[0] ?? null
@@ -62,9 +69,18 @@
 	$effect(() => {
 		void activeGroupIndex;
 		selectedSubImage = null;
+		playingVideo = false;
 	});
 
 	const variantThumbnails = $derived(variantImageGroups().map((g) => g.primary!));
+
+	const variantSwatchMap = $derived(() => {
+		const map = new Map<string, { color: string | null; hex: string | null }>();
+		for (const v of product.product_variants ?? []) {
+			map.set(v.id, { color: v.color, hex: v.color_hex });
+		}
+		return map;
+	});
 
 	const canEdit = $derived(data.membership?.role !== 'guest');
 	const canDelete = $derived(['admin', 'owner'].includes(data.membership?.role ?? ''));
@@ -401,7 +417,23 @@
 		<!-- Left: primary image + variant thumbnails -->
 		<div class="lg:sticky lg:top-6 lg:self-start">
 			<div class="group/main relative aspect-[4/5] w-full overflow-hidden bg-muted">
-				{#if activeImage}
+				{#if playingVideo && activeGroup?.video}
+					<!-- svelte-ignore a11y_media_has_caption -->
+					<video
+						bind:this={videoEl}
+						src={`/api/products/${product.id}/images/${activeGroup.video.id}`}
+						class="absolute inset-0 h-full w-full cursor-pointer object-cover"
+						autoplay
+						loop
+						muted
+						playsinline
+						onclick={() => {
+							if (videoEl) {
+								videoEl.paused ? videoEl.play() : videoEl.pause();
+							}
+						}}
+					></video>
+				{:else if activeImage}
 					<img
 						src={`/api/products/${product.id}/images/${activeImage.id}`}
 						alt={product.name}
@@ -453,7 +485,10 @@
 							role="button"
 							tabindex="-1"
 							class="group/img relative aspect-square overflow-hidden bg-muted"
-							onmouseenter={() => (selectedSubImage = activeGroup.primary)}
+							onmouseenter={() => {
+								playingVideo = false;
+								selectedSubImage = activeGroup.primary;
+							}}
 						>
 							<img
 								src="/api/products/{product.id}/images/{activeGroup.primary.id}"
@@ -481,13 +516,36 @@
 							role="button"
 							tabindex="-1"
 							class="group/img relative aspect-square overflow-hidden bg-muted"
-							onmouseenter={() => (selectedSubImage = activeGroup.hover)}
+							onmouseenter={() => {
+								if (activeGroup.video) {
+									playingVideo = true;
+									selectedSubImage = null;
+								} else {
+									selectedSubImage = activeGroup.hover;
+								}
+							}}
 						>
 							<img
 								src="/api/products/{product.id}/images/{activeGroup.hover.id}"
 								alt="{product.name} — hover"
 								class="h-full w-full object-cover"
 							/>
+							{#if activeGroup.video}
+								<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+									<div class="flex h-10 w-10 items-center justify-center rounded-full bg-black/50">
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="currentColor"
+											class="h-5 w-5 text-white"
+										>
+											<path
+												d="M6 20.1957V3.80421C6 3.01878 6.86395 2.53993 7.53 2.95621L20.6432 11.152C21.2699 11.5436 21.2699 12.4563 20.6432 12.848L7.53 21.0437C6.86395 21.46 6 20.9812 6 20.1957Z"
+											></path>
+										</svg>
+									</div>
+								</div>
+							{/if}
 							{#if canEdit}
 								<div
 									class="absolute inset-0 flex items-end justify-center gap-2 pb-3 opacity-0 transition-all group-hover/img:opacity-100"

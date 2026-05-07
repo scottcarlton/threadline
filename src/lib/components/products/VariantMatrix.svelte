@@ -114,10 +114,9 @@
 								{size.toLowerCase()}
 							</th>
 						{/each}
-						{#if ats}
-							<th class="w-16 px-2 py-2.5 text-center text-sm font-medium text-foreground">total</th
-							>
-						{/if}
+						<th class="w-16 px-2 py-2.5 text-center text-sm font-normal text-muted-foreground"
+							>total</th
+						>
 						<th class="w-9"></th>
 					</tr>
 				</thead>
@@ -126,12 +125,18 @@
 						<tr class="border-b border-border/50">
 							<td class="px-3 py-3.5">
 								<div class="flex items-center gap-2.5">
-									{#if group.colorHex}
-										<div
-											class="h-6 w-6 shrink-0 rounded"
-											style="background: {group.colorHex};"
-										></div>
-									{/if}
+									<div
+										class="relative h-6 w-6 shrink-0 overflow-hidden rounded border border-border"
+										style:background={group.colorHex ?? '#f5f5f5'}
+									>
+										{#if !group.colorHex}
+											<div class="absolute inset-0">
+												<svg viewBox="0 0 24 24" class="h-full w-full">
+													<line x1="24" y1="0" x2="0" y2="24" stroke="#ef4444" stroke-width="2" />
+												</svg>
+											</div>
+										{/if}
+									</div>
 									<span class="font-medium">{group.color ?? 'Default'}</span>
 								</div>
 							</td>
@@ -162,9 +167,11 @@
 									{/if}
 								</td>
 							{/each}
-							{#if ats}
-								<td class="px-2 py-3.5 text-center font-semibold">{rowTotal(group)}</td>
-							{/if}
+							<td class="px-2 py-3.5 text-center {ats ? 'font-semibold' : ''}">
+								{#if ats}{rowTotal(group)}{:else}<span class="text-muted-foreground/40"
+										>&mdash;</span
+									>{/if}
+							</td>
 							<td class="px-2 py-3.5 text-center">
 								<button class="text-muted-foreground transition-colors hover:text-foreground"
 									>&middot;&middot;&middot;</button
@@ -173,18 +180,22 @@
 						</tr>
 					{/each}
 				</tbody>
-				{#if ats}
-					<tfoot>
-						<tr class="border-t border-border">
-							<td class="px-3 py-3 text-sm text-muted-foreground">total per size</td>
-							{#each allSizes() as size (size)}
-								<td class="px-2 py-3 text-center text-muted-foreground">{colTotal(size)}</td>
-							{/each}
-							<td class="px-2 py-3 text-center font-bold">{totalStock()}</td>
-							<td></td>
-						</tr>
-					</tfoot>
-				{/if}
+				<tfoot>
+					<tr class="border-t border-border">
+						<td class="px-3 py-3 text-sm text-muted-foreground">total per size</td>
+						{#each allSizes() as size (size)}
+							<td class="px-2 py-3 text-center text-muted-foreground">
+								{#if ats}{colTotal(size)}{:else}<span class="text-muted-foreground/40">&mdash;</span
+									>{/if}
+							</td>
+						{/each}
+						<td class="px-2 py-3 text-center font-bold">
+							{#if ats}{totalStock()}{:else}<span class="text-muted-foreground/40">&mdash;</span
+								>{/if}
+						</td>
+						<td></td>
+					</tr>
+				</tfoot>
 			</table>
 		</div>
 	{/if}

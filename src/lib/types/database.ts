@@ -550,7 +550,7 @@ export interface ProductImage {
 	mime_type: string | null;
 	sort_order: number;
 	is_primary: boolean;
-	role: 'primary' | 'hover' | null;
+	role: 'primary' | 'hover' | 'video' | null;
 	uploaded_by: string | null;
 	created_at: string;
 }

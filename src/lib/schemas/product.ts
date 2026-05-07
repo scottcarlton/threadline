@@ -28,7 +28,10 @@ export const createProductSchema = z
 		featured: z.boolean().default(false),
 
 		sizeMode: z.enum(['letter', 'numeric']).default('letter'),
-		sizes: z.array(z.string().trim().min(1)).min(1, 'Select at least one size'),
+		sizes: z
+			.array(z.string().trim().min(1))
+			.min(1, 'Select at least one size')
+			.default(['S', 'M', 'L', 'XL']),
 
 		hasVariants: z.boolean().default(false),
 

@@ -11,7 +11,6 @@ export const PRODUCT_ATTRIBUTES: ProductAttribute[] = [
 	{ value: 'ethically_sourced', label: 'Ethically Sourced', category: 'Sustainability' },
 	{ value: 'fair_trade', label: 'Fair Trade Certified', category: 'Sustainability' },
 	{ value: 'vegan', label: 'Vegan / Cruelty-Free', category: 'Sustainability' },
-	{ value: 'biodegradable', label: 'Biodegradable', category: 'Sustainability' },
 
 	// Production
 	{ value: 'handmade', label: 'Handmade / Artisan', category: 'Production' },
