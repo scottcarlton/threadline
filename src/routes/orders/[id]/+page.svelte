@@ -3180,7 +3180,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</div>
 			</div>
 
-			<footer class="mt-6 flex items-center justify-end gap-3 border-t bg-muted/30 px-6 py-4">
+			<footer class="mt-6 flex items-center justify-end gap-3 px-6 py-4">
 				<Dialog.Close
 					type="button"
 					class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
@@ -3202,7 +3202,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		<Dialog.Content
 			class="fixed top-[50%] left-[50%] z-50 max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
 		>
-			<header class="flex items-start justify-between gap-4 border-b px-6 py-5">
+			<header class="flex items-start justify-between gap-4 px-6 py-5">
 				<div class="min-w-0">
 					<Dialog.Title class="text-lg font-medium">Ship Order</Dialog.Title>
 					<Dialog.Description class="sr-only">
@@ -3269,7 +3269,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</div>
 			</div>
 
-			<footer class="flex items-center justify-end gap-3 border-t bg-muted/30 px-6 py-4">
+			<footer class="flex items-center justify-end gap-3 px-6 py-4">
 				<Dialog.Close
 					type="button"
 					class="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
