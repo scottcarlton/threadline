@@ -3217,7 +3217,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 
 					<!-- Tracking + Cost -->
-					<div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
+					<div class="mt-6 grid grid-cols-[1fr_auto] gap-3">
 						<div>
 							<div class="text-sm text-muted-foreground">Tracking number</div>
 							<div class="mt-1.5">
