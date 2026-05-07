@@ -233,6 +233,7 @@
 		'draft',
 		'submitted',
 		'confirmed',
+		'preparing',
 		'shipped',
 		'delivered',
 		'cancelled'
@@ -242,6 +243,7 @@
 		draft: 'Draft',
 		submitted: 'Submitted',
 		confirmed: 'Confirmed',
+		preparing: 'Preparing',
 		shipped: 'Shipped',
 		delivered: 'Delivered',
 		cancelled: 'Cancelled'
@@ -377,6 +379,7 @@
 		draft: 'bg-zinc-100 text-zinc-600',
 		submitted: 'bg-amber-50 text-amber-700',
 		confirmed: 'bg-blue-50 text-blue-700',
+		preparing: 'bg-violet-50 text-violet-700',
 		shipped: 'bg-indigo-50 text-indigo-700',
 		delivered: 'bg-emerald-50 text-emerald-700',
 		cancelled: 'bg-red-50 text-red-700'
@@ -385,6 +388,7 @@
 		draft: 'bg-zinc-400',
 		submitted: 'bg-amber-500',
 		confirmed: 'bg-blue-500',
+		preparing: 'bg-violet-500',
 		shipped: 'bg-indigo-500',
 		delivered: 'bg-emerald-500',
 		cancelled: 'bg-red-500'

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
@@ -928,9 +929,10 @@
 	let submitStatus = $state<'draft' | 'submitted' | 'confirmed'>('draft');
 	let submitFormEl: HTMLFormElement | null = $state(null);
 	let submitComboEl: HTMLDivElement | null = $state(null);
-	function submitOrderAs(status: 'draft' | 'submitted' | 'confirmed') {
+	async function submitOrderAs(status: 'draft' | 'submitted' | 'confirmed') {
 		cart.type = 'order';
 		submitStatus = status;
+		await tick();
 		submitFormEl?.requestSubmit();
 	}
 	let finalizeExpandedKey = $state<string | null>(null);
