@@ -1514,33 +1514,18 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	<div class="grid gap-6 lg:grid-cols-[1fr_340px]">
 		<!-- ─── Left column ─── -->
 		<div class="space-y-6">
-			<!-- ── Shipment Details (preparing + shipped + delivered) ──────── -->
-			{#if isPreparingOrLater && order.order_type !== 'note'}
+			<!-- ── Shipment Details (shipped + delivered — read-only) ──────── -->
+			{#if (order.status === 'shipped' || order.status === 'delivered') && order.order_type !== 'note'}
 				<section class="rounded-lg border bg-muted/30 px-6 py-5">
 					<h2 class="text-sm font-medium">Shipment Details</h2>
 					<div class="mt-4 grid gap-4 sm:grid-cols-3">
 						<div>
 							<Label>Carrier</Label>
-							{#if isPreparing}
-								<SelectField
-									items={carrierItems}
-									bind:value={shipCarrier}
-									placeholder="Select carrier"
-									onValueChange={(v) => saveShipmentField('carrier', v || null)}
-								/>
-							{:else}
-								<p class="mt-1 text-sm">{shipCarrier || '—'}</p>
-							{/if}
+							<p class="mt-1 text-sm">{shipCarrier || '—'}</p>
 						</div>
 						<div>
 							<Label>Tracking number</Label>
-							{#if isPreparing}
-								<Input
-									bind:value={shipTracking}
-									placeholder="Enter tracking number"
-									onblur={() => saveShipmentField('tracking_number', shipTracking || null)}
-								/>
-							{:else if shipTracking}
+							{#if shipTracking}
 								{@const url = trackingUrl(shipCarrier, shipTracking)}
 								{#if url}
 									<a
@@ -1560,20 +1545,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						</div>
 						<div>
 							<Label>Shipping cost</Label>
-							{#if isPreparing}
-								<Input
-									type="number"
-									bind:value={shipCost}
-									placeholder="$0.00"
-									class="text-right"
-									onblur={() => {
-										const v = parseFloat(shipCost);
-										saveShipmentField('shipping_cost', isNaN(v) ? null : v);
-									}}
-								/>
-							{:else}
-								<p class="mt-1 text-sm">{shipCost ? fmt.format(Number(shipCost)) : '—'}</p>
-							{/if}
+							<p class="mt-1 text-sm">{shipCost ? fmt.format(Number(shipCost)) : '—'}</p>
 						</div>
 					</div>
 				</section>
