@@ -3082,7 +3082,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						{#each CARRIERS as c (c)}
 							<button
 								type="button"
-								class="relative flex flex-col items-center justify-center rounded-lg border-2 px-3 py-4 text-sm transition-colors {prepCarrier ===
+								class="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 px-3 py-4 text-sm transition-colors {prepCarrier ===
 								c
 									? 'border-foreground'
 									: 'border-border hover:border-foreground/30'}"
@@ -3173,7 +3173,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						{#each SERVICE_LEVELS as level (level)}
 							<button
 								type="button"
-								class="flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-sm transition-colors {prepServiceLevel ===
+								class="flex cursor-pointer items-center gap-3 rounded-lg border-2 px-4 py-3 text-sm transition-colors {prepServiceLevel ===
 								level
 									? 'border-foreground'
 									: 'border-border hover:border-foreground/30'}"
