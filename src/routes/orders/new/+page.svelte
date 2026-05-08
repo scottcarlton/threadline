@@ -1531,9 +1531,11 @@
 												</div>
 
 												<div class="min-w-0">
-													<div class="font-mono text-sm">{it.style_number}</div>
-													<div class="text-sm font-medium">{it.name}</div>
-													<div class="text-sm text-muted-foreground">
+													<div class="font-mono text-xs text-muted-foreground md:text-sm">
+														{it.style_number}
+													</div>
+													<div class="text-sm font-medium md:text-base">{it.name}</div>
+													<div class="text-xs text-muted-foreground md:text-sm">
 														{brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
 													</div>
 												</div>
@@ -1558,8 +1560,8 @@
 											</div>
 
 											<div class="shrink-0 text-right">
-												<div class="font-mono text-sm font-medium">{fmt.format(rowTotal)}</div>
-												<div class="text-sm text-muted-foreground">
+												<div class="font-mono text-base font-medium">{fmt.format(rowTotal)}</div>
+												<div class="text-xs text-muted-foreground md:text-sm">
 													{rowUnits}
 													{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(it.unit_price)}/ea
 												</div>

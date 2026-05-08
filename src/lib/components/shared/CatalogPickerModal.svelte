@@ -462,24 +462,24 @@
 											{/if}
 										{/snippet}
 									</ProductImageCarousel>
-									<div class="flex flex-1 flex-col gap-1 p-3">
-										<div class="text-sm text-muted-foreground">{p.style_number}</div>
+									<article class="flex flex-1 flex-col p-3">
+										<span class="text-xs text-muted-foreground">{p.style_number}</span>
 										<div
-											class="mt-0.5 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+											class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
 										>
 											<div class="min-w-0">
-												<div class="text-sm font-semibold">{p.name}</div>
-												<div class="text-sm text-muted-foreground">
+												<h3 class="text-sm font-semibold">{p.name}</h3>
+												<p class="text-xs text-muted-foreground">
 													{brandName(p.brand_id)}{p.season_id
 														? ' · ' + seasonLabel(p.season_id, p.product_year)
 														: ''}
-												</div>
+												</p>
 											</div>
-											<div class="shrink-0 sm:text-right">
-												<div class="text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
-											</div>
+											<p class="shrink-0 text-sm font-semibold sm:text-right">
+												{fmt.format(p.wholesale_price)}
+											</p>
 										</div>
-									</div>
+									</article>
 								</div>
 							</div>
 						{/each}
@@ -514,13 +514,13 @@
 									>
 									Close
 								</button>
-								<div class="text-sm text-muted-foreground">{it.style_number}</div>
-								<div class="text-base font-semibold">{it.name}</div>
+								<span class="text-sm text-muted-foreground">{it.style_number}</span>
+								<h2 class="text-base font-semibold">{it.name}</h2>
 							</div>
 							<div class="flex-1 overflow-auto p-4">
 								{#if it.available_colors.length > 0}
 									<div class="mb-3">
-										<div class="mb-2 text-sm text-muted-foreground">Color</div>
+										<label class="mb-2 block text-sm text-muted-foreground">Color</label>
 										<div class="flex flex-wrap gap-3">
 											{#each it.available_colors as color (color)}
 												{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
@@ -626,7 +626,7 @@
 									{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
 									{@const activeColor = it.selected_color || ''}
 									{@const qty = it.color_size_qtys[activeColor]?.[''] ?? 0}
-									<div class="mb-2 text-sm text-muted-foreground">Qty</div>
+									<label class="mb-2 block text-sm text-muted-foreground">Qty</label>
 									<QtyStepper
 										value={qty}
 										onchange={(n) => {

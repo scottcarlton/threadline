@@ -70,8 +70,35 @@ export function productColors(p: CatalogProduct): string[] {
 	return [...new Set(p.product_variants.map((v) => v.color).filter(Boolean) as string[])];
 }
 
+const SIZE_ORDER: Record<string, number> = {
+	XXXS: 0,
+	XXS: 1,
+	XS: 2,
+	S: 3,
+	M: 4,
+	L: 5,
+	XL: 6,
+	XXL: 7,
+	XXXL: 8,
+	'2XL': 7,
+	'3XL': 8,
+	'4XL': 9,
+	OS: 50,
+	'One Size': 50,
+	OSFA: 50
+};
+
+function sizeRank(s: string): number {
+	const upper = s.toUpperCase();
+	if (upper in SIZE_ORDER) return SIZE_ORDER[upper];
+	const n = parseFloat(s);
+	if (!Number.isNaN(n)) return 100 + n;
+	return 200;
+}
+
 export function productSizes(p: CatalogProduct): string[] {
-	return [...new Set(p.product_variants.map((v) => v.size).filter(Boolean) as string[])];
+	const raw = [...new Set(p.product_variants.map((v) => v.size).filter(Boolean) as string[])];
+	return raw.sort((a, b) => sizeRank(a) - sizeRank(b));
 }
 
 export function itemUnits(it: CatalogCartItem): number {
