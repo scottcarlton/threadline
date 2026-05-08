@@ -186,7 +186,6 @@
 		data.isBuyer
 			? order.status === 'draft' && order.created_by === data.user?.id
 			: data.membership?.role !== 'guest' &&
-					order.status !== 'preparing' &&
 					order.status !== 'shipped' &&
 					order.status !== 'delivered' &&
 					order.status !== 'cancelled'
@@ -792,7 +791,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				available_colors: [],
 				available_sizes: [],
 				selected_color: l.color ?? '',
-				size_qtys: {}
+				size_qtys: {},
+				color_size_qtys: {},
+				color_image_ids: {}
 			});
 		}
 		catalogPickerItems = [...byProduct.values()];
@@ -816,27 +817,31 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		// Start (or continue) edit mode so the user can type qtys inline.
 		const baseDrafts = editMode ? draftRows : snapshotDrafts();
 		for (const it of fresh) {
-			const color = it.selected_color || null;
-			const key = `${it.product_id}|${color ?? ''}|new-${Date.now()}-${Math.random()}`;
-			const qty_by_size: Record<string, number> = {};
-			for (const s of it.available_sizes) qty_by_size[s] = 0;
-			baseDrafts.push({
-				key,
-				product_id: it.product_id,
-				style_number: it.style_number,
-				name: it.name,
-				season_label: null,
-				image_id: it.image_id,
-				color,
-				color_edit: color,
-				unit_price: it.unit_price,
-				available_sizes: it.available_sizes,
-				available_colors: it.available_colors,
-				qty_by_size,
-				lines: [],
-				to_remove: false,
-				added_here: true
-			});
+			for (const [color, sizeMap] of Object.entries(it.color_size_qtys)) {
+				const hasQty = Object.values(sizeMap).some((q) => q > 0);
+				if (!hasQty) continue;
+				const colorVal = color || null;
+				const key = `${it.product_id}|${color}|new-${Date.now()}-${Math.random()}`;
+				const qty_by_size: Record<string, number> = {};
+				for (const s of it.available_sizes) qty_by_size[s] = sizeMap[s] ?? 0;
+				baseDrafts.push({
+					key,
+					product_id: it.product_id,
+					style_number: it.style_number,
+					name: it.name,
+					season_label: null,
+					image_id: (color && it.color_image_ids?.[color]) || it.image_id,
+					color: colorVal,
+					color_edit: colorVal,
+					unit_price: it.unit_price,
+					available_sizes: it.available_sizes,
+					available_colors: it.available_colors,
+					qty_by_size,
+					lines: [],
+					to_remove: false,
+					added_here: true
+				});
+			}
 		}
 		draftRows = baseDrafts;
 		editMode = true;

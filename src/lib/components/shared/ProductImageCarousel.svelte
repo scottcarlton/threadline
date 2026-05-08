@@ -138,7 +138,10 @@
 					type="button"
 					class="h-12 w-12 shrink-0 overflow-hidden transition-all"
 					aria-label="View color {i + 1}"
-					onmouseenter={() => (activeGroupIndex = i)}
+					onmouseenter={() => {
+						activeGroupIndex = i;
+						if (onselect && thumb.id) onselect(thumb.id);
+					}}
 					onclick={(e) => {
 						e.preventDefault();
 						e.stopPropagation();

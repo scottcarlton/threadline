@@ -23,7 +23,7 @@ const bodySchema = z.object({
 // Statuses where any member can edit lines. Anything past these is locked
 // unless the caller is an org admin/owner, matching the gating specified in
 // docs/order-detail-redesign-plan.md §6.10.
-const OPEN_STATUSES = new Set(['draft', 'submitted', 'confirmed']);
+const OPEN_STATUSES = new Set(['draft', 'submitted', 'confirmed', 'preparing']);
 const ADMIN_ROLES = new Set(['admin', 'owner']);
 const MEMBER_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
 
