@@ -7,7 +7,6 @@
 	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
 	import CategoryFilter from '$lib/components/shared/CategoryFilter.svelte';
 	import { seasonIdsByName } from '$lib/utils/seasons.js';
-	import { cart } from '$lib/stores/cart.js';
 	import type { Product } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import ProductCard from '$lib/components/products/ProductCard.svelte';
@@ -208,9 +207,6 @@
 		{:else}
 			<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 				{#each filtered as product (product.id)}
-					{@const primaryImage =
-						product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
-					{@const inCart = $cart.some((i) => i.productId === product.id)}
 					{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
 					<ProductCard
 						productId={product.id}
@@ -233,80 +229,26 @@
 									</div>
 								{/if}
 							{/if}
-						{/snippet}
-						{#snippet action()}
-							{#if inCart}
-								<button
-									onclick={() => cart.removeItem(product.id)}
-									class="flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+							<button
+								type="button"
+								aria-label="Add {product.name}"
+								class="absolute right-3 bottom-3 hidden h-9 w-9 items-center justify-center rounded-full bg-white text-foreground shadow-md transition-transform group-hover:flex hover:scale-110 dark:bg-black"
+								onclick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+								}}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
 								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="h-3.5 w-3.5"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2"
-									>
-										<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-									</svg>
-									In Cart
-								</button>
-							{:else}
-								<button
-									onclick={() =>
-										cart.addItem({
-											productId: product.id,
-											brandId: product.brand_id,
-											productName: product.name,
-											styleNumber: product.style_number,
-											brandName: product.brands?.name ?? 'Unknown',
-											price: Number(product.wholesale_price ?? 0),
-											imageUrl: primaryImage
-												? `/api/products/${product.id}/images/${primaryImage.id}`
-												: null,
-											colors: [
-												...new Set(
-													(product.product_variants ?? [])
-														.map((v) => v.color)
-														.filter((c): c is string => Boolean(c))
-												)
-											],
-											sizes: [
-												...new Set(
-													(product.product_variants ?? [])
-														.map((v) => v.size)
-														.filter((s): s is string => Boolean(s))
-												)
-											],
-											addedAt: new Date().toISOString(),
-											seasonId: product.season_id ?? null,
-											seasonName: seasonRow?.name ?? null,
-											selectedColor:
-												(product.product_variants ?? [])
-													.map((v) => v.color)
-													.filter((c): c is string => Boolean(c))[0] ?? '',
-											sizeQtys: {}
-										})}
-									class="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="h-3.5 w-3.5"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="M12 4.5v15m7.5-7.5h-15"
-										/>
-									</svg>
-									Add to Cart
-								</button>
-							{/if}
+									<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+								</svg>
+							</button>
 						{/snippet}
 					</ProductCard>
 				{/each}

@@ -1181,7 +1181,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 <div class="w-full space-y-6 py-6">
 	<!-- ── Top bar ─────────────────────────────────────────────────────── -->
 	<div class="flex items-center justify-between">
-		<Button variant="ghost" size="sm" href="/orders"
+		<Button variant="ghost" size="sm" onclick={() => history.back()}
 			><LongArrow direction="left" /> Back to orders</Button
 		>
 		<div class="flex gap-2">

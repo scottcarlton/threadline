@@ -10,7 +10,6 @@
 	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import ProductCard from '$lib/components/products/ProductCard.svelte';
-	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import Skeleton from '$lib/components/ui/skeleton/skeleton.svelte';
 	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
 	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
@@ -343,29 +342,47 @@
 									</div>
 								{/if}
 							{/if}
+							{@const isSelected = selectedIds.includes(product.id)}
 							<button
 								type="button"
-								aria-label={selectedIds.includes(product.id)
-									? 'Deselect product'
-									: 'Select product'}
-								aria-pressed={selectedIds.includes(product.id)}
-								class="group/check absolute top-2 right-2 p-2 transition-opacity [@media(hover:none)]:opacity-100 {selectedIds.includes(
-									product.id
-								)
-									? 'opacity-100'
-									: 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'}"
+								aria-label={isSelected ? 'Deselect product' : 'Select product'}
+								aria-pressed={isSelected}
+								class="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full shadow-md transition-all [@media(hover:none)]:opacity-100 {isSelected
+									? 'bg-foreground text-background opacity-100'
+									: 'bg-white text-foreground opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:scale-110 dark:bg-black'}"
 								onclick={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
-									toggleSelected(product.id, !selectedIds.includes(product.id));
+									toggleSelected(product.id, !isSelected);
 								}}
 							>
-								<span class="pointer-events-none flex rounded-sm bg-white">
-									<Checkbox
-										checked={selectedIds.includes(product.id)}
-										class="h-6 w-6 group-hover/check:border-foreground"
-									/>
-								</span>
+								{#if isSelected}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2.5"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+									</svg>
+								{:else}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M12 4.5v15m7.5-7.5h-15"
+										/>
+									</svg>
+								{/if}
 							</button>
 						{/snippet}
 					</ProductCard>

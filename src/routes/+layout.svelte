@@ -4,7 +4,7 @@
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { navigating } from '$app/stores';
-	import { goto, afterNavigate, onNavigate } from '$app/navigation';
+	import { goto, beforeNavigate, afterNavigate, onNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
@@ -96,10 +96,29 @@
 	// noise on a continuously-deployed environment.
 
 	let mainEl = $state<HTMLElement | null>(null);
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive scroll cache, not rendered
+	const scrollPositions = new Map<string, number>();
+
+	beforeNavigate(({ from }) => {
+		if (mainEl && from?.url.pathname) {
+			scrollPositions.set(from.url.pathname, mainEl.scrollTop);
+		}
+	});
+
 	afterNavigate(({ from, to, type }) => {
 		if (!mainEl) return;
-		if (type === 'popstate') return;
 		if (from?.url.pathname === to?.url.pathname) return;
+
+		if (type === 'popstate' && to?.url.pathname) {
+			const saved = scrollPositions.get(to.url.pathname);
+			if (saved != null) {
+				requestAnimationFrame(() => {
+					mainEl!.scrollTop = saved;
+				});
+				return;
+			}
+		}
+
 		mainEl.scrollTop = 0;
 
 		const leftProducts =
@@ -168,7 +187,8 @@
 	);
 
 	const hideAiDock = $derived(
-		$preferences.autoHideDock ||
+		data.isBuyer ||
+			$preferences.autoHideDock ||
 			$page.url.pathname.endsWith('/new') ||
 			$page.url.pathname === '/inbox'
 	);
@@ -178,7 +198,7 @@
 	let peekTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	function handleMouseMove(e: MouseEvent) {
-		if (!hideAiDock) return;
+		if (!hideAiDock || data.isBuyer) return;
 		const distFromBottom = window.innerHeight - e.clientY;
 		if (distFromBottom < 15) {
 			if (!dockPeeking) {
@@ -827,7 +847,7 @@
 	</div>
 
 	<!-- Fixed AI dock — outside overflow-hidden for iPad Safari fixed positioning -->
-	{#if ($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen)}
+	{#if !data.isBuyer && (($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen))}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 {sidebarMounted

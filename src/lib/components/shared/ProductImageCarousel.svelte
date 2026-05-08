@@ -134,17 +134,13 @@
 	{#if showThumbnails}
 		<div class="mt-1.5 flex gap-1 px-4">
 			{#each thumbnails as thumb, i (thumb.id)}
-				<button
-					type="button"
-					class="h-12 w-12 shrink-0 overflow-hidden transition-all"
+				<div
+					class="h-12 w-12 shrink-0 cursor-pointer overflow-hidden transition-all"
+					role="img"
 					aria-label="View color {i + 1}"
 					onmouseenter={() => {
 						activeGroupIndex = i;
 						if (onselect && thumb.id) onselect(thumb.id);
-					}}
-					onclick={(e) => {
-						e.preventDefault();
-						e.stopPropagation();
 					}}
 				>
 					<img
@@ -152,7 +148,7 @@
 						alt=""
 						class="h-full w-full object-cover"
 					/>
-				</button>
+				</div>
 			{/each}
 		</div>
 	{/if}

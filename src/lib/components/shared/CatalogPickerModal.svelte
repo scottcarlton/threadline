@@ -31,6 +31,8 @@
 		colorUnits
 	} from './catalog-picker-types.js';
 
+	const STANDARD_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
+
 	let asideEl = $state<HTMLElement | null>(null);
 	let asideMounted = $state(false);
 	let asideAnimating = $state(false);
@@ -591,6 +593,7 @@
 
 								{#if it.available_sizes.length > 0}
 									{@const cUnits = colorUnits(it, it.selected_color)}
+									{@const availableSet = new Set(it.available_sizes)}
 									<div class="mb-2 flex items-baseline justify-between">
 										<span class="text-sm text-muted-foreground">Sizes</span>
 										{#if cUnits > 0}
@@ -603,19 +606,20 @@
 										{/if}
 									</div>
 									<div class="grid grid-cols-2 gap-3">
-										{#each it.available_sizes as size (size)}
+										{#each STANDARD_SIZES as size (size)}
 											{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
 											{@const prod = productForItem(it)}
 											{@const sizeQtys = it.color_size_qtys[it.selected_color]}
 											{@const qty = sizeQtys?.[size] ?? 0}
-											{@const variant = prod?.ats
-												? findVariant(prod, it.selected_color, size)
-												: null}
+											{@const available = availableSet.has(size)}
+											{@const variant =
+												prod?.ats && available ? findVariant(prod, it.selected_color, size) : null}
 											<div class="flex items-center gap-2">
 												<div class="flex-1">
 													<QtyStepper
 														value={qty}
 														label={size}
+														disabled={!available}
 														onchange={(n) => {
 															if (!items[idx].color_size_qtys[it.selected_color]) {
 																items[idx].color_size_qtys[it.selected_color] = {};
