@@ -24,7 +24,6 @@
 		action?: Snippet;
 	};
 
-	/* eslint-disable @typescript-eslint/no-unused-vars */
 	let {
 		productId,
 		href,
@@ -38,23 +37,28 @@
 		overlay,
 		action
 	}: Props = $props();
-	/* eslint-enable @typescript-eslint/no-unused-vars */
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 	const metaLine = $derived([brandName, seasonLabel].filter(Boolean).join(' · '));
+
+	let activeImageId = $state<string | null>(null);
+	const activeHref = $derived(
+		activeImageId ? `${href}${href.includes('?') ? '&' : '?'}color=${activeImageId}` : href
+	);
 </script>
 
 <div class="group rounded-none transition-all duration-200 {archived ? 'opacity-50' : ''}">
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- caller passes pre-resolved href -->
-	<a {href} class="block">
-		<ProductImageCarousel {productId} {images} alt={name} aspect="aspect-square">
-			{#snippet overlay()}
-				{#if overlay}
-					{@render overlay()}
-				{/if}
-			{/snippet}
-		</ProductImageCarousel>
+	<a href={activeHref} class="block">
+		<ProductImageCarousel
+			{productId}
+			{images}
+			alt={name}
+			aspect="aspect-square"
+			{overlay}
+			onselect={(id) => (activeImageId = id)}
+		></ProductImageCarousel>
 		<div class="p-4">
 			<p class="text-xs text-muted-foreground">{styleNumber}</p>
 			<div

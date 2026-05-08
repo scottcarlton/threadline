@@ -22,7 +22,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		)
 		.eq('is_active', true)
 		.is('archived_at', null)
-		.order('style_number');
+		.order('created_at', { ascending: false });
 
 	if (hasBrandScope) {
 		brandsQuery = brandsQuery.in('id', buyerBrandIds);

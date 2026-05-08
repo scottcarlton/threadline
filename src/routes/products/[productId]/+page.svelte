@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll, goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { resolve } from '$app/paths';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { DropdownMenu, Dialog } from 'bits-ui';
@@ -54,7 +55,16 @@
 			});
 	});
 
-	let activeGroupIndex = $state(0);
+	let activeGroupIndex = $state(
+		(() => {
+			const imgId = $page.url.searchParams.get('color');
+			if (!imgId) return 0;
+			const idx = variantImageGroups().findIndex(
+				(g) => g.primary?.id === imgId || g.hover?.id === imgId
+			);
+			return idx >= 0 ? idx : 0;
+		})()
+	);
 	let selectedSubImage = $state<ProductImage | null>(null);
 	let playingVideo = $state(false);
 	let videoEl = $state<HTMLVideoElement | null>(null);
@@ -62,9 +72,52 @@
 	const activeGroup = $derived(
 		variantImageGroups()[activeGroupIndex] ?? variantImageGroups()[0] ?? null
 	);
+
+	$effect(() => {
+		const imgId = activeGroup?.primary?.id;
+		if (!imgId) return;
+		const url = new URL(window.location.href);
+		url.searchParams.set('color', imgId);
+		history.replaceState(history.state, '', url.toString());
+	});
 	const activeImage = $derived(
 		selectedSubImage ?? activeGroup?.primary ?? product.product_images?.[0] ?? null
 	);
+
+	const groupImages = $derived(
+		[activeGroup?.primary, activeGroup?.hover, activeGroup?.video].filter(
+			(img): img is ProductImage => img != null
+		)
+	);
+	const activeImageIndex = $derived(
+		activeImage ? groupImages.findIndex((img) => img.id === activeImage.id) : 0
+	);
+
+	function prevImage() {
+		if (groupImages.length <= 1) return;
+		const idx = (activeImageIndex - 1 + groupImages.length) % groupImages.length;
+		const img = groupImages[idx];
+		if (img.role === 'video') {
+			playingVideo = true;
+			selectedSubImage = null;
+		} else {
+			playingVideo = false;
+			selectedSubImage = img;
+		}
+	}
+
+	function nextImage() {
+		if (groupImages.length <= 1) return;
+		const idx = (activeImageIndex + 1) % groupImages.length;
+		const img = groupImages[idx];
+		if (img.role === 'video') {
+			playingVideo = true;
+			selectedSubImage = null;
+		} else {
+			playingVideo = false;
+			selectedSubImage = img;
+		}
+	}
 
 	$effect(() => {
 		void activeGroupIndex;
@@ -306,7 +359,7 @@
 <div class="space-y-6">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
-		<Button variant="ghost" size="sm" href="/products">
+		<Button variant="ghost" size="sm" onclick={() => history.back()}>
 			<LongArrow direction="left" /> Products
 		</Button>
 		{#if canEdit && !editing}
@@ -505,6 +558,52 @@
 							<circle cx="8.5" cy="8.5" r="1.5" />
 							<path d="M21 15l-5-5L5 21" />
 						</svg>
+					</div>
+				{/if}
+				{#if groupImages.length > 1}
+					<div class="absolute right-3 bottom-3 flex gap-1.5">
+						<button
+							type="button"
+							aria-label="Previous image"
+							class="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-foreground shadow-sm transition-colors hover:bg-white dark:bg-black/80 dark:hover:bg-black"
+							onclick={prevImage}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M15.75 19.5L8.25 12l7.5-7.5"
+								/>
+							</svg>
+						</button>
+						<button
+							type="button"
+							aria-label="Next image"
+							class="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-foreground shadow-sm transition-colors hover:bg-white dark:bg-black/80 dark:hover:bg-black"
+							onclick={nextImage}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M8.25 4.5l7.5 7.5-7.5 7.5"
+								/>
+							</svg>
+						</button>
 					</div>
 				{/if}
 			</div>

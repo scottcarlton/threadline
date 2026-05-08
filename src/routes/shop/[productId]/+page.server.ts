@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const { data: product, error: err } = await supabaseAdmin
 		.from('products')
 		.select(
-			'*, brands(id, name), seasons(id, name), product_variants(id, color, size, sku, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order)'
+			'*, brands(id, name), seasons(id, name), product_variants(id, color, color_hex, size, sku, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order, variant_id, role)'
 		)
 		.eq('id', params.productId)
 		.eq('is_active', true)

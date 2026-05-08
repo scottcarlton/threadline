@@ -2,10 +2,11 @@
 	type Props = {
 		value: number;
 		label?: string;
+		disabled?: boolean;
 		onchange: (qty: number) => void;
 	};
 
-	let { value, label, onchange }: Props = $props();
+	let { value, label, disabled = false, onchange }: Props = $props();
 
 	function dec() {
 		onchange(Math.max(0, value - 1));
@@ -17,7 +18,9 @@
 </script>
 
 <div
-	class="flex h-11 items-center overflow-hidden rounded-lg border border-input bg-background focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20"
+	class="flex h-11 items-center overflow-hidden rounded-lg border border-input bg-background {disabled
+		? 'pointer-events-none opacity-30'
+		: 'focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20'}"
 >
 	{#if label}
 		<span class="flex-1 pl-4 text-sm font-medium">{label}</span>
