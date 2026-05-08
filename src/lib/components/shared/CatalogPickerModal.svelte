@@ -5,7 +5,8 @@
 	import { quintOut } from 'svelte/easing';
 	import { browser } from '$app/environment';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import { SearchDropdown } from '$lib/components/ui/input/index.js';
+	import { addRecent } from '$lib/stores/recent-searches.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
@@ -165,6 +166,13 @@
 		modalDebounce = setTimeout(loadModalProducts, 250);
 	}
 
+	function onModalSearchCommit(term: string) {
+		modalSearch = term;
+		addRecent('catalog', term);
+		clearTimeout(modalDebounce);
+		loadModalProducts();
+	}
+
 	// ── Open/reset on visibility change ──────────────────────────────────────
 	// Track only `open`; the resets and loadModalProducts() read the same state
 	// they write, which would otherwise create an infinite effect loop.
@@ -306,10 +314,13 @@
 
 		<!-- Filters -->
 		<div class="flex flex-wrap items-center gap-3 px-5 py-3">
-			<SearchInput
+			<SearchDropdown
 				placeholder="Search style # or name…"
 				bind:value={modalSearch}
 				oninput={onModalSearchChange}
+				oncommit={onModalSearchCommit}
+				context="catalog"
+				suggestionType="products"
 				class="w-64"
 			/>
 			{#if dedupedSeasons.length > 1}
