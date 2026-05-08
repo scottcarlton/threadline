@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { fly } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 	import { browser } from '$app/environment';
@@ -8,7 +9,6 @@
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
-	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
 	import QtyStepper from '$lib/components/shared/QtyStepper.svelte';
@@ -117,7 +117,7 @@
 	let modalDebounce: ReturnType<typeof setTimeout> | undefined;
 	let sizingProductId = $state<string | null>(null);
 	let colorPickerProductId = $state<string | null>(null);
-	const hoveredImageByProduct = new Map<string, string>();
+	const hoveredImageByProduct = new SvelteMap<string, string>();
 
 	// Deduplicated seasons for dropdown display
 	const dedupedSeasons = $derived.by(() => {

@@ -550,6 +550,7 @@
 	const colorPickerItem = $derived(colorPickerIdx >= 0 ? cart.items[colorPickerIdx] : null);
 
 	function mergeColorItems() {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient local map
 		const byProduct = new Map<string, OrderItem>();
 		for (const it of cart.items) {
 			const color = it.selected_color || '';
