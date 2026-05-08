@@ -13,6 +13,7 @@
 		onFilterToggle?: () => void;
 		showFilterToggle?: boolean;
 		children?: Snippet;
+		searchSlot?: Snippet;
 		class?: string;
 	};
 
@@ -25,6 +26,7 @@
 		onFilterToggle,
 		showFilterToggle = false,
 		children,
+		searchSlot,
 		class: className
 	}: Props = $props();
 </script>
@@ -36,12 +38,16 @@
 	)}
 	in:fly={{ y: 6, duration: 250, delay: 100 }}
 >
-	<SearchInput
-		value={search}
-		oninput={onSearchInput}
-		placeholder={searchPlaceholder}
-		class={searchClass}
-	/>
+	{#if searchSlot}
+		{@render searchSlot()}
+	{:else}
+		<SearchInput
+			value={search}
+			oninput={onSearchInput}
+			placeholder={searchPlaceholder}
+			class={searchClass}
+		/>
+	{/if}
 
 	{#if showFilterToggle}
 		<button

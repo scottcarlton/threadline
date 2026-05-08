@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { SearchDropdown } from '$lib/components/ui/input/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
@@ -16,6 +17,7 @@
 	import CategoryFilter from '$lib/components/shared/CategoryFilter.svelte';
 	import { seasonIdsByName } from '$lib/utils/seasons.js';
 	import { aggregateStockStatus } from '$lib/utils/products';
+	import { addRecent } from '$lib/stores/recent-searches.js';
 	import type { Product } from '$lib/types/database.js';
 
 	import { goto } from '$app/navigation';
@@ -130,6 +132,12 @@
 		debouncedSearch(value);
 	}
 
+	function onSearchCommit(term: string) {
+		search = term;
+		addRecent('products', term);
+		setFilter('search', term);
+	}
+
 	// Infinite scroll
 	async function loadMore() {
 		if (loadingMore || !hasMore) return;
@@ -208,6 +216,17 @@
 
 	<!-- Filters -->
 	<ListPageToolbar {search} {onSearchInput} searchPlaceholder="Search products...">
+		{#snippet searchSlot()}
+			<SearchDropdown
+				bind:value={search}
+				oninput={onSearchInput}
+				oncommit={onSearchCommit}
+				placeholder="Search products..."
+				context="products"
+				suggestionType="products"
+				class="w-64 shrink-0"
+			/>
+		{/snippet}
 		{#if (data.brands ?? []).length > 1}
 			<BrandFilter
 				brands={data.brands ?? []}
