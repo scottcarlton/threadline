@@ -8,16 +8,21 @@ Email ordering lets reps email `stitch@reply.threadline.systems` to create order
 
 ### MX Record
 
-Brevo requires an MX record on the inbound subdomain `reply.threadline.systems`:
+Brevo requires two MX records on the inbound subdomain `reply.threadline.systems`:
 
-1. In Squarespace DNS, add an MX record on `reply.threadline.systems` pointing to Brevo's inbound MX (per Brevo Dashboard → Transactional → Settings → Inbound parsing instructions)
+1. In Squarespace DNS, add MX records on `reply`:
+   - Priority 10 → `inbound1.sendinblue.com.`
+   - Priority 20 → `inbound2.sendinblue.com.`
 2. Wait for DNS propagation (typically 15 min – 24h)
 
 ### Inbound Parse Configuration
 
-1. In Brevo Dashboard → Transactional → Settings → Inbound parsing
-2. Set webhook URL: `https://threadline.systems/api/webhooks/inbound-email`
-3. Copy the webhook signing secret → set as `BREVO_WEBHOOK_SECRET` in Vercel env vars
+Create the inbound webhook via Brevo's API with bearer token auth:
+
+1. Generate a random secret (e.g. `openssl rand -hex 32`)
+2. Create the webhook via Brevo API with `auth: { type: "bearer", token: "<secret>" }`
+3. Set `BREVO_WEBHOOK_SECRET` in Vercel env vars to that same secret
+4. Brevo will send `Authorization: Bearer <secret>` on every webhook POST to `/api/webhooks/inbound-email`
 
 ### Sending Domain Authentication
 

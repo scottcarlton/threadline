@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { extractEmailAddress, parseInboundItem, verifyWebhook } from './brevo-inbound.js';
 import type { BrevoInboundItem } from './brevo-inbound.js';
-import { createHmac } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 
 describe('extractEmailAddress', () => {
@@ -92,35 +91,31 @@ describe('parseInboundItem', () => {
 describe('verifyWebhook', () => {
 	const secret = env.BREVO_WEBHOOK_SECRET!;
 
-	function sign(body: string): string {
-		return createHmac('sha256', secret).update(body).digest('hex');
-	}
-
-	it('returns parsed payload for valid signature', () => {
+	it('returns parsed payload for valid bearer token', () => {
 		const body = JSON.stringify({ items: [] });
-		const headers = new Headers({ 'x-brevo-signature': sign(body) });
+		const headers = new Headers({ authorization: `Bearer ${secret}` });
 		const result = verifyWebhook(body, headers);
 		expect(result).toEqual({ items: [] });
 	});
 
-	it('returns null for missing signature header', () => {
+	it('returns null for missing authorization header', () => {
 		const body = JSON.stringify({ items: [] });
 		const headers = new Headers();
 		const result = verifyWebhook(body, headers);
 		expect(result).toBeNull();
 	});
 
-	it('returns null for wrong signature', () => {
+	it('returns null for wrong token', () => {
 		const body = JSON.stringify({ items: [] });
-		const headers = new Headers({ 'x-brevo-signature': 'deadbeef'.repeat(8) });
+		const headers = new Headers({ authorization: 'Bearer wrong-token-value' });
 		const result = verifyWebhook(body, headers);
 		expect(result).toBeNull();
 	});
 
-	it('accepts x-mailin-signature header as fallback', () => {
+	it('returns null for non-bearer auth scheme', () => {
 		const body = JSON.stringify({ items: [] });
-		const headers = new Headers({ 'x-mailin-signature': sign(body) });
+		const headers = new Headers({ authorization: `Basic ${secret}` });
 		const result = verifyWebhook(body, headers);
-		expect(result).toEqual({ items: [] });
+		expect(result).toBeNull();
 	});
 });

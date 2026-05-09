@@ -1,8 +1,10 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 
 /**
- * Verify a Brevo inbound parse webhook using HMAC-SHA256 signature.
+ * Verify a Brevo inbound parse webhook using bearer token auth.
+ * Brevo sends `Authorization: Bearer <token>` when configured with
+ * auth type "bearer" during webhook creation.
  * Returns the parsed payload if valid, null otherwise.
  */
 export function verifyWebhook(
@@ -12,16 +14,18 @@ export function verifyWebhook(
 	const secret = env.BREVO_WEBHOOK_SECRET;
 	if (!secret) throw new Error('BREVO_WEBHOOK_SECRET is not set');
 
-	const signature =
-		requestHeaders.get('x-brevo-signature') ?? requestHeaders.get('x-mailin-signature');
-	if (!signature) return null;
+	const authHeader = requestHeaders.get('authorization');
+	if (!authHeader) return null;
 
-	const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
+	const match = authHeader.match(/^Bearer\s+(.+)$/i);
+	if (!match) return null;
+
+	const token = match[1];
 
 	try {
-		const sigBuf = Buffer.from(signature, 'hex');
-		const expBuf = Buffer.from(expected, 'hex');
-		if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null;
+		const tokenBuf = Buffer.from(token);
+		const secretBuf = Buffer.from(secret);
+		if (tokenBuf.length !== secretBuf.length || !timingSafeEqual(tokenBuf, secretBuf)) return null;
 	} catch {
 		return null;
 	}
