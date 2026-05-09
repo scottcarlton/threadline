@@ -146,7 +146,6 @@
 	});
 
 	onMount(() => {
-		document.getElementById('splash')?.remove();
 		if (data.session) {
 			const stopUnread = startUnreadPolling(60000);
 			const stopAppointments = startAppointmentPolling(60000);
