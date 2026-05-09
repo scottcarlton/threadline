@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { error, redirect } from '@sveltejs/kit';
+import { supabaseAdmin } from '$lib/server/supabase.js';
 import {
 	formatLocation,
 	formatPayment,
@@ -34,7 +35,8 @@ type RawOrderRow = {
 };
 
 export const load: PageServerLoad = async ({ url, locals }) => {
-	const supabase = locals.supabase;
+	if (!locals.organization) throw redirect(303, '/orders');
+	const orgId = locals.organization.id;
 	const idsParam = url.searchParams.get('ids');
 	if (!idsParam) throw redirect(303, '/orders');
 
@@ -48,7 +50,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	// Dedupe + cap, so a pathological URL can't make us query unbounded rows.
 	const order_numbers = Array.from(new Set(rawNumbers)).slice(0, MAX_IDS);
 
-	const { data, error: queryError } = await supabase
+	const { data, error: queryError } = await supabaseAdmin
 		.from('orders')
 		.select(
 			`id, order_number, order_type, status, total_amount, submitted_at, created_at, start_ship_date, expected_ship_date, order_year, payment_preference, payment_terms,
@@ -58,6 +60,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 				 account_locations!location_id(label, city, state),
 				 order_lines(qty)`
 		)
+		.eq('organization_id', orgId)
 		.in('order_number', order_numbers);
 
 	if (queryError) throw error(500, queryError.message);

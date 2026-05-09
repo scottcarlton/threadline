@@ -22,6 +22,7 @@
 		archived?: boolean;
 		overlay?: Snippet;
 		action?: Snippet;
+		onImageSelect?: (imageId: string) => void;
 	};
 
 	let {
@@ -35,7 +36,8 @@
 		brandName = null,
 		archived = false,
 		overlay,
-		action
+		action,
+		onImageSelect
 	}: Props = $props();
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -57,7 +59,10 @@
 			alt={name}
 			aspect="aspect-square"
 			{overlay}
-			onselect={(id) => (activeImageId = id)}
+			onselect={(id) => {
+				activeImageId = id;
+				onImageSelect?.(id);
+			}}
 		></ProductImageCarousel>
 		<div class="p-4">
 			<p class="text-xs text-muted-foreground">{styleNumber}</p>

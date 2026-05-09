@@ -11,8 +11,26 @@
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import ProductCard from '$lib/components/products/ProductCard.svelte';
 	import { aggregateStockStatus } from '$lib/utils/products';
+	import { cart } from '$lib/stores/cart.js';
+	import QuickAddModal from '$lib/components/shared/QuickAddModal.svelte';
 
 	let { data } = $props();
+
+	let quickAddProduct = $state<(typeof products)[number] | null>(null);
+	let quickAddOpen = $state(false);
+	let quickAddImageId = $state<string | null>(null);
+	const activeImageByProduct: Record<string, string> = {};
+
+	function productCartUnits(productId: string): number {
+		let total = 0;
+		for (const item of $cart) {
+			if (item.productId !== productId) continue;
+			for (const qty of Object.values(item.sizeQtys)) {
+				total += qty || 0;
+			}
+		}
+		return total;
+	}
 
 	const brands = $derived(data.brands as { id: string; name: string; logo_url: string | null }[]);
 	const seasons = $derived((data.seasons ?? []) as Array<{ id: string; name: string }>);
@@ -32,6 +50,8 @@
 				file_path: string;
 				is_primary: boolean;
 				sort_order: number | null;
+				role?: 'primary' | 'hover' | 'video' | null;
+				variant_id?: string | null;
 			}[];
 		})[]
 	);
@@ -217,6 +237,7 @@
 						images={product.product_images ?? []}
 						seasonLabel={seasonRow?.name}
 						brandName={product.brands?.name}
+						onImageSelect={(id) => (activeImageByProduct[product.id] = id)}
 					>
 						{#snippet overlay()}
 							{#if product.ats}
@@ -229,25 +250,58 @@
 									</div>
 								{/if}
 							{/if}
+							{@const cartUnits = productCartUnits(product.id)}
 							<button
 								type="button"
-								aria-label="Add {product.name}"
-								class="absolute right-3 bottom-3 hidden h-9 w-9 items-center justify-center rounded-full bg-white text-foreground shadow-md transition-transform group-hover:flex hover:scale-110 dark:bg-black"
+								aria-label={cartUnits > 0
+									? `${cartUnits} units in cart — edit`
+									: `Add ${product.name}`}
+								class="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-foreground shadow-md transition-all hover:scale-110 dark:bg-black {cartUnits >
+								0
+									? 'opacity-100'
+									: 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100'}"
 								onclick={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
+									quickAddProduct = product;
+									quickAddImageId = activeImageByProduct[product.id] ?? null;
+									quickAddOpen = true;
 								}}
 							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-								</svg>
+								{#if cartUnits > 0}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="absolute h-6 w-6"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+										/>
+									</svg>
+									<span class="translate-y-[4px] text-[10px] leading-none font-bold"
+										>{cartUnits}</span
+									>
+								{:else}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M12 4.5v15m7.5-7.5h-15"
+										/>
+									</svg>
+								{/if}
 							</button>
 						{/snippet}
 					</ProductCard>
@@ -256,3 +310,11 @@
 		{/if}
 	{/if}
 </div>
+
+<QuickAddModal
+	product={quickAddProduct}
+	open={quickAddOpen}
+	onOpenChange={(v) => (quickAddOpen = v)}
+	initialImageId={quickAddImageId}
+	seasonName={seasons.find((s) => s.id === quickAddProduct?.season_id)?.name ?? null}
+/>
