@@ -23,7 +23,9 @@
 		invitation_invalid: 'That invitation link is no longer valid.',
 		invitation_expired: 'That invitation has expired. Ask your admin to send a new one.',
 		invite_accept_failed:
-			'Something went wrong accepting that invitation. Please try again or contact your admin.'
+			'Something went wrong accepting that invitation. Please try again or contact your admin.',
+		beta_not_whitelisted:
+			"Threadline is currently in private beta. If you'd like access, reach out to hello@threadline.systems."
 	};
 
 	const urlError = get(page).url.searchParams.get('error');

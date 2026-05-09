@@ -10,6 +10,7 @@ import {
 } from '$env/static/public';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isSystemAdminEmail } from '$lib/server/system-admin.js';
+import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
 import type {
 	OrgType,
 	OrganizationMember,
@@ -104,6 +105,15 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.allMemberships = [];
 
 	const isPublicRoute = PUBLIC_ROUTES.some((r) => event.url.pathname.startsWith(r));
+
+	// Beta whitelist gate: reject users not on the whitelist
+	if (session && user && !isPublicRoute) {
+		const whitelisted = await isEmailWhitelisted(user.email ?? '');
+		if (!whitelisted) {
+			await supabase.auth.signOut();
+			throw redirect(303, '/login?error=beta_not_whitelisted');
+		}
+	}
 
 	// Redirect unauthenticated users to login
 	if (!session && !isPublicRoute && event.url.pathname !== '/') {
