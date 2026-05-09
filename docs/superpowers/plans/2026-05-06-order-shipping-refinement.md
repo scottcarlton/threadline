@@ -6,7 +6,7 @@
 
 **Architecture:** New Supabase migration adds the enum value and columns. The status API gains `preparing` transitions and smarter notification routing based on `locals.orgType`. The order detail page gets a Shipment Details section (editable during `preparing`, read-only after `shipped`) and a confirmation dialog on "Mark as Shipped." The order list page adds `preparing` to all status maps. The spotlight utility includes `preparing` in its "in-flight" check.
 
-**Tech Stack:** SvelteKit 5 + Svelte 5 runes, Supabase (Postgres), Tailwind CSS v4, Bits UI, Resend (email), Vitest
+**Tech Stack:** SvelteKit 5 + Svelte 5 runes, Supabase (Postgres), Tailwind CSS v4, Bits UI, Brevo (email), Vitest
 
 **Spec:** `docs/superpowers/specs/2026-05-06-order-shipping-refinement-design.md`
 
