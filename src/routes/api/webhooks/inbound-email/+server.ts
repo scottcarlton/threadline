@@ -3,9 +3,10 @@ import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import {
 	verifyWebhook,
-	fetchReceivedEmail,
+	parseInboundItem,
 	extractEmailAddress
-} from '$lib/server/email-intake/resend-inbound.js';
+} from '$lib/server/email-intake/brevo-inbound.js';
+import type { ReceivedEmail } from '$lib/server/email-intake/brevo-inbound.js';
 import { resolveOrgFromSender } from '$lib/server/email-intake/route.js';
 import { parseInboundOrder } from '$lib/server/email-intake/parser.js';
 import { resolveEntities } from '$lib/server/email-intake/resolve.js';
@@ -16,30 +17,30 @@ const RATE_LIMIT_PER_HOUR = 60;
 export const POST: RequestHandler = async ({ request }) => {
 	// ── 1. Verify webhook signature ──────────────────────────
 	const rawBody = await request.text();
-	const event = await verifyWebhook(rawBody, request.headers);
+	const payload = verifyWebhook(rawBody, request.headers);
 
-	if (!event) {
+	if (!payload) {
 		return json({ error: 'Invalid webhook signature' }, { status: 401 });
 	}
 
-	if (event.type !== 'email.received') {
-		// Acknowledge non-email events silently
-		return json({ ok: true });
+	// Brevo delivers parsed emails in items[] — process each independently
+	const results: Array<{ intake_id: string; status: string }> = [];
+
+	for (const item of payload.items) {
+		const result = await processItem(parseInboundItem(item));
+		results.push(result);
 	}
 
-	const { email_id: resendEmailId, from, to, subject } = event.data;
-	const fromEmail = extractEmailAddress(from);
+	return json({ ok: true, results });
+};
 
-	// ── 2. Fetch full email content from Resend API ──────────
-	const fullEmail = await fetchReceivedEmail(resendEmailId);
-	if (!fullEmail) {
-		console.error(`[email-intake] Failed to fetch email ${resendEmailId}`);
-		return json({ error: 'Failed to fetch email content' }, { status: 502 });
-	}
-
+async function processItem(
+	fullEmail: ReceivedEmail
+): Promise<{ intake_id: string; status: string }> {
+	const fromEmail = extractEmailAddress(fullEmail.from);
 	const messageId = fullEmail.messageId;
 
-	// ── 3. Idempotency check ─────────────────────────────────
+	// ── 2. Idempotency check ─────────────────────────────────
 	const { data: existing } = await supabaseAdmin
 		.from('email_intakes')
 		.select('id')
@@ -47,10 +48,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		.maybeSingle();
 
 	if (existing) {
-		return json({ ok: true, deduplicated: true });
+		return { intake_id: existing.id, status: 'deduplicated' };
 	}
 
-	// ── 4. Rate limiting ─────────────────────────────────────
+	// ── 3. Rate limiting ─────────────────────────────────────
 	const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 	const { count } = await supabaseAdmin
 		.from('email_intakes')
@@ -59,18 +60,18 @@ export const POST: RequestHandler = async ({ request }) => {
 		.gte('created_at', oneHourAgo);
 
 	if ((count ?? 0) >= RATE_LIMIT_PER_HOUR) {
-		return json({ error: 'Rate limit exceeded' }, { status: 429 });
+		return { intake_id: '', status: 'rate_limited' };
 	}
 
-	// ── 5. Insert intake row ─────────────────────────────────
+	// ── 4. Insert intake row ─────────────────────────────────
 	const { data: intake, error: insertError } = await supabaseAdmin
 		.from('email_intakes')
 		.insert({
 			from_email: fromEmail,
-			to_email: to[0] ?? '',
-			subject: subject ?? null,
+			to_email: fullEmail.to[0] ?? '',
+			subject: fullEmail.subject ?? null,
 			message_id: messageId,
-			resend_email_id: resendEmailId,
+			provider_email_id: fullEmail.id,
 			status: 'received'
 		})
 		.select('id')
@@ -78,14 +79,13 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	if (insertError || !intake) {
 		console.error('[email-intake] Insert failed:', insertError);
-		return json({ error: 'Failed to create intake' }, { status: 500 });
+		return { intake_id: '', status: 'insert_failed' };
 	}
 
 	const intakeId = intake.id;
 
-	// ── 6. Process inline (route → parse → resolve → outcome) ──
+	// ── 5. Process inline (route → parse → resolve → outcome) ──
 	try {
-		// Route: resolve sender to org
 		const routeResult = await resolveOrgFromSender(fromEmail);
 
 		if (routeResult.kind === 'none') {
@@ -100,11 +100,9 @@ export const POST: RequestHandler = async ({ request }) => {
 				})
 				.eq('id', intakeId);
 
-			// TODO (Phase 4): send bounce email
-			return json({ ok: true, intake_id: intakeId, status: 'rejected' });
+			return { intake_id: intakeId, status: 'rejected' };
 		}
 
-		// Parse: extract order from email body
 		const emailBody = fullEmail.text ?? fullEmail.html ?? '';
 		const parsed = await parseInboundOrder(emailBody);
 
@@ -113,7 +111,6 @@ export const POST: RequestHandler = async ({ request }) => {
 			.update({ parsed_json: parsed, status: 'parsed' })
 			.eq('id', intakeId);
 
-		// Resolve: match entities against the database
 		const orgCandidates =
 			routeResult.kind === 'single'
 				? [{ organizationId: routeResult.organizationId, userId: routeResult.userId }]
@@ -130,21 +127,18 @@ export const POST: RequestHandler = async ({ request }) => {
 				})
 				.eq('id', intakeId);
 
-			// TODO (Phase 4): send routing-ambiguity bounce email
-			return json({ ok: true, intake_id: intakeId, status: 'needs_routing' });
+			return { intake_id: intakeId, status: 'needs_routing' };
 		}
 
-		// Update intake with the resolved org
 		await supabaseAdmin
 			.from('email_intakes')
 			.update({ organization_id: resolved.organizationId })
 			.eq('id', intakeId);
 
-		// Outcome: decide submit vs review, create order
 		const outcome = decideOutcome(resolved);
 		await executeOutcome(intakeId, resolved, outcome);
 
-		return json({ ok: true, intake_id: intakeId, status: outcome.status });
+		return { intake_id: intakeId, status: outcome.status };
 	} catch (err) {
 		console.error(`[email-intake] Processing failed for ${intakeId}:`, err);
 		await supabaseAdmin
@@ -155,6 +149,6 @@ export const POST: RequestHandler = async ({ request }) => {
 			})
 			.eq('id', intakeId);
 
-		return json({ ok: true, intake_id: intakeId, status: 'needs_review' });
+		return { intake_id: intakeId, status: 'needs_review' };
 	}
-};
+}
