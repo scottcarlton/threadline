@@ -5,11 +5,17 @@ export async function createExcelWorkbook(
 	fileName: string
 ): Promise<{ id: string; webUrl: string } | null> {
 	// Create a new Excel file in OneDrive root
-	const data = await graphFetch(organizationId, `/me/drive/root:/${fileName}.xlsx:/content`, {
-		method: 'PUT',
-		headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-		body: ''
-	});
+	const data = await graphFetch<{ id: string; webUrl: string }>(
+		organizationId,
+		`/me/drive/root:/${fileName}.xlsx:/content`,
+		{
+			method: 'PUT',
+			headers: {
+				'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+			},
+			body: ''
+		}
+	);
 
 	if (!data) return null;
 	return { id: data.id, webUrl: data.webUrl };
@@ -31,21 +37,17 @@ export async function exportToExcel(
 	const itemId = workbook.id;
 
 	// Rename the default sheet
-	const sheetsData = await graphFetch(
+	const sheetsData = await graphFetch<{ value: { id: string }[] }>(
 		organizationId,
 		`/me/drive/items/${itemId}/workbook/worksheets`
 	);
 
 	if (sheetsData?.value?.[0]) {
 		const sheetId = sheetsData.value[0].id;
-		await graphFetch(
-			organizationId,
-			`/me/drive/items/${itemId}/workbook/worksheets/${sheetId}`,
-			{
-				method: 'PATCH',
-				body: JSON.stringify({ name: options.sheetName })
-			}
-		);
+		await graphFetch(organizationId, `/me/drive/items/${itemId}/workbook/worksheets/${sheetId}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ name: options.sheetName })
+		});
 	}
 
 	// Write data: headers + rows
@@ -79,19 +81,21 @@ export async function listDriveFiles(
 	organizationId: string,
 	mimeType?: string
 ): Promise<{ id: string; name: string; webUrl: string }[]> {
-	let path = '/me/drive/root/children?$select=id,name,webUrl,file&$top=50&$orderby=lastModifiedDateTime desc';
+	let path =
+		'/me/drive/root/children?$select=id,name,webUrl,file&$top=50&$orderby=lastModifiedDateTime desc';
 
 	if (mimeType) {
 		// Filter to Excel files only
 		path += `&$filter=file/mimeType eq '${mimeType}'`;
 	}
 
-	const data = await graphFetch(organizationId, path);
+	type DriveItem = { id: string; name: string; webUrl: string; file?: unknown };
+	const data = await graphFetch<{ value: DriveItem[] }>(organizationId, path);
 	if (!data?.value) return [];
 
 	return data.value
-		.filter((f: any) => f.file)
-		.map((f: any) => ({
+		.filter((f) => f.file)
+		.map((f) => ({
 			id: f.id,
 			name: f.name,
 			webUrl: f.webUrl

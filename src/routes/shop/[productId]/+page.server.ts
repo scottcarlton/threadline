@@ -9,7 +9,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const { data: product, error: err } = await supabaseAdmin
 		.from('products')
-		.select('*, brands(id, name), product_variants(id, color, size, sku), product_images(id, file_path, is_primary, sort_order)')
+		.select(
+			'*, brands(id, name), seasons(id, name), product_variants(id, color, color_hex, size, sku, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order, variant_id, role)'
+		)
 		.eq('id', params.productId)
 		.eq('is_active', true)
 		.is('archived_at', null)
@@ -24,11 +26,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	// Sort images: primary first, then by sort_order
 	if (product.product_images) {
-		product.product_images.sort((a: any, b: any) => {
-			if (a.is_primary && !b.is_primary) return -1;
-			if (!a.is_primary && b.is_primary) return 1;
-			return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-		});
+		product.product_images.sort(
+			(
+				a: { is_primary?: boolean; sort_order?: number },
+				b: { is_primary?: boolean; sort_order?: number }
+			) => {
+				if (a.is_primary && !b.is_primary) return -1;
+				if (!a.is_primary && b.is_primary) return 1;
+				return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+			}
+		);
 	}
 
 	return { product };

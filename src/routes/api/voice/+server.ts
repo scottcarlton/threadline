@@ -21,26 +21,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	try {
-		const response = await fetch(
-			`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
-			{
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'xi-api-key': ELEVENLABS_API_KEY
-				},
-				body: JSON.stringify({
-					text,
-					model_id: 'eleven_turbo_v2_5',
-					voice_settings: {
-						stability: 0.5,
-						similarity_boost: 0.75,
-						style: 0.0,
-						use_speaker_boost: true
-					}
-				})
-			}
-		);
+		const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'xi-api-key': ELEVENLABS_API_KEY
+			},
+			body: JSON.stringify({
+				text,
+				model_id: 'eleven_turbo_v2_5',
+				voice_settings: {
+					stability: 0.5,
+					similarity_boost: 0.75,
+					style: 0.0,
+					use_speaker_boost: true
+				}
+			})
+		});
 
 		if (!response.ok) {
 			const error = await response.text();

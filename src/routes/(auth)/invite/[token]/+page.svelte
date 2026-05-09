@@ -3,13 +3,21 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardDescription,
+		CardContent
+	} from '$lib/components/ui/card/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { PinInput } from 'bits-ui';
 
 	let { data } = $props();
 	const invitation = $derived(data.invitation);
 
-	let displayName = $state('');
+	let firstName = $state('');
+	let lastName = $state('');
 	let otpCode = $state('');
 	let error = $state('');
 	let loading = $state(false);
@@ -21,7 +29,8 @@
 		const { error: err } = await supabase.auth.signInWithOAuth({
 			provider: 'google',
 			options: {
-				redirectTo: `${window.location.origin}/auth/callback?next=/invite/${invitation.token}/accept`
+				redirectTo: `${window.location.origin}/auth/callback?next=/invite/${invitation.token}/accept`,
+				queryParams: { prompt: 'select_account' }
 			}
 		});
 		loading = false;
@@ -33,6 +42,7 @@
 	async function sendOtp() {
 		error = '';
 		loading = true;
+
 		const { error: err } = await supabase.auth.signInWithOtp({
 			email: invitation.email,
 			options: { shouldCreateUser: true }
@@ -40,9 +50,9 @@
 		loading = false;
 		if (err) {
 			error = err.message;
-		} else {
-			mode = 'otp-verify';
+			return;
 		}
+		mode = 'otp-verify';
 	}
 
 	async function verifyAndAccept() {
@@ -69,11 +79,12 @@
 
 		mode = 'accepting';
 
-		// Update display name
-		if (displayName.trim()) {
+		// Update display name from first + last
+		const displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
+		if (displayName) {
 			await supabase
 				.from('profiles')
-				.update({ display_name: displayName.trim() })
+				.update({ display_name: displayName })
 				.eq('id', authData.user.id);
 		}
 
@@ -128,9 +139,15 @@
 					<Label for="email">Email</Label>
 					<Input id="email" type="email" value={invitation.email} disabled />
 				</div>
-				<div class="space-y-2">
-					<Label for="display-name">Your name</Label>
-					<Input id="display-name" placeholder="Jane Smith" bind:value={displayName} />
+				<div class="grid grid-cols-2 gap-3">
+					<div class="space-y-2">
+						<Label for="first-name">First name</Label>
+						<Input id="first-name" placeholder="Jane" bind:value={firstName} />
+					</div>
+					<div class="space-y-2">
+						<Label for="last-name">Last name</Label>
+						<Input id="last-name" placeholder="Smith" bind:value={lastName} />
+					</div>
 				</div>
 
 				<div class="flex flex-col gap-3">
@@ -153,24 +170,45 @@
 				</div>
 			</div>
 		{:else if mode === 'otp-verify'}
-			<form onsubmit={(e) => { e.preventDefault(); verifyAndAccept(); }} class="space-y-4">
+			<form
+				onsubmit={(e) => {
+					e.preventDefault();
+					verifyAndAccept();
+				}}
+				class="space-y-4"
+			>
 				<p class="text-sm text-muted-foreground">Enter the code sent to {invitation.email}</p>
 				<div class="space-y-2">
-					<Label for="otp">Verification code</Label>
-					<Input
-						id="otp"
-						type="text"
-						placeholder="Enter 6-digit code"
+					<Label>Verification code</Label>
+					<PinInput.Root
+						maxlength={6}
 						bind:value={otpCode}
-						autocomplete="one-time-code"
-						required
-					/>
+						onComplete={verifyAndAccept}
+						textalign="center"
+						pasteTransformer={(t) => t.replace(/[^0-9]/g, '')}
+						class="flex justify-center gap-2.5"
+					>
+						{#snippet children({ cells })}
+							{#each cells as cell (cell)}
+								<PinInput.Cell
+									{cell}
+									class="flex h-12 w-11 items-center justify-center rounded-lg border border-input bg-background text-center text-lg font-medium text-foreground transition-colors data-[active]:border-ring data-[active]:ring-2 data-[active]:ring-ring/20"
+								>
+									{cell.char ?? ''}
+								</PinInput.Cell>
+							{/each}
+						{/snippet}
+					</PinInput.Root>
 				</div>
-				<Button size="lg" type="submit" class="w-full" disabled={loading || !otpCode}>
-					{loading ? 'Joining...' : 'Verify & Join'}
+				<Button size="lg" type="submit" class="w-full" disabled={loading || otpCode.length < 6}>
+					{loading ? 'Joining...' : 'Verify'}
 				</Button>
 				<div class="flex justify-center gap-4 text-sm">
-					<button type="button" class="text-muted-foreground hover:text-foreground" onclick={sendOtp}>
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground"
+						onclick={sendOtp}
+					>
 						Resend code
 					</button>
 					<button type="button" class="text-muted-foreground hover:text-foreground" onclick={reset}>

@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from './ai-tools.js';
 import { supabaseAdmin } from './supabase.js';
+import { agentBasePrompt } from './ai-prompts.js';
+import { logUsage } from './ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -13,6 +15,7 @@ interface AgentExecutionParams {
 	triggeredBy: 'user' | 'event' | 'schedule';
 	triggerId?: string;
 	eventContext?: Record<string, unknown>;
+	toolWhitelist?: string[] | null;
 }
 
 interface AgentExecutionResult {
@@ -49,18 +52,11 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 			.eq('id', params.orgId)
 			.single();
 
-		const eventInfo = params.eventContext
-			? `\n\nEvent context: ${JSON.stringify(params.eventContext)}`
-			: '';
-
+		const eventInfo = params.eventContext ? JSON.stringify(params.eventContext) : undefined;
 		const systemBlocks: Anthropic.TextBlockParam[] = [
 			{
 				type: 'text',
-				text: `You are a custom AI agent for ${org?.name ?? 'an organization'} on Threadline, a wholesale fashion platform.
-
-${params.systemPrompt}
-
-You have access to tools to query and modify data. Be thorough but concise in your responses.${eventInfo}`
+				text: agentBasePrompt(org?.name ?? 'an organization', params.systemPrompt, eventInfo)
 			}
 		];
 
@@ -68,16 +64,27 @@ You have access to tools to query and modify data. Be thorough but concise in yo
 		// We reuse the same tools but call them with the admin client
 		const { _toolDefinitions } = await import('../../routes/api/ai/+server.js');
 
-		const messages: Anthropic.MessageParam[] = [
-			{ role: 'user', content: params.prompt }
-		];
+		const whitelist = params.toolWhitelist ?? null;
+		const agentTools =
+			whitelist && whitelist.length > 0
+				? _toolDefinitions.filter((t) => whitelist.includes(t.name))
+				: _toolDefinitions;
+
+		const messages: Anthropic.MessageParam[] = [{ role: 'user', content: params.prompt }];
 
 		let response = await anthropic.messages.create({
-			model: 'claude-sonnet-4-20250514',
+			model: 'claude-sonnet-4-6',
 			max_tokens: 4096,
 			system: systemBlocks,
-			tools: _toolDefinitions,
+			tools: agentTools,
 			messages
+		});
+		logUsage({
+			endpoint: 'agent',
+			purpose: 'agent',
+			model: 'claude-sonnet-4-6',
+			organizationId: params.orgId,
+			response
 		});
 
 		// Tool use loop
@@ -112,11 +119,18 @@ You have access to tools to query and modify data. Be thorough but concise in yo
 			messages.push({ role: 'user', content: toolResults });
 
 			response = await anthropic.messages.create({
-				model: 'claude-sonnet-4-20250514',
+				model: 'claude-sonnet-4-6',
 				max_tokens: 4096,
 				system: systemBlocks,
-				tools: _toolDefinitions,
+				tools: agentTools,
 				messages
+			});
+			logUsage({
+				endpoint: 'agent',
+				purpose: 'agent',
+				model: 'claude-sonnet-4-6',
+				organizationId: params.orgId,
+				response
 			});
 		}
 

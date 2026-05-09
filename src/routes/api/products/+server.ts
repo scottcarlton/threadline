@@ -6,25 +6,46 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		return json({ products: [] });
 	}
 
-	const brandId = url.searchParams.get('brand_id');
 	const search = url.searchParams.get('q') ?? '';
-
-	if (!brandId) return json({ products: [] });
+	const brandIds = url.searchParams.getAll('brand_id').filter(Boolean);
+	const seasonIds = url.searchParams.getAll('season_id').filter(Boolean);
+	const minPrice = parseFloat(url.searchParams.get('min_price') ?? '');
+	const maxPrice = parseFloat(url.searchParams.get('max_price') ?? '');
+	const atsOnly = url.searchParams.get('ats') === 'true';
+	const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '50', 10) || 50, 200);
+	const offset = parseInt(url.searchParams.get('offset') ?? '0', 10) || 0;
+	const category = url.searchParams.get('category') ?? '';
+	const showArchived = url.searchParams.get('archived') === 'true';
+	const ids = url.searchParams.getAll('id').filter(Boolean);
 
 	let query = locals.supabase
 		.from('products')
-		.select('id, style_number, name, wholesale_price, category, product_variants(id, color, size, price_override), product_images(id, is_primary, sort_order)')
-		.eq('organization_id', locals.organization.id)
-		.eq('brand_id', brandId)
+		.select(
+			'id, brand_id, season_id, product_year, style_number, name, wholesale_price, category, ats, archived_at, product_variants(id, color, color_hex, size, price_override, stock_qty, stock_threshold, shopify_variant_id), product_images(id, is_primary, sort_order, role, variant_id)',
+			{ count: 'exact' }
+		)
+		// RLS handles org + federation visibility — no org_id filter here so
+		// MBISR users can browse products from connected brand orgs.
 		.eq('is_active', true)
-		.is('archived_at', null)
-		.order('style_number');
+		.order('style_number')
+		.range(offset, offset + limit - 1);
 
-	if (search) {
-		query = query.or(`style_number.ilike.%${search}%,name.ilike.%${search}%`);
-	}
+	if (ids.length > 0) query = query.in('id', ids);
+	if (!showArchived) query = query.is('archived_at', null);
+	if (brandIds.length > 0) query = query.in('brand_id', brandIds);
+	if (seasonIds.length > 0) query = query.in('season_id', seasonIds);
+	if (!Number.isNaN(minPrice)) query = query.gte('wholesale_price', minPrice);
+	if (!Number.isNaN(maxPrice)) query = query.lte('wholesale_price', maxPrice);
+	if (atsOnly) query = query.eq('ats', true);
+	if (category) query = query.eq('category', category);
+	if (search)
+		query = query.or(
+			`style_number.ilike.%${search}%,name.ilike.%${search}%,category.ilike.%${search}%`
+		);
 
-	const { data } = await query.limit(50);
+	const { data, count } = await query;
+	const products = data ?? [];
+	const totalCount = count ?? products.length;
 
-	return json({ products: data ?? [] });
+	return json({ products, hasMore: offset + limit < totalCount });
 };

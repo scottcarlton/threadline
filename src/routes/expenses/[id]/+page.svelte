@@ -1,11 +1,20 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { toast } from 'svelte-sonner';
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardContent,
+		CardFooter
+	} from '$lib/components/ui/card/index.js';
 	import type { BrandExpense, ExpenseReceipt, ExpenseCategory } from '$lib/types/database.js';
 	import ReceiptDropZone from '$lib/components/shared/ReceiptDropZone.svelte';
 	import QRCode from 'qrcode';
@@ -15,9 +24,8 @@
 	const receipts = $derived(data.receipts as ExpenseReceipt[]);
 	const reviewerName = $derived(data.reviewerName as string | null);
 
-	const isAdmin = $derived(
-		data.membership?.role === 'admin' || data.membership?.role === 'owner'
-	);
+	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
+	const isBrandOrg = $derived(data.orgType === 'brand');
 	const isSubmitter = $derived(expense.submitted_by === data.user?.id);
 	const isBrandReviewer = $derived(data.isBrandReviewer as boolean);
 	const isDraft = $derived(expense.status === 'draft');
@@ -56,7 +64,11 @@
 		rejected: 'destructive'
 	};
 
-	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+	const fmt = new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: 'USD',
+		minimumFractionDigits: 2
+	});
 
 	// Edit state
 	let editing = $state(false);
@@ -78,8 +90,6 @@
 
 	// QR code state
 	let qrDataUrl = $state('');
-	let qrUploadUrl = $state('');
-	let qrExpiresAt = $state('');
 	let generatingQr = $state(false);
 
 	// Auto-generate QR code on load
@@ -98,75 +108,52 @@
 		editing = true;
 	}
 
+	async function postAction(action: string, body?: FormData) {
+		const fd = body ?? new FormData();
+		loading = true;
+		const res = await fetch(`?/${action}`, { method: 'POST', body: fd });
+		loading = false;
+		const result = await res.json();
+		if (result.type === 'failure') {
+			toast.error(result.data?.message ?? 'Something went wrong');
+			return false;
+		}
+		return result;
+	}
+
 	async function handleSave() {
 		error = '';
-		loading = true;
-
-		const { error: err } = await supabase
-			.from('brand_expenses')
-			.update({
-				category: editCategory,
-				description: editDescription,
-				amount: parseFloat(editAmount),
-				expense_date: editDate,
-				notes: editNotes || null,
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', expense.id);
-
-		loading = false;
-		if (err) {
-			error = err.message;
-		} else {
+		const fd = new FormData();
+		fd.set('category', editCategory);
+		fd.set('description', editDescription);
+		fd.set('amount', editAmount);
+		fd.set('expense_date', editDate);
+		fd.set('notes', editNotes);
+		const ok = await postAction('update', fd);
+		if (ok) {
 			editing = false;
 			invalidateAll();
 		}
 	}
 
 	async function handleSubmit() {
-		loading = true;
-		await supabase
-			.from('brand_expenses')
-			.update({
-				status: 'submitted',
-				submitted_at: new Date().toISOString(),
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', expense.id);
-		loading = false;
-		invalidateAll();
+		const ok = await postAction('submit');
+		if (ok) invalidateAll();
 	}
 
 	async function handleApprove() {
-		loading = true;
-		await supabase
-			.from('brand_expenses')
-			.update({
-				status: 'approved',
-				reviewed_by: data.user?.id,
-				approved_at: new Date().toISOString(),
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', expense.id);
-		loading = false;
-		invalidateAll();
+		const ok = await postAction('approve');
+		if (ok) invalidateAll();
 	}
 
 	async function handleReject() {
-		loading = true;
-		await supabase
-			.from('brand_expenses')
-			.update({
-				status: 'rejected',
-				reviewed_by: data.user?.id,
-				review_notes: reviewNotes || null,
-				rejected_at: new Date().toISOString(),
-				updated_at: new Date().toISOString()
-			})
-			.eq('id', expense.id);
-		loading = false;
-		showRejectForm = false;
-		invalidateAll();
+		const fd = new FormData();
+		fd.set('review_notes', reviewNotes);
+		const ok = await postAction('reject', fd);
+		if (ok) {
+			showRejectForm = false;
+			invalidateAll();
+		}
 	}
 
 	async function handleDelete() {
@@ -179,8 +166,8 @@
 			});
 		}
 
-		await supabase.from('brand_expenses').delete().eq('id', expense.id);
-		goto('/expenses');
+		const ok = await postAction('delete');
+		if (ok) goto(resolve('/expenses'));
 	}
 
 	async function handleFiles(files: File[]) {
@@ -219,8 +206,6 @@
 				uploadError = json.error || 'Failed to generate upload link';
 				return;
 			}
-			qrUploadUrl = json.url;
-			qrExpiresAt = json.expiresAt;
 			qrDataUrl = await QRCode.toDataURL(json.url, { width: 200, margin: 2 });
 		} catch {
 			uploadError = 'Failed to generate QR code';
@@ -268,14 +253,9 @@
 </script>
 
 <div class="space-y-6">
+	<!-- Action bar -->
 	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-3">
-			<Button variant="ghost" size="sm" href="/expenses">← Back</Button>
-			<h1 class="text-3xl font-mono">{expense.expense_number}</h1>
-			<Badge variant={statusColors[expense.status] ?? 'secondary'}>
-				{expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
-			</Badge>
-		</div>
+		<Button variant="ghost" size="sm" href="/expenses"><LongArrow direction="left" /> Back</Button>
 		{#if canEdit && !editing}
 			<div class="flex gap-2">
 				{#if canDelete}
@@ -286,26 +266,48 @@
 		{/if}
 	</div>
 
+	<!-- Entity header: expense_number + status; category subtitle -->
+	<header class="space-y-1">
+		<div class="flex items-center gap-2">
+			<h1 class="font-mono text-3xl">{expense.expense_number}</h1>
+			<Badge variant={statusColors[expense.status] ?? 'secondary'}>
+				{expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
+			</Badge>
+		</div>
+		<p class="text-sm text-muted-foreground">
+			{categoryLabels[expense.category] ?? expense.category}
+		</p>
+	</header>
+
 	<div class="grid gap-6 lg:grid-cols-[1fr_400px]">
 		<!-- Left column: Details -->
 		<div class="space-y-6">
 			<Card>
 				<CardContent class="pt-6">
 					{#if error}
-						<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+						<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+							{error}
+						</div>
 					{/if}
 
 					{#if editing}
-						<form id="edit-form" onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="space-y-4">
+						<form
+							id="edit-form"
+							onsubmit={(e) => {
+								e.preventDefault();
+								handleSave();
+							}}
+							class="space-y-4"
+						>
 							<div class="grid gap-4 sm:grid-cols-2">
 								<div class="space-y-2">
 									<Label for="category">Category</Label>
 									<select
 										id="category"
 										bind:value={editCategory}
-										class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+										class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 									>
-										{#each categoryOptions as opt}
+										{#each categoryOptions as opt (opt.value)}
 											<option value={opt.value}>{opt.label}</option>
 										{/each}
 									</select>
@@ -329,21 +331,19 @@
 									id="notes"
 									bind:value={editNotes}
 									rows="3"
-									class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+									class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 								></textarea>
 							</div>
 						</form>
 					{:else}
 						<dl class="space-y-4">
 							<div class="grid gap-4 sm:grid-cols-2">
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Brand</dt>
-									<dd class="mt-1">{expense.brands?.name ?? '—'}</dd>
-								</div>
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Category</dt>
-									<dd class="mt-1">{categoryLabels[expense.category] ?? expense.category}</dd>
-								</div>
+								{#if !isBrandOrg}
+									<div>
+										<dt class="text-sm font-medium text-muted-foreground">Brand</dt>
+										<dd class="mt-1">{expense.brands?.name ?? '—'}</dd>
+									</div>
+								{/if}
 							</div>
 							<div class="grid gap-4 sm:grid-cols-2">
 								<div>
@@ -352,7 +352,13 @@
 								</div>
 								<div>
 									<dt class="text-sm font-medium text-muted-foreground">Expense Date</dt>
-									<dd class="mt-1">{new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd>
+									<dd class="mt-1">
+										{new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('en-US', {
+											month: 'long',
+											day: 'numeric',
+											year: 'numeric'
+										})}
+									</dd>
 								</div>
 							</div>
 							<div>
@@ -365,15 +371,16 @@
 									<dd class="mt-1 whitespace-pre-wrap">{expense.notes}</dd>
 								</div>
 							{/if}
-							<div class="grid gap-4 sm:grid-cols-2">
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Submitted By</dt>
-									<dd class="mt-1">{expense.profiles?.display_name ?? '—'}</dd>
-								</div>
-								<div>
-									<dt class="text-sm font-medium text-muted-foreground">Created</dt>
-									<dd class="mt-1">{new Date(expense.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</dd>
-								</div>
+							<div>
+								<dt class="text-sm font-medium text-muted-foreground">Submitted By</dt>
+								<dd class="mt-1">{expense.profiles?.display_name ?? '—'}</dd>
+								<dd class="mt-0.5 font-mono text-xs text-muted-foreground">
+									{new Date(expense.created_at).toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								</dd>
 							</div>
 						</dl>
 					{/if}
@@ -381,9 +388,7 @@
 				{#if editing}
 					<CardFooter class="justify-between">
 						<Button variant="outline" onclick={() => (editing = false)}>Cancel</Button>
-						<Button type="submit" form="edit-form" disabled={loading}>
-							{loading ? 'Saving...' : 'Save Changes'}
-						</Button>
+						<Button type="submit" form="edit-form" {loading}>Save Changes</Button>
 					</CardFooter>
 				{/if}
 			</Card>
@@ -395,7 +400,9 @@
 						<div class="flex items-center justify-between">
 							<div>
 								<p class="text-sm font-medium">Ready to submit?</p>
-								<p class="text-sm text-muted-foreground">Submit this expense for review and approval.</p>
+								<p class="text-sm text-muted-foreground">
+									Submit this expense for review and approval.
+								</p>
 							</div>
 							<Button onclick={handleSubmit} disabled={loading}>Submit for Review</Button>
 						</div>
@@ -443,14 +450,20 @@
 
 			{#if canApprove}
 				<Card>
-					<CardContent class="pt-5 pb-5 space-y-4">
+					<CardContent class="space-y-4 pt-5 pb-5">
 						<div class="flex items-center justify-between">
 							<div>
 								<p class="text-sm font-medium">Review this expense</p>
-								<p class="text-sm text-muted-foreground">Approve or reject this submitted expense.</p>
+								<p class="text-sm text-muted-foreground">
+									Approve or reject this submitted expense.
+								</p>
 							</div>
 							<div class="flex gap-2">
-								<Button variant="outline" onclick={() => (showRejectForm = !showRejectForm)} disabled={loading}>Reject</Button>
+								<Button
+									variant="outline"
+									onclick={() => (showRejectForm = !showRejectForm)}
+									disabled={loading}>Reject</Button
+								>
 								<Button onclick={handleApprove} disabled={loading}>Approve</Button>
 							</div>
 						</div>
@@ -462,10 +475,12 @@
 									bind:value={reviewNotes}
 									rows="2"
 									placeholder="Reason for rejection..."
-									class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+									class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 								></textarea>
 								<div class="flex justify-end">
-									<Button variant="destructive" onclick={handleReject} disabled={loading}>Confirm Rejection</Button>
+									<Button variant="destructive" onclick={handleReject} disabled={loading}
+										>Confirm Rejection</Button
+									>
 								</div>
 							</div>
 						{/if}
@@ -477,9 +492,14 @@
 			{#if (expense.status === 'approved' || expense.status === 'rejected') && (reviewerName || expense.review_notes)}
 				<Card>
 					<CardContent class="pt-5 pb-5">
-						<p class="text-sm font-medium">{expense.status === 'approved' ? 'Approved' : 'Rejected'} by {reviewerName ?? 'Unknown'}</p>
-						<p class="text-sm text-muted-foreground mt-1">
-							{new Date(expense.status === 'approved' ? expense.approved_at! : expense.rejected_at!).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+						<p class="text-sm font-medium">
+							{expense.status === 'approved' ? 'Approved' : 'Rejected'} by {reviewerName ??
+								'Unknown'}
+						</p>
+						<p class="mt-1 text-sm text-muted-foreground">
+							{new Date(
+								expense.status === 'approved' ? expense.approved_at! : expense.rejected_at!
+							).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
 						</p>
 						{#if expense.review_notes}
 							<p class="mt-2 text-sm text-muted-foreground">{expense.review_notes}</p>
@@ -496,12 +516,17 @@
 					<CardTitle class="text-base">Receipts</CardTitle>
 				</CardHeader>
 				<CardContent class="space-y-4">
-					<!-- Upload area -->
-					{#if canEdit || (isDraft && isSubmitter) || isAdmin}
+					<!-- Upload area — submitters keep the QR + dropzone available after submit so they
+					     can snap a receipt from their phone at any point. Admins see it always. -->
+					{#if isSubmitter || isAdmin}
 						<div class="space-y-3">
 							{#if uploading}
-								<div class="flex items-center justify-center gap-2 border-2 border-dashed p-6 text-sm text-muted-foreground">
-									<div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"></div>
+								<div
+									class="flex items-center justify-center gap-2 border-2 border-dashed p-6 text-sm text-muted-foreground"
+								>
+									<div
+										class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
+									></div>
 									Uploading...
 								</div>
 							{:else}
@@ -513,7 +538,9 @@
 									<img src={qrDataUrl} alt="QR Code" class="h-40 w-40" />
 								{:else}
 									<div class="flex h-40 w-40 items-center justify-center">
-										<div class="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"></div>
+										<div
+											class="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
+										></div>
 									</div>
 								{/if}
 								<p class="text-sm text-muted-foreground">Scan to upload from phone</p>
@@ -530,16 +557,40 @@
 						<p class="text-sm text-muted-foreground">No receipts attached yet.</p>
 					{:else}
 						<div class="divide-y rounded-none border">
-							{#each receipts as receipt}
+							{#each receipts as receipt (receipt.id)}
 								<div class="flex items-center gap-3 px-4 py-3">
-									<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+									<div
+										class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted"
+									>
 										{#if receipt.mime_type === 'application/pdf'}
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-4 w-4 text-red-600"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="1.5"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+												/>
 											</svg>
 										{:else}
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-4 w-4 text-blue-600"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="1.5"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
+												/>
 											</svg>
 										{/if}
 									</div>
@@ -556,8 +607,19 @@
 											onclick={() => handleDownloadReceipt(receipt)}
 											aria-label="Download {receipt.name}"
 										>
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-4 w-4"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="2"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+												/>
 											</svg>
 										</button>
 										{#if canEdit || isAdmin}
@@ -567,8 +629,19 @@
 												onclick={() => handleDeleteReceipt(receipt.id)}
 												aria-label="Delete {receipt.name}"
 											>
-												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													class="h-4 w-4"
+													fill="none"
+													viewBox="0 0 24 24"
+													stroke="currentColor"
+													stroke-width="2"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+													/>
 												</svg>
 											</button>
 										{/if}

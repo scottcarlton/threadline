@@ -12,10 +12,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 		throw error(403, 'Forbidden');
 	}
 
-	const result = await refreshInsights(
-		locals.supabase,
-		locals.organization.id
-	);
+	const result = await refreshInsights(locals.supabase, locals.organization.id);
 
 	return json(result);
 };

@@ -5,6 +5,7 @@
 
 export function makeOrder(overrides: Record<string, unknown> = {}) {
 	return {
+		id: 'order-1',
 		account_id: 'acct-1',
 		total_amount: 1000,
 		status: 'confirmed',

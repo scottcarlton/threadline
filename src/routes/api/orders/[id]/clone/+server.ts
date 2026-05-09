@@ -1,6 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
+import { notifyOrgMembers } from '$lib/server/notifications';
 
 export const POST: RequestHandler = async ({ locals, params }) => {
 	if (!locals.session || !locals.user) {
@@ -10,11 +11,7 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 	const orderId = params.id;
 
 	const [orderResult, linesResult] = await Promise.all([
-		supabaseAdmin
-			.from('orders')
-			.select('*')
-			.eq('id', orderId)
-			.single(),
+		supabaseAdmin.from('orders').select('*').eq('id', orderId).single(),
 		supabaseAdmin
 			.from('order_lines')
 			.select('*')
@@ -56,8 +53,19 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 
 	const lines = linesResult.data ?? [];
 	if (lines.length > 0) {
-		const { error: lineErr } = await supabaseAdmin.from('order_lines').insert(
-			lines.map((l: any, i: number) => ({
+		type OrderLine = {
+			product_id: string | null;
+			variant_id: string | null;
+			style_number: string | null;
+			description: string | null;
+			color: string | null;
+			size: string | null;
+			qty: number | null;
+			unit_price: number | null;
+		};
+		const { error: lineErr } = await supabaseAdmin.rpc('insert_order_lines_with_actor', {
+			actor: locals.user.id,
+			lines: (lines as OrderLine[]).map((l, i: number) => ({
 				order_id: newOrder.id,
 				product_id: l.product_id,
 				variant_id: l.variant_id,
@@ -69,13 +77,20 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 				unit_price: l.unit_price,
 				sort_order: i
 			}))
-		);
+		});
 
 		if (lineErr) {
 			await supabaseAdmin.from('orders').delete().eq('id', newOrder.id);
 			return error(500, 'Failed to clone line items');
 		}
 	}
+
+	notifyOrgMembers(source.organization_id, locals.user.id, {
+		type: 'order_cloned',
+		title: `Order ${newOrder.order_number} cloned`,
+		body: `Cloned from ${source.order_number ?? 'an existing order'}`,
+		link: `/orders/${newOrder.id}`
+	});
 
 	return json({ id: newOrder.id, order_number: newOrder.order_number });
 };

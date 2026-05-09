@@ -9,13 +9,18 @@ export type TeamsChannel = {
 };
 
 export async function listTeamsAndChannels(organizationId: string): Promise<TeamsChannel[]> {
-	const teams = await graphFetch(organizationId, '/me/joinedTeams?$select=id,displayName');
+	type TeamRef = { id: string; displayName: string };
+	type ChannelRef = { id: string; displayName: string };
+	const teams = await graphFetch<{ value: TeamRef[] }>(
+		organizationId,
+		'/me/joinedTeams?$select=id,displayName'
+	);
 	if (!teams?.value) return [];
 
 	const channels: TeamsChannel[] = [];
 
 	for (const team of teams.value) {
-		const channelData = await graphFetch(
+		const channelData = await graphFetch<{ value: ChannelRef[] }>(
 			organizationId,
 			`/teams/${team.id}/channels?$select=id,displayName`
 		);

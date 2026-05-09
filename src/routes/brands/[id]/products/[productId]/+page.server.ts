@@ -6,8 +6,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const { supabase, organization } = locals;
 	if (!organization) throw error(404, 'Organization not found');
 
-	const [brandRes, productRes, seasonsRes] = await Promise.all([
-		supabase.from('brands').select('id, name').eq('id', params.id).single(),
+	// RLS handles federation visibility — just query by ID
+	const { data: brand } = await supabase
+		.from('brands')
+		.select('id, name')
+		.eq('id', params.id)
+		.single();
+
+	if (!brand) throw error(404, 'Brand not found');
+
+	const [productRes, seasonsRes] = await Promise.all([
 		supabase
 			.from('products')
 			.select('*, product_variants(*), product_images(*)')
@@ -22,7 +30,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.order('name')
 	]);
 
-	if (brandRes.error || !brandRes.data) throw error(404, 'Brand not found');
 	if (productRes.error || !productRes.data) throw error(404, 'Product not found');
 
 	// Style velocity for this product — orders in last 30 and 90 days
@@ -39,20 +46,37 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		.gte('orders.created_at', d90)
 		.neq('orders.status', 'cancelled');
 
-	const lines = (velocityData ?? []) as any[];
-	const last30 = lines.filter((l: any) => l.orders?.created_at >= d30);
+	type VelocityLine = {
+		qty?: number;
+		unit_price?: number;
+		orders?: { account_id?: string; created_at?: string; status?: string } | null;
+	};
+	const rawLines = (velocityData ?? []) as Array<{
+		qty?: number;
+		unit_price?: number;
+		orders?:
+			| { account_id?: string; created_at?: string; status?: string }
+			| { account_id?: string; created_at?: string; status?: string }[]
+			| null;
+	}>;
+	const lines: VelocityLine[] = rawLines.map((l) => ({
+		qty: l.qty,
+		unit_price: l.unit_price,
+		orders: Array.isArray(l.orders) ? (l.orders[0] ?? null) : l.orders
+	}));
+	const last30 = lines.filter((l) => (l.orders?.created_at ?? '') >= d30);
 
 	const velocity = {
-		orders30d: new Set(last30.map((l: any) => l.orders?.account_id)).size,
-		units30d: last30.reduce((s: number, l: any) => s + (l.qty ?? 0), 0),
-		revenue30d: last30.reduce((s: number, l: any) => s + (l.qty ?? 0) * (l.unit_price ?? 0), 0),
-		orders90d: new Set(lines.map((l: any) => l.orders?.account_id)).size,
-		units90d: lines.reduce((s: number, l: any) => s + (l.qty ?? 0), 0),
-		revenue90d: lines.reduce((s: number, l: any) => s + (l.qty ?? 0) * (l.unit_price ?? 0), 0)
+		orders30d: new Set(last30.map((l) => l.orders?.account_id)).size,
+		units30d: last30.reduce((s, l) => s + (l.qty ?? 0), 0),
+		revenue30d: last30.reduce((s, l) => s + (l.qty ?? 0) * (l.unit_price ?? 0), 0),
+		orders90d: new Set(lines.map((l) => l.orders?.account_id)).size,
+		units90d: lines.reduce((s, l) => s + (l.qty ?? 0), 0),
+		revenue90d: lines.reduce((s, l) => s + (l.qty ?? 0) * (l.unit_price ?? 0), 0)
 	};
 
 	return {
-		brand: brandRes.data,
+		brand,
 		product: productRes.data,
 		seasons: seasonsRes.data ?? [],
 		velocity

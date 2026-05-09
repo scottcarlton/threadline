@@ -1,6 +1,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { exportToSheet, EXPORT_SCHEMAS, type ExportDataType } from '$lib/server/integrations/google-sheets';
+import {
+	exportToSheet,
+	EXPORT_SCHEMAS,
+	type ExportDataType,
+	type ExportRow
+} from '$lib/server/integrations/google-sheets';
 import { supabaseAdmin } from '$lib/server/supabase';
 
 export const POST: RequestHandler = async ({ request, locals, url }) => {
@@ -27,10 +32,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	const orgId = locals.organization!.id;
 
 	// Fetch data
-	let query = locals.supabase
-		.from(schema.query)
-		.select(schema.select)
-		.eq('organization_id', orgId);
+	let query = locals.supabase.from(schema.query).select(schema.select).eq('organization_id', orgId);
 
 	if (filters) {
 		for (const [key, value] of Object.entries(filters)) {
@@ -48,7 +50,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		return json({ error: 'No data to export' }, { status: 400 });
 	}
 
-	const rows = data.map(schema.mapRow);
+	const rows = (data as unknown as ExportRow[]).map(schema.mapRow);
 	const title = `${dataType.charAt(0).toUpperCase() + dataType.slice(1)} Export ${new Date().toLocaleDateString()}`;
 
 	const result = await exportToSheet(orgId, url.origin, {

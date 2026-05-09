@@ -1,4 +1,6 @@
 <script lang="ts">
+	import LongArrow from '$lib/components/ui/long-arrow.svelte';
+
 	type Props = {
 		open: boolean;
 		ontoggle: () => void;
@@ -6,11 +8,25 @@
 		columns: { key: string; label: string; required?: boolean }[];
 		onimport: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[] }>;
 		enableLinesheet?: boolean;
+		seasons?: { id: string; name: string }[];
 	};
 
-	let { open, ontoggle, entityType, columns, onimport, enableLinesheet = false }: Props = $props();
+	let {
+		open,
+		ontoggle,
+		entityType,
+		columns,
+		onimport,
+		enableLinesheet = false,
+		seasons = []
+	}: Props = $props();
 
-	let mode = $state<'paste' | 'file' | 'linesheet'>(enableLinesheet ? 'linesheet' : 'paste');
+	// Default mode; reactive effect below syncs when the prop changes or the
+	// modal reopens, instead of capturing `enableLinesheet` at init.
+	let mode = $state<'paste' | 'file' | 'linesheet'>('paste');
+	$effect(() => {
+		if (open) mode = enableLinesheet ? 'linesheet' : 'paste';
+	});
 	let pasteValue = $state('');
 	let parsedRows = $state<Record<string, string>[]>([]);
 	let parseError = $state('');
@@ -25,6 +41,11 @@
 	let parsingStatus = $state('');
 	let parsingStatusIndex = $state(0);
 	let parsingInterval: ReturnType<typeof setInterval> | undefined;
+	// AI-detected season/year hints, plus user-editable selection applied to the whole batch
+	let detectedSeason = $state<string | null>(null);
+	let detectedYear = $state<number | null>(null);
+	let importSeasonId = $state('');
+	let importYear = $state<number | ''>('');
 
 	const parsingMessages = [
 		'Reading document...',
@@ -62,7 +83,22 @@
 		result = null;
 		linesheetFile = null;
 		parsing = false;
+		detectedSeason = null;
+		detectedYear = null;
+		importSeasonId = '';
+		importYear = '';
 		stopParsingMessages();
+	}
+
+	// Fuzzy-match the AI's free-form season string ("Fall", "FW") to one of the org's
+	// configured seasons by case-insensitive substring. First match wins.
+	function matchSeasonId(name: string): string {
+		const needle = name.toLowerCase();
+		for (const s of seasons) {
+			const hay = s.name.toLowerCase();
+			if (hay.includes(needle) || needle.includes(hay)) return s.id;
+		}
+		return '';
 	}
 
 	$effect(() => {
@@ -70,7 +106,11 @@
 	});
 
 	function parseCSV(text: string): Record<string, string>[] {
-		const lines = text.trim().split('\n').map((l) => l.trim()).filter((l) => l);
+		const lines = text
+			.trim()
+			.split('\n')
+			.map((l) => l.trim())
+			.filter((l) => l);
 		if (lines.length < 2) return [];
 
 		const headerLine = lines[0];
@@ -120,8 +160,11 @@
 				const key = col.key.toLowerCase();
 				const label = col.label.toLowerCase();
 				// Try exact key match, then label match, then partial match
-				const value = raw[key] ?? raw[label] ??
-					Object.entries(raw).find(([k]) => k.includes(key) || k.includes(label))?.[1] ?? '';
+				const value =
+					raw[key] ??
+					raw[label] ??
+					Object.entries(raw).find(([k]) => k.includes(key) || k.includes(label))?.[1] ??
+					'';
 				mapped[col.key] = value;
 			}
 			return mapped;
@@ -183,6 +226,11 @@
 				parseError = 'No products found in this file. Try a clearer image or use CSV import.';
 				return;
 			}
+			// Capture AI-detected season/year hints and pre-fill the import controls
+			detectedSeason = typeof data.season === 'string' ? data.season : null;
+			detectedYear = typeof data.year === 'number' ? data.year : null;
+			if (detectedSeason && !importSeasonId) importSeasonId = matchSeasonId(detectedSeason);
+			if (detectedYear && !importYear) importYear = detectedYear;
 			// Flatten any array fields (e.g. sizes, colors) to comma-separated strings for preview
 			const flattened = data.products.map((p: Record<string, unknown>) => {
 				const row: Record<string, string> = {};
@@ -203,7 +251,18 @@
 	async function handleImport() {
 		if (parsedRows.length === 0) return;
 		importing = true;
-		result = await onimport(parsedRows);
+		// Inject batch-level season_id / product_year onto every row so the page's
+		// onimport handler can include them in the insert without extra plumbing.
+		const yearStr = typeof importYear === 'number' ? String(importYear) : '';
+		const decorated =
+			importSeasonId || yearStr
+				? parsedRows.map((row) => ({
+						...row,
+						...(importSeasonId ? { season_id: importSeasonId } : {}),
+						...(yearStr ? { product_year: yearStr } : {})
+					}))
+				: parsedRows;
+		result = await onimport(decorated);
 		importing = false;
 	}
 
@@ -220,27 +279,40 @@
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="animate-in w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl bg-card shadow-2xl"
+			class="animate-in max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-card shadow-2xl"
 			onclick={(e) => e.stopPropagation()}
 		>
 			<!-- Header -->
 			<div class="flex items-center justify-between px-6 py-5">
 				<div>
-					<h2 class="text-lg font-semibold">Import {entityType.charAt(0).toUpperCase() + entityType.slice(1) + 's'}</h2>
-					<p class="mt-0.5 text-sm text-muted-foreground">{enableLinesheet ? 'Import from CSV, file upload, or AI-parsed linesheet' : 'Upload a CSV file or paste data directly'}</p>
+					<h2 class="text-lg font-semibold">
+						Import {entityType.charAt(0).toUpperCase() + entityType.slice(1) + 's'}
+					</h2>
+					<p class="mt-0.5 text-sm text-muted-foreground">
+						{enableLinesheet
+							? 'Import from CSV, file upload, or AI-parsed linesheet'
+							: 'Upload a CSV file or paste data directly'}
+					</p>
 				</div>
 				<button
-					class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-ghost hover:text-foreground"
 					onclick={ontoggle}
 					aria-label="Close"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
 						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 					</svg>
 				</button>
 			</div>
 
-			<div class="overflow-y-auto px-6 pb-6 max-h-[calc(85vh-80px)]">
+			<div class="max-h-[calc(85vh-80px)] overflow-y-auto px-6 pb-6">
 				{#if result}
 					<!-- Result -->
 					<div class="space-y-4">
@@ -252,7 +324,7 @@
 							<div class="rounded-none border border-destructive/30 bg-destructive/5 p-4">
 								<p class="text-sm font-medium text-destructive">{result.errors.length} errors</p>
 								<ul class="mt-2 space-y-1 text-sm text-muted-foreground">
-									{#each result.errors.slice(0, 5) as err}
+									{#each result.errors.slice(0, 5) as err, i (i)}
 										<li>{err}</li>
 									{/each}
 									{#if result.errors.length > 5}
@@ -275,27 +347,74 @@
 							<p class="text-sm font-medium">{parsedRows.length} rows found</p>
 							<button
 								class="text-sm text-muted-foreground hover:text-foreground"
-								onclick={() => { parsedRows = []; pasteValue = ''; }}
+								onclick={() => {
+									parsedRows = [];
+									pasteValue = '';
+								}}
 							>
-								← Back
+								<LongArrow direction="left" /> Back
 							</button>
 						</div>
+
+						{#if seasons.length > 0}
+							<div class="rounded-none border bg-muted/20 p-4">
+								<p class="text-sm font-medium">Season &amp; year</p>
+								<p class="mt-0.5 text-sm text-muted-foreground">
+									Applied to all {parsedRows.length}
+									{entityType}s.
+									{#if detectedSeason || detectedYear}
+										AI detected:
+										<span class="font-medium text-foreground"
+											>{[detectedSeason, detectedYear].filter(Boolean).join(' ')}</span
+										>.
+									{/if}
+								</p>
+								<div class="mt-3 flex flex-wrap items-end gap-3">
+									<div class="space-y-1">
+										<label for="import-season" class="text-sm text-muted-foreground">Season</label>
+										<select
+											id="import-season"
+											bind:value={importSeasonId}
+											class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+										>
+											<option value="">— None —</option>
+											{#each seasons as s (s.id)}
+												<option value={s.id}>{s.name}</option>
+											{/each}
+										</select>
+									</div>
+									<div class="space-y-1">
+										<label for="import-year" class="text-sm text-muted-foreground">Year</label>
+										<input
+											id="import-year"
+											type="number"
+											min="2000"
+											max="2100"
+											bind:value={importYear}
+											class="h-10 w-28 rounded-md border border-input bg-background px-3 text-sm"
+										/>
+									</div>
+								</div>
+							</div>
+						{/if}
 
 						<div class="overflow-x-auto rounded-none border">
 							<table class="w-full">
 								<thead>
 									<tr class="border-b bg-muted/40">
-										{#each columns as col}
-											<th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+										{#each columns as col (col.key)}
+											<th
+												class="px-3 py-2 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
+											>
 												{col.label}{col.required ? ' *' : ''}
 											</th>
 										{/each}
 									</tr>
 								</thead>
 								<tbody class="divide-y">
-									{#each parsedRows.slice(0, 10) as row}
+									{#each parsedRows.slice(0, 10) as row, i (i)}
 										<tr>
-											{#each columns as col}
+											{#each columns as col (col.key)}
 												<td class="px-3 py-2 text-sm">{row[col.key] || '—'}</td>
 											{/each}
 										</tr>
@@ -304,7 +423,9 @@
 							</table>
 						</div>
 						{#if parsedRows.length > 10}
-							<p class="text-sm text-muted-foreground text-center">Showing first 10 of {parsedRows.length} rows</p>
+							<p class="text-center text-sm text-muted-foreground">
+								Showing first 10 of {parsedRows.length} rows
+							</p>
 						{/if}
 
 						<button
@@ -319,41 +440,66 @@
 					<!-- Input -->
 					<div class="space-y-4">
 						<!-- Mode toggle -->
-						<div class="flex gap-1 rounded-lg bg-muted p-1 w-fit">
+						<div class="flex w-fit gap-1 rounded-lg bg-muted p-1">
 							{#if enableLinesheet}
 								<button
-									class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors {mode === 'linesheet' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-									onclick={() => (mode = 'linesheet')}
-								>Linesheet (AI)</button>
+									class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors {mode ===
+									'linesheet'
+										? 'bg-background text-foreground shadow-sm'
+										: 'text-muted-foreground hover:text-foreground'}"
+									onclick={() => (mode = 'linesheet')}>Linesheet (AI)</button
+								>
 							{/if}
 							<button
-								class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors {mode === 'paste' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-								onclick={() => (mode = 'paste')}
-							>Paste CSV</button>
+								class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors {mode ===
+								'paste'
+									? 'bg-background text-foreground shadow-sm'
+									: 'text-muted-foreground hover:text-foreground'}"
+								onclick={() => (mode = 'paste')}>Paste CSV</button
+							>
 							<button
-								class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors {mode === 'file' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-								onclick={() => (mode = 'file')}
-							>Upload File</button>
+								class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors {mode === 'file'
+									? 'bg-background text-foreground shadow-sm'
+									: 'text-muted-foreground hover:text-foreground'}"
+								onclick={() => (mode = 'file')}>Upload File</button
+							>
 						</div>
 
 						{#if mode === 'linesheet'}
 							<!-- Linesheet AI parsing -->
 							<div class="rounded-none border bg-muted/20 p-4">
 								<p class="text-xs font-medium text-muted-foreground">Upload a linesheet</p>
-								<p class="mt-1 text-sm">Upload a PDF or image of a linesheet and AI will extract the product data automatically.</p>
+								<p class="mt-1 text-sm">
+									Upload a PDF or image of a linesheet and AI will extract the product data
+									automatically.
+								</p>
 							</div>
 
 							{#if linesheetFile && !parsing}
 								<div class="flex items-center gap-3 rounded-none border p-4">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-									<div class="flex-1 min-w-0">
-										<p class="text-sm font-medium truncate">{linesheetFile.name}</p>
-										<p class="text-xs text-muted-foreground">{(linesheetFile.size / 1024 / 1024).toFixed(1)} MB</p>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5 text-muted-foreground"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+										/></svg
+									>
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-medium">{linesheetFile.name}</p>
+										<p class="text-xs text-muted-foreground">
+											{(linesheetFile.size / 1024 / 1024).toFixed(1)} MB
+										</p>
 									</div>
 									<button
 										class="text-sm text-muted-foreground hover:text-foreground"
-										onclick={() => (linesheetFile = null)}
-									>Remove</button>
+										onclick={() => (linesheetFile = null)}>Remove</button
+									>
 								</div>
 								<button
 									class="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
@@ -362,15 +508,23 @@
 									Parse with AI
 								</button>
 							{:else if parsing}
-								<div class="flex flex-col items-center gap-6 rounded-none border border-dashed p-12">
+								<div
+									class="flex flex-col items-center gap-6 rounded-none border border-dashed p-12"
+								>
 									<div class="relative h-20 w-20">
-										<div class="blob-1 absolute inset-0 rounded-[40%_60%_70%_30%/40%_50%_60%_50%] bg-primary/20"></div>
-										<div class="blob-2 absolute inset-1 rounded-[60%_40%_30%_70%/60%_30%_70%_40%] bg-primary/15"></div>
-										<div class="blob-3 absolute inset-2 rounded-[40%_60%_60%_40%/70%_30%_40%_60%] bg-primary/25"></div>
+										<div
+											class="blob-1 absolute inset-0 rounded-[40%_60%_70%_30%/40%_50%_60%_50%] bg-primary/20"
+										></div>
+										<div
+											class="blob-2 absolute inset-1 rounded-[60%_40%_30%_70%/60%_30%_70%_40%] bg-primary/15"
+										></div>
+										<div
+											class="blob-3 absolute inset-2 rounded-[40%_60%_60%_40%/70%_30%_40%_60%] bg-primary/25"
+										></div>
 									</div>
 									<div class="text-center">
 										{#key parsingStatus}
-											<p class="text-sm font-medium animate-fade-in">{parsingStatus}</p>
+											<p class="animate-fade-in text-sm font-medium">{parsingStatus}</p>
 										{/key}
 									</div>
 								</div>
@@ -380,14 +534,34 @@
 								<div
 									class="flex cursor-pointer flex-col items-center gap-3 rounded-none border-2 border-dashed border-muted-foreground/20 p-8 transition-colors hover:border-primary/40 hover:bg-muted/30"
 									onclick={() => linesheetInput?.click()}
-									ondragover={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.add('border-primary', 'bg-primary/5'); }}
-									ondragleave={(e) => { (e.currentTarget as HTMLElement).classList.remove('border-primary', 'bg-primary/5'); }}
+									ondragover={(e) => {
+										e.preventDefault();
+										(e.currentTarget as HTMLElement).classList.add(
+											'border-primary',
+											'bg-primary/5'
+										);
+									}}
+									ondragleave={(e) => {
+										(e.currentTarget as HTMLElement).classList.remove(
+											'border-primary',
+											'bg-primary/5'
+										);
+									}}
 									ondrop={(e) => {
 										e.preventDefault();
-										(e.currentTarget as HTMLElement).classList.remove('border-primary', 'bg-primary/5');
+										(e.currentTarget as HTMLElement).classList.remove(
+											'border-primary',
+											'bg-primary/5'
+										);
 										const file = e.dataTransfer?.files?.[0];
-										if (file && (file.type === 'application/pdf' || file.type.startsWith('image/'))) {
-											if (file.size > 20 * 1024 * 1024) { parseError = 'File is too large. Maximum size is 20MB.'; return; }
+										if (
+											file &&
+											(file.type === 'application/pdf' || file.type.startsWith('image/'))
+										) {
+											if (file.size > 20 * 1024 * 1024) {
+												parseError = 'File is too large. Maximum size is 20MB.';
+												return;
+											}
 											parseError = '';
 											linesheetFile = file;
 										} else {
@@ -395,7 +569,19 @@
 										}
 									}}
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" /></svg>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-8 w-8 text-muted-foreground"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"
+										/></svg
+									>
 									<p class="text-sm font-medium">Drag & drop a linesheet here</p>
 									<p class="text-sm text-muted-foreground">PDF or image — or click to browse</p>
 									<input
@@ -412,54 +598,67 @@
 								<p class="text-sm text-destructive">{parseError}</p>
 							{/if}
 						{:else}
-						<div class="rounded-none border bg-muted/20 p-4">
-							<p class="text-xs font-medium text-muted-foreground">Expected columns</p>
-							<p class="mt-1 text-sm">{sampleHeader}</p>
-							{#if requiredColumns.length > 0}
-								<p class="mt-1 text-xs text-muted-foreground">* Required: {requiredColumns.map((c) => c.label).join(', ')}</p>
-							{/if}
-						</div>
-
-						{#if mode === 'paste'}
-							<textarea
-								bind:value={pasteValue}
-								placeholder="Paste your CSV data here, including the header row..."
-								rows="10"
-								class="w-full resize-none rounded-none border bg-background px-4 py-3 text-sm font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring/20"
-							></textarea>
-							<button
-								class="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-								disabled={!pasteValue.trim()}
-								onclick={handleParse}
-							>
-								Preview Data
-							</button>
-						{:else}
-							<div class="flex flex-col items-center gap-3 rounded-none border border-dashed p-8">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-								</svg>
-								<p class="text-sm text-muted-foreground">Choose a CSV file</p>
-								<input
-									type="file"
-									accept=".csv,.txt"
-									bind:this={fileInput}
-									onchange={handleFile}
-									class="hidden"
-								/>
-								<button
-									class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-									onclick={() => fileInput?.click()}
-								>
-									Select File
-								</button>
+							<div class="rounded-none border bg-muted/20 p-4">
+								<p class="text-xs font-medium text-muted-foreground">Expected columns</p>
+								<p class="mt-1 text-sm">{sampleHeader}</p>
+								{#if requiredColumns.length > 0}
+									<p class="mt-1 text-xs text-muted-foreground">
+										* Required: {requiredColumns.map((c) => c.label).join(', ')}
+									</p>
+								{/if}
 							</div>
-						{/if}
 
-						{#if parseError}
-							<p class="text-sm text-destructive">{parseError}</p>
+							{#if mode === 'paste'}
+								<textarea
+									bind:value={pasteValue}
+									placeholder="Paste your CSV data here, including the header row..."
+									rows="10"
+									class="w-full resize-none rounded-none border bg-background px-4 py-3 font-mono text-sm placeholder:text-muted-foreground/40 focus:ring-2 focus:ring-ring/20 focus:outline-none"
+								></textarea>
+								<button
+									class="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+									disabled={!pasteValue.trim()}
+									onclick={handleParse}
+								>
+									Preview Data
+								</button>
+							{:else}
+								<div class="flex flex-col items-center gap-3 rounded-none border border-dashed p-8">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-8 w-8 text-muted-foreground"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+										/>
+									</svg>
+									<p class="text-sm text-muted-foreground">Choose a CSV file</p>
+									<input
+										type="file"
+										accept=".csv,.txt"
+										bind:this={fileInput}
+										onchange={handleFile}
+										class="hidden"
+									/>
+									<button
+										class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+										onclick={() => fileInput?.click()}
+									>
+										Select File
+									</button>
+								</div>
+							{/if}
+
+							{#if parseError}
+								<p class="text-sm text-destructive">{parseError}</p>
+							{/if}
 						{/if}
-					{/if}
 					</div>
 				{/if}
 			</div>
@@ -467,27 +666,73 @@
 	</div>
 {/if}
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape' && open) ontoggle(); }} />
+<svelte:window
+	onkeydown={(e) => {
+		if (e.key === 'Escape' && open) ontoggle();
+	}}
+/>
 
 <style>
 	@keyframes blob-morph-1 {
-		0%, 100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; transform: rotate(0deg) scale(1); }
-		25% { border-radius: 70% 30% 50% 50% / 30% 60% 40% 70%; transform: rotate(90deg) scale(1.05); }
-		50% { border-radius: 50% 50% 30% 70% / 60% 40% 70% 30%; transform: rotate(180deg) scale(0.95); }
-		75% { border-radius: 30% 70% 60% 40% / 50% 70% 30% 60%; transform: rotate(270deg) scale(1.05); }
+		0%,
+		100% {
+			border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+			transform: rotate(0deg) scale(1);
+		}
+		25% {
+			border-radius: 70% 30% 50% 50% / 30% 60% 40% 70%;
+			transform: rotate(90deg) scale(1.05);
+		}
+		50% {
+			border-radius: 50% 50% 30% 70% / 60% 40% 70% 30%;
+			transform: rotate(180deg) scale(0.95);
+		}
+		75% {
+			border-radius: 30% 70% 60% 40% / 50% 70% 30% 60%;
+			transform: rotate(270deg) scale(1.05);
+		}
 	}
 	@keyframes blob-morph-2 {
-		0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: rotate(0deg) scale(1); }
-		25% { border-radius: 40% 60% 50% 50% / 70% 40% 60% 30%; transform: rotate(-60deg) scale(1.08); }
-		50% { border-radius: 70% 30% 60% 40% / 40% 60% 30% 70%; transform: rotate(-120deg) scale(0.92); }
-		75% { border-radius: 50% 50% 40% 60% / 30% 70% 50% 50%; transform: rotate(-180deg) scale(1.06); }
+		0%,
+		100% {
+			border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+			transform: rotate(0deg) scale(1);
+		}
+		25% {
+			border-radius: 40% 60% 50% 50% / 70% 40% 60% 30%;
+			transform: rotate(-60deg) scale(1.08);
+		}
+		50% {
+			border-radius: 70% 30% 60% 40% / 40% 60% 30% 70%;
+			transform: rotate(-120deg) scale(0.92);
+		}
+		75% {
+			border-radius: 50% 50% 40% 60% / 30% 70% 50% 50%;
+			transform: rotate(-180deg) scale(1.06);
+		}
 	}
 	@keyframes blob-morph-3 {
-		0%, 100% { border-radius: 40% 60% 60% 40% / 70% 30% 40% 60%; transform: rotate(0deg) scale(1); }
-		33% { border-radius: 60% 40% 40% 60% / 40% 60% 60% 40%; transform: rotate(120deg) scale(1.1); }
-		66% { border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; transform: rotate(240deg) scale(0.9); }
+		0%,
+		100% {
+			border-radius: 40% 60% 60% 40% / 70% 30% 40% 60%;
+			transform: rotate(0deg) scale(1);
+		}
+		33% {
+			border-radius: 60% 40% 40% 60% / 40% 60% 60% 40%;
+			transform: rotate(120deg) scale(1.1);
+		}
+		66% {
+			border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+			transform: rotate(240deg) scale(0.9);
+		}
 	}
-	.blob-1 { animation: blob-morph-1 2s ease-in-out infinite; }
-	.blob-2 { animation: blob-morph-2 2.5s ease-in-out infinite; }
-	.blob-3 { animation: blob-morph-3 3s ease-in-out infinite; }
+	.blob-1 {
+		animation: blob-morph-1 2s ease-in-out infinite;
+	}
+	.blob-2 {
+		animation: blob-morph-2 2.5s ease-in-out infinite;
+	}
+	.blob-3 {
+		animation: blob-morph-3 3s ease-in-out infinite;
+	}
 </style>

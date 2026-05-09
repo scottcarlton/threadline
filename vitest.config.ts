@@ -11,7 +11,8 @@ export default defineConfig({
 			'$lib/server': resolve('./src/lib/server'),
 			'$app/environment': resolve('./src/lib/test-helpers/mock-app-environment.ts'),
 			'$env/static/private': resolve('./src/lib/test-helpers/mock-env-private.ts'),
-			'$env/static/public': resolve('./src/lib/test-helpers/mock-env-public.ts')
+			'$env/static/public': resolve('./src/lib/test-helpers/mock-env-public.ts'),
+			'$env/dynamic/private': resolve('./src/lib/test-helpers/mock-env-dynamic-private.ts')
 		}
 	}
 });

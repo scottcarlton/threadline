@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import { PinInput } from 'bits-ui';
 
 	let email = $state('');
 	let otpCode = $state('');
@@ -53,6 +55,7 @@
 			loading = false;
 			return;
 		}
+
 		const { error: err } = await supabase.auth.signInWithOtp({
 			email,
 			options: { shouldCreateUser: true }
@@ -118,7 +121,13 @@
 			</Button>
 		</div>
 	{:else if mode === 'google-email'}
-		<form onsubmit={(e) => { e.preventDefault(); signUpWithGoogle(); }} class="space-y-4">
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				signUpWithGoogle();
+			}}
+			class="space-y-4"
+		>
 			<div class="space-y-2">
 				<Label for="email">Email</Label>
 				<Input id="email" type="email" placeholder="you@example.com" bind:value={email} required />
@@ -128,7 +137,13 @@
 			</Button>
 		</form>
 	{:else if mode === 'otp-email'}
-		<form onsubmit={(e) => { e.preventDefault(); sendOtp(); }} class="space-y-4">
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				sendOtp();
+			}}
+			class="space-y-4"
+		>
 			<div class="space-y-2">
 				<Label for="email">Email</Label>
 				<Input id="email" type="email" placeholder="you@example.com" bind:value={email} required />
@@ -138,19 +153,36 @@
 			</Button>
 		</form>
 	{:else if mode === 'otp-verify'}
-		<form onsubmit={(e) => { e.preventDefault(); verifyOtp(); }} class="space-y-4">
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				verifyOtp();
+			}}
+			class="space-y-4"
+		>
 			<div class="space-y-2">
-				<Label for="otp">Verification code</Label>
-				<Input
-					id="otp"
-					type="text"
-					placeholder="Enter 6-digit code"
+				<Label>Verification code</Label>
+				<PinInput.Root
+					maxlength={6}
 					bind:value={otpCode}
-					autocomplete="one-time-code"
-					required
-				/>
+					onComplete={verifyOtp}
+					textalign="center"
+					pasteTransformer={(t) => t.replace(/[^0-9]/g, '')}
+					class="flex justify-center gap-2.5"
+				>
+					{#snippet children({ cells })}
+						{#each cells as cell (cell)}
+							<PinInput.Cell
+								{cell}
+								class="flex h-12 w-11 items-center justify-center rounded-lg border border-input bg-background text-center text-lg font-medium text-foreground transition-colors data-[active]:border-ring data-[active]:ring-2 data-[active]:ring-ring/20"
+							>
+								{cell.char ?? ''}
+							</PinInput.Cell>
+						{/each}
+					{/snippet}
+				</PinInput.Root>
 			</div>
-			<Button size="lg" type="submit" class="w-full" disabled={loading || !otpCode}>
+			<Button size="lg" type="submit" class="w-full" disabled={loading || otpCode.length < 6}>
 				{loading ? 'Verifying...' : 'Verify code'}
 			</Button>
 			<button
@@ -170,7 +202,7 @@
 			Back
 		</button>
 	{/if}
-	<a href="/login" class="text-muted-foreground hover:text-foreground">
+	<a href={resolve('/login')} class="text-muted-foreground hover:text-foreground">
 		Already have an account? Log in
 	</a>
 </div>

@@ -1,6 +1,10 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { syncToNotion, mapToNotionProperties, type SyncDataType } from '$lib/server/integrations/notion';
+import {
+	syncToNotion,
+	mapToNotionProperties,
+	type SyncDataType
+} from '$lib/server/integrations/notion';
 import { EXPORT_SCHEMAS } from '$lib/server/integrations/google-sheets';
 import { supabaseAdmin } from '$lib/server/supabase';
 
@@ -38,12 +42,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.order('created_at', { ascending: false });
 
 	if (queryError || !data?.length) {
-		return json({ error: queryError ? 'Failed to fetch data' : 'No data to sync' }, { status: 400 });
+		return json(
+			{ error: queryError ? 'Failed to fetch data' : 'No data to sync' },
+			{ status: 400 }
+		);
 	}
 
 	// Map to Notion properties
-	const rows = data.map((row: any) => ({
-		externalId: row.id,
+	const rows = (data as unknown as Array<Record<string, unknown>>).map((row) => ({
+		externalId: row.id as string,
 		properties: mapToNotionProperties(dataType, row)
 	}));
 

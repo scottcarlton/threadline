@@ -4,10 +4,22 @@ import { getGmailClient, parseMessage } from '$lib/server/gmail';
 import { supabaseAdmin } from '$lib/server/supabase';
 
 const SYSTEM_EMAIL_PATTERNS = [
-	'noreply@', 'no-reply@', 'mailer-daemon@', 'notifications@',
-	'updates@', 'donotreply@', 'do-not-reply@', 'postmaster@',
-	'bounce@', 'unsubscribe@', 'newsletter@', 'news@',
-	'support@', 'info@', 'help@', 'feedback@'
+	'noreply@',
+	'no-reply@',
+	'mailer-daemon@',
+	'notifications@',
+	'updates@',
+	'donotreply@',
+	'do-not-reply@',
+	'postmaster@',
+	'bounce@',
+	'unsubscribe@',
+	'newsletter@',
+	'news@',
+	'support@',
+	'info@',
+	'help@',
+	'feedback@'
 ];
 
 function parseEmailAddress(raw: string): { name: string; email: string } | null {
@@ -48,7 +60,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 	const ownEmail = emailConn?.email_address?.toLowerCase() ?? '';
 
 	// Fetch recent inbox messages (metadata only)
-	let messageIds: { id?: string | null }[] = [];
+	let messageIds: { id?: string | null }[];
 	try {
 		const listRes = await gmail.users.messages.list({
 			userId: 'me',
@@ -129,9 +141,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 	}
 
 	// Filter to only unknown contacts
-	const newContacts = Array.from(contactMap.values()).filter(
-		(c) => !knownEmails.has(c.email)
-	);
+	const newContacts = Array.from(contactMap.values()).filter((c) => !knownEmails.has(c.email));
 
 	// Upsert discovered contacts
 	const userId = locals.user!.id;
@@ -154,15 +164,13 @@ export const POST: RequestHandler = async ({ locals }) => {
 				})
 				.eq('id', existing.id);
 		} else {
-			await supabaseAdmin
-				.from('discovered_contacts')
-				.insert({
-					organization_id: orgId,
-					email: contact.email,
-					name: contact.name || null,
-					message_count: contact.count,
-					discovered_by: userId
-				});
+			await supabaseAdmin.from('discovered_contacts').insert({
+				organization_id: orgId,
+				email: contact.email,
+				name: contact.name || null,
+				message_count: contact.count,
+				discovered_by: userId
+			});
 		}
 	}
 

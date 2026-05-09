@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
+import { uploadProductImageFromBlob } from '$lib/server/products/upload-image';
 
 export const POST: RequestHandler = async ({ request, locals, params }) => {
 	if (!locals.session || !locals.user || !locals.organization) {
@@ -14,42 +15,35 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 	const file = formData.get('file') as File | null;
 	if (!file) return json({ error: 'Missing file' }, { status: 400 });
 
-	const timestamp = Date.now();
-	const filePath = `${orgId}/products/${productId}/${timestamp}-${file.name}`;
+	const variantId = (formData.get('variant_id') as string) || null;
+	const role = (formData.get('role') as string) || null;
+	const validRole = role === 'primary' || role === 'hover' || role === 'video' ? role : null;
 
 	const arrayBuffer = await file.arrayBuffer();
-	const buffer = Buffer.from(arrayBuffer);
 
-	const { error: uploadError } = await supabaseAdmin.storage
-		.from('brand-assets')
-		.upload(filePath, buffer, { contentType: file.type, upsert: false });
-
-	if (uploadError) return json({ error: 'Upload failed: ' + uploadError.message }, { status: 500 });
-
-	// Check if this is the first image (make it primary)
-	const { count } = await supabaseAdmin
-		.from('product_images')
-		.select('id', { count: 'exact', head: true })
-		.eq('product_id', productId);
-
-	const { error: dbError } = await supabaseAdmin
-		.from('product_images')
-		.insert({
-			product_id: productId,
-			file_path: filePath,
-			file_size: file.size,
-			mime_type: file.type,
-			sort_order: (count ?? 0),
-			is_primary: (count ?? 0) === 0,
-			uploaded_by: locals.user.id
+	try {
+		await uploadProductImageFromBlob(supabaseAdmin, {
+			productId,
+			orgId,
+			buffer: arrayBuffer,
+			mimeType: file.type,
+			fileName: file.name,
+			fileSize: file.size,
+			uploadedBy: locals.user.id,
+			variantId,
+			role: validRole
 		});
-
-	if (dbError) {
-		await supabaseAdmin.storage.from('brand-assets').remove([filePath]);
-		return json({ error: dbError.message }, { status: 500 });
+		return json({ success: true }, { status: 201 });
+	} catch (err) {
+		console.error('[products/images] upload failed', {
+			productId,
+			orgId,
+			fileSize: file.size,
+			mime: file.type,
+			error: err instanceof Error ? err.message : err
+		});
+		return json({ error: err instanceof Error ? err.message : 'Upload failed' }, { status: 500 });
 	}
-
-	return json({ success: true }, { status: 201 });
 };
 
 export const DELETE: RequestHandler = async ({ request, locals }) => {
@@ -66,7 +60,11 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		.eq('id', imageId)
 		.single();
 
-	if (!image || (image as any).products?.organization_id !== locals.organization.id) {
+	type ProductJoin = { organization_id: string };
+	const productsJoined = (image as { products?: ProductJoin | ProductJoin[] | null } | null)
+		?.products;
+	const productRef = Array.isArray(productsJoined) ? productsJoined[0] : productsJoined;
+	if (!image || productRef?.organization_id !== locals.organization.id) {
 		return json({ error: 'Image not found' }, { status: 404 });
 	}
 

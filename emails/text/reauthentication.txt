@@ -1,0 +1,8 @@
+Your /Threadline verification code
+
+Enter this code to continue:
+
+    {{ .Token }}
+
+The code expires shortly. If you didn't request it, ignore this email.
+/Threadline · threadline.systems

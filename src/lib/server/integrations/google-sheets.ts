@@ -56,10 +56,7 @@ async function getAuthenticatedClient(connection: IntegrationConnection, origin:
 			updateData.token_expires_at = new Date(tokens.expiry_date).toISOString();
 		if (tokens.refresh_token) updateData.refresh_token = tokens.refresh_token;
 
-		await supabaseAdmin
-			.from('integration_connections')
-			.update(updateData)
-			.eq('id', connection.id);
+		await supabaseAdmin.from('integration_connections').update(updateData).eq('id', connection.id);
 	});
 
 	return client;
@@ -153,9 +150,7 @@ export async function exportToSheet(
 
 	// Auto-resize columns and bold headers
 	const sheetRes = await client.sheets.spreadsheets.get({ spreadsheetId });
-	const sheet = sheetRes.data.sheets?.find(
-		(s) => s.properties?.title === options.title
-	);
+	const sheet = sheetRes.data.sheets?.find((s) => s.properties?.title === options.title);
 	const sheetId = sheet?.properties?.sheetId ?? 0;
 
 	await client.sheets.spreadsheets.batchUpdate({
@@ -185,13 +180,55 @@ export async function exportToSheet(
 
 export type ExportDataType = 'orders' | 'accounts' | 'brands';
 
+export type ExportRow = Record<string, unknown>;
+
+type OrderRow = {
+	order_number?: string | null;
+	accounts?: { business_name?: string | null } | { business_name?: string | null }[] | null;
+	brands?: { name?: string | null } | { name?: string | null }[] | null;
+	seasons?: { name?: string | null } | { name?: string | null }[] | null;
+	order_year?: number | null;
+	status?: string | null;
+	total_amount?: number | null;
+	created_at?: string | null;
+	submitted_at?: string | null;
+};
+
+type AccountRow = {
+	business_name?: string | null;
+	contact_first_name?: string | null;
+	contact_last_name?: string | null;
+	contact_email?: string | null;
+	phone?: string | null;
+	city?: string | null;
+	state?: string | null;
+	country?: string | null;
+	is_active?: boolean | null;
+};
+
+type BrandRow = {
+	name?: string | null;
+	contact_first_name?: string | null;
+	contact_last_name?: string | null;
+	contact_email?: string | null;
+	contact_phone?: string | null;
+	website?: string | null;
+	commission_rate?: number | null;
+	is_active?: boolean | null;
+};
+
+function firstJoin<T>(val: T | T[] | null | undefined): T | null {
+	if (val == null) return null;
+	return Array.isArray(val) ? (val[0] ?? null) : val;
+}
+
 export const EXPORT_SCHEMAS: Record<
 	ExportDataType,
 	{
 		headers: string[];
 		query: string;
 		select: string;
-		mapRow: (row: any) => (string | number | null)[];
+		mapRow: (row: ExportRow) => (string | number | null)[];
 	}
 > = {
 	orders: {
@@ -208,17 +245,20 @@ export const EXPORT_SCHEMAS: Record<
 		],
 		query: 'orders',
 		select: '*, accounts(business_name), brands(name), seasons(name)',
-		mapRow: (o) => [
-			o.order_number,
-			o.accounts?.business_name ?? '',
-			o.brands?.name ?? '',
-			o.seasons?.name ?? '',
-			o.order_year,
-			o.status,
-			o.total_amount,
-			o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
-			o.submitted_at ? new Date(o.submitted_at).toLocaleDateString() : ''
-		]
+		mapRow: (row) => {
+			const o = row as OrderRow;
+			return [
+				o.order_number ?? '',
+				firstJoin(o.accounts)?.business_name ?? '',
+				firstJoin(o.brands)?.name ?? '',
+				firstJoin(o.seasons)?.name ?? '',
+				o.order_year ?? '',
+				o.status ?? '',
+				o.total_amount ?? '',
+				o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
+				o.submitted_at ? new Date(o.submitted_at).toLocaleDateString() : ''
+			];
+		}
 	},
 	accounts: {
 		headers: [
@@ -234,17 +274,20 @@ export const EXPORT_SCHEMAS: Record<
 		],
 		query: 'accounts',
 		select: '*',
-		mapRow: (a) => [
-			a.business_name,
-			a.contact_first_name ?? '',
-			a.contact_last_name ?? '',
-			a.contact_email ?? '',
-			a.phone ?? '',
-			a.city ?? '',
-			a.state ?? '',
-			a.country ?? '',
-			a.is_active ? 'Yes' : 'No'
-		]
+		mapRow: (row) => {
+			const a = row as AccountRow;
+			return [
+				a.business_name ?? '',
+				a.contact_first_name ?? '',
+				a.contact_last_name ?? '',
+				a.contact_email ?? '',
+				a.phone ?? '',
+				a.city ?? '',
+				a.state ?? '',
+				a.country ?? '',
+				a.is_active ? 'Yes' : 'No'
+			];
+		}
 	},
 	brands: {
 		headers: [
@@ -259,15 +302,18 @@ export const EXPORT_SCHEMAS: Record<
 		],
 		query: 'brands',
 		select: '*',
-		mapRow: (b) => [
-			b.name,
-			b.contact_first_name ?? '',
-			b.contact_last_name ?? '',
-			b.contact_email ?? '',
-			b.contact_phone ?? '',
-			b.website ?? '',
-			b.commission_rate ? `${b.commission_rate}%` : '',
-			b.is_active ? 'Yes' : 'No'
-		]
+		mapRow: (row) => {
+			const b = row as BrandRow;
+			return [
+				b.name ?? '',
+				b.contact_first_name ?? '',
+				b.contact_last_name ?? '',
+				b.contact_email ?? '',
+				b.contact_phone ?? '',
+				b.website ?? '',
+				b.commission_rate ? `${b.commission_rate}%` : '',
+				b.is_active ? 'Yes' : 'No'
+			];
+		}
 	}
 };

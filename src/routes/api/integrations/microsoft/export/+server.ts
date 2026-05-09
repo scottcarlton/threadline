@@ -1,7 +1,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { exportToExcel } from '$lib/server/integrations/microsoft/excel';
-import { EXPORT_SCHEMAS, type ExportDataType } from '$lib/server/integrations/google-sheets';
+import {
+	EXPORT_SCHEMAS,
+	type ExportDataType,
+	type ExportRow
+} from '$lib/server/integrations/google-sheets';
 import { supabaseAdmin } from '$lib/server/supabase';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -30,10 +34,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.order('created_at', { ascending: false });
 
 	if (queryError || !data?.length) {
-		return json({ error: queryError ? 'Failed to fetch data' : 'No data to export' }, { status: 400 });
+		return json(
+			{ error: queryError ? 'Failed to fetch data' : 'No data to export' },
+			{ status: 400 }
+		);
 	}
 
-	const rows = data.map(schema.mapRow);
+	const rows = (data as unknown as ExportRow[]).map(schema.mapRow);
 	const fileName = `Threadline ${dataType.charAt(0).toUpperCase() + dataType.slice(1)} ${new Date().toLocaleDateString().replace(/\//g, '-')}`;
 
 	const result = await exportToExcel(orgId, {

@@ -1,0 +1,3017 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Threadline — Homepage Concepts (v2)</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			:root {
+				color-scheme: light;
+				--background: hsl(0 0% 98.5%);
+				--foreground: hsl(216 5% 17%);
+				--muted-fg: hsl(240 3.8% 46.1%);
+				--muted-bg: hsl(240 4.8% 95.9%);
+				--sidebar: hsl(240 5.9% 10%);
+				--sidebar-fg: hsl(240 4.8% 95.9%);
+				--sidebar-accent: hsl(240 3.7% 15.9%);
+				--accent-blue: hsl(217.2 91.2% 59.8%);
+
+				--font-sans:
+					'IBM Plex Sans', ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
+				--font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+				--font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+
+				--ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+				--c-fg-04: rgba(41, 43, 48, 0.04);
+				--c-fg-08: rgba(41, 43, 48, 0.08);
+				--c-fg-12: rgba(41, 43, 48, 0.12);
+				--c-fg-24: rgba(41, 43, 48, 0.24);
+				--c-bg-06: rgba(252, 252, 252, 0.06);
+				--c-bg-10: rgba(252, 252, 252, 0.1);
+				--c-bg-18: rgba(252, 252, 252, 0.18);
+				--c-bg-40: rgba(252, 252, 252, 0.4);
+				--c-bg-60: rgba(252, 252, 252, 0.6);
+				--c-bg-80: rgba(252, 252, 252, 0.8);
+			}
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				font-family: var(--font-sans);
+				background: var(--background);
+				color: var(--foreground);
+				-webkit-font-smoothing: antialiased;
+				-moz-osx-font-smoothing: grayscale;
+				font-feature-settings: 'ss01', 'kern';
+				line-height: 1.5;
+				font-size: 16px;
+			}
+			a {
+				color: inherit;
+				text-decoration: none;
+			}
+			button {
+				font-family: inherit;
+				cursor: pointer;
+				border: 0;
+				background: 0;
+				color: inherit;
+				padding: 0;
+			}
+			ul,
+			ol {
+				list-style: none;
+				margin: 0;
+				padding: 0;
+			}
+			p {
+				margin: 0;
+			}
+			h1,
+			h2,
+			h3,
+			h4 {
+				margin: 0;
+				font-weight: 500;
+				letter-spacing: -0.02em;
+				line-height: 1.08;
+			}
+
+			/* ==== Switcher ==== */
+			.switcher {
+				position: fixed;
+				top: 16px;
+				left: 50%;
+				transform: translateX(-50%);
+				z-index: 100;
+				display: inline-flex;
+				background: var(--foreground);
+				color: var(--background);
+				padding: 4px;
+				font-family: var(--font-mono);
+				font-size: 14px;
+				letter-spacing: -0.02em;
+			}
+			.switcher button {
+				padding: 8px 16px;
+				color: var(--c-bg-60);
+				transition:
+					color 180ms var(--ease),
+					background 180ms var(--ease);
+			}
+			.switcher button:hover {
+				color: var(--background);
+			}
+			.switcher button.active {
+				background: var(--background);
+				color: var(--foreground);
+			}
+			.concept {
+				display: none;
+			}
+			.concept.active {
+				display: block;
+			}
+
+			/* ==== Typography helpers ==== */
+			.mono {
+				font-family: var(--font-mono);
+				letter-spacing: -0.02em;
+			}
+			.serif {
+				font-family: var(--font-serif);
+				letter-spacing: -0.01em;
+			}
+			.eyebrow {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				letter-spacing: 0;
+				color: var(--foreground);
+				display: inline-flex;
+				align-items: center;
+				gap: 10px;
+			}
+			.eyebrow .dot {
+				width: 6px;
+				height: 6px;
+				background: var(--accent-blue);
+				border-radius: 50%;
+			}
+			.muted {
+				color: var(--muted-fg);
+			}
+
+			.display {
+				font-size: clamp(56px, 8vw, 128px);
+				line-height: 0.9;
+				letter-spacing: -0.035em;
+				font-weight: 500;
+			}
+			.display-sm {
+				font-size: clamp(40px, 5vw, 72px);
+				line-height: 0.98;
+				letter-spacing: -0.025em;
+			}
+			.h1 {
+				font-size: clamp(32px, 3.4vw, 52px);
+				line-height: 1.02;
+				letter-spacing: -0.02em;
+			}
+			.h2 {
+				font-size: clamp(24px, 2.2vw, 32px);
+				line-height: 1.12;
+				letter-spacing: -0.015em;
+			}
+			.h3 {
+				font-size: 22px;
+				line-height: 1.15;
+				letter-spacing: -0.01em;
+			}
+			.body-lg {
+				font-size: 18px;
+				line-height: 1.5;
+			}
+
+			/* ==== Buttons ==== */
+			.btn {
+				display: inline-flex;
+				align-items: center;
+				gap: 10px;
+				padding: 14px 28px;
+				font-size: 15px;
+				font-weight: 500;
+				letter-spacing: -0.005em;
+				border: 1px solid var(--foreground);
+				background: var(--foreground);
+				color: var(--background);
+				transition: transform 180ms var(--ease);
+			}
+			.btn:hover {
+				transform: translateY(-1px);
+			}
+			.btn-ghost {
+				background: transparent;
+				color: var(--foreground);
+			}
+			.btn-light {
+				background: var(--background);
+				color: var(--foreground);
+				border-color: var(--background);
+			}
+
+			/* ==== Nav ==== */
+			.nav {
+				position: sticky;
+				top: 0;
+				z-index: 50;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				padding: 18px 32px;
+				background: var(--c-bg-80);
+				backdrop-filter: blur(12px);
+				-webkit-backdrop-filter: blur(12px);
+				border-bottom: 1px solid var(--c-fg-08);
+			}
+			.nav.dark {
+				background: rgba(24, 24, 32, 0.85);
+				border-bottom: 1px solid var(--c-bg-10);
+				color: var(--background);
+			}
+			.nav-brand {
+				font-weight: 500;
+				font-size: 18px;
+				letter-spacing: -0.02em;
+			}
+			.nav-links {
+				display: flex;
+				gap: 28px;
+				font-size: 14px;
+			}
+			.nav-links a {
+				opacity: 0.72;
+				transition: opacity 150ms var(--ease);
+			}
+			.nav-links a:hover {
+				opacity: 1;
+			}
+			.nav-right {
+				display: flex;
+				align-items: center;
+				gap: 16px;
+				font-size: 14px;
+			}
+
+			/* ==== Reveal ==== */
+			.reveal {
+				opacity: 0;
+				transform: translateY(32px);
+				transition:
+					opacity 700ms var(--ease),
+					transform 700ms var(--ease);
+			}
+			.reveal.in {
+				opacity: 1;
+				transform: translateY(0);
+			}
+			.reveal-d1 {
+				transition-delay: 60ms;
+			}
+			.reveal-d2 {
+				transition-delay: 120ms;
+			}
+			.reveal-d3 {
+				transition-delay: 180ms;
+			}
+			.reveal-d4 {
+				transition-delay: 240ms;
+			}
+
+			/* ==== Section scaffolding ==== */
+			.section {
+				padding: 120px 32px;
+			}
+			.section.tight {
+				padding: 80px 32px;
+			}
+			.section-head {
+				display: grid;
+				grid-template-columns: 1fr 2.5fr;
+				gap: 48px;
+				align-items: start;
+				margin-bottom: 64px;
+			}
+			.section-head.center {
+				grid-template-columns: 1fr;
+				text-align: center;
+				justify-items: center;
+				max-width: 960px;
+				margin-left: auto;
+				margin-right: auto;
+			}
+			.section-head h2 {
+				font-size: clamp(32px, 3.4vw, 52px);
+				line-height: 1.02;
+				letter-spacing: -0.02em;
+			}
+
+			/* ==== Footer ==== */
+			.footer {
+				background: var(--foreground);
+				color: var(--background);
+				padding: 72px 32px 0;
+			}
+			.footer-grid {
+				display: grid;
+				grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
+				gap: 32px;
+				padding-bottom: 56px;
+			}
+			.footer-grid h4 {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				font-weight: 400;
+				opacity: 0.5;
+				margin-bottom: 14px;
+			}
+			.footer-grid li {
+				font-size: 14px;
+				margin-bottom: 8px;
+				opacity: 0.82;
+			}
+			.brand-moment {
+				font-size: clamp(72px, 17.5vw, 260px);
+				font-weight: 500;
+				letter-spacing: -0.045em;
+				line-height: 0.82;
+				padding: 24px 32px 16px;
+			}
+			.footer-bottom {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				padding: 24px 0;
+				border-top: 1px solid var(--c-bg-10);
+				font-family: var(--font-mono);
+				font-size: 14px;
+				opacity: 0.55;
+			}
+
+			/* ========================================================= */
+			/* ============== PRODUCT SURFACES (shared) ================ */
+			/* ========================================================= */
+
+			/* "Today" signal panel — richer */
+			.panel {
+				background: var(--background);
+				border: 1px solid var(--c-fg-12);
+				padding: 20px;
+				display: grid;
+				gap: 16px;
+			}
+			.panel-dark {
+				background: var(--sidebar);
+				color: var(--sidebar-fg);
+				border-color: var(--c-bg-10);
+			}
+			.panel-head {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				padding-bottom: 14px;
+				border-bottom: 1px solid var(--c-fg-08);
+			}
+			.panel-dark .panel-head {
+				border-bottom-color: var(--c-bg-10);
+			}
+			.panel-head h4 {
+				font-size: 15px;
+				font-weight: 500;
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+			.panel-head .meta {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+			}
+			.panel-dark .panel-head .meta {
+				color: var(--c-bg-60);
+			}
+
+			/* Signal row */
+			.signal {
+				display: grid;
+				grid-template-columns: 28px 1fr auto;
+				gap: 14px;
+				padding: 14px 0;
+				border-bottom: 1px solid var(--c-fg-08);
+				align-items: start;
+			}
+			.panel-dark .signal {
+				border-bottom-color: var(--c-bg-06);
+			}
+			.signal:last-child {
+				border-bottom: 0;
+			}
+			.signal-icon {
+				width: 28px;
+				height: 28px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border: 1px solid var(--c-fg-24);
+			}
+			.panel-dark .signal-icon {
+				border-color: var(--c-bg-18);
+			}
+			.signal.new .signal-icon {
+				border-color: var(--accent-blue);
+			}
+			.signal-body {
+				display: grid;
+				gap: 3px;
+			}
+			.signal-kind {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+				display: flex;
+				align-items: center;
+				gap: 8px;
+			}
+			.panel-dark .signal-kind {
+				color: var(--c-bg-60);
+			}
+			.signal.new .signal-kind::before {
+				content: '';
+				width: 6px;
+				height: 6px;
+				background: var(--accent-blue);
+				border-radius: 50%;
+			}
+			.signal-title {
+				font-size: 15px;
+				line-height: 1.35;
+			}
+			.signal-meta {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+				margin-top: 4px;
+			}
+			.panel-dark .signal-meta {
+				color: var(--c-bg-60);
+			}
+			.signal-action {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--foreground);
+				white-space: nowrap;
+				padding-top: 2px;
+			}
+			.panel-dark .signal-action {
+				color: var(--sidebar-fg);
+			}
+
+			/* Chip */
+			.chip {
+				display: inline-flex;
+				font-family: var(--font-mono);
+				font-size: 14px;
+				padding: 3px 8px;
+				line-height: 1.2;
+				color: var(--foreground);
+				background: var(--muted-bg);
+			}
+			.chip.urgent {
+				background: var(--foreground);
+				color: var(--background);
+			}
+
+			/* Data table (gap report) */
+			.gap-table {
+				width: 100%;
+				border-collapse: collapse;
+				font-size: 15px;
+				background: var(--background);
+				border: 1px solid var(--c-fg-12);
+			}
+			.gap-table th,
+			.gap-table td {
+				padding: 14px 18px;
+				text-align: left;
+				border-bottom: 1px solid var(--c-fg-08);
+			}
+			.gap-table tbody tr:last-child td {
+				border-bottom: 0;
+			}
+			.gap-table th {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				font-weight: 400;
+				color: var(--muted-fg);
+				letter-spacing: 0;
+				text-transform: none;
+			}
+			.gap-table td.mono {
+				font-family: var(--font-mono);
+				letter-spacing: -0.02em;
+			}
+			.gap-table td.num {
+				text-align: right;
+				font-variant-numeric: tabular-nums;
+			}
+			.gap-table tbody tr {
+				transition: background 120ms var(--ease);
+			}
+			.gap-table tbody tr:hover {
+				background: var(--c-fg-04);
+			}
+			.gap-inline-spark {
+				display: inline-block;
+				width: 60px;
+				height: 14px;
+				vertical-align: middle;
+				margin-right: 10px;
+			}
+
+			/* Territory heatmap */
+			.heatmap {
+				display: grid;
+				grid-template-columns: repeat(5, 1fr);
+				gap: 2px;
+				background: var(--c-fg-12);
+				padding: 1px;
+				border: 1px solid var(--c-fg-12);
+				font-family: var(--font-mono);
+			}
+			.heat-cell {
+				background: var(--background);
+				padding: 16px 12px;
+				display: grid;
+				gap: 6px;
+				font-size: 14px;
+				transition: transform 200ms var(--ease);
+			}
+			.heat-cell:hover {
+				transform: scale(1.03);
+				z-index: 2;
+				position: relative;
+			}
+			.heat-cell .hc-name {
+				font-size: 14px;
+				color: var(--muted-fg);
+			}
+			.heat-cell .hc-val {
+				font-size: 22px;
+				font-family: var(--font-sans);
+				letter-spacing: -0.02em;
+				font-weight: 500;
+			}
+			.heat-cell[data-heat='1'] {
+				background: rgba(41, 43, 48, 0.03);
+			}
+			.heat-cell[data-heat='2'] {
+				background: rgba(41, 43, 48, 0.06);
+			}
+			.heat-cell[data-heat='3'] {
+				background: rgba(41, 43, 48, 0.12);
+			}
+			.heat-cell[data-heat='4'] {
+				background: rgba(41, 43, 48, 0.22);
+			}
+			.heat-cell[data-heat='5'] {
+				background: rgba(41, 43, 48, 0.38);
+				color: var(--background);
+			}
+			.heat-cell[data-heat='5'] .hc-name {
+				color: var(--c-bg-60);
+			}
+			.heat-cell[data-heat='6'] {
+				background: var(--foreground);
+				color: var(--background);
+			}
+			.heat-cell[data-heat='6'] .hc-name {
+				color: var(--c-bg-60);
+			}
+
+			/* Worker DSL block */
+			.dsl {
+				background: var(--sidebar);
+				color: var(--sidebar-fg);
+				padding: 24px;
+				font-family: var(--font-mono);
+				font-size: 14px;
+				line-height: 1.7;
+				letter-spacing: -0.01em;
+				overflow: hidden;
+			}
+			.dsl .comment {
+				color: var(--c-bg-40);
+			}
+			.dsl .kw {
+				color: var(--accent-blue);
+			}
+			.dsl .str {
+				color: var(--c-bg-80);
+			}
+			.dsl .indent {
+				padding-left: 28px;
+			}
+
+			/* Commission ledger */
+			.ledger {
+				border: 1px solid var(--c-fg-12);
+				background: var(--background);
+				font-size: 15px;
+			}
+			.ledger-row {
+				display: grid;
+				grid-template-columns: 1fr auto auto auto;
+				gap: 16px;
+				padding: 14px 18px;
+				border-bottom: 1px solid var(--c-fg-08);
+				align-items: center;
+			}
+			.ledger-row:last-child {
+				border-bottom: 0;
+			}
+			.ledger-row.total {
+				background: var(--foreground);
+				color: var(--background);
+				font-weight: 500;
+			}
+			.ledger-row .ledger-label {
+				display: grid;
+				gap: 3px;
+			}
+			.ledger-row .ledger-label .ledger-sub {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+			}
+			.ledger-row.total .ledger-sub {
+				color: var(--c-bg-60);
+			}
+			.ledger-row .num {
+				font-variant-numeric: tabular-nums;
+				font-family: var(--font-mono);
+			}
+
+			/* Stitches "explanation" card */
+			.stitch-card {
+				background: var(--foreground);
+				color: var(--background);
+				padding: 28px;
+				display: grid;
+				gap: 20px;
+			}
+			.stitch-card .stitch-head {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--c-bg-60);
+			}
+			.stitch-card .stitch-head .dot {
+				width: 6px;
+				height: 6px;
+				background: var(--accent-blue);
+				border-radius: 50%;
+			}
+			.stitch-card p {
+				font-family: var(--font-serif);
+				font-size: 24px;
+				line-height: 1.32;
+				font-style: italic;
+			}
+			.stitch-card .stitch-evidence {
+				display: grid;
+				gap: 6px;
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--c-bg-80);
+				padding-top: 14px;
+				border-top: 1px solid var(--c-bg-10);
+			}
+			.stitch-card .stitch-evidence div::before {
+				content: '→ ';
+				color: var(--c-bg-60);
+			}
+
+			/* Portfolio pulse mini-chart (shared) */
+			.pulse-chart {
+				background: var(--background);
+				border: 1px solid var(--c-fg-12);
+				padding: 18px;
+				display: grid;
+				gap: 12px;
+			}
+			.pulse-chart .pc-head {
+				display: flex;
+				justify-content: space-between;
+				align-items: baseline;
+			}
+			.pulse-chart .pc-title {
+				font-size: 15px;
+				font-weight: 500;
+			}
+			.pulse-chart .pc-delta {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+			}
+			.pulse-chart svg {
+				width: 100%;
+				height: 80px;
+				display: block;
+			}
+
+			/* Live pulse indicator (re-used) */
+			.live-pulse {
+				width: 8px;
+				height: 8px;
+				background: var(--accent-blue);
+				border-radius: 50%;
+				position: relative;
+				display: inline-block;
+			}
+			.live-pulse::before {
+				content: '';
+				position: absolute;
+				inset: -4px;
+				border-radius: 50%;
+				background: var(--accent-blue);
+				opacity: 0.4;
+				animation: pulse 2s ease-out infinite;
+			}
+			@keyframes pulse {
+				0% {
+					transform: scale(0.5);
+					opacity: 0.5;
+				}
+				100% {
+					transform: scale(1.8);
+					opacity: 0;
+				}
+			}
+
+			/* ========================================================= */
+			/* =========== CONCEPT A — HORIZON v2 ====================== */
+			/* ========================================================= */
+
+			.a-hero {
+				padding: 80px 32px 64px;
+				max-width: 1600px;
+				margin: 0 auto;
+			}
+			.a-hero h1 {
+				margin-top: 40px;
+			}
+			.a-hero .lede {
+				max-width: 780px;
+				font-size: 22px;
+				line-height: 1.38;
+				color: var(--muted-fg);
+				margin-top: 28px;
+			}
+			.a-hero .lede strong {
+				color: var(--foreground);
+				font-weight: 500;
+			}
+			.a-hero .cta-row {
+				margin-top: 32px;
+				display: flex;
+				gap: 12px;
+				flex-wrap: wrap;
+				align-items: center;
+			}
+			.a-hero .cta-row .meta-mono {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+			}
+
+			/* Hero marquee: subtle signal ticker below the headline */
+			.a-hero-ticker {
+				overflow: hidden;
+				margin-top: 64px;
+				padding: 18px 0;
+				border-top: 1px solid var(--c-fg-08);
+				border-bottom: 1px solid var(--c-fg-08);
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+				white-space: nowrap;
+			}
+			.a-hero-ticker .track {
+				display: inline-flex;
+				gap: 40px;
+				animation: ticker 60s linear infinite;
+			}
+			.a-hero-ticker .val {
+				color: var(--foreground);
+			}
+			.a-hero-ticker .sep {
+				opacity: 0.3;
+			}
+			@keyframes ticker {
+				from {
+					transform: translateX(0);
+				}
+				to {
+					transform: translateX(-50%);
+				}
+			}
+
+			/* Hero product showcase: "Today, Apr 21" */
+			.a-showcase {
+				padding: 40px 32px 120px;
+				max-width: 1600px;
+				margin: 0 auto;
+			}
+			.a-showcase-head {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 48px;
+				margin-bottom: 32px;
+				align-items: end;
+			}
+			.a-showcase-head .h1 {
+				max-width: 640px;
+			}
+			.a-showcase-head p {
+				color: var(--muted-fg);
+				font-size: 17px;
+				line-height: 1.5;
+				max-width: 520px;
+			}
+			.a-bento {
+				display: grid;
+				grid-template-columns: 1.3fr 1fr 1fr;
+				grid-template-rows: auto auto;
+				gap: 16px;
+			}
+			.a-bento > * {
+				border-radius: 0;
+			}
+			.a-bento .a-signals {
+				grid-column: 1 / 2;
+				grid-row: 1 / 3;
+			}
+			.a-bento .a-stitch {
+				grid-column: 2 / 4;
+				grid-row: 1 / 2;
+			}
+			.a-bento .a-heat {
+				grid-column: 2 / 3;
+				grid-row: 2 / 3;
+			}
+			.a-bento .a-workers {
+				grid-column: 3 / 4;
+				grid-row: 2 / 3;
+			}
+
+			/* 4 failure modes pain section */
+			.a-pains {
+				background: var(--muted-bg);
+				padding: 120px 32px;
+			}
+			.a-pains-wrap {
+				max-width: 1280px;
+				margin: 0 auto;
+			}
+			.a-pains-head {
+				display: grid;
+				grid-template-columns: 1fr 1.5fr;
+				gap: 48px;
+				margin-bottom: 56px;
+				align-items: end;
+			}
+			.a-pains-head .eyebrow {
+				margin-bottom: 16px;
+			}
+			.a-pains-head p {
+				color: var(--muted-fg);
+				font-size: 18px;
+				line-height: 1.5;
+				max-width: 560px;
+			}
+			.a-pains-grid {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 0;
+				border-top: 1px solid var(--foreground);
+				border-left: 1px solid var(--foreground);
+			}
+			.a-pain {
+				background: var(--background);
+				border-right: 1px solid var(--foreground);
+				border-bottom: 1px solid var(--foreground);
+				padding: 40px;
+				display: grid;
+				grid-template-columns: auto 1fr;
+				gap: 28px;
+				align-items: start;
+			}
+			.a-pain-num {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+				padding-top: 6px;
+				white-space: nowrap;
+			}
+			.a-pain-body h3 {
+				font-size: 26px;
+				margin-bottom: 10px;
+			}
+			.a-pain-body p {
+				font-size: 15px;
+				color: var(--muted-fg);
+				line-height: 1.55;
+				margin-bottom: 18px;
+			}
+			.a-pain-body .a-pain-ans {
+				font-family: var(--font-serif);
+				font-size: 18px;
+				font-style: italic;
+				color: var(--foreground);
+				letter-spacing: -0.01em;
+				line-height: 1.35;
+			}
+			.a-pain-body .a-pain-ans::before {
+				content: '→ ';
+				color: var(--muted-fg);
+				font-family: var(--font-mono);
+				font-style: normal;
+			}
+
+			/* Intelligence (Stitches) section */
+			.a-stitches-sec {
+				padding: 120px 32px;
+				max-width: 1600px;
+				margin: 0 auto;
+			}
+			.a-stitches-head {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 48px;
+				margin-bottom: 64px;
+				align-items: end;
+			}
+			.a-stitches-head .eyebrow {
+				margin-bottom: 16px;
+			}
+			.a-stitches-head .h1 {
+				max-width: 640px;
+			}
+			.a-stitches-head p {
+				color: var(--muted-fg);
+				font-size: 17px;
+				line-height: 1.5;
+				max-width: 520px;
+			}
+			.a-stitches-grid {
+				display: grid;
+				grid-template-columns: 1.2fr 1fr;
+				gap: 16px;
+			}
+			.a-stitches-left {
+				display: grid;
+				gap: 16px;
+			}
+
+			/* Workers + Orchestration */
+			.a-workers-sec {
+				background: var(--sidebar);
+				color: var(--sidebar-fg);
+				padding: 120px 32px;
+			}
+			.a-workers-wrap {
+				max-width: 1600px;
+				margin: 0 auto;
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 64px;
+				align-items: center;
+			}
+			.a-workers-wrap .eyebrow {
+				color: var(--c-bg-60);
+			}
+			.a-workers-wrap .eyebrow .dot {
+				background: var(--accent-blue);
+			}
+			.a-workers-wrap h2 {
+				color: var(--sidebar-fg);
+				margin: 16px 0 24px;
+			}
+			.a-workers-wrap p {
+				color: var(--c-bg-80);
+				font-size: 17px;
+				line-height: 1.5;
+				max-width: 480px;
+			}
+			.a-workers-wrap .a-workers-vis {
+				display: grid;
+				gap: 16px;
+			}
+
+			/* Philosophy pull-quote */
+			.a-philo {
+				padding: 120px 32px;
+				max-width: 1280px;
+				margin: 0 auto;
+				text-align: center;
+			}
+			.a-philo .eyebrow {
+				justify-content: center;
+				margin-bottom: 32px;
+			}
+			.a-philo blockquote {
+				font-family: var(--font-serif);
+				font-size: clamp(36px, 4vw, 60px);
+				font-style: italic;
+				line-height: 1.05;
+				letter-spacing: -0.02em;
+				max-width: 1080px;
+				margin: 0 auto 24px;
+			}
+			.a-philo .philo-cite {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+			}
+
+			/* Founder note */
+			.a-founder {
+				padding: 120px 32px;
+				background: var(--muted-bg);
+			}
+			.a-founder-wrap {
+				max-width: 960px;
+				margin: 0 auto;
+				display: grid;
+				grid-template-columns: auto 1fr;
+				gap: 48px;
+				align-items: start;
+			}
+			.a-founder .a-founder-mark {
+				font-size: 120px;
+				line-height: 1;
+				font-weight: 500;
+				letter-spacing: -0.05em;
+			}
+			.a-founder .eyebrow {
+				margin-bottom: 16px;
+			}
+			.a-founder p {
+				font-size: 18px;
+				line-height: 1.55;
+				margin-bottom: 20px;
+				color: var(--foreground);
+			}
+			.a-founder p.muted {
+				color: var(--muted-fg);
+			}
+			.a-founder .sig {
+				font-family: var(--font-serif);
+				font-size: 26px;
+				font-style: italic;
+			}
+			.a-founder .sig-meta {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--muted-fg);
+				margin-top: 6px;
+			}
+
+			/* FAQ */
+			.faq-grid {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 32px;
+				max-width: 1280px;
+				margin: 0 auto;
+			}
+			.faq-item {
+				border-top: 1px solid var(--foreground);
+				padding: 24px 0;
+			}
+			.faq-q {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				gap: 16px;
+				width: 100%;
+				text-align: left;
+				font-size: 19px;
+				letter-spacing: -0.005em;
+				line-height: 1.3;
+			}
+			.faq-q .faq-marker {
+				font-size: 22px;
+				line-height: 1;
+				flex-shrink: 0;
+			}
+			.faq-a {
+				margin-top: 16px;
+				font-size: 16px;
+				line-height: 1.5;
+				color: var(--muted-fg);
+				display: none;
+			}
+			.faq-item.open .faq-a {
+				display: block;
+			}
+
+			/* Final CTA */
+			.final-cta {
+				padding: 120px 32px;
+				text-align: center;
+			}
+			.final-cta h2 {
+				font-size: clamp(48px, 5.5vw, 88px);
+				letter-spacing: -0.025em;
+				line-height: 1;
+				max-width: 1080px;
+				margin: 0 auto 20px;
+			}
+			.final-cta p {
+				font-size: 18px;
+				color: var(--muted-fg);
+				max-width: 600px;
+				margin: 0 auto 32px;
+			}
+
+			/* ========================================================= */
+			/* =========== CONCEPT B — TERMINAL v2 ===================== */
+			/* ========================================================= */
+
+			.b-body {
+				background: var(--sidebar);
+				color: var(--sidebar-fg);
+			}
+
+			.b-hero {
+				position: relative;
+				padding: 100px 32px 0;
+				overflow: hidden;
+			}
+			.b-slash {
+				font-size: clamp(360px, 52vw, 820px);
+				font-weight: 500;
+				line-height: 0.78;
+				letter-spacing: -0.06em;
+				margin: 0;
+				color: var(--sidebar-fg);
+			}
+			.b-slash .t {
+				font-size: 0.18em;
+				vertical-align: 0.72em;
+				letter-spacing: -0.02em;
+				padding-left: 4px;
+			}
+			.b-hero-grid {
+				display: grid;
+				grid-template-columns: 1.2fr 1fr;
+				gap: 48px;
+				padding: 40px 0 80px;
+				align-items: end;
+			}
+			.b-hero-grid h1 {
+				font-size: clamp(32px, 3.8vw, 56px);
+				line-height: 1;
+				letter-spacing: -0.02em;
+				margin-bottom: 24px;
+			}
+			.b-hero-grid .lede {
+				font-size: 18px;
+				color: var(--c-bg-80);
+				line-height: 1.5;
+				max-width: 520px;
+				margin-bottom: 28px;
+			}
+			.b-hero-grid .cta-row {
+				display: flex;
+				gap: 12px;
+				flex-wrap: wrap;
+				align-items: center;
+			}
+
+			.b-hero-stamp {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--c-bg-60);
+				display: grid;
+				gap: 6px;
+				justify-self: end;
+				text-align: right;
+			}
+			.b-hero-stamp .cursor {
+				display: inline-block;
+				width: 8px;
+				height: 14px;
+				background: var(--sidebar-fg);
+				animation: blink 1s steps(2) infinite;
+				vertical-align: -2px;
+			}
+			@keyframes blink {
+				0%,
+				50% {
+					opacity: 1;
+				}
+				51%,
+				100% {
+					opacity: 0;
+				}
+			}
+
+			/* b button */
+			.b-btn {
+				display: inline-flex;
+				align-items: center;
+				gap: 10px;
+				padding: 14px 24px;
+				font-family: var(--font-mono);
+				font-size: 14px;
+				font-weight: 500;
+				background: var(--background);
+				color: var(--foreground);
+				border: 1px solid var(--background);
+				transition: transform 180ms var(--ease);
+			}
+			.b-btn:hover {
+				transform: translateY(-1px);
+			}
+			.b-btn-ghost {
+				background: transparent;
+				color: var(--sidebar-fg);
+				border-color: var(--c-bg-24);
+			}
+
+			/* 4 failure modes — "diagnostic" */
+			.b-diagnostic {
+				padding: 120px 32px;
+				border-top: 1px solid var(--c-bg-10);
+			}
+			.b-diagnostic-wrap {
+				max-width: 1600px;
+				margin: 0 auto;
+			}
+			.b-diag-head {
+				display: grid;
+				grid-template-columns: 1fr 1.6fr;
+				gap: 48px;
+				margin-bottom: 56px;
+				align-items: end;
+			}
+			.b-diag-head .eyebrow {
+				color: var(--c-bg-60);
+				margin-bottom: 16px;
+			}
+			.b-diag-head h2 {
+				font-size: clamp(32px, 3.4vw, 52px);
+				letter-spacing: -0.02em;
+				line-height: 1.02;
+			}
+			.b-diag-head p {
+				color: var(--c-bg-80);
+				font-size: 17px;
+				max-width: 560px;
+			}
+			.b-diag-list {
+				display: grid;
+				grid-template-columns: repeat(4, 1fr);
+				gap: 0;
+				border-top: 1px solid var(--c-bg-10);
+				border-left: 1px solid var(--c-bg-10);
+			}
+			.b-diag-item {
+				padding: 32px 28px;
+				border-right: 1px solid var(--c-bg-10);
+				border-bottom: 1px solid var(--c-bg-10);
+				display: grid;
+				grid-template-rows: auto auto 1fr auto;
+				gap: 20px;
+				min-height: 360px;
+				transition: background 180ms var(--ease);
+			}
+			.b-diag-item:hover {
+				background: var(--c-bg-06);
+			}
+			.b-diag-num {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--c-bg-60);
+				display: flex;
+				justify-content: space-between;
+			}
+			.b-diag-item h3 {
+				font-size: 24px;
+				letter-spacing: -0.01em;
+			}
+			.b-diag-item p {
+				font-size: 14px;
+				line-height: 1.55;
+				color: var(--c-bg-80);
+			}
+			.b-diag-fix {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--sidebar-fg);
+				padding-top: 14px;
+				border-top: 1px solid var(--c-bg-10);
+			}
+			.b-diag-fix::before {
+				content: '→ ';
+				color: var(--accent-blue);
+			}
+
+			/* Product section — feels like a system console */
+			.b-product {
+				padding: 120px 32px;
+				background: var(--background);
+				color: var(--foreground);
+			}
+			.b-product-wrap {
+				max-width: 1600px;
+				margin: 0 auto;
+			}
+			.b-product-head {
+				display: grid;
+				grid-template-columns: 1fr 1.5fr;
+				gap: 48px;
+				margin-bottom: 56px;
+				align-items: end;
+			}
+			.b-product-head .eyebrow {
+				margin-bottom: 16px;
+			}
+			.b-product-head p {
+				color: var(--muted-fg);
+				font-size: 17px;
+				max-width: 560px;
+			}
+
+			.b-product-grid {
+				display: grid;
+				grid-template-columns: 1.4fr 1fr;
+				grid-template-rows: auto auto;
+				gap: 16px;
+			}
+			.b-product-grid .bp-gap {
+				grid-column: 1 / 2;
+				grid-row: 1 / 2;
+			}
+			.b-product-grid .bp-stitch {
+				grid-column: 2 / 3;
+				grid-row: 1 / 2;
+			}
+			.b-product-grid .bp-workers {
+				grid-column: 1 / 2;
+				grid-row: 2 / 3;
+			}
+			.b-product-grid .bp-ledger {
+				grid-column: 2 / 3;
+				grid-row: 2 / 3;
+			}
+
+			/* README / manifesto section */
+			.b-readme {
+				padding: 120px 32px;
+				border-top: 1px solid var(--c-bg-10);
+				background: var(--sidebar);
+				color: var(--sidebar-fg);
+			}
+			.b-readme-wrap {
+				max-width: 1040px;
+				margin: 0 auto;
+			}
+			.b-readme-head {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--c-bg-60);
+				margin-bottom: 16px;
+			}
+			.b-readme-lines {
+				font-family: var(--font-serif);
+				font-style: italic;
+				font-size: clamp(32px, 3.6vw, 56px);
+				line-height: 1.05;
+				letter-spacing: -0.02em;
+			}
+			.b-readme-lines .l {
+				display: block;
+				margin-bottom: 14px;
+			}
+			.b-readme-lines .l-mono {
+				font-family: var(--font-mono);
+				font-style: normal;
+				font-size: 0.42em;
+				color: var(--c-bg-60);
+				letter-spacing: 0;
+				line-height: 1.3;
+				margin-top: 20px;
+				max-width: 680px;
+			}
+			.b-readme-sig {
+				margin-top: 48px;
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--c-bg-60);
+				display: flex;
+				justify-content: space-between;
+				border-top: 1px solid var(--c-bg-10);
+				padding-top: 18px;
+			}
+
+			/* Founder note dark */
+			.b-founder {
+				padding: 120px 32px;
+				background: var(--sidebar);
+				color: var(--sidebar-fg);
+				border-top: 1px solid var(--c-bg-10);
+			}
+			.b-founder-wrap {
+				max-width: 1040px;
+				margin: 0 auto;
+				display: grid;
+				grid-template-columns: auto 1fr;
+				gap: 48px;
+				align-items: start;
+			}
+			.b-founder .eyebrow {
+				color: var(--c-bg-60);
+				margin-bottom: 16px;
+			}
+			.b-founder .a-founder-mark {
+				font-size: 120px;
+				line-height: 1;
+				font-weight: 500;
+				letter-spacing: -0.05em;
+			}
+			.b-founder p {
+				font-size: 18px;
+				line-height: 1.55;
+				margin-bottom: 20px;
+				color: var(--c-bg-80);
+			}
+			.b-founder p.accent {
+				color: var(--sidebar-fg);
+			}
+			.b-founder .sig {
+				font-family: var(--font-serif);
+				font-size: 26px;
+				font-style: italic;
+				color: var(--sidebar-fg);
+			}
+			.b-founder .sig-meta {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--c-bg-60);
+				margin-top: 6px;
+			}
+
+			/* FAQ dark variant */
+			.b-faq {
+				padding: 120px 32px;
+				background: var(--sidebar);
+				color: var(--sidebar-fg);
+				border-top: 1px solid var(--c-bg-10);
+			}
+			.b-faq .faq-item {
+				border-top-color: var(--c-bg-18);
+			}
+			.b-faq .faq-a {
+				color: var(--c-bg-80);
+			}
+			.b-faq .faq-q {
+				color: var(--sidebar-fg);
+			}
+			.b-faq .faq-q .pre {
+				color: var(--c-bg-60);
+				margin-right: 12px;
+				font-family: var(--font-mono);
+			}
+
+			/* B final moment — massive slash */
+			.b-final {
+				padding: 120px 32px 0;
+				background: var(--sidebar);
+				color: var(--sidebar-fg);
+				text-align: center;
+			}
+			.b-final .mono {
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--c-bg-60);
+				margin-bottom: 24px;
+			}
+			.b-final h2 {
+				font-size: clamp(48px, 6.5vw, 96px);
+				letter-spacing: -0.03em;
+				line-height: 1;
+				max-width: 1080px;
+				margin: 0 auto 32px;
+			}
+			.b-final .btns {
+				display: inline-flex;
+				gap: 12px;
+				margin-bottom: 40px;
+				flex-wrap: wrap;
+				justify-content: center;
+			}
+			.b-brand-moment {
+				font-size: clamp(140px, 32vw, 500px);
+				font-weight: 500;
+				letter-spacing: -0.06em;
+				line-height: 0.76;
+				padding: 0 32px;
+				text-align: center;
+				color: var(--sidebar-fg);
+			}
+			.b-footer-bottom {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				padding: 24px 32px;
+				border-top: 1px solid var(--c-bg-10);
+				font-family: var(--font-mono);
+				font-size: 14px;
+				color: var(--c-bg-60);
+			}
+
+			/* ==== Responsive ==== */
+			@media (max-width: 1120px) {
+				.a-bento {
+					grid-template-columns: 1fr 1fr;
+				}
+				.a-bento .a-signals {
+					grid-column: 1 / 3;
+					grid-row: auto;
+				}
+				.a-bento .a-stitch {
+					grid-column: 1 / 3;
+					grid-row: auto;
+				}
+				.a-bento .a-heat,
+				.a-bento .a-workers {
+					grid-column: auto;
+					grid-row: auto;
+				}
+				.b-product-grid {
+					grid-template-columns: 1fr;
+				}
+				.b-product-grid > * {
+					grid-column: 1 / 2;
+					grid-row: auto;
+				}
+			}
+			@media (max-width: 840px) {
+				.a-hero,
+				.b-hero {
+					padding: 60px 20px;
+				}
+				.a-showcase-head,
+				.a-stitches-head,
+				.a-workers-wrap,
+				.a-pains-head,
+				.b-hero-grid,
+				.b-diag-head,
+				.b-product-head,
+				.b-founder-wrap,
+				.a-founder-wrap {
+					grid-template-columns: 1fr;
+				}
+				.a-pains-grid,
+				.b-diag-list,
+				.a-bento,
+				.a-stitches-grid,
+				.faq-grid,
+				.b-product-grid {
+					grid-template-columns: 1fr;
+				}
+				.heatmap {
+					grid-template-columns: repeat(3, 1fr);
+				}
+				.section-head {
+					grid-template-columns: 1fr;
+				}
+				.display {
+					font-size: 56px;
+				}
+				.b-slash {
+					font-size: 220px;
+				}
+			}
+			@media (prefers-reduced-motion: reduce) {
+				*,
+				*::before,
+				*::after {
+					animation-duration: 0.01ms !important;
+					animation-iteration-count: 1 !important;
+					transition-duration: 0.01ms !important;
+				}
+				.reveal {
+					opacity: 1;
+					transform: none;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="switcher" role="tablist">
+			<button class="active" data-target="a" role="tab">A · Horizon</button>
+			<button data-target="b" role="tab">B · Terminal</button>
+		</div>
+
+		<!-- ========================================================= -->
+		<!-- =========== CONCEPT A — HORIZON v2 ====================== -->
+		<!-- ========================================================= -->
+		<div class="concept active" data-concept="a">
+			<nav class="nav">
+				<div class="nav-brand">/Threadline</div>
+				<div class="nav-links">
+					<a href="#">Product</a>
+					<a href="#">Intelligence</a>
+					<a href="#">Pricing</a>
+					<a href="#">Company</a>
+				</div>
+				<div class="nav-right">
+					<a href="#">Sign in</a>
+					<a href="#" class="btn" style="padding: 10px 18px; font-size: 14px">Join Beta →</a>
+				</div>
+			</nav>
+
+			<!-- HERO — bold typographic moment -->
+			<section class="a-hero">
+				<div class="reveal eyebrow">Beta · Wholesale, rebuilt around intelligence</div>
+				<h1 class="display reveal reveal-d1">Turn every signal<br />into a sale.</h1>
+				<p class="lede reveal reveal-d2">
+					Most wholesale platforms digitize the old way of working.
+					<strong>Threadline replaces it.</strong>
+					Intelligence that sees what your reps miss. Agents that act before you ask.
+				</p>
+				<div class="cta-row reveal reveal-d3">
+					<a href="#" class="btn">Join Beta <span aria-hidden="true">→</span></a>
+					<a href="#" class="btn btn-ghost">See the product</a>
+					<span class="meta-mono">· No credit card required</span>
+				</div>
+
+				<!-- Subtle signal ticker — lets the hero breathe but shows the product has a heartbeat -->
+				<div class="a-hero-ticker reveal reveal-d4" aria-hidden="true">
+					<div class="track">
+						<span
+							>NORDSTROM · NYC <span class="val">Aerolux</span> · 93d gap ·
+							<span class="val">urgent</span></span
+						>
+						<span class="sep">/</span>
+						<span>CROSS-BRAND · 7 accts <span class="val">Forsythe × Miloch</span></span>
+						<span class="sep">/</span>
+						<span>WORKER · commissions <span class="val">$48,210 cleared</span></span>
+						<span class="sep">/</span>
+						<span>CHURN RISK · Revolve <span class="val">4 views · 0 orders</span></span>
+						<span class="sep">/</span>
+						<span>TERRITORY · PNW <span class="val">under-penetrated</span></span>
+						<span class="sep">/</span>
+						<span>REORDER · Saks · <span class="val">draft ready</span></span>
+						<span class="sep">/</span>
+						<span>STITCHES · <span class="val">3 new insights</span></span>
+						<span class="sep">/</span>
+						<!-- duplicate for seamless loop -->
+						<span
+							>NORDSTROM · NYC <span class="val">Aerolux</span> · 93d gap ·
+							<span class="val">urgent</span></span
+						>
+						<span class="sep">/</span>
+						<span>CROSS-BRAND · 7 accts <span class="val">Forsythe × Miloch</span></span>
+						<span class="sep">/</span>
+						<span>WORKER · commissions <span class="val">$48,210 cleared</span></span>
+						<span class="sep">/</span>
+						<span>CHURN RISK · Revolve <span class="val">4 views · 0 orders</span></span>
+						<span class="sep">/</span>
+						<span>TERRITORY · PNW <span class="val">under-penetrated</span></span>
+						<span class="sep">/</span>
+						<span>REORDER · Saks · <span class="val">draft ready</span></span>
+						<span class="sep">/</span>
+						<span>STITCHES · <span class="val">3 new insights</span></span>
+						<span class="sep">/</span>
+					</div>
+				</div>
+			</section>
+
+			<!-- PRODUCT SHOWCASE: "Today, Apr 21" bento -->
+			<section class="a-showcase">
+				<div class="a-showcase-head">
+					<div>
+						<div class="eyebrow reveal">Today, Apr 21 · A real morning</div>
+						<h2 class="h1 reveal reveal-d1" style="margin-top: 16px">
+							Your reps' first hour, done before their first coffee.
+						</h2>
+					</div>
+					<p class="reveal reveal-d2">
+						Threadline doesn't ask you to check a dashboard. It hands you the three things that
+						matter most this morning, with the context to act, and it handles the ones you shouldn't
+						be doing manually in the first place.
+					</p>
+				</div>
+
+				<div class="a-bento reveal">
+					<!-- Signals panel (tall) -->
+					<aside class="panel a-signals" aria-label="Signals panel">
+						<div class="panel-head">
+							<h4><span class="live-pulse"></span> Signals</h4>
+							<span class="meta">APR 21 · 08:04</span>
+						</div>
+						<ul>
+							<li class="signal new">
+								<div class="signal-icon">
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.6"
+									>
+										<circle cx="12" cy="12" r="9" />
+										<path d="M12 8v5M12 16h.01" />
+									</svg>
+								</div>
+								<div class="signal-body">
+									<div class="signal-kind">Reorder gap · Aerolux</div>
+									<div class="signal-title">
+										Nordstrom NYC hasn't reordered in 93 days. Typical cadence: 42.
+									</div>
+									<div class="signal-meta">Contact: Dana M. · Buyer · Last touch: Jan 18</div>
+								</div>
+								<div class="signal-action">Draft →</div>
+							</li>
+							<li class="signal new">
+								<div class="signal-icon">
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.6"
+									>
+										<path d="M4 7h16M4 12h16M4 17h10" />
+									</svg>
+								</div>
+								<div class="signal-body">
+									<div class="signal-kind">Cross-brand pairing</div>
+									<div class="signal-title">7 Forsythe buyers have never seen the Miloch line.</div>
+									<div class="signal-meta">
+										Est. territory lift: +6–9% · Recommend intro next market week
+									</div>
+								</div>
+								<div class="signal-action">Pair →</div>
+							</li>
+							<li class="signal">
+								<div class="signal-icon">
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.6"
+									>
+										<path d="M20 6L9 17l-5-5" />
+									</svg>
+								</div>
+								<div class="signal-body">
+									<div class="signal-kind">Worker · Commissions</div>
+									<div class="signal-title">Q2 statements reconciled across 9 brands.</div>
+									<div class="signal-meta">$48,210 cleared · 3 exceptions flagged</div>
+								</div>
+								<div class="signal-action">Open →</div>
+							</li>
+							<li class="signal">
+								<div class="signal-icon">
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.6"
+									>
+										<path d="M12 2L21 7v10l-9 5-9-5V7l9-5z" />
+									</svg>
+								</div>
+								<div class="signal-body">
+									<div class="signal-kind">Engagement · Forsythe</div>
+									<div class="signal-title">
+										Revolve viewed the Autumn line 4× this week. No order placed.
+									</div>
+									<div class="signal-meta">
+										Typical buyers convert in 2 views · This is the nudge window
+									</div>
+								</div>
+								<div class="signal-action">Nudge →</div>
+							</li>
+							<li class="signal">
+								<div class="signal-icon">
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.6"
+									>
+										<path d="M3 12a9 9 0 0 1 18 0M3 12a9 9 0 0 0 18 0M12 3v18" />
+									</svg>
+								</div>
+								<div class="signal-body">
+									<div class="signal-kind">Territory · PNW</div>
+									<div class="signal-title">
+										Pacific Northwest under-penetrated vs. your peer quartile.
+									</div>
+									<div class="signal-meta">
+										12 accounts within route · 3 haven't been visited in 6+ mo
+									</div>
+								</div>
+								<div class="signal-action">Explore →</div>
+							</li>
+						</ul>
+					</aside>
+
+					<!-- Stitches explanation card (wide) -->
+					<div class="stitch-card a-stitch">
+						<div class="stitch-head"><span class="dot"></span> STITCHES · just now</div>
+						<p>
+							"Nordstrom NYC is in the middle of a reorder gap that looks early, not fatal — their
+							cadence is forty-two days, not ninety, so a well-timed nudge this week typically
+							recovers eighty percent of accounts in this profile."
+						</p>
+						<div class="stitch-evidence">
+							<div>93 days since last Aerolux order (baseline: 42)</div>
+							<div>Similar gaps in your portfolio recovered at 80% when nudged in week 13</div>
+							<div>Dana M. has opened 2 of your last 3 emails · engagement trend: positive</div>
+						</div>
+					</div>
+
+					<!-- Territory heatmap -->
+					<div class="panel a-heat" aria-label="Territory heatmap">
+						<div class="panel-head">
+							<h4>Territory pulse · last 30 days</h4>
+							<span class="meta">by $ volume</span>
+						</div>
+						<div class="heatmap">
+							<div class="heat-cell" data-heat="4">
+								<span class="hc-name">NE</span><span class="hc-val">$142K</span>
+							</div>
+							<div class="heat-cell" data-heat="6">
+								<span class="hc-name">MID-ATL</span><span class="hc-val">$218K</span>
+							</div>
+							<div class="heat-cell" data-heat="5">
+								<span class="hc-name">SE</span><span class="hc-val">$164K</span>
+							</div>
+							<div class="heat-cell" data-heat="3">
+								<span class="hc-name">MIDWEST</span><span class="hc-val">$92K</span>
+							</div>
+							<div class="heat-cell" data-heat="2">
+								<span class="hc-name">MTN</span><span class="hc-val">$41K</span>
+							</div>
+							<div class="heat-cell" data-heat="2">
+								<span class="hc-name">TX/GC</span><span class="hc-val">$58K</span>
+							</div>
+							<div class="heat-cell" data-heat="4">
+								<span class="hc-name">SW</span><span class="hc-val">$127K</span>
+							</div>
+							<div class="heat-cell" data-heat="3">
+								<span class="hc-name">CA/N</span><span class="hc-val">$104K</span>
+							</div>
+							<div class="heat-cell" data-heat="5">
+								<span class="hc-name">CA/S</span><span class="hc-val">$176K</span>
+							</div>
+							<div class="heat-cell" data-heat="1">
+								<span class="hc-name">PNW</span><span class="hc-val">$22K</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Workers DSL -->
+					<div class="dsl a-workers" aria-label="Worker definition">
+						<div
+							style="
+								font-family: var(--font-mono);
+								font-size: 14px;
+								color: var(--c-bg-60);
+								margin-bottom: 14px;
+								display: flex;
+								justify-content: space-between;
+							"
+						>
+							<span>WORKER · reorder-watch</span>
+							<span><span class="live-pulse" style="width: 6px; height: 6px"></span> active</span>
+						</div>
+						<pre
+							style="
+								margin: 0;
+								font-family: inherit;
+								white-space: pre-wrap;
+								font-size: 14px;
+								line-height: 1.7;
+							"
+						><span class="kw">when</span>   days_since_order &gt; <span class="str">1.5 × cadence</span>
+<span class="kw">where</span>  account.status = <span class="str">"active"</span>
+<span class="kw">and</span>    buyer.engagement &gt; <span class="str">"low"</span>
+<span class="kw">then</span>   draft_email(<span class="str">tone: "warm"</span>)
+       notify(rep)
+       log_to(account.timeline)
+
+<span class="comment"># Custom: only fire during market weeks</span>
+<span class="kw">only</span>   market_week_active()</pre>
+					</div>
+				</div>
+			</section>
+
+			<!-- PAIN: 4 FAILURE MODES -->
+			<section class="a-pains">
+				<div class="a-pains-wrap">
+					<div class="a-pains-head">
+						<div>
+							<div class="eyebrow reveal">The process problem</div>
+							<h2 class="h1 reveal reveal-d1" style="margin-top: 16px">
+								Software doesn't fix broken process.<br />
+								<span class="muted">Intelligence replaces the need for one.</span>
+							</h2>
+						</div>
+						<p class="reveal reveal-d2">
+							Most wholesale operations are living inside at least two of the four failure modes
+							right now. Every one of them is a place where Threadline replaces effort with
+							intelligence.
+						</p>
+					</div>
+					<ul class="a-pains-grid">
+						<li class="a-pain reveal">
+							<div class="a-pain-num">01 / Absent</div>
+							<div class="a-pain-body">
+								<h3>No defined way of working.</h3>
+								<p>
+									Everyone improvises. One rep follows up religiously after every show; another lets
+									orders sit in draft. There's no system because no one ever built one.
+								</p>
+								<div class="a-pain-ans">
+									Stitches provides the process. Every rep works from the same living list of what
+									matters today.
+								</div>
+							</div>
+						</li>
+						<li class="a-pain reveal reveal-d1">
+							<div class="a-pain-num">02 / Reactive</div>
+							<div class="a-pain-body">
+								<h3>Every rule is a scar from a past failure.</h3>
+								<p>
+									A major order gets lost, so now there's a "check submitted orders every Friday"
+									rule. A brand complains about territory overlap, so now there's a spreadsheet.
+									Always one step behind the last crisis.
+								</p>
+								<div class="a-pain-ans">
+									Signals detect the pattern before the break. You catch it in week 2, not month 6.
+								</div>
+							</div>
+						</li>
+						<li class="a-pain reveal reveal-d2">
+							<div class="a-pain-num">03 / Overcomplicated</div>
+							<div class="a-pain-body">
+								<h3>The process becomes the obstacle.</h3>
+								<p>
+									A rep needs to fill out twelve fields to log a note from the trade-show floor. So
+									they route around it — text orders, personal spreadsheets. Two realities: the one
+									in the software, and the one running the business.
+								</p>
+								<div class="a-pain-ans">
+									Minimal capture. Ten seconds, not ten fields. The system fills in the rest.
+								</div>
+							</div>
+						</li>
+						<li class="a-pain reveal reveal-d3">
+							<div class="a-pain-num">04 / Tribal</div>
+							<div class="a-pain-body">
+								<h3>The process only lives in your best rep's head.</h3>
+								<p>
+									The senior rep who's been doing this for twenty years knows exactly when to follow
+									up. It's not written down. When they leave, the process vanishes. The failure mode
+									that kills agencies during succession.
+								</p>
+								<div class="a-pain-ans">
+									Workers and Stitches encode what your best reps know. It becomes organizational —
+									not personal.
+								</div>
+							</div>
+						</li>
+					</ul>
+				</div>
+			</section>
+
+			<!-- INTELLIGENCE / STITCHES -->
+			<section class="a-stitches-sec">
+				<div class="a-stitches-head">
+					<div>
+						<div class="eyebrow reveal">Meet Stitches</div>
+						<h2 class="h1 reveal reveal-d1" style="margin-top: 16px">
+							Intelligence that arrives<br />before you think to ask.
+						</h2>
+					</div>
+					<p class="reveal reveal-d2">
+						Stitches connects signals across brands, accounts, and territories into a living picture
+						of your portfolio. Not a dashboard. Not a report. A brief in plain English, with the
+						evidence attached.
+					</p>
+				</div>
+
+				<div class="a-stitches-grid reveal">
+					<!-- Gap report table -->
+					<div class="a-stitches-left">
+						<div class="panel">
+							<div class="panel-head">
+								<h4>Gap report · 30-day window</h4>
+								<span class="meta">12 accounts flagged</span>
+							</div>
+							<table class="gap-table" style="border: 0">
+								<thead>
+									<tr>
+										<th>Account</th>
+										<th>Brand</th>
+										<th class="num">Cadence</th>
+										<th class="num">Gap</th>
+										<th>Status</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr>
+										<td>Nordstrom NYC</td>
+										<td class="mono muted">Aerolux</td>
+										<td class="num mono">42d</td>
+										<td class="num mono">93d</td>
+										<td><span class="chip urgent">urgent</span></td>
+									</tr>
+									<tr>
+										<td>Revolve HQ</td>
+										<td class="mono muted">Forsythe</td>
+										<td class="num mono">28d</td>
+										<td class="num mono">76d</td>
+										<td><span class="chip urgent">urgent</span></td>
+									</tr>
+									<tr>
+										<td>Shopbop</td>
+										<td class="mono muted">Miloch</td>
+										<td class="num mono">45d</td>
+										<td class="num mono">69d</td>
+										<td><span class="chip">high</span></td>
+									</tr>
+									<tr>
+										<td>Neiman Marcus · Houston</td>
+										<td class="mono muted">Caselle</td>
+										<td class="num mono">35d</td>
+										<td class="num mono">58d</td>
+										<td><span class="chip">high</span></td>
+									</tr>
+									<tr>
+										<td>Bergdorf Goodman</td>
+										<td class="mono muted">Aerolux</td>
+										<td class="num mono">60d</td>
+										<td class="num mono">88d</td>
+										<td><span class="chip">med</span></td>
+									</tr>
+									<tr>
+										<td>Saks · 5th Ave</td>
+										<td class="mono muted">Hensley</td>
+										<td class="num mono">54d</td>
+										<td class="num mono">71d</td>
+										<td><span class="chip">med</span></td>
+									</tr>
+									<tr>
+										<td>Bloomingdale's · 59th</td>
+										<td class="mono muted">Oakline</td>
+										<td class="num mono">49d</td>
+										<td class="num mono">62d</td>
+										<td><span class="chip">low</span></td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+
+						<div class="pulse-chart">
+							<div class="pc-head">
+								<div class="pc-title">Portfolio velocity · 90 days</div>
+								<div class="pc-delta">+14% vs. prior period</div>
+							</div>
+							<svg viewBox="0 0 800 80" preserveAspectRatio="none">
+								<polyline
+									points="0,60 40,55 80,58 120,48 160,52 200,44 240,46 280,38 320,42 360,30 400,34 440,26 480,28 520,22 560,26 600,18 640,22 680,14 720,18 760,12 800,16"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+								/>
+								<polyline
+									points="0,70 40,68 80,70 120,64 160,66 200,60 240,62 280,56 320,58 360,50 400,54 440,48 480,50 520,44 560,48 600,42 640,46 680,38 720,42 760,36 800,40"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1"
+									style="opacity: 0.3"
+								/>
+							</svg>
+						</div>
+					</div>
+
+					<!-- Stitches insight stack -->
+					<div class="a-stitches-left">
+						<div class="stitch-card">
+							<div class="stitch-head"><span class="dot"></span> INSIGHT · SPLIT-BRAND</div>
+							<p>
+								"Your seven Forsythe buyers who've never placed a Miloch order share a segment:
+								independent boutiques under a thousand doors. Peer reps in this territory close 38%
+								of this intro within two market weeks."
+							</p>
+							<div class="stitch-evidence">
+								<div>7 accounts match: Forsythe buyers, 0 Miloch history</div>
+								<div>Segment close rate (your portfolio): 0%</div>
+								<div>Segment close rate (peer portfolios): 38%</div>
+							</div>
+						</div>
+						<div
+							class="stitch-card"
+							style="
+								background: var(--background);
+								color: var(--foreground);
+								border: 1px solid var(--c-fg-12);
+							"
+						>
+							<div class="stitch-head" style="color: var(--muted-fg)">
+								<span class="dot"></span> INSIGHT · CHURN RISK
+							</div>
+							<p class="serif" style="font-style: italic">
+								"Revolve's buyer opened your Autumn line four times this week without placing an
+								order. In your portfolio, that pattern has a 68% probability of resolving as churn
+								unless nudged within seven days."
+							</p>
+							<div
+								class="stitch-evidence"
+								style="color: var(--muted-fg); border-top-color: var(--c-fg-08)"
+							>
+								<div>4 Autumn line views this week · 0 orders</div>
+								<div>Historic signal → churn within 30d: 68%</div>
+								<div>Historic signal → recovered with nudge: 52%</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- WORKERS & ORCHESTRATION -->
+			<section class="a-workers-sec">
+				<div class="a-workers-wrap">
+					<div>
+						<div class="eyebrow reveal">Workers & Orchestration</div>
+						<h2 class="h1 reveal reveal-d1">The work you shouldn't<br />be doing, done.</h2>
+						<p class="reveal reveal-d2">
+							Workers handle commission reconciliation, order-status sync, reorder watching, and
+							buyer engagement — continuously. Custom Workers let you write the ones only you would
+							think to build. The DSL reads like a sentence. The process becomes the system.
+						</p>
+						<div class="reveal reveal-d3" style="margin-top: 32px">
+							<a href="#" class="b-btn b-btn-ghost">Read the Workers docs →</a>
+						</div>
+					</div>
+
+					<div class="a-workers-vis reveal reveal-d2">
+						<div class="ledger">
+							<div class="ledger-row">
+								<div class="ledger-label">
+									<div>Aerolux · SS27</div>
+									<div class="ledger-sub">12% base · 3% override · shared 60/40</div>
+								</div>
+								<div class="num">$21,400</div>
+								<div class="num">×.60</div>
+								<div class="num">$12,840</div>
+							</div>
+							<div class="ledger-row">
+								<div class="ledger-label">
+									<div>Forsythe · FW26</div>
+									<div class="ledger-sub">10% base · straight</div>
+								</div>
+								<div class="num">$14,260</div>
+								<div class="num">×1.0</div>
+								<div class="num">$14,260</div>
+							</div>
+							<div class="ledger-row">
+								<div class="ledger-label">
+									<div>Miloch · capsule</div>
+									<div class="ledger-sub">8% base · sub-rep 30%</div>
+								</div>
+								<div class="num">$9,800</div>
+								<div class="num">×.70</div>
+								<div class="num">$6,860</div>
+							</div>
+							<div class="ledger-row">
+								<div class="ledger-label">
+									<div>Hensley · resort</div>
+									<div class="ledger-sub">14% base · straight</div>
+								</div>
+								<div class="num">$10,350</div>
+								<div class="num">×1.0</div>
+								<div class="num">$10,350</div>
+							</div>
+							<div class="ledger-row total">
+								<div class="ledger-label">
+									<div>Q2 · reconciled</div>
+									<div class="ledger-sub">Worker · 23ms · 0 exceptions</div>
+								</div>
+								<div></div>
+								<div></div>
+								<div class="num">$44,310</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- PHILOSOPHY PULL-QUOTE -->
+			<section class="a-philo">
+				<div class="eyebrow reveal">The founding bet</div>
+				<blockquote class="reveal reveal-d1">
+					"Software was never the problem.<br />
+					<span class="muted">The right intelligence replaces the need for perfect process."</span>
+				</blockquote>
+				<div class="philo-cite reveal reveal-d2">/Threadline · founding philosophy, April 2026</div>
+			</section>
+
+			<!-- FOUNDER NOTE (replaces fake social proof) -->
+			<section class="a-founder">
+				<div class="a-founder-wrap">
+					<div class="a-founder-mark">/</div>
+					<div class="reveal">
+						<div class="eyebrow">A note from the founder</div>
+						<p>
+							Threadline is in closed Beta. We don't have a logo wall yet, and we're not about to
+							invent one.
+						</p>
+						<p class="muted">
+							What we have is a point of view. Wholesale fashion runs on tribal knowledge and
+							spreadsheets held together by the best reps' memory. Every agency I've worked with is
+							living inside at least two of the four failure modes in the philosophy above. No piece
+							of software has fixed that, because software isn't what's broken — the process is.
+						</p>
+						<p class="muted">
+							So we're building the opposite of software. A system that replaces the need for
+							process by surfacing what matters, handling what's repetitive, and remembering what
+							your best reps know. If that resonates, we'd like to build it with you.
+						</p>
+						<div class="sig" style="margin-top: 28px">— Scott</div>
+						<div class="sig-meta">Founder · /Threadline</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- FAQ -->
+			<section class="section">
+				<div class="section-head center">
+					<span class="eyebrow reveal">FAQ</span>
+					<h2 class="reveal reveal-d1">Common questions, clear answers.</h2>
+				</div>
+				<div class="faq-grid">
+					<ul>
+						<li class="faq-item reveal">
+							<button class="faq-q">
+								<span>What types of reps does Threadline work for?</span
+								><span class="faq-marker">+</span>
+							</button>
+							<p class="faq-a">
+								Independent multi-brand reps, showroom owners, and sales agencies carrying fashion
+								and apparel lines. If you manage accounts across multiple brands, Threadline was
+								built for you.
+							</p>
+						</li>
+						<li class="faq-item reveal reveal-d1">
+							<button class="faq-q">
+								<span>Do my brands need to switch to Threadline?</span
+								><span class="faq-marker">+</span>
+							</button>
+							<p class="faq-a">
+								No. Brands keep their existing tools. Threadline connects to your workflow — you
+								manage orders, track commissions, and get insights without asking brands to change
+								anything.
+							</p>
+						</li>
+						<li class="faq-item reveal reveal-d2">
+							<button class="faq-q">
+								<span>What makes Stitches different from analytics?</span
+								><span class="faq-marker">+</span>
+							</button>
+							<p class="faq-a">
+								Analytics show you what happened. Stitches tells you what to do next — cross-brand
+								patterns, buyer predictions, and specific actions that arrive before you ask for
+								them.
+							</p>
+						</li>
+						<li class="faq-item reveal reveal-d3">
+							<button class="faq-q">
+								<span>How long does setup take?</span><span class="faq-marker">+</span>
+							</button>
+							<p class="faq-a">
+								Under one hour. Import your accounts, connect your email, add your brands, and
+								Stitches starts learning your portfolio immediately.
+							</p>
+						</li>
+					</ul>
+					<ul>
+						<li class="faq-item reveal">
+							<button class="faq-q">
+								<span>What are Workers?</span><span class="faq-marker">+</span>
+							</button>
+							<p class="faq-a">
+								Agents that automate the repetitive parts of your job — commission calculations,
+								reorder alerts, buyer follow-ups. Custom Workers let you build your own automations
+								around the signals that matter to your specific book of business.
+							</p>
+						</li>
+						<li class="faq-item reveal reveal-d1">
+							<button class="faq-q">
+								<span>How does commission tracking work?</span><span class="faq-marker">+</span>
+							</button>
+							<p class="faq-a">
+								Set rate structures per brand, define splits between showroom owners and sub-reps,
+								and Threadline calculates everything automatically. No spreadsheets. No
+								reconciliation headaches.
+							</p>
+						</li>
+						<li class="faq-item reveal reveal-d2">
+							<button class="faq-q">
+								<span>How does pricing work?</span><span class="faq-marker">+</span>
+							</button>
+							<p class="faq-a">
+								Free for individual reps to get started. Pro unlocks Stitches AI, Workers, and
+								multi-brand analytics. Agency adds team management, advanced reports, and custom
+								integrations. No annual lock-in.
+							</p>
+						</li>
+						<li class="faq-item reveal reveal-d3">
+							<button class="faq-q">
+								<span>Is my data shared between brands?</span><span class="faq-marker">+</span>
+							</button>
+							<p class="faq-a">
+								Never. Brand data is completely siloed. Stitches generates cross-brand insights from
+								your own portfolio data — no brand ever sees another brand's information.
+							</p>
+						</li>
+					</ul>
+				</div>
+			</section>
+
+			<!-- FINAL CTA -->
+			<section class="final-cta">
+				<h2 class="reveal">Start selling smarter today.</h2>
+				<p class="reveal reveal-d1">
+					The intelligence layer wholesale has been missing. Join Beta and help shape what
+					AI-powered wholesale looks like.
+				</p>
+				<div
+					class="reveal reveal-d2"
+					style="display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center"
+				>
+					<a href="#" class="btn">Join Beta <span aria-hidden="true">→</span></a>
+					<a href="#" class="btn btn-ghost">View pricing</a>
+				</div>
+			</section>
+
+			<!-- FOOTER -->
+			<footer class="footer">
+				<div class="footer-grid">
+					<div>
+						<div style="font-size: 18px; font-weight: 500; margin-bottom: 16px">/Threadline</div>
+						<p style="font-size: 14px; opacity: 0.72; max-width: 280px">
+							Building intelligent systems for the people who move goods.
+						</p>
+					</div>
+					<div>
+						<h4>Product</h4>
+						<ul>
+							<li>Features</li>
+							<li>Intelligence</li>
+							<li>Workers</li>
+							<li>Pricing</li>
+						</ul>
+					</div>
+					<div>
+						<h4>Solutions</h4>
+						<ul>
+							<li>Independent Reps</li>
+							<li>Showroom Owners</li>
+							<li>Sales Agencies</li>
+							<li>Brands</li>
+						</ul>
+					</div>
+					<div>
+						<h4>Resources</h4>
+						<ul>
+							<li>Blog</li>
+							<li>Help Center</li>
+							<li>Contact</li>
+						</ul>
+					</div>
+					<div>
+						<h4>Legal</h4>
+						<ul>
+							<li>Terms of Service</li>
+							<li>Privacy Policy</li>
+							<li>Security</li>
+						</ul>
+					</div>
+				</div>
+				<div class="brand-moment">/Threadline</div>
+				<div class="footer-bottom">
+					<div>© 2026 Threadline. All rights reserved.</div>
+					<div>threadline.systems</div>
+				</div>
+			</footer>
+		</div>
+
+		<!-- ========================================================= -->
+		<!-- =========== CONCEPT B — TERMINAL v2 ===================== -->
+		<!-- ========================================================= -->
+		<div class="concept b-body" data-concept="b">
+			<nav class="nav dark">
+				<div class="nav-brand">/Threadline</div>
+				<div class="nav-links">
+					<a href="#">/product</a>
+					<a href="#">/intelligence</a>
+					<a href="#">/workers</a>
+					<a href="#">/pricing</a>
+					<a href="#">/docs</a>
+				</div>
+				<div class="nav-right">
+					<a href="#">/sign-in</a>
+					<a href="#" class="b-btn" style="padding: 10px 18px">/join-beta →</a>
+				</div>
+			</nav>
+
+			<!-- HERO — massive slash as type-art -->
+			<section class="b-hero">
+				<div
+					style="
+						display: grid;
+						grid-template-columns: 1fr auto;
+						gap: 48px;
+						align-items: end;
+						max-width: 1600px;
+						margin: 0 auto;
+					"
+				>
+					<h1 class="b-slash reveal">/<span class="t">Threadline</span></h1>
+					<div class="b-hero-stamp reveal reveal-d1">
+						<div>/init v0.1 · fashion wholesale</div>
+						<div>build: agentic-first</div>
+						<div>status: beta<span class="cursor"></span></div>
+					</div>
+				</div>
+
+				<div class="b-hero-grid" style="max-width: 1600px; margin: 0 auto">
+					<div>
+						<div class="eyebrow reveal" style="color: var(--c-bg-60); margin-bottom: 24px">
+							<span class="dot" style="background: var(--accent-blue)"></span>
+							$ /threadline — replacing the wholesale stack
+						</div>
+						<h1 class="reveal reveal-d1">Turn every signal into a sale.</h1>
+						<p class="lede reveal reveal-d2">
+							Most wholesale platforms digitize the old way of working. Threadline replaces it —
+							with intelligence that sees what your reps miss, and agents that act before you ask.
+						</p>
+						<div class="cta-row reveal reveal-d3">
+							<a href="#" class="b-btn">/join-beta →</a>
+							<a href="#" class="b-btn b-btn-ghost">/view-product</a>
+						</div>
+					</div>
+
+					<!-- Hero side: live run stream (no dedicated terminal box — feels native to the page) -->
+					<div
+						class="reveal reveal-d3"
+						style="
+							font-family: var(--font-mono);
+							font-size: 14px;
+							line-height: 1.9;
+							color: var(--c-bg-60);
+							padding-left: 20px;
+							border-left: 1px solid var(--c-bg-10);
+						"
+					>
+						<div>$ /threadline connect</div>
+						<div>
+							<span style="color: var(--accent-blue)">✓</span> Aerolux · Forsythe · Miloch · Hensley
+							· Caselle · Oakline
+						</div>
+						<div style="margin-top: 10px">$ /stitches analyze --portfolio</div>
+						<div>
+							<span style="color: var(--accent-blue)">✓</span> scanning
+							<span style="color: var(--sidebar-fg)">247 accounts</span> ·
+							<span style="color: var(--sidebar-fg)">38 territories</span>
+						</div>
+						<div>
+							<span style="color: var(--accent-blue)">✓</span>
+							<span style="color: var(--sidebar-fg)">12 reorder gaps</span> ·
+							<span style="color: var(--sidebar-fg)">7 cross-brand</span> ·
+							<span style="color: var(--sidebar-fg)">1 churn risk</span>
+						</div>
+						<div style="margin-top: 10px">$ /workers run --all</div>
+						<div>
+							<span style="color: var(--accent-blue)">✓</span>
+							<span style="color: var(--sidebar-fg)">Q2 commissions reconciled · $48,210</span>
+						</div>
+						<div style="margin-top: 10px">
+							$ /threadline ready<span class="cursor" style="background: var(--sidebar-fg)"></span>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- DIAGNOSTIC · 4 FAILURE MODES -->
+			<section class="b-diagnostic">
+				<div class="b-diagnostic-wrap">
+					<div class="b-diag-head">
+						<div>
+							<div class="eyebrow reveal" style="color: var(--c-bg-60)">
+								<span class="dot"></span>
+								/diagnostic · which mode are you in
+							</div>
+							<h2 class="reveal reveal-d1" style="margin-top: 16px">
+								Most wholesale teams are living inside<br />
+								<span style="color: var(--c-bg-60)">at least two of these four.</span>
+							</h2>
+						</div>
+						<p class="reveal reveal-d2">
+							Software can't fix process. This is the observation the whole product is built on.
+							Each failure mode maps to a capability — and each capability replaces an hour of your
+							reps' day with something they didn't have to ask for.
+						</p>
+					</div>
+					<ul class="b-diag-list reveal">
+						<li class="b-diag-item">
+							<div class="b-diag-num"><span>/01</span><span>ABSENT</span></div>
+							<h3>No process at all.</h3>
+							<p>
+								Everyone improvises. One rep religious with follow-up, another's orders rot in
+								draft. There's no system because no one ever built one. Common in small rep agencies
+								and any business that grew out of one person's hustle.
+							</p>
+							<div class="b-diag-fix">Stitches provides the process.</div>
+						</li>
+						<li class="b-diag-item">
+							<div class="b-diag-num"><span>/02</span><span>REACTIVE</span></div>
+							<h3>Every rule is a scar.</h3>
+							<p>
+								A major order gets lost, so now there's a Friday check. A brand complains about
+								territory overlap, so now there's a spreadsheet. Dozens of patches that don't
+								connect. Always one step behind the last crisis.
+							</p>
+							<div class="b-diag-fix">Signals detect the pattern before the break.</div>
+						</li>
+						<li class="b-diag-item">
+							<div class="b-diag-num"><span>/03</span><span>OVERCOMPLICATED</span></div>
+							<h3>The process is the obstacle.</h3>
+							<p>
+								Twelve fields to log a trade-show note. So people route around. Text orders.
+								Personal spreadsheets. Two realities: the one in the software and the one actually
+								running the business. The gap grows daily.
+							</p>
+							<div class="b-diag-fix">Minimal capture. The system fills in the rest.</div>
+						</li>
+						<li class="b-diag-item">
+							<div class="b-diag-num"><span>/04</span><span>TRIBAL</span></div>
+							<h3>It only lives in your best rep's head.</h3>
+							<p>
+								Twenty years of pattern recognition. It works. Until they leave, get sick, retire,
+								or have a bad quarter. The process vanishes overnight. The failure mode that kills
+								agencies during succession.
+							</p>
+							<div class="b-diag-fix">Workers encode it. The knowledge becomes organizational.</div>
+						</li>
+					</ul>
+				</div>
+			</section>
+
+			<!-- PRODUCT · system console -->
+			<section class="b-product">
+				<div class="b-product-wrap">
+					<div class="b-product-head">
+						<div>
+							<div class="eyebrow reveal">
+								<span class="dot"></span>
+								/product · every surface, one system
+							</div>
+							<h2 class="reveal reveal-d1" style="margin-top: 16px">
+								Built like a runtime. Reads like a rep.
+							</h2>
+						</div>
+						<p class="reveal reveal-d2">
+							Four surfaces, one model. Gaps, Stitches, Workers, Orchestration — each is a real view
+							in the product, and each is doing work while you're in any of the others.
+						</p>
+					</div>
+
+					<div class="b-product-grid reveal">
+						<!-- Gap report (wide) -->
+						<div class="panel bp-gap">
+							<div class="panel-head">
+								<h4>/gaps · active report</h4>
+								<span class="meta">last scan: 12s ago · 12 flagged</span>
+							</div>
+							<table class="gap-table" style="border: 0">
+								<thead>
+									<tr>
+										<th>Account</th>
+										<th>Brand</th>
+										<th class="num">Cadence</th>
+										<th class="num">Gap</th>
+										<th>Status</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr>
+										<td>Nordstrom NYC</td>
+										<td class="mono muted">Aerolux</td>
+										<td class="num mono">42d</td>
+										<td class="num mono">93d</td>
+										<td><span class="chip urgent">urgent</span></td>
+									</tr>
+									<tr>
+										<td>Revolve HQ</td>
+										<td class="mono muted">Forsythe</td>
+										<td class="num mono">28d</td>
+										<td class="num mono">76d</td>
+										<td><span class="chip urgent">urgent</span></td>
+									</tr>
+									<tr>
+										<td>Shopbop</td>
+										<td class="mono muted">Miloch</td>
+										<td class="num mono">45d</td>
+										<td class="num mono">69d</td>
+										<td><span class="chip">high</span></td>
+									</tr>
+									<tr>
+										<td>Neiman Marcus · Houston</td>
+										<td class="mono muted">Caselle</td>
+										<td class="num mono">35d</td>
+										<td class="num mono">58d</td>
+										<td><span class="chip">high</span></td>
+									</tr>
+									<tr>
+										<td>Saks · 5th Ave</td>
+										<td class="mono muted">Hensley</td>
+										<td class="num mono">54d</td>
+										<td class="num mono">71d</td>
+										<td><span class="chip">med</span></td>
+									</tr>
+									<tr>
+										<td>Bloomingdale's · 59th</td>
+										<td class="mono muted">Oakline</td>
+										<td class="num mono">49d</td>
+										<td class="num mono">62d</td>
+										<td><span class="chip">low</span></td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+
+						<!-- Stitches card -->
+						<div class="stitch-card bp-stitch">
+							<div class="stitch-head"><span class="dot"></span> /stitches · reorder-context</div>
+							<p>
+								"Nordstrom NYC is in the middle of a reorder gap that looks early, not fatal — a
+								well-timed nudge this week typically recovers eighty percent of accounts in this
+								profile."
+							</p>
+							<div class="stitch-evidence">
+								<div>93 days since last Aerolux order (baseline: 42)</div>
+								<div>Similar gaps recovered at 80% when nudged in week 13</div>
+								<div>Dana M. engagement: positive (2 of last 3 opens)</div>
+							</div>
+						</div>
+
+						<!-- Workers DSL -->
+						<div class="dsl bp-workers">
+							<div
+								style="
+									font-family: var(--font-mono);
+									font-size: 14px;
+									color: var(--c-bg-60);
+									margin-bottom: 14px;
+									display: flex;
+									justify-content: space-between;
+								"
+							>
+								<span>/workers · reorder-watch</span>
+								<span
+									><span class="live-pulse" style="width: 6px; height: 6px"></span> active · 247
+									accts</span
+								>
+							</div>
+							<pre
+								style="
+									margin: 0;
+									font-family: inherit;
+									white-space: pre-wrap;
+									font-size: 14px;
+									line-height: 1.7;
+								"
+							><span class="kw">when</span>   days_since_order &gt; <span class="str">1.5 × cadence</span>
+<span class="kw">where</span>  account.status = <span class="str">"active"</span>
+<span class="kw">and</span>    buyer.engagement &gt; <span class="str">"low"</span>
+<span class="kw">then</span>   draft_email(<span class="str">tone: "warm"</span>)
+       notify(rep)
+       log_to(account.timeline)
+
+<span class="comment"># Custom: only fire during market weeks</span>
+<span class="kw">only</span>   market_week_active()</pre>
+						</div>
+
+						<!-- Ledger -->
+						<div class="ledger bp-ledger">
+							<div
+								style="
+									padding: 14px 18px;
+									display: flex;
+									justify-content: space-between;
+									align-items: center;
+									border-bottom: 1px solid var(--c-fg-08);
+									font-size: 15px;
+								"
+							>
+								<div style="font-weight: 500">/commissions · Q2 reconciliation</div>
+								<div class="mono muted" style="font-size: 14px">auto · 23ms</div>
+							</div>
+							<div class="ledger-row">
+								<div class="ledger-label">
+									<div>Aerolux · SS27</div>
+									<div class="ledger-sub">12% base · 60/40 split</div>
+								</div>
+								<div class="num">$21,400</div>
+								<div></div>
+								<div class="num">$12,840</div>
+							</div>
+							<div class="ledger-row">
+								<div class="ledger-label">
+									<div>Forsythe · FW26</div>
+									<div class="ledger-sub">10% · straight</div>
+								</div>
+								<div class="num">$14,260</div>
+								<div></div>
+								<div class="num">$14,260</div>
+							</div>
+							<div class="ledger-row">
+								<div class="ledger-label">
+									<div>Miloch · capsule</div>
+									<div class="ledger-sub">8% · sub 30%</div>
+								</div>
+								<div class="num">$9,800</div>
+								<div></div>
+								<div class="num">$6,860</div>
+							</div>
+							<div class="ledger-row total">
+								<div class="ledger-label">
+									<div>Q2 cleared</div>
+									<div class="ledger-sub">3 exceptions flagged</div>
+								</div>
+								<div></div>
+								<div></div>
+								<div class="num">$44,310</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- README · manifesto moment -->
+			<section class="b-readme">
+				<div class="b-readme-wrap">
+					<div class="b-readme-head">/README · the founding bet</div>
+					<div class="b-readme-lines reveal">
+						<span class="l">Software was never the problem.</span>
+						<span class="l" style="color: var(--c-bg-60)">The process was.</span>
+						<span class="l">Most teams overcomplicate it. The rest have none at all.</span>
+						<span class="l" style="color: var(--c-bg-60)"
+							>Either way, a form to fill out won't save them.</span
+						>
+						<span class="l" style="margin-top: 24px"
+							>The right intelligence replaces the need for perfect process.</span
+						>
+						<span class="l-mono">
+							This isn't an opinion we have about software. It's the thesis the whole product is
+							built on. Every feature in Threadline exists to replace a place where you're currently
+							bringing process — with intelligence that doesn't need it.
+						</span>
+					</div>
+					<div class="b-readme-sig">
+						<span>/Threadline</span>
+						<span>founding philosophy · Apr 2026</span>
+					</div>
+				</div>
+			</section>
+
+			<!-- FOUNDER NOTE (replaces fake social proof) -->
+			<section class="b-founder">
+				<div class="b-founder-wrap">
+					<div class="a-founder-mark">/</div>
+					<div class="reveal">
+						<div class="eyebrow"><span class="dot"></span> /from-the-founder</div>
+						<p class="accent">
+							Threadline is in closed Beta. No logo wall. No fabricated testimonial. We're not going
+							to invent a customer we don't have.
+						</p>
+						<p>
+							What we have is a point of view. Wholesale fashion runs on tribal knowledge and
+							spreadsheets held together by the best reps' memory. Every agency I've worked with is
+							inside at least two failure modes right now. No piece of software has fixed it,
+							because software isn't what's broken — the process is.
+						</p>
+						<p>
+							So we're building the opposite of software. A system that replaces the need for
+							process by surfacing what matters, handling what's repetitive, and remembering what
+							your best reps know. If that resonates, build it with us.
+						</p>
+						<div class="sig" style="margin-top: 28px">— Scott</div>
+						<div class="sig-meta">founder · /Threadline</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- FAQ -->
+			<section class="b-faq">
+				<div style="max-width: 1600px; margin: 0 auto">
+					<div class="section-head">
+						<div>
+							<span class="eyebrow" style="color: var(--c-bg-60)"
+								><span class="dot"></span> /faq</span
+							>
+						</div>
+						<div>
+							<h2 class="h1 reveal" style="color: var(--sidebar-fg)">
+								Common questions, clear answers.
+							</h2>
+						</div>
+					</div>
+					<div class="faq-grid">
+						<ul>
+							<li class="faq-item reveal">
+								<button class="faq-q">
+									<span class="pre">?</span><span>What types of reps does Threadline work for?</span
+									><span class="faq-marker">+</span>
+								</button>
+								<p class="faq-a">
+									Independent multi-brand reps, showroom owners, and sales agencies carrying fashion
+									and apparel lines. If you manage accounts across multiple brands, Threadline was
+									built for you.
+								</p>
+							</li>
+							<li class="faq-item reveal reveal-d1">
+								<button class="faq-q">
+									<span class="pre">?</span><span>Do my brands need to switch to Threadline?</span
+									><span class="faq-marker">+</span>
+								</button>
+								<p class="faq-a">
+									No. Brands keep their existing tools. Threadline connects to your workflow — you
+									manage orders, track commissions, and get insights without asking brands to change
+									anything.
+								</p>
+							</li>
+							<li class="faq-item reveal reveal-d2">
+								<button class="faq-q">
+									<span class="pre">?</span
+									><span>What makes Stitches different from analytics?</span
+									><span class="faq-marker">+</span>
+								</button>
+								<p class="faq-a">
+									Analytics show you what happened. Stitches tells you what to do next — cross-brand
+									patterns, buyer predictions, and specific actions that arrive before you ask for
+									them.
+								</p>
+							</li>
+							<li class="faq-item reveal reveal-d3">
+								<button class="faq-q">
+									<span class="pre">?</span><span>How long does setup take?</span
+									><span class="faq-marker">+</span>
+								</button>
+								<p class="faq-a">
+									Under one hour. Import your accounts, connect your email, add your brands, and
+									Stitches starts learning your portfolio immediately.
+								</p>
+							</li>
+						</ul>
+						<ul>
+							<li class="faq-item reveal">
+								<button class="faq-q">
+									<span class="pre">?</span><span>What are Workers?</span
+									><span class="faq-marker">+</span>
+								</button>
+								<p class="faq-a">
+									Agents that automate the repetitive parts of your job — commission calculations,
+									reorder alerts, buyer follow-ups. Custom Workers let you build your own
+									automations around the signals that matter to your specific book of business.
+								</p>
+							</li>
+							<li class="faq-item reveal reveal-d1">
+								<button class="faq-q">
+									<span class="pre">?</span><span>How does commission tracking work?</span
+									><span class="faq-marker">+</span>
+								</button>
+								<p class="faq-a">
+									Set rate structures per brand, define splits between showroom owners and sub-reps,
+									and Threadline calculates everything automatically. No spreadsheets. No
+									reconciliation headaches.
+								</p>
+							</li>
+							<li class="faq-item reveal reveal-d2">
+								<button class="faq-q">
+									<span class="pre">?</span><span>How does pricing work?</span
+									><span class="faq-marker">+</span>
+								</button>
+								<p class="faq-a">
+									Free for individual reps to get started. Pro unlocks Stitches AI, Workers, and
+									multi-brand analytics. Agency adds team management, advanced reports, and custom
+									integrations. No annual lock-in.
+								</p>
+							</li>
+							<li class="faq-item reveal reveal-d3">
+								<button class="faq-q">
+									<span class="pre">?</span><span>Is my data shared between brands?</span
+									><span class="faq-marker">+</span>
+								</button>
+								<p class="faq-a">
+									Never. Brand data is completely siloed. Stitches generates cross-brand insights
+									from your own portfolio data — no brand ever sees another brand's information.
+								</p>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+
+			<!-- FINAL CTA — massive slash brand moment -->
+			<section class="b-final">
+				<div class="mono reveal">/threadline &gt; ready when you are</div>
+				<h2 class="reveal reveal-d1">Start selling smarter today.</h2>
+				<div class="btns reveal reveal-d2">
+					<a href="#" class="b-btn">/join-beta →</a>
+					<a href="#" class="b-btn b-btn-ghost">/view-pricing</a>
+				</div>
+				<div class="b-brand-moment reveal reveal-d3">/Threadline</div>
+				<div class="b-footer-bottom">
+					<div>© 2026 /Threadline · All rights reserved.</div>
+					<div>/threadline.systems</div>
+				</div>
+			</section>
+		</div>
+
+		<!-- ========== SCRIPTS ========== -->
+		<script>
+			const switcher = document.querySelector('.switcher');
+			const buttons = switcher.querySelectorAll('button');
+			const concepts = document.querySelectorAll('.concept');
+
+			function activate(target) {
+				buttons.forEach((b) => {
+					const on = b.dataset.target === target;
+					b.classList.toggle('active', on);
+					b.setAttribute('aria-selected', on ? 'true' : 'false');
+				});
+				concepts.forEach((c) => c.classList.toggle('active', c.dataset.concept === target));
+				window.scrollTo({ top: 0, behavior: 'instant' });
+				document.querySelectorAll('.reveal').forEach((el) => el.classList.remove('in'));
+				requestAnimationFrame(() => requestAnimationFrame(revealInView));
+			}
+			buttons.forEach((b) => b.addEventListener('click', () => activate(b.dataset.target)));
+			document.addEventListener('keydown', (e) => {
+				if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+				if (e.key === '1') activate('a');
+				if (e.key === '2') activate('b');
+			});
+
+			const io = new IntersectionObserver(
+				(entries) => {
+					entries.forEach((e) => {
+						if (e.isIntersecting) {
+							e.target.classList.add('in');
+							io.unobserve(e.target);
+						}
+					});
+				},
+				{ threshold: 0.12, rootMargin: '0px 0px -5% 0px' }
+			);
+			function revealInView() {
+				document.querySelectorAll('.concept.active .reveal').forEach((el) => {
+					if (!el.classList.contains('in')) io.observe(el);
+				});
+			}
+			revealInView();
+
+			document.addEventListener('click', (e) => {
+				const q = e.target.closest('.faq-q');
+				if (!q) return;
+				const item = q.closest('.faq-item');
+				const open = item.classList.toggle('open');
+				const marker = q.querySelector('.faq-marker');
+				if (marker) marker.textContent = open ? '−' : '+';
+			});
+		</script>
+	</body>
+</html>

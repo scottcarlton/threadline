@@ -1,24 +1,57 @@
 <script lang="ts">
 	import '../app.css';
+	import { Toaster } from 'svelte-sonner';
+	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { navigating } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { goto, beforeNavigate, afterNavigate, onNavigate } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import Sidebar from '$lib/components/layout/sidebar.svelte';
 	import Navbar from '$lib/components/layout/navbar.svelte';
 	import SearchDialog from '$lib/components/layout/SearchDialog.svelte';
+	import NotificationToasts from '$lib/components/notifications/NotificationToasts.svelte';
+	import NotificationCenter from '$lib/components/notifications/NotificationCenter.svelte';
 	import Markdown from '$lib/components/ai/Markdown.svelte';
 	import { startUnreadPolling } from '$lib/stores/unread.js';
+	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
+	import { registerServiceWorker, isOnline } from '$lib/stores/pwa.js';
+	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
+	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import { preferences } from '$lib/stores/preferences.js';
+	import { isLgUp } from '$lib/utils/viewport.js';
+	import { cart } from '$lib/stores/cart.js';
+	import MobileBottomNav from '$lib/components/layout/MobileBottomNav.svelte';
+	import { selectedProductIds } from '$lib/stores/productSelection.js';
+	import { supabase } from '$lib/supabase.js';
 
 	const { messages, loading } = conversation;
 
+	function getUserInitials(name?: string | null): string {
+		if (!name) return '??';
+		return name
+			.split(' ')
+			.map((w) => w[0])
+			.join('')
+			.toUpperCase()
+			.slice(0, 2);
+	}
+
+	async function handleSignOut() {
+		await supabase.auth.signOut();
+		goto(resolve('/login'));
+	}
+
 	let { children, data } = $props();
+
+	$effect(() => {
+		if (data.isBuyer) cart.hydrate(data.cartItems ?? []);
+	});
 
 	// Apply appearance preference
 	$effect(() => {
@@ -58,40 +91,106 @@
 		}
 	});
 
+	// New SW versions take over silently via clients.claim(); users pick up
+	// fresh code on the next navigation. A "Reload" toast on every deploy is
+	// noise on a continuously-deployed environment.
+
+	let mainEl = $state<HTMLElement | null>(null);
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive scroll cache, not rendered
+	const scrollPositions = new Map<string, number>();
+
+	beforeNavigate(({ from }) => {
+		if (mainEl && from?.url.pathname) {
+			scrollPositions.set(from.url.pathname, mainEl.scrollTop);
+		}
+	});
+
+	afterNavigate(({ from, to, type }) => {
+		if (!mainEl) return;
+		if (from?.url.pathname === to?.url.pathname) return;
+
+		if (type === 'popstate' && to?.url.pathname) {
+			const saved = scrollPositions.get(to.url.pathname);
+			if (saved != null) {
+				requestAnimationFrame(() => {
+					mainEl!.scrollTop = saved;
+				});
+				return;
+			}
+		}
+
+		mainEl.scrollTop = 0;
+
+		const leftProducts =
+			from?.url.pathname.startsWith('/products') && !to?.url.pathname.startsWith('/products');
+		if (leftProducts && $selectedProductIds.length > 0) {
+			selectedProductIds.set([]);
+		}
+	});
+
+	onNavigate((nav) => {
+		if (typeof document === 'undefined') return;
+		const startViewTransition = (
+			document as Document & {
+				startViewTransition?: (cb: () => Promise<void>) => unknown;
+			}
+		).startViewTransition;
+		if (!startViewTransition) return;
+		if (nav.from?.url.pathname === nav.to?.url.pathname) return;
+		return new Promise((resolve) => {
+			startViewTransition.call(document, async () => {
+				resolve();
+				await nav.complete;
+			});
+		});
+	});
+
 	onMount(() => {
+		document.getElementById('splash')?.remove();
 		if (data.session) {
 			const stopUnread = startUnreadPolling(60000);
 			const stopAppointments = startAppointmentPolling(60000);
 			const stopAttention = startOrderAttentionPolling(60000);
-			return () => { stopUnread?.(); stopAppointments?.(); stopAttention?.(); };
+			const stopNotifications = startNotificationPolling(30000);
+			registerServiceWorker();
+			return () => {
+				stopUnread?.();
+				stopAppointments?.();
+				stopAttention?.();
+				stopNotifications?.();
+			};
 		}
 	});
 
 	const chatFontStyle = $derived(
-		$preferences.chatFont === 'sans' ? 'font-family: Georgia, "Times New Roman", serif; font-size: 16px'
-		: $preferences.chatFont === 'system' ? 'font-family: system-ui, sans-serif; font-size: 16px'
-		: 'font-family: var(--font-sans); font-size: 16px'
+		$preferences.chatFont === 'sans'
+			? 'font-family: Georgia, "Times New Roman", serif; font-size: 16px'
+			: $preferences.chatFont === 'system'
+				? 'font-family: system-ui, sans-serif; font-size: 16px'
+				: 'font-family: var(--font-sans); font-size: 16px'
 	);
 
 	const isAuthRoute = $derived(
 		$page.url.pathname === '/' ||
-		$page.url.pathname.startsWith('/login') ||
-		$page.url.pathname.startsWith('/signup') ||
-		$page.url.pathname.startsWith('/invite') ||
-		$page.url.pathname.startsWith('/buyer-invite') ||
-		$page.url.pathname.startsWith('/upload') ||
-		$page.url.pathname.startsWith('/onboarding') ||
-		$page.url.pathname.startsWith('/features') ||
-		$page.url.pathname.startsWith('/intelligence') ||
-		$page.url.pathname.startsWith('/solutions') ||
-		$page.url.pathname.startsWith('/pricing')
+			$page.url.pathname.startsWith('/login') ||
+			$page.url.pathname.startsWith('/signup') ||
+			$page.url.pathname.startsWith('/invite') ||
+			$page.url.pathname.startsWith('/buyer-invite') ||
+			$page.url.pathname.startsWith('/connect') ||
+			$page.url.pathname.startsWith('/upload') ||
+			$page.url.pathname.startsWith('/onboarding') ||
+			$page.url.pathname.startsWith('/features') ||
+			$page.url.pathname.startsWith('/intelligence') ||
+			$page.url.pathname.startsWith('/solutions') ||
+			$page.url.pathname.startsWith('/resources') ||
+			$page.url.pathname.startsWith('/pricing')
 	);
 
-
 	const hideAiDock = $derived(
-		$preferences.autoHideDock ||
-		$page.url.pathname.endsWith('/new') ||
-		$page.url.pathname === '/inbox'
+		data.isBuyer ||
+			$preferences.autoHideDock ||
+			$page.url.pathname.endsWith('/new') ||
+			$page.url.pathname === '/inbox'
 	);
 
 	let dockPeeking = $state(false);
@@ -99,7 +198,7 @@
 	let peekTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	function handleMouseMove(e: MouseEvent) {
-		if (!hideAiDock) return;
+		if (!hideAiDock || data.isBuyer) return;
 		const distFromBottom = window.innerHeight - e.clientY;
 		if (distFromBottom < 15) {
 			if (!dockPeeking) {
@@ -108,7 +207,9 @@
 			}
 		} else if (distFromBottom > 60 && dockPeeking && !dockFocused) {
 			clearTimeout(peekTimeout);
-			peekTimeout = setTimeout(() => { if (!dockFocused) dockPeeking = false; }, 150);
+			peekTimeout = setTimeout(() => {
+				if (!dockFocused) dockPeeking = false;
+			}, 150);
 		}
 	}
 
@@ -120,12 +221,36 @@
 	function handleDockFocusOut() {
 		dockFocused = false;
 		// Hide after losing focus if cursor is far from bottom
-		peekTimeout = setTimeout(() => { if (!dockFocused) dockPeeking = false; }, 300);
+		peekTimeout = setTimeout(() => {
+			if (!dockFocused) dockPeeking = false;
+		}, 300);
 	}
 
-	let sidebarOpen = $state(true);
+	let notificationsOpen = $state(false);
+
+	// Mobile-first: default closed everywhere, including SSR. On the desktop
+	// client, the matchMedia check + saved preference open it back up. This
+	// avoids an SSR=open / mobile-client=closed mismatch that flashes the
+	// sidebar in-then-out on every initial render and route transition.
+	let sidebarOpen = $state<boolean>(
+		browser && matchMedia('(min-width: 1024px)').matches
+			? ($preferences.sidebarOpen ?? true)
+			: false
+	);
+
+	$effect(() => {
+		preferences.setSidebarOpen(sidebarOpen);
+	});
+	let sidebarMounted = $state(false);
+	onMount(() => {
+		requestAnimationFrame(() => {
+			sidebarMounted = true;
+		});
+	});
+
 	let showHelp = $state(false);
 	let aiPanelOpen = $state(false);
+	let mobileAiDockOpen = $state(false);
 	let messagesContainer = $state<HTMLDivElement | null>(null);
 	let aiInputEl = $state<HTMLDivElement | null>(null);
 
@@ -139,6 +264,12 @@
 	let voiceMode = $state(false);
 	let voiceState = $state<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
 	let currentAudio = $state<HTMLAudioElement | null>(null);
+	// Persistent <audio> element pre-unlocked by an initial user gesture
+	// (the voice-mode toggle tap). Required on iOS Safari so subsequent
+	// playVoiceResponse() calls can play() after an awaited fetch.
+	let unlockedAudio: HTMLAudioElement | null = null;
+	const UNLOCK_AUDIO_SRC =
+		'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAABAAABDgD///////////////////////////////////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+xDEAAPAAAGkAAAAIAAANIAAAARMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EMQpg8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+xDEUgPAAAGkAAAAIAAANIAAAARVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxHsDwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EMSkA8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxM2DwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EMT2A8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
 	const hasAttachments = $derived(attachedFiles.length > 0);
 
 	function getAiInput(): string {
@@ -146,6 +277,7 @@
 	}
 
 	function clearAiInput() {
+		// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable element managed outside Svelte's reactive graph
 		if (aiInputEl) aiInputEl.innerHTML = '';
 		hasAiInput = false;
 	}
@@ -186,27 +318,39 @@
 	});
 
 	$effect(() => {
-		if ($page.url.pathname) {
-			// Close sidebar on mobile nav
+		if ($page.url.pathname && !$isLgUp) {
+			sidebarOpen = false;
 		}
 	});
 
 	// Org display name
 	const isBrandScoped = $derived(
-		data.brandScope !== null && (data.brandScope?.length ?? 0) > 0 &&
-		(data.membership?.role === 'member' || data.membership?.role === 'sales' || data.membership?.role === 'guest')
+		data.brandScope !== null &&
+			(data.brandScope?.length ?? 0) > 0 &&
+			(data.membership?.role === 'member' ||
+				data.membership?.role === 'sales' ||
+				data.membership?.role === 'guest')
 	);
 
-	const buyerAccountName = $derived(
-		data.buyerAccounts?.[0]?.accounts?.business_name ?? null
+	// Nx-BLSR: user is a sales-role member in 2+ brand orgs. Acts as one unified
+	// portal across those brand orgs — no per-org switcher, no per-brand dropdown.
+	const isNxBlsr = $derived(
+		(data.allMemberships?.filter((m) => m.organizations?.org_type === 'brand' && m.role === 'sales')
+			.length ?? 0) > 1
 	);
+
+	const buyerAccountName = $derived(data.buyerAccounts?.[0]?.accounts?.business_name ?? null);
 
 	const orgDisplayName = $derived(
-		data.isBuyer && buyerAccountName
-			? buyerAccountName
-			: isBrandScoped && data.scopedBrandNames?.length
-				? data.scopedBrandNames.join(', ')
-				: data.organization?.name ?? 'Threadline'
+		data.isSystemAdmin
+			? 'System'
+			: data.isBuyer && buyerAccountName
+				? buyerAccountName
+				: isNxBlsr
+					? 'Threadline'
+					: isBrandScoped && data.scopedBrandNames?.length
+						? data.scopedBrandNames.join(', ')
+						: (data.organization?.name ?? 'Threadline')
 	);
 
 	function handleAiKeydown(e: KeyboardEvent) {
@@ -232,8 +376,14 @@
 	function handleGlobalKeydown(e: KeyboardEvent) {
 		// Escape closes overlays regardless of focus
 		if (e.key === 'Escape') {
-			if (aiPanelOpen) { aiPanelOpen = false; return; }
-			if (showHelp) { showHelp = false; return; }
+			if (aiPanelOpen) {
+				aiPanelOpen = false;
+				return;
+			}
+			if (showHelp) {
+				showHelp = false;
+				return;
+			}
 		}
 
 		if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -251,7 +401,12 @@
 		if (isEditableTarget()) return;
 
 		// "/" + "k" chord → focus AI input
-		if (e.key === 'k' && !e.metaKey && !e.ctrlKey && Date.now() - lastKeyWasSlash < KEY_CHORD_WINDOW) {
+		if (
+			e.key === 'k' &&
+			!e.metaKey &&
+			!e.ctrlKey &&
+			Date.now() - lastKeyWasSlash < KEY_CHORD_WINDOW
+		) {
 			e.preventDefault();
 			lastKeyWasSlash = 0;
 			focusAiInput();
@@ -265,33 +420,68 @@
 
 		// Cmd+Shift shortcuts
 		if (cmd && e.shiftKey) {
-			if (e.code === 'KeyA') { e.preventDefault(); goto('/appointments?new=true'); return; }
+			if (e.code === 'KeyA') {
+				e.preventDefault();
+				goto(resolve('/appointments?new=true'));
+				return;
+			}
 		}
 
 		// Cmd shortcuts (new entities)
 		if (cmd && !e.shiftKey) {
-			if (e.key === 'o') { e.preventDefault(); goto('/orders/new'); return; }
-			if (e.key === 'a') { e.preventDefault(); goto('/accounts/new'); return; }
-			if (e.key === 'b') { e.preventDefault(); goto('/brands/new'); return; }
+			if (e.key === 'o') {
+				e.preventDefault();
+				goto(resolve('/orders/new'));
+				return;
+			}
+			if (e.key === 'a') {
+				e.preventDefault();
+				goto(resolve('/accounts/new'));
+				return;
+			}
+			if (e.key === 'b') {
+				e.preventDefault();
+				goto(resolve('/brands/new'));
+				return;
+			}
 		}
 
 		// Shift shortcuts (secondary navigation)
 		if (e.shiftKey && !cmd) {
-			if (e.key === 'I') { e.preventDefault(); goto('/inbox'); return; }
-			if (e.key === 'A') { e.preventDefault(); goto('/appointments'); return; }
-			if (e.key === 'O') { e.preventDefault(); goto('/organization'); return; }
-			if (e.key === 'H') { e.preventDefault(); showHelp = true; return; }
+			if (e.key === 'I') {
+				e.preventDefault();
+				goto(resolve('/inbox'));
+				return;
+			}
+			if (e.key === 'A') {
+				e.preventDefault();
+				goto(resolve('/appointments'));
+				return;
+			}
+			if (e.key === 'O') {
+				e.preventDefault();
+				goto(resolve('/organization'));
+				return;
+			}
+			if (e.key === 'H') {
+				e.preventDefault();
+				showHelp = true;
+				return;
+			}
 		}
 
 		// Plain key shortcuts (navigation) — only if no other key was pressed recently
 		if (!cmd && !e.shiftKey && !e.altKey) {
 			const now = Date.now();
 			const singleKeys: Record<string, string> = {
-				o: '/orders', a: '/accounts', b: '/brands',
-				r: '/reports', i: '/insight',
+				o: '/orders',
+				a: '/accounts',
+				b: '/brands',
+				r: '/reports',
+				i: '/insight'
 			};
 			if (singleKeys[e.key] && now - lastNonShortcutKey > KEY_CHORD_WINDOW) {
-				goto(singleKeys[e.key]);
+				goto(resolve(singleKeys[e.key] as '/orders'));
 				return;
 			}
 			// Track non-shortcut keypresses to prevent chords like "/a" from triggering
@@ -345,6 +535,14 @@
 
 	function enterVoiceMode() {
 		voiceMode = true;
+		// We're inside a user-gesture handler here. Pre-unlock the audio
+		// element so iOS Safari accepts later play() calls that occur
+		// after awaited fetches (see playVoiceResponse).
+		if (!unlockedAudio) {
+			unlockedAudio = new Audio(UNLOCK_AUDIO_SRC);
+			unlockedAudio.preload = 'auto';
+		}
+		unlockedAudio.play().catch(() => {});
 		startListening();
 	}
 
@@ -353,7 +551,13 @@
 		voiceState = 'idle';
 		stopMicStream();
 		clearTimeout(silenceTimer);
-		if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+		if (currentAudio) {
+			currentAudio.pause();
+			currentAudio = null;
+		}
+		if (unlockedAudio) {
+			unlockedAudio.pause();
+		}
 	}
 
 	let mediaRecorder = $state<MediaRecorder | null>(null);
@@ -426,8 +630,7 @@
 				analyser.getByteFrequencyData(dataArray);
 				const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
 
-
-					if (avg > SILENCE_THRESHOLD) {
+				if (avg > SILENCE_THRESHOLD) {
 					speechDetected = true;
 					silentFrames = 0;
 				} else if (speechDetected) {
@@ -438,10 +641,9 @@
 					}
 				}
 
-				setTimeout(checkAudio, 125);
+				silenceTimer = setTimeout(checkAudio, 125);
 			}
 			checkAudio();
-
 		} catch (err) {
 			console.error('Mic access failed:', err);
 			exitVoiceMode();
@@ -507,10 +709,18 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ text: text.slice(0, 1000), voiceId: $preferences.voiceId })
 			});
-			if (!res.ok) { startListening(); return; }
+			if (!res.ok) {
+				startListening();
+				return;
+			}
 			const blob = await res.blob();
 			const url = URL.createObjectURL(blob);
-			const audio = new Audio(url);
+			// Reuse the persistent unlocked element on iOS so play() can
+			// succeed outside the original user-gesture window. Falls back
+			// to a fresh element if voice mode was somehow entered without
+			// the unlock running.
+			const audio = unlockedAudio ?? new Audio();
+			audio.src = url;
 			currentAudio = audio;
 			audio.onended = () => {
 				currentAudio = null;
@@ -519,7 +729,15 @@
 				if (voiceMode) startListening();
 				else voiceState = 'idle';
 			};
-			audio.play();
+			audio.play().catch(() => {
+				// Browsers reject play() when called outside a user-gesture
+				// context (e.g. iOS Safari after an awaited fetch). Treat as
+				// end-of-playback and continue the voice loop.
+				currentAudio = null;
+				URL.revokeObjectURL(url);
+				if (voiceMode) startListening();
+				else voiceState = 'idle';
+			});
 		} catch {
 			if (voiceMode) startListening();
 			else voiceState = 'idle';
@@ -551,68 +769,104 @@
 
 <svelte:window onkeydown={handleGlobalKeydown} onmousemove={handleMouseMove} />
 
+{#if browser}
+	<!-- Toaster is client-only — svelte-sonner calls setContext during child
+	     render, which throws `lifecycle_outside_component` during SvelteKit SSR. -->
+	<Toaster richColors position="top-center" />
+	{#if data.session && !isAuthRoute}
+		<NotificationToasts />
+		<NotificationCenter open={notificationsOpen} onclose={() => (notificationsOpen = false)} />
+	{/if}
+{/if}
+
 {#if $navigating}
-	<div class="fixed inset-x-0 top-0 z-[100] h-0.5">
-		<div class="nav-progress h-full bg-primary"></div>
+	<div class="fixed inset-x-0 top-0 z-[100] h-1">
+		<div class="nav-progress h-full bg-accent"></div>
 	</div>
 {/if}
 
 {#if isAuthRoute}
 	{@render children()}
 {:else}
-	<div class="flex h-screen flex-col overflow-hidden">
+	<div class="flex h-dvh flex-col overflow-hidden">
+		<OfflineBanner />
 		<!-- Full-width header -->
 		<Navbar
 			user={data.user}
 			organization={data.organization}
 			{orgDisplayName}
 			{sidebarOpen}
-			showTeam={!isBrandScoped && !data.isBuyer && data.membership?.role !== 'sales'}
 			role={data.membership?.role ?? null}
 			isBuyer={data.isBuyer === true}
+			{isNxBlsr}
+			{notificationsOpen}
 			onsidebarToggle={() => (sidebarOpen = !sidebarOpen)}
+			onNotificationsToggle={() => (notificationsOpen = !notificationsOpen)}
 		/>
 
-		<!-- Sidebar + Content below header -->
+		<!-- Sidebar + Content below header. Both desktop (push) and mobile
+		     (overlay) sidebars render in the DOM; Tailwind's `hidden lg:block`
+		     / `lg:hidden` pick the right one based on actual viewport, so the
+		     server-rendered HTML matches the client and there's no first-paint
+		     flash from the media-query store seeding to false on SSR. -->
 		<div class="flex flex-1 overflow-hidden">
-			<!-- Sidebar (slides on/off with animation) -->
 			<div
-				class="shrink-0 overflow-hidden transition-all duration-300 ease-in-out h-full"
-				style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
+				class="hidden h-full shrink-0 overflow-hidden lg:block {sidebarMounted
+					? 'transition-all duration-300 ease-in-out'
+					: 'lg:w-60'}"
+				style={sidebarMounted
+					? `width: ${sidebarOpen ? '240px' : '0px'}; opacity: ${sidebarOpen ? '1' : '0'}`
+					: ''}
 			>
 				<div class="h-full w-60">
 					<Sidebar
+						mode="push"
 						role={data.membership?.role ?? 'guest'}
 						orgType={data.orgType}
-						currentOrg={data.organization}
-						allMemberships={data.allMemberships}
 						brandScope={data.brandScope}
 						isBuyer={data.isBuyer}
+						{isNxBlsr}
 						bind:showHelp
 					/>
 				</div>
 			</div>
+			<!-- Mobile sidebar removed — bottom nav replaces it on mobile -->
 
 			<!-- Main content -->
-			<main class="flex-1 overflow-y-auto bg-background p-4 pb-32 sm:p-6 sm:pb-36">
+			<main
+				bind:this={mainEl}
+				class="flex-1 overflow-y-auto bg-background p-4 pb-32 sm:p-6 sm:pb-36"
+			>
 				{@render children()}
 			</main>
 		</div>
 
-		<!-- Fixed AI dock at bottom -->
-		{#if !hideAiDock || dockPeeking}
+		{#if data.user?.id}
+			<InstallPrompt userId={data.user.id} />
+		{/if}
+	</div>
+
+	<!-- Fixed AI dock — outside overflow-hidden for iPad Safari fixed positioning -->
+	{#if !data.isBuyer && (($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen))}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="fixed bottom-0 right-0 z-30 flex flex-col items-center pb-6 pointer-events-none transition-[left] duration-300 ease-in-out"
-			style="left: {sidebarOpen ? '240px' : '0px'}"
+			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 {sidebarMounted
+				? `transition-[left] duration-300 ease-in-out ${sidebarOpen ? 'lg:left-60' : 'lg:left-0'}`
+				: 'lg:left-60'}"
 			transition:fly={{ y: 100, duration: 300 }}
-			onmouseenter={() => { if (dockPeeking) clearTimeout(peekTimeout); }}
-			onmouseleave={() => { if (dockPeeking && !dockFocused) peekTimeout = setTimeout(() => { if (!dockFocused) dockPeeking = false; }, 200); }}
+			onmouseenter={() => {
+				if (dockPeeking) clearTimeout(peekTimeout);
+			}}
+			onmouseleave={() => {
+				if (dockPeeking && !dockFocused)
+					peekTimeout = setTimeout(() => {
+						if (!dockFocused) dockPeeking = false;
+					}, 200);
+			}}
 			onfocusin={handleDockFocusIn}
 			onfocusout={handleDockFocusOut}
 		>
-			<div class="pointer-events-auto w-full max-w-[754px] px-4 space-y-3">
-
+			<div class="pointer-events-auto w-full max-w-[754px] space-y-3 px-4">
 				<!-- Conversation panel (separate floating panel above input) -->
 				{#if aiPanelOpen && $messages.length > 0}
 					<div class="animate-in rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10">
@@ -620,29 +874,57 @@
 							<span class="text-xs font-medium text-zinc-500">Conversation</span>
 							<div class="flex items-center gap-1">
 								<button
-									class="rounded-lg p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
-									onclick={() => { aiPanelOpen = false; }}
+									class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
+									onclick={() => {
+										aiPanelOpen = false;
+									}}
 									aria-label="Minimize chat"
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
 										<path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
 									</svg>
 								</button>
 								<button
-									class="rounded-lg p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
-									onclick={() => { aiPanelOpen = false; conversation.clear(); }}
+									class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
+									onclick={() => {
+										aiPanelOpen = false;
+										conversation.clear();
+									}}
 									aria-label="Close conversation"
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
 										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 									</svg>
 								</button>
 							</div>
 						</div>
-						<div bind:this={messagesContainer} class="max-h-[50vh] overflow-y-auto px-5 pb-5 space-y-3" style={chatFontStyle}>
-							{#each $messages as msg, i}
+						<div
+							bind:this={messagesContainer}
+							class="max-h-[50dvh] space-y-3 overflow-y-auto px-5 pb-5"
+							style={chatFontStyle}
+						>
+							{#each $messages as msg, i (i)}
 								<div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
-									<div class="max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed {msg.role === 'user' ? 'bg-zinc-700 text-zinc-100' : 'bg-zinc-800 text-zinc-100'}" style={chatFontStyle}>
+									<div
+										class="max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed {msg.role === 'user'
+											? 'bg-zinc-700 text-zinc-100'
+											: 'bg-zinc-800 text-zinc-100'}"
+										style={chatFontStyle}
+									>
 										{#if msg.role === 'assistant'}
 											<Markdown content={msg.content} />
 										{:else}
@@ -652,10 +934,10 @@
 								</div>
 								{#if msg.role === 'assistant' && i === $messages.length - 1 && msg.suggestions?.length && !$loading}
 									<div class="flex flex-wrap gap-2 pl-1">
-										{#each msg.suggestions as suggestion}
+										{#each msg.suggestions as suggestion (suggestion)}
 											<button
 												onclick={() => sendAiMessage(suggestion)}
-												class="rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+												class="rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
 											>
 												{suggestion}
 											</button>
@@ -667,8 +949,14 @@
 								<div class="flex justify-start">
 									<div class="flex items-center gap-1.5 rounded-2xl bg-zinc-800 px-4 py-3">
 										<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"></div>
-										<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500" style="animation-delay: 0.15s"></div>
-										<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500" style="animation-delay: 0.3s"></div>
+										<div
+											class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
+											style="animation-delay: 0.15s"
+										></div>
+										<div
+											class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
+											style="animation-delay: 0.3s"
+										></div>
 									</div>
 								</div>
 							{/if}
@@ -686,197 +974,408 @@
 					class="hidden"
 				/>
 
+				<!-- Product selection bar -->
+				{#if $selectedProductIds.length > 0}
+					<div
+						class="flex items-center justify-between rounded-2xl bg-zinc-900 px-5 py-3 shadow-2xl ring-1 ring-white/10"
+					>
+						<div class="flex items-center gap-3">
+							<span class="text-sm text-zinc-300">{$selectedProductIds.length} Items selected</span>
+							<button
+								class="flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+								onclick={() => selectedProductIds.set([])}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<circle cx="12" cy="12" r="10" />
+									<path stroke-linecap="round" d="m15 9-6 6m0-6 6 6" />
+								</svg>
+								Clear
+							</button>
+						</div>
+						<button
+							class="rounded-xl bg-white px-5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
+							onclick={() => goto(resolve('/products/order'))}
+						>
+							Start Order
+						</button>
+					</div>
+				{/if}
+
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div
-						class="rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10 cursor-text"
-						onclick={(e) => { if (!(e.target as HTMLElement).closest('button')) focusAiInput(); }}
+				<div
+					class="cursor-text rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10"
+					onclick={(e) => {
+						if (!(e.target as HTMLElement).closest('button')) focusAiInput();
+					}}
+				>
+					<!-- Mobile drag handle to close -->
+					<button
+						class="flex w-full items-center justify-center pt-2 pb-0 lg:hidden"
+						onclick={(e) => {
+							e.stopPropagation();
+							mobileAiDockOpen = false;
+						}}
+						aria-label="Close AI dock"
 					>
-						<div class="px-5 pt-4 pb-3">
-							<!-- Agent indicator -->
-							{#if $activeAgent}
-								<div class="flex items-center gap-2 mb-2">
-									<span class="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 px-2.5 py-1 text-sm text-blue-400">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-										</svg>
-										{$activeAgent.name}
-										<button onclick={() => conversation.setAgent(null)} aria-label="Clear agent" class="ml-0.5 hover:text-blue-200">
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-											</svg>
-										</button>
-									</span>
-								</div>
-							{/if}
-
-							<!-- Text input row -->
-							<div class="flex items-center gap-4">
-								<div
-									bind:this={aiInputEl}
-									id="ai-dock-input"
-									contenteditable="true"
-									role="textbox"
-									tabindex="0"
-									aria-label="Ask anything about your business"
-									aria-multiline="true"
-									onkeydown={handleAiKeydown}
-									oninput={handleAiInput}
-									class="ai-input flex-1 min-h-6 max-h-40 overflow-y-auto bg-transparent text-base leading-6 text-zinc-100 outline-none break-words"
-									data-placeholder="Ask anything about your business..."
-									style={chatFontStyle}
-								></div>
-							</div>
-
-							<!-- Attached files -->
-							{#if hasAttachments}
-								<div class="flex flex-wrap gap-2 mt-3 ml-10">
-									{#each attachedFiles as { file, preview }, i}
-										<div class="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-2 py-1 ring-1 ring-white/5">
-											{#if preview}
-												<img src={preview} alt={file.name} class="h-8 w-8 rounded object-cover" />
-											{:else}
-												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-												</svg>
-											{/if}
-											<div class="flex flex-col">
-												<span class="max-w-[120px] truncate text-[11px] font-medium text-zinc-300">{file.name}</span>
-												<span class="text-[10px] text-zinc-500">{formatFileSize(file.size)}</span>
-											</div>
-											<button
-												onclick={() => removeFile(i)}
-												class="ml-1 rounded-full p-0.5 text-zinc-500 hover:text-red-400 transition-colors"
-												aria-label="Remove file"
-											>
-												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-												</svg>
-											</button>
-										</div>
-									{/each}
-								</div>
-							{/if}
-
-							<!-- Toolbar row: +file & agent on left, mic/send on right -->
-							<div class="flex items-center justify-between mt-2">
-								<div class="flex items-center gap-1">
-									<button
-										onclick={() => fileInput?.click()}
-										disabled={$loading}
-										class="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors disabled:opacity-50"
-										aria-label="Attach file"
+						<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
+					</button>
+					<div class="px-5 pt-4 pb-3">
+						<!-- Agent indicator -->
+						{#if $activeAgent}
+							<div class="mb-2 flex items-center gap-2">
+								<span
+									class="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 px-2.5 py-1 text-sm text-blue-400"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-3 w-3"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
 									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+										/>
+									</svg>
+									{$activeAgent.name}
+									<button
+										onclick={() => conversation.setAgent(null)}
+										aria-label="Clear agent"
+										class="ml-0.5 hover:text-blue-200"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-3 w-3"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M6 18L18 6M6 6l12 12"
+											/>
 										</svg>
 									</button>
+								</span>
+							</div>
+						{/if}
 
-									{#if availableAgents.length > 0}
-										<div class="relative">
-											<button
-												onclick={() => (showAgentPicker = !showAgentPicker)}
-												class="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors {$activeAgent ? 'text-blue-400' : ''}"
-												aria-label="Select agent"
+						<!-- Text input row -->
+						<div class="flex items-center gap-4">
+							<div
+								bind:this={aiInputEl}
+								id="ai-dock-input"
+								contenteditable="true"
+								role="textbox"
+								tabindex="0"
+								aria-label="Ask anything about your business"
+								aria-multiline="true"
+								onkeydown={handleAiKeydown}
+								oninput={handleAiInput}
+								class="ai-input max-h-40 min-h-6 flex-1 overflow-y-auto bg-transparent text-base leading-6 break-words text-zinc-100 outline-none"
+								data-placeholder="Ask anything about your business..."
+								style={chatFontStyle}
+							></div>
+						</div>
+
+						<!-- Attached files -->
+						{#if hasAttachments}
+							<div class="mt-3 ml-10 flex flex-wrap gap-2">
+								{#each attachedFiles as { file, preview }, i (i)}
+									<div
+										class="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-2 py-1 ring-1 ring-white/5"
+									>
+										{#if preview}
+											<img src={preview} alt={file.name} class="h-8 w-8 rounded object-cover" />
+										{:else}
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-4 w-4 text-zinc-400"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="2"
 											>
-												<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-												</svg>
-											</button>
-
-											{#if showAgentPicker}
-												<div class="absolute bottom-full left-0 mb-2 w-56 rounded-xl bg-zinc-800 p-2 shadow-xl ring-1 ring-white/10">
-													<button
-														class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {!$activeAgent ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
-														onclick={() => { conversation.setAgent(null); showAgentPicker = false; }}
-													>
-														<span class="text-sm">Default Assistant</span>
-													</button>
-													{#each availableAgents as agent}
-														<button
-															class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {$activeAgent?.id === agent.id ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
-															onclick={() => { conversation.setAgent({ id: agent.id, name: agent.name, slug: agent.slug }); showAgentPicker = false; }}
-														>
-															<div>
-																<span class="text-sm font-medium">{agent.name}</span>
-																{#if agent.description}
-																	<p class="text-[11px] text-zinc-500 line-clamp-1">{agent.description}</p>
-																{/if}
-															</div>
-														</button>
-													{/each}
-												</div>
-											{/if}
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+												/>
+											</svg>
+										{/if}
+										<div class="flex flex-col">
+											<span class="max-w-[120px] truncate text-[11px] font-medium text-zinc-300"
+												>{file.name}</span
+											>
+											<span class="text-[10px] text-zinc-500">{formatFileSize(file.size)}</span>
 										</div>
-									{/if}
-								</div>
-
-								<div class="shrink-0">
-									{#if voiceMode}
-										<!-- Voice mode active — always show voice button regardless of $loading -->
 										<button
-											onclick={toggleVoice}
-											class="flex h-9 w-9 items-center justify-center rounded-full {voiceState === 'listening' ? 'bg-blue-500 text-white' : voiceState === 'speaking' ? 'bg-white text-zinc-900' : 'bg-zinc-600 text-white'}"
-											aria-label="Stop voice mode"
+											onclick={() => removeFile(i)}
+											class="ml-1 rounded-full p-0.5 text-zinc-500 transition-colors hover:text-red-400"
+											aria-label="Remove file"
 										>
-											{#if voiceState === 'processing'}
-												<div class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
-											{:else}
-												<div class="flex items-center gap-[2px]">
-													<span class="{voiceState === 'listening' || voiceState === 'speaking' ? 'voice-bar' : ''} h-[8px] w-[3px] rounded-full bg-current"></span>
-													<span class="{voiceState === 'listening' || voiceState === 'speaking' ? 'voice-bar' : ''} h-[18px] w-[3px] rounded-full bg-current" style="animation-delay: 0.15s"></span>
-													<span class="{voiceState === 'listening' || voiceState === 'speaking' ? 'voice-bar' : ''} h-[12px] w-[3px] rounded-full bg-current" style="animation-delay: 0.3s"></span>
-													<span class="{voiceState === 'listening' || voiceState === 'speaking' ? 'voice-bar' : ''} h-[6px] w-[3px] rounded-full bg-current" style="animation-delay: 0.45s"></span>
-												</div>
-											{/if}
-										</button>
-									{:else if $loading}
-										<div class="flex h-9 w-9 items-center justify-center">
-											<div class="h-5 w-5 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"></div>
-										</div>
-									{:else if hasAiInput || hasAttachments}
-										<!-- Send button -->
-										<button
-											onclick={() => sendAiMessage()}
-											class="flex h-9 w-9 items-center justify-center rounded-none bg-white text-zinc-900 hover:bg-zinc-200 transition-colors"
-											aria-label="Send message"
-										>
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-3.5 w-3.5"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="2"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M6 18L18 6M6 6l12 12"
+												/>
 											</svg>
 										</button>
-									{:else}
-										<!-- Voice idle: static wave icon -->
+									</div>
+								{/each}
+							</div>
+						{/if}
+
+						<!-- Toolbar row: +file & agent on left, mic/send on right -->
+						<div class="mt-2 flex items-center justify-between">
+							<div class="flex items-center gap-1">
+								<button
+									onclick={() => fileInput?.click()}
+									disabled={$loading}
+									class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
+									aria-label="Attach file"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M12 4.5v15m7.5-7.5h-15"
+										/>
+									</svg>
+								</button>
+
+								{#if availableAgents.length > 0}
+									<div class="relative">
 										<button
-											onclick={toggleVoice}
-											class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-900 hover:bg-zinc-200 transition-colors"
-											aria-label="Voice input"
+											onclick={() => (showAgentPicker = !showAgentPicker)}
+											class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1.5 {$activeAgent
+												? 'text-blue-400'
+												: ''}"
+											aria-label="Select agent"
 										>
-											<div class="flex items-center gap-[2px]">
-												<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
-												<span class="h-[18px] w-[3px] rounded-full bg-current"></span>
-												<span class="h-[12px] w-[3px] rounded-full bg-current"></span>
-												<span class="h-[6px] w-[3px] rounded-full bg-current"></span>
-											</div>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-5 w-5"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="1.5"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+												/>
+											</svg>
 										</button>
-									{/if}
-								</div>
+
+										{#if showAgentPicker}
+											<div
+												class="absolute bottom-full left-0 mb-2 w-56 rounded-xl bg-zinc-800 p-2 shadow-xl ring-1 ring-white/10"
+											>
+												<button
+													class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {!$activeAgent
+														? 'bg-zinc-700 text-zinc-100'
+														: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
+													onclick={() => {
+														conversation.setAgent(null);
+														showAgentPicker = false;
+													}}
+												>
+													<span class="text-sm">Default Assistant</span>
+												</button>
+												{#each availableAgents as agent (agent.id)}
+													<button
+														class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {$activeAgent?.id ===
+														agent.id
+															? 'bg-zinc-700 text-zinc-100'
+															: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
+														onclick={() => {
+															conversation.setAgent({
+																id: agent.id,
+																name: agent.name,
+																slug: agent.slug
+															});
+															showAgentPicker = false;
+														}}
+													>
+														<div>
+															<span class="text-sm font-medium">{agent.name}</span>
+															{#if agent.description}
+																<p class="line-clamp-1 text-[11px] text-zinc-500">
+																	{agent.description}
+																</p>
+															{/if}
+														</div>
+													</button>
+												{/each}
+											</div>
+										{/if}
+									</div>
+								{/if}
+							</div>
+
+							<div class="shrink-0">
+								{#if voiceMode}
+									<!-- Voice mode active — always show voice button regardless of $loading -->
+									<button
+										onclick={toggleVoice}
+										class="flex h-11 w-11 items-center justify-center rounded-full lg:h-9 lg:w-9 {voiceState ===
+										'listening'
+											? 'bg-blue-500 text-white'
+											: voiceState === 'speaking'
+												? 'bg-white text-zinc-900'
+												: 'bg-zinc-600 text-white'}"
+										aria-label="Stop voice mode"
+									>
+										{#if voiceState === 'processing'}
+											<div
+												class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+											></div>
+										{:else}
+											<div class="flex items-center gap-[2px]">
+												<span
+													class="{voiceState === 'listening' || voiceState === 'speaking'
+														? 'voice-bar'
+														: ''} h-[8px] w-[3px] rounded-full bg-current"
+												></span>
+												<span
+													class="{voiceState === 'listening' || voiceState === 'speaking'
+														? 'voice-bar'
+														: ''} h-[18px] w-[3px] rounded-full bg-current"
+													style="animation-delay: 0.15s"
+												></span>
+												<span
+													class="{voiceState === 'listening' || voiceState === 'speaking'
+														? 'voice-bar'
+														: ''} h-[12px] w-[3px] rounded-full bg-current"
+													style="animation-delay: 0.3s"
+												></span>
+												<span
+													class="{voiceState === 'listening' || voiceState === 'speaking'
+														? 'voice-bar'
+														: ''} h-[6px] w-[3px] rounded-full bg-current"
+													style="animation-delay: 0.45s"
+												></span>
+											</div>
+										{/if}
+									</button>
+								{:else if $loading}
+									<div class="flex h-11 w-11 items-center justify-center lg:h-9 lg:w-9">
+										<div
+											class="h-5 w-5 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
+										></div>
+									</div>
+								{:else if hasAiInput || hasAttachments}
+									<!-- Send button -->
+									<button
+										onclick={() => sendAiMessage()}
+										disabled={!$isOnline}
+										class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+										aria-label={$isOnline ? 'Send message' : 'Offline — cannot send'}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2.5"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
+											/>
+										</svg>
+									</button>
+								{:else}
+									<!-- Voice idle: static wave icon -->
+									<button
+										onclick={toggleVoice}
+										disabled={!$isOnline}
+										class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+										aria-label={$isOnline ? 'Voice input' : 'Offline — voice unavailable'}
+									>
+										<div class="flex items-center gap-[2px]">
+											<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
+											<span class="h-[18px] w-[3px] rounded-full bg-current"></span>
+											<span class="h-[12px] w-[3px] rounded-full bg-current"></span>
+											<span class="h-[6px] w-[3px] rounded-full bg-current"></span>
+										</div>
+									</button>
+								{/if}
 							</div>
 						</div>
 					</div>
+				</div>
 			</div>
 		</div>
-		{/if}
-	</div>
+	{/if}
 
-	<SearchDialog onassistantToggle={() => { const input = document.getElementById('ai-dock-input'); if (input) input.focus(); }} />
+	<!-- Mobile bottom nav — CSS hides on desktop, JS hides when AI dock is open -->
+	<div class="lg:hidden {mobileAiDockOpen ? 'hidden' : ''}">
+		<MobileBottomNav
+			onAiToggle={() => (mobileAiDockOpen = true)}
+			role={data.membership?.role ?? 'guest'}
+			orgType={data.orgType}
+			brandScope={data.brandScope}
+			isBuyer={data.isBuyer}
+			{isNxBlsr}
+			userInitials={getUserInitials(data.user?.display_name)}
+			onSignOut={handleSignOut}
+			onHelp={() => (showHelp = true)}
+		/>
+	</div>
+	<SearchDialog
+		isBrandOrg={data.orgType === 'brand'}
+		isBuyer={data.isBuyer === true}
+		onassistantToggle={() => {
+			const input = document.getElementById('ai-dock-input');
+			if (input) input.focus();
+		}}
+	/>
 {/if}
 
 <style>
 	@keyframes nav-progress-anim {
-		0% { width: 0%; }
-		50% { width: 70%; }
-		100% { width: 95%; }
+		0% {
+			width: 0%;
+		}
+		50% {
+			width: 70%;
+		}
+		100% {
+			width: 95%;
+		}
 	}
 	.nav-progress {
 		animation: nav-progress-anim 2s ease-in-out infinite;
@@ -894,7 +1393,7 @@
 	}
 
 	/* Prevent pasting styled content */
-	.ai-input * {
+	:global(.ai-input *) {
 		font: inherit;
 		color: inherit;
 	}
@@ -905,8 +1404,12 @@
 	}
 
 	@keyframes voice-wave {
-		0% { transform: scaleY(0.4); }
-		100% { transform: scaleY(1); }
+		0% {
+			transform: scaleY(0.4);
+		}
+		100% {
+			transform: scaleY(1);
+		}
 	}
 
 	/* Instant reset when animation class is removed */

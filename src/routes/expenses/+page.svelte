@@ -1,32 +1,43 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import PageHeader from '$lib/components/shared/PageHeader.svelte';
+	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import type { BrandExpense } from '$lib/types/database.js';
 
 	let { data } = $props();
+	const isBrandOrg = $derived(data.orgType === 'brand');
 	const expenses = $derived(data.expenses as BrandExpense[]);
 	const brands = $derived(data.brands as { id: string; name: string }[]);
 	const canCreate = $derived(
 		data.membership?.role === 'admin' ||
-		data.membership?.role === 'owner' ||
-		data.membership?.role === 'member' ||
-		data.membership?.role === 'sales'
+			data.membership?.role === 'owner' ||
+			data.membership?.role === 'member' ||
+			data.membership?.role === 'sales'
 	);
-	const metrics = $derived(data.metrics as {
-		totalPending: number;
-		totalApproved: number;
-		totalRejected: number;
-		avgExpense: number;
-		pendingCount: number;
-		approvedCount: number;
-		rejectedCount: number;
-	});
+	const metrics = $derived(
+		data.metrics as {
+			totalPending: number;
+			totalApproved: number;
+			totalRejected: number;
+			avgExpense: number;
+			pendingCount: number;
+			approvedCount: number;
+			rejectedCount: number;
+		}
+	);
 
-	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+	const fmt = new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: 'USD',
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 0
+	});
 
 	const statusTabs = ['all', 'draft', 'submitted', 'approved', 'rejected'] as const;
 	const statusLabels: Record<string, string> = {
@@ -52,10 +63,11 @@
 
 	let search = $state('');
 	const filtered = $derived(
-		expenses.filter((e) =>
-			e.expense_number.toLowerCase().includes(search.toLowerCase()) ||
-			e.description.toLowerCase().includes(search.toLowerCase()) ||
-			(e.brands?.name?.toLowerCase().includes(search.toLowerCase()) ?? false)
+		expenses.filter(
+			(e) =>
+				e.expense_number.toLowerCase().includes(search.toLowerCase()) ||
+				e.description.toLowerCase().includes(search.toLowerCase()) ||
+				(e.brands?.name?.toLowerCase().includes(search.toLowerCase()) ?? false)
 		)
 	);
 
@@ -67,7 +79,7 @@
 	};
 
 	function exportExpenses() {
-		const rows = filtered.map((e: any) => ({
+		const rows = filtered.map((e) => ({
 			expense_number: e.expense_number,
 			brand: e.brands?.name ?? '',
 			category: categoryLabels[e.category] ?? e.category,
@@ -82,106 +94,114 @@
 	}
 
 	function setFilter(key: string, value: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams($page.url.searchParams);
 		if (!value || value === 'all') {
 			params.delete(key);
 		} else {
 			params.set(key, value);
 		}
-		goto(`/expenses?${params.toString()}`, { replaceState: true });
+		goto(resolve(`/expenses?${params.toString()}`), { replaceState: true });
 	}
 </script>
 
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-3xl">Expenses</h1>
-			<p class="mt-1 text-sm font-mono text-muted-foreground">{expenses.length} expense{expenses.length !== 1 ? 's' : ''}</p>
-		</div>
-		<div class="flex items-center gap-2">
-			{#if filtered.length > 0}
-				<Button variant="outline" size="sm" onclick={exportExpenses}>Export CSV</Button>
-			{/if}
-			{#if canCreate}
-				<Button href="/expenses/new">
-					<svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-					New Expense
-				</Button>
-			{/if}
-		</div>
-	</div>
-
-	<!-- Status tabs -->
-	<div class="flex gap-1 border-b">
-		{#each statusTabs as tab}
-			<button
-				class="whitespace-nowrap px-4 py-2 text-[13px] font-medium transition-colors -mb-px {activeStatus === tab ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}"
-				style="border-bottom: 1px solid {activeStatus === tab ? 'currentColor' : 'transparent'}"
-				onclick={() => setFilter('status', tab)}
-			>
-				{statusLabels[tab] ?? tab}
-			</button>
-		{/each}
-	</div>
+	<PageHeader
+		title="Expenses"
+		subtitle="{expenses.length} expense{expenses.length !== 1 ? 's' : ''}"
+	>
+		{#if filtered.length > 0}
+			<Button variant="outline" onclick={exportExpenses}>Export CSV</Button>
+		{/if}
+		{#if canCreate}
+			<Button href="/expenses/new" class="min-w-[100px]">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="-ml-1 h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
+				>
+				New<span class="hidden sm:inline"> Expense</span>
+			</Button>
+		{/if}
+	</PageHeader>
 
 	<!-- Analytics Cards -->
-	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		<Card>
+	<div
+		class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
+	>
+		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
-				<p class="text-sm font-medium font-mono text-muted-foreground">Pending Review</p>
+				<p class="font-mono text-sm font-medium text-muted-foreground">Pending Review</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.totalPending)}</p>
-				<p class="mt-0.5 text-sm font-mono text-muted-foreground">{metrics.pendingCount} submitted</p>
+				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
+					{metrics.pendingCount} submitted
+				</p>
 			</CardContent>
 		</Card>
 
-		<Card>
+		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
-				<p class="text-sm font-medium font-mono text-muted-foreground">Approved</p>
+				<p class="font-mono text-sm font-medium text-muted-foreground">Approved</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.totalApproved)}</p>
-				<p class="mt-0.5 text-sm font-mono text-muted-foreground">{metrics.approvedCount} expense{metrics.approvedCount !== 1 ? 's' : ''}</p>
+				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
+					{metrics.approvedCount} expense{metrics.approvedCount !== 1 ? 's' : ''}
+				</p>
 			</CardContent>
 		</Card>
 
-		<Card>
+		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
-				<p class="text-sm font-medium font-mono text-muted-foreground">Rejected</p>
+				<p class="font-mono text-sm font-medium text-muted-foreground">Rejected</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.totalRejected)}</p>
-				<p class="mt-0.5 text-sm font-mono text-muted-foreground">{metrics.rejectedCount} expense{metrics.rejectedCount !== 1 ? 's' : ''}</p>
+				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
+					{metrics.rejectedCount} expense{metrics.rejectedCount !== 1 ? 's' : ''}
+				</p>
 			</CardContent>
 		</Card>
 
-		<Card>
+		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
-				<p class="text-sm font-medium font-mono text-muted-foreground">Average Expense</p>
+				<p class="font-mono text-sm font-medium text-muted-foreground">Average Expense</p>
 				<p class="mt-1 text-2xl font-semibold">{fmt.format(metrics.avgExpense)}</p>
-				<p class="mt-0.5 text-sm font-mono text-muted-foreground">{expenses.length} total</p>
+				<p class="mt-0.5 font-mono text-sm text-muted-foreground">{expenses.length} total</p>
 			</CardContent>
 		</Card>
 	</div>
 
-	<!-- Filters -->
-	<div class="flex flex-wrap gap-3">
-		<div class="max-w-xs">
-			<Input placeholder="Search expenses..." bind:value={search} />
-		</div>
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('brand', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Brands</option>
-			{#each brands as brand}
-				<option value={brand.id} selected={$page.url.searchParams.get('brand') === brand.id}>{brand.name}</option>
-			{/each}
-		</select>
-		<select
-			class="h-10 rounded-md border border-input bg-background px-3 text-[13px]"
-			onchange={(e) => setFilter('category', (e.target as HTMLSelectElement).value)}
-		>
-			<option value="">All Categories</option>
-			{#each Object.entries(categoryLabels) as [value, label]}
-				<option {value}>{label}</option>
-			{/each}
-		</select>
+	<!-- Filters: Search + Status + Category | spacer | Brand -->
+	<div class="flex flex-wrap items-center gap-3">
+		<SearchInput placeholder="Search expenses..." bind:value={search} class="w-64" />
+		<SelectField
+			value={activeStatus}
+			items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+			placeholder="Status"
+			class="min-w-[120px]"
+			onValueChange={(v) => setFilter('status', v)}
+		/>
+		<SelectField
+			value={$page.url.searchParams.get('category') ?? ''}
+			items={[
+				{ value: '', label: 'All Categories' },
+				...Object.entries(categoryLabels).map(([value, label]) => ({ value, label }))
+			]}
+			placeholder="All Categories"
+			onValueChange={(v) => setFilter('category', v)}
+		/>
+		{#if !isBrandOrg}
+			<SelectField
+				value={$page.url.searchParams.get('brand') ?? ''}
+				items={[
+					{ value: '', label: 'All Brands' },
+					...brands.map((b) => ({ value: b.id, label: b.name }))
+				]}
+				placeholder="All Brands"
+				onValueChange={(v) => setFilter('brand', v)}
+			/>
+		{/if}
 	</div>
 
 	{#if filtered.length === 0}
@@ -190,50 +210,127 @@
 				<p class="text-lg font-semibold">No expenses match your search</p>
 				<p class="mt-2 text-sm text-muted-foreground">Try adjusting your filters</p>
 			{:else}
-				<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="0.4">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="mx-auto h-16 w-16 text-foreground"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="0.4"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"
+					/>
 				</svg>
 				<p class="mt-4 text-lg font-semibold">Ready to track expenses</p>
 				<p class="mt-2 text-sm text-muted-foreground">Submit your first expense to get started</p>
 			{/if}
 		</div>
 	{:else}
-		<div class="overflow-x-auto rounded-none border">
+		<div class="overflow-x-auto border-b">
 			<table class="w-full">
 				<thead>
-					<tr class="border-b bg-muted/40">
-						<th class="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Expense</th>
-						<th class="px-4 py-2.5 text-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Status</th>
-						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 sm:table-cell">Brand</th>
-						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 md:table-cell">Category</th>
-						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 md:table-cell">Date</th>
-						<th class="hidden px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70 lg:table-cell">Submitted By</th>
-						<th class="px-4 py-2.5 text-right text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">Amount</th>
+					<tr class="border-b">
+						<th
+							class="w-48 px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Expense</th
+						>
+						<th
+							class="px-4 py-2.5 text-center text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Status</th
+						>
+						{#if !isBrandOrg}
+							<th
+								class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
+								>Brand</th
+							>
+						{/if}
+						<th
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
+							>Submitted By</th
+						>
+						<th
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
+							>Approved</th
+						>
+						<th
+							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							>Amount</th
+						>
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each filtered as expense}
-						<tr class="transition-colors hover:bg-muted/30">
-							<td class="px-4 py-3">
-								<a href="/expenses/{expense.id}" class="text-base font-medium font-mono hover:underline">{expense.expense_number}</a>
-								<p class="text-sm text-muted-foreground line-clamp-1">{expense.description}</p>
+					{#each filtered as expense (expense.id)}
+						<tr
+							role="link"
+							tabindex="0"
+							aria-label={expense.expense_number}
+							onclick={() => goto(resolve(`/expenses/${expense.id}`))}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									goto(resolve(`/expenses/${expense.id}`));
+								}
+							}}
+							class="cursor-pointer transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none"
+						>
+							<td class="w-48 px-4 py-3 whitespace-nowrap">
+								<a
+									href={resolve(`/expenses/${expense.id}`)}
+									onclick={(e) => e.stopPropagation()}
+									class="font-mono text-base font-medium hover:underline"
+									>{expense.expense_number}</a
+								>
+								<p class="font-mono text-sm text-muted-foreground">
+									{categoryLabels[expense.category] ?? expense.category}
+								</p>
 							</td>
 							<td class="px-4 py-3 text-center">
-								<span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium {statusBadgeColors[expense.status] ?? 'bg-zinc-100 text-zinc-500'}">
+								<span
+									class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {statusBadgeColors[
+										expense.status
+									] ?? 'bg-zinc-100 text-zinc-500'}"
+								>
 									{statusLabels[expense.status] ?? expense.status}
 								</span>
 							</td>
-							<td class="hidden px-4 py-3 sm:table-cell">
-								<span class="text-sm">{expense.brands?.name ?? '—'}</span>
-							</td>
-							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm">{categoryLabels[expense.category] ?? expense.category}</span>
-							</td>
-							<td class="hidden px-4 py-3 md:table-cell">
-								<span class="text-sm">{new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-							</td>
+							{#if !isBrandOrg}
+								<td class="hidden px-4 py-3 sm:table-cell">
+									<span class="text-sm">{expense.brands?.name ?? '—'}</span>
+								</td>
+							{/if}
 							<td class="hidden px-4 py-3 lg:table-cell">
 								<span class="text-sm">{expense.profiles?.display_name ?? '—'}</span>
+								<p class="font-mono text-sm text-muted-foreground">
+									{new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric'
+									})}
+								</p>
+							</td>
+							<td class="hidden px-4 py-3 lg:table-cell">
+								{#if expense.status === 'approved' || expense.status === 'rejected'}
+									{@const reviewer = (
+										expense as { reviewer?: { display_name: string | null } | null }
+									).reviewer}
+									{@const when =
+										expense.status === 'approved' ? expense.approved_at : expense.rejected_at}
+									<span class="text-sm">{reviewer?.display_name ?? '—'}</span>
+									{#if when}
+										<p class="font-mono text-sm text-muted-foreground">
+											{new Date(when).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric',
+												year: 'numeric'
+											})}
+										</p>
+									{/if}
+								{:else}
+									<span class="text-sm text-muted-foreground/50">—</span>
+								{/if}
 							</td>
 							<td class="px-4 py-3 text-right font-mono">
 								<span class="text-sm">{fmt.format(Number(expense.amount))}</span>

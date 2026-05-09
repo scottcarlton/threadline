@@ -2,17 +2,65 @@ import * as Sentry from '@sentry/sveltekit';
 import { createServerClient } from '@supabase/ssr';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SENTRY_DSN } from '$env/static/public';
+import { dev } from '$app/environment';
+import {
+	PUBLIC_SUPABASE_URL,
+	PUBLIC_SUPABASE_ANON_KEY,
+	PUBLIC_SENTRY_DSN
+} from '$env/static/public';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-import type { OrgType } from '$lib/types/database.js';
+import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
+import type {
+	OrgType,
+	OrganizationMember,
+	Organization,
+	AccountUser
+} from '$lib/types/database.js';
+
+type MembershipWithOrg = OrganizationMember & { organizations: Organization };
+type BrandAccessRow = { brand_id: string; brands?: { name?: string } | { name?: string }[] | null };
+type BuyerAccountRow = AccountUser & {
+	account_id: string;
+	accounts?: { organization_id?: string } | null;
+};
+type SsoIdentity = { provider?: string };
 
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
-	tracesSampleRate: 0.1
+	enabled: !dev,
+	environment: import.meta.env.VERCEL_ENV ?? (dev ? 'development' : 'production'),
+	tracesSampleRate: 0.1,
+	beforeSend(event, hint) {
+		const err = hint?.originalException as
+			| { status?: number; location?: string; body?: { message?: string } }
+			| undefined;
+
+		// SvelteKit `error(404, …)` / `redirect(303, …)` aren't bugs — don't page on them.
+		if (err && typeof err === 'object') {
+			if (typeof err.status === 'number' && err.status >= 300 && err.status < 500) return null;
+			if (typeof err.location === 'string') return null;
+		}
+
+		return event;
+	}
 });
 
-const PUBLIC_ROUTES = ['/login', '/signup', '/invite', '/buyer-invite', '/auth/callback', '/upload', '/features', '/intelligence', '/solutions', '/pricing'];
+const PUBLIC_ROUTES = [
+	'/login',
+	'/signup',
+	'/invite',
+	'/buyer-invite',
+	'/connect',
+	'/auth/callback',
+	'/upload',
+	'/api/dev',
+	'/features',
+	'/intelligence',
+	'/solutions',
+	'/resources',
+	'/pricing'
+];
 
 const authHandle: Handle = async ({ event, resolve }) => {
 	const supabase = createServerClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
@@ -33,15 +81,15 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 	event.locals.safeGetSession = async () => {
 		const {
-			data: { session }
-		} = await supabase.auth.getSession();
-		if (!session) return { session: null, user: null };
-
-		const {
 			data: { user },
 			error
 		} = await supabase.auth.getUser();
-		if (error) return { session: null, user: null };
+		if (error || !user) return { session: null, user: null };
+
+		const {
+			data: { session }
+		} = await supabase.auth.getSession();
+		if (!session) return { session: null, user: null };
 		return { session, user };
 	};
 
@@ -52,6 +100,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.isBuyer = false;
 	event.locals.buyerAccounts = null;
 	event.locals.buyerBrandIds = null;
+	event.locals.isSystemAdmin = false;
 	event.locals.orgType = 'rep';
 	event.locals.allMemberships = [];
 
@@ -72,25 +121,46 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	}
 
 	// Redirect authenticated users away from login/signup
-	if (session && (event.url.pathname.startsWith('/login') || event.url.pathname.startsWith('/signup'))) {
-		throw redirect(303, '/insight');
+	if (
+		session &&
+		(event.url.pathname.startsWith('/login') || event.url.pathname.startsWith('/signup'))
+	) {
+		throw redirect(303, isSystemAdminEmail(user?.email) ? '/system' : '/insight');
 	}
 
 	// Load user context for authenticated routes
 	if (session && user && !isPublicRoute) {
+		// System super-admin path: above-org identity, no org/buyer context.
+		// Confines the session to /system/** and its API/logout escape hatches.
+		if (isSystemAdminEmail(user.email)) {
+			const { data: profile } = await supabaseAdmin
+				.from('profiles')
+				.select('*')
+				.eq('id', user.id)
+				.single();
+			event.locals.user = profile;
+			event.locals.isSystemAdmin = true;
+			const path = event.url.pathname;
+			const allowed =
+				path.startsWith('/system') || path.startsWith('/api/') || path.startsWith('/logout');
+			if (!allowed) throw redirect(303, '/system');
+			return resolve(event);
+		}
+
 		const [{ data: profile }, { data: allMemberships }] = await Promise.all([
-			supabase.from('profiles').select('*').eq('id', user.id).single(),
+			supabaseAdmin.from('profiles').select('*').eq('id', user.id).single(),
 			supabase.from('organization_members').select('*, organizations(*)').eq('profile_id', user.id)
 		]);
 
 		if (allMemberships?.length) {
-			event.locals.allMemberships = allMemberships as any;
+			const typedMemberships = allMemberships as MembershipWithOrg[];
+			event.locals.allMemberships = typedMemberships;
 
 			// Determine active org from cookie, fallback to first membership
 			const activeOrgId = event.cookies.get('active_org_id');
 			const membership = activeOrgId
-				? allMemberships.find((m: any) => m.organization_id === activeOrgId) ?? allMemberships[0]
-				: allMemberships[0];
+				? (typedMemberships.find((m) => m.organization_id === activeOrgId) ?? typedMemberships[0])
+				: typedMemberships[0];
 
 			// Org member path
 			let brandScope: string[] | null = null;
@@ -101,8 +171,16 @@ const authHandle: Handle = async ({ event, resolve }) => {
 					.select('brand_id, brands(name)')
 					.eq('member_id', membership.id);
 				if (brandAccess?.length) {
-					brandScope = brandAccess.map((b: any) => b.brand_id);
-					scopedBrandNames = brandAccess.map((b: any) => b.brands?.name).filter(Boolean);
+					const rows = brandAccess as BrandAccessRow[];
+					brandScope = rows.map((b) => b.brand_id);
+					scopedBrandNames = rows
+						.map((b) => {
+							const brand = b.brands;
+							if (!brand) return undefined;
+							if (Array.isArray(brand)) return brand[0]?.name;
+							return brand.name;
+						})
+						.filter((n): n is string => Boolean(n));
 				}
 			}
 
@@ -127,8 +205,9 @@ const authHandle: Handle = async ({ event, resolve }) => {
 						.single();
 
 					if (ssoProvider) {
-						const isSsoSession = user.app_metadata?.provider === 'sso' ||
-							user.identities?.some((i: any) => i.provider === 'sso');
+						const isSsoSession =
+							user.app_metadata?.provider === 'sso' ||
+							user.identities?.some((i: SsoIdentity) => i.provider === 'sso');
 						if (!isSsoSession) {
 							await supabase.auth.signOut();
 							throw redirect(303, '/login?error=sso_required');
@@ -144,20 +223,22 @@ const authHandle: Handle = async ({ event, resolve }) => {
 				.eq('profile_id', user.id);
 
 			if (buyerAccess?.length) {
+				const typedBuyerAccess = buyerAccess as BuyerAccountRow[];
 				event.locals.user = profile;
 				event.locals.isBuyer = true;
-				event.locals.buyerAccounts = buyerAccess;
+				event.locals.buyerAccounts = typedBuyerAccess;
 
 				// Load accessible brand IDs (use admin client to bypass RLS)
-				const accountIds = buyerAccess.map((a: any) => a.account_id);
+				const accountIds = typedBuyerAccess.map((a) => a.account_id);
 				const { data: brandAccess } = await supabaseAdmin
 					.from('account_brand_access')
 					.select('brand_id')
 					.in('account_id', accountIds);
-				event.locals.buyerBrandIds = brandAccess?.map((b: any) => b.brand_id) ?? null;
+				event.locals.buyerBrandIds =
+					(brandAccess as Array<{ brand_id: string }> | null)?.map((b) => b.brand_id) ?? null;
 
 				// Set organization from the account's org (use admin to bypass RLS)
-				const orgId = buyerAccess[0]?.accounts?.organization_id;
+				const orgId = typedBuyerAccess[0]?.accounts?.organization_id;
 				if (orgId) {
 					const { data: org } = await supabaseAdmin
 						.from('organizations')
@@ -169,7 +250,10 @@ const authHandle: Handle = async ({ event, resolve }) => {
 			} else {
 				// No org membership and not a buyer — redirect to onboarding
 				event.locals.user = profile;
-				if (!event.url.pathname.startsWith('/onboarding') && !event.url.pathname.startsWith('/api/')) {
+				if (
+					!event.url.pathname.startsWith('/onboarding') &&
+					!event.url.pathname.startsWith('/api/')
+				) {
 					throw redirect(303, '/onboarding');
 				}
 			}

@@ -1,9 +1,32 @@
 export type UserRole = 'admin' | 'owner' | 'member' | 'sales' | 'guest';
 export type OrgType = 'rep' | 'brand';
-export type IntegrationProvider = 'google_sheets' | 'slack' | 'notion' | 'microsoft' | 'discord';
-export type OrderStatus = 'draft' | 'submitted' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+export type IntegrationProvider =
+	| 'google_sheets'
+	| 'slack'
+	| 'notion'
+	| 'microsoft'
+	| 'discord'
+	| 'shopify';
+export type OrderStatus =
+	| 'draft'
+	| 'submitted'
+	| 'confirmed'
+	| 'preparing'
+	| 'shipped'
+	| 'delivered'
+	| 'cancelled';
+export type OrderType = 'order' | 'note';
 export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
-export type ExpenseCategory = 'trade_show' | 'samples' | 'marketing' | 'travel' | 'meals' | 'shipping' | 'photography' | 'office' | 'other';
+export type ExpenseCategory =
+	| 'trade_show'
+	| 'samples'
+	| 'marketing'
+	| 'travel'
+	| 'meals'
+	| 'shipping'
+	| 'photography'
+	| 'office'
+	| 'other';
 
 export interface Profile {
 	id: string;
@@ -18,8 +41,116 @@ export interface Organization {
 	name: string;
 	slug: string;
 	logo_url: string | null;
+	logo_storage_path: string | null;
+	legal_business_name: string | null;
+	tagline: string | null;
 	sso_enforced: boolean;
 	org_type: OrgType;
+	address_line1: string | null;
+	address_line2: string | null;
+	city: string | null;
+	state: string | null;
+	zip: string | null;
+	country: string;
+	time_zone: string;
+	currency_code: string;
+	accepted_payment_methods: string[];
+	default_payment_method: string | null;
+	default_commission_rate: number;
+	order_number_prefix: string;
+	next_order_number: number;
+	order_number_pad_width: number;
+	order_minimum_enabled: boolean;
+	order_minimum_amount: number | null;
+	handling_fee_amount: number;
+	taxes_pricing_display: 'exclusive' | 'inclusive';
+	taxes_us_general_rate: number | null;
+	taxes_us_sales_tax_enabled: boolean;
+	taxes_us_ein: string | null;
+	taxes_vat_enabled: boolean;
+	taxes_vat_registration: string | null;
+	taxes_vat_rate: number | null;
+	taxes_gst_enabled: boolean;
+	taxes_gst_registration: string | null;
+	taxes_gst_rate: number | null;
+	shipping_use_business_address: boolean;
+	shipping_from_line1: string | null;
+	shipping_from_line2: string | null;
+	shipping_from_city: string | null;
+	shipping_from_state: string | null;
+	shipping_from_zip: string | null;
+	shipping_from_country: string | null;
+	shipping_free_threshold_enabled: boolean;
+	shipping_free_threshold_amount: number | null;
+	default_shipping_method: string | null;
+	returns_window_days: number;
+	returns_policy_text: string | null;
+	returns_use_ship_from_address: boolean;
+	returns_address_line1: string | null;
+	returns_address_line2: string | null;
+	returns_address_city: string | null;
+	returns_address_state: string | null;
+	returns_address_zip: string | null;
+	returns_address_country: string | null;
+	returns_restocking_fee_type: 'percent' | 'flat';
+	returns_restocking_fee_value: number;
+	returns_buyer_pays_shipping: boolean;
+	default_shipping_method_id: string | null;
+	payments_processor: 'stripe' | 'manual';
+	payments_stripe_account_id: string | null;
+	payments_stripe_link_enabled: boolean;
+	payments_required_deposit_enabled: boolean;
+	payments_required_deposit_percent: number | null;
+	payments_deposit_account_name: string | null;
+	payments_deposit_account_last4: string | null;
+	payments_surcharge_pass_to_buyer: boolean;
+	onboarding_step: number;
+	onboarding_completed_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface OrganizationSalesTaxRate {
+	id: string;
+	organization_id: string;
+	state_code: string;
+	rate: number;
+	tax_type: 'origin' | 'destination';
+	created_at: string;
+	updated_at: string;
+}
+
+export interface OrganizationShippingMethod {
+	id: string;
+	organization_id: string;
+	name: string;
+	cost_type: 'flat' | 'calculated' | 'free';
+	cost_amount: number | null;
+	delivery_window: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+// Brand-side commerce satellites — used only when brand.organization_id
+// belongs to a rep org (manual brand). Same shape as the org satellites,
+// keyed on brand_id.
+export interface BrandSalesTaxRate {
+	id: string;
+	brand_id: string;
+	state_code: string;
+	rate: number;
+	tax_type: 'origin' | 'destination';
+	created_at: string;
+	updated_at: string;
+}
+
+export interface BrandShippingMethod {
+	id: string;
+	brand_id: string;
+	name: string;
+	cost_type: 'flat' | 'calculated' | 'free';
+	cost_amount: number | null;
+	delivery_window: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -30,6 +161,8 @@ export interface OrganizationMember {
 	profile_id: string;
 	role: UserRole;
 	commission_rate: number;
+	manages_others: boolean;
+	manager_id: string | null;
 	invited_by: string | null;
 	invited_at: string;
 	accepted_at: string | null;
@@ -43,6 +176,9 @@ export interface Invitation {
 	email: string;
 	role: UserRole;
 	brand_ids: string[];
+	commission_rate: number | null;
+	manages_others: boolean;
+	manager_id: string | null;
 	token: string;
 	invited_by: string;
 	expires_at: string;
@@ -68,12 +204,99 @@ export interface Brand {
 	archived_at: string | null;
 	created_at: string;
 	updated_at: string;
+
+	// Commerce settings — populated only on rep-org-owned manual brands.
+	// BO-owned brands leave these NULL; the order resolver reads from
+	// `organizations` instead. See migration 20260426000001 for shape.
+	order_number_prefix: string | null;
+	next_order_number: number | null;
+	order_number_pad_width: number | null;
+	order_minimum_enabled: boolean | null;
+	order_minimum_amount: number | null;
+	handling_fee_amount: number | null;
+	default_commission_rate: number | null;
+
+	taxes_pricing_display: 'exclusive' | 'inclusive' | null;
+	taxes_us_sales_tax_enabled: boolean | null;
+	taxes_us_ein: string | null;
+	taxes_us_general_rate: number | null;
+	taxes_vat_enabled: boolean | null;
+	taxes_vat_registration: string | null;
+	taxes_vat_rate: number | null;
+	taxes_gst_enabled: boolean | null;
+	taxes_gst_registration: string | null;
+	taxes_gst_rate: number | null;
+
+	shipping_use_business_address: boolean | null;
+	shipping_from_line1: string | null;
+	shipping_from_line2: string | null;
+	shipping_from_city: string | null;
+	shipping_from_state: string | null;
+	shipping_from_zip: string | null;
+	shipping_from_country: string | null;
+	shipping_free_threshold_enabled: boolean | null;
+	shipping_free_threshold_amount: number | null;
+	default_shipping_method_id: string | null;
+
+	returns_window_days: number | null;
+	returns_policy_text: string | null;
+	returns_use_ship_from_address: boolean | null;
+	returns_address_line1: string | null;
+	returns_address_line2: string | null;
+	returns_address_city: string | null;
+	returns_address_state: string | null;
+	returns_address_zip: string | null;
+	returns_address_country: string | null;
+	returns_restocking_fee_type: 'percent' | 'flat' | null;
+	returns_restocking_fee_value: number | null;
+	returns_buyer_pays_shipping: boolean | null;
+
+	payments_processor: 'stripe' | 'manual' | null;
+	payments_stripe_account_id: string | null;
+	payments_stripe_link_enabled: boolean | null;
+	payments_required_deposit_enabled: boolean | null;
+	payments_required_deposit_percent: number | null;
+	payments_deposit_account_name: string | null;
+	payments_deposit_account_last4: string | null;
+	payments_surcharge_pass_to_buyer: boolean | null;
+	accepted_payment_methods: string[] | null;
+	default_payment_method: string | null;
+	default_payment_terms: string | null;
 }
 
 export interface Account {
 	id: string;
 	organization_id: string;
 	business_name: string;
+	website: string | null;
+	contact_first_name: string | null;
+	contact_last_name: string | null;
+	contact_email: string | null;
+	contact_phone: string | null;
+	phone: string | null;
+	address_line1: string | null;
+	address_line2: string | null;
+	city: string | null;
+	state: string | null;
+	zip: string | null;
+	country: string;
+	notes: string | null;
+	territory_id: string | null;
+	payment_preference: string | null;
+	shipping_method: string | null;
+	commission_rate_override: number | null;
+	order_minimum_override: number | null;
+	is_active: boolean;
+	archived_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface AccountLocation {
+	id: string;
+	account_id: string;
+	organization_id: string;
+	label: string;
 	contact_first_name: string | null;
 	contact_last_name: string | null;
 	contact_email: string | null;
@@ -85,9 +308,8 @@ export interface Account {
 	zip: string | null;
 	country: string;
 	notes: string | null;
-	territory_id: string | null;
-	is_active: boolean;
-	archived_at: string | null;
+	is_default: boolean;
+	sort_order: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -95,11 +317,17 @@ export interface Account {
 export interface Territory {
 	id: string;
 	organization_id: string;
+	brand_id: string | null;
 	name: string;
-	assigned_to: string | null;
 	notes: string | null;
 	created_at: string;
 	updated_at: string;
+}
+
+export interface MemberTerritory {
+	organization_member_id: string;
+	territory_id: string;
+	created_at: string;
 }
 
 export interface Season {
@@ -212,7 +440,10 @@ export interface Order {
 	id: string;
 	organization_id: string;
 	order_number: string;
-	account_id: string;
+	account_id: string | null;
+	freeform_name: string | null;
+	location_id: string | null;
+	order_type: OrderType;
 	brand_id: string;
 	season_id: string | null;
 	order_year: number | null;
@@ -221,6 +452,7 @@ export interface Order {
 	source_type_id: string | null;
 	delivery_id: string | null;
 	expected_ship_date: string | null;
+	start_ship_date: string | null;
 	status: OrderStatus;
 	total_amount: number;
 	shipped_amount: number | null;
@@ -233,6 +465,15 @@ export interface Order {
 	cancelled_at: string | null;
 	cancelled_reason: string | null;
 	connection_id: string | null;
+	payment_preference: string | null;
+	payment_terms: string | null;
+	shipping_method: string | null;
+	po_number: string | null;
+	bill_to_location_id: string | null;
+	rep_user_id: string | null;
+	terms_id: string | null;
+	terms_agreed_by: string | null;
+	terms_agreed_at: string | null;
 	created_at: string;
 	updated_at: string;
 	brands?: Brand;
@@ -272,20 +513,31 @@ export interface Product {
 	category: string | null;
 	subcategory: string | null;
 	season_id: string | null;
+	product_year: number | null;
+	ats: boolean;
+	is_featured: boolean;
+	shopify_product_id: string | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;
 	updated_at: string;
+	updated_by: string | null;
+	attributes: string[];
 }
 
 export interface ProductVariant {
 	id: string;
 	product_id: string;
 	color: string | null;
+	color_hex: string | null;
 	size: string | null;
 	sku: string | null;
 	barcode: string | null;
 	price_override: number | null;
+	stock_qty: number | null;
+	stock_threshold: number | null;
+	shopify_variant_id: string | null;
+	shopify_inventory_item_id: string | null;
 	is_active: boolean;
 	created_at: string;
 }
@@ -293,11 +545,13 @@ export interface ProductVariant {
 export interface ProductImage {
 	id: string;
 	product_id: string;
+	variant_id: string | null;
 	file_path: string;
 	file_size: number | null;
 	mime_type: string | null;
 	sort_order: number;
 	is_primary: boolean;
+	role: 'primary' | 'hover' | 'video' | null;
 	uploaded_by: string | null;
 	created_at: string;
 }
@@ -425,14 +679,53 @@ export interface AccountBrandAccess {
 	brands?: Brand;
 }
 
+export interface Notification {
+	id: string;
+	organization_id: string;
+	user_id: string;
+	type: string;
+	title: string;
+	body: string | null;
+	link: string | null;
+	read_at: string | null;
+	created_at: string;
+}
+
+export interface NotificationPreferences {
+	id: string;
+	user_id: string;
+	organization_id: string;
+	order_updates: boolean;
+	comments: boolean;
+	buyer_activity: boolean;
+	team_activity: boolean;
+	email_digest: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface EmailTemplate {
+	id: string;
+	organization_id: string;
+	name: string;
+	subject: string;
+	body: string;
+	category: string;
+	created_by: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
 export interface OrderComment {
 	id: string;
 	order_id: string;
 	author_id: string;
 	body: string;
+	source_org_id: string | null;
 	created_at: string;
 	updated_at: string;
-	profiles?: Profile;
+	profiles?: { display_name: string | null };
+	source_org?: { id: string; name: string } | null;
 }
 
 export interface AccountTag {
@@ -575,6 +868,7 @@ export interface ConnectionInvite {
 	expires_at: string;
 	max_uses: number;
 	use_count: number;
+	auto_approve: boolean;
 	created_at: string;
 }
 

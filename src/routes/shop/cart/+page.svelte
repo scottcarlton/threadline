@@ -1,96 +1,542 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { cart } from '$lib/stores/cart.js';
+	import SizeStepperSheet from '$lib/components/shared/SizeStepperSheet.svelte';
+	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 
 	const items = $derived($cart);
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-	const totalPrice = $derived(items.reduce((sum, i) => sum + i.price, 0));
-	const brandCount = $derived(new Set(items.map(i => i.brandName)).size);
+
+	function itemKey(item: { productId: string; selectedColor: string }): string {
+		return cart.cartKey(item);
+	}
+
+	function getItemUnits(item: { sizeQtys: Record<string, number> }): number {
+		return Object.values(item.sizeQtys).reduce((s, q) => s + (q || 0), 0);
+	}
+
+	function getItemTotal(item: { sizeQtys: Record<string, number>; price: number }): number {
+		return getItemUnits(item) * item.price;
+	}
+
+	const totalUnits = $derived(items.reduce((s, i) => s + getItemUnits(i), 0));
+	const grandTotal = $derived(items.reduce((s, i) => s + getItemTotal(i), 0));
+
+	function setQty(
+		key: string,
+		size: string,
+		value: number,
+		item: { sizeQtys: Record<string, number> }
+	) {
+		const qty = Math.max(0, Math.floor(value) || 0);
+		cart.updateItemByKey(key, {
+			sizeQtys: { ...item.sizeQtys, [size]: qty }
+		});
+	}
+
+	function removeByKey(key: string) {
+		cart.removeItemByKey(key);
+	}
+
+	const canCheckout = $derived(items.length > 0 && items.every((i) => getItemUnits(i) > 0));
+
+	function swipeToDelete(node: HTMLElement, opts: { onCommit: () => void }) {
+		const MIN_REVEAL = 88;
+		const COMMIT_RATIO = 0.45;
+		const SLOP = 8;
+		let startX = 0;
+		let startY = 0;
+		let currentDx = 0;
+		let pointerId: number | null = null;
+		let isSwiping = false;
+		let revealed = false;
+		let prevUserSelect = '';
+
+		function setOffset(px: number) {
+			node.style.transform = px === 0 ? '' : `translateX(${px}px)`;
+		}
+
+		function isInteractive(target: EventTarget | null) {
+			if (!(target instanceof HTMLElement)) return false;
+			return !!target.closest('button, input, select, textarea, a, [role="button"]');
+		}
+
+		function onPointerDown(e: PointerEvent) {
+			if (e.pointerType === 'mouse' && e.button !== 0) return;
+			if (isInteractive(e.target)) return;
+			startX = e.clientX;
+			startY = e.clientY;
+			currentDx = revealed ? -MIN_REVEAL : 0;
+			pointerId = e.pointerId;
+			isSwiping = false;
+			node.style.transition = 'none';
+		}
+
+		function onPointerMove(e: PointerEvent) {
+			if (pointerId !== e.pointerId) return;
+			const dx = e.clientX - startX;
+			const dy = e.clientY - startY;
+			if (!isSwiping) {
+				if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+				if (Math.abs(dx) <= Math.abs(dy)) {
+					pointerId = null;
+					return;
+				}
+				isSwiping = true;
+				prevUserSelect = node.style.userSelect;
+				node.style.userSelect = 'none';
+				try {
+					node.setPointerCapture(e.pointerId);
+				} catch {
+					/* noop */
+				}
+			}
+			const base = revealed ? -MIN_REVEAL : 0;
+			currentDx = Math.min(0, base + dx);
+			setOffset(currentDx);
+			e.preventDefault();
+		}
+
+		function onPointerUp(e: PointerEvent) {
+			if (pointerId !== e.pointerId) return;
+			pointerId = null;
+			if (!isSwiping) return;
+			isSwiping = false;
+			node.style.userSelect = prevUserSelect;
+			node.style.transition = 'transform 180ms ease-out';
+			const commitAt = node.clientWidth * COMMIT_RATIO;
+			if (Math.abs(currentDx) >= commitAt) {
+				setOffset(-node.clientWidth);
+				revealed = false;
+				setTimeout(() => opts.onCommit(), 170);
+			} else if (Math.abs(currentDx) >= MIN_REVEAL) {
+				revealed = true;
+				setOffset(-MIN_REVEAL);
+			} else {
+				revealed = false;
+				setOffset(0);
+			}
+		}
+
+		function onPointerCancel(e: PointerEvent) {
+			if (pointerId !== e.pointerId) return;
+			pointerId = null;
+			if (!isSwiping) return;
+			isSwiping = false;
+			node.style.userSelect = prevUserSelect;
+			node.style.transition = 'transform 180ms ease-out';
+			setOffset(revealed ? -MIN_REVEAL : 0);
+		}
+
+		node.style.touchAction = 'pan-y';
+		node.addEventListener('pointerdown', onPointerDown);
+		node.addEventListener('pointermove', onPointerMove);
+		node.addEventListener('pointerup', onPointerUp);
+		node.addEventListener('pointercancel', onPointerCancel);
+
+		return {
+			destroy() {
+				node.removeEventListener('pointerdown', onPointerDown);
+				node.removeEventListener('pointermove', onPointerMove);
+				node.removeEventListener('pointerup', onPointerUp);
+				node.removeEventListener('pointercancel', onPointerCancel);
+			}
+		};
+	}
+
+	// Mobile sheets
+	let sizingSheetKey = $state<string | null>(null);
+	const sizingSheetItem = $derived(
+		sizingSheetKey ? (items.find((i) => itemKey(i) === sizingSheetKey) ?? null) : null
+	);
 </script>
 
-<div class="mx-auto max-w-5xl space-y-6">
+<div class="space-y-6">
+	<!-- Top nav -->
 	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-3xl">Cart</h1>
-			<p class="mt-1 text-base text-muted-foreground">{items.length} item{items.length !== 1 ? 's' : ''}</p>
-		</div>
+		<a
+			href={resolve('/shop')}
+			class="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-4 w-4"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+			</svg>
+			Back to Shop
+		</a>
 		{#if items.length > 0}
 			<Button variant="outline" size="sm" onclick={() => cart.clearCart()}>Clear All</Button>
 		{/if}
 	</div>
 
+	<!-- Header / progress -->
+	<div>
+		<h1 class="text-2xl font-semibold">Cart</h1>
+		<p class="text-sm text-muted-foreground">
+			Step 1 of 3 — Cart
+			{#if items.length > 0}
+				· {items.length} item{items.length !== 1 ? 's' : ''}
+				{#if totalUnits > 0}
+					· {totalUnits} unit{totalUnits !== 1 ? 's' : ''}
+				{/if}
+			{/if}
+		</p>
+	</div>
+
+	<div class="flex gap-1">
+		<div class="h-1.5 flex-1 rounded-full bg-foreground" aria-label="Cart"></div>
+		<div class="h-1.5 flex-1 rounded-full bg-border" aria-label="Delivery"></div>
+		<div class="h-1.5 flex-1 rounded-full bg-border" aria-label="Finalize"></div>
+	</div>
+
 	{#if items.length === 0}
 		<div class="rounded-none p-12 text-center">
-			<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="0.4">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="mx-auto h-16 w-16 text-foreground"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="0.4"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+				/>
 			</svg>
 			<p class="mt-4 text-lg font-semibold">Your cart is empty</p>
-			<p class="mt-2 text-base text-muted-foreground">Browse the shop to add items</p>
+			<p class="mt-2 text-sm text-muted-foreground">Browse the shop to add items</p>
 			<Button href="/shop" variant="outline" class="mt-4">Browse Shop</Button>
 		</div>
 	{:else}
 		<div class="grid gap-6 lg:grid-cols-[1fr_320px]">
-			<!-- Items list -->
+			<!-- Items list with sizing -->
 			<div class="space-y-3">
-				{#each items as item}
-					<div class="flex items-center gap-4 rounded-none border bg-card p-4">
-						<a href="/shop/{item.productId}" class="shrink-0">
-							{#if item.imageUrl}
-								<img src={item.imageUrl} alt={item.productName} class="h-16 w-16 rounded-lg object-cover" />
-							{:else}
-								<div class="flex h-16 w-16 items-center justify-center rounded-lg bg-muted">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
-									</svg>
-								</div>
-							{/if}
-						</a>
-						<div class="min-w-0 flex-1">
-							<a href="/shop/{item.productId}" class="text-base font-normal hover:underline">{item.productName}</a>
-							<p class="text-base text-muted-foreground">{item.brandName} &middot; {item.styleNumber}</p>
-						</div>
-						<div class="text-base font-normal">{fmt.format(item.price)}</div>
-						<button
-							class="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-							onclick={() => cart.removeItem(item.productId)}
-							aria-label="Remove from cart"
+				{#each items as item (itemKey(item))}
+					{@const key = itemKey(item)}
+					{@const sizes = item.sizes ?? []}
+					{@const color = item.selectedColor || ''}
+					{@const units = getItemUnits(item)}
+					{@const rowTotal = getItemTotal(item)}
+
+					<div class="group/item relative overflow-hidden rounded-lg border">
+						<!-- Swipe-reveal delete button (behind the card) -->
+						<div
+							class="pointer-events-none absolute inset-y-0 right-0 flex w-22 items-center justify-center"
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-							</svg>
-						</button>
+							<button
+								type="button"
+								aria-label="Delete {item.productName}"
+								class="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm transition-colors hover:bg-destructive/90"
+								onclick={() => removeByKey(key)}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 24 24"
+									fill="currentColor"
+									class="h-5 w-5"
+								>
+									<path
+										d="M17 6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6ZM18 8H6V20H18V8ZM9 11H11V17H9V11ZM13 11H15V17H13V11ZM9 4V6H15V4H9Z"
+									/>
+								</svg>
+							</button>
+						</div>
+
+						<div
+							class="relative bg-background"
+							use:swipeToDelete={{
+								onCommit: () => removeByKey(key)
+							}}
+						>
+							<!-- Mobile card — tap size grid to open sheet -->
+							<div class="block sm:hidden">
+								<div class="px-4 py-3">
+									<div class="flex items-start gap-3">
+										<a href={resolve(`/shop/${item.productId}`)} class="shrink-0">
+											{#if item.imageUrl}
+												<img
+													src={item.imageUrl}
+													alt={item.productName}
+													class="h-12 w-12 rounded-md object-cover"
+												/>
+											{:else}
+												<div
+													class="flex h-12 w-12 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="1.5"
+														class="h-5 w-5"
+													>
+														<rect x="3" y="3" width="18" height="18" rx="2" />
+														<circle cx="8.5" cy="8.5" r="1.5" />
+														<path d="M21 15l-5-5L5 21" />
+													</svg>
+												</div>
+											{/if}
+										</a>
+										<div class="min-w-0 flex-1">
+											<div class="font-mono text-sm text-muted-foreground/70">
+												{item.styleNumber}
+											</div>
+											<div class="truncate text-sm font-semibold">{item.productName}</div>
+											<div class="truncate text-sm text-muted-foreground">
+												{item.brandName}{item.seasonName ? ` · ${item.seasonName}` : ''}
+											</div>
+										</div>
+										{#if color}
+											<div class="shrink-0 self-start pt-1">
+												<ColorSwatch {color} size={20} />
+											</div>
+										{/if}
+									</div>
+
+									<!-- Compact size grid — tap to open sheet -->
+									{#if sizes.length > 0}
+										<button
+											type="button"
+											class="mt-3 grid w-full gap-1.5 transition-opacity active:opacity-60"
+											style="grid-template-columns: repeat({sizes.length}, minmax(0, 1fr));"
+											aria-label="Edit sizes for {item.productName}"
+											onclick={() => (sizingSheetKey = key)}
+										>
+											{#each sizes as size (size)}
+												{@const qty = item.sizeQtys[size] ?? 0}
+												<div
+													class="flex flex-col items-center justify-center rounded-md border bg-muted/40 py-1.5 {qty ===
+													0
+														? 'border-dashed opacity-60'
+														: ''}"
+												>
+													<div class="text-sm text-muted-foreground">{size}</div>
+													<div class="font-mono text-sm">{qty}</div>
+												</div>
+											{/each}
+										</button>
+									{/if}
+
+									<div class="mt-3 flex items-center justify-between">
+										<div class="text-sm text-muted-foreground">
+											{units}
+											{units === 1 ? 'unit' : 'units'} · {fmt.format(item.price)}/ea
+										</div>
+										<div class="font-mono text-sm font-medium">{fmt.format(rowTotal)}</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Desktop row — full inline stepper -->
+							<div class="hidden px-6 py-4 sm:block">
+								<div class="flex items-center justify-between gap-6">
+									<div class="flex min-w-0 flex-1 items-center gap-4">
+										<a href={resolve(`/shop/${item.productId}`)} class="shrink-0">
+											{#if item.imageUrl}
+												<img
+													src={item.imageUrl}
+													alt={item.productName}
+													class="h-16 w-16 rounded-md object-cover"
+												/>
+											{:else}
+												<div
+													class="flex h-16 w-16 items-center justify-center rounded-md bg-muted text-muted-foreground/40"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="1.5"
+														class="h-6 w-6"
+													>
+														<rect x="3" y="3" width="18" height="18" rx="2" />
+														<circle cx="8.5" cy="8.5" r="1.5" />
+														<path d="M21 15l-5-5L5 21" />
+													</svg>
+												</div>
+											{/if}
+										</a>
+										<div class="min-w-0">
+											<div class="text-sm text-muted-foreground">{item.styleNumber}</div>
+											<div class="text-sm font-medium">{item.productName}</div>
+											<div class="text-sm text-muted-foreground">
+												{item.brandName}{item.seasonName ? ` · ${item.seasonName}` : ''}
+											</div>
+										</div>
+
+										{#if color}
+											<div class="ml-4 flex items-center gap-2 text-sm">
+												<ColorSwatch {color} size={28} />
+												<span>{color}</span>
+											</div>
+										{/if}
+
+										<div class="flex-1"></div>
+									</div>
+
+									<div class="shrink-0 text-right">
+										<div class="font-mono text-sm font-medium">{fmt.format(rowTotal)}</div>
+										<div class="text-sm text-muted-foreground">
+											{units}
+											{units === 1 ? 'unit' : 'units'} · {fmt.format(item.price)}/ea
+										</div>
+									</div>
+								</div>
+
+								<!-- Size grid (desktop) -->
+								{#if sizes.length > 0}
+									<div class="mt-3 flex flex-wrap items-start gap-3">
+										<div
+											class="grid gap-3"
+											style="grid-template-columns: repeat({sizes.length}, minmax(0, 7rem));"
+										>
+											{#each sizes as size (size)}
+												{@const qty = item.sizeQtys[size] ?? 0}
+												<div
+													role="group"
+													aria-label="{item.productName} size {size} quantity"
+													class="grid min-h-14 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-md border bg-muted/40 transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/20 hover:border-foreground/20 {qty ===
+													0
+														? 'border-dashed opacity-60'
+														: ''}"
+												>
+													<button
+														type="button"
+														aria-label="Decrease {size}"
+														class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-30"
+														disabled={qty === 0}
+														onclick={() => setQty(key, size, qty - 1, item)}
+													>
+														−
+													</button>
+													<div class="flex flex-col items-center justify-center px-1 text-center">
+														<div class="text-sm text-muted-foreground">{size}</div>
+														<input
+															type="text"
+															inputmode="numeric"
+															pattern="[0-9]*"
+															aria-label="{size} quantity"
+															value={qty}
+															oninput={(e) => {
+																const raw = (e.currentTarget as HTMLInputElement).value.replace(
+																	/[^0-9]/g,
+																	''
+																);
+																setQty(key, size, raw === '' ? 0 : parseInt(raw, 10), item);
+															}}
+															onkeydown={(e) => {
+																if (e.key === 'ArrowUp') {
+																	e.preventDefault();
+																	setQty(key, size, qty + 1, item);
+																} else if (e.key === 'ArrowDown') {
+																	e.preventDefault();
+																	setQty(key, size, qty - 1, item);
+																} else if (e.key === 'Enter') {
+																	e.preventDefault();
+																	(e.currentTarget as HTMLInputElement).blur();
+																}
+															}}
+															class="w-full bg-transparent text-center font-mono text-sm outline-none"
+														/>
+													</div>
+													<button
+														type="button"
+														aria-label="Increase {size}"
+														class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset"
+														onclick={() => setQty(key, size, qty + 1, item)}
+													>
+														+
+													</button>
+												</div>
+											{/each}
+										</div>
+									</div>
+								{/if}
+
+								<!-- Desktop delete button — shows on hover -->
+								<button
+									type="button"
+									aria-label="Remove {item.productName}"
+									class="absolute right-3 bottom-3 hidden h-9 w-9 items-center justify-center rounded-md bg-destructive/10 text-destructive opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/20 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:outline-none sm:inline-flex"
+									onclick={() => removeByKey(key)}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="currentColor"
+										class="h-4 w-4"
+									>
+										<path
+											d="M17 6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6ZM18 8H6V20H18V8ZM9 11H11V17H9V11ZM13 11H15V17H13V11ZM9 4V6H15V4H9Z"
+										/>
+									</svg>
+								</button>
+							</div>
+						</div>
 					</div>
 				{/each}
 			</div>
 
 			<!-- Summary -->
-			<div class="lg:sticky lg:top-6 h-fit">
-				<div class="rounded-none border bg-card p-5 space-y-4">
+			<div class="h-fit lg:sticky lg:top-6">
+				<div class="space-y-4 rounded-none border bg-card p-5">
 					<h2 class="text-base font-semibold">Summary</h2>
-					<dl class="space-y-2 text-base">
+					<dl class="space-y-2 text-sm">
 						<div class="flex justify-between">
 							<dt class="text-muted-foreground">Items</dt>
-							<dd class="font-normal">{items.length}</dd>
+							<dd>{items.length}</dd>
 						</div>
 						<div class="flex justify-between">
-							<dt class="text-muted-foreground">Brands</dt>
-							<dd class="font-normal">{brandCount}</dd>
+							<dt class="text-muted-foreground">Total Units</dt>
+							<dd>{totalUnits}</dd>
 						</div>
 						<div class="h-px bg-border"></div>
-						<div class="flex justify-between">
-							<dt class="text-muted-foreground">Estimated Total</dt>
-							<dd class="font-semibold">{fmt.format(totalPrice)}</dd>
+						<div class="flex justify-between text-base">
+							<dt>Estimated Total</dt>
+							<dd class="font-semibold">{fmt.format(grandTotal)}</dd>
 						</div>
 					</dl>
-					<p class="text-sm text-muted-foreground">Select quantities and delivery windows at checkout.</p>
-					<Button href="/shop/checkout" class="w-full">
+					<Button
+						href={canCheckout ? '/shop/checkout' : undefined}
+						class="w-full"
+						disabled={!canCheckout}
+					>
 						Proceed to Checkout
-					</Button>
-					<Button href="/shop" variant="outline" class="w-full">
-						Continue Shopping
 					</Button>
 				</div>
 			</div>
 		</div>
 	{/if}
 </div>
+
+<!-- Mobile sizing sheet -->
+<SizeStepperSheet
+	open={sizingSheetKey !== null}
+	onClose={() => (sizingSheetKey = null)}
+	styleNumber={sizingSheetItem?.styleNumber}
+	name={sizingSheetItem?.productName}
+	brand={sizingSheetItem?.brandName}
+	season={sizingSheetItem?.seasonName}
+	color={sizingSheetItem?.selectedColor || null}
+	imageUrl={sizingSheetItem?.imageUrl}
+	unitPrice={sizingSheetItem?.price}
+	sizes={sizingSheetItem?.sizes}
+	qtys={sizingSheetItem?.sizeQtys}
+	onChange={(size, qty) => {
+		if (sizingSheetKey && sizingSheetItem) setQty(sizingSheetKey, size, qty, sizingSheetItem);
+	}}
+	onColorPickerOpen={() => {
+		sizingSheetKey = null;
+	}}
+/>

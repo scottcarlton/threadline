@@ -11,6 +11,17 @@ export type OutlookMessage = {
 	body?: string;
 };
 
+type GraphMessage = {
+	id: string;
+	subject?: string | null;
+	from?: { emailAddress?: { address?: string | null } | null } | null;
+	toRecipients?: { emailAddress?: { address?: string | null } | null }[] | null;
+	receivedDateTime: string;
+	bodyPreview?: string | null;
+	isRead?: boolean | null;
+	body?: { content?: string | null } | null;
+};
+
 export async function listMessages(
 	organizationId: string,
 	options?: { top?: number; folder?: string }
@@ -18,14 +29,14 @@ export async function listMessages(
 	const top = options?.top ?? 20;
 	const folder = options?.folder ?? 'inbox';
 
-	const data = await graphFetch(
+	const data = await graphFetch<{ value: GraphMessage[] }>(
 		organizationId,
 		`/me/mailFolders/${folder}/messages?$top=${top}&$orderby=receivedDateTime desc&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead`
 	);
 
 	if (!data?.value) return [];
 
-	return data.value.map((msg: any) => ({
+	return data.value.map((msg) => ({
 		id: msg.id,
 		subject: msg.subject ?? '',
 		from: msg.from?.emailAddress?.address ?? '',
@@ -36,8 +47,11 @@ export async function listMessages(
 	}));
 }
 
-export async function getMessage(organizationId: string, messageId: string): Promise<OutlookMessage | null> {
-	const msg = await graphFetch(organizationId, `/me/messages/${messageId}`);
+export async function getMessage(
+	organizationId: string,
+	messageId: string
+): Promise<OutlookMessage | null> {
+	const msg = await graphFetch<GraphMessage>(organizationId, `/me/messages/${messageId}`);
 	if (!msg) return null;
 
 	return {

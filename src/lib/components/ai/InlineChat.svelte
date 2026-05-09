@@ -40,13 +40,11 @@
 	<!-- Messages area -->
 	<div bind:this={messagesContainer} class="max-h-[400px] overflow-y-auto p-5">
 		{#if $messages.length === 0 && !$loading}
-			<div class="text-center py-6">
-				<p class="text-[13px] text-muted-foreground">
-					Ask anything about your business
-				</p>
+			<div class="py-6 text-center">
+				<p class="text-[13px] text-muted-foreground">Ask anything about your business</p>
 				{#if suggestedPrompts.length > 0}
 					<div class="mt-4 flex flex-wrap justify-center gap-2">
-						{#each suggestedPrompts as prompt}
+						{#each suggestedPrompts as prompt (prompt)}
 							<button
 								class="rounded-lg border px-3 py-1.5 text-[12px] text-muted-foreground transition-all hover:border-foreground/20 hover:text-foreground"
 								onclick={() => handleSend(prompt)}
@@ -59,7 +57,7 @@
 			</div>
 		{:else}
 			<div class="space-y-3">
-				{#each $messages as msg}
+				{#each $messages as msg, i (i)}
 					<div class={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
 						<div
 							class={cn(
@@ -78,8 +76,14 @@
 					<div class="flex justify-start">
 						<div class="flex items-center gap-1.5 rounded-none bg-muted px-3.5 py-2.5">
 							<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40"></div>
-							<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40" style="animation-delay: 0.15s"></div>
-							<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40" style="animation-delay: 0.3s"></div>
+							<div
+								class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40"
+								style="animation-delay: 0.15s"
+							></div>
+							<div
+								class="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/40"
+								style="animation-delay: 0.3s"
+							></div>
 						</div>
 					</div>
 				{/if}
@@ -103,8 +107,19 @@
 				aria-label="Send message"
 				class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
+					/>
 				</svg>
 			</button>
 		</div>

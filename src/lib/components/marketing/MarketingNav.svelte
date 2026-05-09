@@ -1,35 +1,63 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 
 	const isAuthenticated = $derived(!!$page.data.session);
-	let navScrolled = $state(false);
-
-	onMount(() => {
-		const handler = () => { navScrolled = window.scrollY > 40; };
-		window.addEventListener('scroll', handler, { passive: true });
-		return () => window.removeEventListener('scroll', handler);
-	});
 </script>
 
 <header>
-	<div class="px-8 lg:px-12 w-full">
-		<nav class="fixed top-6 z-99 grid grid-cols-3 items-center py-6 bg-background transition-all duration-500 ease-in-out {navScrolled ? 'w-[calc(100vw-96px)] px-6 shadow-sm' : 'w-[calc(100vw-96px)] px-0'}">
-			<a class="text-2xl font-semibold tracking-tight text-foreground" href="/">/Threadline</a>
+	<div class="w-full px-8 lg:px-12">
+		<nav
+			class="fixed z-99 grid w-[calc(100vw-96px)] grid-cols-[auto_1fr_auto] items-center bg-background py-6 transition-all duration-500 ease-in-out"
+		>
+			<a
+				class="flex items-center text-2xl font-semibold tracking-tight text-foreground"
+				href={resolve('/')}><span class="-mt-0.5 flex">/</span>Threadline</a
+			>
 
-			<div class="flex justify-center items-center gap-8 font-mono">
-				<a href="/features" class="px-4 py-3 text-sm transition-colors hover:text-foreground hover:bg-neutral-100">Features</a>
-				<a href="/intelligence" class="px-4 py-3 text-sm transition-colors hover:text-foreground hover:bg-neutral-100">Intelligence</a>
-				<a href="/solutions" class="px-4 py-3 text-sm transition-colors hover:text-foreground hover:bg-neutral-100">Solutions</a>
-				<a href="/pricing" class="px-4 py-3 text-sm transition-colors hover:text-foreground hover:bg-neutral-100">Pricing</a>
+			<div class="flex items-center justify-center gap-8 font-mono">
+				<a
+					href={resolve('/features')}
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					>Features</a
+				>
+				<a
+					href={resolve('/intelligence')}
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					>Intelligence</a
+				>
+				<a
+					href={resolve('/solutions')}
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					>Solutions</a
+				>
+				<a
+					href={resolve('/resources')}
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					>Resources</a
+				>
+				<a
+					href={resolve('/pricing')}
+					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
+					>Pricing</a
+				>
 			</div>
 
-			<div class="flex justify-end items-center gap-16">
+			<div class="flex items-center justify-end gap-16">
 				{#if isAuthenticated}
-					<a class="bg-foreground text-primary-foreground px-5 py-2.5 text-sm font-medium" href="/insight">Insight</a>
+					<a
+						class="bg-foreground px-5 py-2.5 text-sm font-medium text-primary-foreground"
+						href={resolve('/insight')}>Insight</a
+					>
 				{:else}
-					<a href="/login" class="hidden sm:block text-sm transition-colors hover:text-foreground">Log In</a>
-					<a class="bg-foreground text-primary-foreground px-5 py-2.5 text-sm" href="/signup">Early Access</a>
+					<a
+						href={resolve('/login')}
+						class="hidden text-sm transition-colors hover:text-foreground sm:block">Log In</a
+					>
+					<a
+						class="rounded-lg bg-foreground px-5 py-2.5 text-sm text-primary-foreground"
+						href={resolve('/signup')}>Join Beta</a
+					>
 				{/if}
 			</div>
 		</nav>

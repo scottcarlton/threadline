@@ -1,11 +1,20 @@
 import type { SupabaseClient, Session } from '@supabase/supabase-js';
-import type { Profile, Organization, OrganizationMember, UserRole, OrgType, AccountUser } from '$lib/types/database';
+import type {
+	Profile,
+	Organization,
+	OrganizationMember,
+	OrgType,
+	AccountUser
+} from '$lib/types/database';
 
 declare global {
 	namespace App {
 		interface Locals {
 			supabase: SupabaseClient;
-			safeGetSession: () => Promise<{ session: Session | null; user: import('@supabase/supabase-js').User | null }>;
+			safeGetSession: () => Promise<{
+				session: Session | null;
+				user: import('@supabase/supabase-js').User | null;
+			}>;
 			session: Session | null;
 			user: Profile | null;
 			membership: OrganizationMember | null;
@@ -17,6 +26,7 @@ declare global {
 			isBuyer: boolean;
 			buyerAccounts: AccountUser[] | null;
 			buyerBrandIds: string[] | null;
+			isSystemAdmin: boolean;
 		}
 		interface PageData {
 			session: Session | null;
@@ -30,6 +40,7 @@ declare global {
 			isBuyer: boolean;
 			buyerAccounts: AccountUser[] | null;
 			buyerBrandIds: string[] | null;
+			isSystemAdmin: boolean;
 		}
 	}
 }

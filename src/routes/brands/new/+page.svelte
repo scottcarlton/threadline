@@ -1,82 +1,56 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
-	import { supabase } from '$lib/supabase.js';
+	import { resolve } from '$app/paths';
+	import { superForm } from 'sveltekit-superforms';
+	import { zod4Client } from 'sveltekit-superforms/adapters';
+	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardContent,
+		CardFooter
+	} from '$lib/components/ui/card/index.js';
+	import { createBrandSchema } from '$lib/schemas/brand';
+	import { formatPhone } from '$lib/utils/phone';
 
 	let { data } = $props();
 
-	let name = $state('');
-	let contactFirstName = $state('');
-	let contactLastName = $state('');
-	let contactEmail = $state('');
-	let contactPhone = $state('');
-	let website = $state('');
-	let commissionRate = $state('');
-	let notes = $state('');
-	let inviteContact = $state(true);
-	let error = $state('');
-	let loading = $state(false);
-
-	async function handleSubmit() {
-		error = '';
-		loading = true;
-
-		const { error: err } = await supabase.from('brands').insert({
-			organization_id: data.organization?.id,
-			name,
-			contact_first_name: contactFirstName || null,
-			contact_last_name: contactLastName || null,
-			contact_email: contactEmail || null,
-			contact_phone: contactPhone || null,
-			website: website || null,
-			commission_rate: parseFloat(commissionRate) || 0,
-			notes: notes || null
-		});
-
-		if (err) {
-			loading = false;
-			error = err.message;
-			return;
-		}
-
-		// Fetch the newly created brand to get its ID
-		const { data: newBrand } = await supabase
-			.from('brands')
-			.select('id')
-			.eq('organization_id', data.organization?.id)
-			.eq('name', name)
-			.order('created_at', { ascending: false })
-			.limit(1)
-			.single();
-
-		// Auto-invite contact as a team member scoped to this brand
-		if (inviteContact && contactEmail && newBrand) {
-			try {
-				await fetch('/api/invite/send', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						email: contactEmail,
-						role: 'member',
-						brandIds: [newBrand.id]
-					})
-				});
-			} catch {
-				// Invite failure shouldn't block brand creation
+	// svelte-ignore state_referenced_locally
+	const { form, errors, enhance, submitting } = superForm(data.form, {
+		validators: zod4Client(createBrandSchema),
+		validationMethod: 'onblur',
+		dataType: 'json',
+		onUpdated: ({ form }) => {
+			const msg = form.message as
+				| { type: 'success'; brandId: string; inviteFailed: boolean }
+				| string
+				| undefined;
+			if (typeof msg === 'string') {
+				toast.error(msg);
+				return;
+			}
+			if (msg?.type === 'success') {
+				toast.success('Brand created');
+				if (msg.inviteFailed) {
+					toast.warning("Brand saved, but we couldn't send the team-member invite.");
+				}
+				goto(resolve('/brands/[id]', { id: msg.brandId }));
+			}
+		},
+		onError: ({ result }) => {
+			toast.error(result.error?.message ?? 'Something went wrong. Please try again.');
+		},
+		onResult: ({ result }) => {
+			if (result.type === 'failure') {
+				const msg = (result.data as { message?: string } | undefined)?.message;
+				toast.error(msg ?? 'Could not create brand. Check required fields.');
 			}
 		}
-
-		loading = false;
-		if (newBrand) {
-			goto(`/brands/${newBrand.id}`);
-		} else {
-			goto('/brands');
-		}
-	}
+	});
 </script>
 
 <div class="mx-auto max-w-2xl">
@@ -85,66 +59,120 @@
 			<CardTitle>Add Brand</CardTitle>
 		</CardHeader>
 		<CardContent>
-			{#if error}
-				<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
-			{/if}
-
-			<form id="brand-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-4">
+			<form id="brand-form" method="POST" use:enhance class="space-y-4">
 				<div class="space-y-2">
 					<Label for="name">Brand name *</Label>
-					<Input id="name" bind:value={name} required placeholder="e.g. Velvet Rose" />
+					<Input
+						id="name"
+						bind:value={$form.name}
+						aria-invalid={$errors.name ? 'true' : undefined}
+						placeholder="e.g. Velvet Rose"
+					/>
+					{#if $errors.name}
+						<p class="text-sm text-destructive">{$errors.name[0]}</p>
+					{/if}
 				</div>
+
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2">
 						<Label for="contact-first-name">First name</Label>
-						<Input id="contact-first-name" bind:value={contactFirstName} placeholder="Jane" />
+						<Input id="contact-first-name" bind:value={$form.contactFirstName} placeholder="Jane" />
 					</div>
 					<div class="space-y-2">
 						<Label for="contact-last-name">Last name</Label>
-						<Input id="contact-last-name" bind:value={contactLastName} placeholder="Smith" />
+						<Input id="contact-last-name" bind:value={$form.contactLastName} placeholder="Smith" />
 					</div>
 				</div>
+
 				<div class="space-y-2">
 					<Label for="contact-email">Contact email</Label>
-					<Input id="contact-email" type="email" bind:value={contactEmail} placeholder="jane@example.com" />
+					<Input
+						id="contact-email"
+						type="email"
+						bind:value={$form.contactEmail}
+						aria-invalid={$errors.contactEmail ? 'true' : undefined}
+						placeholder="jane@example.com"
+					/>
+					{#if $errors.contactEmail}
+						<p class="text-sm text-destructive">{$errors.contactEmail[0]}</p>
+					{/if}
 				</div>
-				{#if contactEmail}
-					<label class="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-						<input type="checkbox" bind:checked={inviteContact} class="rounded border-input" />
+
+				{#if $form.contactEmail}
+					<label class="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+						<input
+							type="checkbox"
+							bind:checked={$form.inviteContact}
+							class="rounded border-input"
+						/>
 						Invite as team member (scoped to this brand)
 					</label>
 				{/if}
+
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2">
 						<Label for="contact-phone">Phone</Label>
-						<Input id="contact-phone" bind:value={contactPhone} placeholder="(555) 123-4567" />
+						<Input
+							id="contact-phone"
+							bind:value={$form.contactPhone}
+							oninput={(e) =>
+								($form.contactPhone = formatPhone((e.currentTarget as HTMLInputElement).value))}
+							aria-invalid={$errors.contactPhone ? 'true' : undefined}
+							placeholder="(555) 123-4567"
+						/>
+						{#if $errors.contactPhone}
+							<p class="text-sm text-destructive">{$errors.contactPhone[0]}</p>
+						{/if}
 					</div>
 					<div class="space-y-2">
 						<Label for="website">Website</Label>
-						<Input id="website" bind:value={website} placeholder="https://example.com" />
+						<Input
+							id="website"
+							bind:value={$form.website}
+							aria-invalid={$errors.website ? 'true' : undefined}
+							placeholder="yourbrand.com"
+						/>
+						{#if $errors.website}
+							<p class="text-sm text-destructive">{$errors.website[0]}</p>
+						{/if}
 					</div>
 				</div>
+
 				<div class="space-y-2">
 					<Label for="commission-rate">Commission Rate (%)</Label>
-					<Input id="commission-rate" type="number" step="0.01" min="0" max="100" bind:value={commissionRate} placeholder="e.g. 15" />
+					<Input
+						id="commission-rate"
+						type="number"
+						step="0.01"
+						min="0"
+						max="100"
+						bind:value={$form.commissionRate}
+						aria-invalid={$errors.commissionRate ? 'true' : undefined}
+						placeholder="e.g. 15"
+					/>
+					{#if $errors.commissionRate}
+						<p class="text-sm text-destructive">{$errors.commissionRate[0]}</p>
+					{/if}
 				</div>
+
 				<div class="space-y-2">
 					<Label for="notes">Notes</Label>
 					<textarea
 						id="notes"
-						bind:value={notes}
+						bind:value={$form.notes}
 						placeholder="Any additional notes..."
 						rows="3"
-						class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 					></textarea>
+					{#if $errors.notes}
+						<p class="text-sm text-destructive">{$errors.notes[0]}</p>
+					{/if}
 				</div>
 			</form>
 		</CardContent>
 		<CardFooter class="justify-between">
 			<Button variant="outline" href="/brands">Cancel</Button>
-			<Button type="submit" form="brand-form" disabled={loading}>
-				{loading ? 'Creating...' : 'Create Brand'}
-			</Button>
+			<Button type="submit" form="brand-form" loading={$submitting}>Create Brand</Button>
 		</CardFooter>
 	</Card>
 </div>

@@ -1,6 +1,13 @@
 <script lang="ts">
+	// import { resolve } from '$app/paths';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
+
+	let faqOpen = $state<number | null>(null);
+
+	function toggleFaq(index: number) {
+		faqOpen = faqOpen === index ? null : index;
+	}
 </script>
 
 <svelte:head>
@@ -11,180 +18,180 @@
 	<MarketingNav />
 	<main>
 		<div>
-			<section>
-				<div class="px-8 pt-72 pb-24">
-					<div class="grid gap-8 max-w-220">
-						<span class="font-mono">[Features]</span>
-						<h1 class="text-6xl">Everything you need to sell smarter.</h1>
-						<p class="text-lg text-foreground/60 max-w-160">Threadline combines AI briefings, account health monitoring, style velocity tracking, and a full order pipeline into one platform built for wholesale reps.</p>
+			<section data-section="hero">
+				<div class="grid grid-cols-12 gap-6 px-12 pt-32">
+					<div class="col-span-6 grid pt-42">
+						<div>
+							<div class="mb-8 space-y-2">
+								<h1 class="h-reveal text-5xl leading-14 text-balance">
+									Built for how you need work
+								</h1>
+								<p class="h-reveal max-w-xl text-neutral-700">
+									Insight briefings, account health monitoring, style velocity tracking, and a full
+									order pipeline into one platform built for your business.
+								</p>
+							</div>
+							<form
+								class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
+							>
+								<input
+									class="border-0 px-4 py-2 text-base outline-none"
+									type="email"
+									placeholder="Enter your email"
+								/>
+								<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
+							</form>
+						</div>
 					</div>
+					<div class="col-span-7 col-start-7 h-100 min-h-140 rounded-lg bg-neutral-200 p-12"></div>
 				</div>
 			</section>
 			<section>
-				<div class="px-8 py-24 grid gap-8">
-					<div class="grid gap-8 max-w-220 text-center mx-auto">
-						<span class="font-mono">Core Platform</span>
-						<h2 class="text-4xl">Built for how reps actually work</h2>
+				<div class="mb-32 grid grid-cols-12 gap-12 px-12 pt-32">
+					<div class="col-span-12 text-center">
+						<h2 class="text-4xl">Features that actually work for you.</h2>
 					</div>
-					<ul class="grid grid-cols-3 gap-4">
-						<li class="grid grid-rows-[16px_1fr_16px]">
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-								<div class="w-4 h-4 border-foreground border-t border-l"></div>
-								<div class="w-full h-1 border-foreground border-t"></div>
-								<div class="w-4 h-4 border-foreground border-t border-r"></div>
-							</div>
-							<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-								<div class="h-[calc(100%-32px)] border-l border-foreground self-center"></div>
-								<div class="grid grid-rows-[48px_auto_1fr] gap-4 items-start p-4">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="12" cy="12" r="10"/><path d="M12 6V12L16 14"/></svg>
-									<h3 class="text-2xl">AI Briefings</h3>
-									<p>Start every morning knowing which accounts need attention, what's trending, and where revenue is at risk.</p>
-								</div>
-								<div class="h-[calc(100%-32px)] border-r border-foreground self-center"></div>
-							</div>
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-								<div class="w-4 h-4 border-foreground border-b border-l"></div>
-								<div class="w-full h-full border-foreground border-b"></div>
-								<div class="w-4 h-4 border-foreground border-b border-r"></div>
+					<ul class="col-span-12 grid grid-cols-12 gap-6">
+						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
+							<div>
+								<h3 class="text-xl">Insight Briefings</h3>
+								<p class="text-balance text-foreground/60">
+									Start every morning knowing which accounts need attention, what's trending, and
+									where revenue is at risk.
+								</p>
 							</div>
 						</li>
-						<li class="grid grid-rows-[16px_1fr_16px]">
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-								<div class="w-4 h-4 border-foreground border-t border-l"></div>
-								<div class="w-full h-1 border-foreground border-t"></div>
-								<div class="w-4 h-4 border-foreground border-t border-r"></div>
-							</div>
-							<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-								<div class="h-[calc(100%-32px)] border-l border-foreground self-center"></div>
-								<div class="grid grid-rows-[48px_auto_1fr] gap-4 items-start p-4">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg>
-									<h3 class="text-2xl">Account Health</h3>
-									<p>Health scores, reorder patterns, and churn risk — synthesized automatically from buyer behavior.</p>
-								</div>
-								<div class="h-[calc(100%-32px)] border-r border-foreground self-center"></div>
-							</div>
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-								<div class="w-4 h-4 border-foreground border-b border-l"></div>
-								<div class="w-full h-full border-foreground border-b"></div>
-								<div class="w-4 h-4 border-foreground border-b border-r"></div>
+						<li class="col-span-4 rounded-lg bg-neutral-200 p-4">
+							<div>
+								<h3 class="text-xl">Account Health</h3>
+								<p class="text-balance text-foreground/60">
+									Health scores, reorder patterns, and churn risk — synthesized automatically from
+									buyer behavior.
+								</p>
 							</div>
 						</li>
-						<li class="grid grid-rows-[16px_1fr_16px]">
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-								<div class="w-4 h-4 border-foreground border-t border-l"></div>
-								<div class="w-full h-1 border-foreground border-t"></div>
-								<div class="w-4 h-4 border-foreground border-t border-r"></div>
-							</div>
-							<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-								<div class="h-[calc(100%-32px)] border-l border-foreground self-center"></div>
-								<div class="grid grid-rows-[48px_auto_1fr] gap-4 items-start p-4">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.25"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-									<h3 class="text-2xl">Style Velocity</h3>
-									<p>Real-time sell-through across accounts. Spot which SKUs are accelerating before you stock out.</p>
-								</div>
-								<div class="h-[calc(100%-32px)] border-r border-foreground self-center"></div>
-							</div>
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-								<div class="w-4 h-4 border-foreground border-b border-l"></div>
-								<div class="w-full h-full border-foreground border-b"></div>
-								<div class="w-4 h-4 border-foreground border-b border-r"></div>
+						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
+							<div>
+								<h3 class="text-xl">Style Velocity</h3>
+								<p class="text-balance text-foreground/60">
+									Real-time sell-through across accounts. Spot which SKUs are accelerating before
+									you stock out.
+								</p>
 							</div>
 						</li>
-						<li class="grid grid-rows-[16px_1fr_16px]">
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-								<div class="w-4 h-4 border-foreground border-t border-l"></div>
-								<div class="w-full h-1 border-foreground border-t"></div>
-								<div class="w-4 h-4 border-foreground border-t border-r"></div>
-							</div>
-							<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-								<div class="h-[calc(100%-32px)] border-l border-foreground self-center"></div>
-								<div class="grid grid-rows-[48px_auto_1fr] gap-4 items-start p-4">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.25"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7H16"/><path d="M8 11H16"/><path d="M8 15H13"/></svg>
-									<h3 class="text-2xl">Order Pipeline</h3>
-									<p>Full pipeline from draft to delivery. Track status, commissions, and ship dates in one place.</p>
-								</div>
-								<div class="h-[calc(100%-32px)] border-r border-foreground self-center"></div>
-							</div>
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-								<div class="w-4 h-4 border-foreground border-b border-l"></div>
-								<div class="w-full h-full border-foreground border-b"></div>
-								<div class="w-4 h-4 border-foreground border-b border-r"></div>
+						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
+							<div>
+								<h3 class="text-xl">Order Pipeline</h3>
+								<p class="text-balance text-foreground/60">
+									Full pipeline from draft to delivery. Track status, commissions, and ship dates in
+									one place.
+								</p>
 							</div>
 						</li>
-						<li class="grid grid-rows-[16px_1fr_16px]">
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-								<div class="w-4 h-4 border-foreground border-t border-l"></div>
-								<div class="w-full h-1 border-foreground border-t"></div>
-								<div class="w-4 h-4 border-foreground border-t border-r"></div>
-							</div>
-							<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-								<div class="h-[calc(100%-32px)] border-l border-foreground self-center"></div>
-								<div class="grid grid-rows-[48px_auto_1fr] gap-4 items-start p-4">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.25"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-									<h3 class="text-2xl">Commission Tracking</h3>
-									<p>Set rate structures per brand, define splits, and Threadline calculates everything automatically.</p>
-								</div>
-								<div class="h-[calc(100%-32px)] border-r border-foreground self-center"></div>
-							</div>
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-								<div class="w-4 h-4 border-foreground border-b border-l"></div>
-								<div class="w-full h-full border-foreground border-b"></div>
-								<div class="w-4 h-4 border-foreground border-b border-r"></div>
+						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
+							<div>
+								<h3 class="text-xl">Commission Tracking</h3>
+								<p class="text-balance text-foreground/60">
+									Set rate structures per brand, define splits, and Threadline calculates everything
+									automatically.
+								</p>
 							</div>
 						</li>
-						<li class="grid grid-rows-[16px_1fr_16px]">
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4">
-								<div class="w-4 h-4 border-foreground border-t border-l"></div>
-								<div class="w-full h-1 border-foreground border-t"></div>
-								<div class="w-4 h-4 border-foreground border-t border-r"></div>
-							</div>
-							<div class="grid grid-cols-[1px_1fr_1px] gap-4">
-								<div class="h-[calc(100%-32px)] border-l border-foreground self-center"></div>
-								<div class="grid grid-rows-[48px_auto_1fr] gap-4 items-start p-4">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.25"><rect x="2" y="3" width="20" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M7 21v-1a5 5 0 0 1 10 0v1"/></svg>
-									<h3 class="text-2xl">Buyer Portal</h3>
-									<p>Buyers browse products, place orders, and track deliveries on their own terms.</p>
-								</div>
-								<div class="h-[calc(100%-32px)] border-r border-foreground self-center"></div>
-							</div>
-							<div class="grid grid-cols-[16px_1fr_16px] gap-4 self-end">
-								<div class="w-4 h-4 border-foreground border-b border-l"></div>
-								<div class="w-full h-full border-foreground border-b"></div>
-								<div class="w-4 h-4 border-foreground border-b border-r"></div>
+						<li class="col-span-4 h-48 rounded-lg bg-neutral-200 p-4">
+							<div>
+								<h3 class="text-xl">Buyer Portal</h3>
+								<p class="text-balance text-foreground/60">
+									Buyers browse products, place orders, and track deliveries on their own terms.
+								</p>
 							</div>
 						</li>
 					</ul>
 				</div>
 			</section>
 			<section>
-				<div class="px-8 py-24 grid gap-8">
-					<div class="grid gap-8 max-w-220 text-center mx-auto">
-						<span class="font-mono">Workers</span>
-						<h2 class="text-4xl">Automation that works while you sleep</h2>
+				<div class="grid grid-cols-12 gap-12 bg-foreground px-12 py-32 text-background">
+					<div class="col-span-12 text-center">
+						<h2 class="text-4xl">From raw data to actionable decisions</h2>
 					</div>
-					<div class="bg-black h-140 rounded-4xl"></div>
-					<div class="grid grid-cols-2 gap-8">
-						<div class="grid gap-4">
-							<h3 class="text-2xl">Built-in Workers</h3>
-							<p class="text-lg text-foreground/60">Commission tracking, reorder alerts, buyer follow-ups — handled automatically in the background.</p>
+					<div class="col-span-6 grid gap-6">
+						<div class="aspect-square rounded-xl bg-background/20"></div>
+						<div>
+							<h3 class="text-xl">Built-in Workers</h3>
+							<p class="text-balance text-white/60">
+								Commission tracking, reorder alerts, buyer follow-ups — handled automatically in the
+								background.
+							</p>
 						</div>
-						<div class="grid gap-4">
-							<h3 class="text-2xl">Custom Workers</h3>
-							<p class="text-lg text-foreground/60">Build your own automations for the signals only you care about. No code required.</p>
+					</div>
+					<div class="col-span-6 grid gap-6">
+						<div class="aspect-square rounded-xl bg-background/20"></div>
+						<div>
+							<h3 class="text-xl">Custom Workers</h3>
+							<p class="text-balance text-white/60">
+								Build your own automations for the signals only you care about. No code required.
+							</p>
 						</div>
 					</div>
 				</div>
 			</section>
-			<section>
-				<div class="px-8 py-24 grid gap-8">
-					<div class="grid gap-8 max-w-220 text-center mx-auto">
-						<h2 class="text-4xl">Ready to sell smarter?</h2>
-						<p class="text-lg text-foreground/60">Start free. No credit card required. See what Threadline can do for your book of business.</p>
-						<div class="flex gap-4 justify-center">
-							<a href="/signup" class="bg-foreground text-primary-foreground px-8 py-3 text-base font-medium">Get Early Access</a>
-							<a href="/pricing" class="border border-foreground px-8 py-3 text-base font-medium">View Pricing</a>
-						</div>
+			<section data-section="faq">
+				<div class="grid gap-24 px-12 py-24">
+					<div class="mx-auto grid max-w-220 gap-2 text-center">
+						<h2 class="text-4xl">
+							Common Questions, <span class="text-muted-foreground">Clear Answers</span>
+						</h2>
 					</div>
+					<div class="mx-auto grid w-full max-w-280 grid-cols-2 items-start gap-8">
+						<ul class="grid items-start">
+							{#each [{ q: 'What types of reps does Threadline work with?', a: 'Independent multi-brand reps, showroom owners, and sales agencies carrying fashion and apparel lines across any combination of wholesale platforms.' }, { q: 'Do brands need to switch to Threadline?', a: 'No. Threadline layers on top of existing platforms. Brands keep using JOOR, NuORDER, or whatever they prefer. Nothing changes for them.' }, { q: 'What makes Stitches different from analytics?', a: 'Analytics show what happened. Stitches shows what to do next \u2014 cross-brand patterns, buyer predictions, and contextual actions that arrive before you ask.' }, { q: 'How long does setup take?', a: 'Under one hour. Connect your existing platforms, import your buyer contacts, and Stitches starts learning your portfolio immediately.' }] as item, i (i)}
+								<li class="grid w-full items-start border-t border-foreground p-6">
+									<button
+										class="flex w-full items-center justify-between gap-4 text-left"
+										onclick={() => toggleFaq(i)}
+									>
+										<h3 class="text-xl">{item.q}</h3>
+										<span class="shrink-0 text-2xl leading-none">{faqOpen === i ? '−' : '+'}</span>
+									</button>
+									{#if faqOpen === i}
+										<p class="mt-4 text-lg text-foreground/60">{item.a}</p>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+						<ul class="grid items-start">
+							{#each [{ q: 'What are Workers?', a: 'Workers are automated agents that handle repetitive tasks \u2014 commission tracking, reorder alerts, buyer follow-ups. Custom Workers let you build your own for the signals only you care about.' }, { q: 'How does commission automation work?', a: 'Set rate structures per brand, define splits between showroom owners and sub-reps, and Threadline calculates everything automatically \u2014 reconciled in real time, no spreadsheets.' }, { q: 'How does pricing work?', a: 'Free for individual reps to start. Premium tiers unlock Stitches AI, Workers, multi-brand analytics, and commission automation. Transparent pricing \u2014 no annual lock-in.' }, { q: 'Is my data shared between brands?', a: 'Never. Brand data stays siloed. Stitches generates cross-brand insights from your own portfolio data \u2014 no brand sees another brand\u2019s information.' }] as item, i (i)}
+								<li class="grid w-full items-start border-t border-foreground p-6">
+									<button
+										class="flex w-full items-center justify-between gap-4 text-left"
+										onclick={() => toggleFaq(i + 4)}
+									>
+										<h3 class="text-xl">{item.q}</h3>
+										<span class="shrink-0 text-2xl leading-none"
+											>{faqOpen === i + 4 ? '−' : '+'}</span
+										>
+									</button>
+									{#if faqOpen === i + 4}
+										<p class="mt-4 text-lg text-foreground/60">{item.a}</p>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					</div>
+				</div>
+			</section>
+			<section data-section="cta">
+				<div class="grid justify-center space-y-6 px-12 py-24">
+					<h2 class="text-4xl">Get early access to Threadline</h2>
+					<form
+						class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
+					>
+						<input
+							class="border-0 px-4 py-2 text-base outline-none"
+							type="email"
+							placeholder="Enter your email"
+						/>
+						<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
+					</form>
 				</div>
 			</section>
 		</div>

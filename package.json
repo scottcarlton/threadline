@@ -7,13 +7,18 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
-		"prepare": "svelte-kit sync || echo ''",
+		"prepare": "svelte-kit sync || echo '' && husky",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"test": "vitest",
-		"test:run": "vitest run"
+		"test:run": "vitest run",
+		"reset": "bunx supabase db reset",
+		"migrate": "bunx supabase migration up",
+		"seed": "bun run scripts/seed-demo.ts",
+		"seed:reset": "bun run reset && bun run seed",
+		"dev:fresh": "bun run seed:reset && bun run dev"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.3",
@@ -24,13 +29,17 @@
 		"@tailwindcss/vite": "^4.1.18",
 		"@types/node": "^22",
 		"@types/qrcode": "^1.5.6",
+		"@types/sanitize-html": "^2.16.1",
 		"eslint": "^10.0.3",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.15.2",
 		"globals": "^17.4.0",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.4.0",
 		"prettier": "^3.8.1",
 		"prettier-plugin-svelte": "^3.4.1",
 		"prettier-plugin-tailwindcss": "^0.7.2",
+		"sharp": "^0.34.5",
 		"supabase": "^2.84.10",
 		"svelte": "^5.54.0",
 		"svelte-check": "^4.4.2",
@@ -39,6 +48,9 @@
 		"typescript-eslint": "^8.57.0",
 		"vite": "^7.3.1",
 		"vitest": "^4.1.4"
+	},
+	"lint-staged": {
+		"*.{ts,js,svelte,css,md,json,html,yml,yaml}": "prettier --write"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.82.0",
@@ -49,12 +61,18 @@
 		"bits-ui": "^2.17.2",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
+		"cron-parser": "^5.5.0",
 		"googleapis": "^171.4.0",
 		"lucide-svelte": "^1.0.1",
 		"marked": "^18.0.0",
 		"motion": "^12.38.0",
 		"pdf-lib": "^1.17.1",
 		"qrcode": "^1.5.4",
-		"tailwind-merge": "^3.5.0"
+		"resend": "^6.11.0",
+		"sanitize-html": "^2.17.3",
+		"svelte-sonner": "^1.1.0",
+		"sveltekit-superforms": "^2.30.1",
+		"tailwind-merge": "^3.5.0",
+		"zod": "^4.3.6"
 	}
 }

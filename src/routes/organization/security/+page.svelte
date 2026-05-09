@@ -127,7 +127,9 @@
 <div class="space-y-8">
 	<div>
 		<h2 class="text-lg font-semibold">Security</h2>
-		<p class="mt-0.5 text-sm text-muted-foreground">Configure single sign-on and security policies for your organization</p>
+		<p class="mt-0.5 text-sm text-muted-foreground">
+			Configure single sign-on and security policies for your organization
+		</p>
 	</div>
 
 	{#if error}
@@ -136,19 +138,34 @@
 
 	<!-- SAML Identity Providers -->
 	<div>
-		<h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">SAML Identity Provider</h2>
+		<h2 class="mb-3 text-sm font-medium tracking-wider text-muted-foreground uppercase">
+			SAML Identity Provider
+		</h2>
 
 		{#if providers.length === 0 && !showForm}
 			<Card>
 				<CardContent class="py-8">
 					<div class="flex flex-col items-center text-center">
 						<div class="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-5 w-5 text-muted-foreground"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+								/>
 							</svg>
 						</div>
 						<h3 class="mt-3 text-sm font-medium">No SSO provider configured</h3>
-						<p class="mt-1 text-sm text-muted-foreground">Connect a SAML identity provider to enable SSO for your team</p>
+						<p class="mt-1 text-sm text-muted-foreground">
+							Connect a SAML identity provider to enable SSO for your team
+						</p>
 						<div class="mt-4">
 							<Button variant="outline" size="sm" onclick={() => (showForm = true)}>
 								Add SAML Provider
@@ -159,25 +176,52 @@
 			</Card>
 		{/if}
 
-		{#each providers as provider}
+		{#each providers as provider (provider.id)}
 			<Card class="mb-4">
 				<CardContent class="pt-5 pb-5">
 					{#if editingId === provider.id}
-						<form onsubmit={(e) => { e.preventDefault(); saveEdit(); }} class="space-y-4">
+						<form
+							onsubmit={(e) => {
+								e.preventDefault();
+								saveEdit();
+							}}
+							class="space-y-4"
+						>
 							<div class="space-y-2">
 								<Label for="edit-domain">Email Domain</Label>
-								<Input id="edit-domain" type="text" placeholder="acme.com" bind:value={editDomain} required />
+								<Input
+									id="edit-domain"
+									type="text"
+									placeholder="acme.com"
+									bind:value={editDomain}
+									required
+								/>
 							</div>
 							<div class="space-y-2">
 								<Label for="edit-metadata">IdP Metadata URL</Label>
-								<Input id="edit-metadata" type="url" placeholder="https://idp.example.com/metadata.xml" bind:value={editMetadataUrl} required />
+								<Input
+									id="edit-metadata"
+									type="url"
+									placeholder="https://idp.example.com/metadata.xml"
+									bind:value={editMetadataUrl}
+									required
+								/>
 							</div>
 							<div class="space-y-2">
 								<Label for="edit-name">Display Name (optional)</Label>
-								<Input id="edit-name" type="text" placeholder="e.g. Okta, Azure AD" bind:value={editDisplayName} />
+								<Input
+									id="edit-name"
+									type="text"
+									placeholder="e.g. Okta, Azure AD"
+									bind:value={editDisplayName}
+								/>
 							</div>
 							<div class="flex gap-2">
-								<Button type="submit" size="sm" disabled={saving || !editDomain || !editMetadataUrl}>
+								<Button
+									type="submit"
+									size="sm"
+									disabled={saving || !editDomain || !editMetadataUrl}
+								>
 									{saving ? 'Saving...' : 'Save Changes'}
 								</Button>
 								<Button type="button" variant="outline" size="sm" onclick={cancelEdit}>
@@ -190,15 +234,20 @@
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center gap-2">
 									<p class="text-sm font-medium">{provider.display_name || 'SAML Provider'}</p>
-									<span class="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">Active</span>
+									<span
+										class="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700"
+										>Active</span
+									>
 								</div>
 								<div class="mt-2 space-y-1">
 									<p class="text-sm text-muted-foreground">
-										<span class="font-medium text-foreground">Domain:</span> {provider.domain}
+										<span class="font-medium text-foreground">Domain:</span>
+										{provider.domain}
 									</p>
 									{#if provider.metadata_url}
 										<p class="truncate text-sm text-muted-foreground">
-											<span class="font-medium text-foreground">Metadata:</span> {provider.metadata_url}
+											<span class="font-medium text-foreground">Metadata:</span>
+											{provider.metadata_url}
 										</p>
 									{/if}
 								</div>
@@ -226,24 +275,45 @@
 		{#if showForm}
 			<Card>
 				<CardContent class="pt-5 pb-5">
-					<form onsubmit={(e) => { e.preventDefault(); createProvider(); }} class="space-y-4">
+					<form
+						onsubmit={(e) => {
+							e.preventDefault();
+							createProvider();
+						}}
+						class="space-y-4"
+					>
 						<div class="space-y-2">
 							<Label for="domain">Email Domain</Label>
 							<Input id="domain" type="text" placeholder="acme.com" bind:value={domain} required />
-							<p class="text-xs text-muted-foreground">The email domain that will trigger SSO login (e.g. acme.com)</p>
+							<p class="text-xs text-muted-foreground">
+								The email domain that will trigger SSO login (e.g. acme.com)
+							</p>
 						</div>
 						<div class="space-y-2">
 							<Label for="metadata">IdP Metadata URL</Label>
-							<Input id="metadata" type="url" placeholder="https://idp.example.com/metadata.xml" bind:value={metadataUrl} required />
-							<p class="text-xs text-muted-foreground">Your identity provider's SAML metadata URL</p>
+							<Input
+								id="metadata"
+								type="url"
+								placeholder="https://idp.example.com/metadata.xml"
+								bind:value={metadataUrl}
+								required
+							/>
+							<p class="text-xs text-muted-foreground">
+								Your identity provider's SAML metadata URL
+							</p>
 						</div>
 						<div class="space-y-2">
 							<Label for="name">Display Name (optional)</Label>
-							<Input id="name" type="text" placeholder="e.g. Okta, Azure AD" bind:value={displayName} />
+							<Input
+								id="name"
+								type="text"
+								placeholder="e.g. Okta, Azure AD"
+								bind:value={displayName}
+							/>
 						</div>
 						<div class="flex gap-2">
-							<Button type="submit" size="sm" disabled={saving || !domain || !metadataUrl}>
-								{saving ? 'Creating...' : 'Add Provider'}
+							<Button type="submit" size="sm" loading={saving} disabled={!domain || !metadataUrl}>
+								Add Provider
 							</Button>
 							<Button type="button" variant="outline" size="sm" onclick={() => (showForm = false)}>
 								Cancel
@@ -266,7 +336,9 @@
 	<!-- SSO Enforcement -->
 	{#if isOwner && providers.length > 0}
 		<div>
-			<h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">SSO Enforcement</h2>
+			<h2 class="mb-3 text-sm font-medium tracking-wider text-muted-foreground uppercase">
+				SSO Enforcement
+			</h2>
 			<Card>
 				<CardContent class="pt-5 pb-5">
 					<div class="flex items-start justify-between gap-4">
@@ -278,7 +350,8 @@
 							</p>
 							{#if ssoEnforced}
 								<p class="mt-2 text-xs text-amber-600">
-									SSO is enforced. Members with matching email domains can only sign in through your identity provider.
+									SSO is enforced. Members with matching email domains can only sign in through your
+									identity provider.
 								</p>
 							{/if}
 						</div>

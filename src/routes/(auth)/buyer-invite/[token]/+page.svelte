@@ -3,7 +3,14 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card/index.js';
+	import { PinInput } from 'bits-ui';
+	import {
+		Card,
+		CardHeader,
+		CardTitle,
+		CardDescription,
+		CardContent
+	} from '$lib/components/ui/card/index.js';
 
 	let { data } = $props();
 	const invitation = $derived(data.invitation);
@@ -20,7 +27,8 @@
 		const { error: err } = await supabase.auth.signInWithOAuth({
 			provider: 'google',
 			options: {
-				redirectTo: `${window.location.origin}/auth/callback?next=/buyer-invite/${invitation.token}/accept`
+				redirectTo: `${window.location.origin}/auth/callback?next=/buyer-invite/${invitation.token}/accept`,
+				queryParams: { prompt: 'select_account' }
 			}
 		});
 		loading = false;
@@ -109,7 +117,8 @@
 	<CardHeader>
 		<CardTitle>Buyer Portal Invitation</CardTitle>
 		<CardDescription>
-			You've been invited to access <strong>{invitation.accountName}</strong> on {invitation.orgName}'s buyer portal.
+			You've been invited to access <strong>{invitation.accountName}</strong> on {invitation.orgName}'s
+			buyer portal.
 		</CardDescription>
 	</CardHeader>
 	<CardContent>
@@ -150,24 +159,45 @@
 				</div>
 			</div>
 		{:else if mode === 'otp-verify'}
-			<form onsubmit={(e) => { e.preventDefault(); verifyAndAccept(); }} class="space-y-4">
+			<form
+				onsubmit={(e) => {
+					e.preventDefault();
+					verifyAndAccept();
+				}}
+				class="space-y-4"
+			>
 				<p class="text-sm text-muted-foreground">Enter the code sent to {invitation.email}</p>
 				<div class="space-y-2">
-					<Label for="otp">Verification code</Label>
-					<Input
-						id="otp"
-						type="text"
-						placeholder="Enter 6-digit code"
+					<Label>Verification code</Label>
+					<PinInput.Root
+						maxlength={6}
 						bind:value={otpCode}
-						autocomplete="one-time-code"
-						required
-					/>
+						onComplete={verifyAndAccept}
+						textalign="center"
+						pasteTransformer={(t) => t.replace(/[^0-9]/g, '')}
+						class="flex justify-center gap-2.5"
+					>
+						{#snippet children({ cells })}
+							{#each cells as cell (cell)}
+								<PinInput.Cell
+									{cell}
+									class="flex h-12 w-11 items-center justify-center rounded-lg border border-input bg-background text-center text-lg font-medium text-foreground transition-colors data-[active]:border-ring data-[active]:ring-2 data-[active]:ring-ring/20"
+								>
+									{cell.char ?? ''}
+								</PinInput.Cell>
+							{/each}
+						{/snippet}
+					</PinInput.Root>
 				</div>
-				<Button size="lg" type="submit" class="w-full" disabled={loading || !otpCode}>
+				<Button size="lg" type="submit" class="w-full" disabled={loading || otpCode.length < 6}>
 					{loading ? 'Joining...' : 'Verify & Join'}
 				</Button>
 				<div class="flex justify-center gap-4 text-sm">
-					<button type="button" class="text-muted-foreground hover:text-foreground" onclick={sendOtp}>
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground"
+						onclick={sendOtp}
+					>
 						Resend code
 					</button>
 					<button type="button" class="text-muted-foreground hover:text-foreground" onclick={reset}>

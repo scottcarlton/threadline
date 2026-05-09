@@ -8,27 +8,37 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const brandId = params.id;
 
-	const [brandRes, productsRes, seasonsRes] = await Promise.all([
-		supabase.from('brands').select('id, name').eq('id', brandId).single(),
+	// RLS handles federation visibility — just query by ID
+	const { data: brand } = await supabase
+		.from('brands')
+		.select('id, name, organization_id')
+		.eq('id', brandId)
+		.single();
+
+	if (!brand) throw error(404, 'Brand not found');
+
+	const isFederated = brand.organization_id !== organization.id;
+
+	const [productsRes, seasonsRes] = await Promise.all([
 		supabase
 			.from('products')
-			.select('*, product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order)')
+			.select(
+				'*, product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order, role, variant_id)'
+			)
 			.eq('brand_id', brandId)
-			.eq('organization_id', organization.id)
-			.order('style_number'),
+			.order('created_at', { ascending: false }),
 		supabase
 			.from('seasons')
 			.select('id, name')
-			.eq('organization_id', organization.id)
+			.eq('organization_id', brand.organization_id)
 			.eq('is_active', true)
 			.order('name')
 	]);
 
-	if (brandRes.error || !brandRes.data) throw error(404, 'Brand not found');
-
 	return {
-		brand: brandRes.data,
+		brand,
 		products: productsRes.data ?? [],
-		seasons: seasonsRes.data ?? []
+		seasons: seasonsRes.data ?? [],
+		isFederated
 	};
 };

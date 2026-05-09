@@ -12,39 +12,47 @@ export type IntegrationEvent =
 	| 'new_account';
 
 type EventPayload = {
-	order_submitted: { orderNumber: string; accountName: string; brandName: string; total: number; url: string };
+	order_submitted: {
+		orderNumber: string;
+		accountName: string;
+		brandName: string;
+		total: number;
+		url: string;
+	};
 	order_confirmed: { orderNumber: string; accountName: string; url: string };
 	order_shipped: { orderNumber: string; accountName: string; url: string };
 	order_cancelled: { orderNumber: string; accountName: string; reason?: string; url: string };
 	new_account: { accountName: string; city?: string; state?: string; url: string };
 };
 
-const EVENT_FORMATTERS: Record<IntegrationEvent, (payload: any) => SlackMessage> = {
-	order_submitted: (p: EventPayload['order_submitted']) => ({
+const EVENT_FORMATTERS: {
+	[E in IntegrationEvent]: (payload: EventPayload[E]) => SlackMessage;
+} = {
+	order_submitted: (p) => ({
 		title: 'New Order Submitted',
 		text: `*${p.orderNumber}* for ${p.accountName} (${p.brandName}) — $${p.total.toLocaleString()}`,
 		url: p.url,
 		color: '#16a34a'
 	}),
-	order_confirmed: (p: EventPayload['order_confirmed']) => ({
+	order_confirmed: (p) => ({
 		title: 'Order Confirmed',
 		text: `*${p.orderNumber}* for ${p.accountName} has been confirmed`,
 		url: p.url,
 		color: '#2563eb'
 	}),
-	order_shipped: (p: EventPayload['order_shipped']) => ({
+	order_shipped: (p) => ({
 		title: 'Order Shipped',
 		text: `*${p.orderNumber}* for ${p.accountName} has shipped`,
 		url: p.url,
 		color: '#7c3aed'
 	}),
-	order_cancelled: (p: EventPayload['order_cancelled']) => ({
+	order_cancelled: (p) => ({
 		title: 'Order Cancelled',
 		text: `*${p.orderNumber}* for ${p.accountName} was cancelled${p.reason ? `: ${p.reason}` : ''}`,
 		url: p.url,
 		color: '#dc2626'
 	}),
-	new_account: (p: EventPayload['new_account']) => ({
+	new_account: (p) => ({
 		title: 'New Account Created',
 		text: `*${p.accountName}*${p.city ? ` — ${p.city}, ${p.state}` : ''}`,
 		url: p.url,
@@ -65,7 +73,12 @@ export async function emitIntegrationEvent<E extends IntegrationEvent>(
 	// Send to all notification integrations in parallel
 	await Promise.allSettled([
 		sendSlackMessage(organizationId, message),
-		sendDiscordMessage(organizationId, { title: message.title, text: message.text, url: message.url, color: message.color }),
+		sendDiscordMessage(organizationId, {
+			title: message.title,
+			text: message.text,
+			url: message.url,
+			color: message.color
+		}),
 		sendTeamsMessage(organizationId, { title: message.title, text: message.text, url: message.url })
 	]);
 
@@ -82,7 +95,7 @@ async function dispatchAgentTriggers(
 ): Promise<void> {
 	const { data: triggers } = await supabaseAdmin
 		.from('org_agent_triggers')
-		.select('*, org_agents!inner(id, system_prompt, is_active)')
+		.select('*, org_agents!inner(id, system_prompt, is_active, tool_whitelist)')
 		.eq('organization_id', organizationId)
 		.eq('trigger_type', 'event')
 		.eq('event_name', event)
@@ -90,9 +103,31 @@ async function dispatchAgentTriggers(
 
 	if (!triggers || triggers.length === 0) return;
 
+	type JoinedAgent = {
+		id: string;
+		system_prompt: string;
+		is_active: boolean;
+		tool_whitelist: string[] | null;
+	};
+	const RATE_LIMIT_MS = 60_000;
+	const now = Date.now();
+
 	for (const trigger of triggers) {
-		const agent = trigger.org_agents as any;
+		const joined = trigger.org_agents as JoinedAgent | JoinedAgent[] | null;
+		const agent = Array.isArray(joined) ? joined[0] : joined;
 		if (!agent?.is_active) continue;
+
+		// Rate limit: skip if this trigger ran within the last 60 seconds.
+		// Prevents runaway executions during bulk operations.
+		if (trigger.last_run_at) {
+			const lastRun = new Date(trigger.last_run_at).getTime();
+			if (now - lastRun < RATE_LIMIT_MS) {
+				console.log(
+					`Skipping trigger ${trigger.id}: ran ${now - lastRun}ms ago (< ${RATE_LIMIT_MS}ms)`
+				);
+				continue;
+			}
+		}
 
 		try {
 			const result = await executeAgent({
@@ -102,7 +137,8 @@ async function dispatchAgentTriggers(
 				systemPrompt: agent.system_prompt,
 				triggeredBy: 'event',
 				triggerId: trigger.id,
-				eventContext: payload as Record<string, unknown>
+				eventContext: payload as Record<string, unknown>,
+				toolWhitelist: agent.tool_whitelist
 			});
 
 			// Send notification if configured

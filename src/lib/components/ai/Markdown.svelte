@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { marked } from 'marked';
+	import { sanitizeMarkdown } from '$lib/utils/sanitize-markdown.js';
 
 	type Props = {
 		content: string;
@@ -13,10 +14,11 @@
 		gfm: true
 	});
 
-	const html = $derived(marked.parse(content, { async: false }) as string);
+	const html = $derived(sanitizeMarkdown(marked.parse(content, { async: false }) as string));
 </script>
 
 <div class="markdown">
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- output is sanitized via DOMPurify above -->
 	{@html html}
 </div>
 
@@ -50,9 +52,15 @@
 		margin-bottom: 0.25em;
 		line-height: 1.3;
 	}
-	.markdown :global(h1) { font-size: 1.1em; }
-	.markdown :global(h2) { font-size: 1em; }
-	.markdown :global(h3) { font-size: 0.95em; }
+	.markdown :global(h1) {
+		font-size: 1.1em;
+	}
+	.markdown :global(h2) {
+		font-size: 1em;
+	}
+	.markdown :global(h3) {
+		font-size: 0.95em;
+	}
 	.markdown :global(h1:first-child),
 	.markdown :global(h2:first-child),
 	.markdown :global(h3:first-child) {
@@ -64,8 +72,12 @@
 		margin: 0.4em 0;
 		padding-left: 1.5em;
 	}
-	.markdown :global(ul) { list-style-type: disc; }
-	.markdown :global(ol) { list-style-type: decimal; }
+	.markdown :global(ul) {
+		list-style-type: disc;
+	}
+	.markdown :global(ol) {
+		list-style-type: decimal;
+	}
 	.markdown :global(li) {
 		margin-bottom: 0.15em;
 	}

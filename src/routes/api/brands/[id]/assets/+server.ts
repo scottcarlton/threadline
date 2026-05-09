@@ -18,8 +18,15 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 		return json({ error: 'Missing file' }, { status: 400 });
 	}
 
+	// Storage keys must avoid spaces and unsafe characters or the upload
+	// silently 400s with an opaque "Invalid key" message.
+	const safeName = (file.name || 'upload')
+		.normalize('NFKD')
+		.replace(/[^a-zA-Z0-9.\-_]/g, '-')
+		.replace(/-+/g, '-')
+		.toLowerCase();
 	const timestamp = Date.now();
-	const filePath = `${orgId}/${brandId}/${timestamp}-${file.name}`;
+	const filePath = `${orgId}/${brandId}/${timestamp}-${safeName}`;
 
 	const arrayBuffer = await file.arrayBuffer();
 	const buffer = Buffer.from(arrayBuffer);
@@ -32,6 +39,14 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 		});
 
 	if (uploadError) {
+		console.error('[brands/assets] storage upload failed', {
+			brandId,
+			orgId,
+			filePath,
+			fileSize: file.size,
+			mime: file.type,
+			error: uploadError
+		});
 		return json({ error: 'Upload failed: ' + uploadError.message }, { status: 500 });
 	}
 
@@ -51,6 +66,7 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 		.single();
 
 	if (dbError) {
+		console.error('[brands/assets] db insert failed', { brandId, orgId, filePath, error: dbError });
 		// Clean up uploaded file on DB error
 		await supabaseAdmin.storage.from('brand-assets').remove([filePath]);
 		return json({ error: 'Failed to create record: ' + dbError.message }, { status: 500 });
@@ -112,10 +128,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Delete DB record
-	const { error: dbError } = await supabaseAdmin
-		.from('brand_assets')
-		.delete()
-		.eq('id', assetId);
+	const { error: dbError } = await supabaseAdmin.from('brand_assets').delete().eq('id', assetId);
 
 	if (dbError) {
 		return json({ error: 'DB delete failed: ' + dbError.message }, { status: 500 });

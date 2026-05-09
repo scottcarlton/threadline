@@ -14,7 +14,7 @@ async function supabaseAuthAdmin(method: string, path: string, body?: unknown) {
 		},
 		body: body ? JSON.stringify(body) : undefined
 	});
-	const data = await res.json();
+	const data = (await res.json()) as { message?: string; msg?: string };
 	if (!res.ok) {
 		throw new Error(data.message || data.msg || 'SSO admin API error');
 	}
@@ -52,9 +52,13 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 	if (Object.keys(updatePayload).length > 0) {
 		try {
-			await supabaseAuthAdmin('PUT', `/sso/providers/${existing.supabase_provider_id}`, updatePayload);
-		} catch (err: any) {
-			return json({ error: err.message }, { status: 500 });
+			await supabaseAuthAdmin(
+				'PUT',
+				`/sso/providers/${existing.supabase_provider_id}`,
+				updatePayload
+			);
+		} catch (err: unknown) {
+			return json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
 		}
 	}
 
@@ -103,21 +107,15 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 	// Delete from Supabase auth
 	try {
 		await supabaseAuthAdmin('DELETE', `/sso/providers/${existing.supabase_provider_id}`);
-	} catch (err: any) {
-		return json({ error: err.message }, { status: 500 });
+	} catch (err: unknown) {
+		return json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
 	}
 
 	// Delete from our table
-	await supabaseAdmin
-		.from('organization_sso_providers')
-		.delete()
-		.eq('id', params.id);
+	await supabaseAdmin.from('organization_sso_providers').delete().eq('id', params.id);
 
 	// Auto-disable enforcement to prevent lockout
-	await supabaseAdmin
-		.from('organizations')
-		.update({ sso_enforced: false })
-		.eq('id', orgId);
+	await supabaseAdmin.from('organizations').update({ sso_enforced: false }).eq('id', orgId);
 
 	return json({ success: true });
 };

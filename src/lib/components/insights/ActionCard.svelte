@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Card } from '$lib/components/ui/card/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	type Action = {
 		label: string;
@@ -33,7 +33,6 @@
 		title,
 		description,
 		metadata = {},
-		entityType = null,
 		entityId = null,
 		actions = [],
 		onDismiss,
@@ -63,11 +62,13 @@
 		}
 	};
 
-	const config = $derived(typeConfig[insightType] ?? {
-		label: insightType,
-		color: 'bg-muted text-muted-foreground',
-		icon: 'M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z'
-	});
+	const config = $derived(
+		typeConfig[insightType] ?? {
+			label: insightType,
+			color: 'bg-muted text-muted-foreground',
+			icon: 'M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z'
+		}
+	);
 
 	const priorityLabel = $derived(
 		priorityScore >= 80 ? 'High' : priorityScore >= 50 ? 'Medium' : 'Low'
@@ -126,7 +127,11 @@
 				prompt: `Draft a follow-up email for account ${entityId}.`
 			});
 			if (entityId) {
-				defaults.push({ label: 'Start Order', variant: 'ghost', href: `/orders/new?account=${entityId}` });
+				defaults.push({
+					label: 'Start Order',
+					variant: 'ghost',
+					href: `/orders/new?account=${entityId}`
+				});
 			}
 		}
 
@@ -139,7 +144,7 @@
 		if (action.onclick) {
 			action.onclick();
 		} else if (action.href) {
-			goto(action.href);
+			goto(resolve(action.href as '/orders'));
 		} else if (action.prompt) {
 			// Open AI assistant with the prompt
 			const event = new CustomEvent('assistant-prompt', { detail: action.prompt, bubbles: true });
@@ -156,65 +161,97 @@
 <Card class="relative overflow-hidden transition-all hover:shadow-md">
 	<!-- Priority accent bar -->
 	<div
-		class="absolute left-0 top-0 bottom-0 w-1 {priorityScore >= 80
+		class="absolute top-0 bottom-0 left-0 w-1 {priorityScore >= 80
 			? 'bg-red-500'
 			: priorityScore >= 50
 				? 'bg-amber-500'
 				: 'bg-muted-foreground/30'}"
 	></div>
 
-	<div class="pl-4 pr-4 py-4">
+	<div class="py-4 pr-4 pl-4">
 		<!-- Header: type badge + priority + dismiss -->
-		<div class="flex items-center justify-between gap-2 mb-2">
+		<div class="mb-2 flex items-center justify-between gap-2">
 			<div class="flex items-center gap-2">
-				<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold {config.color}">
-					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+				<span
+					class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold {config.color}"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke-width="1.5"
+						stroke="currentColor"
+						class="h-3.5 w-3.5"
+					>
 						<path stroke-linecap="round" stroke-linejoin="round" d={config.icon} />
 					</svg>
 					{config.label}
 				</span>
-				<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium {priorityColor}">
+				<span
+					class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium {priorityColor}"
+				>
 					{priorityLabel}
 				</span>
 			</div>
 			<button
 				onclick={dismiss}
-				class="text-muted-foreground/50 hover:text-muted-foreground transition-colors p-1 rounded-md hover:bg-muted"
+				class="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-muted-foreground"
 				aria-label="Dismiss"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="1.5"
+					stroke="currentColor"
+					class="h-4 w-4"
+				>
 					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
 				</svg>
 			</button>
 		</div>
 
 		<!-- Title + description -->
-		<h3 class="text-[15px] font-semibold text-foreground leading-tight mb-1">{title}</h3>
-		<p class="text-sm text-muted-foreground leading-relaxed mb-3">{description}</p>
+		<h3 class="mb-1 text-[15px] leading-tight font-semibold text-foreground">{title}</h3>
+		<p class="mb-3 text-sm leading-relaxed text-muted-foreground">{description}</p>
 
 		<!-- Metric highlight (if available) -->
 		{#if metadata.prior_revenue}
-			<div class="flex items-center gap-4 mb-3 text-sm">
+			<div class="mb-3 flex items-center gap-4 text-sm">
 				<span class="text-muted-foreground">Prior year:</span>
-				<span class="font-semibold text-foreground">${(metadata.prior_revenue as number).toLocaleString()}</span>
+				<span class="font-semibold text-foreground"
+					>${(metadata.prior_revenue as number).toLocaleString()}</span
+				>
 			</div>
 		{:else if metadata.prior_amount}
-			<div class="flex items-center gap-4 mb-3 text-sm">
+			<div class="mb-3 flex items-center gap-4 text-sm">
 				<span class="text-muted-foreground">Last year's order:</span>
-				<span class="font-semibold text-foreground">${(metadata.prior_amount as number).toLocaleString()}</span>
+				<span class="font-semibold text-foreground"
+					>${(metadata.prior_amount as number).toLocaleString()}</span
+				>
 			</div>
 		{:else if metadata.days_overdue != null}
-		<div class="flex items-center gap-4 mb-3 text-sm">
-			<span class="text-muted-foreground">Order total:</span>
-			<span class="font-semibold text-foreground">${(metadata.total_amount as number).toLocaleString()}</span>
-			<span class="text-red-600 dark:text-red-400 font-medium">{metadata.days_overdue}d overdue</span>
-		</div>
-	{:else if metadata.health_score != null}
-			<div class="flex items-center gap-4 mb-3 text-sm">
+			<div class="mb-3 flex items-center gap-4 text-sm">
+				<span class="text-muted-foreground">Order total:</span>
+				<span class="font-semibold text-foreground"
+					>${(metadata.total_amount as number).toLocaleString()}</span
+				>
+				<span class="font-medium text-red-600 dark:text-red-400"
+					>{metadata.days_overdue}d overdue</span
+				>
+			</div>
+		{:else if metadata.health_score != null}
+			<div class="mb-3 flex items-center gap-4 text-sm">
 				<span class="text-muted-foreground">Health score:</span>
-				<span class="font-semibold {(metadata.health_score as number) < 40 ? 'text-red-600 dark:text-red-400' : 'text-foreground'}">{metadata.health_score}/100</span>
+				<span
+					class="font-semibold {(metadata.health_score as number) < 40
+						? 'text-red-600 dark:text-red-400'
+						: 'text-foreground'}">{metadata.health_score}/100</span
+				>
 				{#if metadata.days_since_last_order != null}
-					<span class="text-muted-foreground/70">Last order {metadata.days_since_last_order}d ago</span>
+					<span class="text-muted-foreground/70"
+						>Last order {metadata.days_since_last_order}d ago</span
+					>
 				{/if}
 			</div>
 		{/if}
@@ -222,7 +259,7 @@
 		<!-- Actions -->
 		{#if allActions.length > 0}
 			<div class="flex flex-wrap gap-2">
-				{#each allActions as action}
+				{#each allActions as action, i (i)}
 					<Button
 						variant={action.variant ?? 'outline'}
 						size="sm"

@@ -48,7 +48,7 @@
 				'Unlimited orders',
 				'Priority support',
 				'Advanced reporting',
-				'AI assistant',
+				'Stitch AI assistant',
 				'Integrations'
 			]
 		},
@@ -90,9 +90,9 @@
 
 	<!-- Plan Comparison -->
 	<div>
-		<h2 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted-foreground">Plans</h2>
+		<h2 class="mb-4 text-sm font-medium tracking-wider text-muted-foreground uppercase">Plans</h2>
 		<div class="grid gap-4 sm:grid-cols-3">
-			{#each plans as plan}
+			{#each plans as plan (plan.id)}
 				{@const isCurrent = plan.id === currentPlan}
 				<Card class={cn('relative', isCurrent && 'border-primary')}>
 					{#if isCurrent}
@@ -117,7 +117,7 @@
 					</CardHeader>
 					<CardContent>
 						<ul class="space-y-2">
-							{#each plan.features as feature}
+							{#each plan.features as feature (feature)}
 								<li class="flex items-center gap-2 text-sm">
 									<Check class="h-4 w-4 shrink-0 text-green-600" />
 									{feature}
@@ -154,7 +154,9 @@
 			</CardHeader>
 			<CardContent>
 				<div class="rounded-lg border border-dashed p-6 text-center">
-					<p class="text-sm text-muted-foreground">Payment methods will be available when you upgrade to a paid plan.</p>
+					<p class="text-sm text-muted-foreground">
+						Payment methods will be available when you upgrade to a paid plan.
+					</p>
 				</div>
 			</CardContent>
 		</Card>
@@ -169,7 +171,9 @@
 			</CardHeader>
 			<CardContent>
 				<div class="rounded-lg border border-dashed p-6 text-center">
-					<p class="text-sm text-muted-foreground">No invoices yet. Invoices will appear here once you're on a paid plan.</p>
+					<p class="text-sm text-muted-foreground">
+						No invoices yet. Invoices will appear here once you're on a paid plan.
+					</p>
 				</div>
 			</CardContent>
 		</Card>

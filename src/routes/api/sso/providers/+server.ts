@@ -70,8 +70,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			metadata_url: metadataUrl,
 			domains: [normalizedDomain]
 		});
-	} catch (err: any) {
-		return json({ error: err.message }, { status: 500 });
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : 'SSO admin API error';
+		return json({ error: message }, { status: 500 });
 	}
 
 	// Store mapping in our table
@@ -92,7 +93,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Clean up the Supabase SSO provider
 		try {
 			await supabaseAuthAdmin('DELETE', `/sso/providers/${ssoProvider.id}`);
-		} catch { /* best effort */ }
+		} catch {
+			/* best effort */
+		}
 		return json({ error: insertError.message }, { status: 500 });
 	}
 

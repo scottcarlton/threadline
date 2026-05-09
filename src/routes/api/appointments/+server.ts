@@ -10,7 +10,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	const body = await request.json();
-	const { show_date_id, account_id, appointment_type, location_type, location_detail, scheduled_date, scheduled_time, duration_minutes, notes, freeform_account_name, freeform_contact_name, freeform_contact_email, freeform_contact_phone } = body;
+	const {
+		show_date_id,
+		account_id,
+		appointment_type,
+		location_type,
+		location_detail,
+		scheduled_date,
+		scheduled_time,
+		duration_minutes,
+		notes,
+		freeform_account_name,
+		freeform_contact_name,
+		freeform_contact_email,
+		freeform_contact_phone
+	} = body;
 
 	if (!account_id && !freeform_account_name) {
 		return json({ error: 'Account or freeform account name is required' }, { status: 400 });

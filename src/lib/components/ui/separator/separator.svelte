@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { cn } from '$lib/utils.js';
 	type Props = { class?: string; orientation?: 'horizontal' | 'vertical'; decorative?: boolean };
-	let { class: className = '', orientation = 'horizontal', decorative = true, ...restProps }: Props = $props();
+	let {
+		class: className = '',
+		orientation = 'horizontal',
+		decorative = true,
+		...restProps
+	}: Props = $props();
 </script>
 
 <div

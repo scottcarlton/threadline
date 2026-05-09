@@ -1,0 +1,8 @@
+Confirm your email for /Threadline
+
+Confirm the email on your account to finish setup.
+
+Confirm: {{ .ConfirmationURL }}
+
+If you didn't sign up, ignore this email.
+/Threadline · threadline.systems

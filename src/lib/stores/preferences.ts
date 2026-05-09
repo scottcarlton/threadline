@@ -1,4 +1,4 @@
-import { writable, derived } from 'svelte/store';
+import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
 export type Appearance = 'light' | 'auto' | 'dark';
@@ -11,6 +11,7 @@ export interface Preferences {
 	chatFont: ChatFont;
 	autoHideDock: boolean;
 	voiceId: string;
+	sidebarOpen?: boolean;
 }
 
 const STORAGE_KEY = 'threadline-preferences';
@@ -20,7 +21,8 @@ const defaults: Preferences = {
 	animations: 'auto',
 	chatFont: 'default',
 	autoHideDock: false,
-	voiceId: 'EXAVITQu4vr4xnSDxMaL'
+	voiceId: 'EXAVITQu4vr4xnSDxMaL',
+	sidebarOpen: undefined
 };
 
 function loadFromStorage(): Preferences {
@@ -61,6 +63,9 @@ function createPreferences() {
 		},
 		setVoiceId(v: string) {
 			store.update((p) => ({ ...p, voiceId: v }));
+		},
+		setSidebarOpen(v: boolean) {
+			store.update((p) => ({ ...p, sidebarOpen: v }));
 		}
 	};
 }
