@@ -14,10 +14,19 @@
 	import { page } from '$app/stores';
 	import { get } from 'svelte/store';
 
-	// Check URL for SSO-required error
+	const errorMessages: Record<string, string> = {
+		sso_required: 'Your organization requires SSO login. Please sign in with SSO.',
+		beta_not_whitelisted:
+			"Threadline is currently in private beta. If you'd like access, reach out to hello@threadline.systems."
+	};
+
 	const urlError = get(page).url.searchParams.get('error');
+	const urlErrorMessage = urlError ? (errorMessages[urlError] ?? null) : null;
+	if (urlErrorMessage) {
+		error = urlErrorMessage;
+	}
 	if (urlError === 'sso_required') {
-		error = 'Your organization requires SSO login. Please sign in with SSO.';
+		mode = 'sso-email';
 	}
 
 	async function signInWithGoogle() {
