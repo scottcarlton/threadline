@@ -144,7 +144,7 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 		return json({ success: true, messageId });
 	}
 
-	// Fallback: send via Resend with user's name + reply-to
+	// Fallback: send via Brevo with user's name + reply-to
 	const { data: profile } = await supabaseAdmin
 		.from('profiles')
 		.select('first_name, last_name')
