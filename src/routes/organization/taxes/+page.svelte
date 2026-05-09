@@ -128,7 +128,7 @@
 		<p class="mt-0.5 text-sm text-muted-foreground">US sales tax, VAT, and GST configuration.</p>
 	</div>
 
-	<form method="POST" use:enhance class="space-y-8">
+	<form method="POST" action="?/saveSettings" use:enhance class="space-y-8">
 		<!-- Pricing display -->
 		<section class="space-y-3">
 			<h3 class="text-sm font-semibold">Pricing display</h3>

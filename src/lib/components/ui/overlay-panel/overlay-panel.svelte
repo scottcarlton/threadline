@@ -12,6 +12,7 @@
 		maxHeight?: string;
 		closeOnEscape?: boolean;
 		showDragHandle?: boolean;
+		rounded?: boolean;
 		children: Snippet;
 	};
 
@@ -24,6 +25,7 @@
 		maxHeight = '85dvh',
 		closeOnEscape = true,
 		showDragHandle = true,
+		rounded = true,
 		children
 	}: Props = $props();
 
@@ -199,7 +201,9 @@
 			aria-modal="true"
 			aria-label={ariaLabel}
 			tabindex="-1"
-			class="fixed right-0 bottom-0 left-0 z-50 flex flex-col rounded-t-2xl bg-background shadow-xl outline-none"
+			class="fixed right-0 bottom-0 left-0 z-50 flex flex-col bg-background shadow-xl outline-none {rounded
+				? 'rounded-t-2xl'
+				: ''}"
 			style:max-height={maxHeight}
 			style:transform="translateY(100%)"
 			style:will-change="transform"

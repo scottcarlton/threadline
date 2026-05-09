@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { page } from '$app/stores';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { cart } from '$lib/stores/cart.js';
-	import type { Product } from '$lib/types/database.js';
+	import type { Product, ProductImage } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
-	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
+	import { aggregateStockStatus } from '$lib/utils/products';
+	import { getAttributeLabel } from '$lib/data/product-attributes';
+	import QtyStepper from '$lib/components/shared/QtyStepper.svelte';
 
 	let { data } = $props();
 
@@ -16,102 +18,260 @@
 			product_variants: {
 				id: string;
 				color: string | null;
+				color_hex: string | null;
 				size: string | null;
 				sku: string | null;
 				stock_qty: number | null;
 				stock_threshold: number | null;
 				shopify_variant_id: string | null;
 			}[];
-			product_images: { id: string; file_path: string; is_primary: boolean; sort_order: number }[];
+			product_images: ProductImage[];
 		}
 	);
-
-	function aggregateStockStatus(
-		variants: { stock_qty: number | null; stock_threshold: number | null }[]
-	): StockStatus | null {
-		const statuses = variants
-			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
-			.filter((s): s is StockStatus => s !== null);
-		if (statuses.length === 0) return null;
-		if (statuses.includes('out')) return 'out';
-		if (statuses.includes('low')) return 'low';
-		return 'in';
-	}
 
 	const stockAgg = $derived(
 		product.ats ? aggregateStockStatus(product.product_variants ?? []) : null
 	);
 	const isOutOfStock = $derived(product.ats && stockAgg === 'out');
 
-	const images = $derived(product.product_images ?? []);
-	const primaryImage = $derived(images[0] ?? null);
-	let selectedImageIndex = $state(0);
-	let lightboxOpen = $state(false);
+	type ImageGroup = {
+		color: string;
+		primary: ProductImage | null;
+		hover: ProductImage | null;
+		video: ProductImage | null;
+	};
 
-	const colors = $derived([
-		...new Set(product.product_variants?.map((v) => v.color).filter(Boolean))
-	]);
-	const sizes = $derived([
-		...new Set(product.product_variants?.map((v) => v.size).filter(Boolean))
-	]);
+	const variantImageGroups = $derived(() => {
+		const variants = product.product_variants ?? [];
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient computation inside $derived
+		const variantColorMap = new Map<string, string>();
+		for (const v of variants) {
+			if (v.id && v.color) variantColorMap.set(v.id, v.color);
+		}
 
-	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+		const groups = new SvelteMap<string, ImageGroup>();
+		for (const img of product.product_images ?? []) {
+			const color = img.variant_id ? (variantColorMap.get(img.variant_id) ?? '') : '';
+			if (!groups.has(color)) groups.set(color, { color, primary: null, hover: null, video: null });
+			const group = groups.get(color)!;
+			if (img.role === 'primary') group.primary = img;
+			else if (img.role === 'hover') group.hover = img;
+			else if (img.role === 'video') group.video = img;
+			else if (img.is_primary && !group.primary) group.primary = img;
+			else if (!group.hover) group.hover = img;
+		}
+		return [...groups.values()]
+			.filter((g) => g.primary)
+			.sort((a, b) => {
+				const ap = a.primary?.is_primary ? 1 : 0;
+				const bp = b.primary?.is_primary ? 1 : 0;
+				return bp - ap;
+			});
+	});
 
-	const inCart = $derived($cart.some((i) => i.productId === product.id));
+	let activeGroupIndex = $state(
+		(() => {
+			const imgId = $page.url.searchParams.get('color');
+			if (!imgId) return 0;
+			const idx = variantImageGroups().findIndex(
+				(g) => g.primary?.id === imgId || g.hover?.id === imgId
+			);
+			return idx >= 0 ? idx : 0;
+		})()
+	);
+	let selectedSubImage = $state<ProductImage | null>(null);
+	let playingVideo = $state(false);
+	let videoEl = $state<HTMLVideoElement | null>(null);
 
-	function addToCart() {
-		cart.addItem({
-			productId: product.id,
-			brandId: product.brand_id,
-			productName: product.name,
-			styleNumber: product.style_number,
-			brandName: product.brands?.name ?? 'Unknown',
-			price: product.wholesale_price ?? 0,
-			imageUrl: primaryImage ? `/api/products/${product.id}/images/${primaryImage.id}` : null,
-			colors: colors as string[],
-			sizes: sizes as string[],
-			addedAt: new Date().toISOString(),
-			seasonId: product.season_id ?? null,
-			seasonName: product.seasons?.name ?? null,
-			selectedColor: (colors as string[])[0] ?? '',
-			sizeQtys: {}
-		});
-	}
+	const activeGroup = $derived(
+		variantImageGroups()[activeGroupIndex] ?? variantImageGroups()[0] ?? null
+	);
 
-	function removeFromCart() {
-		cart.removeItem(product.id);
-	}
+	$effect(() => {
+		const imgId = activeGroup?.primary?.id;
+		if (!imgId) return;
+		const url = new URL(window.location.href);
+		url.searchParams.set('color', imgId);
+		history.replaceState(history.state, '', url.toString());
+	});
+	const activeImage = $derived(
+		selectedSubImage ?? activeGroup?.primary ?? (product.product_images ?? [])[0] ?? null
+	);
+	const selectedColor = $derived(activeGroup?.color ?? '');
 
-	function openLightbox(index: number) {
-		selectedImageIndex = index;
-		lightboxOpen = true;
-	}
-
-	function closeLightbox() {
-		lightboxOpen = false;
-	}
+	const groupImages = $derived(
+		[activeGroup?.primary, activeGroup?.hover, activeGroup?.video].filter(
+			(img): img is ProductImage => img != null
+		)
+	);
+	const activeImageIndex = $derived(
+		activeImage ? groupImages.findIndex((img) => img.id === activeImage.id) : 0
+	);
 
 	function prevImage() {
-		selectedImageIndex = (selectedImageIndex - 1 + images.length) % images.length;
+		if (groupImages.length <= 1) return;
+		const idx = (activeImageIndex - 1 + groupImages.length) % groupImages.length;
+		const img = groupImages[idx];
+		if (img.role === 'video') {
+			playingVideo = true;
+			selectedSubImage = null;
+		} else {
+			playingVideo = false;
+			selectedSubImage = img;
+		}
 	}
 
 	function nextImage() {
-		selectedImageIndex = (selectedImageIndex + 1) % images.length;
+		if (groupImages.length <= 1) return;
+		const idx = (activeImageIndex + 1) % groupImages.length;
+		const img = groupImages[idx];
+		if (img.role === 'video') {
+			playingVideo = true;
+			selectedSubImage = null;
+		} else {
+			playingVideo = false;
+			selectedSubImage = img;
+		}
 	}
 
-	function handleLightboxKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') closeLightbox();
-		if (e.key === 'ArrowLeft') prevImage();
-		if (e.key === 'ArrowRight') nextImage();
+	$effect(() => {
+		void activeGroupIndex;
+		selectedSubImage = null;
+		playingVideo = false;
+	});
+
+	const variantThumbnails = $derived(variantImageGroups().map((g) => g.primary!));
+
+	const colors = $derived([
+		...new Set(product.product_variants?.map((v) => v.color).filter(Boolean))
+	] as string[]);
+
+	const STANDARD_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
+
+	const availableSizesForColor = $derived(() => {
+		const variants = product.product_variants ?? [];
+		const filtered = selectedColor ? variants.filter((v) => v.color === selectedColor) : variants;
+		return new Set(filtered.map((v) => v.size).filter(Boolean) as string[]);
+	});
+
+	const allSizes = $derived([
+		...new Set(product.product_variants?.map((v) => v.size).filter(Boolean))
+	] as string[]);
+
+	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+	let localQtys = $state<Record<string, number>>({});
+
+	function colorSizeKey(color: string, size: string): string {
+		return color ? `${color}:${size}` : size;
+	}
+
+	const activeColorQtys = $derived(() => {
+		const result: Record<string, number> = {};
+		for (const size of STANDARD_SIZES) {
+			result[size] = localQtys[colorSizeKey(selectedColor, size)] ?? 0;
+		}
+		return result;
+	});
+
+	const totalUnits = $derived(Object.values(localQtys).reduce((s, q) => s + (q || 0), 0));
+
+	const activeColorUnits = $derived(
+		Object.values(activeColorQtys()).reduce((s, q) => s + (q || 0), 0)
+	);
+
+	function colorUnitsLocal(color: string): number {
+		let total = 0;
+		const prefix = color ? `${color}:` : '';
+		for (const [key, qty] of Object.entries(localQtys)) {
+			if (prefix ? key.startsWith(prefix) : !key.includes(':')) {
+				total += qty || 0;
+			}
+		}
+		return total;
+	}
+
+	function colorImageUrl(color: string): string | null {
+		const group = variantImageGroups().find((g) => g.color === color);
+		if (group?.primary) return `/api/products/${product.id}/images/${group.primary.id}`;
+		const fallback =
+			(product.product_images ?? []).find((i) => i.is_primary) ?? (product.product_images ?? [])[0];
+		return fallback ? `/api/products/${product.id}/images/${fallback.id}` : null;
+	}
+
+	function setQty(size: string, value: number) {
+		const qty = Math.max(0, Math.floor(value) || 0);
+		const key = colorSizeKey(selectedColor, size);
+		localQtys = { ...localQtys, [key]: qty };
+	}
+
+	function addToCart() {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient computation inside function
+		const colorsWithQtys = new Map<string, Record<string, number>>();
+
+		for (const [key, qty] of Object.entries(localQtys)) {
+			if (!qty || qty <= 0) continue;
+			const sepIdx = key.indexOf(':');
+			const color = sepIdx >= 0 ? key.slice(0, sepIdx) : '';
+			const size = sepIdx >= 0 ? key.slice(sepIdx + 1) : key;
+			if (!colorsWithQtys.has(color)) colorsWithQtys.set(color, {});
+			colorsWithQtys.get(color)![size] = qty;
+		}
+
+		if (colorsWithQtys.size === 0) {
+			const fallbackImg =
+				(product.product_images ?? []).find((i) => i.is_primary) ??
+				(product.product_images ?? [])[0];
+			cart.addItem({
+				productId: product.id,
+				brandId: product.brand_id,
+				productName: product.name,
+				styleNumber: product.style_number,
+				brandName: product.brands?.name ?? 'Unknown',
+				price: product.wholesale_price ?? 0,
+				imageUrl: fallbackImg ? `/api/products/${product.id}/images/${fallbackImg.id}` : null,
+				colors: colors,
+				sizes: allSizes,
+				addedAt: new Date().toISOString(),
+				seasonId: product.season_id ?? null,
+				seasonName: product.seasons?.name ?? null,
+				selectedColor: selectedColor,
+				sizeQtys: {}
+			});
+			return;
+		}
+
+		for (const [color, sizeQtys] of colorsWithQtys) {
+			const key = cart.cartKey({ productId: product.id, selectedColor: color });
+			const existing = $cart.find((i) => cart.cartKey(i) === key);
+			if (existing) {
+				cart.updateItemByKey(key, { sizeQtys });
+			} else {
+				cart.addItem({
+					productId: product.id,
+					brandId: product.brand_id,
+					productName: product.name,
+					styleNumber: product.style_number,
+					brandName: product.brands?.name ?? 'Unknown',
+					price: product.wholesale_price ?? 0,
+					imageUrl: colorImageUrl(color),
+					colors: colors,
+					sizes: allSizes,
+					addedAt: new Date().toISOString(),
+					seasonId: product.season_id ?? null,
+					seasonName: product.seasons?.name ?? null,
+					selectedColor: color,
+					sizeQtys
+				});
+			}
+		}
 	}
 </script>
 
-<svelte:window onkeydown={lightboxOpen ? handleLightboxKeydown : undefined} />
-
-<div class="mx-auto max-w-5xl space-y-6">
+<div class="space-y-6">
 	<!-- Back link -->
-	<a
-		href={resolve('/shop')}
+	<button
+		onclick={() => history.back()}
 		class="inline-flex items-center gap-1.5 text-base text-muted-foreground transition-colors hover:text-foreground"
 	>
 		<svg
@@ -125,78 +285,238 @@
 			<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
 		</svg>
 		Back to Shop
-	</a>
+	</button>
 
 	<div class="grid gap-8 lg:grid-cols-2">
-		<!-- Images -->
-		<div class="space-y-3">
-			{#if primaryImage || images.length > 0}
-				<!-- Main image -->
-				<button
-					class="aspect-square w-full cursor-zoom-in overflow-hidden rounded-none bg-muted"
-					onclick={() => openLightbox(selectedImageIndex)}
-				>
-					{#if images[selectedImageIndex]}
-						<img
-							src="/api/products/{product.id}/images/{images[selectedImageIndex].id}"
-							alt={product.name}
-							class="h-full w-full object-cover"
-						/>
-					{/if}
-				</button>
-
-				<!-- Thumbnails -->
-				{#if images.length > 1}
-					<div class="flex gap-2 overflow-x-auto">
-						{#each images as img, i (img.id)}
-							<button
-								class="h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-colors {i ===
-								selectedImageIndex
-									? 'border-primary'
-									: 'border-transparent hover:border-muted-foreground/30'}"
-								onclick={() => (selectedImageIndex = i)}
-							>
-								<img
-									src="/api/products/{product.id}/images/{img.id}"
-									alt="{product.name} thumbnail {i + 1}"
-									class="h-full w-full object-cover"
-								/>
-							</button>
-						{/each}
+		<!-- Left: primary image + sub-images -->
+		<div class="lg:sticky lg:top-6 lg:self-start">
+			<div class="group/main relative aspect-[4/5] w-full overflow-hidden bg-muted">
+				{#if playingVideo && activeGroup?.video}
+					<video
+						bind:this={videoEl}
+						src={`/api/products/${product.id}/images/${activeGroup.video.id}`}
+						class="absolute inset-0 h-full w-full cursor-pointer object-cover"
+						autoplay
+						loop
+						muted
+						playsinline
+						onclick={() => {
+							if (videoEl?.paused) videoEl.play();
+							else if (videoEl) videoEl.pause();
+						}}
+					></video>
+				{:else if activeImage}
+					<img
+						src={`/api/products/${product.id}/images/${activeImage.id}`}
+						alt={product.name}
+						class="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
+					/>
+				{:else}
+					<div class="flex h-full w-full items-center justify-center text-muted-foreground">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.5"
+							class="h-16 w-16 opacity-40"
+						>
+							<rect x="3" y="3" width="18" height="18" rx="2" />
+							<circle cx="8.5" cy="8.5" r="1.5" />
+							<path d="M21 15l-5-5L5 21" />
+						</svg>
 					</div>
 				{/if}
-			{:else}
-				<div class="flex aspect-square items-center justify-center rounded-none bg-muted">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-16 w-16 text-muted-foreground/50"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="1"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-						/>
-					</svg>
+				{#if groupImages.length > 1}
+					<div class="absolute right-3 bottom-3 flex gap-1.5">
+						<button
+							type="button"
+							aria-label="Previous image"
+							class="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-foreground shadow-sm transition-colors hover:bg-white dark:bg-black/80 dark:hover:bg-black"
+							onclick={prevImage}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M15.75 19.5L8.25 12l7.5-7.5"
+								/>
+							</svg>
+						</button>
+						<button
+							type="button"
+							aria-label="Next image"
+							class="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-foreground shadow-sm transition-colors hover:bg-white dark:bg-black/80 dark:hover:bg-black"
+							onclick={nextImage}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M8.25 4.5l7.5 7.5-7.5 7.5"
+								/>
+							</svg>
+						</button>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Variant color thumbnails — mobile only (below main image) -->
+			{#if variantThumbnails.length > 1}
+				<div class="mt-2 flex flex-wrap gap-2 lg:hidden">
+					{#each variantImageGroups() as group, i (group.primary!.id)}
+						{@const cUnits = colorUnitsLocal(group.color)}
+						<div class="relative">
+							<button
+								type="button"
+								class="relative h-12 w-12 shrink-0 overflow-hidden transition-all"
+								onclick={() => (activeGroupIndex = i)}
+							>
+								<img
+									src="/api/products/{product.id}/images/{group.primary!.id}"
+									alt={group.color || ''}
+									class="h-full w-full object-cover"
+								/>
+								{#if i === activeGroupIndex}
+									<span class="pointer-events-none absolute inset-0 border-[3px] border-black/70"
+									></span>
+								{/if}
+							</button>
+							{#if cUnits > 0}
+								<span
+									class="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-md bg-[#6BC154] px-1 text-[11px] font-semibold text-white"
+									>{cUnits}</span
+								>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			{#if activeGroup && activeGroup.primary && activeGroup.hover}
+				<div class="mt-2 hidden grid-cols-2 gap-2 lg:grid">
+					{#if activeGroup.primary}
+						<div
+							role="button"
+							tabindex="-1"
+							class="relative aspect-square overflow-hidden bg-muted"
+							onmouseenter={() => {
+								playingVideo = false;
+								selectedSubImage = activeGroup.primary;
+							}}
+						>
+							<img
+								src="/api/products/{product.id}/images/{activeGroup.primary.id}"
+								alt="{product.name} — primary"
+								class="h-full w-full object-cover"
+							/>
+						</div>
+					{/if}
+					{#if activeGroup.hover}
+						<div
+							role="button"
+							tabindex="-1"
+							class="relative aspect-square overflow-hidden bg-muted"
+							onmouseenter={() => {
+								if (activeGroup.video) {
+									playingVideo = true;
+									selectedSubImage = null;
+								} else {
+									selectedSubImage = activeGroup.hover;
+								}
+							}}
+						>
+							<img
+								src="/api/products/{product.id}/images/{activeGroup.hover.id}"
+								alt="{product.name} — hover"
+								class="h-full w-full object-cover"
+							/>
+							{#if activeGroup.video}
+								<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+									<div class="flex h-10 w-10 items-center justify-center rounded-full bg-black/50">
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="currentColor"
+											class="h-5 w-5 text-white"
+										>
+											<path
+												d="M6 20.1957V3.80421C6 3.01878 6.86395 2.53993 7.53 2.95621L20.6432 11.152C21.2699 11.5436 21.2699 12.4563 20.6432 12.848L7.53 21.0437C6.86395 21.46 6 20.9812 6 20.1957Z"
+											></path>
+										</svg>
+									</div>
+								</div>
+							{/if}
+						</div>
+					{/if}
 				</div>
 			{/if}
 		</div>
 
-		<!-- Product info -->
+		<!-- Right: product info -->
 		<div class="space-y-6">
 			<div>
 				<p class="text-sm text-muted-foreground">{product.brands?.name ?? ''}</p>
 				<h1 class="text-2xl font-bold">{product.name}</h1>
-				<p class="mt-1 text-sm text-muted-foreground">Style: {product.style_number}</p>
+				<p class="mt-1 text-sm text-muted-foreground">{product.style_number}</p>
 			</div>
 
-			<div class="text-2xl font-semibold">
-				{fmt.format(product.wholesale_price ?? 0)}
-				<span class="text-base font-normal text-muted-foreground">wholesale</span>
+			<div>
+				<p class="text-xs text-muted-foreground">wholesale</p>
+				<p class="text-2xl font-semibold">{fmt.format(product.wholesale_price ?? 0)}</p>
+				{#if product.retail_price}
+					<p class="text-sm text-muted-foreground">
+						{fmt.format(Number(product.retail_price))} — retail
+					</p>
+				{/if}
 			</div>
+
+			<!-- Variant color thumbnails — desktop only (mobile shows under image) -->
+			{#if variantThumbnails.length > 1}
+				<div class="hidden flex-wrap gap-3 lg:flex">
+					{#each variantImageGroups() as group, i (group.primary!.id)}
+						{@const cUnits = colorUnitsLocal(group.color)}
+						<div class="relative">
+							<button
+								type="button"
+								class="relative h-14 w-14 shrink-0 overflow-hidden transition-all"
+								onclick={() => (activeGroupIndex = i)}
+							>
+								<img
+									src="/api/products/{product.id}/images/{group.primary!.id}"
+									alt={group.color || ''}
+									class="h-full w-full object-cover"
+								/>
+								{#if i === activeGroupIndex}
+									<span class="pointer-events-none absolute inset-0 border-[3px] border-black/70"
+									></span>
+								{/if}
+							</button>
+							{#if cUnits > 0}
+								<span
+									class="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-md bg-[#6BC154] px-1 text-[11px] font-semibold text-white"
+								>
+									{cUnits}
+								</span>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
 
 			{#if stockAgg}
 				<StockPill status={stockAgg} qty={null} hideQty />
@@ -206,165 +526,52 @@
 				<p class="text-base leading-relaxed text-muted-foreground">{product.description}</p>
 			{/if}
 
-			{#if product.category}
-				<div>
-					<Badge variant="outline">{product.category}</Badge>
-					{#if product.subcategory}
-						<Badge variant="outline" class="ml-1">{product.subcategory}</Badge>
+			{#if product.attributes && product.attributes.length > 0}
+				<div class="flex flex-wrap gap-1.5">
+					{#each product.attributes as attr (attr)}
+						<span class="border border-border px-2.5 py-1 text-sm">{getAttributeLabel(attr)}</span>
+					{/each}
+				</div>
+			{/if}
+
+			<!-- Size quantity inputs -->
+			<div>
+				<div class="mb-2 flex items-baseline justify-between">
+					<span class="text-sm text-muted-foreground">
+						Sizes{selectedColor ? ` — ${selectedColor}` : ''}
+					</span>
+					{#if activeColorUnits > 0}
+						<span class="text-sm text-muted-foreground">
+							{activeColorUnits}
+							{activeColorUnits === 1 ? 'unit' : 'units'} · {fmt.format(
+								activeColorUnits * (product.wholesale_price ?? 0)
+							)}
+						</span>
 					{/if}
 				</div>
-			{/if}
-
-			{#if colors.length > 0}
-				<div>
-					<p class="mb-2 text-base font-medium">Colors</p>
-					<div class="flex flex-wrap gap-1.5">
-						{#each colors as color (color)}
-							<span class="rounded-full border px-3 py-1 text-base">{color}</span>
-						{/each}
-					</div>
+				<div class="grid grid-cols-2 gap-3">
+					{#each STANDARD_SIZES as size (size)}
+						{@const qty = activeColorQtys()[size] ?? 0}
+						{@const available = availableSizesForColor().has(size)}
+						<QtyStepper
+							value={qty}
+							label={size}
+							disabled={!available}
+							onchange={(n) => setQty(size, n)}
+						/>
+					{/each}
 				</div>
-			{/if}
-
-			{#if sizes.length > 0}
-				<div>
-					<p class="mb-2 text-base font-medium">Sizes</p>
-					<div class="flex flex-wrap gap-1.5">
-						{#each sizes as size (size)}
-							<span class="rounded-lg border px-2.5 py-1 text-base">{size}</span>
-						{/each}
-					</div>
-				</div>
-			{/if}
-
-			<!-- Add to Cart -->
-			<div class="pt-2">
-				{#if inCart}
-					<Button variant="outline" class="w-full" onclick={removeFromCart}>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="mr-2 h-4 w-4"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-						</svg>
-						In Cart — Remove
-					</Button>
-				{:else if isOutOfStock}
-					<Button class="w-full" disabled>Out of stock</Button>
-				{:else}
-					<Button class="w-full" onclick={addToCart}>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="mr-2 h-4 w-4"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-						</svg>
-						Add to Cart
-					</Button>
-				{/if}
 			</div>
+
+			<!-- Cart actions -->
+			{#if isOutOfStock}
+				<Button class="w-full" disabled>Out of stock</Button>
+			{:else}
+				<Button class="w-full" size="lg" onclick={addToCart}>
+					{totalUnits}
+					{totalUnits === 1 ? 'unit' : 'units'} — Add to Cart
+				</Button>
+			{/if}
 		</div>
 	</div>
 </div>
-
-<!-- Lightbox -->
-{#if lightboxOpen && images.length > 0}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
-		onclick={closeLightbox}
-	>
-		<!-- Close button -->
-		<button
-			aria-label="Close"
-			class="absolute top-4 right-4 rounded-full p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-			onclick={closeLightbox}
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-6 w-6"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-			</svg>
-		</button>
-
-		<!-- Previous -->
-		{#if images.length > 1}
-			<button
-				aria-label="Previous image"
-				class="absolute left-4 rounded-full p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-				onclick={(e) => {
-					e.stopPropagation();
-					prevImage();
-				}}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-8 w-8"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-				</svg>
-			</button>
-		{/if}
-
-		<!-- Image -->
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="max-h-[90vh] max-w-[90vw]" onclick={(e) => e.stopPropagation()}>
-			<img
-				src="/api/products/{product.id}/images/{images[selectedImageIndex].id}"
-				alt={product.name}
-				class="max-h-[90vh] max-w-[90vw] object-contain"
-			/>
-		</div>
-
-		<!-- Next -->
-		{#if images.length > 1}
-			<button
-				aria-label="Next image"
-				class="absolute right-4 rounded-full p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-				onclick={(e) => {
-					e.stopPropagation();
-					nextImage();
-				}}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-8 w-8"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-				</svg>
-			</button>
-		{/if}
-
-		<!-- Counter -->
-		{#if images.length > 1}
-			<div
-				class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-sm text-white/70"
-			>
-				{selectedImageIndex + 1} / {images.length}
-			</div>
-		{/if}
-	</div>
-{/if}

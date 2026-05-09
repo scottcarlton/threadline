@@ -8,7 +8,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
-	import DateSelect from '$lib/components/ui/date-select.svelte';
+	import { ShipWindowPicker } from '$lib/components/ui/ship-window-picker/index.js';
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
 	import SizeStepperSheet from '$lib/components/shared/SizeStepperSheet.svelte';
 	import ColorPickerSheet from '$lib/components/shared/ColorPickerSheet.svelte';
@@ -626,11 +626,72 @@
 
 	// CatalogPicker for adding more items
 	let modalOpen = $state(false);
+	function mergeColorItems() {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient local map
+		const byProduct = new Map<string, OrderItem>();
+		for (const it of cart.items) {
+			const color = it.selected_color || '';
+			const liveSizeQtys = { ...it.size_qtys };
+			const existing = byProduct.get(it.product_id);
+			if (!existing) {
+				const merged: OrderItem = {
+					...it,
+					color_size_qtys: { [color]: liveSizeQtys },
+					color_image_ids: {
+						...(it.color_image_ids ?? {}),
+						...(it.image_id ? { [color]: it.image_id } : {})
+					}
+				};
+				byProduct.set(it.product_id, merged);
+			} else {
+				existing.color_size_qtys[color] = liveSizeQtys;
+				if (it.image_id) {
+					if (!existing.color_image_ids) existing.color_image_ids = {};
+					existing.color_image_ids[color] = it.image_id;
+				}
+			}
+		}
+		cart.items = [...byProduct.values()];
+	}
+
+	function expandColorItems() {
+		const expanded: OrderItem[] = [];
+		for (const it of cart.items) {
+			const colorEntries = Object.entries(it.color_size_qtys);
+			if (colorEntries.length === 0) {
+				expanded.push(it);
+				continue;
+			}
+			let anyExpanded = false;
+			for (const [color, sizeMap] of colorEntries) {
+				const hasQty = Object.values(sizeMap).some((q) => q > 0);
+				if (!hasQty) continue;
+				anyExpanded = true;
+				const size_qtys: Record<string, number> = {};
+				for (const s of it.available_sizes) size_qtys[s] = sizeMap[s] ?? 0;
+				expanded.push({
+					...it,
+					product_id: it.product_id,
+					selected_color: color,
+					image_id: it.color_image_ids?.[color] ?? it.image_id,
+					size_qtys,
+					color_size_qtys: { [color]: sizeMap }
+				});
+			}
+			if (!anyExpanded) {
+				expanded.push(it);
+			}
+		}
+		cart.items = expanded;
+	}
+
 	function openAddItemsModal() {
+		mergeColorItems();
 		modalOpen = true;
 	}
 	function closeAddItemsModal() {
 		modalOpen = false;
+		expandColorItems();
 	}
 </script>
 
@@ -731,7 +792,7 @@
 				</div>
 
 				<div class="space-y-3">
-					{#each cart.items as it, idx (it.product_id)}
+					{#each cart.items as it, idx (`${it.product_id}|${it.selected_color}`)}
 						{@const rowUnits = itemUnits(it)}
 						{@const rowTotal = itemTotal(it)}
 						<div class="group/item relative overflow-hidden rounded-lg border">
@@ -1005,8 +1066,26 @@
 								</div>
 							</div>
 
-							<div class="mb-4 space-y-2">
-								{#each g.items as it (it.product_id)}
+							<div class="mb-4">
+								<ShipWindowPicker
+									id={`ship-window-${groupKey(g.brand_id, g.season_id)}`}
+									deliveries={deliveries.filter((d) => d.season_id === g.season_id)}
+									orderYear={cart.order_year}
+									startShipDate={customDates.start_ship_date}
+									completeShipDate={customDates.expected_ship_date}
+									onApply={(range) =>
+										setMeta(g.brand_id, g.season_id, {
+											delivery: {
+												kind: 'custom',
+												start_ship_date: range.startShipDate,
+												expected_ship_date: range.completeShipDate
+											}
+										})}
+								/>
+							</div>
+
+							<div class="space-y-2">
+								{#each g.items as it (`${it.product_id}|${it.selected_color}`)}
 									<div class="flex items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm">
 										{#if it.image_id}
 											<img
@@ -1027,47 +1106,6 @@
 										</div>
 									</div>
 								{/each}
-							</div>
-
-							<div class="flex flex-wrap gap-6">
-								<div>
-									<Label for={`start-${groupKey(g.brand_id, g.season_id)}`} class="text-sm"
-										>Start Ship</Label
-									>
-									<div class="mt-1">
-										<DateSelect
-											id={`start-${groupKey(g.brand_id, g.season_id)}`}
-											value={customDates.start_ship_date}
-											onchange={(v) =>
-												setMeta(g.brand_id, g.season_id, {
-													delivery: {
-														kind: 'custom',
-														start_ship_date: v,
-														expected_ship_date: customDates.expected_ship_date
-													}
-												})}
-										/>
-									</div>
-								</div>
-								<div>
-									<Label for={`end-${groupKey(g.brand_id, g.season_id)}`} class="text-sm"
-										>Complete Ship</Label
-									>
-									<div class="mt-1">
-										<DateSelect
-											id={`end-${groupKey(g.brand_id, g.season_id)}`}
-											value={customDates.expected_ship_date}
-											onchange={(v) =>
-												setMeta(g.brand_id, g.season_id, {
-													delivery: {
-														kind: 'custom',
-														start_ship_date: customDates.start_ship_date,
-														expected_ship_date: v
-													}
-												})}
-										/>
-									</div>
-								</div>
 							</div>
 						</div>
 					{/each}

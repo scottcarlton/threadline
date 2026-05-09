@@ -176,9 +176,10 @@
 			</a>
 		{/if}
 
+		<!-- Settings — desktop only; on mobile this lives in the More menu -->
 		<a
 			href={resolve('/settings')}
-			class="flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-ghost hover:text-foreground active:scale-95"
+			class="hidden items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-ghost hover:text-foreground active:scale-95 lg:flex"
 			aria-label="Settings"
 		>
 			<svg
@@ -198,7 +199,8 @@
 			</svg>
 		</a>
 
-		<div class="relative">
+		<!-- User menu — desktop only; on mobile this lives in the More menu -->
+		<div class="relative hidden lg:block">
 			<button
 				onclick={() => (showUserMenu = !showUserMenu)}
 				class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-all duration-200 hover:bg-ghost active:scale-[0.98]"

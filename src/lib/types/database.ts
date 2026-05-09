@@ -11,6 +11,7 @@ export type OrderStatus =
 	| 'draft'
 	| 'submitted'
 	| 'confirmed'
+	| 'preparing'
 	| 'shipped'
 	| 'delivered'
 	| 'cancelled';
@@ -514,17 +515,21 @@ export interface Product {
 	season_id: string | null;
 	product_year: number | null;
 	ats: boolean;
+	is_featured: boolean;
 	shopify_product_id: string | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;
 	updated_at: string;
+	updated_by: string | null;
+	attributes: string[];
 }
 
 export interface ProductVariant {
 	id: string;
 	product_id: string;
 	color: string | null;
+	color_hex: string | null;
 	size: string | null;
 	sku: string | null;
 	barcode: string | null;
@@ -540,11 +545,13 @@ export interface ProductVariant {
 export interface ProductImage {
 	id: string;
 	product_id: string;
+	variant_id: string | null;
 	file_path: string;
 	file_size: number | null;
 	mime_type: string | null;
 	sort_order: number;
 	is_primary: boolean;
+	role: 'primary' | 'hover' | 'video' | null;
 	uploaded_by: string | null;
 	created_at: string;
 }

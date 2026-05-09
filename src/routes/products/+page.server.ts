@@ -61,12 +61,12 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		let productsQuery = supabase
 			.from('products')
 			.select(
-				'*, product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order), brands(id, name)',
+				'*, product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order, role, variant_id), brands(id, name)',
 				{ count: 'exact' }
 			)
 			.in('brand_id', scopedBrandIds)
 			.is('archived_at', null)
-			.order('style_number')
+			.order('created_at', { ascending: false })
 			.range(0, PAGE_SIZE - 1);
 
 		if (search) {
@@ -116,12 +116,12 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		let productsQuery = supabase
 			.from('products')
 			.select(
-				'*, product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order)',
+				'*, product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order, role, variant_id)',
 				{ count: 'exact' }
 			)
 			.eq('brand_id', selfBrand.id)
 			.is('archived_at', null)
-			.order('style_number')
+			.order('created_at', { ascending: false })
 			.range(0, PAGE_SIZE - 1);
 
 		if (search) {
@@ -187,12 +187,12 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		let productsQuery = supabase
 			.from('products')
 			.select(
-				'*, product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order), brands(id, name)',
+				'*, product_variants(id, color, size, stock_qty, stock_threshold, shopify_variant_id), product_images(id, file_path, is_primary, sort_order, role, variant_id), brands(id, name)',
 				{ count: 'exact' }
 			)
 			.in('brand_id', scopedBrandIds)
 			.is('archived_at', null)
-			.order('style_number')
+			.order('created_at', { ascending: false })
 			.range(0, PAGE_SIZE - 1);
 
 		if (search) {

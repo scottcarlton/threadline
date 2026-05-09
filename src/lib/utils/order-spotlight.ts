@@ -51,7 +51,8 @@ export function classifyOrder(
 	const buckets: SpotlightBucket[] = [];
 	const status = o.status ?? '';
 	const shipped = o.shipped_at != null;
-	const inFlight = (status === 'submitted' || status === 'confirmed') && !shipped;
+	const inFlight =
+		(status === 'submitted' || status === 'confirmed' || status === 'preparing') && !shipped;
 	const start = o.start_ship_date ?? null;
 	const expected = o.expected_ship_date ?? null;
 

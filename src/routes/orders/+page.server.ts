@@ -63,10 +63,13 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const nxBlsr = isNxBlsr(brandOrgIdsForNx);
 	const ownOrgIds = organization ? (nxBlsr ? brandOrgIdsForNx : [organization.id]) : [];
 
-	const status = url.searchParams.get('status');
-	const seasonFilter = url.searchParams.get('season');
+	const statusParam = url.searchParams.get('status');
+	const statuses = statusParam ? statusParam.split(',').filter(Boolean) : [];
+	const seasonParam = url.searchParams.get('season');
+	const seasonFilters = seasonParam ? seasonParam.split(',').filter(Boolean) : [];
 	const year = url.searchParams.get('year');
-	const brandFilter = url.searchParams.get('brand');
+	const brandParam = url.searchParams.get('brand');
+	const brandFilters = brandParam ? brandParam.split(',').filter(Boolean) : [];
 	// Source filter unifies "shows" (show_dates) and "source types". Value
 	// is prefixed: `show:<show_date_id>` or `srctype:<source_type_id>`.
 	// Falls back to the legacy `?show=<id>` param for old links.
@@ -109,9 +112,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			.in('account_id', accountIds)
 			.order('created_at', { ascending: false });
 
-		if (status) query = query.eq('status', status);
-		if (brandFilter) query = query.eq('brand_id', brandFilter);
-		if (seasonFilter) query = query.eq('season_id', seasonFilter);
+		if (statuses.length > 0) query = query.in('status', statuses);
+		if (brandFilters.length > 0) query = query.in('brand_id', brandFilters);
+		if (seasonFilters.length > 0) query = query.in('season_id', seasonFilters);
 		if (fromTs) query = query.gte('created_at', fromTs);
 		if (toTs) query = query.lte('created_at', toTs);
 		if (activeType !== 'all') query = query.eq('order_type', activeType);
@@ -245,14 +248,18 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		// (scoped to visible orgs only so a user can't filter by something
 		// outside their reach).
 		let seasonIds: string[] | null = null;
-		if (seasonFilter) {
-			const key = seasonFilter.trim().toLowerCase();
-			seasonIds = allBoaSeasons.filter((s) => s.name.trim().toLowerCase() === key).map((s) => s.id);
+		if (seasonFilters.length > 0) {
+			const keys = seasonFilters.map((s) => s.trim().toLowerCase());
+			seasonIds = allBoaSeasons
+				.filter((s) => keys.includes(s.name.trim().toLowerCase()))
+				.map((s) => s.id);
 		}
 		let brandIds: string[] | null = null;
-		if (brandFilter) {
-			const key = brandFilter.trim().toLowerCase();
-			brandIds = allBoaBrands.filter((b) => b.name.trim().toLowerCase() === key).map((b) => b.id);
+		if (brandFilters.length > 0) {
+			const keys = brandFilters.map((b) => b.trim().toLowerCase());
+			brandIds = allBoaBrands
+				.filter((b) => keys.includes(b.name.trim().toLowerCase()))
+				.map((b) => b.id);
 		}
 		let sourceTypeIds: string[] | null = null;
 		if (sourceTypeName) {
@@ -310,7 +317,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				);
 			}
 		}
-		if (status) directQuery = directQuery.eq('status', status);
+		if (repOrgId) directQuery = directQuery.eq('rep_user_id', repOrgId);
+		if (statuses.length > 0) directQuery = directQuery.in('status', statuses);
 		if (seasonIds && seasonIds.length > 0) directQuery = directQuery.in('season_id', seasonIds);
 		if (year) directQuery = directQuery.eq('order_year', parseInt(year));
 		if (brandIds && brandIds.length > 0) directQuery = directQuery.in('brand_id', brandIds);
@@ -341,8 +349,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			: await Promise.all(ownOrgIds.map((id) => listFederatedOrders(supabaseAdmin, id)));
 		const allFederatedOrders = brandIsSales ? [] : federatedBatches.flat();
 		let federatedOrders = allFederatedOrders;
-		if (status) federatedOrders = federatedOrders.filter((o) => o.status === status);
-		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.rep_org_id === repOrgId);
+		if (statuses.length > 0)
+			federatedOrders = federatedOrders.filter((o) => statuses.includes(o.status));
+		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.created_by === repOrgId);
 		if (seasonIds)
 			federatedOrders = federatedOrders.filter(
 				(o) => o.season_id && seasonIds!.includes(o.season_id)
@@ -524,15 +533,19 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			if (!seasonMap.has(key)) seasonMap.set(key, s);
 		}
 		for (const o of allFederatedOrders) {
-			// Display the rep's person name in the filter chip (falls back to org
-			// name only if the rep's profile isn't resolvable). The filter value
-			// is still rep_org_id, so multiple reps from one rep-org collapse to
-			// whichever name wins first.
-			if (!repMap.has(o.rep_org_id)) {
-				repMap.set(o.rep_org_id, {
-					id: o.rep_org_id,
-					name: o.created_by_name ?? o.rep_org_name
+			if (o.created_by && o.created_by_name && !repMap.has(o.created_by)) {
+				repMap.set(o.created_by, {
+					id: o.created_by,
+					name: o.created_by_name
 				});
+			}
+		}
+		for (const o of directOrders) {
+			const repId = (o as { rep_user_id?: string | null }).rep_user_id;
+			const repName = (o as { rep_profile?: { display_name?: string } | null }).rep_profile
+				?.display_name;
+			if (repId && repName && !repMap.has(repId)) {
+				repMap.set(repId, { id: repId, name: repName });
 			}
 		}
 
@@ -666,14 +679,16 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 
 	// Resolve name-based filters to matching IDs across all visible orgs
 	let seasonIds: string[] | null = null;
-	if (seasonFilter) {
-		const key = seasonFilter.trim().toLowerCase();
-		seasonIds = allSeasons.filter((s) => s.name.trim().toLowerCase() === key).map((s) => s.id);
+	if (seasonFilters.length > 0) {
+		const keys = seasonFilters.map((s) => s.trim().toLowerCase());
+		seasonIds = allSeasons
+			.filter((s) => keys.includes(s.name.trim().toLowerCase()))
+			.map((s) => s.id);
 	}
 	let brandIds: string[] | null = null;
-	if (brandFilter) {
-		const key = brandFilter.trim().toLowerCase();
-		brandIds = allBrands.filter((b) => b.name.trim().toLowerCase() === key).map((b) => b.id);
+	if (brandFilters.length > 0) {
+		const keys = brandFilters.map((b) => b.trim().toLowerCase());
+		brandIds = allBrands.filter((b) => keys.includes(b.name.trim().toLowerCase())).map((b) => b.id);
 	}
 	let sourceTypeIds: string[] | null = null;
 	if (sourceTypeName) {
@@ -720,7 +735,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				q = q.or(`created_by.in.(${createdByClause}),rep_user_id.in.(${repUserIdClause})`);
 			}
 		}
-		if (status) q = q.eq('status', status);
+		if (statuses.length > 0) q = q.in('status', statuses);
 		if (seasonIds && seasonIds.length > 0) q = q.in('season_id', seasonIds);
 		if (year) q = q.eq('order_year', parseInt(year));
 		if (brandIds && brandIds.length > 0) q = q.in('brand_id', brandIds);

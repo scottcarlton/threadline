@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
@@ -548,11 +549,72 @@
 	);
 	const colorPickerItem = $derived(colorPickerIdx >= 0 ? cart.items[colorPickerIdx] : null);
 
+	function mergeColorItems() {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient local map
+		const byProduct = new Map<string, OrderItem>();
+		for (const it of cart.items) {
+			const color = it.selected_color || '';
+			const liveSizeQtys = { ...it.size_qtys };
+			const existing = byProduct.get(it.product_id);
+			if (!existing) {
+				const merged: OrderItem = {
+					...it,
+					color_size_qtys: { [color]: liveSizeQtys },
+					color_image_ids: {
+						...(it.color_image_ids ?? {}),
+						...(it.image_id ? { [color]: it.image_id } : {})
+					}
+				};
+				byProduct.set(it.product_id, merged);
+			} else {
+				existing.color_size_qtys[color] = liveSizeQtys;
+				if (it.image_id) {
+					if (!existing.color_image_ids) existing.color_image_ids = {};
+					existing.color_image_ids[color] = it.image_id;
+				}
+			}
+		}
+		cart.items = [...byProduct.values()];
+	}
+
+	function expandColorItems() {
+		const expanded: OrderItem[] = [];
+		for (const it of cart.items) {
+			const colorEntries = Object.entries(it.color_size_qtys);
+			if (colorEntries.length === 0) {
+				expanded.push(it);
+				continue;
+			}
+			let anyExpanded = false;
+			for (const [color, sizeMap] of colorEntries) {
+				const hasQty = Object.values(sizeMap).some((q) => q > 0);
+				if (!hasQty) continue;
+				anyExpanded = true;
+				const size_qtys: Record<string, number> = {};
+				for (const s of it.available_sizes) size_qtys[s] = sizeMap[s] ?? 0;
+				expanded.push({
+					...it,
+					product_id: it.product_id,
+					selected_color: color,
+					image_id: it.color_image_ids?.[color] ?? it.image_id,
+					size_qtys,
+					color_size_qtys: { [color]: sizeMap }
+				});
+			}
+			if (!anyExpanded) {
+				expanded.push(it);
+			}
+		}
+		cart.items = expanded;
+	}
+
 	function openAddItemsModal() {
+		mergeColorItems();
 		modalOpen = true;
 	}
 	function closeAddItemsModal() {
 		modalOpen = false;
+		expandColorItems();
 	}
 	// Apply All / Undo (per-row, transient — not persisted with the cart).
 	// `sizeTouches` records the order in which sizes were edited so the template
@@ -928,9 +990,10 @@
 	let submitStatus = $state<'draft' | 'submitted' | 'confirmed'>('draft');
 	let submitFormEl: HTMLFormElement | null = $state(null);
 	let submitComboEl: HTMLDivElement | null = $state(null);
-	function submitOrderAs(status: 'draft' | 'submitted' | 'confirmed') {
+	async function submitOrderAs(status: 'draft' | 'submitted' | 'confirmed') {
 		cart.type = 'order';
 		submitStatus = status;
+		await tick();
 		submitFormEl?.requestSubmit();
 	}
 	let finalizeExpandedKey = $state<string | null>(null);
@@ -1287,7 +1350,7 @@
 					return rows;
 				})()}
 				<div class="space-y-3">
-					{#each renderRows as row (row.kind === 'item' ? row.it.product_id : `__pending__${row.undo.snapshot.product_id}`)}
+					{#each renderRows as row (row.kind === 'item' ? `${row.it.product_id}|${row.it.selected_color}` : `__pending__${row.undo.snapshot.product_id}`)}
 						{#if row.kind === 'placeholder'}
 							{@const p = row.undo}
 							<div
@@ -1469,9 +1532,11 @@
 												</div>
 
 												<div class="min-w-0">
-													<div class="font-mono text-sm">{it.style_number}</div>
-													<div class="text-sm font-medium">{it.name}</div>
-													<div class="text-sm text-muted-foreground">
+													<div class="font-mono text-xs text-muted-foreground md:text-sm">
+														{it.style_number}
+													</div>
+													<div class="text-sm font-medium md:text-base">{it.name}</div>
+													<div class="text-xs text-muted-foreground md:text-sm">
 														{brandName(it.brand_id)} · {seasonLabel(it.season_id, it.product_year)}
 													</div>
 												</div>
@@ -1496,8 +1561,8 @@
 											</div>
 
 											<div class="shrink-0 text-right">
-												<div class="font-mono text-sm font-medium">{fmt.format(rowTotal)}</div>
-												<div class="text-sm text-muted-foreground">
+												<div class="font-mono text-base font-medium">{fmt.format(rowTotal)}</div>
+												<div class="text-xs text-muted-foreground md:text-sm">
 													{rowUnits}
 													{rowUnits === 1 ? 'unit' : 'units'} · {fmt.format(it.unit_price)}/ea
 												</div>
@@ -1800,7 +1865,7 @@
 
 						<!-- Items list — drag each row to another group card -->
 						<div class="space-y-2">
-							{#each g.items as it (it.product_id)}
+							{#each g.items as it (`${it.product_id}|${it.selected_color}`)}
 								<div
 									class="group/item flex cursor-grab items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm transition-opacity {draggingItemId ===
 									it.product_id

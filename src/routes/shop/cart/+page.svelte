@@ -4,43 +4,42 @@
 	import { cart } from '$lib/stores/cart.js';
 	import SizeStepperSheet from '$lib/components/shared/SizeStepperSheet.svelte';
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
-	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
-	import ColorPickerSheet from '$lib/components/shared/ColorPickerSheet.svelte';
 
 	const items = $derived($cart);
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
-	function getItemUnits(productId: string): number {
-		const item = items.find((i) => i.productId === productId);
-		if (!item) return 0;
+	function itemKey(item: { productId: string; selectedColor: string }): string {
+		return cart.cartKey(item);
+	}
+
+	function getItemUnits(item: { sizeQtys: Record<string, number> }): number {
 		return Object.values(item.sizeQtys).reduce((s, q) => s + (q || 0), 0);
 	}
 
-	function getItemTotal(productId: string): number {
-		const item = items.find((i) => i.productId === productId);
-		if (!item) return 0;
-		return getItemUnits(productId) * item.price;
+	function getItemTotal(item: { sizeQtys: Record<string, number>; price: number }): number {
+		return getItemUnits(item) * item.price;
 	}
 
-	const totalUnits = $derived(items.reduce((s, i) => s + getItemUnits(i.productId), 0));
-	const grandTotal = $derived(items.reduce((s, i) => s + getItemTotal(i.productId), 0));
+	const totalUnits = $derived(items.reduce((s, i) => s + getItemUnits(i), 0));
+	const grandTotal = $derived(items.reduce((s, i) => s + getItemTotal(i), 0));
 
-	function setQty(productId: string, size: string, value: number) {
-		const item = items.find((i) => i.productId === productId);
-		if (!item) return;
+	function setQty(
+		key: string,
+		size: string,
+		value: number,
+		item: { sizeQtys: Record<string, number> }
+	) {
 		const qty = Math.max(0, Math.floor(value) || 0);
-		cart.updateItem(productId, {
+		cart.updateItemByKey(key, {
 			sizeQtys: { ...item.sizeQtys, [size]: qty }
 		});
 	}
 
-	function setColor(productId: string, color: string) {
-		cart.updateItem(productId, { selectedColor: color });
+	function removeByKey(key: string) {
+		cart.removeItemByKey(key);
 	}
 
-	const canCheckout = $derived(
-		items.length > 0 && items.every((i) => getItemUnits(i.productId) > 0)
-	);
+	const canCheckout = $derived(items.length > 0 && items.every((i) => getItemUnits(i) > 0));
 
 	function swipeToDelete(node: HTMLElement, opts: { onCommit: () => void }) {
 		const MIN_REVEAL = 88;
@@ -147,14 +146,9 @@
 	}
 
 	// Mobile sheets
-	let sizingSheetProductId = $state<string | null>(null);
+	let sizingSheetKey = $state<string | null>(null);
 	const sizingSheetItem = $derived(
-		sizingSheetProductId ? (items.find((i) => i.productId === sizingSheetProductId) ?? null) : null
-	);
-
-	let colorPickerProductId = $state<string | null>(null);
-	const colorPickerItem = $derived(
-		colorPickerProductId ? (items.find((i) => i.productId === colorPickerProductId) ?? null) : null
+		sizingSheetKey ? (items.find((i) => itemKey(i) === sizingSheetKey) ?? null) : null
 	);
 </script>
 
@@ -226,12 +220,12 @@
 		<div class="grid gap-6 lg:grid-cols-[1fr_320px]">
 			<!-- Items list with sizing -->
 			<div class="space-y-3">
-				{#each items as item (item.productId)}
-					{@const colors = item.colors ?? []}
+				{#each items as item (itemKey(item))}
+					{@const key = itemKey(item)}
 					{@const sizes = item.sizes ?? []}
-					{@const color = item.selectedColor || colors[0] || ''}
-					{@const units = getItemUnits(item.productId)}
-					{@const rowTotal = getItemTotal(item.productId)}
+					{@const color = item.selectedColor || ''}
+					{@const units = getItemUnits(item)}
+					{@const rowTotal = getItemTotal(item)}
 
 					<div class="group/item relative overflow-hidden rounded-lg border">
 						<!-- Swipe-reveal delete button (behind the card) -->
@@ -242,7 +236,7 @@
 								type="button"
 								aria-label="Delete {item.productName}"
 								class="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm transition-colors hover:bg-destructive/90"
-								onclick={() => cart.removeItem(item.productId)}
+								onclick={() => removeByKey(key)}
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -260,7 +254,7 @@
 						<div
 							class="relative bg-background"
 							use:swipeToDelete={{
-								onCommit: () => cart.removeItem(item.productId)
+								onCommit: () => removeByKey(key)
 							}}
 						>
 							<!-- Mobile card — tap size grid to open sheet -->
@@ -302,15 +296,11 @@
 												{item.brandName}{item.seasonName ? ` · ${item.seasonName}` : ''}
 											</div>
 										</div>
-										<button
-											type="button"
-											class="shrink-0 self-start pt-1 transition active:scale-95 disabled:pointer-events-none"
-											aria-label="Choose color for {item.productName}"
-											disabled={colors.length === 0}
-											onclick={() => (colorPickerProductId = item.productId)}
-										>
-											<ColorSwatch color={color || null} size={20} />
-										</button>
+										{#if color}
+											<div class="shrink-0 self-start pt-1">
+												<ColorSwatch {color} size={20} />
+											</div>
+										{/if}
 									</div>
 
 									<!-- Compact size grid — tap to open sheet -->
@@ -320,7 +310,7 @@
 											class="mt-3 grid w-full gap-1.5 transition-opacity active:opacity-60"
 											style="grid-template-columns: repeat({sizes.length}, minmax(0, 1fr));"
 											aria-label="Edit sizes for {item.productName}"
-											onclick={() => (sizingSheetProductId = item.productId)}
+											onclick={() => (sizingSheetKey = key)}
 										>
 											{#each sizes as size (size)}
 												{@const qty = item.sizeQtys[size] ?? 0}
@@ -385,23 +375,10 @@
 											</div>
 										</div>
 
-										<!-- Color selector (desktop) -->
-										{#if colors.length > 1}
-											<div class="ml-4">
-												<ColorSwatchPicker
-													value={color || null}
-													options={colors}
-													onChange={(c) => {
-														if (c) setColor(item.productId, c);
-													}}
-												/>
-											</div>
-										{:else}
+										{#if color}
 											<div class="ml-4 flex items-center gap-2 text-sm">
-												<ColorSwatch color={color || null} size={28} />
-												{#if color}
-													<span>{color}</span>
-												{/if}
+												<ColorSwatch {color} size={28} />
+												<span>{color}</span>
 											</div>
 										{/if}
 
@@ -439,7 +416,7 @@
 														aria-label="Decrease {size}"
 														class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-30"
 														disabled={qty === 0}
-														onclick={() => setQty(item.productId, size, qty - 1)}
+														onclick={() => setQty(key, size, qty - 1, item)}
 													>
 														−
 													</button>
@@ -456,15 +433,15 @@
 																	/[^0-9]/g,
 																	''
 																);
-																setQty(item.productId, size, raw === '' ? 0 : parseInt(raw, 10));
+																setQty(key, size, raw === '' ? 0 : parseInt(raw, 10), item);
 															}}
 															onkeydown={(e) => {
 																if (e.key === 'ArrowUp') {
 																	e.preventDefault();
-																	setQty(item.productId, size, qty + 1);
+																	setQty(key, size, qty + 1, item);
 																} else if (e.key === 'ArrowDown') {
 																	e.preventDefault();
-																	setQty(item.productId, size, qty - 1);
+																	setQty(key, size, qty - 1, item);
 																} else if (e.key === 'Enter') {
 																	e.preventDefault();
 																	(e.currentTarget as HTMLInputElement).blur();
@@ -477,7 +454,7 @@
 														type="button"
 														aria-label="Increase {size}"
 														class="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none focus-visible:ring-inset"
-														onclick={() => setQty(item.productId, size, qty + 1)}
+														onclick={() => setQty(key, size, qty + 1, item)}
 													>
 														+
 													</button>
@@ -492,7 +469,7 @@
 									type="button"
 									aria-label="Remove {item.productName}"
 									class="absolute right-3 bottom-3 hidden h-9 w-9 items-center justify-center rounded-md bg-destructive/10 text-destructive opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/20 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:outline-none sm:inline-flex"
-									onclick={() => cart.removeItem(item.productId)}
+									onclick={() => removeByKey(key)}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -545,8 +522,8 @@
 
 <!-- Mobile sizing sheet -->
 <SizeStepperSheet
-	open={sizingSheetProductId !== null}
-	onClose={() => (sizingSheetProductId = null)}
+	open={sizingSheetKey !== null}
+	onClose={() => (sizingSheetKey = null)}
 	styleNumber={sizingSheetItem?.styleNumber}
 	name={sizingSheetItem?.productName}
 	brand={sizingSheetItem?.brandName}
@@ -557,28 +534,9 @@
 	sizes={sizingSheetItem?.sizes}
 	qtys={sizingSheetItem?.sizeQtys}
 	onChange={(size, qty) => {
-		if (sizingSheetProductId) setQty(sizingSheetProductId, size, qty);
+		if (sizingSheetKey && sizingSheetItem) setQty(sizingSheetKey, size, qty, sizingSheetItem);
 	}}
 	onColorPickerOpen={() => {
-		const id = sizingSheetProductId;
-		sizingSheetProductId = null;
-		if (id) colorPickerProductId = id;
-	}}
-/>
-
-<!-- Mobile color picker sheet -->
-<ColorPickerSheet
-	open={colorPickerProductId !== null}
-	onClose={() => (colorPickerProductId = null)}
-	styleNumber={colorPickerItem?.styleNumber}
-	name={colorPickerItem?.productName}
-	brand={colorPickerItem?.brandName}
-	season={colorPickerItem?.seasonName}
-	imageUrl={colorPickerItem?.imageUrl}
-	colors={colorPickerItem?.colors}
-	selected={colorPickerItem?.selectedColor || null}
-	onSelect={(c) => {
-		if (colorPickerProductId) setColor(colorPickerProductId, c);
-		colorPickerProductId = null;
+		sizingSheetKey = null;
 	}}
 />

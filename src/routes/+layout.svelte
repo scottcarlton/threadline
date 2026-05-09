@@ -4,7 +4,7 @@
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { navigating } from '$app/stores';
-	import { goto, afterNavigate, onNavigate } from '$app/navigation';
+	import { goto, beforeNavigate, afterNavigate, onNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
@@ -28,8 +28,24 @@
 	import { cart } from '$lib/stores/cart.js';
 	import MobileBottomNav from '$lib/components/layout/MobileBottomNav.svelte';
 	import { selectedProductIds } from '$lib/stores/productSelection.js';
+	import { supabase } from '$lib/supabase.js';
 
 	const { messages, loading } = conversation;
+
+	function getUserInitials(name?: string | null): string {
+		if (!name) return '??';
+		return name
+			.split(' ')
+			.map((w) => w[0])
+			.join('')
+			.toUpperCase()
+			.slice(0, 2);
+	}
+
+	async function handleSignOut() {
+		await supabase.auth.signOut();
+		goto(resolve('/login'));
+	}
 
 	let { children, data } = $props();
 
@@ -80,11 +96,36 @@
 	// noise on a continuously-deployed environment.
 
 	let mainEl = $state<HTMLElement | null>(null);
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive scroll cache, not rendered
+	const scrollPositions = new Map<string, number>();
+
+	beforeNavigate(({ from }) => {
+		if (mainEl && from?.url.pathname) {
+			scrollPositions.set(from.url.pathname, mainEl.scrollTop);
+		}
+	});
+
 	afterNavigate(({ from, to, type }) => {
 		if (!mainEl) return;
-		if (type === 'popstate') return;
 		if (from?.url.pathname === to?.url.pathname) return;
+
+		if (type === 'popstate' && to?.url.pathname) {
+			const saved = scrollPositions.get(to.url.pathname);
+			if (saved != null) {
+				requestAnimationFrame(() => {
+					mainEl!.scrollTop = saved;
+				});
+				return;
+			}
+		}
+
 		mainEl.scrollTop = 0;
+
+		const leftProducts =
+			from?.url.pathname.startsWith('/products') && !to?.url.pathname.startsWith('/products');
+		if (leftProducts && $selectedProductIds.length > 0) {
+			selectedProductIds.set([]);
+		}
 	});
 
 	onNavigate((nav) => {
@@ -105,6 +146,7 @@
 	});
 
 	onMount(() => {
+		document.getElementById('splash')?.remove();
 		if (data.session) {
 			const stopUnread = startUnreadPolling(60000);
 			const stopAppointments = startAppointmentPolling(60000);
@@ -145,7 +187,8 @@
 	);
 
 	const hideAiDock = $derived(
-		$preferences.autoHideDock ||
+		data.isBuyer ||
+			$preferences.autoHideDock ||
 			$page.url.pathname.endsWith('/new') ||
 			$page.url.pathname === '/inbox'
 	);
@@ -155,7 +198,7 @@
 	let peekTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	function handleMouseMove(e: MouseEvent) {
-		if (!hideAiDock) return;
+		if (!hideAiDock || data.isBuyer) return;
 		const distFromBottom = window.innerHeight - e.clientY;
 		if (distFromBottom < 15) {
 			if (!dockPeeking) {
@@ -198,6 +241,13 @@
 	$effect(() => {
 		preferences.setSidebarOpen(sidebarOpen);
 	});
+	let sidebarMounted = $state(false);
+	onMount(() => {
+		requestAnimationFrame(() => {
+			sidebarMounted = true;
+		});
+	});
+
 	let showHelp = $state(false);
 	let aiPanelOpen = $state(false);
 	let mobileAiDockOpen = $state(false);
@@ -761,8 +811,12 @@
 		     flash from the media-query store seeding to false on SSR. -->
 		<div class="flex flex-1 overflow-hidden">
 			<div
-				class="hidden h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out lg:block"
-				style="width: {sidebarOpen ? '240px' : '0px'}; opacity: {sidebarOpen ? '1' : '0'}"
+				class="hidden h-full shrink-0 overflow-hidden lg:block {sidebarMounted
+					? 'transition-all duration-300 ease-in-out'
+					: 'lg:w-60'}"
+				style={sidebarMounted
+					? `width: ${sidebarOpen ? '240px' : '0px'}; opacity: ${sidebarOpen ? '1' : '0'}`
+					: ''}
 			>
 				<div class="h-full w-60">
 					<Sidebar
@@ -793,12 +847,12 @@
 	</div>
 
 	<!-- Fixed AI dock — outside overflow-hidden for iPad Safari fixed positioning -->
-	{#if ($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen)}
+	{#if !data.isBuyer && (($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen))}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 transition-[left] duration-300 ease-in-out {sidebarOpen
-				? 'lg:left-60'
-				: 'lg:left-0'}"
+			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 {sidebarMounted
+				? `transition-[left] duration-300 ease-in-out ${sidebarOpen ? 'lg:left-60' : 'lg:left-0'}`
+				: 'lg:left-60'}"
 			transition:fly={{ y: 100, duration: 300 }}
 			onmouseenter={() => {
 				if (dockPeeking) clearTimeout(peekTimeout);
@@ -963,18 +1017,16 @@
 					}}
 				>
 					<!-- Mobile drag handle to close -->
-					{#if !$isLgUp}
-						<button
-							class="flex w-full items-center justify-center pt-2 pb-0"
-							onclick={(e) => {
-								e.stopPropagation();
-								mobileAiDockOpen = false;
-							}}
-							aria-label="Close AI dock"
-						>
-							<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
-						</button>
-					{/if}
+					<button
+						class="flex w-full items-center justify-center pt-2 pb-0 lg:hidden"
+						onclick={(e) => {
+							e.stopPropagation();
+							mobileAiDockOpen = false;
+						}}
+						aria-label="Close AI dock"
+					>
+						<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
+					</button>
 					<div class="px-5 pt-4 pb-3">
 						<!-- Agent indicator -->
 						{#if $activeAgent}
@@ -1289,8 +1341,8 @@
 		</div>
 	{/if}
 
-	<!-- Mobile bottom nav — hidden when AI dock is open -->
-	{#if !$isLgUp && !mobileAiDockOpen}
+	<!-- Mobile bottom nav — CSS hides on desktop, JS hides when AI dock is open -->
+	<div class="lg:hidden {mobileAiDockOpen ? 'hidden' : ''}">
 		<MobileBottomNav
 			onAiToggle={() => (mobileAiDockOpen = true)}
 			role={data.membership?.role ?? 'guest'}
@@ -1298,8 +1350,11 @@
 			brandScope={data.brandScope}
 			isBuyer={data.isBuyer}
 			{isNxBlsr}
+			userInitials={getUserInitials(data.user?.display_name)}
+			onSignOut={handleSignOut}
+			onHelp={() => (showHelp = true)}
 		/>
-	{/if}
+	</div>
 	<SearchDialog
 		isBrandOrg={data.orgType === 'brand'}
 		isBuyer={data.isBuyer === true}

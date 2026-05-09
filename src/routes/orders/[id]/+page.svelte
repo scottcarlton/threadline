@@ -5,7 +5,7 @@
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { Input, CurrencyInput } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import type { Order, OrderLine, OrderStatus, BrandAsset } from '$lib/types/database.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
@@ -23,7 +23,7 @@
 	import { enhance } from '$app/forms';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { Dialog } from 'bits-ui';
+	import { Dialog, DropdownMenu } from 'bits-ui';
 	import {
 		acceptedPaymentMethods,
 		acceptedMethodsOnly,
@@ -31,6 +31,7 @@
 		paymentMethodLabel
 	} from '$lib/payment-methods';
 	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
+	import { CARRIERS, SERVICE_LEVELS, trackingUrl } from '$lib/utils/carriers.js';
 
 	// Refresh the Orders nav badge as soon as this page mounts — the loader
 	// just marked the order viewed; status changes below also call this.
@@ -190,6 +191,13 @@
 					order.status !== 'cancelled'
 	);
 	const canModify = $derived(canEdit);
+	const canAdvanceStatus = $derived(
+		data.isBuyer
+			? false
+			: data.membership?.role !== 'guest' &&
+					order.status !== 'delivered' &&
+					order.status !== 'cancelled'
+	);
 	const repCommissionRate = $derived(data.repCommissionRate as number);
 	const repName = $derived(
 		(data.repName as string | null) ??
@@ -219,6 +227,7 @@
 		draft: 'Draft',
 		submitted: 'Submitted',
 		confirmed: 'Confirmed',
+		preparing: 'Preparing',
 		shipped: 'Shipped',
 		delivered: 'Delivered',
 		cancelled: 'Cancelled'
@@ -228,6 +237,7 @@
 		draft: 'bg-zinc-100 text-zinc-600',
 		submitted: 'bg-amber-50 text-amber-700',
 		confirmed: 'bg-blue-50 text-blue-700',
+		preparing: 'bg-violet-50 text-violet-700',
 		shipped: 'bg-indigo-50 text-indigo-700',
 		delivered: 'bg-emerald-50 text-emerald-700',
 		cancelled: 'bg-red-50 text-red-700'
@@ -236,7 +246,8 @@
 	const statusFlow: Record<string, OrderStatus[]> = {
 		draft: ['submitted', 'cancelled'],
 		submitted: ['confirmed', 'cancelled'],
-		confirmed: ['shipped', 'cancelled'],
+		confirmed: ['preparing', 'cancelled'],
+		preparing: ['shipped', 'cancelled'],
 		shipped: ['delivered'],
 		delivered: [],
 		cancelled: []
@@ -258,7 +269,8 @@
 	// differently (via return/credit), so it's removed from the allowed set.
 	const brandAllowedNext: Record<string, OrderStatus[]> = {
 		submitted: ['confirmed', 'cancelled'],
-		confirmed: ['shipped', 'cancelled'],
+		confirmed: ['preparing', 'cancelled'],
+		preparing: ['shipped', 'cancelled'],
 		shipped: ['delivered']
 	};
 	const nextStatuses = $derived(
@@ -384,7 +396,8 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		});
 		if (!res.ok) {
 			const body = await res.json().catch(() => ({}));
-			console.error('Status update failed:', body.error);
+			toast.error((body as { error?: string }).error ?? 'Status update failed');
+			return;
 		}
 		invalidateAll();
 		fetchOrderAttentionCount();
@@ -394,6 +407,11 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		{ status: 'draft', label: 'Draft', date: order.created_at },
 		{ status: 'submitted', label: 'Submitted', date: order.submitted_at },
 		{ status: 'confirmed', label: 'Confirmed', date: order.confirmed_at },
+		{
+			status: 'preparing',
+			label: 'Preparing',
+			date: (order as unknown as Record<string, unknown>).preparing_at as string | null
+		},
 		{ status: 'shipped', label: 'Shipped', date: order.shipped_at },
 		{ status: 'delivered', label: 'Delivered', date: order.delivered_at }
 	]);
@@ -475,8 +493,18 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			case 'confirmed': {
 				const head = `Confirmed${order.confirmed_at ? ` · ${longDate(order.confirmed_at as string)}` : ''}.`;
 				const tail = isBrandSide
-					? 'Move to Shipped when the order leaves your warehouse.'
-					: 'Move to Shipped when the order leaves the brand.';
+					? 'Start preparing this order for shipment.'
+					: 'Move to Preparing when the brand starts fulfillment.';
+				return `${head} ${tail}`;
+			}
+			case 'preparing': {
+				const preparingAt = (order as unknown as Record<string, unknown>).preparing_at as
+					| string
+					| null;
+				const head = `Preparing${preparingAt ? ` · ${longDate(preparingAt)}` : ''}.`;
+				const tail = isBrandSide
+					? 'Fill in shipment details. Mark as Shipped when the order leaves your warehouse.'
+					: 'The brand is preparing this order for shipment.';
 				return `${head} ${tail}`;
 			}
 			case 'shipped':
@@ -494,6 +522,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	const advanceActionLabel: Record<string, string> = {
 		submitted: 'Submit',
 		confirmed: 'Mark confirmed',
+		preparing: 'Prepare shipment',
 		shipped: 'Mark shipped',
 		delivered: 'Mark delivered'
 	};
@@ -687,29 +716,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		draftRows[idx].to_remove = false;
 	}
 
-	function addColorFor(idx: number, color: string) {
-		const row = draftRows[idx];
-		const qty_by_size: Record<string, number> = {};
-		for (const s of row.available_sizes) qty_by_size[s] = 0;
-		draftRows.push({
-			key: `${row.product_id}|${color}|new-${Date.now()}`,
-			product_id: row.product_id,
-			style_number: row.style_number,
-			name: row.name,
-			season_label: row.season_label,
-			image_id: row.image_id,
-			color,
-			color_edit: color,
-			unit_price: row.unit_price,
-			available_sizes: row.available_sizes,
-			available_colors: row.available_colors,
-			qty_by_size,
-			lines: [],
-			to_remove: false,
-			added_here: true
-		});
-	}
-
 	async function saveEdits() {
 		savingEdits = true;
 		try {
@@ -785,7 +791,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				available_colors: [],
 				available_sizes: [],
 				selected_color: l.color ?? '',
-				size_qtys: {}
+				size_qtys: {},
+				color_size_qtys: {},
+				color_image_ids: {}
 			});
 		}
 		catalogPickerItems = [...byProduct.values()];
@@ -809,27 +817,31 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		// Start (or continue) edit mode so the user can type qtys inline.
 		const baseDrafts = editMode ? draftRows : snapshotDrafts();
 		for (const it of fresh) {
-			const color = it.selected_color || null;
-			const key = `${it.product_id}|${color ?? ''}|new-${Date.now()}-${Math.random()}`;
-			const qty_by_size: Record<string, number> = {};
-			for (const s of it.available_sizes) qty_by_size[s] = 0;
-			baseDrafts.push({
-				key,
-				product_id: it.product_id,
-				style_number: it.style_number,
-				name: it.name,
-				season_label: null,
-				image_id: it.image_id,
-				color,
-				color_edit: color,
-				unit_price: it.unit_price,
-				available_sizes: it.available_sizes,
-				available_colors: it.available_colors,
-				qty_by_size,
-				lines: [],
-				to_remove: false,
-				added_here: true
-			});
+			for (const [color, sizeMap] of Object.entries(it.color_size_qtys)) {
+				const hasQty = Object.values(sizeMap).some((q) => q > 0);
+				if (!hasQty) continue;
+				const colorVal = color || null;
+				const key = `${it.product_id}|${color}|new-${Date.now()}-${Math.random()}`;
+				const qty_by_size: Record<string, number> = {};
+				for (const s of it.available_sizes) qty_by_size[s] = sizeMap[s] ?? 0;
+				baseDrafts.push({
+					key,
+					product_id: it.product_id,
+					style_number: it.style_number,
+					name: it.name,
+					season_label: null,
+					image_id: (color && it.color_image_ids?.[color]) || it.image_id,
+					color: colorVal,
+					color_edit: colorVal,
+					unit_price: it.unit_price,
+					available_sizes: it.available_sizes,
+					available_colors: it.available_colors,
+					qty_by_size,
+					lines: [],
+					to_remove: false,
+					added_here: true
+				});
+			}
 		}
 		draftRows = baseDrafts;
 		editMode = true;
@@ -868,6 +880,106 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			.eq('id', order.id);
 		savingShipped = false;
 		invalidateAll();
+	}
+
+	// ── Shipment field sync (for ship confirm dialog pre-fill) ──────────
+	let shipCarrier = $state('');
+	let shipTracking = $state('');
+	let shipCost = $state('');
+
+	$effect(() => {
+		shipCarrier = ((order as unknown as Record<string, unknown>).carrier as string) ?? '';
+		shipTracking = ((order as unknown as Record<string, unknown>).tracking_number as string) ?? '';
+		const cost = (order as unknown as Record<string, unknown>).shipping_cost;
+		shipCost = cost != null ? String(cost) : '';
+	});
+
+	// ── Prepare shipment dialog ─────────────────────────────────────────
+	let prepareConfirmOpen = $state(false);
+	let preparingOrder = $state(false);
+	let prepCarrier = $state('');
+	let prepServiceLevel = $state('');
+	let prepTracking = $state('');
+	let prepCost = $state(0);
+
+	function openPrepareDialog() {
+		prepCarrier = '';
+		prepServiceLevel = '';
+		prepTracking = '';
+		prepCost = 0;
+		prepareConfirmOpen = true;
+	}
+
+	async function confirmPrepare() {
+		preparingOrder = true;
+		const res = await fetch(`/api/orders/${order.id}/status`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ status: 'preparing' })
+		});
+		if (!res.ok) {
+			preparingOrder = false;
+			prepareConfirmOpen = false;
+			const body = await res.json().catch(() => ({}));
+			toast.error((body as { error?: string }).error ?? 'Could not prepare shipment');
+			return;
+		}
+		// Save any shipment fields the user entered
+		const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+		if (prepCarrier) updates.carrier = prepCarrier;
+		if (prepTracking) updates.tracking_number = prepTracking;
+		if (prepCost > 0) {
+			updates.shipping_cost = prepCost;
+		}
+		if (Object.keys(updates).length > 1) {
+			await supabase.from('orders').update(updates).eq('id', order.id);
+		}
+		preparingOrder = false;
+		prepareConfirmOpen = false;
+		toast.success('Order is now being prepared for shipment');
+		invalidateAll();
+		fetchOrderAttentionCount();
+	}
+
+	// ── Ship confirmation dialog ────────────────────────────────────────
+	let shipConfirmOpen = $state(false);
+	let shipConfirmCarrier = $state('');
+	let shipConfirmServiceLevel = $state('');
+	let shipConfirmTracking = $state('');
+	let shipConfirmCost = $state(0);
+	let shippingOrder = $state(false);
+
+	function openShipConfirm() {
+		shipConfirmCarrier = ((order as unknown as Record<string, unknown>).carrier as string) ?? '';
+		shipConfirmServiceLevel = prepServiceLevel;
+		shipConfirmTracking =
+			((order as unknown as Record<string, unknown>).tracking_number as string) ?? '';
+		shipConfirmCost = Number((order as unknown as Record<string, unknown>).shipping_cost) || 0;
+		shipConfirmOpen = true;
+	}
+
+	async function confirmShip() {
+		shippingOrder = true;
+		const res = await fetch(`/api/orders/${order.id}/status`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				status: 'shipped',
+				tracking_number: shipConfirmTracking !== '' ? shipConfirmTracking : null,
+				carrier: shipConfirmCarrier !== '' ? shipConfirmCarrier : null,
+				shipping_cost: shipConfirmCost > 0 ? shipConfirmCost : null
+			})
+		});
+		shippingOrder = false;
+		shipConfirmOpen = false;
+		if (!res.ok) {
+			const body = await res.json().catch(() => ({}));
+			toast.error((body as { error?: string }).error ?? 'Could not mark as shipped');
+			return;
+		}
+		toast.success('Order marked as shipped');
+		invalidateAll();
+		fetchOrderAttentionCount();
 	}
 
 	// PDF download
@@ -1069,50 +1181,10 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 <div class="w-full space-y-6 py-6">
 	<!-- ── Top bar ─────────────────────────────────────────────────────── -->
 	<div class="flex items-center justify-between">
-		<Button variant="ghost" size="sm" href="/orders"
+		<Button variant="ghost" size="sm" onclick={() => history.back()}
 			><LongArrow direction="left" /> Back to orders</Button
 		>
 		<div class="flex gap-2">
-			<Button variant="outline" size="sm" onclick={handleCloneOrder} disabled={cloning}>
-				{#if cloning}
-					<div
-						class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
-					></div>
-				{:else}
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-						/>
-					</svg>
-				{/if}
-				<span class="sr-only sm:not-sr-only">Clone</span>
-			</Button>
-			<Button variant="outline" size="sm" onclick={handleDownloadPdf} loading={downloadingPdf}>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-					/>
-				</svg>
-				<span class="sr-only sm:not-sr-only">Download PDF</span>
-			</Button>
 			<Button size="sm" onclick={openSendDialog}>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -1130,6 +1202,96 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</svg>
 				<span class="sr-only sm:not-sr-only">Send to Account</span>
 			</Button>
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger
+					class="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+					aria-label="More actions"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"
+						/>
+					</svg>
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Portal>
+					<DropdownMenu.Content
+						align="end"
+						sideOffset={4}
+						class="z-50 min-w-[10rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+					>
+						<DropdownMenu.Item
+							onSelect={handleCloneOrder}
+							disabled={cloning}
+							class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2m-6 12h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2Z"
+								/>
+							</svg>
+							Clone order
+						</DropdownMenu.Item>
+						<DropdownMenu.Item
+							onSelect={handleDownloadPdf}
+							disabled={downloadingPdf}
+							class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+								/>
+							</svg>
+							Download PDF
+						</DropdownMenu.Item>
+						{#if order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'cancelled'}
+							<DropdownMenu.Separator class="my-1 h-px bg-border" />
+							<DropdownMenu.Item
+								onSelect={() => (cancelOpen = true)}
+								class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm text-destructive outline-none data-[highlighted]:bg-destructive/10"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="1.5"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+								</svg>
+								Cancel order
+							</DropdownMenu.Item>
+						{/if}
+					</DropdownMenu.Content>
+				</DropdownMenu.Portal>
+			</DropdownMenu.Root>
 		</div>
 	</div>
 
@@ -1224,22 +1386,24 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 							{/if}
 						{/each}
 					</ol>
-					{#if canEdit && nextStatuses.length > 0 && order.status !== 'cancelled'}
+					{#if canAdvanceStatus && nextStatuses.length > 0 && order.status !== 'cancelled'}
 						<div class="flex items-center gap-2 border-l pl-4">
 							{#each nextStatuses.filter((s) => s !== 'cancelled') as nextStatus (nextStatus)}
-								<Button size="sm" onclick={() => updateStatus(nextStatus)}>
+								<Button
+									size="sm"
+									onclick={() => {
+										if (nextStatus === 'preparing') {
+											openPrepareDialog();
+										} else if (nextStatus === 'shipped') {
+											openShipConfirm();
+										} else {
+											updateStatus(nextStatus);
+										}
+									}}
+								>
 									{advanceActionLabel[nextStatus] ?? statusLabels[nextStatus] ?? nextStatus}
 								</Button>
 							{/each}
-							{#if nextStatuses.includes('cancelled')}
-								<button
-									type="button"
-									class="px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-									onclick={() => (cancelOpen = true)}
-								>
-									Cancel order
-								</button>
-							{/if}
 						</div>
 					{/if}
 				</div>
@@ -1337,6 +1501,45 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	<div class="grid gap-6 lg:grid-cols-[1fr_340px]">
 		<!-- ─── Left column ─── -->
 		<div class="space-y-6">
+			<!-- ── Shipment Details (shipped + delivered — read-only) ──────── -->
+			{#if (order.status === 'shipped' || order.status === 'delivered') && order.order_type !== 'note'}
+				<section class="rounded-lg border bg-muted/30 px-6 py-5">
+					<h2 class="text-sm font-medium">Shipment Details</h2>
+					<div class="mt-4 grid gap-4 sm:grid-cols-3">
+						<div>
+							<Label>Carrier</Label>
+							<p class="mt-1 text-sm">{shipCarrier || '—'}</p>
+						</div>
+						<div>
+							<Label>Tracking number</Label>
+							{#if shipTracking}
+								{@const url = trackingUrl(shipCarrier, shipTracking)}
+								{#if url}
+									<!-- eslint-disable svelte/no-navigation-without-resolve -- external carrier tracking URL -->
+									<a
+										href={url}
+										target="_blank"
+										rel="noopener"
+										class="mt-1 block text-sm text-blue-600 hover:underline"
+									>
+										{shipTracking}
+									</a>
+									<!-- eslint-enable svelte/no-navigation-without-resolve -->
+								{:else}
+									<p class="mt-1 text-sm">{shipTracking}</p>
+								{/if}
+							{:else}
+								<p class="mt-1 text-sm text-muted-foreground">—</p>
+							{/if}
+						</div>
+						<div>
+							<Label>Shipping cost</Label>
+							<p class="mt-1 text-sm">{shipCost ? fmt.format(Number(shipCost)) : '—'}</p>
+						</div>
+					</div>
+				</section>
+			{/if}
+
 			<!-- ── Meta strip: Source · Contact · Rep ────────────────────── -->
 			<section class="rounded-lg border bg-muted/30 p-5">
 				<div class="grid gap-5 sm:grid-cols-3">
@@ -1650,18 +1853,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 									)}
 									{@const sizesToShow =
 										draft.available_sizes.length > 0 ? draft.available_sizes : fallbackSizes}
-									{@const unusedColors =
-										draft.available_colors && draft.available_colors.length > 1
-											? draft.available_colors.filter(
-													(c) =>
-														!draftRows.some(
-															(r) =>
-																!r.to_remove &&
-																r.product_id === draft.product_id &&
-																r.color_edit === c
-														)
-												)
-											: []}
 									<div class={draft.to_remove ? 'bg-destructive/5' : ''}>
 										<!-- Mobile: compact card, tap sizes to edit ──────────────────── -->
 										<div class="block sm:hidden">
@@ -1853,11 +2044,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 																	onChange={(c) => (draftRows[idx].color_edit = c)}
 																	disabled={draft.to_remove}
 																/>
-																{#if draft.color_edit}
-																	<span class="text-sm text-muted-foreground">
-																		{draft.color_edit}
-																	</span>
-																{/if}
 															{:else}
 																<ColorSwatch color={draft.color_edit} size={16} />
 																<span
@@ -1901,14 +2087,6 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 															Undo
 														</Button>
 													{:else}
-														{#if unusedColors.length > 0}
-															<ColorSwatchPicker
-																value={null}
-																options={unusedColors}
-																onChange={(c) => c && addColorFor(idx, c)}
-																triggerLabel="+ color"
-															/>
-														{/if}
 														<button
 															type="button"
 															aria-label="Remove style"
@@ -2786,6 +2964,491 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		</div>
 	</div>
 {/if}
+
+<!-- ── Prepare Shipment Dialog ─────────────────────────────────── -->
+<Dialog.Root bind:open={prepareConfirmOpen}>
+	<Dialog.Portal>
+		<Dialog.Overlay
+			class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+		/>
+		<Dialog.Content
+			class="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background sm:inset-auto sm:top-[50%] sm:left-[50%] sm:max-h-[90vh] sm:w-full sm:max-w-2xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg sm:border sm:shadow-lg"
+		>
+			<div class="flex-1 overflow-y-auto px-6 pt-6 pb-0">
+				<!-- Title -->
+				<Dialog.Title class="text-xl font-semibold">Prepare Shipment</Dialog.Title>
+				<Dialog.Description class="sr-only">
+					Prepare order {order.order_number} for shipment
+				</Dialog.Description>
+
+				<!-- Order context -->
+				<div class="mt-4 flex items-start justify-between">
+					<div>
+						<div class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</div>
+						<div class="font-mono text-lg font-semibold">{order.order_number}</div>
+					</div>
+					<div class="text-right">
+						<div class="text-sm text-muted-foreground">
+							{savedOrderUnits} Unit{savedOrderUnits === 1 ? '' : 's'}
+						</div>
+						<div class="text-lg font-semibold">{fmt.format(Number(order.total_amount))}</div>
+					</div>
+				</div>
+
+				<!-- Ship-to + Ship window -->
+				<div class="mt-5 grid grid-cols-2 gap-6">
+					<div>
+						<div class="text-sm text-muted-foreground">Ship to</div>
+						{#if orderLocation}
+							<div class="mt-1 text-sm leading-relaxed">
+								{orderLocation.address_line1 ?? ''}<br />
+								{orderLocation.city ?? ''}{orderLocation.state ? `, ${orderLocation.state}` : ''}
+								{orderLocation.zip ?? ''}
+							</div>
+						{:else if accountAddress}
+							<div class="mt-1 text-sm leading-relaxed">
+								{accountAddress.address_line1 ?? ''}<br />
+								{accountAddress.city ?? ''}{accountAddress.state ? `, ${accountAddress.state}` : ''}
+								{accountAddress.zip ?? ''}
+							</div>
+						{:else}
+							<div class="mt-1 text-sm text-muted-foreground">No address on file</div>
+						{/if}
+					</div>
+					<div>
+						<div class="text-sm text-muted-foreground">Ship window</div>
+						<div class="mt-1 text-sm">
+							{#if order.start_ship_date && order.expected_ship_date}
+								{shortDate(order.start_ship_date)} → {shortDate(order.expected_ship_date)}
+							{:else if order.start_ship_date}
+								Ships {shortDate(order.start_ship_date)}
+							{:else}
+								<span class="text-muted-foreground">Not set</span>
+							{/if}
+						</div>
+					</div>
+				</div>
+
+				<!-- Shipment details -->
+				<div class="mt-10">
+					<div class="text-sm font-semibold">
+						Shipment Details <span class="font-normal text-muted-foreground">(optional)</span>
+					</div>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Provide available shipment details that might be helpful.
+					</p>
+
+					<!-- Carrier cards -->
+					<div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+						{#each CARRIERS as c (c)}
+							<button
+								type="button"
+								class="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 px-3 py-4 text-sm transition-all {prepCarrier ===
+								c
+									? 'border-foreground'
+									: 'border-border grayscale hover:border-foreground/30'}"
+								onclick={() => (prepCarrier = prepCarrier === c ? '' : c)}
+							>
+								<div
+									class="absolute top-2.5 right-2.5 h-4 w-4 rounded-full border-2 {prepCarrier === c
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if prepCarrier === c}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
+								</div>
+								{#if c === 'Other'}
+									<span class="absolute top-2 left-2.5 text-xs text-muted-foreground">Other</span>
+								{/if}
+								<div class="flex h-10 w-full items-center justify-center">
+									{#if c === 'FedEx'}
+										<svg viewBox="0 0 2400 800" class="h-5" xmlns="http://www.w3.org/2000/svg"
+											><g fill="none" fill-rule="evenodd" transform="translate(0 67)"
+												><path
+													d="m1978.44411 641.669151-88.84649-99.791357-88.20269 99.791357h-185.41878l181.34129-203.660209-181.34129-203.660209h191.21312l89.70492 98.932936 86.48584-98.932936h184.56036l-180.48286 202.801789 183.05812 204.518629zm-718.49776 0v-641.669151h356.0298v143.14158h-205.16244v91.207153h205.16244v137.561848h-205.16244v126.18778h205.16244v143.57079z"
+													fill="#f60"
+												/><path
+													d="m1109.7228 0v262.676602h-1.71684c-30.88596-35.168048-76.23916-54.164173-122.968702-51.505216-94.013115.826229-175.725783 64.752429-199.153502 155.803279-29.830105-97.859911-107.302534-157.734725-220.399404-157.734725-92.494784 0-165.460507 41.418778-203.660209 109.23398v-84.125187h-191.42772v-91.421758h208.596125v-142.926975h-378.992548v641.669151h170.396423v-269.75857h169.752608c-5.298082 21.045486-7.89423 42.680051-7.725782 64.38152 0 133.913562 102.152012 227.695976 232.846498 227.695976 109.663189 0 181.985097-51.505216 220.184798-145.502235h-145.931445c-14.824918 26.364233-44.305216 40.933771-74.253353 36.697466-47.553622-1.046199-85.620984-39.779552-85.842027-87.344262h297.871833c12.876304 107.302534 95.71386 197.865872 209.23994 197.865872 48.637377.1538 94.135437-24.004292 121.251867-64.38152h1.71684v40.345753h150.22354v-641.669151zm-625.144559 373.842027c7.123458-38.896096 40.934129-67.207154 80.476901-67.385991 40.490611-2.04769 75.818181 27.220864 81.33532 67.385991zm533.722799 170.181818c-55.368104 0-89.704915-51.505216-89.704915-105.585693 0-57.514158 30.04471-112.882265 89.704915-112.882265 59.66021 0 85.84203 55.368107 85.84203 112.882265s-25.10879 105.585693-85.62742 105.585693z"
+													fill="#4d148c"
+												/></g
+											></svg
+										>
+									{:else if c === 'UPS'}
+										<svg viewBox="0 0 52.24 61.98" class="h-7" xmlns="http://www.w3.org/2000/svg"
+											><g transform="matrix(1.25 0 0 -1.25 -47.372 728.76)"
+												><g transform="translate(.36060 .36060)"
+													><path
+														d="m38.962 567.66 0.17739-20.134 4.5235-5.5879 13.571-7.1844 16.675 8.1601 3.4592 8.2488-0.35478 26.698-12.595 0.35478-13.127-2.1287-11.974-6.9183z"
+														fill-rule="evenodd"
+														fill="#301506"
+													/><path
+														d="m25.619 0c-9.881 0-18.5 1.913-25.619 5.6855v30.16c0 6.3462 2.3845 11.653 6.8945 15.35 4.1875 3.435 17.138 9.0957 18.725 9.7832 1.505-0.655 14.609-6.4032 18.73-9.7832 4.5075-3.695 6.8926-9.0034 6.8926-15.35v-30.16c-7.12-3.773-15.739-5.686-25.624-5.686zm14.631 5.8398c2.9466 0.038525 5.8399 0.22055 8.6367 0.48047v29.525c0 5.6738-2.0588 10.257-6.0312 13.529-3.5488 2.9225-14.25 7.717-17.236 9.0332-3.026-1.334-13.754-6.189-17.239-9.032-3.9489-3.216-6.0275-7.908-6.0275-13.529v-17.252c11.348-10.407 25.128-12.921 37.896-12.754zm-13.963 13.748c-2.4312 0-4.3928 0.54344-6.0078 1.5859v29.049h4.459v-9.3848c0.445 0.13125 1.0909 0.25391 2.0059 0.25391 4.9462 0 7.7891-4.4588 7.7891-10.969 0-6.4975-2.9273-10.535-8.2461-10.535zm15.236 0c-2.9325 0.085-5.9992 2.2093-5.9805 5.8105 0.0075 2.3712 0.66484 4.1445 4.3398 6.3008 1.9612 1.1512 2.7514 1.9098 2.7852 3.3086 0.0375 1.555-1.0369 2.4926-2.6719 2.4863-1.4225-0.01125-3.123-0.8007-4.2617-1.8145v4.1035c1.3962 0.8325 3.1384 1.3828 4.8984 1.3828 4.405 0 6.372-3.1116 6.457-5.9629 0.08375-2.5988-0.63438-4.5652-4.3594-6.7539-1.6625-0.975-2.9754-1.6158-2.9316-3.2383 0.04375-1.5838 1.3586-2.1402 2.6211-2.1289 1.5575 0.01375 3.0641 0.87633 3.9941 1.8301v-3.875c-0.78375-0.60375-2.4431-1.5242-4.8906-1.4492zm-36.893 0.45117v14.012c0 4.7238 2.2345 7.1152 6.6445 7.1152 2.7288 0 5.0143-0.63156 6.7168-1.7891v-19.338h-4.4492v16.801c-0.485 0.3325-1.2044 0.54492-2.1094 0.54492-2.0425 0-2.3477-1.873-2.3477-3.1367v-14.209h-4.4551zm21.687 3.1387c2.5862 0 3.6582 2.0648 3.6582 7.0586 0.000001 4.8725-1.226 7.2266-3.791 7.2266-0.60375 0-1.1285-0.14953-1.4473-0.26953v-13.693c0.36125-0.18 0.97508-0.32227 1.5801-0.32227z"
+														transform="matrix(.8 0 0 -.8 37.897 582.21)"
+														fill="#fab80a"
+													/></g
+												></g
+											></svg
+										>
+									{:else if c === 'USPS'}
+										<svg viewBox="20 20 165 110" class="h-6" xmlns="http://www.w3.org/2000/svg"
+											><g fill-rule="evenodd" clip-rule="evenodd"
+												><path
+													d="M117.109 46.547c-11.365-1.48-72.746-.947-81.767-.86l-16.284 75.56c24.929-12.545 47.12-23.373 71.807-35.152 31.386-14.974 52.978-18.812 57.457-19.03 3.014-.146 1.305-1.459-.127-1.775-17.531-3.866-60.051 15.849-60.051 15.849l-9.29-28.186 60.533.057c-3.34-4.946-10.004-4.864-22.278-6.463z"
+													fill="#004B87"
+												/><path
+													d="M44.553 23.971a206015 206015 0 0 1 83.037 18.242c13.309 2.934 15.01 7.494 15.01 7.494s14.564-1.76 17.236 3.309c3.426 6.494-5.334 18.833-5.334 18.833L28.603 121.246h130.743l21.441-97.275H44.553z"
+													fill="#004B87"
+												/><path
+													d="M139.932 53.105s-.625 3.505-13.564 4.59c-1.186.099-1.469.857.096.907 1.562.05 23.189-.695 25.598-.459 2.41.236 2.088 1.691 1.779 3.1-.312 1.408-1.932 5.629-2.348 6.62-.414.992.377.969 1.014.322.635-.648 4.521-8.454 4.633-10.3.111-1.846-.549-3.763-3.553-4.425-3.005-.665-13.655-.355-13.655-.355z"
+													fill="#004B87"
+												/></g
+											></svg
+										>
+									{:else}
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-9 w-9 text-muted-foreground"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.5"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											><path
+												d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"
+											/><path d="M12 22V12" /><polyline points="3.29 7 12 12 20.71 7" /><path
+												d="m7.5 4.27 9 5.15"
+											/></svg
+										>
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Service level cards -->
+					<div class="mt-8 grid grid-cols-3 gap-3 sm:mt-3">
+						{#each SERVICE_LEVELS as level (level)}
+							<button
+								type="button"
+								class="relative flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-3 text-sm transition-all sm:flex-row sm:justify-start sm:gap-3 sm:px-4 {prepServiceLevel ===
+								level
+									? 'border-foreground'
+									: 'border-border grayscale hover:border-foreground/30'}"
+								onclick={() => (prepServiceLevel = prepServiceLevel === level ? '' : level)}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-6 w-6 text-muted-foreground"
+									viewBox="0 0 24 24"
+									fill="currentColor"
+								>
+									{#if level === 'Ground'}
+										<path
+											d="M8.96456 18C8.72194 19.6961 7.26324 21 5.5 21C3.73676 21 2.27806 19.6961 2.03544 18H1V6C1 5.44772 1.44772 5 2 5H16C16.5523 5 17 5.44772 17 6V8H20L23 12.0557V18H20.9646C20.7219 19.6961 19.2632 21 17.5 21C15.7368 21 14.2781 19.6961 14.0354 18H8.96456ZM15 7H3V15.0505C3.63526 14.4022 4.52066 14 5.5 14C6.8962 14 8.10145 14.8175 8.66318 16H14.3368C14.5045 15.647 14.7296 15.3264 15 15.0505V7ZM17 13H21V12.715L18.9917 10H17V13ZM17.5 19C18.1531 19 18.7087 18.5826 18.9146 18C18.9699 17.8436 19 17.6753 19 17.5C19 16.6716 18.3284 16 17.5 16C16.6716 16 16 16.6716 16 17.5C16 17.6753 16.0301 17.8436 16.0854 18C16.2913 18.5826 16.8469 19 17.5 19ZM7 17.5C7 16.6716 6.32843 16 5.5 16C4.67157 16 4 16.6716 4 17.5C4 17.6753 4.03008 17.8436 4.08535 18C4.29127 18.5826 4.84689 19 5.5 19C6.15311 19 6.70873 18.5826 6.91465 18C6.96992 17.8436 7 17.6753 7 17.5Z"
+										/>
+									{:else if level === 'Next Day Air'}
+										<path
+											d="M14 8.94737L22 14V16L14 13.4737V18.8333L17 20.5V22L12.5 21L8 22V20.5L11 18.8333V13.4737L3 16V14L11 8.94737V3.5C11 2.67157 11.6716 2 12.5 2C13.3284 2 14 2.67157 14 3.5V8.94737Z"
+										/>
+									{:else}
+										<path
+											d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM13 12H17V14H11V7H13V12Z"
+										/>
+									{/if}
+								</svg>
+								<span class="text-xs font-medium">{level}</span>
+								<div
+									class="absolute top-2 right-2 h-4 w-4 shrink-0 rounded-full border-2 sm:static sm:ml-auto {prepServiceLevel ===
+									level
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if prepServiceLevel === level}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Tracking + Cost -->
+					<div class="mt-8 grid grid-cols-[1fr_auto] gap-3 sm:mt-6">
+						<div>
+							<div class="text-sm text-muted-foreground">Tracking number</div>
+							<div class="mt-1.5">
+								<Input bind:value={prepTracking} placeholder="SH-1234567890" />
+							</div>
+						</div>
+						<div class="w-28 sm:w-36">
+							<div class="text-sm text-muted-foreground">Shipping cost</div>
+							<div class="mt-1.5">
+								<CurrencyInput bind:value={prepCost} />
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<footer class="mt-8 grid grid-cols-2 gap-3 px-6 pb-6">
+				<Dialog.Close>
+					<Button variant="outline" size="lg" class="w-full">Cancel</Button>
+				</Dialog.Close>
+				<Button size="lg" class="w-full" onclick={confirmPrepare} loading={preparingOrder}>
+					Prepare Shipment
+				</Button>
+			</footer>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
+
+<!-- ── Ship Confirmation Dialog ───────────────────────────────── -->
+<Dialog.Root bind:open={shipConfirmOpen}>
+	<Dialog.Portal>
+		<Dialog.Overlay
+			class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"
+		/>
+		<Dialog.Content
+			class="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background sm:inset-auto sm:top-[50%] sm:left-[50%] sm:max-h-[90vh] sm:w-full sm:max-w-2xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg sm:border sm:shadow-lg"
+		>
+			<div class="flex-1 overflow-y-auto px-6 pt-6 pb-0">
+				<Dialog.Title class="text-xl font-semibold">Ship Order</Dialog.Title>
+				<Dialog.Description class="sr-only">
+					Confirm shipment for order {order.order_number}
+				</Dialog.Description>
+
+				<!-- Order context -->
+				<div class="mt-4 flex items-start justify-between">
+					<div>
+						<div class="text-sm text-muted-foreground">{order.accounts?.business_name ?? '—'}</div>
+						<div class="font-mono text-lg font-semibold">{order.order_number}</div>
+					</div>
+					<div class="text-right">
+						<div class="text-sm text-muted-foreground">
+							{savedOrderUnits} Unit{savedOrderUnits === 1 ? '' : 's'}
+						</div>
+						<div class="text-lg font-semibold">{fmt.format(Number(order.total_amount))}</div>
+					</div>
+				</div>
+
+				<!-- Ship-to + Ship window -->
+				<div class="mt-5 grid grid-cols-2 gap-6">
+					<div>
+						<div class="text-sm text-muted-foreground">Ship to</div>
+						{#if orderLocation}
+							<div class="mt-1 text-sm leading-relaxed">
+								{orderLocation.address_line1 ?? ''}<br />
+								{orderLocation.city ?? ''}{orderLocation.state ? `, ${orderLocation.state}` : ''}
+								{orderLocation.zip ?? ''}
+							</div>
+						{:else if accountAddress}
+							<div class="mt-1 text-sm leading-relaxed">
+								{accountAddress.address_line1 ?? ''}<br />
+								{accountAddress.city ?? ''}{accountAddress.state ? `, ${accountAddress.state}` : ''}
+								{accountAddress.zip ?? ''}
+							</div>
+						{:else}
+							<div class="mt-1 text-sm text-muted-foreground">No address on file</div>
+						{/if}
+					</div>
+					<div>
+						<div class="text-sm text-muted-foreground">Ship window</div>
+						<div class="mt-1 text-sm">
+							{#if order.start_ship_date && order.expected_ship_date}
+								{shortDate(order.start_ship_date)} → {shortDate(order.expected_ship_date)}
+							{:else if order.start_ship_date}
+								Ships {shortDate(order.start_ship_date)}
+							{:else}
+								<span class="text-muted-foreground">Not set</span>
+							{/if}
+						</div>
+					</div>
+				</div>
+
+				<!-- Shipment details -->
+				<div class="mt-10">
+					<div class="text-sm font-semibold">
+						Shipment Details <span class="font-normal text-muted-foreground">(review)</span>
+					</div>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Confirm or update before shipping. Empty fields can be added later.
+					</p>
+
+					<!-- Carrier cards -->
+					<div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+						{#each CARRIERS as c (c)}
+							<button
+								type="button"
+								class="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 px-3 py-4 text-sm transition-all {shipConfirmCarrier ===
+								c
+									? 'border-foreground'
+									: 'border-border grayscale hover:border-foreground/30'}"
+								onclick={() => (shipConfirmCarrier = shipConfirmCarrier === c ? '' : c)}
+							>
+								<div
+									class="absolute top-2.5 right-2.5 h-4 w-4 rounded-full border-2 {shipConfirmCarrier ===
+									c
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if shipConfirmCarrier === c}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
+								</div>
+								{#if c === 'Other'}
+									<span class="absolute top-2 left-2.5 text-xs text-muted-foreground">Other</span>
+								{/if}
+								<div class="flex h-8 w-full items-center justify-center">
+									{#if c === 'FedEx'}
+										<svg viewBox="0 0 2400 800" class="h-5" xmlns="http://www.w3.org/2000/svg"
+											><g fill="none" fill-rule="evenodd" transform="translate(0 67)"
+												><path
+													d="m1978.44411 641.669151-88.84649-99.791357-88.20269 99.791357h-185.41878l181.34129-203.660209-181.34129-203.660209h191.21312l89.70492 98.932936 86.48584-98.932936h184.56036l-180.48286 202.801789 183.05812 204.518629zm-718.49776 0v-641.669151h356.0298v143.14158h-205.16244v91.207153h205.16244v137.561848h-205.16244v126.18778h205.16244v143.57079z"
+													fill="#f60"
+												/><path
+													d="m1109.7228 0v262.676602h-1.71684c-30.88596-35.168048-76.23916-54.164173-122.968702-51.505216-94.013115.826229-175.725783 64.752429-199.153502 155.803279-29.830105-97.859911-107.302534-157.734725-220.399404-157.734725-92.494784 0-165.460507 41.418778-203.660209 109.23398v-84.125187h-191.42772v-91.421758h208.596125v-142.926975h-378.992548v641.669151h170.396423v-269.75857h169.752608c-5.298082 21.045486-7.89423 42.680051-7.725782 64.38152 0 133.913562 102.152012 227.695976 232.846498 227.695976 109.663189 0 181.985097-51.505216 220.184798-145.502235h-145.931445c-14.824918 26.364233-44.305216 40.933771-74.253353 36.697466-47.553622-1.046199-85.620984-39.779552-85.842027-87.344262h297.871833c12.876304 107.302534 95.71386 197.865872 209.23994 197.865872 48.637377.1538 94.135437-24.004292 121.251867-64.38152h1.71684v40.345753h150.22354v-641.669151zm-625.144559 373.842027c7.123458-38.896096 40.934129-67.207154 80.476901-67.385991 40.490611-2.04769 75.818181 27.220864 81.33532 67.385991zm533.722799 170.181818c-55.368104 0-89.704915-51.505216-89.704915-105.585693 0-57.514158 30.04471-112.882265 89.704915-112.882265 59.66021 0 85.84203 55.368107 85.84203 112.882265s-25.10879 105.585693-85.62742 105.585693z"
+													fill="#4d148c"
+												/></g
+											></svg
+										>
+									{:else if c === 'UPS'}
+										<svg viewBox="0 0 52.24 61.98" class="h-7" xmlns="http://www.w3.org/2000/svg"
+											><g transform="matrix(1.25 0 0 -1.25 -47.372 728.76)"
+												><g transform="translate(.36060 .36060)"
+													><path
+														d="m38.962 567.66 0.17739-20.134 4.5235-5.5879 13.571-7.1844 16.675 8.1601 3.4592 8.2488-0.35478 26.698-12.595 0.35478-13.127-2.1287-11.974-6.9183z"
+														fill-rule="evenodd"
+														fill="#301506"
+													/><path
+														d="m25.619 0c-9.881 0-18.5 1.913-25.619 5.6855v30.16c0 6.3462 2.3845 11.653 6.8945 15.35 4.1875 3.435 17.138 9.0957 18.725 9.7832 1.505-0.655 14.609-6.4032 18.73-9.7832 4.5075-3.695 6.8926-9.0034 6.8926-15.35v-30.16c-7.12-3.773-15.739-5.686-25.624-5.686zm14.631 5.8398c2.9466 0.038525 5.8399 0.22055 8.6367 0.48047v29.525c0 5.6738-2.0588 10.257-6.0312 13.529-3.5488 2.9225-14.25 7.717-17.236 9.0332-3.026-1.334-13.754-6.189-17.239-9.032-3.9489-3.216-6.0275-7.908-6.0275-13.529v-17.252c11.348-10.407 25.128-12.921 37.896-12.754zm-13.963 13.748c-2.4312 0-4.3928 0.54344-6.0078 1.5859v29.049h4.459v-9.3848c0.445 0.13125 1.0909 0.25391 2.0059 0.25391 4.9462 0 7.7891-4.4588 7.7891-10.969 0-6.4975-2.9273-10.535-8.2461-10.535zm15.236 0c-2.9325 0.085-5.9992 2.2093-5.9805 5.8105 0.0075 2.3712 0.66484 4.1445 4.3398 6.3008 1.9612 1.1512 2.7514 1.9098 2.7852 3.3086 0.0375 1.555-1.0369 2.4926-2.6719 2.4863-1.4225-0.01125-3.123-0.8007-4.2617-1.8145v4.1035c1.3962 0.8325 3.1384 1.3828 4.8984 1.3828 4.405 0 6.372-3.1116 6.457-5.9629 0.08375-2.5988-.63438-4.5652-4.3594-6.7539-1.6625-.975-2.9754-1.6158-2.9316-3.2383 0.04375-1.5838 1.3586-2.1402 2.6211-2.1289 1.5575 0.01375 3.0641 0.87633 3.9941 1.8301v-3.875c-0.78375-0.60375-2.4431-1.5242-4.8906-1.4492zm-36.893 0.45117v14.012c0 4.7238 2.2345 7.1152 6.6445 7.1152 2.7288 0 5.0143-0.63156 6.7168-1.7891v-19.338h-4.4492v16.801c-0.485 0.3325-1.2044 0.54492-2.1094 0.54492-2.0425 0-2.3477-1.873-2.3477-3.1367v-14.209h-4.4551zm21.687 3.1387c2.5862 0 3.6582 2.0648 3.6582 7.0586 0.000001 4.8725-1.226 7.2266-3.791 7.2266-0.60375 0-1.1285-0.14953-1.4473-0.26953v-13.693c0.36125-0.18 0.97508-0.32227 1.5801-0.32227z"
+														transform="matrix(.8 0 0 -.8 37.897 582.21)"
+														fill="#fab80a"
+													/></g
+												></g
+											></svg
+										>
+									{:else if c === 'USPS'}
+										<svg viewBox="20 20 165 110" class="h-6" xmlns="http://www.w3.org/2000/svg"
+											><g fill-rule="evenodd" clip-rule="evenodd"
+												><path
+													d="M117.109 46.547c-11.365-1.48-72.746-.947-81.767-.86l-16.284 75.56c24.929-12.545 47.12-23.373 71.807-35.152 31.386-14.974 52.978-18.812 57.457-19.03 3.014-.146 1.305-1.459-.127-1.775-17.531-3.866-60.051 15.849-60.051 15.849l-9.29-28.186 60.533.057c-3.34-4.946-10.004-4.864-22.278-6.463z"
+													fill="#004B87"
+												/><path
+													d="M44.553 23.971a206015 206015 0 0 1 83.037 18.242c13.309 2.934 15.01 7.494 15.01 7.494s14.564-1.76 17.236 3.309c3.426 6.494-5.334 18.833-5.334 18.833L28.603 121.246h130.743l21.441-97.275H44.553z"
+													fill="#004B87"
+												/><path
+													d="M139.932 53.105s-.625 3.505-13.564 4.59c-1.186.099-1.469.857.096.907 1.562.05 23.189-.695 25.598-.459 2.41.236 2.088 1.691 1.779 3.1-.312 1.408-1.932 5.629-2.348 6.62-.414.992.377.969 1.014.322.635-.648 4.521-8.454 4.633-10.3.111-1.846-.549-3.763-3.553-4.425-3.005-.665-13.655-.355-13.655-.355z"
+													fill="#004B87"
+												/></g
+											></svg
+										>
+									{:else}
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-9 w-9 text-muted-foreground"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.5"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											><path
+												d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"
+											/><path d="M12 22V12" /><polyline points="3.29 7 12 12 20.71 7" /><path
+												d="m7.5 4.27 9 5.15"
+											/></svg
+										>
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Service level cards -->
+					<div class="mt-8 grid grid-cols-3 gap-3 sm:mt-3">
+						{#each SERVICE_LEVELS as level (level)}
+							<button
+								type="button"
+								class="relative flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-3 text-sm transition-all sm:flex-row sm:justify-start sm:gap-3 sm:px-4 {shipConfirmServiceLevel ===
+								level
+									? 'border-foreground'
+									: 'border-border grayscale hover:border-foreground/30'}"
+								onclick={() =>
+									(shipConfirmServiceLevel = shipConfirmServiceLevel === level ? '' : level)}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-6 w-6 text-muted-foreground"
+									viewBox="0 0 24 24"
+									fill="currentColor"
+								>
+									{#if level === 'Ground'}
+										<path
+											d="M8.96456 18C8.72194 19.6961 7.26324 21 5.5 21C3.73676 21 2.27806 19.6961 2.03544 18H1V6C1 5.44772 1.44772 5 2 5H16C16.5523 5 17 5.44772 17 6V8H20L23 12.0557V18H20.9646C20.7219 19.6961 19.2632 21 17.5 21C15.7368 21 14.2781 19.6961 14.0354 18H8.96456ZM15 7H3V15.0505C3.63526 14.4022 4.52066 14 5.5 14C6.8962 14 8.10145 14.8175 8.66318 16H14.3368C14.5045 15.647 14.7296 15.3264 15 15.0505V7ZM17 13H21V12.715L18.9917 10H17V13ZM17.5 19C18.1531 19 18.7087 18.5826 18.9146 18C18.9699 17.8436 19 17.6753 19 17.5C19 16.6716 18.3284 16 17.5 16C16.6716 16 16 16.6716 16 17.5C16 17.6753 16.0301 17.8436 16.0854 18C16.2913 18.5826 16.8469 19 17.5 19ZM7 17.5C7 16.6716 6.32843 16 5.5 16C4.67157 16 4 16.6716 4 17.5C4 17.6753 4.03008 17.8436 4.08535 18C4.29127 18.5826 4.84689 19 5.5 19C6.15311 19 6.70873 18.5826 6.91465 18C6.96992 17.8436 7 17.6753 7 17.5Z"
+										/>
+									{:else if level === 'Next Day Air'}
+										<path
+											d="M14 8.94737L22 14V16L14 13.4737V18.8333L17 20.5V22L12.5 21L8 22V20.5L11 18.8333V13.4737L3 16V14L11 8.94737V3.5C11 2.67157 11.6716 2 12.5 2C13.3284 2 14 2.67157 14 3.5V8.94737Z"
+										/>
+									{:else}
+										<path
+											d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM13 12H17V14H11V7H13V12Z"
+										/>
+									{/if}
+								</svg>
+								<span class="text-xs font-medium">{level}</span>
+								<div
+									class="absolute top-2 right-2 h-4 w-4 shrink-0 rounded-full border-2 sm:static sm:ml-auto {shipConfirmServiceLevel ===
+									level
+										? 'border-foreground bg-foreground'
+										: 'border-muted-foreground/40'}"
+								>
+									{#if shipConfirmServiceLevel === level}
+										<div class="flex h-full w-full items-center justify-center">
+											<div class="h-1.5 w-1.5 rounded-full bg-background"></div>
+										</div>
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Tracking + Cost -->
+					<div class="mt-8 grid grid-cols-[1fr_auto] gap-3 sm:mt-6">
+						<div>
+							<div class="text-sm text-muted-foreground">Tracking number</div>
+							<div class="mt-1.5">
+								<Input bind:value={shipConfirmTracking} placeholder="Enter tracking number" />
+							</div>
+						</div>
+						<div class="w-28 sm:w-36">
+							<div class="text-sm text-muted-foreground">Shipping cost</div>
+							<div class="mt-1.5">
+								<CurrencyInput bind:value={shipConfirmCost} />
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<footer class="mt-8 grid grid-cols-2 gap-3 px-6 pb-6">
+				<Dialog.Close>
+					<Button variant="outline" size="lg" class="w-full">Cancel</Button>
+				</Dialog.Close>
+				<Button size="lg" class="w-full" onclick={confirmShip} loading={shippingOrder}>
+					Ship Order
+				</Button>
+			</footer>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
 
 <!-- Send to Account Modal -->
 <svelte:window onkeydown={handleSendKeydown} />

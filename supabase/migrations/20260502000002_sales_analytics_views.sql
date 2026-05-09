@@ -101,14 +101,20 @@ CREATE INDEX idx_mv_brand_sales_daily_org_brand
   ON mv_brand_sales_daily (brand_org_id, brand_id);
 
 -- pg_cron refresh jobs (every 15 minutes)
-SELECT cron.schedule(
-  'refresh_mv_rep_sales_daily',
-  '*/15 * * * *',
-  $$REFRESH MATERIALIZED VIEW mv_rep_sales_daily$$
-);
-
-SELECT cron.schedule(
-  'refresh_mv_brand_sales_daily',
-  '*/15 * * * *',
-  $$REFRESH MATERIALIZED VIEW mv_brand_sales_daily$$
-);
+-- Guarded: pg_cron is available on hosted Supabase but not local CLI instances
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'cron') THEN
+    PERFORM cron.schedule(
+      'refresh_mv_rep_sales_daily',
+      '*/15 * * * *',
+      'REFRESH MATERIALIZED VIEW mv_rep_sales_daily'
+    );
+    PERFORM cron.schedule(
+      'refresh_mv_brand_sales_daily',
+      '*/15 * * * *',
+      'REFRESH MATERIALIZED VIEW mv_brand_sales_daily'
+    );
+  END IF;
+END
+$$;

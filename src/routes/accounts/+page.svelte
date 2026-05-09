@@ -2,11 +2,13 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import { SearchDropdown } from '$lib/components/ui/input/index.js';
+	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import AccountImportModal from '$lib/components/accounts/AccountImportModal.svelte';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import type { Account } from '$lib/types/database.js';
+	import { addRecent } from '$lib/stores/recent-searches.js';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -79,7 +81,7 @@
 	const archivedCount = $derived(accountList.filter((a) => a.archived_at).length);
 
 	// Debounced server-side search
-	const debouncedSearch = debounce((value: string) => {
+	function applySearch(value: string) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams($page.url.searchParams);
 		if (value) params.set('search', value);
@@ -89,12 +91,22 @@
 			keepFocus: true,
 			noScroll: true
 		});
+	}
+
+	const debouncedSearch = debounce((value: string) => {
+		applySearch(value);
 	}, 300);
 
 	function onSearchInput(e: Event) {
 		const value = (e.target as HTMLInputElement).value;
 		search = value;
 		debouncedSearch(value);
+	}
+
+	function onSearchCommit(term: string) {
+		search = term;
+		addRecent('accounts', term);
+		applySearch(term);
 	}
 
 	// Infinite scroll
@@ -158,10 +170,23 @@
 		{/if}
 	</PageHeader>
 
-	<div class="flex items-center gap-3">
-		<div class="max-w-xs flex-1">
-			<SearchInput placeholder="Search accounts..." value={search} oninput={onSearchInput} />
-		</div>
+	<ListPageToolbar
+		{search}
+		{onSearchInput}
+		searchPlaceholder="Search accounts..."
+		searchClass="max-w-xs flex-1"
+	>
+		{#snippet searchSlot()}
+			<SearchDropdown
+				bind:value={search}
+				oninput={onSearchInput}
+				oncommit={onSearchCommit}
+				placeholder="Search accounts..."
+				context="accounts"
+				suggestionType="accounts"
+				class="max-w-xs flex-1"
+			/>
+		{/snippet}
 		{#if archivedCount > 0}
 			<button
 				class="text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -170,7 +195,7 @@
 				{showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
 			</button>
 		{/if}
-	</div>
+	</ListPageToolbar>
 
 	{#if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">

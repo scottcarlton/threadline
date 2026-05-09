@@ -7,13 +7,15 @@ import { createNotification, notifyBrandAdmins } from '$lib/server/notifications
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 	draft: ['submitted'],
 	submitted: ['confirmed'],
-	confirmed: ['shipped'],
+	confirmed: ['preparing', 'cancelled'],
+	preparing: ['shipped', 'cancelled'],
 	shipped: ['delivered']
 };
 
 const TIMESTAMP_FIELD: Record<string, string> = {
 	submitted: 'submitted_at',
 	confirmed: 'confirmed_at',
+	preparing: 'preparing_at',
 	shipped: 'shipped_at',
 	delivered: 'delivered_at',
 	cancelled: 'cancelled_at'
@@ -22,17 +24,19 @@ const TIMESTAMP_FIELD: Record<string, string> = {
 const EMAIL_EVENTS: Record<string, OrderEmailEvent> = {
 	submitted: 'submitted',
 	confirmed: 'confirmed',
+	preparing: 'preparing',
 	shipped: 'shipped',
 	delivered: 'delivered'
 };
 
 export const PATCH: RequestHandler = async ({ params, request, locals, url }) => {
-	const { supabase, organization, user } = locals;
+	const { supabase, organization, user, orgType } = locals;
 	if (!organization || !user) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const { status: newStatus } = await request.json();
+	const body = await request.json();
+	const newStatus = body.status;
 	if (!newStatus || typeof newStatus !== 'string') {
 		return json({ error: 'Missing status' }, { status: 400 });
 	}
@@ -63,6 +67,16 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 		updateData[TIMESTAMP_FIELD[newStatus]] = new Date().toISOString();
 	}
 
+	if (newStatus === 'shipped') {
+		if (body.tracking_number !== undefined)
+			updateData.tracking_number = body.tracking_number || null;
+		if (body.carrier !== undefined) updateData.carrier = body.carrier || null;
+		if (body.shipping_cost !== undefined) {
+			const cost = parseFloat(body.shipping_cost);
+			updateData.shipping_cost = isNaN(cost) ? null : cost;
+		}
+	}
+
 	const { error: updateErr } = await supabase.from('orders').update(updateData).eq('id', order.id);
 
 	if (updateErr) {
@@ -75,6 +89,8 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 	}
 
 	const orderLink = `/orders/${order.id}`;
+	const actorIsBrand = orgType === 'brand';
+
 	if (newStatus === 'submitted') {
 		notifyBrandAdmins(order.brand_id, user.id, {
 			type: 'order_submitted',
@@ -83,23 +99,32 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 			link: orderLink
 		});
 	} else if (newStatus === 'confirmed') {
+		if (actorIsBrand) {
+			createNotification({
+				organizationId: organization.id,
+				userId: order.created_by,
+				actorUserId: user.id,
+				type: 'order_confirmed',
+				title: 'Order confirmed',
+				body: `Order ${order.order_number} has been confirmed`,
+				link: orderLink
+			});
+		} else {
+			notifyBrandAdmins(order.brand_id, user.id, {
+				type: 'order_confirmed',
+				title: 'Order confirmed',
+				body: `Order ${order.order_number} has been confirmed`,
+				link: orderLink
+			});
+		}
+	} else if (newStatus === 'preparing') {
 		createNotification({
 			organizationId: organization.id,
 			userId: order.created_by,
 			actorUserId: user.id,
-			type: 'order_confirmed',
-			title: 'Order confirmed',
-			body: `Order ${order.order_number} has been confirmed`,
-			link: orderLink
-		});
-	} else if (newStatus === 'shipped') {
-		createNotification({
-			organizationId: organization.id,
-			userId: order.created_by,
-			actorUserId: user.id,
-			type: 'order_shipped',
-			title: 'Order shipped',
-			body: `Order ${order.order_number} has shipped`,
+			type: 'order_preparing',
+			title: 'Order preparing to ship',
+			body: `Order ${order.order_number} is being prepared for shipment`,
 			link: orderLink
 		});
 	}

@@ -15,6 +15,10 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 	const file = formData.get('file') as File | null;
 	if (!file) return json({ error: 'Missing file' }, { status: 400 });
 
+	const variantId = (formData.get('variant_id') as string) || null;
+	const role = (formData.get('role') as string) || null;
+	const validRole = role === 'primary' || role === 'hover' || role === 'video' ? role : null;
+
 	const arrayBuffer = await file.arrayBuffer();
 
 	try {
@@ -25,7 +29,9 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 			mimeType: file.type,
 			fileName: file.name,
 			fileSize: file.size,
-			uploadedBy: locals.user.id
+			uploadedBy: locals.user.id,
+			variantId,
+			role: validRole
 		});
 		return json({ success: true }, { status: 201 });
 	} catch (err) {
