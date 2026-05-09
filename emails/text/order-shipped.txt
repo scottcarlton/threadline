@@ -1,9 +1,9 @@
-Order shipped: {{{ORDER_NUMBER}}}
+Order shipped: {{params.ORDER_NUMBER}}
 
-Account:  {{{ACCOUNT_NAME}}}
-Brand:    {{{BRAND_NAME}}}
-Total:    {{{TOTAL}}}
-{{{#if TRACKING_NUMBER}}}Tracking: {{{TRACKING_NUMBER}}} ({{{TRACKING_URL}}}){{{/if}}}
+Account:  {{params.ACCOUNT_NAME}}
+Brand:    {{params.BRAND_NAME}}
+Total:    {{params.TOTAL}}
+{% if params.TRACKING_NUMBER %}Tracking: {{params.TRACKING_NUMBER}} ({{params.TRACKING_URL}}){% endif %}
 
-View order: {{{ORDER_URL}}}
+View order: {{params.ORDER_URL}}
 /Threadline · threadline.systems

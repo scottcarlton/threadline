@@ -1,10 +1,10 @@
-New order submitted: {{{ORDER_NUMBER}}}
+New order submitted: {{params.ORDER_NUMBER}}
 
-Account: {{{ACCOUNT_NAME}}}
-Brand:   {{{BRAND_NAME}}}
-Total:   {{{TOTAL}}}
+Account: {{params.ACCOUNT_NAME}}
+Brand:   {{params.BRAND_NAME}}
+Total:   {{params.TOTAL}}
 
-Review order: {{{ORDER_URL}}}
+Review order: {{params.ORDER_URL}}
 
 Manage email preferences in Settings > Notifications.
 /Threadline · threadline.systems

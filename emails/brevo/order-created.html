@@ -1,7 +1,7 @@
 <!--
   /Threadline — order-created
-  subject:   Draft saved: {{{ORDER_NUMBER}}}
-  preheader: Your draft for {{{ACCOUNT_NAME}}} is saved. Submit when you're ready.
+  subject:   Draft saved: {{params.ORDER_NUMBER}}
+  preheader: Your draft for {{params.ACCOUNT_NAME}} is saved. Submit when you're ready.
 -->
 <!doctype html>
 <html lang="en">
@@ -11,7 +11,7 @@
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="color-scheme" content="only light" />
     <meta name="supported-color-schemes" content="light" />
-    <title>Draft saved: {{{ORDER_NUMBER}}}</title>
+    <title>Draft saved: {{params.ORDER_NUMBER}}</title>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
       body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
@@ -32,7 +32,7 @@
     </style>
   </head>
   <body style="margin:0;padding:0;background-color:#FCFCFC;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#292B30;">
-    <div style="display:none;font-size:1px;color:#FCFCFC;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Your draft for {{{ACCOUNT_NAME}}} is saved. Submit when you're ready.</div>
+    <div style="display:none;font-size:1px;color:#FCFCFC;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Your draft for {{params.ACCOUNT_NAME}} is saved. Submit when you're ready.</div>
 
     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#FCFCFC;">
       <tr>
@@ -50,11 +50,11 @@
                 <div class="tl-mono" style="font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;">[ DRAFT ORDER SAVED ]</div>
                 <h1 class="tl-sans tl-h1" style="margin:12px 0 20px 0;font-family:'IBM Plex Sans',-apple-system,sans-serif;font-size:28px;line-height:1.25;font-weight:500;color:#292B30;">Draft saved</h1>
 
-                <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#292B30;">Your draft order for <strong>{{{ACCOUNT_NAME}}}</strong> is saved on /Threadline.</p><table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 24px 0;border-top:1px solid #292B30;border-bottom:1px solid #292B30;"><tr><td class="tl-mono tl-meta-key" style="width:30%;padding:12px 0;font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;vertical-align:top;border-bottom:1px solid #E4E4E7;">ORDER</td><td style="padding:12px 0;font-size:15px;line-height:1.5;color:#292B30;vertical-align:top;border-bottom:1px solid #E4E4E7;"><strong>{{{ORDER_NUMBER}}}</strong></td></tr><tr><td class="tl-mono tl-meta-key" style="width:30%;padding:12px 0;font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;vertical-align:top;border-bottom:1px solid #E4E4E7;">ACCOUNT</td><td style="padding:12px 0;font-size:15px;line-height:1.5;color:#292B30;vertical-align:top;border-bottom:1px solid #E4E4E7;">{{{ACCOUNT_NAME}}}</td></tr><tr><td class="tl-mono tl-meta-key" style="width:30%;padding:12px 0;font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;vertical-align:top;border-bottom:1px solid #E4E4E7;">BRAND</td><td style="padding:12px 0;font-size:15px;line-height:1.5;color:#292B30;vertical-align:top;border-bottom:1px solid #E4E4E7;">{{{BRAND_NAME}}}</td></tr><tr><td class="tl-mono tl-meta-key" style="width:30%;padding:12px 0;font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;vertical-align:top;">TOTAL</td><td style="padding:12px 0;font-size:15px;line-height:1.5;color:#292B30;vertical-align:top;"><strong>{{{TOTAL}}}</strong></td></tr></table><p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#292B30;">Submit it when the line is locked &mdash; the brand will review and confirm from there.</p>
+                <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#292B30;">Your draft order for <strong>{{params.ACCOUNT_NAME}}</strong> is saved on /Threadline.</p><table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 24px 0;border-top:1px solid #292B30;border-bottom:1px solid #292B30;"><tr><td class="tl-mono tl-meta-key" style="width:30%;padding:12px 0;font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;vertical-align:top;border-bottom:1px solid #E4E4E7;">ORDER</td><td style="padding:12px 0;font-size:15px;line-height:1.5;color:#292B30;vertical-align:top;border-bottom:1px solid #E4E4E7;"><strong>{{params.ORDER_NUMBER}}</strong></td></tr><tr><td class="tl-mono tl-meta-key" style="width:30%;padding:12px 0;font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;vertical-align:top;border-bottom:1px solid #E4E4E7;">ACCOUNT</td><td style="padding:12px 0;font-size:15px;line-height:1.5;color:#292B30;vertical-align:top;border-bottom:1px solid #E4E4E7;">{{params.ACCOUNT_NAME}}</td></tr><tr><td class="tl-mono tl-meta-key" style="width:30%;padding:12px 0;font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;vertical-align:top;border-bottom:1px solid #E4E4E7;">BRAND</td><td style="padding:12px 0;font-size:15px;line-height:1.5;color:#292B30;vertical-align:top;border-bottom:1px solid #E4E4E7;">{{params.BRAND_NAME}}</td></tr><tr><td class="tl-mono tl-meta-key" style="width:30%;padding:12px 0;font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;vertical-align:top;">TOTAL</td><td style="padding:12px 0;font-size:15px;line-height:1.5;color:#292B30;vertical-align:top;"><strong>{{params.TOTAL}}</strong></td></tr></table><p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#292B30;">Submit it when the line is locked &mdash; the brand will review and confirm from there.</p>
 
-                <div style="margin:8px 0 0 0;"><a class="tl-button tl-sans" href="{{{ORDER_URL}}}" style="display:inline-block;background:#181820;color:#FCFCFC;font-family:'IBM Plex Sans',sans-serif;font-size:15px;font-weight:500;padding:14px 24px;text-decoration:none;border:0;">Open draft</a></div>
+                <div style="margin:8px 0 0 0;"><a class="tl-button tl-sans" href="{{params.ORDER_URL}}" style="display:inline-block;background:#181820;color:#FCFCFC;font-family:'IBM Plex Sans',sans-serif;font-size:15px;font-weight:500;padding:14px 24px;text-decoration:none;border:0;">Open draft</a></div>
 
-                <p style="margin:24px 0 0 0;font-size:13px;line-height:1.6;color:#717179;">Or paste this link into your browser:<br /><span style="word-break:break-all;color:#717179;">{{{ORDER_URL}}}</span></p>
+                <p style="margin:24px 0 0 0;font-size:13px;line-height:1.6;color:#717179;">Or paste this link into your browser:<br /><span style="word-break:break-all;color:#717179;">{{params.ORDER_URL}}</span></p>
               </td>
             </tr>
 
