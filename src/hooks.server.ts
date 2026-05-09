@@ -5,6 +5,7 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SENTRY_DSN } from '$env/static/public';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import type { OrgType } from '$lib/types/database.js';
+import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
 
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
@@ -55,6 +56,15 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.allMemberships = [];
 
 	const isPublicRoute = PUBLIC_ROUTES.some((r) => event.url.pathname.startsWith(r));
+
+	// Beta whitelist gate: reject users not on the whitelist
+	if (session && user && !isPublicRoute) {
+		const whitelisted = await isEmailWhitelisted(user.email ?? '');
+		if (!whitelisted) {
+			await supabase.auth.signOut();
+			throw redirect(303, '/login?error=beta_not_whitelisted');
+		}
+	}
 
 	// Redirect unauthenticated users to login
 	if (!session && !isPublicRoute && event.url.pathname !== '/') {
