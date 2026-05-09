@@ -72,6 +72,7 @@ async function processItem(
 			subject: fullEmail.subject ?? null,
 			message_id: messageId,
 			provider_email_id: fullEmail.id,
+			email_body: fullEmail.text ?? fullEmail.html ?? null,
 			status: 'received'
 		})
 		.select('id')
