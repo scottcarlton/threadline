@@ -63,6 +63,9 @@
 		className
 	)}
 	onclick={() => inputEl?.focus()}
+	onkeydown={(e: KeyboardEvent) => {
+		if (e.key === 'Enter' || e.key === ' ') inputEl?.focus();
+	}}
 	role="textbox"
 	tabindex="-1"
 >
