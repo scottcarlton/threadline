@@ -52,7 +52,7 @@
 	{#if showFilterToggle}
 		<button
 			onclick={onFilterToggle}
-			class="relative flex min-h-[44px] shrink-0 items-center justify-center rounded-sm border border-input bg-background px-3 transition-colors hover:bg-muted/50"
+			class="relative flex min-h-[44px] shrink-0 items-center justify-center rounded-sm border border-input bg-background px-3 transition-colors hover:bg-muted/50 lg:hidden"
 			aria-label="Toggle filters"
 		>
 			<svg

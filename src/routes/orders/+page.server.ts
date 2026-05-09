@@ -317,6 +317,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				);
 			}
 		}
+		if (repOrgId) directQuery = directQuery.eq('rep_user_id', repOrgId);
 		if (statuses.length > 0) directQuery = directQuery.in('status', statuses);
 		if (seasonIds && seasonIds.length > 0) directQuery = directQuery.in('season_id', seasonIds);
 		if (year) directQuery = directQuery.eq('order_year', parseInt(year));
@@ -350,7 +351,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		let federatedOrders = allFederatedOrders;
 		if (statuses.length > 0)
 			federatedOrders = federatedOrders.filter((o) => statuses.includes(o.status));
-		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.rep_org_id === repOrgId);
+		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.created_by === repOrgId);
 		if (seasonIds)
 			federatedOrders = federatedOrders.filter(
 				(o) => o.season_id && seasonIds!.includes(o.season_id)
@@ -532,15 +533,19 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			if (!seasonMap.has(key)) seasonMap.set(key, s);
 		}
 		for (const o of allFederatedOrders) {
-			// Display the rep's person name in the filter chip (falls back to org
-			// name only if the rep's profile isn't resolvable). The filter value
-			// is still rep_org_id, so multiple reps from one rep-org collapse to
-			// whichever name wins first.
-			if (!repMap.has(o.rep_org_id)) {
-				repMap.set(o.rep_org_id, {
-					id: o.rep_org_id,
-					name: o.created_by_name ?? o.rep_org_name
+			if (o.created_by && o.created_by_name && !repMap.has(o.created_by)) {
+				repMap.set(o.created_by, {
+					id: o.created_by,
+					name: o.created_by_name
 				});
+			}
+		}
+		for (const o of directOrders) {
+			const repId = (o as { rep_user_id?: string | null }).rep_user_id;
+			const repName = (o as { rep_profile?: { display_name?: string } | null }).rep_profile
+				?.display_name;
+			if (repId && repName && !repMap.has(repId)) {
+				repMap.set(repId, { id: repId, name: repName });
 			}
 		}
 

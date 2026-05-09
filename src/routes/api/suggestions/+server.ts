@@ -64,7 +64,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 		return json({
 			suggestions: (data ?? []).map((p) => ({
 				id: p.id,
-				name: p.style_number ? `${p.style_number} — ${p.name}` : p.name
+				name: p.name
 			}))
 		});
 	}

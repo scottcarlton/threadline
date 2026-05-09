@@ -88,7 +88,9 @@
 		class="relative w-full overflow-hidden bg-muted {aspect}"
 		role="group"
 		aria-label="Product image"
-		onmouseenter={() => (hovered = true)}
+		onmouseenter={() => {
+			if (window.matchMedia('(hover: hover)').matches) hovered = true;
+		}}
 		onmouseleave={() => (hovered = false)}
 	>
 		{#if showVideo && activeGroup?.video}
@@ -134,11 +136,17 @@
 	{#if showThumbnails}
 		<div class="mt-1.5 flex gap-1 px-4">
 			{#each thumbnails as thumb, i (thumb.id)}
-				<div
+				<button
+					type="button"
 					class="h-12 w-12 shrink-0 cursor-pointer overflow-hidden transition-all"
-					role="img"
 					aria-label="View color {i + 1}"
 					onmouseenter={() => {
+						activeGroupIndex = i;
+						if (onselect && thumb.id) onselect(thumb.id);
+					}}
+					onclick={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
 						activeGroupIndex = i;
 						if (onselect && thumb.id) onselect(thumb.id);
 					}}
@@ -148,7 +156,7 @@
 						alt=""
 						class="h-full w-full object-cover"
 					/>
-				</div>
+				</button>
 			{/each}
 		</div>
 	{/if}

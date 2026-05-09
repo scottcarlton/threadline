@@ -375,8 +375,40 @@
 				{/if}
 			</div>
 
+			<!-- Variant color thumbnails — mobile only (below main image) -->
+			{#if variantThumbnails.length > 1}
+				<div class="mt-2 flex flex-wrap gap-2 lg:hidden">
+					{#each variantImageGroups() as group, i (group.primary!.id)}
+						{@const cUnits = colorUnitsLocal(group.color)}
+						<div class="relative">
+							<button
+								type="button"
+								class="relative h-12 w-12 shrink-0 overflow-hidden transition-all"
+								onclick={() => (activeGroupIndex = i)}
+							>
+								<img
+									src="/api/products/{product.id}/images/{group.primary!.id}"
+									alt={group.color || ''}
+									class="h-full w-full object-cover"
+								/>
+								{#if i === activeGroupIndex}
+									<span class="pointer-events-none absolute inset-0 border-[3px] border-black/70"
+									></span>
+								{/if}
+							</button>
+							{#if cUnits > 0}
+								<span
+									class="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-md bg-[#6BC154] px-1 text-[11px] font-semibold text-white"
+									>{cUnits}</span
+								>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+
 			{#if activeGroup && activeGroup.primary && activeGroup.hover}
-				<div class="mt-2 grid grid-cols-2 gap-2">
+				<div class="mt-2 hidden grid-cols-2 gap-2 lg:grid">
 					{#if activeGroup.primary}
 						<div
 							role="button"
@@ -453,9 +485,9 @@
 				{/if}
 			</div>
 
-			<!-- Variant color thumbnails -->
+			<!-- Variant color thumbnails — desktop only (mobile shows under image) -->
 			{#if variantThumbnails.length > 1}
-				<div class="flex flex-wrap gap-3">
+				<div class="hidden flex-wrap gap-3 lg:flex">
 					{#each variantImageGroups() as group, i (group.primary!.id)}
 						{@const cUnits = colorUnitsLocal(group.color)}
 						<div class="relative">

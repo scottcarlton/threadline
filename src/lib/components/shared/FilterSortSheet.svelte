@@ -56,6 +56,7 @@
 	{onclose}
 	maxHeight="100dvh"
 	showDragHandle={false}
+	rounded={false}
 >
 	<div class="flex h-full flex-col overflow-hidden">
 		<!-- Header -->
