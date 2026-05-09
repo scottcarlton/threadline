@@ -12,7 +12,7 @@ A pre-production environment that mirrors the prod stack but is isolated from pr
                               │
                 ┌─────────────┴─────────────┐
                 │                           │
-   Supabase: sybouzmkxqlvydditjtk     Resend (sending domain:
+   Supabase: sybouzmkxqlvydditjtk     Brevo (sending domain:
    (project name "dev.threadline")     threadline.systems)
    Region: us-west-1
 ```
@@ -45,7 +45,7 @@ Dev-branch-only overrides (`gitBranch: "dev"`, `target: ["preview"]`):
 - `PUBLIC_SUPABASE_ANON_KEY` → dev anon key
 - `SUPABASE_SERVICE_ROLE_KEY` → `sb_secret_*` (new format, equivalent to legacy service_role JWT)
 
-All other env vars (Anthropic, Resend, Google, Slack, Discord, Notion, Microsoft, Shopify, Sentry) are scoped to Production+Preview and shared.
+All other env vars (Anthropic, Brevo, Google, Slack, Discord, Notion, Microsoft, Shopify, Sentry) are scoped to Production+Preview and shared.
 
 ## Supabase (dev)
 
@@ -58,9 +58,9 @@ All other env vars (Anthropic, Resend, Google, Slack, Discord, Notion, Microsoft
 - Auth → Providers:
   - Email: enabled, Email OTP Length = **6**, Confirm email = **off**
   - Google: enabled with `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` (same client as prod, with the dev callback added in Google Cloud Console)
-- Auth → SMTP: custom SMTP via Resend
+- Auth → SMTP: custom SMTP via Brevo
   - Sender: `Threadline Dev <noreply@threadline.systems>`
-  - Host: `smtp.resend.com`, port 465, user `resend`, pass = dedicated Resend API key (`Threadline Dev SMTP (Supabase)`)
+  - Host: `smtp-relay.brevo.com`, port 587, user `aac1df001@smtp-brevo.com`, pass = Brevo SMTP key
 - Auth → Email Templates: **Magic Link** and **Reset Password** templates use `{{ .Token }}` only (no `{{ .ConfirmationURL }}` link — pre-fetch by email scanners would consume the OTP otherwise)
 
 ## OAuth provider redirects
@@ -72,16 +72,14 @@ For the Supabase Google login (the `GOOGLE_OAUTH_*` env vars, distinct from the 
 
 App-level integration callbacks (Gmail, Slack, etc.) still need their dev callbacks added — TODO until those flows are tested on dev.
 
-## Email (Resend)
+## Email (Brevo)
 
-- Verified sending domain: `threadline.systems`
-- Verified inbound domain: `inbound.threadline.systems`
-- API keys: `threadline` (general), `Onboarding`, `Threadline Dev SMTP (Supabase)`
-- Inbound webhooks (both subscribed to `email.received` on the same Resend org):
-  - **Prod**: `https://threadline.systems/api/webhooks/inbound-email` (effectively dormant until prod is wired to Vercel)
-  - **Dev**: `https://dev.threadline.systems/api/webhooks/inbound-email`
-- `RESEND_WEBHOOK_SECRET` Vercel env var has a dev-branch override (`gitBranch: "dev"`) carrying the dev webhook's signing secret; Production+Preview entry continues to carry the prod webhook secret
-- **Caveat**: Resend fires both webhooks for every inbound email, so dev and prod will both attempt to process the same message. This is fine while prod's apex isn't on Vercel (prod webhook just 404s at Squarespace), but before launching prod we need to either (a) split inbound to a separate dev domain like `dev-inbound.threadline.systems` with its own MX or (b) disable the dev webhook
+- Authenticated sending domain: `threadline.systems` (DKIM + SPF)
+- Inbound parse subdomain: `reply.threadline.systems` (MX → Brevo)
+- API keys: `threadline-prod` (production), `threadline-dev` (dev/local)
+- Inbound parse webhook: `https://threadline.systems/api/webhooks/inbound-email` (HMAC-SHA256 signed)
+- `BREVO_WEBHOOK_SECRET` Vercel env var has a dev-branch override (`gitBranch: "dev"`) carrying the dev webhook's signing secret; Production+Preview entry carries the prod webhook secret
+- Brevo inbound parse routes all email for `reply.threadline.systems` to the configured webhook. Unlike the previous Resend setup, there's no dual-webhook issue — inbound routing is per-subdomain, not per-webhook subscription
 
 ## Sentry environment tagging
 
@@ -108,7 +106,7 @@ Old auto-injected tags (`vercel-preview`, `vercel-production`) and the previous 
 1. Add `threadline.systems` apex (and `www.threadline.systems` if desired) to the Vercel project's Domains, scoped to Production
 2. At Squarespace DNS: replace the Squarespace site's A/CNAME records with Vercel's CNAME (`cname.vercel-dns.com.`)
 3. Re-enable email confirmation in Supabase prod auth providers
-4. Switch any Resend "From" addresses currently using `Threadline Dev` back to plain `Threadline`
+4. Verify Brevo sender address is `Threadline <noreply@threadline.systems>` (not the dev sender)
 5. Verify Sentry `production` env catches errors; review alerts
 6. Verify all OAuth provider consoles list both `threadline.systems` and the prod Supabase callback URL
 

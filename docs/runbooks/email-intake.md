@@ -2,38 +2,46 @@
 
 ## Overview
 
-Email ordering lets reps email `stitch@threadline.systems` to create orders. Inbound emails are received via **Resend** and processed by the webhook handler.
+Email ordering lets reps email `stitch@reply.threadline.systems` to create orders. Inbound emails are received via **Brevo Inbound Parse** and processed by the webhook handler.
 
 ## DNS Setup
 
 ### MX Record
 
-Resend handles inbound email via their receiving domain. No MX record needed on `threadline.systems` — instead, configure a receiving domain in the Resend dashboard:
+Brevo requires two MX records on the inbound subdomain `reply.threadline.systems`:
 
-1. Go to [resend.com/emails](https://resend.com/emails) → **Receiving** tab
-2. Add `threadline.systems` as a receiving domain (or use the subdomain `stitch.threadline.systems`)
-3. Follow Resend's DNS verification steps (typically a TXT record)
+1. In Squarespace DNS, add MX records on `reply`:
+   - Priority 10 → `inbound1.sendinblue.com.`
+   - Priority 20 → `inbound2.sendinblue.com.`
+2. Wait for DNS propagation (typically 15 min – 24h)
 
-### Webhook Configuration
+### Inbound Parse Configuration
 
-1. Go to [resend.com/webhooks](https://resend.com/webhooks)
-2. Click **Add Webhook**
-3. Endpoint URL: `https://threadline.systems/api/webhooks/inbound-email`
-4. Select event: `email.received`
-5. Copy the webhook signing secret → set as `RESEND_WEBHOOK_SECRET` in Vercel env vars
+Create the inbound webhook via Brevo's API with bearer token auth:
+
+1. Generate a random secret (e.g. `openssl rand -hex 32`)
+2. Create the webhook via Brevo API with `auth: { type: "bearer", token: "<secret>" }`
+3. Set `BREVO_WEBHOOK_SECRET` in Vercel env vars to that same secret
+4. Brevo will send `Authorization: Bearer <secret>` on every webhook POST to `/api/webhooks/inbound-email`
+
+### Sending Domain Authentication
+
+Ensure `threadline.systems` is authenticated in Brevo (DKIM + SPF). See the migration plan for details.
 
 ## Environment Variables
 
-| Variable                | Description                         | Where  |
-| ----------------------- | ----------------------------------- | ------ |
-| `RESEND_API_KEY`        | Resend API key (already configured) | Vercel |
-| `RESEND_WEBHOOK_SECRET` | Webhook signing secret from Resend  | Vercel |
+| Variable               | Description                          | Where  |
+| ---------------------- | ------------------------------------ | ------ |
+| `BREVO_API_KEY`        | Brevo API key (full access)          | Vercel |
+| `BREVO_WEBHOOK_SECRET` | Inbound parse webhook signing secret | Vercel |
+| `BREVO_INBOUND_DOMAIN` | Inbound parse subdomain              | Vercel |
+| `EMAIL_FROM`           | Sender address for outbound emails   | Vercel |
 
 ## How It Works
 
-1. Email arrives at `stitch@threadline.systems`
-2. Resend receives it and sends a webhook to `/api/webhooks/inbound-email`
-3. Handler verifies the Svix signature, fetches the full email via Resend API
+1. Email arrives at `stitch@reply.threadline.systems`
+2. Brevo receives it and POSTs the parsed email directly to `/api/webhooks/inbound-email` (HMAC-SHA256 signed)
+3. Handler verifies the signature — the full email body is included in the payload (no second API call needed)
 4. Sender is matched to a Threadline user with `email_intake_enabled = true`
 5. Claude extracts the order (account, brand, products, sizes, ship window)
 6. Entities are resolved against the database using trigram matching
@@ -46,11 +54,11 @@ Users enable email ordering at `/settings/email-intake`. Only users with the `re
 
 ## Retention
 
-Raw email data is stored by Resend. The `email_intakes` table keeps audit records indefinitely. The `resend_email_id` can be used to retrieve the original email from Resend's API.
+The raw email body is stored in `email_intakes.email_body` at intake time. The `email_intakes` table keeps audit records indefinitely. The `provider_email_id` column stores the Brevo message UUID for cross-referencing with Brevo's transactional logs.
 
 ## Troubleshooting
 
-- **Webhook not firing**: Check Resend dashboard → Webhooks → event log. Resend stores emails even if the webhook is down.
-- **Signature verification failing**: Ensure `RESEND_WEBHOOK_SECRET` matches the signing secret from Resend.
+- **Webhook not firing**: Check Brevo Dashboard → Transactional → Settings → Inbound parsing for the webhook status and logs.
+- **Signature verification failing**: Ensure `BREVO_WEBHOOK_SECRET` matches the signing secret from Brevo's inbound parse configuration.
 - **Orders landing in review**: Check `/orders/review` for the specific issues. Common causes: product name typo, missing variant size, unknown account.
 - **Rate limited**: Sender is limited to 60 emails/hour. Check `email_intakes` table for recent entries.

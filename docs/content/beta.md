@@ -239,16 +239,16 @@ A: Yes. Every organization's data is completely isolated using row-level securit
 
 **Form handling options:**
 
-1. **Supabase-native** — Store signups in a `waitlist` table. Simple, no third-party dependency. Can trigger a Supabase Edge Function to send confirmation email via Resend.
+1. **Supabase-native** — Store signups in a `waitlist` table. Simple, no third-party dependency. Can trigger a Supabase Edge Function to send confirmation email via Brevo.
 2. **Loops.so** — Dedicated waitlist tool with built-in email sequences. More polished but adds a dependency.
 3. **ConvertKit** — If you choose ConvertKit as email platform (per Marketing BRD), use their embedded form for direct list integration.
 
-**Recommendation:** Start with Supabase + Resend for Beta. Migrate to a proper email platform for Early Release when the nurture sequences get more complex.
+**Recommendation:** Start with Supabase + Brevo for Beta. Brevo handles both transactional and marketing email, so no migration needed for nurture sequences.
 
 **Post-signup flow:**
 
 1. User submits form → row created in `waitlist` table
-2. Confirmation email sent immediately (Resend): "You're on the list. Here's what happens next."
+2. Confirmation email sent immediately (Brevo): "You're on the list. Here's what happens next."
 3. 3-day drip email: "What Threadline can do for [their role]" (personalized by role selection)
 4. 7-day drip email: "Meet Stitches — your AI co-pilot" (feature preview)
 5. Launch day email: "You're in. Here's your invite link." (April 30)

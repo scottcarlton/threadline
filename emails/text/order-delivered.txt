@@ -1,10 +1,10 @@
-Order delivered: {{{ORDER_NUMBER}}}
+Order delivered: {{params.ORDER_NUMBER}}
 
-Account: {{{ACCOUNT_NAME}}}
-Brand:   {{{BRAND_NAME}}}
-Total:   {{{TOTAL}}}
+Account: {{params.ACCOUNT_NAME}}
+Brand:   {{params.BRAND_NAME}}
+Total:   {{params.TOTAL}}
 
 Flag short ships, damages, or open a reorder from the order page.
 
-View order: {{{ORDER_URL}}}
+View order: {{params.ORDER_URL}}
 /Threadline · threadline.systems

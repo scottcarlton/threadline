@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './supabase.js';
 import { sendEmail } from './email.js';
-import { notification } from './email-templates.js';
+import templateIds from '../../../emails/template-ids.json';
 
 export type OrderEmailEvent =
 	| 'submitted'
@@ -31,6 +31,14 @@ const fmt = new Intl.NumberFormat('en-US', {
 	minimumFractionDigits: 0,
 	maximumFractionDigits: 0
 });
+
+const EVENT_TEMPLATE_MAP: Partial<Record<OrderEmailEvent, number>> = {
+	submitted: templateIds['order-submitted'],
+	created: templateIds['order-created'],
+	confirmed: templateIds['order-confirmed'],
+	shipped: templateIds['order-shipped'],
+	delivered: templateIds['order-delivered']
+};
 
 async function resolveAuthEmail(profileId: string): Promise<string | null> {
 	const { data } = await supabaseAdmin.auth.admin.getUserById(profileId);
@@ -97,10 +105,6 @@ async function resolveOrderContext(
 async function resolveBuyerRecipients(accountId: string | null): Promise<Recipient[]> {
 	if (!accountId) return [];
 
-	// Fan out to every linked buyer user (multi-user buyer accounts) in addition
-	// to the account-level contact email kept on `accounts.contact_email`. The
-	// contact email is preserved as a fallback for accounts that have not yet
-	// onboarded any buyer user.
 	const [usersRes, accountRes] = await Promise.all([
 		supabaseAdmin.from('account_users').select('profile_id').eq('account_id', accountId),
 		supabaseAdmin
@@ -151,126 +155,72 @@ export async function sendOrderEmail(
 		const orderUrl = `${origin}/orders/${order.id}`;
 		const total = fmt.format(order.total_amount);
 
-		// For shipped emails, fetch current shipment fields from DB
-		let shipmentInfo = '';
+		const baseParams: Record<string, string | number> = {
+			ORDER_NUMBER: order.order_number,
+			ACCOUNT_NAME: accountName,
+			BRAND_NAME: brandName,
+			TOTAL: total,
+			ORDER_URL: orderUrl
+		};
+
+		// For shipped emails, fetch tracking info
 		if (event === 'shipped') {
 			const { data: freshOrder } = await supabaseAdmin
 				.from('orders')
-				.select('tracking_number, carrier, expected_ship_date')
+				.select('tracking_number, carrier')
 				.eq('id', order.id)
 				.single();
-			if (freshOrder) {
-				const parts: string[] = [];
-				if (freshOrder.carrier) parts.push(`Carrier: ${freshOrder.carrier}`);
-				if (freshOrder.tracking_number) {
-					const { trackingUrl } = await import('$lib/utils/carriers.js');
-					const url = trackingUrl(freshOrder.carrier, freshOrder.tracking_number);
-					parts.push(
-						url
-							? `Tracking: <a href="${url}">${freshOrder.tracking_number}</a>`
-							: `Tracking: ${freshOrder.tracking_number}`
-					);
+			if (freshOrder?.tracking_number) {
+				baseParams.TRACKING_NUMBER = freshOrder.tracking_number;
+				const { trackingUrl } = await import('$lib/utils/carriers.js');
+				const url = trackingUrl(freshOrder.carrier, freshOrder.tracking_number);
+				if (url) baseParams.TRACKING_URL = url;
+			}
+		}
+
+		const templateId = EVENT_TEMPLATE_MAP[event];
+
+		// 'preparing' has no Brevo template — use inline HTML fallback
+		if (!templateId) {
+			let prepInfo = '';
+			if (event === 'preparing') {
+				const { data: freshOrder } = await supabaseAdmin
+					.from('orders')
+					.select('start_ship_date')
+					.eq('id', order.id)
+					.single();
+				if (freshOrder?.start_ship_date) {
+					const d = new Date(freshOrder.start_ship_date + 'T00:00:00Z');
+					const formatted = d.toLocaleDateString('en-US', {
+						month: 'long',
+						day: 'numeric',
+						year: 'numeric',
+						timeZone: 'UTC'
+					});
+					prepInfo = `<br>Expected ship date: ${formatted}`;
 				}
-				if (parts.length > 0) shipmentInfo = `<br>${parts.join('<br>')}`;
 			}
-		}
 
-		// For preparing emails, fetch expected ship date
-		let prepInfo = '';
-		if (event === 'preparing') {
-			const { data: freshOrder } = await supabaseAdmin
-				.from('orders')
-				.select('start_ship_date, expected_ship_date')
-				.eq('id', order.id)
-				.single();
-			if (freshOrder?.start_ship_date) {
-				const d = new Date(freshOrder.start_ship_date + 'T00:00:00Z');
-				const formatted = d.toLocaleDateString('en-US', {
-					month: 'long',
-					day: 'numeric',
-					year: 'numeric',
-					timeZone: 'UTC'
+			const recipients = await resolveRecipients(event, order);
+			for (const r of recipients) {
+				const allowed = await checkEmailPreference(r.profileId, r.orgId, 'order_updates');
+				if (!allowed) continue;
+
+				await sendEmail({
+					to: r.email,
+					subject: `Order preparing to ship: ${order.order_number}`,
+					html: `<p>Order <strong>${order.order_number}</strong> for <strong>${accountName}</strong> (${brandName}) is being prepared for shipment.${prepInfo}<br>Total: ${total}</p>`,
+					text: `Order ${order.order_number} for ${accountName} (${brandName}) is being prepared. Total: ${total}`,
+					template: `order_${event}`,
+					relatedType: 'order',
+					relatedId: order.id
 				});
-				prepInfo = `<br>Expected ship date: ${formatted}`;
 			}
+			return;
 		}
 
-		const emailConfigs: Record<
-			OrderEmailEvent,
-			{ recipients: () => Promise<Recipient[]>; subject: string; body: string }
-		> = {
-			submitted: {
-				recipients: async () => {
-					const [admins, buyers] = await Promise.all([
-						resolveBrandAdminRecipients(order.brand_id),
-						resolveBuyerRecipients(order.account_id)
-					]);
-					return [...admins, ...buyers];
-				},
-				subject: `New order submitted: ${order.order_number}`,
-				body: `A new order has been submitted for <strong>${accountName}</strong> (${brandName}).<br>Total: ${total}`
-			},
-			created: {
-				recipients: async () => {
-					const email = await resolveAuthEmail(order.created_by);
-					const orgId = await resolveCreatorOrgId(order.created_by);
-					return email ? [{ email, profileId: order.created_by, orgId }] : [];
-				},
-				subject: `Order created: ${order.order_number}`,
-				body: `An order has been created for <strong>${accountName}</strong> (${brandName}).<br>Total: ${total}`
-			},
-			confirmed: {
-				recipients: async () => {
-					const r: Recipient[] = await resolveBuyerRecipients(order.account_id);
-					const repEmail = await resolveAuthEmail(order.created_by);
-					const repOrgId = await resolveCreatorOrgId(order.created_by);
-					if (repEmail) r.push({ email: repEmail, profileId: order.created_by, orgId: repOrgId });
-					return r;
-				},
-				subject: `Order confirmed: ${order.order_number}`,
-				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) has been confirmed.<br>Total: ${total}`
-			},
-			preparing: {
-				recipients: async () => {
-					const r: Recipient[] = await resolveBuyerRecipients(order.account_id);
-					const repEmail = await resolveAuthEmail(order.created_by);
-					const repOrgId = await resolveCreatorOrgId(order.created_by);
-					if (repEmail) r.push({ email: repEmail, profileId: order.created_by, orgId: repOrgId });
-					return r;
-				},
-				subject: `Order preparing to ship: ${order.order_number}`,
-				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) is being prepared for shipment.${prepInfo}<br>Total: ${total}`
-			},
-			shipped: {
-				recipients: async () => {
-					return resolveBuyerRecipients(order.account_id);
-				},
-				subject: `Order shipped: ${order.order_number}`,
-				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) has shipped.${shipmentInfo}<br>Total: ${total}`
-			},
-			delivered: {
-				recipients: async () => {
-					const r: Recipient[] = await resolveBuyerRecipients(order.account_id);
-					const repEmail = await resolveAuthEmail(order.created_by);
-					const repOrgId = await resolveCreatorOrgId(order.created_by);
-					if (repEmail) r.push({ email: repEmail, profileId: order.created_by, orgId: repOrgId });
-					return r;
-				},
-				subject: `Order delivered: ${order.order_number}`,
-				body: `Order <strong>${order.order_number}</strong> for ${accountName} (${brandName}) has been delivered.<br>Total: ${total}`
-			}
-		};
-
-		const config = emailConfigs[event];
-		const recipients = await config.recipients();
+		const recipients = await resolveRecipients(event, order);
 		if (recipients.length === 0) return;
-
-		const tpl = notification({
-			title: config.subject,
-			body: config.body,
-			actionUrl: orderUrl,
-			actionLabel: 'View Order'
-		});
 
 		for (const r of recipients) {
 			const allowed = await checkEmailPreference(r.profileId, r.orgId, 'order_updates');
@@ -278,7 +228,10 @@ export async function sendOrderEmail(
 
 			await sendEmail({
 				to: r.email,
-				...tpl,
+				subject: `Order ${event}: ${order.order_number}`,
+				html: '',
+				templateId,
+				params: baseParams,
 				template: `order_${event}`,
 				relatedType: 'order',
 				relatedId: order.id
@@ -286,5 +239,36 @@ export async function sendOrderEmail(
 		}
 	} catch (err) {
 		console.error(`[order-emails] Failed to send ${event} email for ${order.order_number}:`, err);
+	}
+}
+
+async function resolveRecipients(
+	event: OrderEmailEvent,
+	order: OrderContext
+): Promise<Recipient[]> {
+	switch (event) {
+		case 'submitted': {
+			const [admins, buyers] = await Promise.all([
+				resolveBrandAdminRecipients(order.brand_id),
+				resolveBuyerRecipients(order.account_id)
+			]);
+			return [...admins, ...buyers];
+		}
+		case 'created': {
+			const email = await resolveAuthEmail(order.created_by);
+			const orgId = await resolveCreatorOrgId(order.created_by);
+			return email ? [{ email, profileId: order.created_by, orgId }] : [];
+		}
+		case 'confirmed':
+		case 'preparing':
+		case 'delivered': {
+			const r: Recipient[] = await resolveBuyerRecipients(order.account_id);
+			const repEmail = await resolveAuthEmail(order.created_by);
+			const repOrgId = await resolveCreatorOrgId(order.created_by);
+			if (repEmail) r.push({ email: repEmail, profileId: order.created_by, orgId: repOrgId });
+			return r;
+		}
+		case 'shipped':
+			return resolveBuyerRecipients(order.account_id);
 	}
 }
