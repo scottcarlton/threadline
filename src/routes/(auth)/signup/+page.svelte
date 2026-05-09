@@ -8,15 +8,35 @@
 	let otpCode = $state('');
 	let error = $state('');
 	let loading = $state(false);
-	let mode = $state<'choose' | 'otp-email' | 'otp-verify'>('choose');
+	let mode = $state<'choose' | 'otp-email' | 'otp-verify' | 'google-email'>('choose');
+
+	async function checkWhitelist(emailToCheck: string): Promise<boolean> {
+		const res = await fetch('/api/auth/check-whitelist', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email: emailToCheck })
+		});
+		const data = await res.json();
+		if (!data.allowed) {
+			error = data.message;
+			return false;
+		}
+		return true;
+	}
 
 	async function signUpWithGoogle() {
 		error = '';
 		loading = true;
+		const allowed = await checkWhitelist(email);
+		if (!allowed) {
+			loading = false;
+			return;
+		}
 		const { error: err } = await supabase.auth.signInWithOAuth({
 			provider: 'google',
 			options: {
-				redirectTo: `${window.location.origin}/auth/callback?next=/onboarding`
+				redirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+				queryParams: { prompt: 'select_account', login_hint: email }
 			}
 		});
 		loading = false;
@@ -28,6 +48,11 @@
 	async function sendOtp() {
 		error = '';
 		loading = true;
+		const allowed = await checkWhitelist(email);
+		if (!allowed) {
+			loading = false;
+			return;
+		}
 		const { error: err } = await supabase.auth.signInWithOtp({
 			email,
 			options: { shouldCreateUser: true }
@@ -68,6 +93,8 @@
 		Create an account with Threadline
 	{:else if mode === 'otp-email'}
 		Enter your email
+	{:else if mode === 'google-email'}
+		Enter your email
 	{:else}
 		Enter the code sent to {email}
 	{/if}
@@ -82,7 +109,7 @@
 
 	{#if mode === 'choose'}
 		<div class="flex flex-col gap-3">
-			<Button size="lg" onclick={signUpWithGoogle} disabled={loading} class="w-full">
+			<Button size="lg" onclick={() => (mode = 'google-email')} disabled={loading} class="w-full">
 				Continue with Google
 			</Button>
 
@@ -90,6 +117,16 @@
 				Continue with Email
 			</Button>
 		</div>
+	{:else if mode === 'google-email'}
+		<form onsubmit={(e) => { e.preventDefault(); signUpWithGoogle(); }} class="space-y-4">
+			<div class="space-y-2">
+				<Label for="email">Email</Label>
+				<Input id="email" type="email" placeholder="you@example.com" bind:value={email} required />
+			</div>
+			<Button size="lg" type="submit" class="w-full" disabled={loading || !email}>
+				{loading ? 'Checking...' : 'Continue with Google'}
+			</Button>
+		</form>
 	{:else if mode === 'otp-email'}
 		<form onsubmit={(e) => { e.preventDefault(); sendOtp(); }} class="space-y-4">
 			<div class="space-y-2">
