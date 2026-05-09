@@ -54,6 +54,7 @@
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.82.0",
+		"@getbrevo/brevo": "5.0.4",
 		"@notionhq/client": "^5.17.0",
 		"@sentry/sveltekit": "^10.48.0",
 		"@supabase/ssr": "^0.10.0",
@@ -68,7 +69,6 @@
 		"motion": "^12.38.0",
 		"pdf-lib": "^1.17.1",
 		"qrcode": "^1.5.4",
-		"resend": "^6.11.0",
 		"sanitize-html": "^2.17.3",
 		"svelte-sonner": "^1.1.0",
 		"sveltekit-superforms": "^2.30.1",

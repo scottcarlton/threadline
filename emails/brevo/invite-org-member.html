@@ -1,7 +1,7 @@
 <!--
-  /Threadline — invite-org-connect
-  subject:   {{{FROM_ORG_NAME}}} invited your org to connect on /Threadline
-  preheader: A connection on /Threadline shares accounts, orders, and line sheets between brand and rep.
+  /Threadline — invite-org-member
+  subject:   {{params.INVITER_NAME}} invited you to {{params.ORGANIZATION_NAME}} on /Threadline
+  preheader: You've been added as {{params.ROLE}}. Accept to start working in {{params.ORGANIZATION_NAME}}.
 -->
 <!doctype html>
 <html lang="en">
@@ -11,7 +11,7 @@
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="color-scheme" content="only light" />
     <meta name="supported-color-schemes" content="light" />
-    <title>{{{FROM_ORG_NAME}}} invited your org to connect on /Threadline</title>
+    <title>{{params.INVITER_NAME}} invited you to {{params.ORGANIZATION_NAME}} on /Threadline</title>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
       body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
@@ -32,7 +32,7 @@
     </style>
   </head>
   <body style="margin:0;padding:0;background-color:#FCFCFC;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#292B30;">
-    <div style="display:none;font-size:1px;color:#FCFCFC;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">A connection on /Threadline shares accounts, orders, and line sheets between brand and rep.</div>
+    <div style="display:none;font-size:1px;color:#FCFCFC;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">You've been added as {{params.ROLE}}. Accept to start working in {{params.ORGANIZATION_NAME}}.</div>
 
     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#FCFCFC;">
       <tr>
@@ -47,14 +47,14 @@
 
             <tr>
               <td class="tl-pad" style="padding:40px 32px 16px 32px;">
-                <div class="tl-mono" style="font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;">[ CONNECTION REQUEST ]</div>
-                <h1 class="tl-sans tl-h1" style="margin:12px 0 20px 0;font-family:'IBM Plex Sans',-apple-system,sans-serif;font-size:28px;line-height:1.25;font-weight:500;color:#292B30;">{{{FROM_ORG_NAME}}} wants to connect</h1>
+                <div class="tl-mono" style="font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;">[ ORGANIZATION INVITE ]</div>
+                <h1 class="tl-sans tl-h1" style="margin:12px 0 20px 0;font-family:'IBM Plex Sans',-apple-system,sans-serif;font-size:28px;line-height:1.25;font-weight:500;color:#292B30;">You're invited to {{params.ORGANIZATION_NAME}}</h1>
 
-                <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#292B30;">{{{#if FROM_USER_NAME}}}{{{FROM_USER_NAME}}} at <strong>{{{FROM_ORG_NAME}}}</strong>{{{else}}}<strong>{{{FROM_ORG_NAME}}}</strong>{{{/if}}} invited your organization to connect on /Threadline.</p><p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#292B30;">A connection lets brands and reps share accounts, orders, and line sheets &mdash; so you both work from the same source of truth.</p>{{{#if PERSONAL_MESSAGE}}}<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 20px 0;"><tr><td style="border-left:2px solid #292B30;padding:8px 16px;font-size:15px;line-height:1.6;color:#292B30;background:#F4F4F5;">&ldquo;{{{PERSONAL_MESSAGE}}}&rdquo;</td></tr></table>{{{/if}}}
+                <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#292B30;">{{params.INVITER_NAME}} invited you to join <strong>{{params.ORGANIZATION_NAME}}</strong> on /Threadline as <strong>{{params.ROLE}}</strong>.</p><p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#292B30;">Accept the invite to access the brands, accounts, and orders you've been given access to.</p>
 
-                <div style="margin:8px 0 0 0;"><a class="tl-button tl-sans" href="{{{INVITE_URL}}}" style="display:inline-block;background:#181820;color:#FCFCFC;font-family:'IBM Plex Sans',sans-serif;font-size:15px;font-weight:500;padding:14px 24px;text-decoration:none;border:0;">Open invite</a></div>
+                <div style="margin:8px 0 0 0;"><a class="tl-button tl-sans" href="{{params.ACCEPT_URL}}" style="display:inline-block;background:#181820;color:#FCFCFC;font-family:'IBM Plex Sans',sans-serif;font-size:15px;font-weight:500;padding:14px 24px;text-decoration:none;border:0;">Accept invitation</a></div>
 
-                <p style="margin:24px 0 0 0;font-size:13px;line-height:1.6;color:#717179;">Or paste this link into your browser:<br /><span style="word-break:break-all;color:#717179;">{{{INVITE_URL}}}</span></p>
+                <p style="margin:24px 0 0 0;font-size:13px;line-height:1.6;color:#717179;">Or paste this link into your browser:<br /><span style="word-break:break-all;color:#717179;">{{params.ACCEPT_URL}}</span></p>
               </td>
             </tr>
 
@@ -65,7 +65,7 @@
                     <td class="tl-mono" style="font-family:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.08em;color:#717179;text-transform:uppercase;">/Threadline &nbsp;·&nbsp; threadline.systems</td>
                   </tr>
                   <tr>
-                    <td style="padding-top:8px;font-size:12px;line-height:1.6;color:#717179;">The connection only becomes active after both organizations confirm.</td>
+                    <td style="padding-top:8px;font-size:12px;line-height:1.6;color:#717179;">This invite expires in {{params.EXPIRES_IN_DAYS}} days. If you weren't expecting it, you can ignore this email — nothing happens until you accept.</td>
                   </tr>
                 </table>
               </td>
