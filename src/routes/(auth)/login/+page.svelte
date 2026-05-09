@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import { Alert, AlertDescription } from '$lib/components/ui/alert/index.js';
 	import { PinInput } from 'bits-ui';
 
 	let email = $state('');
@@ -16,10 +17,20 @@
 	import { page } from '$app/stores';
 	import { get } from 'svelte/store';
 
-	// Check URL for SSO-required error
+	const errorMessages: Record<string, string> = {
+		sso_required: 'Your organization requires SSO. Please sign in with SSO below.',
+		auth_failed: 'Sign-in could not be completed. Please try again.',
+		invitation_invalid: 'That invitation link is no longer valid.',
+		invitation_expired: 'That invitation has expired. Ask your admin to send a new one.',
+		invite_accept_failed:
+			'Something went wrong accepting that invitation. Please try again or contact your admin.'
+	};
+
 	const urlError = get(page).url.searchParams.get('error');
+	const urlErrorMessage = urlError ? (errorMessages[urlError] ?? null) : null;
+
 	if (urlError === 'sso_required') {
-		error = 'Your organization requires SSO login. Please sign in with SSO.';
+		mode = 'sso-email';
 	}
 
 	async function signInWithGoogle() {
@@ -136,6 +147,12 @@
 </h2>
 
 <div>
+	{#if urlErrorMessage}
+		<Alert variant="destructive" class="mb-4">
+			<AlertDescription>{urlErrorMessage}</AlertDescription>
+		</Alert>
+	{/if}
+
 	{#if error}
 		<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
 			{error}
