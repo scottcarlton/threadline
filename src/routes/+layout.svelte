@@ -146,7 +146,6 @@
 	});
 
 	onMount(() => {
-		document.getElementById('splash')?.remove();
 		if (data.session) {
 			const stopUnread = startUnreadPolling(60000);
 			const stopAppointments = startAppointmentPolling(60000);
@@ -179,11 +178,7 @@
 			$page.url.pathname.startsWith('/connect') ||
 			$page.url.pathname.startsWith('/upload') ||
 			$page.url.pathname.startsWith('/onboarding') ||
-			$page.url.pathname.startsWith('/features') ||
-			$page.url.pathname.startsWith('/intelligence') ||
-			$page.url.pathname.startsWith('/solutions') ||
-			$page.url.pathname.startsWith('/resources') ||
-			$page.url.pathname.startsWith('/pricing')
+			$page.url.pathname.startsWith('/beta')
 	);
 
 	const hideAiDock = $derived(

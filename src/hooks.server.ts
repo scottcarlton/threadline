@@ -55,11 +55,8 @@ const PUBLIC_ROUTES = [
 	'/auth/callback',
 	'/upload',
 	'/api/dev',
-	'/features',
-	'/intelligence',
-	'/solutions',
-	'/resources',
-	'/pricing'
+	'/api/beta',
+	'/beta'
 ];
 
 const authHandle: Handle = async ({ event, resolve }) => {

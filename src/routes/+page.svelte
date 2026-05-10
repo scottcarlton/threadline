@@ -3,12 +3,22 @@
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
 	// import { resolve } from '$app/paths';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
+	import EmailSignup from '$lib/components/marketing/EmailSignup.svelte';
 	import InstallCta from '$lib/components/pwa/InstallCta.svelte';
 
 	let faqOpen = $state<number | null>(null);
 
 	function toggleFaq(index: number) {
 		faqOpen = faqOpen === index ? null : index;
+	}
+
+	async function subscribeToBeta(email: string) {
+		const res = await fetch('/api/beta/subscribe', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email })
+		});
+		return res.json();
 	}
 
 	onMount(async () => {
@@ -95,16 +105,7 @@
 									where the signal comes from.
 								</p>
 							</div>
-							<form
-								class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
-							>
-								<input
-									class="border-0 px-4 py-2 text-base outline-none"
-									type="email"
-									placeholder="Enter your email"
-								/>
-								<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
-							</form>
+							<EmailSignup onsubmit={subscribeToBeta} />
 						</div>
 					</div>
 					<div class="h-100 min-h-180 rounded-lg bg-neutral-200 p-12"></div>
@@ -364,16 +365,7 @@
 			<section data-section="cta">
 				<div class="grid justify-center space-y-6 px-12 py-24">
 					<h2 class="text-4xl">Get early access to Threadline</h2>
-					<form
-						class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
-					>
-						<input
-							class="border-0 px-4 py-2 text-base outline-none"
-							type="email"
-							placeholder="Enter your email"
-						/>
-						<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
-					</form>
+					<EmailSignup onsubmit={subscribeToBeta} />
 					<div class="flex items-center justify-center gap-3 text-sm text-muted-foreground">
 						<span>Already have an account?</span>
 						<InstallCta />

@@ -15,33 +15,7 @@
 				href={resolve('/')}><span class="-mt-0.5 flex">/</span>Threadline</a
 			>
 
-			<div class="flex items-center justify-center gap-8 font-mono">
-				<a
-					href={resolve('/features')}
-					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
-					>Features</a
-				>
-				<a
-					href={resolve('/intelligence')}
-					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
-					>Intelligence</a
-				>
-				<a
-					href={resolve('/solutions')}
-					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
-					>Solutions</a
-				>
-				<a
-					href={resolve('/resources')}
-					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
-					>Resources</a
-				>
-				<a
-					href={resolve('/pricing')}
-					class="rounded-lg px-4 py-3 text-sm transition-colors hover:bg-neutral-100 hover:text-foreground"
-					>Pricing</a
-				>
-			</div>
+			<div></div>
 
 			<div class="flex items-center justify-end gap-16">
 				{#if isAuthenticated}
