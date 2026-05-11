@@ -56,7 +56,8 @@ const PUBLIC_ROUTES = [
 	'/upload',
 	'/api/dev',
 	'/api/beta',
-	'/beta'
+	'/beta',
+	'/legal'
 ];
 
 const authHandle: Handle = async ({ event, resolve }) => {
@@ -102,6 +103,14 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.allMemberships = [];
 
 	const isPublicRoute = PUBLIC_ROUTES.some((r) => event.url.pathname.startsWith(r));
+
+	// On beta, redirect /signup to /beta
+	if (
+		event.url.hostname === 'beta.threadline.systems' &&
+		event.url.pathname.startsWith('/signup')
+	) {
+		throw redirect(303, '/beta');
+	}
 
 	// Beta whitelist gate: reject users not on the whitelist
 	if (session && user && !isPublicRoute) {

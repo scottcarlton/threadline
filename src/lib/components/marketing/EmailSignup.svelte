@@ -9,8 +9,8 @@
 	let {
 		onsubmit,
 		placeholder = 'Enter your email',
-		buttonText = 'Request Access',
-		successMessage = "You're on the list. We'll be in touch."
+		buttonText = 'Request access',
+		successMessage = "You're on the list. Spots are limited. We'll be in touch once we've reviewed."
 	}: Props = $props();
 
 	let email = $state('');
@@ -42,7 +42,7 @@
 	<p class="text-sm text-muted-foreground">{successMessage}</p>
 {:else}
 	<form
-		class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
+		class="grid w-full max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
 		onsubmit={(e) => {
 			e.preventDefault();
 			handleSubmit();

@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 
 	const isAuthenticated = $derived(!!$page.data.session);
+	const isBeta = $derived($page.url.hostname === 'beta.threadline.systems');
 </script>
 
 <header>
@@ -30,7 +31,7 @@
 					>
 					<a
 						class="rounded-lg bg-foreground px-5 py-2.5 text-sm text-primary-foreground"
-						href={resolve('/signup')}>Join Beta</a
+						href={resolve(isBeta ? '/beta' : '/signup')}>Join Beta</a
 					>
 				{/if}
 			</div>

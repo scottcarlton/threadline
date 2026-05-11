@@ -1,3 +1,7 @@
+<script lang="ts">
+	import { resolve } from '$app/paths';
+</script>
+
 <footer class="overflow-hidden">
 	<div class="px-8 pt-24 lg:px-12">
 		<div class="mb-10 flex h-10 w-10 items-center justify-center bg-foreground">
@@ -11,7 +15,7 @@
 
 		<div class="mt-14 flex items-center gap-6 text-sm text-muted-foreground">
 			<a
-				href="https://www.linkedin.com/in/theadlinesystems/"
+				href="https://www.linkedin.com/company/usethreadline/"
 				target="_blank"
 				rel="noopener noreferrer"
 				class="transition-colors hover:text-foreground">linkedin</a
@@ -32,8 +36,12 @@
 
 		<div class="mt-14 flex items-center gap-8 text-sm text-muted-foreground">
 			<span>&copy;2026 Threadline Systems</span>
-			<a href="#terms" class="transition-colors hover:text-foreground">Terms of Use</a>
-			<a href="#privacy" class="transition-colors hover:text-foreground">Privacy Policy</a>
+			<a href={resolve('/legal/terms')} class="transition-colors hover:text-foreground"
+				>Terms of Use</a
+			>
+			<a href={resolve('/legal/privacy')} class="transition-colors hover:text-foreground"
+				>Privacy Policy</a
+			>
 		</div>
 
 		<span class="mt-16 -mb-[3%] block text-[clamp(1rem,17.5dvw,60dvw)] leading-none font-medium"

@@ -87,7 +87,7 @@
 </script>
 
 <svelte:head>
-	<title>Threadline — Wholesale Intelligence Platform</title>
+	<title>Threadline. AI-native wholesale system.</title>
 </svelte:head>
 
 <div>
@@ -99,10 +99,10 @@
 					<div class="grid grid-cols-2 pt-42">
 						<div>
 							<div class="mb-8 space-y-2">
-								<h1 class="h-reveal text-5xl leading-14 opacity-0">Decisions, not dashboards.</h1>
+								<h1 class="h-reveal text-5xl leading-14 opacity-0">We work where you work.</h1>
 								<p class="h-reveal max-w-xl text-neutral-700 opacity-0">
-									We unify how reps and brands see, understand, and act on their business, no matter
-									where the signal comes from.
+									An AI-native wholesale system for brands and multi-brand reps. See what's moving,
+									what's not, and what to do.
 								</p>
 							</div>
 							<EmailSignup onsubmit={subscribeToBeta} />
@@ -130,7 +130,7 @@
 					</div> -->
 				</div>
 			</section>
-			<section data-section="about-threadline">
+			<!-- <section data-section="about-threadline">
 				<div class="px-12 pt-48 pb-24">
 					<div class="reveal grid grid-cols-[1fr_1.5fr] gap-4 opacity-0">
 						<div>
@@ -163,16 +163,14 @@
 						</div>
 					</div>
 				</div>
-			</section>
+			</section> -->
 			<section data-section="what-we-feature">
 				<div class="px-12 py-24">
 					<div class="grid gap-12">
 						<div class="reveal grid max-w-220 gap-2 opacity-0">
-							<span class="font-mono">[What We Feature]</span>
+							<!-- <span class="font-mono">[What We Feature]</span> -->
 							<h2 class="text-4xl">
-								Reliable Ways to Move Goods Using <span class="text-muted-foreground"
-									>Modern Infrastructure And Intelligent Systems</span
-								>
+								Work, without the <span class="text-muted-foreground">work</span>.
 							</h2>
 						</div>
 						<ul class="grid grid-cols-12 gap-6" data-stagger>
@@ -181,11 +179,10 @@
 								data-s
 							>
 								<div>
-									<h3 class="mb-2 text-xl">Insight built around you.</h3>
+									<h3 class="mb-2 text-xl">The work behind the work, handled.</h3>
 									<p class="text-neutral-600">
-										Stitches surfaces cross-brand patterns, buyer behavior, and territory
-										opportunities unique to your portfolio — intelligence no single-brand platform
-										can see.
+										Workers run in the background. Order entry, report runs, status checks. Your
+										team focuses on the line, the relationship, and the buyer in front of them.
 									</p>
 								</div>
 								<div class="col-start-2 row-start-2">
@@ -197,11 +194,11 @@
 								data-s
 							>
 								<div>
-									<h3 class="mb-2 text-xl">Decisions, Not Guesses.</h3>
+									<h3 class="mb-2 text-xl">Decisions, not dashboards.</h3>
 									<p class="text-neutral-600">
-										Your tools show orders and line sheets. Threadline shows what's missing —
-										under-penetrated accounts, brands that should be paired together, and reorders
-										that should have happened last week.
+										Stitch surfaces what matters with the action already named. Brands see the
+										accounts going quiet. Reps see the buyer texting at 6pm. No charts to interpret,
+										no reports to run.
 									</p>
 								</div>
 								<div class="row-start-2">
@@ -213,11 +210,11 @@
 								data-s
 							>
 								<div>
-									<h3 class="mb-2 text-xl">Act on real-time signals.</h3>
+									<h3 class="mb-2 text-xl">Brands and reps, partners.</h3>
 									<p class="text-neutral-600">
-										Lead times have compressed to 102 days. Stitches integrates sell-through data
-										with social signals to trigger reorder recommendations and buyer alerts before
-										stock-outs happen.
+										Same data, same visibility, two-way flow. A brand invites a rep. The brand's
+										data lives in the rep's workspace; the rep's signal flows back. One system, no
+										parallel silos.
 									</p>
 								</div>
 								<div class="row-start-2">
@@ -229,11 +226,11 @@
 								data-s
 							>
 								<div>
-									<h3 class="mb-2 text-xl">Autonomous work.</h3>
+									<h3 class="mb-2 text-xl">Built AI-native.</h3>
 									<p class="text-neutral-600">
-										Workers handle commission splits, order tracking, and buyer follow-ups in the
-										background. Custom Workers let you build your own — watching for the signals
-										that matter to your book of business.
+										Forward an email. Type or talk to Stitch. They become orders, accounts, answers.
+										Threadline was built for this from day one. AI isn't a feature on top, it's the
+										foundation.
 									</p>
 								</div>
 								<div class="col-start-2 row-start-2">
@@ -247,40 +244,20 @@
 			<section data-section="how-we-work">
 				<div class="grid gap-24 px-12 py-24">
 					<div class="mx-auto grid max-w-220 gap-2 text-center">
-						<span class="font-mono">[How We Work]</span>
+						<span class="font-mono">[How it works]</span>
 						<h2 class="text-4xl">
-							Four Layers That <span class="text-muted-foreground">Turn Data Into Decisions</span>
+							Stitch finds the work.
+							<span class="text-muted-foreground">Workers do the work.</span>
 						</h2>
 					</div>
 					<ul class="grid gap-24">
 						<li class="grid grid-cols-12 items-center gap-6">
 							<div class="col-span-4">
-								<h3 class="mb-3 text-2xl">Gaps</h3>
+								<h3 class="mb-3 text-2xl">Stitch</h3>
 								<p class="text-balance text-neutral-700">
-									Every application has blind spots — invisible fractures where data, context gets
-									lost. We find these gaps and reveal them.
-								</p>
-							</div>
-							<div class="col-span-7 col-start-6 h-120 w-full rounded-lg bg-neutral-200"></div>
-						</li>
-						<li class="grid grid-cols-12 items-center gap-6">
-							<div class="col-span-4 col-start-9">
-								<h3 class="mb-3 text-2xl">Orchestration</h3>
-								<p class="text-balance text-neutral-700">
-									Start directing outcomes. Orchestration means your systems anticipate, coordinate,
-									and adapt — so you focus on decisions, not mechanics.
-								</p>
-							</div>
-							<div
-								class="col-span-7 col-start-1 row-start-1 h-120 w-full rounded-lg bg-neutral-200"
-							></div>
-						</li>
-						<li class="grid grid-cols-12 items-center gap-6">
-							<div class="col-span-4">
-								<h3 class="mb-3 text-2xl">Stitches</h3>
-								<p class="text-balance text-neutral-700">
-									We connect disparate signals into something actionable. A living, contextual
-									understanding that arrives before you ask for it.
+									Stitch is our AI. Send it an email, a text, or your voice, and Stitch turns the
+									input into orders, accounts, and answers. The patterns it surfaces across your
+									business become Stitches.
 								</p>
 							</div>
 							<div class="col-span-7 col-start-6 h-120 w-full rounded-lg bg-neutral-200"></div>
@@ -289,8 +266,8 @@
 							<div class="col-span-4 col-start-9">
 								<h3 class="mb-3 text-2xl">Workers</h3>
 								<p class="text-balance text-neutral-700">
-									Workers handle the work you shouldn't have to. Custom Workers focus on what only
-									you would think to look for.
+									Workers handle the work you shouldn't have to. Order entry, report runs, status
+									checks. Custom Workers go after what only your business would think to look for.
 								</p>
 							</div>
 							<div
@@ -303,14 +280,14 @@
 			<section data-section="faq">
 				<div class="grid gap-24 px-12 py-24">
 					<div class="mx-auto grid max-w-220 gap-2 text-center">
-						<span class="font-mono">[FAQ's]</span>
+						<span class="font-mono">[FAQ]</span>
 						<h2 class="text-4xl">
-							Common Questions, <span class="text-muted-foreground">Clear Answers</span>
+							Common questions. <span class="text-muted-foreground">Clear answers.</span>
 						</h2>
 					</div>
 					<div class="mx-auto grid w-full max-w-280 grid-cols-2 items-start gap-8">
 						<ul class="grid items-start">
-							{#each [{ q: 'What types of reps does Threadline work with?', a: 'Independent multi-brand reps, showroom owners, and sales agencies carrying fashion and apparel lines across any combination of wholesale platforms.' }, { q: 'Do brands need to switch to Threadline?', a: 'No. Threadline layers on top of existing platforms. Brands keep using JOOR, NuORDER, or whatever they prefer. Nothing changes for them.' }, { q: 'What makes Stitches different from analytics?', a: 'Analytics show what happened. Stitches shows what to do next \u2014 cross-brand patterns, buyer predictions, and contextual actions that arrive before you ask.' }, { q: 'How long does setup take?', a: 'Under one hour. Connect your existing platforms, import your buyer contacts, and Stitches starts learning your portfolio immediately.' }] as item, i (i)}
+							{#each [{ q: 'Who is Threadline for?', a: "Small-to-midsize fashion brands and the multi-brand reps. Threadline runs the day-to-day: orders, accounts, products, commissions, appointments, shows, expenses, reports. Stitch surfaces what matters; Workers handle the work that's tax on your day." }, { q: 'How do I switch to Threadline?', a: 'Hands-on during private beta. You bring your data in via CSV (accounts, brands, products) plus PDF linesheets that Stitch parses into products automatically. We map your fields with you during onboarding, so day one starts with your real data.' }, { q: 'What does Stitch do?', a: 'Stitch is our AI. It runs across your orders, accounts, and pipeline and surfaces what needs attention: revenue trending, accounts going quiet, orders stuck, shows performing, style velocity. Each one comes with what to do. You can also work with Stitch directly. Email orders to stitch@threadline.systems, or type or talk to Stitch to create orders, set up accounts, or pull data on the fly.' }, { q: 'How long does setup take?', a: 'Setup happens during onboarding. We bring your data in, walk you through the modules, and turn on email ordering and other integrations you want. Most teams are running in a session or two.' }] as item, i (i)}
 								<li class="grid w-full items-start border-t border-foreground p-6">
 									<button
 										class="flex w-full items-center justify-between gap-4 text-left"
@@ -326,7 +303,7 @@
 							{/each}
 						</ul>
 						<ul class="grid items-start">
-							{#each [{ q: 'What are Workers?', a: 'Workers are automated agents that handle repetitive tasks \u2014 commission tracking, reorder alerts, buyer follow-ups. Custom Workers let you build your own for the signals only you care about.' }, { q: 'How does commission automation work?', a: 'Set rate structures per brand, define splits between showroom owners and sub-reps, and Threadline calculates everything automatically \u2014 reconciled in real time, no spreadsheets.' }, { q: 'How does pricing work?', a: 'Free for individual reps to start. Premium tiers unlock Stitches AI, Workers, multi-brand analytics, and commission automation. Transparent pricing \u2014 no annual lock-in.' }, { q: 'Is my data shared between brands?', a: 'Never. Brand data stays siloed. Stitches generates cross-brand insights from your own portfolio data \u2014 no brand sees another brand\u2019s information.' }] as item, i (i)}
+							{#each [{ q: 'What are Workers?', a: "Workers are AI agents we build into Threadline. They run on events (a new order, an account going quiet) and take actions like drafting emails, updating records, or searching what's in your system. Custom Workers are the ones you build yourself, for the things only your business would think to look for." }, { q: 'How does Threadline connect brands and reps?', a: "Brands invite reps. The rep accepts and sees the brand's data in Threadline. When the rep places an order against the brand, the order flows back to the brand automatically. Each connection is its own silo: a rep carrying three brands sees the three brands' data in one Threadline; each brand only sees what's been written for them." }, { q: 'What about my data?', a: "Data is siloed by connection. A multi-brand rep can be invited by multiple brands, and only the data relevant to that connection is shared. Brand A never sees Brand B's data. Reps never see another rep's accounts. Row-level security enforces this at the database." }, { q: 'How does pricing work during beta?', a: 'The private beta is free. Beta participants get preferred pricing when Threadline moves to public release.' }] as item, i (i)}
 								<li class="grid w-full items-start border-t border-foreground p-6">
 									<button
 										class="flex w-full items-center justify-between gap-4 text-left"
@@ -349,10 +326,10 @@
 			<section data-section="clarity">
 				<div class="grid gap-8 px-12 py-24">
 					<div class="mx-auto grid max-w-220 space-y-2 text-center">
-						<h2 class="text-4xl">Clarity Starts With The Right Conversation</h2>
+						<h2 class="text-4xl">Clarity starts with the right conversation.</h2>
 						<p class="mx-auto max-w-8/12 text-balance text-neutral-700">
-							Threadline is building the intelligence layer fashion wholesale has been missing.
-							Let's talk about what it can do for your showroom.
+							Threadline is in private beta. We're working with a select group of brands and
+							multi-brand reps to refine the system before public launch.
 						</p>
 					</div>
 					<ul class="grid grid-cols-12 gap-6">

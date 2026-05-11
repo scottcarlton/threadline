@@ -14,16 +14,16 @@
 </script>
 
 <svelte:head>
-	<title>Beta — Threadline</title>
+	<title>Threadline. Private beta.</title>
 </svelte:head>
 
 <MarketingNav />
 
 <main class="mx-auto max-w-2xl px-8 pt-40 pb-24 text-center">
-	<h1 class="text-4xl font-semibold tracking-tight">Private Beta</h1>
+	<h1 class="text-4xl font-semibold tracking-tight">Private beta.</h1>
 	<p class="mt-4 text-lg text-muted-foreground">
-		Threadline is currently in private beta. We're working with a small group of reps and brands to
-		refine the platform before opening it up.
+		Threadline is currently in private beta. We're working with a select group of brands and reps to
+		refine the system before opening it up.
 	</p>
 	<p class="mt-6 text-sm text-muted-foreground">
 		Interested in early access? Reach out and we'll get you on the list.
