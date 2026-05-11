@@ -9,13 +9,13 @@
 
 <MarketingNav />
 
-<main class="mx-auto max-w-2xl px-8 pt-40 pb-24">
-	<h1 class="text-3xl font-semibold tracking-tight">Privacy Policy</h1>
+<main class="mx-auto px-8 pt-40 pb-24" style="max-width: clamp(72ch, 75%, 50vw);">
+	<h1 class="text-[2.5rem] leading-tight font-semibold tracking-tight">Privacy Policy</h1>
 	<p class="mt-2 text-sm text-muted-foreground">Effective date: May 9, 2026</p>
 
-	<div class="mt-10 space-y-8 text-sm leading-relaxed text-muted-foreground">
+	<div class="mt-10 space-y-8 text-base leading-relaxed text-muted-foreground">
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">1. Introduction</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">1. Introduction</h2>
 			<p>
 				Threadline Systems ("we", "us", "our") operates the Threadline platform. This Privacy Policy
 				explains how we collect, use, disclose, and protect your information when you use our
@@ -24,7 +24,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">2. Information We Collect</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">2. Information We Collect</h2>
 			<h3 class="mt-3 mb-1 font-medium text-foreground">Information you provide</h3>
 			<ul class="list-disc space-y-1 pl-5">
 				<li>Account information: name, email address, organization name</li>
@@ -43,7 +43,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">3. How We Use Your Information</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">3. How We Use Your Information</h2>
 			<p>We use your information to:</p>
 			<ul class="mt-2 list-disc space-y-1 pl-5">
 				<li>Provide, maintain, and improve the Service</li>
@@ -57,7 +57,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">4. Data Sharing</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">4. Data Sharing</h2>
 			<p>
 				We do not sell your personal information. We may share your information only in the
 				following circumstances:
@@ -81,7 +81,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">5. Data Security</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">5. Data Security</h2>
 			<p>
 				We implement industry-standard security measures to protect your information, including
 				encryption in transit (TLS) and at rest, access controls, and regular security reviews.
@@ -91,7 +91,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">6. Data Retention</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">6. Data Retention</h2>
 			<p>
 				We retain your information for as long as your account is active or as needed to provide the
 				Service. We may retain certain information after account deletion as required by law or for
@@ -100,7 +100,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">7. Your Rights</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">7. Your Rights</h2>
 			<p>Depending on your jurisdiction, you may have the right to:</p>
 			<ul class="mt-2 list-disc space-y-1 pl-5">
 				<li>Access the personal information we hold about you</li>
@@ -119,7 +119,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">8. Cookies</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">8. Cookies</h2>
 			<p>
 				We use essential cookies to authenticate users and maintain session state. We may use
 				analytics cookies to understand how the Service is used. You can control cookie preferences
@@ -128,7 +128,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">9. Third-Party Services</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">9. Third-Party Services</h2>
 			<p>
 				The Service may integrate with third-party services (e.g., Google OAuth, email providers).
 				These services have their own privacy policies, and we encourage you to review them. We are
@@ -137,7 +137,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">10. Children's Privacy</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">10. Children's Privacy</h2>
 			<p>
 				The Service is not directed to individuals under the age of 16. We do not knowingly collect
 				personal information from children. If we learn that we have collected information from a
@@ -146,7 +146,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">11. Changes to This Policy</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">11. Changes to This Policy</h2>
 			<p>
 				We may update this Privacy Policy from time to time. We will notify you of material changes
 				by posting the updated policy on this page with a revised effective date. Continued use of
@@ -155,7 +155,7 @@
 		</section>
 
 		<section>
-			<h2 class="mb-2 text-base font-semibold text-foreground">12. Contact</h2>
+			<h2 class="mb-2 text-lg font-semibold text-foreground">12. Contact</h2>
 			<p>
 				Questions about this Privacy Policy? Contact us at
 				<a href="mailto:hello@threadline.systems" class="underline hover:text-foreground"
