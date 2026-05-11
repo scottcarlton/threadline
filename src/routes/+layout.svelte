@@ -178,11 +178,8 @@
 			$page.url.pathname.startsWith('/connect') ||
 			$page.url.pathname.startsWith('/upload') ||
 			$page.url.pathname.startsWith('/onboarding') ||
-			$page.url.pathname.startsWith('/features') ||
-			$page.url.pathname.startsWith('/intelligence') ||
-			$page.url.pathname.startsWith('/solutions') ||
-			$page.url.pathname.startsWith('/resources') ||
-			$page.url.pathname.startsWith('/pricing')
+			$page.url.pathname.startsWith('/beta') ||
+			$page.url.pathname.startsWith('/legal')
 	);
 
 	const hideAiDock = $derived(
