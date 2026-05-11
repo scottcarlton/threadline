@@ -3,7 +3,7 @@
 </script>
 
 <footer class="overflow-hidden">
-	<div class="px-8 pt-24 lg:px-12">
+	<div class="px-5 pt-16 sm:px-8 sm:pt-24 lg:px-12">
 		<div class="mb-10 flex h-10 w-10 items-center justify-center bg-foreground">
 			<img src="/logos/mark_dark.svg" alt="Threadline" class="h-6 w-6" />
 		</div>
@@ -34,7 +34,7 @@
 			>
 		</div>
 
-		<div class="mt-14 flex items-center gap-8 text-sm text-muted-foreground">
+		<div class="mt-14 flex flex-wrap items-center gap-4 text-sm text-muted-foreground sm:gap-8">
 			<span>&copy;2026 Threadline Systems</span>
 			<a href={resolve('/legal/terms')} class="transition-colors hover:text-foreground"
 				>Terms of Use</a

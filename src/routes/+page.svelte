@@ -95,11 +95,15 @@
 	<main>
 		<div>
 			<section data-section="hero">
-				<div class="grid gap-12 px-12 pt-32">
-					<div class="grid grid-cols-2 pt-42">
+				<div class="grid gap-8 px-5 pt-28 sm:gap-12 sm:px-8 md:px-12 md:pt-32">
+					<div class="grid pt-12 sm:pt-24 md:grid-cols-2 md:pt-42">
 						<div>
 							<div class="mb-8 space-y-2">
-								<h1 class="h-reveal text-5xl leading-14 opacity-0">We work where you work.</h1>
+								<h1
+									class="h-reveal text-3xl leading-10 opacity-0 sm:text-4xl sm:leading-12 md:text-5xl md:leading-14"
+								>
+									We work where you work.
+								</h1>
 								<p class="h-reveal max-w-xl text-neutral-700 opacity-0">
 									An AI-native wholesale system for brands and multi-brand reps. See what's moving,
 									what's not, and what to do.
@@ -108,7 +112,9 @@
 							<EmailSignup onsubmit={subscribeToBeta} />
 						</div>
 					</div>
-					<div class="h-100 min-h-180 rounded-lg bg-neutral-200 p-12"></div>
+					<div
+						class="h-60 rounded-lg bg-neutral-200 p-6 sm:h-80 sm:p-8 md:h-100 md:min-h-180 md:p-12"
+					></div>
 					<!-- <div
 						class="flex h-100 min-h-180 items-end rounded-4xl bg-black p-12"
 						style="background-image: url('https://images.unsplash.com/photo-1753029226995-74b05a344bb1?q=80&w=3087&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'); background-size: cover; background-position: center;"
@@ -165,17 +171,17 @@
 				</div>
 			</section> -->
 			<section data-section="what-we-feature">
-				<div class="px-12 py-24">
-					<div class="grid gap-12">
+				<div class="px-5 py-16 sm:px-8 sm:py-20 md:px-12 md:py-24">
+					<div class="grid gap-8 sm:gap-12">
 						<div class="reveal grid max-w-220 gap-2 opacity-0">
 							<!-- <span class="font-mono">[What We Feature]</span> -->
-							<h2 class="text-4xl">
+							<h2 class="text-3xl sm:text-4xl">
 								Work, without the <span class="text-muted-foreground">work</span>.
 							</h2>
 						</div>
-						<ul class="grid grid-cols-12 gap-6" data-stagger>
+						<ul class="grid grid-cols-1 gap-6 md:grid-cols-12" data-stagger>
 							<li
-								class="col-span-8 grid min-h-120 grid-cols-2 gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								class="grid min-h-80 gap-4 rounded-md bg-neutral-200 p-4 opacity-0 md:col-span-8 md:min-h-120 md:grid-cols-2"
 								data-s
 							>
 								<div>
@@ -185,12 +191,12 @@
 										team focuses on the line, the relationship, and the buyer in front of them.
 									</p>
 								</div>
-								<div class="col-start-2 row-start-2">
-									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
+								<div class="md:col-start-2 md:row-start-2">
+									<div class="h-full min-h-40 w-full rounded-lg bg-neutral-100 md:min-h-0"></div>
 								</div>
 							</li>
 							<li
-								class="col-span-4 col-start-9 grid gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								class="grid gap-4 rounded-md bg-neutral-200 p-4 opacity-0 md:col-span-4 md:col-start-9"
 								data-s
 							>
 								<div>
@@ -201,12 +207,12 @@
 										no reports to run.
 									</p>
 								</div>
-								<div class="row-start-2">
-									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
+								<div class="md:row-start-2">
+									<div class="h-full min-h-40 w-full rounded-lg bg-neutral-100 md:min-h-0"></div>
 								</div>
 							</li>
 							<li
-								class="col-span-4 grid min-h-120 gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								class="grid min-h-80 gap-4 rounded-md bg-neutral-200 p-4 opacity-0 md:col-span-4 md:min-h-120"
 								data-s
 							>
 								<div>
@@ -217,12 +223,12 @@
 										parallel silos.
 									</p>
 								</div>
-								<div class="row-start-2">
-									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
+								<div class="md:row-start-2">
+									<div class="h-full min-h-40 w-full rounded-lg bg-neutral-100 md:min-h-0"></div>
 								</div>
 							</li>
 							<li
-								class="col-span-8 col-start-5 grid grid-cols-2 gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								class="grid gap-4 rounded-md bg-neutral-200 p-4 opacity-0 md:col-span-8 md:col-start-5 md:grid-cols-2"
 								data-s
 							>
 								<div>
@@ -233,8 +239,8 @@
 										foundation.
 									</p>
 								</div>
-								<div class="col-start-2 row-start-2">
-									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
+								<div class="md:col-start-2 md:row-start-2">
+									<div class="h-full min-h-40 w-full rounded-lg bg-neutral-100 md:min-h-0"></div>
 								</div>
 							</li>
 						</ul>
@@ -242,17 +248,17 @@
 				</div>
 			</section>
 			<section data-section="how-we-work">
-				<div class="grid gap-24 px-12 py-24">
+				<div class="grid gap-12 px-5 py-16 sm:gap-16 sm:px-8 sm:py-20 md:gap-24 md:px-12 md:py-24">
 					<div class="mx-auto grid max-w-220 gap-2 text-center">
 						<span class="font-mono">[How it works]</span>
-						<h2 class="text-4xl">
+						<h2 class="text-3xl sm:text-4xl">
 							Stitch finds the work.
 							<span class="text-muted-foreground">Workers do the work.</span>
 						</h2>
 					</div>
-					<ul class="grid gap-24">
-						<li class="grid grid-cols-12 items-center gap-6">
-							<div class="col-span-4">
+					<ul class="grid gap-12 sm:gap-16 md:gap-24">
+						<li class="grid items-center gap-6 md:grid-cols-12">
+							<div class="md:col-span-4">
 								<h3 class="mb-3 text-2xl">Stitch</h3>
 								<p class="text-balance text-neutral-700">
 									Stitch is our AI. Send it an email, a text, or your voice, and Stitch turns the
@@ -260,10 +266,12 @@
 									business become Stitches.
 								</p>
 							</div>
-							<div class="col-span-7 col-start-6 h-120 w-full rounded-lg bg-neutral-200"></div>
+							<div
+								class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-7 md:col-start-6 md:h-120"
+							></div>
 						</li>
-						<li class="grid grid-cols-12 items-center gap-6">
-							<div class="col-span-4 col-start-9">
+						<li class="grid items-center gap-6 md:grid-cols-12">
+							<div class="md:col-span-4 md:col-start-9">
 								<h3 class="mb-3 text-2xl">Workers</h3>
 								<p class="text-balance text-neutral-700">
 									Workers handle the work you shouldn't have to. Order entry, report runs, status
@@ -271,21 +279,21 @@
 								</p>
 							</div>
 							<div
-								class="col-span-7 col-start-1 row-start-1 h-120 w-full rounded-lg bg-neutral-200"
+								class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-7 md:col-start-1 md:row-start-1 md:h-120"
 							></div>
 						</li>
 					</ul>
 				</div>
 			</section>
 			<section data-section="faq">
-				<div class="grid gap-24 px-12 py-24">
+				<div class="grid gap-12 px-5 py-16 sm:gap-16 sm:px-8 sm:py-20 md:gap-24 md:px-12 md:py-24">
 					<div class="mx-auto grid max-w-220 gap-2 text-center">
 						<span class="font-mono">[FAQ]</span>
-						<h2 class="text-4xl">
+						<h2 class="text-3xl sm:text-4xl">
 							Common questions. <span class="text-muted-foreground">Clear answers.</span>
 						</h2>
 					</div>
-					<div class="mx-auto grid w-full max-w-280 grid-cols-2 items-start gap-8">
+					<div class="mx-auto grid w-full max-w-280 grid-cols-1 items-start gap-8 md:grid-cols-2">
 						<ul class="grid items-start">
 							{#each [{ q: 'Who is Threadline for?', a: "Small-to-midsize fashion brands and the multi-brand reps. Threadline runs the day-to-day: orders, accounts, products, commissions, appointments, shows, expenses, reports. Stitch surfaces what matters; Workers handle the work that's tax on your day." }, { q: 'How do I switch to Threadline?', a: 'Hands-on during private beta. You bring your data in via CSV (accounts, brands, products) plus PDF linesheets that Stitch parses into products automatically. We map your fields with you during onboarding, so day one starts with your real data.' }, { q: 'What does Stitch do?', a: 'Stitch is our AI. It runs across your orders, accounts, and pipeline and surfaces what needs attention: revenue trending, accounts going quiet, orders stuck, shows performing, style velocity. Each one comes with what to do. You can also work with Stitch directly. Email orders to stitch@threadline.systems, or type or talk to Stitch to create orders, set up accounts, or pull data on the fly.' }, { q: 'How long does setup take?', a: 'Setup happens during onboarding. We bring your data in, walk you through the modules, and turn on email ordering and other integrations you want. Most teams are running in a session or two.' }] as item, i (i)}
 								<li class="grid w-full items-start border-t border-foreground p-6">
@@ -324,24 +332,28 @@
 				</div>
 			</section>
 			<section data-section="clarity">
-				<div class="grid gap-8 px-12 py-24">
+				<div class="grid gap-8 px-5 py-16 sm:px-8 sm:py-20 md:px-12 md:py-24">
 					<div class="mx-auto grid max-w-220 space-y-2 text-center">
-						<h2 class="text-4xl">Clarity starts with the right conversation.</h2>
-						<p class="mx-auto max-w-8/12 text-balance text-neutral-700">
+						<h2 class="text-3xl sm:text-4xl">Clarity starts with the right conversation.</h2>
+						<p class="mx-auto max-w-full text-balance text-neutral-700 sm:max-w-8/12">
 							Threadline is in private beta. We're working with a select group of brands and
 							multi-brand reps to refine the system before public launch.
 						</p>
 					</div>
-					<ul class="grid grid-cols-12 gap-6">
-						<li class="col-span-12 h-120 w-full rounded-lg bg-neutral-200"></li>
-						<li class="col-span-6 row-start-2 h-120 w-full rounded-lg bg-neutral-200"></li>
-						<li class="col-span-6 row-start-2 h-120 w-full rounded-lg bg-neutral-200"></li>
+					<ul class="grid grid-cols-1 gap-6 md:grid-cols-12">
+						<li class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-12 md:h-120"></li>
+						<li
+							class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-6 md:row-start-2 md:h-120"
+						></li>
+						<li
+							class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-6 md:row-start-2 md:h-120"
+						></li>
 					</ul>
 				</div>
 			</section>
 			<section data-section="cta">
-				<div class="grid justify-center space-y-6 px-12 py-24">
-					<h2 class="text-4xl">Get early access to Threadline</h2>
+				<div class="grid justify-center space-y-6 px-5 py-16 sm:px-8 sm:py-20 md:px-12 md:py-24">
+					<h2 class="text-3xl sm:text-4xl">Get early access to Threadline</h2>
 					<EmailSignup onsubmit={subscribeToBeta} />
 					<div class="flex items-center justify-center gap-3 text-sm text-muted-foreground">
 						<span>Already have an account?</span>
