@@ -42,7 +42,7 @@
 	<p class="text-sm text-muted-foreground">{successMessage}</p>
 {:else}
 	<form
-		class="grid w-full max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
+		class="grid w-full max-w-lg grid-cols-1 rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground sm:grid-cols-[1fr_auto]"
 		onsubmit={(e) => {
 			e.preventDefault();
 			handleSubmit();
@@ -55,7 +55,7 @@
 			bind:value={email}
 			required
 		/>
-		<button class="ml-2 rounded-md bg-accent px-5 py-3" disabled={submitting}>
+		<button class="rounded-md bg-accent px-5 py-3 sm:ml-2" disabled={submitting}>
 			{submitting ? 'Submitting...' : buttonText}
 		</button>
 	</form>
