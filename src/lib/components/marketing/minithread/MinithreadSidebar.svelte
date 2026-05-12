@@ -1,9 +1,10 @@
 <script lang="ts">
 	type Props = {
 		activeItem?: string;
+		onselect?: (item: string) => void;
 	};
 
-	let { activeItem = 'Insight' }: Props = $props();
+	let { activeItem = 'Insight', onselect }: Props = $props();
 
 	type NavItem = {
 		label: string;
@@ -74,7 +75,7 @@
 	<!-- Primary nav -->
 	<div class="flex-1 space-y-px px-3 pt-3">
 		{#each primaryNav as item (item.label)}
-			<button type="button" class={itemClasses(item.label)}>
+			<button type="button" onclick={() => onselect?.(item.label)} class={itemClasses(item.label)}>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="{iconSize} shrink-0"
@@ -101,7 +102,11 @@
 
 		<div class="mt-4">
 			{#each secondaryNav as item (item.label)}
-				<button type="button" class={itemClasses(item.label)}>
+				<button
+					type="button"
+					onclick={() => onselect?.(item.label)}
+					class={itemClasses(item.label)}
+				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						class="{iconSize} shrink-0"
@@ -126,7 +131,11 @@
 
 		<!-- Workspace -->
 		<div class="mt-4">
-			<button type="button" class={itemClasses('')}>
+			<button
+				type="button"
+				onclick={() => onselect?.('Workspace')}
+				class={itemClasses('Workspace')}
+			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="{iconSize} shrink-0"
@@ -149,7 +158,11 @@
 	<!-- Bottom section -->
 	<div class="space-y-px px-3 pb-3">
 		<!-- Organization -->
-		<button type="button" class={itemClasses('')}>
+		<button
+			type="button"
+			onclick={() => onselect?.('Organization')}
+			class={itemClasses('Organization')}
+		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				class="{iconSize} shrink-0"
@@ -167,7 +180,7 @@
 			<span class="flex-1">Organization</span>
 		</button>
 		<!-- Help & Support -->
-		<button type="button" class={itemClasses('')}>
+		<div class={itemClasses('')}>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				class="{iconSize} shrink-0"
@@ -183,6 +196,6 @@
 				/>
 			</svg>
 			<span class="flex-1">Help & Support</span>
-		</button>
+		</div>
 	</div>
 </nav>

@@ -6,8 +6,11 @@
 	import InstallCta from '$lib/components/pwa/InstallCta.svelte';
 	import BrowserWrapper from '$lib/components/marketing/BrowserWrapper.svelte';
 	import Minithread from '$lib/components/marketing/minithread/Minithread.svelte';
+	import MinithreadNotifications from '$lib/components/marketing/minithread/MinithreadNotifications.svelte';
 
 	let faqOpen = $state<number | null>(null);
+	let heroNotificationsVisible = $state(false);
+	let heroOrgMode = $state<'brand' | 'rep'>('rep');
 
 	function toggleFaq(index: number) {
 		faqOpen = faqOpen === index ? null : index;
@@ -67,6 +70,20 @@
 			);
 		});
 
+		const heroBrowser = document.querySelector('[data-hero-browser]');
+		if (heroBrowser) {
+			inView(
+				heroBrowser,
+				() => {
+					heroNotificationsVisible = true;
+					return () => {
+						heroNotificationsVisible = false;
+					};
+				},
+				{ amount: 0.5 }
+			);
+		}
+
 		inView(
 			'.stats-row',
 			() => {
@@ -114,14 +131,39 @@
 						</div>
 					</div>
 					<div
-						class="h-60 rounded-lg bg-neutral-200 p-6 pb-16 sm:h-80 sm:p-8 sm:pb-16 md:h-100 md:min-h-180 md:p-12 md:pb-16"
+						data-hero-browser
+						class="relative min-h-60 overflow-hidden rounded-lg bg-neutral-200 p-6 pb-8 sm:min-h-80 sm:p-8 sm:pb-10 md:min-h-180 md:p-12 md:pb-12"
 					>
-						<BrowserWrapper class="mx-auto h-full max-w-[1200px]">
+						<!-- Brands / Sales toggle -->
+						<div class="mb-3 flex items-center justify-center gap-1">
+							<button
+								type="button"
+								onclick={() => (heroOrgMode = 'brand')}
+								class="cursor-pointer rounded-full px-3 py-1 font-mono text-xs transition-colors {heroOrgMode ===
+								'brand'
+									? 'bg-foreground text-background'
+									: 'text-muted-foreground hover:text-foreground'}"
+							>
+								Brands
+							</button>
+							<button
+								type="button"
+								onclick={() => (heroOrgMode = 'rep')}
+								class="cursor-pointer rounded-full px-3 py-1 font-mono text-xs transition-colors {heroOrgMode ===
+								'rep'
+									? 'bg-foreground text-background'
+									: 'text-muted-foreground hover:text-foreground'}"
+							>
+								Sales
+							</button>
+						</div>
+
+						<BrowserWrapper class="mx-auto aspect-video max-w-[1200px]">
 							<Minithread />
 						</BrowserWrapper>
-						<p class="mt-3 text-center font-mono text-xs text-muted-foreground">
-							This is a demo version of our application.
-						</p>
+
+						<!-- Notifications that slide in from the right -->
+						<MinithreadNotifications visible={heroNotificationsVisible} />
 					</div>
 					<!-- <div
 						class="flex h-100 min-h-180 items-end rounded-4xl bg-black p-12"
