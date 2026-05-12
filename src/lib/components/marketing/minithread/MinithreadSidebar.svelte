@@ -1,10 +1,11 @@
 <script lang="ts">
 	type Props = {
 		activeItem?: string;
+		orgMode?: 'brand' | 'rep';
 		onselect?: (item: string) => void;
 	};
 
-	let { activeItem = 'Insight', onselect }: Props = $props();
+	let { activeItem = 'Insight', orgMode = 'brand', onselect }: Props = $props();
 
 	type NavItem = {
 		label: string;
@@ -60,6 +61,10 @@
 		}
 	];
 
+	const filteredPrimaryNav = $derived(
+		orgMode === 'brand' ? primaryNav.filter((item) => item.label !== 'Brands') : primaryNav
+	);
+
 	const iconSize = 'h-3.5 w-3.5';
 
 	function itemClasses(label: string): string {
@@ -74,7 +79,7 @@
 <nav class="flex h-full flex-col">
 	<!-- Primary nav -->
 	<div class="flex-1 space-y-px px-3 pt-3">
-		{#each primaryNav as item (item.label)}
+		{#each filteredPrimaryNav as item (item.label)}
 			<button type="button" onclick={() => onselect?.(item.label)} class={itemClasses(item.label)}>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"

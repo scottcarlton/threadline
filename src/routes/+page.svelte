@@ -10,7 +10,7 @@
 
 	let faqOpen = $state<number | null>(null);
 	let heroNotificationsVisible = $state(false);
-	let heroOrgMode = $state<'brand' | 'rep'>('rep');
+	let heroOrgMode = $state<'brand' | 'rep'>('brand');
 
 	function toggleFaq(index: number) {
 		faqOpen = faqOpen === index ? null : index;
@@ -135,31 +135,34 @@
 						class="relative min-h-60 overflow-hidden rounded-lg bg-neutral-200 p-6 pb-8 sm:min-h-80 sm:p-8 sm:pb-10 md:min-h-180 md:p-12 md:pb-12"
 					>
 						<!-- Brands / Sales toggle -->
-						<div class="mb-3 flex items-center justify-center gap-1">
-							<button
-								type="button"
-								onclick={() => (heroOrgMode = 'brand')}
-								class="cursor-pointer rounded-full px-3 py-1 font-mono text-xs transition-colors {heroOrgMode ===
-								'brand'
-									? 'bg-foreground text-background'
-									: 'text-muted-foreground hover:text-foreground'}"
-							>
-								Brands
-							</button>
-							<button
-								type="button"
-								onclick={() => (heroOrgMode = 'rep')}
-								class="cursor-pointer rounded-full px-3 py-1 font-mono text-xs transition-colors {heroOrgMode ===
-								'rep'
-									? 'bg-foreground text-background'
-									: 'text-muted-foreground hover:text-foreground'}"
-							>
-								Sales
-							</button>
+						<!-- Brands / Sales toggle -->
+						<div class="mb-3 flex justify-center">
+							<div class="inline-flex items-center gap-0.5 rounded-md bg-neutral-300/50 p-1">
+								<button
+									type="button"
+									onclick={() => (heroOrgMode = 'brand')}
+									class="cursor-pointer rounded-md px-4 py-1.5 font-mono text-xs transition-colors {heroOrgMode ===
+									'brand'
+										? 'bg-neutral-200 text-foreground'
+										: 'text-muted-foreground hover:text-foreground'}"
+								>
+									Brands
+								</button>
+								<button
+									type="button"
+									onclick={() => (heroOrgMode = 'rep')}
+									class="cursor-pointer rounded-md px-4 py-1.5 font-mono text-xs transition-colors {heroOrgMode ===
+									'rep'
+										? 'bg-neutral-200 text-foreground'
+										: 'text-muted-foreground hover:text-foreground'}"
+								>
+									Sales
+								</button>
+							</div>
 						</div>
 
 						<BrowserWrapper class="mx-auto aspect-video max-w-[1200px]">
-							<Minithread />
+							<Minithread orgMode={heroOrgMode} />
 						</BrowserWrapper>
 
 						<!-- Notifications that slide in from the right -->
