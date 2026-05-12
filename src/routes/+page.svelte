@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
-	// import { resolve } from '$app/paths';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
 	import EmailSignup from '$lib/components/marketing/EmailSignup.svelte';
 	import InstallCta from '$lib/components/pwa/InstallCta.svelte';
+	import BrowserWrapper from '$lib/components/marketing/BrowserWrapper.svelte';
+	import Minithread from '$lib/components/marketing/minithread/Minithread.svelte';
 
 	let faqOpen = $state<number | null>(null);
 
@@ -113,8 +114,15 @@
 						</div>
 					</div>
 					<div
-						class="h-60 rounded-lg bg-neutral-200 p-6 sm:h-80 sm:p-8 md:h-100 md:min-h-180 md:p-12"
-					></div>
+						class="h-60 rounded-lg bg-neutral-200 p-6 pb-16 sm:h-80 sm:p-8 sm:pb-16 md:h-100 md:min-h-180 md:p-12 md:pb-16"
+					>
+						<BrowserWrapper class="mx-auto h-full max-w-[1200px]">
+							<Minithread />
+						</BrowserWrapper>
+						<p class="mt-3 text-center font-mono text-xs text-muted-foreground">
+							This is a demo version of our application.
+						</p>
+					</div>
 					<!-- <div
 						class="flex h-100 min-h-180 items-end rounded-4xl bg-black p-12"
 						style="background-image: url('https://images.unsplash.com/photo-1753029226995-74b05a344bb1?q=80&w=3087&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'); background-size: cover; background-position: center;"
@@ -356,7 +364,6 @@
 					<h2 class="text-3xl sm:text-4xl">Get early access to Threadline</h2>
 					<EmailSignup onsubmit={subscribeToBeta} />
 					<div class="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-						<span>Already have an account?</span>
 						<InstallCta />
 					</div>
 				</div>
