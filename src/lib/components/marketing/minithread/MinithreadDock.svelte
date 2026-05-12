@@ -19,8 +19,8 @@
 	}
 </script>
 
-<div class="flex justify-center p-3">
-	<div class="w-full max-w-[380px] rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10">
+<div class="flex justify-center px-3 pb-3">
+	<div class="w-full max-w-[520px] rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10">
 		<div class="px-4 pt-3 pb-2">
 			<!-- Text input row -->
 			<div class="flex items-center gap-3">
