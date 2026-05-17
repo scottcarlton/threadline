@@ -6,7 +6,7 @@
       "name": "threadline",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.82.0",
-        "@getbrevo/brevo": "^5.0.4",
+        "@getbrevo/brevo": "5.0.4",
         "@notionhq/client": "^5.17.0",
         "@sentry/sveltekit": "^10.48.0",
         "@supabase/ssr": "^0.10.0",

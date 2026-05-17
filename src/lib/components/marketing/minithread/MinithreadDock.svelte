@@ -9,6 +9,7 @@
 	function handleInput() {
 		const text = getInput();
 		hasInput = !!text;
+		// eslint-disable-next-line svelte/no-dom-manipulating
 		if (!text && inputEl) inputEl.innerHTML = '';
 	}
 

@@ -37,25 +37,17 @@
 
 	let shown = $state<number[]>([]);
 	let animatedEls: HTMLElement[] = [];
-	let animateRef: typeof import('motion').animate | null = null;
 
-	onMount(async () => {
-		const motion = await import('motion');
-		animateRef = motion.animate;
-	});
+	onMount(() => {
+		let cleanupScroll: (() => void) | undefined;
 
-	$effect(() => {
-		if (!visible) {
-			shown = [];
-			return;
-		}
+		(async () => {
+			const { animate } = await import('motion');
 
-		if (!animateRef) return;
-		const anim = animateRef;
+			if (!visible) return;
 
-		const timeouts: ReturnType<typeof setTimeout>[] = [];
-		notifications.forEach((_, i) => {
-			timeouts.push(
+			// Slide in staggered
+			notifications.forEach((_, i) => {
 				setTimeout(
 					() => {
 						shown = [...shown, i];
@@ -63,19 +55,62 @@
 						requestAnimationFrame(() => {
 							const el = animatedEls[i];
 							if (el) {
-								anim(el, { opacity: [0, 1], x: [80, 0] } as Parameters<typeof anim>[1], {
+								animate(el, { opacity: [0, 1], x: [80, 0] } as Parameters<typeof animate>[1], {
 									duration: 0.5,
 									ease: [0.16, 1, 0.3, 1]
 								});
 							}
 						});
 					},
-					600 + i * 400
-				)
-			);
-		});
+					300 + i * 250
+				);
+			});
 
-		return () => timeouts.forEach(clearTimeout);
+			// Slide out on scroll
+			let isOut = false;
+			let animating = false;
+
+			function onScroll() {
+				if (animating) return;
+
+				if (window.scrollY > 150 && !isOut) {
+					animating = true;
+					isOut = true;
+					notifications.forEach((_, i) => {
+						setTimeout(() => {
+							const el = animatedEls[i];
+							if (el) {
+								animate(el, { opacity: [1, 0], x: [0, 120] } as Parameters<typeof animate>[1], {
+									duration: 0.4,
+									ease: [0.16, 1, 0.3, 1]
+								});
+							}
+							if (i === notifications.length - 1) animating = false;
+						}, i * 200);
+					});
+				} else if (window.scrollY <= 50 && isOut) {
+					animating = true;
+					isOut = false;
+					notifications.forEach((_, i) => {
+						setTimeout(() => {
+							const el = animatedEls[i];
+							if (el) {
+								animate(el, { opacity: [0, 1], x: [120, 0] } as Parameters<typeof animate>[1], {
+									duration: 0.5,
+									ease: [0.16, 1, 0.3, 1]
+								});
+							}
+							if (i === notifications.length - 1) animating = false;
+						}, i * 200);
+					});
+				}
+			}
+
+			window.addEventListener('scroll', onScroll, { passive: true });
+			cleanupScroll = () => window.removeEventListener('scroll', onScroll);
+		})();
+
+		return () => cleanupScroll?.();
 	});
 </script>
 
