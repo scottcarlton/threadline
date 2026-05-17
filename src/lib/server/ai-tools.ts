@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getGmailClient, parseMessage, buildRawEmail } from './gmail.js';
 import { supabaseAdmin } from './supabase.js';
 import { computeAccountHealth } from './account-health.js';
+import { getSetupStatus } from './setup-status.js';
 import { sendSlackMessage } from './integrations/slack.js';
 import { sendDiscordMessage } from './integrations/discord.js';
 import {
@@ -141,6 +142,20 @@ export async function executeToolCall(
 			return syncNotion(toolInput, ctx);
 		case 'pull_from_notion':
 			return pullNotion(toolInput, ctx);
+		case 'check_setup_status':
+			return checkSetupStatus(ctx);
+		case 'update_org_settings':
+			return updateOrgSettings(toolInput, ctx);
+		case 'update_org_shipping':
+			return updateOrgShipping(toolInput, ctx);
+		case 'update_org_payments':
+			return updateOrgPayments(toolInput, ctx);
+		case 'update_org_taxes':
+			return updateOrgTaxes(toolInput, ctx);
+		case 'update_org_returns':
+			return updateOrgReturns(toolInput, ctx);
+		case 'skip_setup_section':
+			return skipSetupSection(toolInput, ctx);
 		default:
 			return { success: false, error: `Unknown tool: ${toolName}` };
 	}
@@ -2115,4 +2130,290 @@ async function pullNotion(input: Record<string, unknown>, ctx: ToolContext): Pro
 				'No pages found. Either Notion is not connected, the database ID is invalid, or the database is empty.'
 		};
 	return { success: true, data: { pages, count: pages.length } };
+}
+
+async function checkSetupStatus(ctx: ToolContext): Promise<ToolResult> {
+	try {
+		const status = await getSetupStatus(ctx.organizationId);
+		return { success: true, data: status };
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to check setup status'
+		};
+	}
+}
+
+async function updateOrgSettings(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+		if (input.address_line1 !== undefined) update.address_line1 = input.address_line1;
+		if (input.address_line2 !== undefined) update.address_line2 = input.address_line2;
+		if (input.city !== undefined) update.city = input.city;
+		if (input.state !== undefined) update.state = input.state;
+		if (input.zip !== undefined) update.zip = input.zip;
+		if (input.country !== undefined) update.country = input.country;
+		if (input.time_zone !== undefined) update.time_zone = input.time_zone;
+		if (input.legal_business_name !== undefined)
+			update.legal_business_name = input.legal_business_name;
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update settings'
+		};
+	}
+}
+
+async function updateOrgShipping(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+
+		if (input.use_business_address !== undefined)
+			update.shipping_use_business_address = input.use_business_address;
+		if (input.shipping_from_line1 !== undefined)
+			update.shipping_from_line1 = input.shipping_from_line1;
+		if (input.shipping_from_line2 !== undefined)
+			update.shipping_from_line2 = input.shipping_from_line2;
+		if (input.shipping_from_city !== undefined)
+			update.shipping_from_city = input.shipping_from_city;
+		if (input.shipping_from_state !== undefined)
+			update.shipping_from_state = input.shipping_from_state;
+		if (input.shipping_from_zip !== undefined) update.shipping_from_zip = input.shipping_from_zip;
+		if (input.shipping_from_country !== undefined)
+			update.shipping_from_country = input.shipping_from_country;
+		if (input.default_shipping_method_id !== undefined)
+			update.default_shipping_method_id = input.default_shipping_method_id;
+		if (input.free_threshold_enabled !== undefined)
+			update.shipping_free_threshold_enabled = input.free_threshold_enabled;
+		if (input.free_threshold_amount !== undefined)
+			update.shipping_free_threshold_amount = input.free_threshold_amount;
+
+		// If setting default by name, look up the method ID
+		if (input.default_method_name && typeof input.default_method_name === 'string') {
+			const { data: method } = await supabaseAdmin
+				.from('organization_shipping_methods')
+				.select('id')
+				.eq('organization_id', ctx.organizationId)
+				.ilike('name', `%${input.default_method_name}%`)
+				.limit(1)
+				.maybeSingle();
+
+			if (method) {
+				update.default_shipping_method_id = method.id;
+			}
+		}
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update shipping'
+		};
+	}
+}
+
+async function updateOrgPayments(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+
+		if (input.accepted_methods !== undefined)
+			update.accepted_payment_methods = input.accepted_methods;
+		if (input.default_method !== undefined) update.default_payment_method = input.default_method;
+		if (input.default_terms !== undefined) update.default_payment_terms = input.default_terms;
+		if (input.required_deposit_enabled !== undefined)
+			update.payments_required_deposit_enabled = input.required_deposit_enabled;
+		if (input.required_deposit_percent !== undefined)
+			update.payments_required_deposit_percent = input.required_deposit_percent;
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update payments'
+		};
+	}
+}
+
+async function updateOrgTaxes(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+
+		if (input.pricing_display !== undefined) update.taxes_pricing_display = input.pricing_display;
+		if (input.us_sales_tax_enabled !== undefined)
+			update.taxes_us_sales_tax_enabled = input.us_sales_tax_enabled;
+		if (input.us_ein !== undefined) update.taxes_us_ein = input.us_ein;
+		if (input.us_general_rate !== undefined) update.taxes_us_general_rate = input.us_general_rate;
+		if (input.vat_enabled !== undefined) update.taxes_vat_enabled = input.vat_enabled;
+		if (input.vat_registration !== undefined)
+			update.taxes_vat_registration = input.vat_registration;
+		if (input.vat_rate !== undefined) update.taxes_vat_rate = input.vat_rate;
+		if (input.gst_enabled !== undefined) update.taxes_gst_enabled = input.gst_enabled;
+		if (input.gst_registration !== undefined)
+			update.taxes_gst_registration = input.gst_registration;
+		if (input.gst_rate !== undefined) update.taxes_gst_rate = input.gst_rate;
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update taxes'
+		};
+	}
+}
+
+async function updateOrgReturns(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+
+		if (input.window_days !== undefined) update.returns_window_days = input.window_days;
+		if (input.policy_text !== undefined) update.returns_policy_text = input.policy_text || null;
+		if (input.use_ship_from_address !== undefined)
+			update.returns_use_ship_from_address = input.use_ship_from_address;
+		if (input.address_line1 !== undefined)
+			update.returns_address_line1 = input.address_line1 || null;
+		if (input.address_line2 !== undefined)
+			update.returns_address_line2 = input.address_line2 || null;
+		if (input.address_city !== undefined) update.returns_address_city = input.address_city || null;
+		if (input.address_state !== undefined)
+			update.returns_address_state = input.address_state || null;
+		if (input.address_zip !== undefined) update.returns_address_zip = input.address_zip || null;
+		if (input.address_country !== undefined)
+			update.returns_address_country = input.address_country || null;
+		if (input.restocking_fee_type !== undefined)
+			update.returns_restocking_fee_type = input.restocking_fee_type;
+		if (input.restocking_fee_value !== undefined)
+			update.returns_restocking_fee_value = input.restocking_fee_value;
+		if (input.buyer_pays_shipping !== undefined)
+			update.returns_buyer_pays_shipping = input.buyer_pays_shipping;
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update returns'
+		};
+	}
+}
+
+async function skipSetupSection(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	const section = input.section as string;
+	const validSections = ['orders', 'taxes', 'returns', 'members', 'products', 'accounts'];
+	if (!validSections.includes(section)) {
+		return {
+			success: false,
+			error: `Invalid section: ${section}. Must be one of: ${validSections.join(', ')}`
+		};
+	}
+
+	const status = input.status === 'completed' ? 'completed' : 'skipped';
+
+	try {
+		const { error } = await supabaseAdmin.from('org_setup_status').upsert(
+			{
+				organization_id: ctx.organizationId,
+				section,
+				status,
+				updated_at: new Date().toISOString()
+			},
+			{ onConflict: 'organization_id,section' }
+		);
+
+		if (error) return { success: false, error: error.message };
+		return { success: true, data: { section, status } };
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update section status'
+		};
+	}
 }
