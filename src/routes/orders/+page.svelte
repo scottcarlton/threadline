@@ -1610,20 +1610,20 @@
 		bind:open={showImport}
 		onOpenChange={(v) => (showImport = v)}
 		onImported={(result) => {
-			const created = result.created;
-			const skipped = result.skipped.length;
-			const errors = result.errors.length;
+			const { created, linesCreated, skipped, errors } = result;
 			if (created > 0) invalidateAll();
-			if (created === 0 && (skipped > 0 || errors > 0)) {
+			if (created === 0 && (skipped.length > 0 || errors.length > 0)) {
 				toast.error(
-					`No orders created. ${skipped} skipped, ${errors} failed. Check that accounts and styles exist.`
+					`No orders created. ${skipped.length} skipped, ${errors.length} failed. Check that accounts and styles exist.`
 				);
-			} else if (skipped > 0 || errors > 0) {
+			} else if (skipped.length > 0 || errors.length > 0) {
 				toast.success(
-					`${created} order${created === 1 ? '' : 's'} imported · ${skipped + errors} skipped`
+					`${created} order${created === 1 ? '' : 's'} imported (${linesCreated} lines) · ${skipped.length + errors.length} skipped`
 				);
 			} else {
-				toast.success(`${created} order${created === 1 ? '' : 's'} imported`);
+				toast.success(
+					`${created} order${created === 1 ? '' : 's'} imported (${linesCreated} lines)`
+				);
 			}
 		}}
 	/>

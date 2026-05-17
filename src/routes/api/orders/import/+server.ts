@@ -68,7 +68,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	const groups = groupOrderRows(rows);
-	const result: OrderImportResult = { created: 0, skipped: [], errors: [] };
+	const result: OrderImportResult = { created: 0, linesCreated: 0, skipped: [], errors: [] };
 
 	for (const group of groups) {
 		const accountId = accountByName.get(group.account.toLowerCase());
@@ -163,6 +163,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		result.created++;
+		result.linesCreated += validLines.length;
 	}
 
 	return json(result);
