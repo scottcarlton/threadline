@@ -2,21 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { orderImportSchema, type OrderImportResult } from '$lib/schemas/order-import.js';
-
-// Bulk order import endpoint. One CSV row = one order with one line
-// item (matches the legacy BulkImportModal contract — preserve for now,
-// improve in a follow-up if we want grouping by account).
-//
-// Per-row resolution:
-//   1. Look up account by business_name (case-insensitive) within the
-//      caller's org. Missing → skip row.
-//   2. Look up product by style_number within the org's self-brand.
-//      Missing → skip row.
-//   3. Insert orders row, then order_lines row. Either failure → push
-//      to errors and continue.
-//
-// Bulk-resolve accounts + products in two queries up front so we don't
-// fan out N round trips per row.
+import { groupOrderRows } from '$lib/components/orders/group-order-rows.js';
 
 const ALLOWED_ROLES = new Set(['admin', 'owner', 'member']);
 
@@ -46,8 +32,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const orgId = locals.organization.id;
 	const userId = locals.user.id;
 
-	// Resolve the org's self-brand once. Orders need a brand_id; the
-	// importer is single-brand only (matching the legacy flow).
 	const { data: selfBrand, error: brandErr } = await supabaseAdmin
 		.from('brands')
 		.select('id')
@@ -60,10 +44,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 	const brandId = selfBrand.id;
 
-	// Bulk-resolve accounts + products. Build lower-case keyed maps so
-	// per-row lookups are O(1). Pulls the full set for the org/brand —
-	// fine for current scale; if that ever blows up, swap in narrower
-	// IN-list filters keyed by the unique names actually referenced.
 	const { data: accountRows, error: accountsErr } = await supabaseAdmin
 		.from('accounts')
 		.select('id, business_name')
@@ -87,42 +67,53 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		});
 	}
 
+	const groups = groupOrderRows(rows);
 	const result: OrderImportResult = { created: 0, skipped: [], errors: [] };
 
-	// Per-row insert. Two writes (orders + order_lines) — keep them
-	// sequential so the order_id is available for the line.
-	for (let i = 0; i < rows.length; i++) {
-		const row = rows[i];
-		const rowNum = i + 1;
-
-		const accountId = accountByName.get(row.account.toLowerCase());
-		const product = productByStyle.get(row.style_number.toLowerCase());
-
-		if (!accountId && !product) {
-			result.skipped.push({
-				row: rowNum,
-				reason: `Account "${row.account}" not found and style "${row.style_number}" not in your catalog`
-			});
-			continue;
-		}
+	for (const group of groups) {
+		const accountId = accountByName.get(group.account.toLowerCase());
 		if (!accountId) {
-			result.skipped.push({
-				row: rowNum,
-				reason: `Account "${row.account}" not found`
-			});
-			continue;
-		}
-		if (!product) {
-			result.skipped.push({
-				row: rowNum,
-				reason: `Style "${row.style_number}" not in your catalog`
-			});
+			for (const line of group.lines) {
+				const rowNum = rows.indexOf(line) + 1;
+				result.skipped.push({ row: rowNum, reason: `Account "${group.account}" not found` });
+			}
 			continue;
 		}
 
-		const unitPrice = row.unit_price ?? product.wholesale_price;
-		const totalAmount = row.qty * unitPrice;
+		const validLines: {
+			row: number;
+			product_id: string;
+			style_number: string;
+			qty: number;
+			unit_price: number;
+			color: string | null;
+			size: string | null;
+		}[] = [];
 
+		for (const line of group.lines) {
+			const rowNum = rows.indexOf(line) + 1;
+			const product = productByStyle.get(line.style_number.toLowerCase());
+			if (!product) {
+				result.skipped.push({
+					row: rowNum,
+					reason: `Style "${line.style_number}" not in your catalog`
+				});
+				continue;
+			}
+			validLines.push({
+				row: rowNum,
+				product_id: product.id,
+				style_number: line.style_number,
+				qty: line.qty,
+				unit_price: line.unit_price ?? product.wholesale_price,
+				color: line.color,
+				size: line.size
+			});
+		}
+
+		if (validLines.length === 0) continue;
+
+		const firstRow = group.lines[0];
 		const { data: orderRow, error: orderErr } = await supabaseAdmin
 			.from('orders')
 			.insert({
@@ -132,34 +123,42 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				created_by: userId,
 				status: 'draft',
 				order_type: 'direct',
-				expected_ship_date: row.expected_ship_date,
-				notes: row.notes,
-				total_amount: totalAmount
+				expected_ship_date: firstRow.expected_ship_date,
+				notes: firstRow.notes
 			})
 			.select('id')
 			.single();
+
 		if (orderErr || !orderRow) {
-			result.errors.push({
-				row: rowNum,
-				reason: orderErr?.message ?? 'Failed to create order'
-			});
+			for (const vl of validLines) {
+				result.errors.push({
+					row: vl.row,
+					reason: orderErr?.message ?? 'Failed to create order'
+				});
+			}
 			continue;
 		}
 
-		const { error: lineErr } = await supabaseAdmin.from('order_lines').insert({
-			order_id: orderRow.id,
-			product_id: product.id,
-			style_number: row.style_number,
-			qty: row.qty,
-			unit_price: unitPrice,
-			color: row.color,
-			size: row.size
-		});
-		if (lineErr) {
-			result.errors.push({
-				row: rowNum,
-				reason: `Order created but line item failed — ${lineErr.message}`
-			});
+		const { error: linesErr } = await supabaseAdmin.from('order_lines').insert(
+			validLines.map((vl, idx) => ({
+				order_id: orderRow.id,
+				product_id: vl.product_id,
+				style_number: vl.style_number,
+				qty: vl.qty,
+				unit_price: vl.unit_price,
+				color: vl.color,
+				size: vl.size,
+				sort_order: idx
+			}))
+		);
+
+		if (linesErr) {
+			for (const vl of validLines) {
+				result.errors.push({
+					row: vl.row,
+					reason: `Order created but lines failed — ${linesErr.message}`
+				});
+			}
 			continue;
 		}
 
