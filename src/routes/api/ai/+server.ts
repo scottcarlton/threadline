@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
-import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT } from '$lib/server/ai-prompts.js';
+import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
@@ -1039,6 +1039,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			agentToolWhitelist = agentBySlug.tool_whitelist;
 			cleanMessage = message.slice(slugMatch[0].length);
 		}
+	}
+
+	// Built-in setup mode — bypass org_agents lookup
+	if (resolvedAgentId === 'setup') {
+		agentPrompt = SETUP_PROMPT;
 	}
 
 	if (resolvedAgentId && !agentPrompt) {
