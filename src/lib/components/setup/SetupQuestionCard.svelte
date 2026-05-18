@@ -349,52 +349,59 @@
 
 {#if step}
 	<div>
-		<!-- Header with nav -->
-		<div class="mb-4 flex items-center justify-between">
-			<p class="text-base font-medium text-zinc-100">
-				{#if subMode === 'product'}
-					{['Style & pricing', 'Images', 'Sizes & colors', 'Product added'][subStep]}
-				{:else if subMode === 'account'}
-					{['Business details', 'Primary contact', 'Account added'][subStep]}
-				{:else}
-					{step.question}
-				{/if}
-			</p>
-			<div class="flex items-center gap-2 text-sm text-zinc-500">
-				{#if subMode}
-					{#if subStep < (subMode === 'product' ? 3 : 2)}
-						<span>{subStep + 1} of {subMode === 'product' ? 3 : 2}</span>
-					{/if}
-				{:else}
-					{#if !isFirst}
-						<button
-							onclick={() => setupWizard.goBack()}
-							class="transition-colors hover:text-zinc-300"
-							aria-label="Previous question">&lt;</button
-						>
+		<!-- Header -->
+		<div class="mb-4">
+			<div class="flex items-center justify-between">
+				<p class="text-base font-medium text-zinc-100">{step.question}</p>
+				<div class="flex items-center gap-2 text-sm text-zinc-500">
+					{#if !subMode}
+						{#if !isFirst}
+							<button
+								onclick={() => setupWizard.goBack()}
+								class="transition-colors hover:text-zinc-300"
+								aria-label="Previous question">&lt;</button
+							>
+						{/if}
 					{/if}
 					<span>{current} of {total}</span>
-					{#if !isLast}
-						<button
-							onclick={() => setupWizard.goNext()}
-							class="transition-colors hover:text-zinc-300"
-							aria-label="Next question">&gt;</button
-						>
+					{#if !subMode}
+						{#if !isLast}
+							<button
+								onclick={() => setupWizard.goNext()}
+								class="transition-colors hover:text-zinc-300"
+								aria-label="Next question">&gt;</button
+							>
+						{/if}
 					{/if}
-				{/if}
-				<button
-					onclick={() => {
-						if (subMode) {
-							subMode = null;
-							subStep = 0;
-						} else {
-							setupWizard.close();
-						}
-					}}
-					class="ml-1 transition-colors hover:text-zinc-300"
-					aria-label={subMode ? 'Back to options' : 'Close setup'}>&times;</button
-				>
+					<button
+						onclick={() => {
+							if (subMode) {
+								subMode = null;
+								subStep = 0;
+							} else {
+								setupWizard.close();
+							}
+						}}
+						class="ml-1 transition-colors hover:text-zinc-300"
+						aria-label={subMode ? 'Back to options' : 'Close setup'}>&times;</button
+					>
+				</div>
 			</div>
+			{#if subMode === 'product'}
+				{@const labels = ['General Information', 'Images', 'Sizes & Colors']}
+				{#if subStep < labels.length}
+					<p class="mt-1 text-sm text-zinc-500">
+						{labels[subStep]} • {subStep + 1} of {labels.length}
+					</p>
+				{/if}
+			{:else if subMode === 'account'}
+				{@const labels = ['Business Details', 'Primary Contact']}
+				{#if subStep < labels.length}
+					<p class="mt-1 text-sm text-zinc-500">
+						{labels[subStep]} • {subStep + 1} of {labels.length}
+					</p>
+				{/if}
+			{/if}
 		</div>
 
 		<!-- Step content -->
@@ -556,7 +563,7 @@
 								/>
 							</div>
 						</div>
-						<div class="mt-4 flex items-center justify-end gap-2">
+						<div class="mt-4 flex items-center justify-between">
 							<button
 								onclick={() => {
 									subMode = null;
@@ -564,6 +571,13 @@
 								}}
 								class={dockBtn}>Back</button
 							>
+							<div class="flex gap-1.5">
+								{#each [0, 1, 2] as i (i)}
+									<div
+										class="h-1.5 w-10 rounded-full {i <= subStep ? 'bg-zinc-100' : 'bg-zinc-700'}"
+									></div>
+								{/each}
+							</div>
 							<button
 								onclick={() => {
 									subStep = 1;
@@ -624,13 +638,20 @@
 						<p class="mt-2 text-sm text-zinc-500">
 							JPG, PNG, WebP, or AVIF. Square ratio recommended.
 						</p>
-						<div class="mt-4 flex items-center justify-end gap-2">
+						<div class="mt-4 flex items-center justify-between">
 							<button
 								onclick={() => {
 									subStep = 0;
 								}}
 								class={dockBtn}>Back</button
 							>
+							<div class="flex gap-1.5">
+								{#each [0, 1, 2] as i (i)}
+									<div
+										class="h-1.5 w-10 rounded-full {i <= subStep ? 'bg-zinc-100' : 'bg-zinc-700'}"
+									></div>
+								{/each}
+							</div>
 							<button
 								onclick={() => {
 									subStep = 2;
@@ -688,13 +709,20 @@
 								/>
 							</div>
 						</div>
-						<div class="mt-4 flex items-center justify-end gap-2">
+						<div class="mt-4 flex items-center justify-between">
 							<button
 								onclick={() => {
 									subStep = 1;
 								}}
 								class={dockBtn}>Back</button
 							>
+							<div class="flex gap-1.5">
+								{#each [0, 1, 2] as i (i)}
+									<div
+										class="h-1.5 w-10 rounded-full {i <= subStep ? 'bg-zinc-100' : 'bg-zinc-700'}"
+									></div>
+								{/each}
+							</div>
 							<button onclick={submitProduct} disabled={saving} class={dockBtnPrimary}>
 								{saving ? 'Adding…' : 'Add Product'}
 							</button>
@@ -747,7 +775,7 @@
 								/>
 							</div>
 						</div>
-						<div class="mt-4 flex items-center justify-end gap-2">
+						<div class="mt-4 flex items-center justify-between">
 							<button
 								onclick={() => {
 									subMode = null;
@@ -755,6 +783,13 @@
 								}}
 								class={dockBtn}>Back</button
 							>
+							<div class="flex gap-1.5">
+								{#each [0, 1] as i (i)}
+									<div
+										class="h-1.5 w-10 rounded-full {i <= subStep ? 'bg-zinc-100' : 'bg-zinc-700'}"
+									></div>
+								{/each}
+							</div>
 							<button
 								onclick={() => {
 									subStep = 1;
@@ -791,13 +826,20 @@
 								<Input bind:value={acctPhone} placeholder="(555) 123-4567" class={dockInput} />
 							</div>
 						</div>
-						<div class="mt-4 flex items-center justify-end gap-2">
+						<div class="mt-4 flex items-center justify-between">
 							<button
 								onclick={() => {
 									subStep = 0;
 								}}
 								class={dockBtn}>Back</button
 							>
+							<div class="flex gap-1.5">
+								{#each [0, 1] as i (i)}
+									<div
+										class="h-1.5 w-10 rounded-full {i <= subStep ? 'bg-zinc-100' : 'bg-zinc-700'}"
+									></div>
+								{/each}
+							</div>
 							<button onclick={submitAccount} disabled={saving} class={dockBtnPrimary}>
 								{saving ? 'Adding…' : 'Add Account'}
 							</button>
