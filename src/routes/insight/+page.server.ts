@@ -4,6 +4,7 @@ import { refreshInsights } from '$lib/server/insights-engine.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listConnectedReps, listFederatedOrders } from '$lib/server/federation.js';
 import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
+import { getSetupStatus } from '$lib/server/setup-status.js';
 
 type BrandTopAccount = {
 	account_id: string;
@@ -39,7 +40,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			showSummary: [],
 			showAppointments: [],
 			styleVelocity: [],
-			velocityWindow: 14
+			velocityWindow: 14,
+			setupStatus: null
 		};
 	}
 
@@ -134,7 +136,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			showSummary: [],
 			showAppointments: [],
 			styleVelocity: [],
-			velocityWindow: 14
+			velocityWindow: 14,
+			setupStatus: null
 		};
 	}
 
@@ -653,7 +656,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		commBrandParam,
 		commMonthParam,
 		styleVelocity,
-		velocityWindow
+		velocityWindow,
+		setupStatus: null
 	};
 };
 
@@ -667,6 +671,8 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 	// and union helpers + queries across them.
 	const brandOrgIds = Array.isArray(brandOrgIdInput) ? brandOrgIdInput : [brandOrgIdInput];
 	const primaryOrgId = brandOrgIds[0];
+
+	const setupStatus = await getSetupStatus(primaryOrgId);
 
 	// Refresh insight_actions on every visit — cheap, and keeps cards fresh against
 	// newly quiet reps, newly submitted orders, etc. Run per-org for Nx-BLSR.
@@ -891,12 +897,17 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 	const hasConnectedRep = activeReps.length > 0 || (salesRepCount.count ?? 0) > 0;
 	const hasOrder = federatedOrders.length > 0;
 	const hasTeammates = (teammateCount.count ?? 0) > 1;
+
+	const setupComplete = setupStatus.address && setupStatus.shipping && setupStatus.payments;
+
 	const checklist = {
+		...setupStatus,
+		setupComplete,
 		hasProducts,
 		hasConnectedRep,
 		hasOrder,
 		hasTeammates,
-		complete: hasProducts && hasConnectedRep && hasOrder && hasTeammates
+		complete: setupComplete && setupStatus.products && setupStatus.accounts
 	};
 
 	// Browse-the-data payload (demoted but preserved)
@@ -917,6 +928,7 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 		scoreboard,
 		brandBrowse: browse,
 		brandChecklist: checklist as typeof checklist | null,
+		setupStatus,
 		// Rep-centric fields left empty so the shared page's type stays stable.
 		seasonSummary: [],
 		yearlySummary: [],

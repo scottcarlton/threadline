@@ -502,6 +502,13 @@
 		}
 		conversation.sendMessage(prompt);
 	}
+
+	function handleSetupWithStitch() {
+		conversation.setAgent({ id: 'setup', name: 'Setup', slug: 'setup' });
+		const input = document.getElementById('ai-dock-input') as HTMLInputElement;
+		if (input) input.focus();
+		conversation.sendMessage('Help me finish setting up my organization');
+	}
 </script>
 
 {#if data.isBrandOrg}
@@ -512,98 +519,118 @@
 		currency: 'USD',
 		maximumFractionDigits: 0
 	})}
-	{@const checklistDone = [
-		cl?.hasProducts,
-		cl?.hasConnectedRep,
-		cl?.hasOrder,
-		cl?.hasTeammates
-	].filter(Boolean).length}
 	<div class="space-y-8">
-		<header>
-			<h1 class="text-3xl">Insight</h1>
-			<p class="mt-1 text-sm text-muted-foreground">
-				What matters today across your connected rep network.
-			</p>
-		</header>
-
-		<!-- Onboarding checklist (Phase C) — disappears when all 4 are true -->
 		{#if cl && !cl.complete}
-			<Card>
-				<CardHeader>
-					<div class="flex items-center justify-between">
-						<div>
-							<CardTitle class="text-base">Finish setting up your brand portal</CardTitle>
-							<CardDescription>
-								{checklistDone} of 4 done — a few more steps to unlock the full dashboard.
-							</CardDescription>
+			{@const ss = data.setupStatus}
+			{@const settingsDone = [
+				ss?.address,
+				ss?.shipping,
+				ss?.returns,
+				ss?.payments,
+				ss?.taxes
+			].filter(Boolean).length}
+			{@const systemDone = [ss?.products, ss?.accounts, ss?.members].filter(Boolean).length}
+
+			<div class="mb-6">
+				<h1 class="text-3xl font-bold">{firstName}, let's finish setting you up.</h1>
+				<p class="mt-1 text-muted-foreground">
+					To fully unlock the benefits we need to finish setting up your organization.
+				</p>
+			</div>
+
+			<Card class="mb-8">
+				<CardContent class="p-6">
+					<h2 class="text-lg font-semibold">Finish setup</h2>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Our system is designed to help you get setup as quick as possible. Use Stitch below to
+						help you finish setup step by step, contact us or even setup the old fashion way,
+						manually, below.
+					</p>
+					<div class="mt-4 flex items-center justify-between">
+						<div class="flex gap-4">
+							<Button variant="outline" onclick={handleSetupWithStitch}>Use Stitch</Button>
+							<Button variant="outline" href="#setup-checklist">Manual</Button>
 						</div>
-						<div class="flex gap-1">
-							{#each [0, 1, 2, 3] as i (i)}
-								<div
-									class="h-1.5 w-8 rounded-full {i < checklistDone ? 'bg-foreground' : 'bg-border'}"
-								></div>
-							{/each}
-						</div>
+						<Button variant="ghost" href="mailto:hello@threadline.systems">Contact us</Button>
 					</div>
-				</CardHeader>
-				<CardContent>
-					<ul class="divide-y">
-						<li class="flex items-center justify-between py-3">
-							<div class="flex items-center gap-3">
-								<span class="text-lg">{cl.hasProducts ? '✓' : '○'}</span>
-								<div>
-									<div class="font-medium">Upload your catalog</div>
-									<div class="text-sm text-muted-foreground">
-										Add products buyers and reps can actually order.
-									</div>
-								</div>
-							</div>
-							{#if !cl.hasProducts}
-								<Button size="sm" href="/products">Add products</Button>
-							{/if}
-						</li>
-						<li class="flex items-center justify-between py-3">
-							<div class="flex items-center gap-3">
-								<span class="text-lg">{cl.hasConnectedRep ? '✓' : '○'}</span>
-								<div>
-									<div class="font-medium">Connect your first rep</div>
-									<div class="text-sm text-muted-foreground">
-										Generate an invite link and share it with your rep agency.
-									</div>
-								</div>
-							</div>
-							{#if !cl.hasConnectedRep}
-								<Button size="sm" href="/organization/partners">Invite reps</Button>
-							{/if}
-						</li>
-						<li class="flex items-center justify-between py-3">
-							<div class="flex items-center gap-3">
-								<span class="text-lg">{cl.hasOrder ? '✓' : '○'}</span>
-								<div>
-									<div class="font-medium">Receive your first order</div>
-									<div class="text-sm text-muted-foreground">
-										Once a connected rep writes an order, it lands here.
-									</div>
-								</div>
-							</div>
-						</li>
-						<li class="flex items-center justify-between py-3">
-							<div class="flex items-center gap-3">
-								<span class="text-lg">{cl.hasTeammates ? '✓' : '○'}</span>
-								<div>
-									<div class="font-medium">Invite teammates</div>
-									<div class="text-sm text-muted-foreground">
-										Add people from your brand org so you're not working solo.
-									</div>
-								</div>
-							</div>
-							{#if !cl.hasTeammates}
-								<Button size="sm" href="/organization/members">Invite team</Button>
-							{/if}
-						</li>
-					</ul>
 				</CardContent>
 			</Card>
+
+			<div id="setup-checklist" class="grid grid-cols-1 gap-12 lg:grid-cols-2">
+				<!-- Settings column -->
+				<div>
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">Settings</h2>
+						<span class="text-sm text-muted-foreground">{settingsDone} of 5</span>
+					</div>
+					<ul class="space-y-3">
+						{#each [{ label: 'Orders', done: ss?.orders, href: '/organization/orders' }, { label: 'Shipping', done: ss?.shipping, href: '/organization/shipping' }, { label: 'Returns', done: ss?.returns, href: '/organization/returns' }, { label: 'Payments', done: ss?.payments, href: '/organization/payments' }, { label: 'Taxes', done: ss?.taxes, href: '/organization/taxes' }] as item (item.label)}
+							<li class="flex items-center justify-between">
+								<div class="flex items-center gap-3">
+									<span class="text-sm">{item.done ? '●' : '○'}</span>
+									<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+										>{item.label}</a
+									>
+								</div>
+								{#if !item.done}
+									<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+										>Setup</a
+									>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</div>
+
+				<!-- System column -->
+				<div>
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">System</h2>
+						<span class="text-sm text-muted-foreground">{systemDone} of 3</span>
+					</div>
+					<ul class="space-y-3">
+						{#each [{ label: 'Products', done: ss?.products, href: '/products' }, { label: 'Accounts', done: ss?.accounts, href: '/accounts' }, { label: 'Members', done: ss?.members, href: '/organization/members' }] as item (item.label)}
+							<li class="flex items-center justify-between">
+								<div class="flex items-center gap-3">
+									<span class="text-sm">{item.done ? '●' : '○'}</span>
+									<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+										>{item.label}</a
+									>
+								</div>
+								{#if !item.done}
+									<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+										>Setup</a
+									>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</div>
+			</div>
+
+			<!-- Profile -->
+			<div class="mt-8">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-3">
+						<span class="text-sm">{ss?.profile ? '●' : '○'}</span>
+						<a href="/organization" class="text-sm font-medium text-primary hover:underline"
+							>Profile</a
+						>
+					</div>
+					{#if !ss?.profile}
+						<a href="/organization" class="text-sm font-medium text-primary hover:underline"
+							>Setup</a
+						>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<header>
+				<h1 class="text-3xl">Insight</h1>
+				<p class="mt-1 text-sm text-muted-foreground">
+					What matters today across your connected rep network.
+				</p>
+			</header>
 		{/if}
 
 		<!-- Scoreboard + ActionFeed: the hero -->
