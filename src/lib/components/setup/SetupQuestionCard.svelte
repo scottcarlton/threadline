@@ -34,28 +34,37 @@
 
 	async function save(answer: string | string[]) {
 		if (!step || saving) return;
+		const currentStepId = step.id;
+		const currentIdx = wizard.currentIndex;
+		const totalSteps = wizard.steps.length;
 		saving = true;
-		setupWizard.saveAnswer(step.id, answer);
 
 		try {
 			const res = await fetch('/api/setup/save', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ step: step.id, value: answer })
+				body: JSON.stringify({ step: currentStepId, value: answer })
 			});
-			if (!res.ok) console.error('Save failed:', await res.text());
+			if (!res.ok) {
+				console.error('Save failed:', await res.text());
+				saving = false;
+				return;
+			}
 		} catch (err) {
 			console.error('Save error:', err);
+			saving = false;
+			return;
 		}
 
-		saving = false;
+		setupWizard.saveAnswer(currentStepId, answer);
 
-		if (wizard.currentIndex < wizard.steps.length - 1) {
+		if (currentIdx < totalSteps - 1) {
 			setupWizard.goNext();
 		} else {
 			setupWizard.close();
 			await invalidateAll();
 		}
+		saving = false;
 	}
 </script>
 
