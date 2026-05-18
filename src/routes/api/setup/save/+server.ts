@@ -162,9 +162,12 @@ async function handleStructuredStep(
 					business_name: v.businessName,
 					contact_name: v.contactName || null,
 					contact_email: v.contactEmail || null,
-					contact_phone: v.contactPhone || null,
+					phone: v.contactPhone || null,
+					address_line1: v.addressLine1 || null,
+					address_line2: v.addressLine2 || null,
 					city: v.city || null,
 					state: v.state || null,
+					zip: v.zip || null,
 					is_active: true
 				});
 				if (accErr) throw accErr;

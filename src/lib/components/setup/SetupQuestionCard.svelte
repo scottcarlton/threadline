@@ -59,6 +59,11 @@
 	// Account fields
 	let acctBizName = $state('');
 	let acctWebsite = $state('');
+	let acctAddr1 = $state('');
+	let acctAddr2 = $state('');
+	let acctCity = $state('');
+	let acctState = $state('');
+	let acctZip = $state('');
 	let acctFirstName = $state('');
 	let acctLastName = $state('');
 	let acctEmail = $state('');
@@ -89,6 +94,11 @@
 		prodImagePreview = '';
 		acctBizName = '';
 		acctWebsite = '';
+		acctAddr1 = '';
+		acctAddr2 = '';
+		acctCity = '';
+		acctState = '';
+		acctZip = '';
 		acctFirstName = '';
 		acctLastName = '';
 		acctEmail = '';
@@ -274,8 +284,11 @@
 						contactName: [acctFirstName.trim(), acctLastName.trim()].filter(Boolean).join(' '),
 						contactEmail: acctEmail.trim(),
 						contactPhone: acctPhone.trim(),
-						city: '',
-						state: ''
+						addressLine1: acctAddr1.trim(),
+						addressLine2: acctAddr2.trim(),
+						city: acctCity.trim(),
+						state: acctState.trim(),
+						zip: acctZip.trim()
 					}
 				})
 			});
@@ -320,6 +333,11 @@
 	function resetAccountFields() {
 		acctBizName = '';
 		acctWebsite = '';
+		acctAddr1 = '';
+		acctAddr2 = '';
+		acctCity = '';
+		acctState = '';
+		acctZip = '';
 		acctFirstName = '';
 		acctLastName = '';
 		acctEmail = '';
@@ -773,6 +791,20 @@
 									placeholder="e.g. bloomboutique.com"
 									class={dockInput}
 								/>
+							</div>
+							<div>
+								<label class="mb-1 block text-sm text-zinc-400">Address</label>
+								<Input bind:value={acctAddr1} placeholder="Street address" class={dockInput} />
+							</div>
+							<Input
+								bind:value={acctAddr2}
+								placeholder="Apt, suite, etc. (optional)"
+								class={dockInput}
+							/>
+							<div class="grid grid-cols-[1fr_80px_100px] gap-2">
+								<Input bind:value={acctCity} placeholder="City" class={dockInput} />
+								<Input bind:value={acctState} placeholder="State" class={dockInput} />
+								<Input bind:value={acctZip} placeholder="ZIP" class={dockInput} />
 							</div>
 						</div>
 						<div class="mt-4 flex items-center justify-between">

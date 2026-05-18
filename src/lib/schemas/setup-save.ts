@@ -43,6 +43,21 @@ const gatewayPayload = z.object({
 	value: z.enum(['yes', 'skip'])
 });
 
+const accountManualPayload = z.object({
+	step: z.literal('account-manual'),
+	value: z.object({
+		businessName: z.string().trim().min(1, 'Business name is required').max(255),
+		contactName: z.string().trim().max(255).default(''),
+		contactEmail: z.union([z.literal(''), z.string().trim().email()]).default(''),
+		contactPhone: z.string().trim().max(20).default(''),
+		addressLine1: z.string().trim().max(255).default(''),
+		addressLine2: z.string().trim().max(255).default(''),
+		city: z.string().trim().max(255).default(''),
+		state: z.string().trim().max(64).default(''),
+		zip: z.string().trim().max(20).default('')
+	})
+});
+
 const productManualPayload = z.object({
 	step: z.literal('product-manual'),
 	value: z.object({
@@ -62,7 +77,8 @@ export const setupSaveSchema = z.discriminatedUnion('step', [
 	shippingDefaultPayload,
 	paymentMethodsPayload,
 	paymentTermsPayload,
-	productManualPayload
+	productManualPayload,
+	accountManualPayload
 ]);
 
 export const setupGatewaySchema = gatewayPayload;
