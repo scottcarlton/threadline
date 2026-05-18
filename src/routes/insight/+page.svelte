@@ -945,331 +945,66 @@
 	{@const cl = data.setupChecklist}
 	{@const done = [cl.hasBrands, cl.hasProducts, cl.hasAccounts].filter(Boolean).length}
 	<div class="space-y-8">
-		<div>
-			<p class="text-sm text-muted-foreground">
-				<span class="font-mono"
-					>{new Date().toLocaleDateString('en-US', {
-						weekday: 'long',
-						month: 'long',
-						day: 'numeric'
-					})}</span
-				>
+		<div class="mb-6">
+			<h1 class="text-3xl font-bold">{firstName}, let's finish setting you up.</h1>
+			<p class="mt-1 text-muted-foreground">
+				Complete the setup steps below to unlock your full dashboard.
 			</p>
-			<h1 class="mt-1 text-4xl">Welcome to Threadline, {firstName}.</h1>
-			<p class="mt-3 text-base text-muted-foreground">
-				Your AI-powered wholesale management platform. Complete the setup steps to unlock your full
-				dashboard.
-			</p>
-			<div class="mt-4 flex gap-4">
-				<Button variant="outline" onclick={handleRepSetupWithStitch}>Use Stitch</Button>
-			</div>
 		</div>
 
-		<div class="grid grid-cols-[1fr_360px] gap-10">
-			<!-- Left: Features & quick start -->
-			<div class="space-y-8">
-				<!-- What you can do -->
-				<div>
-					<h2 class="text-lg font-semibold">What you'll be able to do</h2>
-					<div class="mt-4 grid gap-3 sm:grid-cols-2">
-						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-medium">AI-powered insights</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									Ask about revenue, commissions, and trends in plain English.
-								</p>
-							</div>
-						</div>
-						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-medium">Order management</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									Create, track, and manage wholesale orders end-to-end.
-								</p>
-							</div>
-						</div>
-						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-medium">Email drafting</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									AI writes professional emails, you review and send via Gmail.
-								</p>
-							</div>
-						</div>
-						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-medium">Account health</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									Track at-risk accounts and get follow-up recommendations.
-								</p>
-							</div>
-						</div>
+		<Card class="mb-8">
+			<CardContent class="p-6">
+				<h2 class="text-lg font-semibold">Finish setup</h2>
+				<p class="mt-1 text-sm text-muted-foreground">
+					Use Stitch below to help you finish setup step by step, or set things up manually.
+				</p>
+				<div class="mt-4 flex items-center justify-between">
+					<div class="flex gap-4">
+						<Button variant="outline" onclick={handleRepSetupWithStitch}>Use Stitch</Button>
+						<Button variant="outline" href="#setup-checklist">Manual</Button>
 					</div>
+					<Button variant="ghost" href="mailto:hello@threadline.systems">Contact us</Button>
 				</div>
+			</CardContent>
+		</Card>
 
-				<!-- Try asking -->
-				<div>
-					<h2 class="text-lg font-semibold">Try asking</h2>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Use Stitch at the bottom of the screen anytime.
-					</p>
-					<div class="mt-4 flex flex-wrap gap-2">
-						<button
-							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-ghost active:scale-[0.98]"
-							onclick={() =>
-								handleShortcut(
-									"Help me draft a professional email. Who should I write to and what's the context?"
-								)}>Draft an email</button
-						>
-						<button
-							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-ghost active:scale-[0.98]"
-							onclick={() => handleShortcut('What can you help me with?')}>What can you do?</button
-						>
-						<button
-							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-ghost active:scale-[0.98]"
-							onclick={() =>
-								handleShortcut('Walk me through setting up my first brand and product catalog.')}
-							>Help me get started</button
-						>
-					</div>
-				</div>
+		<div id="setup-checklist">
+			<div class="mb-4 flex items-center justify-between">
+				<h2 class="text-lg font-semibold">Get started</h2>
+				<span class="text-sm text-muted-foreground">{done} of 3</span>
+			</div>
+			<div class="mb-4 h-1.5 w-full rounded-full bg-muted">
+				<div
+					class="h-1.5 rounded-full bg-foreground transition-all duration-500"
+					style="width: {(done / 3) * 100}%"
+				></div>
 			</div>
 
-			<!-- Right: Setup checklist -->
-			<div class="sticky top-6 space-y-6 self-start">
-				<div>
-					<h2 class="text-lg font-semibold">Get started</h2>
-					<p class="mt-1 text-sm text-muted-foreground">{done} of 4 complete</p>
-					<div class="mt-3 h-1.5 w-full rounded-full bg-muted">
-						<div
-							class="h-1.5 rounded-full bg-foreground transition-all duration-500"
-							style="width: {(done / 4) * 100}%"
-						></div>
-					</div>
-				</div>
-
-				<div class="space-y-2">
-					<!-- 1. Add a brand -->
-					<div
-						class="flex items-center gap-3 rounded-lg border p-4 {cl.hasBrands ? 'opacity-60' : ''}"
-					>
-						<div
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {cl.hasBrands
-								? 'bg-foreground'
-								: 'border-2'}"
-						>
-							{#if cl.hasBrands}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-background"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
+			<ul class="space-y-3">
+				{#each [{ label: 'Add a brand', desc: 'The fashion labels you represent.', done: cl.hasBrands, href: '/brands/new', blocked: false }, { label: 'Add products', desc: 'Build your product catalog.', done: cl.hasProducts, href: cl.firstBrandId ? `/brands/${cl.firstBrandId}/products/new` : null, blocked: !cl.hasBrands }, { label: 'Create an account', desc: 'The buyers and retailers you sell to.', done: cl.hasAccounts, href: '/accounts/new', blocked: false }] as item (item.label)}
+					<li class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<span class="text-sm">{item.done ? '●' : '○'}</span>
+							{#if item.href && !item.done && !item.blocked}
+								<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+									>{item.label}</a
 								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-								</svg>
+							{:else}
+								<span class="text-sm font-medium">{item.label}</span>
 							{/if}
 						</div>
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-semibold {cl.hasBrands ? 'line-through' : ''}">Add a brand</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">The fashion labels you represent.</p>
-						</div>
-						{#if !cl.hasBrands}
-							<a
-								href={resolve('/brands/new')}
-								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-								>Add</a
-							>
-						{/if}
-					</div>
-
-					<!-- 2. Add products -->
-					<div
-						class="flex items-center gap-3 rounded-lg border p-4 {cl.hasProducts
-							? 'opacity-60'
-							: ''}"
-					>
-						<div
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {cl.hasProducts
-								? 'bg-foreground'
-								: 'border-2'}"
-						>
-							{#if cl.hasProducts}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-background"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
+						{#if !item.done}
+							{#if item.blocked}
+								<span class="text-sm text-muted-foreground">Brand first</span>
+							{:else if item.href}
+								<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+									>Setup</a
 								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-								</svg>
 							{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-semibold {cl.hasProducts ? 'line-through' : ''}">
-								Add products
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">Build your product catalog.</p>
-						</div>
-						{#if !cl.hasProducts && cl.hasBrands && cl.firstBrandId}
-							<a
-								href={resolve(`/brands/${cl.firstBrandId}/products/new`)}
-								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-								>Add</a
-							>
-						{:else if !cl.hasProducts && !cl.hasBrands}
-							<span class="shrink-0 text-sm text-muted-foreground">Brand first</span>
 						{/if}
-					</div>
-
-					<!-- 3. Create an account -->
-					<div
-						class="flex items-center gap-3 rounded-lg border p-4 {cl.hasAccounts
-							? 'opacity-60'
-							: ''}"
-					>
-						<div
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {cl.hasAccounts
-								? 'bg-foreground'
-								: 'border-2'}"
-						>
-							{#if cl.hasAccounts}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-background"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
-								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-								</svg>
-							{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-semibold {cl.hasAccounts ? 'line-through' : ''}">
-								Create an account
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								Retail buyers and stores you sell to.
-							</p>
-						</div>
-						{#if !cl.hasAccounts}
-							<a
-								href={resolve('/accounts/new')}
-								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-								>Add</a
-							>
-						{/if}
-					</div>
-
-					<!-- 4. Create an order -->
-					<div
-						class="flex items-center gap-3 rounded-lg border p-4 {cl.hasOrders ? 'opacity-60' : ''}"
-					>
-						<div
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {cl.hasOrders
-								? 'bg-foreground'
-								: 'border-2'}"
-						>
-							{#if cl.hasOrders}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-background"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
-								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-								</svg>
-							{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-semibold {cl.hasOrders ? 'line-through' : ''}">
-								Create your first order
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">Tie it all together.</p>
-						</div>
-						{#if !cl.hasOrders && cl.hasBrands && cl.hasAccounts}
-							<a
-								href={resolve('/orders/new')}
-								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-								>Create</a
-							>
-						{:else if !cl.hasOrders}
-							<span class="shrink-0 text-sm text-muted-foreground">Brand & account first</span>
-						{/if}
-					</div>
-				</div>
-			</div>
+					</li>
+				{/each}
+			</ul>
 		</div>
 	</div>
 {:else}

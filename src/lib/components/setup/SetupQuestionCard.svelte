@@ -509,23 +509,25 @@
 				<p class="text-base font-medium text-zinc-100">{step.question}</p>
 				<div class="flex items-center gap-2 text-sm text-zinc-500">
 					{#if !subMode}
-						{#if !isFirst}
-							<button
-								onclick={() => setupWizard.goBack()}
-								class="transition-colors hover:text-zinc-300"
-								aria-label="Previous question">&lt;</button
-							>
-						{/if}
+						<button
+							onclick={() => setupWizard.goBack()}
+							disabled={isFirst}
+							class="transition-colors {isFirst
+								? 'cursor-default opacity-30'
+								: 'hover:text-zinc-300'}"
+							aria-label="Previous question">&lt;</button
+						>
 					{/if}
 					<span>{current} of {total}</span>
 					{#if !subMode}
-						{#if !isLast}
-							<button
-								onclick={() => setupWizard.goNext()}
-								class="transition-colors hover:text-zinc-300"
-								aria-label="Next question">&gt;</button
-							>
-						{/if}
+						<button
+							onclick={() => setupWizard.goNext()}
+							disabled={isLast}
+							class="transition-colors {isLast
+								? 'cursor-default opacity-30'
+								: 'hover:text-zinc-300'}"
+							aria-label="Next question">&gt;</button
+						>
 					{/if}
 					<button
 						onclick={() => {
