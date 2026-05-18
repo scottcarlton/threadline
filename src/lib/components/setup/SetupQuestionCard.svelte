@@ -6,7 +6,7 @@
 	import { toast } from 'svelte-sonner';
 
 	const dockInput =
-		'border-zinc-700 bg-zinc-900 text-zinc-200 placeholder:text-zinc-600 focus-visible:border-zinc-500';
+		'border-zinc-700 bg-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus-visible:border-zinc-500';
 	const dockBtn =
 		'rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200';
 	const dockBtnPrimary =
@@ -546,7 +546,7 @@
 											min="0"
 											placeholder="0.00"
 											bind:value={prodWholesale}
-											class="min-w-0 flex-1 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+											class="min-w-0 flex-1 bg-zinc-800 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
 										/>
 									</div>
 								</div>
@@ -565,7 +565,7 @@
 											min="0"
 											placeholder="0.00"
 											bind:value={prodRetail}
-											class="min-w-0 flex-1 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+											class="min-w-0 flex-1 bg-zinc-800 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
 										/>
 									</div>
 								</div>
