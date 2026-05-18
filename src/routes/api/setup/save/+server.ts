@@ -152,6 +152,22 @@ async function handleStructuredStep(
 				const { error: varErr } = await supabaseAdmin.from('product_variants').insert(variants);
 				if (varErr) throw varErr;
 
+				return json({ success: true, productId: product.id });
+			}
+
+			case 'account-manual': {
+				const v = data.value;
+				const { error: accErr } = await supabaseAdmin.from('accounts').insert({
+					organization_id: orgId,
+					business_name: v.businessName,
+					contact_name: v.contactName || null,
+					contact_email: v.contactEmail || null,
+					contact_phone: v.contactPhone || null,
+					city: v.city || null,
+					state: v.state || null,
+					is_active: true
+				});
+				if (accErr) throw accErr;
 				break;
 			}
 		}

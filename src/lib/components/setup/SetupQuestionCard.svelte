@@ -53,6 +53,8 @@
 	let prodImageEl: HTMLInputElement | undefined = $state();
 	let prodImageFile = $state<File | null>(null);
 	let prodImagePreview = $state('');
+	let prodSizeMode = $state<'letter' | 'numeric'>('letter');
+	let prodSelectedSizes = $state<string[]>([]);
 
 	// Account fields
 	let acctBizName = $state('');
@@ -205,7 +207,7 @@
 
 	// ── Product submit ──
 	async function submitProduct() {
-		if (!prodStyle.trim() || !prodName.trim() || !prodWholesale.trim()) return;
+		if (!prodStyle.trim() || !prodName.trim() || !prodWholesale) return;
 		saving = true;
 
 		try {
@@ -218,12 +220,9 @@
 						styleNumber: prodStyle.trim(),
 						name: prodName.trim(),
 						wholesalePrice: parseFloat(prodWholesale),
-						retailPrice: prodRetail.trim() ? parseFloat(prodRetail) : undefined,
+						retailPrice: prodRetail ? parseFloat(prodRetail) : undefined,
 						category: prodCategory.trim(),
-						sizes: prodSizes
-							.split(',')
-							.map((s: string) => s.trim())
-							.filter(Boolean),
+						sizes: prodSelectedSizes,
 						colors: prodColors
 							.split(',')
 							.map((s: string) => s.trim())
@@ -239,30 +238,19 @@
 				return;
 			}
 
-			// Upload image if provided
-			if (prodImageFile) {
-				const productRes = await res.json().catch(() => null);
-				if (productRes?.productId) {
-					const imgForm = new FormData();
-					imgForm.append('file', prodImageFile);
-					imgForm.append('role', 'primary');
-					await fetch(`/api/products/${productRes.productId}/images`, {
-						method: 'POST',
-						body: imgForm
-					});
-				}
+			const result = await res.json().catch(() => ({}));
+
+			if (prodImageFile && result?.productId) {
+				const imgForm = new FormData();
+				imgForm.append('file', prodImageFile);
+				imgForm.append('role', 'primary');
+				await fetch(`/api/products/${result.productId}/images`, {
+					method: 'POST',
+					body: imgForm
+				});
 			}
 
-			toast.success('Product added');
-			subMode = null;
-			subStep = 0;
-
-			if (isLast) {
-				setupWizard.close();
-				await invalidateAll();
-			} else {
-				setupWizard.goNext();
-			}
+			subStep = 3;
 		} catch {
 			toast.error('Something went wrong');
 		} finally {
@@ -299,20 +287,51 @@
 				return;
 			}
 
-			toast.success('Account added');
-			subMode = null;
-			subStep = 0;
-
-			if (isLast) {
-				setupWizard.close();
-				await invalidateAll();
-			} else {
-				setupWizard.goNext();
-			}
+			subStep = 2;
 		} catch {
 			toast.error('Something went wrong');
 		} finally {
 			saving = false;
+		}
+	}
+
+	function toggleProdSize(size: string) {
+		if (prodSelectedSizes.includes(size)) {
+			prodSelectedSizes = prodSelectedSizes.filter((s) => s !== size);
+		} else {
+			prodSelectedSizes = [...prodSelectedSizes, size];
+		}
+	}
+
+	function resetProductFields() {
+		prodStyle = '';
+		prodName = '';
+		prodWholesale = '';
+		prodRetail = '';
+		prodCategory = '';
+		prodSizes = '';
+		prodColors = '';
+		prodImageFile = null;
+		prodImagePreview = '';
+		prodSizeMode = 'letter';
+		prodSelectedSizes = [];
+	}
+
+	function resetAccountFields() {
+		acctBizName = '';
+		acctWebsite = '';
+		acctFirstName = '';
+		acctLastName = '';
+		acctEmail = '';
+		acctPhone = '';
+	}
+
+	function advanceOrClose() {
+		if (isLast) {
+			setupWizard.close();
+			invalidateAll();
+		} else {
+			setupWizard.goNext();
 		}
 	}
 
@@ -333,15 +352,19 @@
 		<!-- Header with nav -->
 		<div class="mb-4 flex items-center justify-between">
 			<p class="text-base font-medium text-zinc-100">
-				{subMode
-					? subMode === 'product'
-						? ['General', 'Sizes & colors', 'Review'][subStep]
-						: ['Business', 'Contact', 'Review'][subStep]
-					: step.question}
+				{#if subMode === 'product'}
+					{['Style & pricing', 'Images', 'Sizes & colors', 'Product added'][subStep]}
+				{:else if subMode === 'account'}
+					{['Business details', 'Primary contact', 'Account added'][subStep]}
+				{:else}
+					{step.question}
+				{/if}
 			</p>
 			<div class="flex items-center gap-2 text-sm text-zinc-500">
 				{#if subMode}
-					<span>{subStep + 1} of 3</span>
+					{#if subStep < (subMode === 'product' ? 3 : 2)}
+						<span>{subStep + 1} of {subMode === 'product' ? 3 : 2}</span>
+					{/if}
 				{:else}
 					{#if !isFirst}
 						<button
@@ -468,59 +491,72 @@
 				{#if subMode === 'product'}
 					<!-- Product sub-stepper -->
 					{#if subStep === 0}
-						<!-- General -->
-						<div class="space-y-2">
-							<Input bind:value={prodStyle} placeholder="Style number / SKU *" class={dockInput} />
-							<Input bind:value={prodName} placeholder="Product name *" class={dockInput} />
-							<div class="grid grid-cols-2 gap-2">
+						<!-- Style & Pricing -->
+						<div class="space-y-3">
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label class="mb-1 block text-sm text-zinc-400">Product name</label>
+									<Input
+										bind:value={prodName}
+										placeholder="e.g. Linen Button-Down"
+										class={dockInput}
+									/>
+								</div>
+								<div>
+									<label class="mb-1 block text-sm text-zinc-400">Style number</label>
+									<Input bind:value={prodStyle} placeholder="e.g. VR-2001" class={dockInput} />
+								</div>
+							</div>
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label class="mb-1 block text-sm text-zinc-400">Wholesale</label>
+									<div class="flex overflow-hidden rounded-lg border border-zinc-700">
+										<span
+											class="flex items-center bg-zinc-800 px-2.5 font-mono text-sm text-zinc-500"
+											>$</span
+										>
+										<input
+											type="number"
+											step="0.01"
+											min="0"
+											placeholder="0.00"
+											bind:value={prodWholesale}
+											class="min-w-0 flex-1 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+										/>
+									</div>
+								</div>
+								<div>
+									<label class="mb-1 block text-sm text-zinc-400"
+										>Retail <span class="text-zinc-600">(optional)</span></label
+									>
+									<div class="flex overflow-hidden rounded-lg border border-zinc-700">
+										<span
+											class="flex items-center bg-zinc-800 px-2.5 font-mono text-sm text-zinc-500"
+											>$</span
+										>
+										<input
+											type="number"
+											step="0.01"
+											min="0"
+											placeholder="0.00"
+											bind:value={prodRetail}
+											class="min-w-0 flex-1 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+										/>
+									</div>
+								</div>
+							</div>
+							<div>
+								<label class="mb-1 block text-sm text-zinc-400"
+									>Category <span class="text-zinc-600">(optional)</span></label
+								>
 								<Input
-									bind:value={prodWholesale}
-									placeholder="Wholesale price *"
-									type="number"
-									class={dockInput}
-								/>
-								<Input
-									bind:value={prodRetail}
-									placeholder="Retail price"
-									type="number"
+									bind:value={prodCategory}
+									placeholder="Tops, Bottoms, Dresses…"
 									class={dockInput}
 								/>
 							</div>
-							<Input
-								bind:value={prodCategory}
-								placeholder="Category (e.g. Tops, Bottoms)"
-								class={dockInput}
-							/>
-							<!-- Image upload -->
-							<button
-								onclick={() => prodImageEl?.click()}
-								class="flex w-full items-center gap-3 rounded-lg border border-dashed border-zinc-600 px-3 py-3 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-300"
-							>
-								{#if prodImagePreview}
-									<img
-										src={prodImagePreview}
-										alt="Preview"
-										class="h-10 w-10 rounded object-cover"
-									/>
-									<span class="text-zinc-200">Image added</span>
-								{:else}
-									<svg
-										class="h-5 w-5"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="1.5"
-										viewBox="0 0 24 24"
-										><path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-										/></svg
-									>
-									<span>Add product image</span>
-								{/if}
-							</button>
 						</div>
-						<div class="mt-3 flex items-center justify-end gap-2">
+						<div class="mt-4 flex items-center justify-end gap-2">
 							<button
 								onclick={() => {
 									subMode = null;
@@ -532,26 +568,63 @@
 								onclick={() => {
 									subStep = 1;
 								}}
-								disabled={!prodStyle.trim() || !prodName.trim() || !prodWholesale.trim()}
+								disabled={!prodName.trim() || !prodStyle.trim() || !prodWholesale}
 								class={dockBtnPrimary}>Next</button
 							>
 						</div>
 					{:else if subStep === 1}
-						<!-- Sizes & Colors -->
-						<div class="space-y-2">
-							<p class="text-sm text-zinc-400">Comma-separated. Leave blank to skip.</p>
-							<Input
-								bind:value={prodSizes}
-								placeholder="Sizes — e.g. S, M, L, XL"
-								class={dockInput}
-							/>
-							<Input
-								bind:value={prodColors}
-								placeholder="Colors — e.g. Black, Navy, White"
-								class={dockInput}
-							/>
+						<!-- Images -->
+						<input
+							bind:this={prodImageEl}
+							type="file"
+							accept="image/jpeg,image/png,image/webp,image/avif"
+							class="hidden"
+							onchange={handleProductImage}
+						/>
+						<div class="grid grid-cols-2 gap-3">
+							<button
+								onclick={() => prodImageEl?.click()}
+								class="group relative flex aspect-square flex-col items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 transition-colors hover:border-zinc-500 {prodImagePreview
+									? ''
+									: 'text-zinc-500'}"
+							>
+								<span
+									class="absolute top-2 left-2 rounded bg-zinc-900/80 px-1.5 py-0.5 font-mono text-sm text-zinc-400"
+									>primary</span
+								>
+								{#if prodImagePreview}
+									<img
+										src={prodImagePreview}
+										alt="Primary"
+										class="h-full w-full rounded-lg object-cover"
+									/>
+									<span
+										class="absolute right-2 bottom-2 rounded bg-zinc-900/90 px-2 py-0.5 font-mono text-sm text-zinc-300 opacity-0 group-hover:opacity-100"
+										>Replace</span
+									>
+								{:else}
+									<span class="text-2xl font-light">+</span>
+									<span class="font-mono text-sm">grid image</span>
+								{/if}
+							</button>
+							<button
+								onclick={() => {
+									/* hover image - TODO wire up */
+								}}
+								class="flex aspect-square flex-col items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-500 transition-colors hover:border-zinc-500"
+							>
+								<span
+									class="absolute top-2 left-2 rounded bg-zinc-900/80 px-1.5 py-0.5 font-mono text-sm text-zinc-400"
+									>hover</span
+								>
+								<span class="text-2xl font-light">+</span>
+								<span class="font-mono text-sm">hover image</span>
+							</button>
 						</div>
-						<div class="mt-3 flex items-center justify-end gap-2">
+						<p class="mt-2 text-sm text-zinc-500">
+							JPG, PNG, WebP, or AVIF. Square ratio recommended.
+						</p>
+						<div class="mt-4 flex items-center justify-end gap-2">
 							<button
 								onclick={() => {
 									subStep = 0;
@@ -566,50 +639,56 @@
 							>
 						</div>
 					{:else if subStep === 2}
-						<!-- Review -->
-						<div class="space-y-1 text-sm">
-							<div class="flex justify-between">
-								<span class="text-zinc-400">Style</span><span class="text-zinc-200"
-									>{prodStyle}</span
+						<!-- Sizes & Colors -->
+						<div class="space-y-3">
+							<div>
+								<label class="mb-1.5 block text-sm text-zinc-400">Sizes</label>
+								<div class="mb-2 inline-flex overflow-hidden rounded border border-zinc-700">
+									<button
+										type="button"
+										class="px-3 py-1.5 text-sm {prodSizeMode === 'letter'
+											? 'bg-zinc-200 text-zinc-900'
+											: 'text-zinc-400 hover:text-zinc-200'}"
+										onclick={() => {
+											prodSizeMode = 'letter';
+										}}>Letter</button
+									>
+									<button
+										type="button"
+										class="px-3 py-1.5 text-sm {prodSizeMode === 'numeric'
+											? 'bg-zinc-200 text-zinc-900'
+											: 'text-zinc-400 hover:text-zinc-200'}"
+										onclick={() => {
+											prodSizeMode = 'numeric';
+										}}>Numeric</button
+									>
+								</div>
+								<div class="flex flex-wrap gap-1.5">
+									{#each prodSizeMode === 'letter' ? ['XS', 'S', 'M', 'L', 'XL', 'XXL'] : ['0', '2', '4', '6', '8', '10', '12', '14'] as size (size)}
+										<button
+											type="button"
+											class="min-w-[40px] rounded border px-2.5 py-1.5 text-center text-sm font-medium transition-colors {prodSelectedSizes.includes(
+												size
+											)
+												? 'border-zinc-400 bg-zinc-200 text-zinc-900'
+												: 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}"
+											onclick={() => toggleProdSize(size)}>{size}</button
+										>
+									{/each}
+								</div>
+							</div>
+							<div>
+								<label class="mb-1 block text-sm text-zinc-400"
+									>Colors <span class="text-zinc-600">(optional)</span></label
 								>
+								<Input
+									bind:value={prodColors}
+									placeholder="Black, Navy, White…"
+									class={dockInput}
+								/>
 							</div>
-							<div class="flex justify-between">
-								<span class="text-zinc-400">Name</span><span class="text-zinc-200">{prodName}</span>
-							</div>
-							<div class="flex justify-between">
-								<span class="text-zinc-400">Wholesale</span><span class="text-zinc-200"
-									>${prodWholesale}</span
-								>
-							</div>
-							{#if prodRetail}<div class="flex justify-between">
-									<span class="text-zinc-400">Retail</span><span class="text-zinc-200"
-										>${prodRetail}</span
-									>
-								</div>{/if}
-							{#if prodCategory}<div class="flex justify-between">
-									<span class="text-zinc-400">Category</span><span class="text-zinc-200"
-										>{prodCategory}</span
-									>
-								</div>{/if}
-							{#if prodSizes}<div class="flex justify-between">
-									<span class="text-zinc-400">Sizes</span><span class="text-zinc-200"
-										>{prodSizes}</span
-									>
-								</div>{/if}
-							{#if prodColors}<div class="flex justify-between">
-									<span class="text-zinc-400">Colors</span><span class="text-zinc-200"
-										>{prodColors}</span
-									>
-								</div>{/if}
-							{#if prodImagePreview}<div class="flex items-center gap-2">
-									<span class="text-zinc-400">Image</span><img
-										src={prodImagePreview}
-										alt="Preview"
-										class="h-8 w-8 rounded object-cover"
-									/>
-								</div>{/if}
 						</div>
-						<div class="mt-3 flex items-center justify-end gap-2">
+						<div class="mt-4 flex items-center justify-end gap-2">
 							<button
 								onclick={() => {
 									subStep = 1;
@@ -617,19 +696,58 @@
 								class={dockBtn}>Back</button
 							>
 							<button onclick={submitProduct} disabled={saving} class={dockBtnPrimary}>
-								{saving ? 'Adding...' : 'Add Product'}
+								{saving ? 'Adding…' : 'Add Product'}
 							</button>
+						</div>
+					{:else if subStep === 3}
+						<!-- Success -->
+						<div class="py-2 text-center">
+							<p class="text-sm font-medium text-zinc-100">Product added</p>
+							<p class="mt-1 text-sm text-zinc-400">{prodName} — {prodStyle}</p>
+							<div class="mt-4 flex justify-center gap-2">
+								<button
+									onclick={() => {
+										resetProductFields();
+										subStep = 0;
+									}}
+									class={dockBtn}>Add another</button
+								>
+								<button
+									onclick={() => {
+										subMode = null;
+										subStep = 0;
+										advanceOrClose();
+									}}
+									class={dockBtnPrimary}>Continue</button
+								>
+							</div>
 						</div>
 					{/if}
 				{:else if subMode === 'account'}
 					<!-- Account sub-stepper -->
 					{#if subStep === 0}
-						<!-- Business -->
-						<div class="space-y-2">
-							<Input bind:value={acctBizName} placeholder="Business name *" class={dockInput} />
-							<Input bind:value={acctWebsite} placeholder="Website (optional)" class={dockInput} />
+						<!-- Business details -->
+						<div class="space-y-3">
+							<div>
+								<label class="mb-1 block text-sm text-zinc-400">Business name</label>
+								<Input
+									bind:value={acctBizName}
+									placeholder="e.g. Bloom Boutique"
+									class={dockInput}
+								/>
+							</div>
+							<div>
+								<label class="mb-1 block text-sm text-zinc-400"
+									>Website <span class="text-zinc-600">(optional)</span></label
+								>
+								<Input
+									bind:value={acctWebsite}
+									placeholder="e.g. bloomboutique.com"
+									class={dockInput}
+								/>
+							</div>
 						</div>
-						<div class="mt-3 flex items-center justify-end gap-2">
+						<div class="mt-4 flex items-center justify-end gap-2">
 							<button
 								onclick={() => {
 									subMode = null;
@@ -646,68 +764,66 @@
 							>
 						</div>
 					{:else if subStep === 1}
-						<!-- Contact -->
-						<div class="space-y-2">
-							<div class="grid grid-cols-2 gap-2">
-								<Input bind:value={acctFirstName} placeholder="First name" class={dockInput} />
-								<Input bind:value={acctLastName} placeholder="Last name" class={dockInput} />
+						<!-- Primary contact -->
+						<div class="space-y-3">
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label class="mb-1 block text-sm text-zinc-400">First name</label>
+									<Input bind:value={acctFirstName} placeholder="Jane" class={dockInput} />
+								</div>
+								<div>
+									<label class="mb-1 block text-sm text-zinc-400">Last name</label>
+									<Input bind:value={acctLastName} placeholder="Smith" class={dockInput} />
+								</div>
 							</div>
-							<Input bind:value={acctEmail} placeholder="Email" class={dockInput} />
-							<Input bind:value={acctPhone} placeholder="Phone" class={dockInput} />
+							<div>
+								<label class="mb-1 block text-sm text-zinc-400">Email</label>
+								<Input
+									bind:value={acctEmail}
+									placeholder="jane@bloomboutique.com"
+									class={dockInput}
+								/>
+							</div>
+							<div>
+								<label class="mb-1 block text-sm text-zinc-400"
+									>Phone <span class="text-zinc-600">(optional)</span></label
+								>
+								<Input bind:value={acctPhone} placeholder="(555) 123-4567" class={dockInput} />
+							</div>
 						</div>
-						<div class="mt-3 flex items-center justify-end gap-2">
+						<div class="mt-4 flex items-center justify-end gap-2">
 							<button
 								onclick={() => {
 									subStep = 0;
 								}}
 								class={dockBtn}>Back</button
 							>
-							<button
-								onclick={() => {
-									subStep = 2;
-								}}
-								class={dockBtnPrimary}>Next</button
-							>
+							<button onclick={submitAccount} disabled={saving} class={dockBtnPrimary}>
+								{saving ? 'Adding…' : 'Add Account'}
+							</button>
 						</div>
 					{:else if subStep === 2}
-						<!-- Review -->
-						<div class="space-y-1 text-sm">
-							<div class="flex justify-between">
-								<span class="text-zinc-400">Business</span><span class="text-zinc-200"
-									>{acctBizName}</span
+						<!-- Success -->
+						<div class="py-2 text-center">
+							<p class="text-sm font-medium text-zinc-100">Account added</p>
+							<p class="mt-1 text-sm text-zinc-400">{acctBizName}</p>
+							<div class="mt-4 flex justify-center gap-2">
+								<button
+									onclick={() => {
+										resetAccountFields();
+										subStep = 0;
+									}}
+									class={dockBtn}>Add another</button
+								>
+								<button
+									onclick={() => {
+										subMode = null;
+										subStep = 0;
+										advanceOrClose();
+									}}
+									class={dockBtnPrimary}>Continue</button
 								>
 							</div>
-							{#if acctWebsite}<div class="flex justify-between">
-									<span class="text-zinc-400">Website</span><span class="text-zinc-200"
-										>{acctWebsite}</span
-									>
-								</div>{/if}
-							{#if acctFirstName || acctLastName}<div class="flex justify-between">
-									<span class="text-zinc-400">Contact</span><span class="text-zinc-200"
-										>{acctFirstName} {acctLastName}</span
-									>
-								</div>{/if}
-							{#if acctEmail}<div class="flex justify-between">
-									<span class="text-zinc-400">Email</span><span class="text-zinc-200"
-										>{acctEmail}</span
-									>
-								</div>{/if}
-							{#if acctPhone}<div class="flex justify-between">
-									<span class="text-zinc-400">Phone</span><span class="text-zinc-200"
-										>{acctPhone}</span
-									>
-								</div>{/if}
-						</div>
-						<div class="mt-3 flex items-center justify-end gap-2">
-							<button
-								onclick={() => {
-									subStep = 1;
-								}}
-								class={dockBtn}>Back</button
-							>
-							<button onclick={submitAccount} disabled={saving} class={dockBtnPrimary}>
-								{saving ? 'Adding...' : 'Add Account'}
-							</button>
 						</div>
 					{/if}
 				{:else}
