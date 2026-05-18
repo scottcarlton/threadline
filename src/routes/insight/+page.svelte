@@ -591,9 +591,9 @@
 				id: 'products-choose',
 				question: 'Add your first product',
 				type: 'navigate',
-				description:
-					'Upload a linesheet (PDF) or CSV using the + button below, or add a product manually.',
+				description: 'Upload a linesheet or CSV to import products, or add one manually.',
 				options: [
+					{ label: 'Upload file (PDF or CSV)', value: 'upload' },
 					{ label: 'Add manually', value: 'manual' },
 					{ label: 'Go to Products page', value: '/products' }
 				]
@@ -602,6 +602,25 @@
 				id: 'product-manual',
 				question: 'Add a product',
 				type: 'product-manual'
+			});
+		}
+
+		if (!ss?.accounts) {
+			steps.push({
+				id: 'accounts-choose',
+				question: 'Add your first buyer account',
+				type: 'navigate',
+				description: 'Upload a CSV to import accounts, or add one manually.',
+				options: [
+					{ label: 'Upload file (CSV)', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' },
+					{ label: 'Go to Accounts page', value: '/accounts' }
+				]
+			});
+			steps.push({
+				id: 'account-manual',
+				question: 'Add a buyer account',
+				type: 'account-manual'
 			});
 		}
 

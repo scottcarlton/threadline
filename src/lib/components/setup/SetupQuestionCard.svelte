@@ -6,6 +6,9 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 
+	const dockInput =
+		'border-zinc-700 bg-zinc-900 text-zinc-200 placeholder:text-zinc-600 focus-visible:border-zinc-500';
+
 	let wizard = $derived($setupWizard);
 	let step = $derived(wizard.steps[wizard.currentIndex]);
 	let isFirst = $derived(wizard.currentIndex === 0);
@@ -33,6 +36,63 @@
 	let prodSizes = $state('');
 	let prodColors = $state('');
 
+	// File upload
+	let fileInputEl: HTMLInputElement | undefined = $state();
+	let uploading = $state(false);
+
+	async function handleFileUpload(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		uploading = true;
+		try {
+			const isPdf = file.type === 'application/pdf';
+			const isCsv = file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
+
+			if (!isPdf && !isCsv) {
+				toast.error('Unsupported file type. Upload a PDF or CSV.');
+				uploading = false;
+				return;
+			}
+
+			if (isPdf) {
+				const formData = new FormData();
+				formData.append('file', file);
+				const res = await fetch('/api/products/parse-linesheet', {
+					method: 'POST',
+					body: formData
+				});
+				if (!res.ok) {
+					const body = await res.json().catch(() => ({ error: 'Upload failed' }));
+					toast.error(body.error ?? 'Failed to parse file');
+					uploading = false;
+					return;
+				}
+				toast.success('Linesheet parsed — go to Products to review');
+				setupWizard.close();
+				goto('/products');
+			} else {
+				toast.success('CSV uploaded — go to Products to review');
+				setupWizard.close();
+				goto('/products');
+			}
+		} catch {
+			toast.error('Upload failed — please try again');
+		} finally {
+			uploading = false;
+			if (input) input.value = '';
+		}
+	}
+
+	// Account manual fields
+	let acctBizName = $state('');
+	let acctContact = $state('');
+	let acctEmail = $state('');
+	let acctPhone = $state('');
+	let acctCity = $state('');
+	let acctState = $state('');
+
 	$effect(() => {
 		wizard.currentIndex;
 		resetInputs();
@@ -52,6 +112,12 @@
 		prodCategory = '';
 		prodSizes = '';
 		prodColors = '';
+		acctBizName = '';
+		acctContact = '';
+		acctEmail = '';
+		acctPhone = '';
+		acctCity = '';
+		acctState = '';
 
 		const saved = step ? wizard.answers[step.id] : undefined;
 		if (saved && step) {
@@ -129,6 +195,18 @@
 		});
 	}
 
+	function handleAccountSubmit() {
+		if (!acctBizName.trim()) return;
+		save({
+			businessName: acctBizName.trim(),
+			contactName: acctContact.trim(),
+			contactEmail: acctEmail.trim(),
+			contactPhone: acctPhone.trim(),
+			city: acctCity.trim(),
+			state: acctState.trim()
+		});
+	}
+
 	function handleAddressSubmit() {
 		if (!addrLine1.trim() || !addrCity.trim() || !addrState.trim() || !addrZip.trim()) return;
 		save({
@@ -145,12 +223,12 @@
 	<div>
 		<!-- Header with nav -->
 		<div class="mb-4 flex items-center justify-between">
-			<p class="text-sm font-medium">{step.question}</p>
-			<div class="flex items-center gap-2 text-sm text-muted-foreground">
+			<p class="text-sm font-medium text-zinc-100">{step.question}</p>
+			<div class="flex items-center gap-2 text-sm text-zinc-500">
 				{#if !isFirst}
 					<button
 						onclick={() => setupWizard.goBack()}
-						class="transition-colors hover:text-foreground"
+						class="transition-colors hover:text-zinc-300"
 						aria-label="Previous question">&lt;</button
 					>
 				{/if}
@@ -158,13 +236,13 @@
 				{#if !isLast}
 					<button
 						onclick={() => setupWizard.goNext()}
-						class="transition-colors hover:text-foreground"
+						class="transition-colors hover:text-zinc-300"
 						aria-label="Next question">&gt;</button
 					>
 				{/if}
 				<button
 					onclick={() => setupWizard.close()}
-					class="ml-1 transition-colors hover:text-foreground"
+					class="ml-1 transition-colors hover:text-zinc-300"
 					aria-label="Close setup">&times;</button
 				>
 			</div>
@@ -180,12 +258,16 @@
 					}}
 				>
 					<div class="space-y-2">
-						<Input bind:value={addrLine1} placeholder="Street address" />
-						<Input bind:value={addrLine2} placeholder="Apt, suite, etc. (optional)" />
+						<Input bind:value={addrLine1} placeholder="Street address" class={dockInput} />
+						<Input
+							bind:value={addrLine2}
+							placeholder="Apt, suite, etc. (optional)"
+							class={dockInput}
+						/>
 						<div class="grid grid-cols-[1fr_80px_100px] gap-2">
-							<Input bind:value={addrCity} placeholder="City" />
-							<Input bind:value={addrState} placeholder="State" />
-							<Input bind:value={addrZip} placeholder="ZIP" />
+							<Input bind:value={addrCity} placeholder="City" class={dockInput} />
+							<Input bind:value={addrState} placeholder="State" class={dockInput} />
+							<Input bind:value={addrZip} placeholder="ZIP" class={dockInput} />
 						</div>
 					</div>
 					<div class="mt-3 flex justify-between">
@@ -210,14 +292,14 @@
 					<button
 						onclick={() => save(option.value)}
 						disabled={saving}
-						class="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-left transition-colors hover:bg-accent"
+						class="flex w-full items-center gap-3 rounded-lg border border-zinc-700 px-3 py-2.5 text-left transition-colors hover:bg-zinc-700"
 					>
 						<span
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-sm font-medium text-muted-foreground"
+							class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-zinc-700 text-sm font-medium text-zinc-400"
 						>
 							{i + 1}
 						</span>
-						<span class="text-sm">{option.label}</span>
+						<span class="text-sm text-zinc-200">{option.label}</span>
 					</button>
 				{/each}
 				<div class="mt-2 flex justify-end">
@@ -233,15 +315,15 @@
 						class="flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-accent {selectedMulti.includes(
 							option.value
 						)
-							? 'border-primary bg-accent'
-							: 'border-border'}"
+							? 'border-zinc-500 bg-zinc-700'
+							: 'border-zinc-700'}"
 					>
 						<Checkbox checked={selectedMulti.includes(option.value)} />
-						<span class="text-sm">{option.label}</span>
+						<span class="text-sm text-zinc-200">{option.label}</span>
 					</button>
 				{/each}
 				<div class="mt-2 flex items-center justify-between">
-					<span class="text-sm text-muted-foreground">{selectedMulti.length} selected</span>
+					<span class="text-sm text-zinc-500">{selectedMulti.length} selected</span>
 					<div class="flex gap-2">
 						<Button variant="outline" size="sm" onclick={() => save('skip')} disabled={saving}
 							>Skip</Button
@@ -256,28 +338,39 @@
 					</div>
 				</div>
 			{:else if step.type === 'navigate'}
+				<input
+					bind:this={fileInputEl}
+					type="file"
+					accept=".pdf,.csv"
+					class="hidden"
+					onchange={handleFileUpload}
+				/>
 				{#if step.description}
-					<p class="mb-3 text-sm text-muted-foreground">{step.description}</p>
+					<p class="mb-3 text-sm text-zinc-400">{step.description}</p>
 				{/if}
 				{#each step.options ?? [] as option, i (option.value)}
 					<button
 						onclick={() => {
-							if (option.value.startsWith('/')) {
+							if (option.value === 'upload') {
+								fileInputEl?.click();
+							} else if (option.value.startsWith('/')) {
 								setupWizard.close();
 								goto(option.value);
 							} else {
 								save(option.value);
 							}
 						}}
-						disabled={saving}
-						class="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-left transition-colors hover:bg-accent"
+						disabled={saving || uploading}
+						class="flex w-full items-center gap-3 rounded-lg border border-zinc-700 px-3 py-2.5 text-left transition-colors hover:bg-zinc-700"
 					>
 						<span
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-sm font-medium text-muted-foreground"
+							class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-zinc-700 text-sm font-medium text-zinc-400"
 						>
 							{i + 1}
 						</span>
-						<span class="text-sm">{option.label}</span>
+						<span class="text-sm text-zinc-200"
+							>{uploading && option.value === 'upload' ? 'Uploading...' : option.label}</span
+						>
 					</button>
 				{/each}
 				<div class="mt-2 flex justify-end">
@@ -293,15 +386,37 @@
 					}}
 				>
 					<div class="space-y-2">
-						<Input bind:value={prodStyle} placeholder="Style number / SKU" />
-						<Input bind:value={prodName} placeholder="Product name" />
+						<Input bind:value={prodStyle} placeholder="Style number / SKU" class={dockInput} />
+						<Input bind:value={prodName} placeholder="Product name" class={dockInput} />
 						<div class="grid grid-cols-2 gap-2">
-							<Input bind:value={prodWholesale} placeholder="Wholesale price" type="number" />
-							<Input bind:value={prodRetail} placeholder="Retail price (optional)" type="number" />
+							<Input
+								bind:value={prodWholesale}
+								placeholder="Wholesale price"
+								type="number"
+								class={dockInput}
+							/>
+							<Input
+								bind:value={prodRetail}
+								placeholder="Retail price (optional)"
+								type="number"
+								class={dockInput}
+							/>
 						</div>
-						<Input bind:value={prodCategory} placeholder="Category (e.g. Tops, Bottoms)" />
-						<Input bind:value={prodSizes} placeholder="Sizes — e.g. S, M, L, XL" />
-						<Input bind:value={prodColors} placeholder="Colors — e.g. Black, Navy, White" />
+						<Input
+							bind:value={prodCategory}
+							placeholder="Category (e.g. Tops, Bottoms)"
+							class={dockInput}
+						/>
+						<Input
+							bind:value={prodSizes}
+							placeholder="Sizes — e.g. S, M, L, XL"
+							class={dockInput}
+						/>
+						<Input
+							bind:value={prodColors}
+							placeholder="Colors — e.g. Black, Navy, White"
+							class={dockInput}
+						/>
 					</div>
 					<div class="mt-3 flex justify-between">
 						<Button variant="outline" size="sm" onclick={() => save('skip')} disabled={saving}
@@ -316,19 +431,51 @@
 						</Button>
 					</div>
 				</form>
+			{:else if step.type === 'account-manual'}
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleAccountSubmit();
+					}}
+				>
+					<div class="space-y-2">
+						<Input bind:value={acctBizName} placeholder="Business name" class={dockInput} />
+						<Input
+							bind:value={acctContact}
+							placeholder="Contact name (optional)"
+							class={dockInput}
+						/>
+						<div class="grid grid-cols-2 gap-2">
+							<Input bind:value={acctEmail} placeholder="Email (optional)" class={dockInput} />
+							<Input bind:value={acctPhone} placeholder="Phone (optional)" class={dockInput} />
+						</div>
+						<div class="grid grid-cols-2 gap-2">
+							<Input bind:value={acctCity} placeholder="City (optional)" class={dockInput} />
+							<Input bind:value={acctState} placeholder="State (optional)" class={dockInput} />
+						</div>
+					</div>
+					<div class="mt-3 flex justify-between">
+						<Button variant="outline" size="sm" onclick={() => save('skip')} disabled={saving}
+							>Skip</Button
+						>
+						<Button type="submit" size="sm" disabled={!acctBizName.trim() || saving}>
+							{saving ? 'Saving...' : 'Add Account'}
+						</Button>
+					</div>
+				</form>
 			{:else if step.type === 'yesno'}
 				{#each [{ label: 'Yes', value: 'yes', idx: 1 }, { label: step.skipLabel ?? 'No, skip this', value: 'skip', idx: 2 }] as opt (opt.value)}
 					<button
 						onclick={() => save(opt.value)}
 						disabled={saving}
-						class="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-left transition-colors hover:bg-accent"
+						class="flex w-full items-center gap-3 rounded-lg border border-zinc-700 px-3 py-2.5 text-left transition-colors hover:bg-zinc-700"
 					>
 						<span
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-sm font-medium text-muted-foreground"
+							class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-zinc-700 text-sm font-medium text-zinc-400"
 						>
 							{opt.idx}
 						</span>
-						<span class="text-sm">{opt.label}</span>
+						<span class="text-sm text-zinc-200">{opt.label}</span>
 					</button>
 				{/each}
 			{/if}
