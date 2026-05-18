@@ -60,7 +60,7 @@
 </script>
 
 {#if step}
-	<div class="rounded-xl bg-zinc-800 p-4">
+	<div class="mb-3 rounded-xl border border-white/10 bg-zinc-800/80 p-5">
 		<!-- Header -->
 		<div class="mb-4 flex items-center justify-between">
 			<p class="text-sm font-medium text-zinc-100">{step.question}</p>

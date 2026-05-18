@@ -520,12 +520,16 @@
 		if (!ss?.shipping) {
 			steps.push({
 				id: 'ship-from',
-				question: 'Should we use this as your shipping address too?',
-				type: 'yesno'
+				question: 'Is the shipping address the same as the business address?',
+				type: 'single',
+				options: [
+					{ label: 'Same as business address', value: 'yes' },
+					{ label: 'Different address', value: 'no' }
+				]
 			});
 			steps.push({
 				id: 'shipping-default',
-				question: 'Which shipping method should be the default?',
+				question: 'Select a default shipping method',
 				type: 'single',
 				options: methods.map((m) => ({
 					label: m.delivery_window ? `${m.name} — ${m.delivery_window}` : m.name,
@@ -536,7 +540,7 @@
 		if (!ss?.payments) {
 			steps.push({
 				id: 'payment-methods',
-				question: 'Which payment methods do you accept?',
+				question: 'Select accepted payment methods',
 				type: 'multi',
 				options: [
 					{ label: 'Credit Card', value: 'credit_card' },
@@ -548,7 +552,7 @@
 			});
 			steps.push({
 				id: 'payment-terms',
-				question: 'What are your default payment terms?',
+				question: 'Select default payment terms',
 				type: 'single',
 				options: [
 					{ label: 'Net 15', value: 'net_15' },
@@ -563,23 +567,23 @@
 		if (!ss?.orders) {
 			steps.push({
 				id: 'orders',
-				question: 'Want to customize your order settings?',
+				question: 'Customize order settings?',
 				type: 'yesno',
-				skipLabel: 'Skip — defaults work fine'
+				skipLabel: 'Use defaults'
 			});
 		}
 		if (!ss?.taxes) {
 			steps.push({
 				id: 'taxes',
-				question: 'Do you have any tax requirements?',
+				question: 'Any tax requirements?',
 				type: 'yesno',
-				skipLabel: 'No tax requirements'
+				skipLabel: 'No taxes'
 			});
 		}
 		if (!ss?.returns) {
 			steps.push({
 				id: 'returns',
-				question: 'Do you want to set up a return policy?',
+				question: 'Set up a return policy?',
 				type: 'yesno',
 				skipLabel: 'Skip for now'
 			});

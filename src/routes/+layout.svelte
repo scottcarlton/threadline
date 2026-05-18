@@ -1029,7 +1029,7 @@
 					</button>
 					<!-- Setup wizard question card -->
 					{#if $setupWizardState.active}
-						<div class="px-5 pt-4 pb-2">
+						<div class="px-5 pt-4">
 							<SetupQuestionCard />
 						</div>
 					{/if}
