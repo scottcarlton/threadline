@@ -588,39 +588,27 @@
 
 		if (!ss?.products) {
 			steps.push({
-				id: 'products-choose',
-				question: 'Add your first product',
+				id: 'products',
+				question: "Let's get some products set up.",
 				type: 'navigate',
 				description: 'Upload a linesheet or CSV to import products, or add one manually.',
 				options: [
-					{ label: 'Upload file (PDF or CSV)', value: 'upload' },
-					{ label: 'Add manually', value: 'manual' },
-					{ label: 'Go to Products page', value: '/products' }
+					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
 				]
-			});
-			steps.push({
-				id: 'product-manual',
-				question: 'Add a product',
-				type: 'product-manual'
 			});
 		}
 
 		if (!ss?.accounts) {
 			steps.push({
-				id: 'accounts-choose',
-				question: 'Add your first buyer account',
+				id: 'accounts',
+				question: "Now let's add some accounts.",
 				type: 'navigate',
 				description: 'Upload a CSV to import accounts, or add one manually.',
 				options: [
-					{ label: 'Upload file (CSV)', value: 'upload' },
-					{ label: 'Add manually', value: 'manual' },
-					{ label: 'Go to Accounts page', value: '/accounts' }
+					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
 				]
-			});
-			steps.push({
-				id: 'account-manual',
-				question: 'Add a buyer account',
-				type: 'account-manual'
 			});
 		}
 

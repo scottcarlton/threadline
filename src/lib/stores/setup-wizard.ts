@@ -3,7 +3,7 @@ import { writable } from 'svelte/store';
 export type SetupStep = {
 	id: string;
 	question: string;
-	type: 'address' | 'single' | 'multi' | 'yesno' | 'navigate' | 'product-manual';
+	type: 'address' | 'single' | 'multi' | 'yesno' | 'navigate';
 	description?: string;
 	options?: { label: string; value: string }[];
 	skipLabel?: string;
@@ -43,6 +43,17 @@ function createSetupWizardStore() {
 					return { ...s, currentIndex: s.currentIndex + 1 };
 				}
 				return s;
+			});
+		},
+		insertStepsAfterCurrent(newSteps: SetupStep[]) {
+			update((s) => {
+				const before = s.steps.slice(0, s.currentIndex + 1);
+				const after = s.steps.slice(s.currentIndex + 1);
+				return {
+					...s,
+					steps: [...before, ...newSteps, ...after],
+					currentIndex: s.currentIndex + 1
+				};
 			});
 		},
 		saveAnswer(stepId: string, answer: unknown) {
