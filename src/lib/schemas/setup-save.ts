@@ -71,6 +71,22 @@ const productManualPayload = z.object({
 	})
 });
 
+const memberInvitePayload = z.object({
+	step: z.literal('member-invite'),
+	value: z.object({
+		email: z.string().trim().email('Valid email required'),
+		role: z.enum(['admin', 'member', 'sales', 'guest']),
+		commissionRate: z.coerce.number().min(0).max(100).default(0)
+	})
+});
+
+const partnerInvitePayload = z.object({
+	step: z.literal('partner-invite'),
+	value: z.object({
+		email: z.string().trim().email('Valid email required')
+	})
+});
+
 export const setupSaveSchema = z.discriminatedUnion('step', [
 	addressPayload,
 	shipFromPayload,
@@ -78,7 +94,9 @@ export const setupSaveSchema = z.discriminatedUnion('step', [
 	paymentMethodsPayload,
 	paymentTermsPayload,
 	productManualPayload,
-	accountManualPayload
+	accountManualPayload,
+	memberInvitePayload,
+	partnerInvitePayload
 ]);
 
 export const setupGatewaySchema = gatewayPayload;

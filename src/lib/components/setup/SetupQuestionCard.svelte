@@ -6,7 +6,7 @@
 	import { toast } from 'svelte-sonner';
 
 	const dockInput =
-		'border-zinc-700 bg-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus-visible:border-zinc-500';
+		'border-zinc-700 bg-zinc-800/60 text-zinc-200 placeholder:text-zinc-600 focus-visible:border-zinc-500';
 	const dockBtn =
 		'rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200';
 	const dockBtnPrimary =
@@ -39,7 +39,7 @@
 	let uploading = $state(false);
 
 	// ── Sub-stepper for manual product/account creation ──
-	let subMode = $state<'product' | 'account' | null>(null);
+	let subMode = $state<'product' | 'account' | 'member' | 'partner' | null>(null);
 	let subStep = $state(0);
 
 	// Product fields
@@ -68,6 +68,11 @@
 	let acctLastName = $state('');
 	let acctEmail = $state('');
 	let acctPhone = $state('');
+
+	// Member/partner invite fields
+	let inviteEmail = $state('');
+	let inviteRole = $state<'admin' | 'member' | 'sales' | 'guest'>('member');
+	let inviteCommission = $state('10');
 
 	$effect(() => {
 		wizard.currentIndex;
@@ -103,6 +108,9 @@
 		acctLastName = '';
 		acctEmail = '';
 		acctPhone = '';
+		inviteEmail = '';
+		inviteRole = 'member';
+		inviteCommission = '10';
 
 		const saved = step ? wizard.answers[step.id] : undefined;
 		if (saved && step) {
@@ -344,6 +352,68 @@
 		acctPhone = '';
 	}
 
+	async function submitMemberInvite() {
+		if (!inviteEmail.trim()) return;
+		saving = true;
+		try {
+			const res = await fetch('/api/setup/save', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					step: 'member-invite',
+					value: {
+						email: inviteEmail.trim(),
+						role: inviteRole,
+						commissionRate: inviteRole === 'sales' ? parseFloat(inviteCommission) : 0
+					}
+				})
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({ error: 'Failed' }));
+				toast.error(body.error ?? 'Failed to send invite');
+				saving = false;
+				return;
+			}
+			subStep = 1;
+		} catch {
+			toast.error('Something went wrong');
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function submitPartnerInvite() {
+		if (!inviteEmail.trim()) return;
+		saving = true;
+		try {
+			const res = await fetch('/api/setup/save', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					step: 'partner-invite',
+					value: { email: inviteEmail.trim() }
+				})
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({ error: 'Failed' }));
+				toast.error(body.error ?? 'Failed to send invite');
+				saving = false;
+				return;
+			}
+			subStep = 1;
+		} catch {
+			toast.error('Something went wrong');
+		} finally {
+			saving = false;
+		}
+	}
+
+	function resetInviteFields() {
+		inviteEmail = '';
+		inviteRole = 'member';
+		inviteCommission = '10';
+	}
+
 	function advanceOrClose() {
 		if (isLast) {
 			setupWizard.close();
@@ -546,7 +616,7 @@
 											min="0"
 											placeholder="0.00"
 											bind:value={prodWholesale}
-											class="min-w-0 flex-1 bg-zinc-800 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+											class="min-w-0 flex-1 bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
 										/>
 									</div>
 								</div>
@@ -565,7 +635,7 @@
 											min="0"
 											placeholder="0.00"
 											bind:value={prodRetail}
-											class="min-w-0 flex-1 bg-zinc-800 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+											class="min-w-0 flex-1 bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
 										/>
 									</div>
 								</div>
@@ -900,6 +970,143 @@
 							</div>
 						</div>
 					{/if}
+				{:else if subMode === 'member'}
+					<!-- Member invite -->
+					{#if subStep === 0}
+						<div class="space-y-3">
+							<div>
+								<label class="mb-1 block text-sm text-zinc-400">Email address</label>
+								<Input
+									bind:value={inviteEmail}
+									placeholder="teammate@company.com"
+									type="email"
+									class={dockInput}
+								/>
+							</div>
+							<div>
+								<label class="mb-1.5 block text-sm text-zinc-400">Role</label>
+								<div class="flex gap-1.5">
+									{#each ['admin', 'member', 'sales', 'guest'] as role (role)}
+										<button
+											type="button"
+											onclick={() => {
+												inviteRole = role as typeof inviteRole;
+											}}
+											class="rounded-lg border px-3 py-1.5 text-sm transition-colors {inviteRole ===
+											role
+												? 'border-zinc-400 bg-zinc-200 text-zinc-900'
+												: 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}"
+											>{role.charAt(0).toUpperCase() + role.slice(1)}</button
+										>
+									{/each}
+								</div>
+							</div>
+							{#if inviteRole === 'sales'}
+								<div>
+									<label class="mb-1 block text-sm text-zinc-400">Commission rate (%)</label>
+									<Input
+										bind:value={inviteCommission}
+										placeholder="10"
+										type="number"
+										class={dockInput}
+									/>
+								</div>
+							{/if}
+						</div>
+						<div class="mt-4 flex items-center justify-between">
+							<button
+								onclick={() => {
+									subMode = null;
+									subStep = 0;
+								}}
+								class={dockBtn}>Back</button
+							>
+							<button
+								onclick={submitMemberInvite}
+								disabled={!inviteEmail.trim() || saving}
+								class={dockBtnPrimary}
+							>
+								{saving ? 'Sending…' : 'Send Invite'}
+							</button>
+						</div>
+					{:else if subStep === 1}
+						<!-- Success -->
+						<div class="py-2 text-center">
+							<p class="text-sm font-medium text-zinc-100">Invite sent</p>
+							<p class="mt-1 text-sm text-zinc-400">{inviteEmail}</p>
+							<div class="mt-4 flex justify-center gap-2">
+								<button
+									onclick={() => {
+										resetInviteFields();
+										subStep = 0;
+									}}
+									class={dockBtn}>Invite another</button
+								>
+								<button
+									onclick={() => {
+										subMode = null;
+										subStep = 0;
+										advanceOrClose();
+									}}
+									class={dockBtnPrimary}>Continue</button
+								>
+							</div>
+						</div>
+					{/if}
+				{:else if subMode === 'partner'}
+					<!-- Partner invite -->
+					{#if subStep === 0}
+						<div class="space-y-3">
+							<div>
+								<label class="mb-1 block text-sm text-zinc-400">Rep's email address</label>
+								<Input
+									bind:value={inviteEmail}
+									placeholder="rep@agency.com"
+									type="email"
+									class={dockInput}
+								/>
+							</div>
+						</div>
+						<div class="mt-4 flex items-center justify-between">
+							<button
+								onclick={() => {
+									subMode = null;
+									subStep = 0;
+								}}
+								class={dockBtn}>Back</button
+							>
+							<button
+								onclick={submitPartnerInvite}
+								disabled={!inviteEmail.trim() || saving}
+								class={dockBtnPrimary}
+							>
+								{saving ? 'Sending…' : 'Send Invite'}
+							</button>
+						</div>
+					{:else if subStep === 1}
+						<!-- Success -->
+						<div class="py-2 text-center">
+							<p class="text-sm font-medium text-zinc-100">Partner invite sent</p>
+							<p class="mt-1 text-sm text-zinc-400">{inviteEmail}</p>
+							<div class="mt-4 flex justify-center gap-2">
+								<button
+									onclick={() => {
+										resetInviteFields();
+										subStep = 0;
+									}}
+									class={dockBtn}>Invite another</button
+								>
+								<button
+									onclick={() => {
+										subMode = null;
+										subStep = 0;
+										advanceOrClose();
+									}}
+									class={dockBtnPrimary}>Continue</button
+								>
+							</div>
+						</div>
+					{/if}
 				{:else}
 					<!-- Navigate options -->
 					{#if step.description}
@@ -912,6 +1119,12 @@
 									fileInputEl?.click();
 								} else if (option.value === 'manual') {
 									subMode = step.id === 'products' ? 'product' : 'account';
+									subStep = 0;
+								} else if (option.value === 'member') {
+									subMode = 'member';
+									subStep = 0;
+								} else if (option.value === 'partner') {
+									subMode = 'partner';
 									subStep = 0;
 								} else {
 									save(option.value);

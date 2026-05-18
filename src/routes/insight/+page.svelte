@@ -612,6 +612,19 @@
 			});
 		}
 
+		if (!ss?.members) {
+			steps.push({
+				id: 'team',
+				question: 'Time to build your team.',
+				type: 'navigate',
+				description: 'Invite team members or connect with independent sales rep partners.',
+				options: [
+					{ label: 'Invite a team member', value: 'member' },
+					{ label: 'Connect a rep partner', value: 'partner' }
+				]
+			});
+		}
+
 		if (steps.length === 0) return;
 		setupWizard.start(steps);
 	}

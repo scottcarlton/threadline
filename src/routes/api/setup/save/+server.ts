@@ -2,8 +2,11 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { setupSaveSchema, setupGatewaySchema } from '$lib/schemas/setup-save.js';
+import { sendEmail } from '$lib/server/email.js';
+import { inviteParams, sendInviteEmailFromOrg } from '$lib/server/email-templates.js';
+import { getOrCreateConnectInvite } from '$lib/server/connections.js';
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, url }) => {
 	if (!locals.session || !locals.organization) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
@@ -11,10 +14,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const orgId = locals.organization.id;
 	const raw = await request.json();
 
-	// Try structured steps first, then gateway steps
 	const parsed = setupSaveSchema.safeParse(raw);
 	if (parsed.success) {
-		return handleStructuredStep(orgId, parsed.data);
+		return handleStructuredStep(orgId, parsed.data, locals, url);
 	}
 
 	const gateway = setupGatewaySchema.safeParse(raw);
@@ -27,7 +29,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 async function handleStructuredStep(
 	orgId: string,
-	data: import('$lib/schemas/setup-save.js').SetupSaveInput
+	data: import('$lib/schemas/setup-save.js').SetupSaveInput,
+	locals: App.Locals,
+	url: URL
 ) {
 	try {
 		switch (data.step) {
@@ -171,6 +175,70 @@ async function handleStructuredStep(
 					is_active: true
 				});
 				if (accErr) throw accErr;
+				break;
+			}
+
+			case 'member-invite': {
+				const v = data.value;
+				const userId = locals.session!.user.id;
+				const membershipId = locals.membership?.id;
+
+				const { data: invite, error: invErr } = await supabaseAdmin
+					.from('invitations')
+					.insert({
+						organization_id: orgId,
+						email: v.email,
+						role: v.role,
+						commission_rate: v.role === 'sales' ? v.commissionRate : 0,
+						invited_by: userId
+					})
+					.select('id, token')
+					.single();
+				if (invErr) throw invErr;
+
+				// Send invite email (best-effort)
+				try {
+					const inviterName = locals.user?.display_name ?? 'A teammate';
+					const acceptUrl = `${url.origin}/invite/${invite.token}`;
+					await sendEmail({
+						to: v.email,
+						subject: `${inviterName} invited you to ${locals.organization!.name} on Threadline`,
+						html: '',
+						template: 'invite',
+						params: inviteParams({
+							inviterName,
+							organizationName: locals.organization!.name,
+							acceptUrl,
+							role: v.role
+						})
+					});
+				} catch (emailErr) {
+					console.error('[setup/save] invite email failed:', emailErr);
+				}
+
+				break;
+			}
+
+			case 'partner-invite': {
+				const v = data.value;
+				const userId = locals.session!.user.id;
+
+				const invite = await getOrCreateConnectInvite(supabaseAdmin, orgId, userId);
+				const inviteUrl = `${url.origin}/connect/${invite.code}`;
+
+				try {
+					await sendInviteEmailFromOrg({
+						to: v.email,
+						from_org_name: locals.organization!.name,
+						from_user_name: locals.user?.display_name ?? null,
+						invite_url: inviteUrl,
+						organizationId: orgId,
+						profileId: userId
+					});
+				} catch (emailErr) {
+					console.error('[setup/save] partner invite email failed:', emailErr);
+				}
+
 				break;
 			}
 		}
