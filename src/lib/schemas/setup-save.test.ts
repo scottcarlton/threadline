@@ -98,6 +98,22 @@ describe('setupSaveSchema', () => {
 		});
 		expect(result.success).toBe(false);
 	});
+
+	it('validates account-manual with required fields', () => {
+		const result = setupSaveSchema.safeParse({
+			step: 'account-manual',
+			value: { businessName: 'Nordstrom' }
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it('rejects account-manual with empty business name', () => {
+		const result = setupSaveSchema.safeParse({
+			step: 'account-manual',
+			value: { businessName: '' }
+		});
+		expect(result.success).toBe(false);
+	});
 });
 
 describe('setupGatewaySchema', () => {
