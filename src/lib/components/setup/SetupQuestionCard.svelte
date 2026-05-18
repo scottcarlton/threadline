@@ -1101,7 +1101,7 @@
 								<button
 									onclick={() => {
 										resetInviteFields();
-										subStep = 0;
+										subStep = 1;
 									}}
 									class={dockBtn}>Invite another</button
 								>
@@ -1125,7 +1125,15 @@
 						<button
 							onclick={() => {
 								if (option.value === 'upload') {
-									fileInputEl?.click();
+									if (step.id === 'products') {
+										fileInputEl?.click();
+									} else if (step.id === 'accounts') {
+										setupWizard.close();
+										goto('/accounts');
+									} else if (step.id === 'team') {
+										setupWizard.close();
+										goto('/organization/members');
+									}
 								} else if (option.value === 'manual') {
 									if (step.id === 'products') {
 										subMode = 'product';
