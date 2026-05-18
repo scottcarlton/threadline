@@ -1008,6 +1008,13 @@
 					</div>
 				{/if}
 
+				<!-- Setup wizard question card — own container, sibling to input -->
+				{#if $setupWizardState.active}
+					<div class="rounded-2xl bg-zinc-900 px-5 py-4 shadow-2xl ring-1 ring-white/10">
+						<SetupQuestionCard />
+					</div>
+				{/if}
+
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
@@ -1027,12 +1034,6 @@
 					>
 						<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
 					</button>
-					<!-- Setup wizard question card -->
-					{#if $setupWizardState.active}
-						<div class="px-5 pt-4">
-							<SetupQuestionCard />
-						</div>
-					{/if}
 					<div class="px-5 pt-4 pb-3">
 						<!-- Agent indicator -->
 						{#if $activeAgent}
