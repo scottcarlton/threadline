@@ -705,91 +705,89 @@
 				</p>
 			</div>
 
-			<Card class="mb-8">
-				<CardContent class="p-6">
-					<h2 class="text-lg font-semibold">Finish setup</h2>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Our system is designed to help you get setup as quick as possible. Use Stitch below to
-						help you finish setup step by step, contact us or even setup the old fashion way,
-						manually, below.
-					</p>
-					<div class="mt-4 flex items-center justify-between">
-						<div class="flex gap-4">
-							<Button variant="outline" onclick={handleSetupWithStitch}>Use Stitch</Button>
-							<Button variant="outline" href="#setup-checklist">Manual</Button>
-						</div>
-						<Button variant="ghost" href="mailto:hello@threadline.systems">Contact us</Button>
-					</div>
-				</CardContent>
-			</Card>
+			<div class="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
+				<div>
+					<Card class="mb-8">
+						<CardContent class="p-6">
+							<h2 class="text-lg font-semibold">Finish setup</h2>
+							<p class="mt-1 text-sm text-muted-foreground">
+								Our system is designed to help you get setup as quick as possible. Use Stitch below
+								to help you finish setup step by step, contact us or even setup the old fashion way,
+								manually, below.
+							</p>
+							<div class="mt-4">
+								<Button variant="outline" onclick={handleSetupWithStitch}>Use Stitch</Button>
+							</div>
+						</CardContent>
+					</Card>
 
-			<div class="grid grid-cols-1 gap-12 lg:grid-cols-[1fr_280px]">
-				<div id="setup-checklist" class="grid grid-cols-1 gap-12 lg:grid-cols-2">
-					<!-- Settings column -->
-					<div>
-						<div class="mb-4 flex items-center justify-between">
-							<h2 class="text-lg font-semibold">Settings</h2>
-							<span class="text-sm text-muted-foreground">{settingsDone} of 5</span>
+					<div id="setup-checklist" class="grid grid-cols-1 gap-12 lg:grid-cols-2">
+						<!-- Settings column -->
+						<div>
+							<div class="mb-4 flex items-center justify-between">
+								<h2 class="text-lg font-semibold">Settings</h2>
+								<span class="text-sm text-muted-foreground">{settingsDone} of 5</span>
+							</div>
+							<ul class="space-y-3">
+								{#each [{ label: 'Orders', done: ss?.orders, href: '/organization/orders' }, { label: 'Shipping', done: ss?.shipping, href: '/organization/shipping' }, { label: 'Returns', done: ss?.returns, href: '/organization/returns' }, { label: 'Payments', done: ss?.payments, href: '/organization/payments' }, { label: 'Taxes', done: ss?.taxes, href: '/organization/taxes' }] as item (item.label)}
+									<li class="flex items-center justify-between">
+										<div class="flex items-center gap-3">
+											<span class="text-sm">{item.done ? '●' : '○'}</span>
+											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+												>{item.label}</a
+											>
+										</div>
+										{#if !item.done}
+											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+												>Setup</a
+											>
+										{/if}
+									</li>
+								{/each}
+							</ul>
 						</div>
-						<ul class="space-y-3">
-							{#each [{ label: 'Orders', done: ss?.orders, href: '/organization/orders' }, { label: 'Shipping', done: ss?.shipping, href: '/organization/shipping' }, { label: 'Returns', done: ss?.returns, href: '/organization/returns' }, { label: 'Payments', done: ss?.payments, href: '/organization/payments' }, { label: 'Taxes', done: ss?.taxes, href: '/organization/taxes' }] as item (item.label)}
-								<li class="flex items-center justify-between">
-									<div class="flex items-center gap-3">
-										<span class="text-sm">{item.done ? '●' : '○'}</span>
-										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-											>{item.label}</a
-										>
-									</div>
-									{#if !item.done}
-										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-											>Setup</a
-										>
-									{/if}
-								</li>
-							{/each}
-						</ul>
+
+						<!-- System column -->
+						<div>
+							<div class="mb-4 flex items-center justify-between">
+								<h2 class="text-lg font-semibold">System</h2>
+								<span class="text-sm text-muted-foreground">{systemDone} of 3</span>
+							</div>
+							<ul class="space-y-3">
+								{#each [{ label: 'Products', done: ss?.products, href: '/products' }, { label: 'Accounts', done: ss?.accounts, href: '/accounts' }, { label: 'Members', done: ss?.members, href: '/organization/members' }] as item (item.label)}
+									<li class="flex items-center justify-between">
+										<div class="flex items-center gap-3">
+											<span class="text-sm">{item.done ? '●' : '○'}</span>
+											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+												>{item.label}</a
+											>
+										</div>
+										{#if !item.done}
+											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+												>Setup</a
+											>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						</div>
 					</div>
 
-					<!-- System column -->
-					<div>
-						<div class="mb-4 flex items-center justify-between">
-							<h2 class="text-lg font-semibold">System</h2>
-							<span class="text-sm text-muted-foreground">{systemDone} of 3</span>
+					<!-- Profile -->
+					<div class="mt-8">
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-3">
+								<span class="text-sm">{ss?.profile ? '●' : '○'}</span>
+								<a href="/organization" class="text-sm font-medium text-primary hover:underline"
+									>Profile</a
+								>
+							</div>
+							{#if !ss?.profile}
+								<a href="/organization" class="text-sm font-medium text-primary hover:underline"
+									>Setup</a
+								>
+							{/if}
 						</div>
-						<ul class="space-y-3">
-							{#each [{ label: 'Products', done: ss?.products, href: '/products' }, { label: 'Accounts', done: ss?.accounts, href: '/accounts' }, { label: 'Members', done: ss?.members, href: '/organization/members' }] as item (item.label)}
-								<li class="flex items-center justify-between">
-									<div class="flex items-center gap-3">
-										<span class="text-sm">{item.done ? '●' : '○'}</span>
-										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-											>{item.label}</a
-										>
-									</div>
-									{#if !item.done}
-										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-											>Setup</a
-										>
-									{/if}
-								</li>
-							{/each}
-						</ul>
-					</div>
-				</div>
-
-				<!-- Profile -->
-				<div class="mt-8">
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-3">
-							<span class="text-sm">{ss?.profile ? '●' : '○'}</span>
-							<a href="/organization" class="text-sm font-medium text-primary hover:underline"
-								>Profile</a
-							>
-						</div>
-						{#if !ss?.profile}
-							<a href="/organization" class="text-sm font-medium text-primary hover:underline"
-								>Setup</a
-							>
-						{/if}
 					</div>
 				</div>
 
@@ -971,60 +969,58 @@
 			</p>
 		</div>
 
-		<Card class="mb-8">
-			<CardContent class="p-6">
-				<h2 class="text-lg font-semibold">Finish setup</h2>
-				<p class="mt-1 text-sm text-muted-foreground">
-					Use Stitch below to help you finish setup step by step, or set things up manually.
-				</p>
-				<div class="mt-4 flex items-center justify-between">
-					<div class="flex gap-4">
-						<Button variant="outline" onclick={handleRepSetupWithStitch}>Use Stitch</Button>
-						<Button variant="outline" href="#setup-checklist">Manual</Button>
+		<div class="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
+			<div>
+				<Card class="mb-8">
+					<CardContent class="p-6">
+						<h2 class="text-lg font-semibold">Finish setup</h2>
+						<p class="mt-1 text-sm text-muted-foreground">
+							Use Stitch below to help you finish setup step by step.
+						</p>
+						<div class="mt-4">
+							<Button variant="outline" onclick={handleRepSetupWithStitch}>Use Stitch</Button>
+						</div>
+					</CardContent>
+				</Card>
+
+				<div id="setup-checklist">
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">Get started</h2>
+						<span class="text-sm text-muted-foreground">{done} of 3</span>
 					</div>
-					<Button variant="ghost" href="mailto:hello@threadline.systems">Contact us</Button>
-				</div>
-			</CardContent>
-		</Card>
+					<div class="mb-4 h-1.5 w-full rounded-full bg-muted">
+						<div
+							class="h-1.5 rounded-full bg-foreground transition-all duration-500"
+							style="width: {(done / 3) * 100}%"
+						></div>
+					</div>
 
-		<div class="grid grid-cols-1 gap-12 lg:grid-cols-[1fr_280px]">
-			<div id="setup-checklist">
-				<div class="mb-4 flex items-center justify-between">
-					<h2 class="text-lg font-semibold">Get started</h2>
-					<span class="text-sm text-muted-foreground">{done} of 3</span>
-				</div>
-				<div class="mb-4 h-1.5 w-full rounded-full bg-muted">
-					<div
-						class="h-1.5 rounded-full bg-foreground transition-all duration-500"
-						style="width: {(done / 3) * 100}%"
-					></div>
-				</div>
-
-				<ul class="space-y-3">
-					{#each [{ label: 'Add a brand', desc: 'The fashion labels you represent.', done: cl.hasBrands, href: '/brands/new', blocked: false }, { label: 'Add products', desc: 'Build your product catalog.', done: cl.hasProducts, href: cl.firstBrandId ? `/brands/${cl.firstBrandId}/products/new` : null, blocked: !cl.hasBrands }, { label: 'Create an account', desc: 'The buyers and retailers you sell to.', done: cl.hasAccounts, href: '/accounts/new', blocked: false }] as item (item.label)}
-						<li class="flex items-center justify-between">
-							<div class="flex items-center gap-3">
-								<span class="text-sm">{item.done ? '●' : '○'}</span>
-								{#if item.href && !item.done && !item.blocked}
-									<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-										>{item.label}</a
-									>
-								{:else}
-									<span class="text-sm font-medium">{item.label}</span>
+					<ul class="space-y-3">
+						{#each [{ label: 'Add a brand', desc: 'The fashion labels you represent.', done: cl.hasBrands, href: '/brands/new', blocked: false }, { label: 'Add products', desc: 'Build your product catalog.', done: cl.hasProducts, href: cl.firstBrandId ? `/brands/${cl.firstBrandId}/products/new` : null, blocked: !cl.hasBrands }, { label: 'Create an account', desc: 'The buyers and retailers you sell to.', done: cl.hasAccounts, href: '/accounts/new', blocked: false }] as item (item.label)}
+							<li class="flex items-center justify-between">
+								<div class="flex items-center gap-3">
+									<span class="text-sm">{item.done ? '●' : '○'}</span>
+									{#if item.href && !item.done && !item.blocked}
+										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+											>{item.label}</a
+										>
+									{:else}
+										<span class="text-sm font-medium">{item.label}</span>
+									{/if}
+								</div>
+								{#if !item.done}
+									{#if item.blocked}
+										<span class="text-sm text-muted-foreground">Brand first</span>
+									{:else if item.href}
+										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+											>Setup</a
+										>
+									{/if}
 								{/if}
-							</div>
-							{#if !item.done}
-								{#if item.blocked}
-									<span class="text-sm text-muted-foreground">Brand first</span>
-								{:else if item.href}
-									<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-										>Setup</a
-									>
-								{/if}
-							{/if}
-						</li>
-					{/each}
-				</ul>
+							</li>
+						{/each}
+					</ul>
+				</div>
 			</div>
 
 			<!-- Help sidebar -->
