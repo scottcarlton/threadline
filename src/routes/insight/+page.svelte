@@ -591,9 +591,9 @@
 				id: 'products',
 				question: "Let's get some products set up.",
 				type: 'navigate',
-				description: 'Upload a linesheet or CSV to import products, or add one manually.',
+				description: 'Upload your linesheet, product files or add products manually.',
 				options: [
-					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Upload file (PDF, CSV — max 20MB)', value: 'upload' },
 					{ label: 'Add manually', value: 'manual' }
 				]
 			});
@@ -604,9 +604,9 @@
 				id: 'accounts',
 				question: "Now let's add some accounts.",
 				type: 'navigate',
-				description: 'Upload a CSV to import accounts, or add one manually.',
+				description: 'Upload your account list or add accounts manually.',
 				options: [
-					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Upload file (CSV — max 5MB)', value: 'upload' },
 					{ label: 'Add manually', value: 'manual' }
 				]
 			});
@@ -617,9 +617,9 @@
 				id: 'team',
 				question: 'Time to build your team.',
 				type: 'navigate',
-				description: 'Upload a CSV of contacts, or add team members and partners one at a time.',
+				description: 'Upload your contact list or add team members and partners individually.',
 				options: [
-					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Upload file (CSV — max 5MB)', value: 'upload' },
 					{ label: 'Add manually', value: 'manual' }
 				]
 			});
@@ -652,9 +652,9 @@
 				id: 'products',
 				question: 'Time to add some products.',
 				type: 'navigate',
-				description: 'Upload a linesheet or CSV, or add products one at a time.',
+				description: 'Upload your linesheet, product files or add products manually.',
 				options: [
-					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Upload file (PDF, CSV — max 20MB)', value: 'upload' },
 					{ label: 'Add manually', value: 'manual' }
 				]
 			});

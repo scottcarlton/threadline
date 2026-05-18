@@ -538,7 +538,7 @@
 								setupWizard.close();
 							}
 						}}
-						class="ml-1 transition-colors hover:text-zinc-300"
+						class="ml-1 text-lg leading-none transition-colors hover:text-zinc-300"
 						aria-label={subMode ? 'Back to options' : 'Close setup'}>&times;</button
 					>
 				</div>
@@ -548,18 +548,18 @@
 				{#if subStep === 0}
 					<div class="space-y-3">
 						<div>
-							<label class="mb-1 block text-sm text-zinc-400">Brand name</label>
+							<span class="mb-1 block text-sm text-zinc-400">Brand name</span>
 							<Input bind:value={brandName} placeholder="e.g. Velvet Rose" class={dockInput} />
 						</div>
 						<div>
-							<label class="mb-1 block text-sm text-zinc-400"
-								>Contact name <span class="text-zinc-600">(optional)</span></label
+							<span class="mb-1 block text-sm text-zinc-400"
+								>Contact name <span class="text-zinc-600">(optional)</span></span
 							>
 							<Input bind:value={brandContact} placeholder="Jane Smith" class={dockInput} />
 						</div>
 						<div>
-							<label class="mb-1 block text-sm text-zinc-400"
-								>Contact email <span class="text-zinc-600">(optional)</span></label
+							<span class="mb-1 block text-sm text-zinc-400"
+								>Contact email <span class="text-zinc-600">(optional)</span></span
 							>
 							<Input
 								bind:value={brandEmail}
@@ -569,8 +569,8 @@
 							/>
 						</div>
 						<div>
-							<label class="mb-1 block text-sm text-zinc-400"
-								>Website <span class="text-zinc-600">(optional)</span></label
+							<span class="mb-1 block text-sm text-zinc-400"
+								>Website <span class="text-zinc-600">(optional)</span></span
 							>
 							<Input bind:value={brandWebsite} placeholder="velvetrose.com" class={dockInput} />
 						</div>
@@ -753,7 +753,7 @@
 						<div class="space-y-3">
 							<div class="grid grid-cols-2 gap-3">
 								<div>
-									<label class="mb-1 block text-sm text-zinc-400">Product name</label>
+									<span class="mb-1 block text-sm text-zinc-400">Product name</span>
 									<Input
 										bind:value={prodName}
 										placeholder="e.g. Linen Button-Down"
@@ -761,13 +761,13 @@
 									/>
 								</div>
 								<div>
-									<label class="mb-1 block text-sm text-zinc-400">Style number</label>
+									<span class="mb-1 block text-sm text-zinc-400">Style number</span>
 									<Input bind:value={prodStyle} placeholder="e.g. VR-2001" class={dockInput} />
 								</div>
 							</div>
 							<div class="grid grid-cols-2 gap-3">
 								<div>
-									<label class="mb-1 block text-sm text-zinc-400">Wholesale</label>
+									<span class="mb-1 block text-sm text-zinc-400">Wholesale</span>
 									<div class="flex overflow-hidden rounded-lg border border-zinc-700">
 										<span
 											class="flex items-center bg-zinc-800 px-2.5 font-mono text-sm text-zinc-500"
@@ -784,8 +784,8 @@
 									</div>
 								</div>
 								<div>
-									<label class="mb-1 block text-sm text-zinc-400"
-										>Retail <span class="text-zinc-600">(optional)</span></label
+									<span class="mb-1 block text-sm text-zinc-400"
+										>Retail <span class="text-zinc-600">(optional)</span></span
 									>
 									<div class="flex overflow-hidden rounded-lg border border-zinc-700">
 										<span
@@ -804,8 +804,8 @@
 								</div>
 							</div>
 							<div>
-								<label class="mb-1 block text-sm text-zinc-400"
-									>Category <span class="text-zinc-600">(optional)</span></label
+								<span class="mb-1 block text-sm text-zinc-400"
+									>Category <span class="text-zinc-600">(optional)</span></span
 								>
 								<Input
 									bind:value={prodCategory}
@@ -914,7 +914,7 @@
 						<!-- Sizes & Colors -->
 						<div class="space-y-3">
 							<div>
-								<label class="mb-1.5 block text-sm text-zinc-400">Sizes</label>
+								<span class="mb-1.5 block text-sm text-zinc-400">Sizes</span>
 								<div class="mb-2 inline-flex overflow-hidden rounded border border-zinc-700">
 									<button
 										type="button"
@@ -950,8 +950,8 @@
 								</div>
 							</div>
 							<div>
-								<label class="mb-1 block text-sm text-zinc-400"
-									>Colors <span class="text-zinc-600">(optional)</span></label
+								<span class="mb-1 block text-sm text-zinc-400"
+									>Colors <span class="text-zinc-600">(optional)</span></span
 								>
 								<Input
 									bind:value={prodColors}
@@ -1008,7 +1008,7 @@
 						<!-- Business details -->
 						<div class="space-y-3">
 							<div>
-								<label class="mb-1 block text-sm text-zinc-400">Business name</label>
+								<span class="mb-1 block text-sm text-zinc-400">Business name</span>
 								<Input
 									bind:value={acctBizName}
 									placeholder="e.g. Bloom Boutique"
@@ -1016,8 +1016,8 @@
 								/>
 							</div>
 							<div>
-								<label class="mb-1 block text-sm text-zinc-400"
-									>Website <span class="text-zinc-600">(optional)</span></label
+								<span class="mb-1 block text-sm text-zinc-400"
+									>Website <span class="text-zinc-600">(optional)</span></span
 								>
 								<Input
 									bind:value={acctWebsite}
@@ -1026,7 +1026,7 @@
 								/>
 							</div>
 							<div>
-								<label class="mb-1 block text-sm text-zinc-400">Address</label>
+								<span class="mb-1 block text-sm text-zinc-400">Address</span>
 								<Input bind:value={acctAddr1} placeholder="Street address" class={dockInput} />
 							</div>
 							<Input
@@ -1068,16 +1068,16 @@
 						<div class="space-y-3">
 							<div class="grid grid-cols-2 gap-3">
 								<div>
-									<label class="mb-1 block text-sm text-zinc-400">First name</label>
+									<span class="mb-1 block text-sm text-zinc-400">First name</span>
 									<Input bind:value={acctFirstName} placeholder="Jane" class={dockInput} />
 								</div>
 								<div>
-									<label class="mb-1 block text-sm text-zinc-400">Last name</label>
+									<span class="mb-1 block text-sm text-zinc-400">Last name</span>
 									<Input bind:value={acctLastName} placeholder="Smith" class={dockInput} />
 								</div>
 							</div>
 							<div>
-								<label class="mb-1 block text-sm text-zinc-400">Email</label>
+								<span class="mb-1 block text-sm text-zinc-400">Email</span>
 								<Input
 									bind:value={acctEmail}
 									placeholder="jane@bloomboutique.com"
@@ -1085,8 +1085,8 @@
 								/>
 							</div>
 							<div>
-								<label class="mb-1 block text-sm text-zinc-400"
-									>Phone <span class="text-zinc-600">(optional)</span></label
+								<span class="mb-1 block text-sm text-zinc-400"
+									>Phone <span class="text-zinc-600">(optional)</span></span
 								>
 								<Input bind:value={acctPhone} placeholder="(555) 123-4567" class={dockInput} />
 							</div>
@@ -1172,7 +1172,7 @@
 						{#if subMode === 'member'}
 							<div class="space-y-3">
 								<div>
-									<label class="mb-1 block text-sm text-zinc-400">Email address</label>
+									<span class="mb-1 block text-sm text-zinc-400">Email address</span>
 									<Input
 										bind:value={inviteEmail}
 										placeholder="teammate@company.com"
@@ -1181,7 +1181,7 @@
 									/>
 								</div>
 								<div>
-									<label class="mb-1.5 block text-sm text-zinc-400">Role</label>
+									<span class="mb-1.5 block text-sm text-zinc-400">Role</span>
 									<div class="flex gap-1.5">
 										{#each ['admin', 'member', 'sales', 'guest'] as role (role)}
 											<button
@@ -1200,7 +1200,7 @@
 								</div>
 								{#if inviteRole === 'sales'}
 									<div>
-										<label class="mb-1 block text-sm text-zinc-400">Commission rate (%)</label>
+										<span class="mb-1 block text-sm text-zinc-400">Commission rate (%)</span>
 										<Input
 											bind:value={inviteCommission}
 											placeholder="10"
@@ -1228,7 +1228,7 @@
 						{:else}
 							<div class="space-y-3">
 								<div>
-									<label class="mb-1 block text-sm text-zinc-400">Rep's email address</label>
+									<span class="mb-1 block text-sm text-zinc-400">Rep's email address</span>
 									<Input
 										bind:value={inviteEmail}
 										placeholder="rep@agency.com"
