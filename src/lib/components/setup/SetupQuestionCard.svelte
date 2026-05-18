@@ -895,7 +895,7 @@
 						</button>
 					{/each}
 					<div class="mt-2 flex justify-end">
-						<button onclick={() => save('skip')} disabled={saving} class={dockBtn}>Skip</button>
+						<button onclick={advanceOrClose} disabled={saving} class={dockBtn}>Skip</button>
 					</div>
 				{/if}
 			{:else if step.type === 'yesno'}
