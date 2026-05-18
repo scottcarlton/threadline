@@ -513,8 +513,7 @@
 			steps.push({
 				id: 'address',
 				question: "What's your business address?",
-				type: 'text',
-				placeholder: '123 Main St, City, State ZIP'
+				type: 'address'
 			});
 		}
 		if (!ss?.shipping) {

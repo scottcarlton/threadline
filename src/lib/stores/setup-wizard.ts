@@ -3,9 +3,8 @@ import { writable } from 'svelte/store';
 export type SetupStep = {
 	id: string;
 	question: string;
-	type: 'text' | 'single' | 'multi' | 'yesno';
+	type: 'address' | 'single' | 'multi' | 'yesno';
 	options?: { label: string; value: string }[];
-	placeholder?: string;
 	skipLabel?: string;
 };
 
@@ -13,7 +12,7 @@ type SetupWizardState = {
 	active: boolean;
 	steps: SetupStep[];
 	currentIndex: number;
-	answers: Record<string, string | string[]>;
+	answers: Record<string, unknown>;
 };
 
 function createSetupWizardStore() {
@@ -34,7 +33,7 @@ function createSetupWizardStore() {
 				if (s.currentIndex > 0) {
 					return { ...s, currentIndex: s.currentIndex - 1 };
 				}
-				return { ...s };
+				return s;
 			});
 		},
 		goNext() {
@@ -42,10 +41,10 @@ function createSetupWizardStore() {
 				if (s.currentIndex < s.steps.length - 1) {
 					return { ...s, currentIndex: s.currentIndex + 1 };
 				}
-				return { ...s };
+				return s;
 			});
 		},
-		saveAnswer(stepId: string, answer: string | string[]) {
+		saveAnswer(stepId: string, answer: unknown) {
 			update((s) => {
 				return { ...s, answers: { ...s.answers, [stepId]: answer } };
 			});
