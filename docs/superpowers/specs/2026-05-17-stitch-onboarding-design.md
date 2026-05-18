@@ -2,6 +2,7 @@
 
 **Date:** 2026-05-17
 **Status:** Draft
+**Implementation note:** The wizard is a scripted step-form rendered inside the AI dock — not a conversational AI flow. No AI tokens are consumed. The step form uses the same visual language as the dock (dark containers, numbered option buttons) but all questions and save logic are deterministic. The spec's original "Stitch walks through each section" language describes the UX feel, not the technical implementation.
 **Scope:** Brand orgs only. Rep org onboarding is out of scope.
 
 ## Problem
