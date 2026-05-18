@@ -617,10 +617,10 @@
 				id: 'team',
 				question: 'Time to build your team.',
 				type: 'navigate',
-				description: 'Invite team members or connect with independent sales rep partners.',
+				description: 'Upload a CSV of contacts, or add team members and partners one at a time.',
 				options: [
-					{ label: 'Invite a team member', value: 'member' },
-					{ label: 'Connect a rep partner', value: 'partner' }
+					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
 				]
 			});
 		}

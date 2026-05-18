@@ -970,123 +970,124 @@
 							</div>
 						</div>
 					{/if}
-				{:else if subMode === 'member'}
-					<!-- Member invite -->
+				{:else if subMode === 'member' || subMode === 'partner'}
+					<!-- Member / Partner invite -->
 					{#if subStep === 0}
-						<div class="space-y-3">
-							<div>
-								<label class="mb-1 block text-sm text-zinc-400">Email address</label>
-								<Input
-									bind:value={inviteEmail}
-									placeholder="teammate@company.com"
-									type="email"
-									class={dockInput}
-								/>
-							</div>
-							<div>
-								<label class="mb-1.5 block text-sm text-zinc-400">Role</label>
-								<div class="flex gap-1.5">
-									{#each ['admin', 'member', 'sales', 'guest'] as role (role)}
-										<button
-											type="button"
-											onclick={() => {
-												inviteRole = role as typeof inviteRole;
-											}}
-											class="rounded-lg border px-3 py-1.5 text-sm transition-colors {inviteRole ===
-											role
-												? 'border-zinc-400 bg-zinc-200 text-zinc-900'
-												: 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}"
-											>{role.charAt(0).toUpperCase() + role.slice(1)}</button
-										>
-									{/each}
-								</div>
-							</div>
-							{#if inviteRole === 'sales'}
+						<div class="mb-3 inline-flex overflow-hidden rounded border border-zinc-700">
+							<button
+								type="button"
+								class="px-3 py-1.5 text-sm {subMode === 'member'
+									? 'bg-zinc-200 text-zinc-900'
+									: 'text-zinc-400 hover:text-zinc-200'}"
+								onclick={() => {
+									subMode = 'member';
+									resetInviteFields();
+								}}>Team member</button
+							>
+							<button
+								type="button"
+								class="px-3 py-1.5 text-sm {subMode === 'partner'
+									? 'bg-zinc-200 text-zinc-900'
+									: 'text-zinc-400 hover:text-zinc-200'}"
+								onclick={() => {
+									subMode = 'partner';
+									resetInviteFields();
+								}}>Rep partner</button
+							>
+						</div>
+
+						{#if subMode === 'member'}
+							<div class="space-y-3">
 								<div>
-									<label class="mb-1 block text-sm text-zinc-400">Commission rate (%)</label>
+									<label class="mb-1 block text-sm text-zinc-400">Email address</label>
 									<Input
-										bind:value={inviteCommission}
-										placeholder="10"
-										type="number"
+										bind:value={inviteEmail}
+										placeholder="teammate@company.com"
+										type="email"
 										class={dockInput}
 									/>
 								</div>
-							{/if}
-						</div>
-						<div class="mt-4 flex items-center justify-between">
-							<button
-								onclick={() => {
-									subMode = null;
-									subStep = 0;
-								}}
-								class={dockBtn}>Back</button
-							>
-							<button
-								onclick={submitMemberInvite}
-								disabled={!inviteEmail.trim() || saving}
-								class={dockBtnPrimary}
-							>
-								{saving ? 'Sending…' : 'Send Invite'}
-							</button>
-						</div>
-					{:else if subStep === 1}
-						<!-- Success -->
-						<div class="py-2 text-center">
-							<p class="text-sm font-medium text-zinc-100">Invite sent</p>
-							<p class="mt-1 text-sm text-zinc-400">{inviteEmail}</p>
-							<div class="mt-4 flex justify-center gap-2">
-								<button
-									onclick={() => {
-										resetInviteFields();
-										subStep = 0;
-									}}
-									class={dockBtn}>Invite another</button
-								>
+								<div>
+									<label class="mb-1.5 block text-sm text-zinc-400">Role</label>
+									<div class="flex gap-1.5">
+										{#each ['admin', 'member', 'sales', 'guest'] as role (role)}
+											<button
+												type="button"
+												onclick={() => {
+													inviteRole = role as typeof inviteRole;
+												}}
+												class="rounded-lg border px-3 py-1.5 text-sm transition-colors {inviteRole ===
+												role
+													? 'border-zinc-400 bg-zinc-200 text-zinc-900'
+													: 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}"
+												>{role.charAt(0).toUpperCase() + role.slice(1)}</button
+											>
+										{/each}
+									</div>
+								</div>
+								{#if inviteRole === 'sales'}
+									<div>
+										<label class="mb-1 block text-sm text-zinc-400">Commission rate (%)</label>
+										<Input
+											bind:value={inviteCommission}
+											placeholder="10"
+											type="number"
+											class={dockInput}
+										/>
+									</div>
+								{/if}
+							</div>
+							<div class="mt-4 flex items-center justify-between">
 								<button
 									onclick={() => {
 										subMode = null;
 										subStep = 0;
-										advanceOrClose();
 									}}
-									class={dockBtnPrimary}>Continue</button
+									class={dockBtn}>Back</button
 								>
+								<button
+									onclick={submitMemberInvite}
+									disabled={!inviteEmail.trim() || saving}
+									class={dockBtnPrimary}
+								>
+									{saving ? 'Sending…' : 'Send Invite'}
+								</button>
 							</div>
-						</div>
-					{/if}
-				{:else if subMode === 'partner'}
-					<!-- Partner invite -->
-					{#if subStep === 0}
-						<div class="space-y-3">
-							<div>
-								<label class="mb-1 block text-sm text-zinc-400">Rep's email address</label>
-								<Input
-									bind:value={inviteEmail}
-									placeholder="rep@agency.com"
-									type="email"
-									class={dockInput}
-								/>
+						{:else}
+							<div class="space-y-3">
+								<div>
+									<label class="mb-1 block text-sm text-zinc-400">Rep's email address</label>
+									<Input
+										bind:value={inviteEmail}
+										placeholder="rep@agency.com"
+										type="email"
+										class={dockInput}
+									/>
+								</div>
 							</div>
-						</div>
-						<div class="mt-4 flex items-center justify-between">
-							<button
-								onclick={() => {
-									subMode = null;
-									subStep = 0;
-								}}
-								class={dockBtn}>Back</button
-							>
-							<button
-								onclick={submitPartnerInvite}
-								disabled={!inviteEmail.trim() || saving}
-								class={dockBtnPrimary}
-							>
-								{saving ? 'Sending…' : 'Send Invite'}
-							</button>
-						</div>
+							<div class="mt-4 flex items-center justify-between">
+								<button
+									onclick={() => {
+										subMode = null;
+										subStep = 0;
+									}}
+									class={dockBtn}>Back</button
+								>
+								<button
+									onclick={submitPartnerInvite}
+									disabled={!inviteEmail.trim() || saving}
+									class={dockBtnPrimary}
+								>
+									{saving ? 'Sending…' : 'Send Invite'}
+								</button>
+							</div>
+						{/if}
 					{:else if subStep === 1}
 						<!-- Success -->
 						<div class="py-2 text-center">
-							<p class="text-sm font-medium text-zinc-100">Partner invite sent</p>
+							<p class="text-sm font-medium text-zinc-100">
+								{subMode === 'member' ? 'Invite sent' : 'Partner invite sent'}
+							</p>
 							<p class="mt-1 text-sm text-zinc-400">{inviteEmail}</p>
 							<div class="mt-4 flex justify-center gap-2">
 								<button
@@ -1118,13 +1119,13 @@
 								if (option.value === 'upload') {
 									fileInputEl?.click();
 								} else if (option.value === 'manual') {
-									subMode = step.id === 'products' ? 'product' : 'account';
-									subStep = 0;
-								} else if (option.value === 'member') {
-									subMode = 'member';
-									subStep = 0;
-								} else if (option.value === 'partner') {
-									subMode = 'partner';
+									if (step.id === 'products') {
+										subMode = 'product';
+									} else if (step.id === 'accounts') {
+										subMode = 'account';
+									} else if (step.id === 'team') {
+										subMode = 'member';
+									}
 									subStep = 0;
 								} else {
 									save(option.value);
