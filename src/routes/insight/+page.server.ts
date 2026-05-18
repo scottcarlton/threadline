@@ -41,7 +41,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			showAppointments: [],
 			styleVelocity: [],
 			velocityWindow: 14,
-			setupStatus: null
+			setupStatus: null,
+			shippingMethods: []
 		};
 	}
 
@@ -137,7 +138,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			showAppointments: [],
 			styleVelocity: [],
 			velocityWindow: 14,
-			setupStatus: null
+			setupStatus: null,
+			shippingMethods: []
 		};
 	}
 
@@ -657,7 +659,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		commMonthParam,
 		styleVelocity,
 		velocityWindow,
-		setupStatus: null
+		setupStatus: null,
+		shippingMethods: []
 	};
 };
 
@@ -672,7 +675,19 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 	const brandOrgIds = Array.isArray(brandOrgIdInput) ? brandOrgIdInput : [brandOrgIdInput];
 	const primaryOrgId = brandOrgIds[0];
 
-	const setupStatus = await getSetupStatus(primaryOrgId);
+	const [setupStatus, shippingMethodsResult] = await Promise.all([
+		getSetupStatus(primaryOrgId),
+		admin
+			.from('organization_shipping_methods')
+			.select('id, name, delivery_window')
+			.eq('organization_id', primaryOrgId)
+			.order('created_at')
+	]);
+	const shippingMethods = (shippingMethodsResult.data ?? []) as Array<{
+		id: string;
+		name: string;
+		delivery_window: string | null;
+	}>;
 
 	// Refresh insight_actions on every visit — cheap, and keeps cards fresh against
 	// newly quiet reps, newly submitted orders, etc. Run per-org for Nx-BLSR.
@@ -929,6 +944,7 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 		brandBrowse: browse,
 		brandChecklist: checklist as typeof checklist | null,
 		setupStatus,
+		shippingMethods,
 		// Rep-centric fields left empty so the shared page's type stays stable.
 		seasonSummary: [],
 		yearlySummary: [],

@@ -23,6 +23,10 @@
 	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
+	import { setupWizard } from '$lib/stores/setup-wizard.js';
+	import SetupQuestionCard from '$lib/components/setup/SetupQuestionCard.svelte';
+
+	const setupWizardState = setupWizard;
 	import { preferences } from '$lib/stores/preferences.js';
 	import { isLgUp } from '$lib/utils/viewport.js';
 	import { cart } from '$lib/stores/cart.js';
@@ -1023,6 +1027,12 @@
 					>
 						<div class="h-1 w-10 rounded-full bg-zinc-600"></div>
 					</button>
+					<!-- Setup wizard question card -->
+					{#if $setupWizardState.active}
+						<div class="px-5 pt-4 pb-2">
+							<SetupQuestionCard />
+						</div>
+					{/if}
 					<div class="px-5 pt-4 pb-3">
 						<!-- Agent indicator -->
 						{#if $activeAgent}
