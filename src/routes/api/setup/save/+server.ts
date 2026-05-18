@@ -110,19 +110,41 @@ async function handleStructuredStep(
 				break;
 			}
 
+			case 'brand-manual': {
+				const v = data.value;
+				const { data: brand, error: brandErr } = await supabaseAdmin
+					.from('brands')
+					.insert({
+						organization_id: orgId,
+						name: v.name,
+						contact_name: v.contactName || null,
+						contact_email: v.contactEmail || null,
+						website: v.website || null,
+						is_active: true
+					})
+					.select('id')
+					.single();
+				if (brandErr || !brand) throw brandErr ?? new Error('Brand insert failed');
+				return json({ success: true, brandId: brand.id });
+			}
+
 			case 'product-manual': {
 				const v = data.value;
 
-				// Look up brand for this org
-				const { data: brand, error: brandErr } = await supabaseAdmin
-					.from('brands')
-					.select('id')
-					.eq('organization_id', orgId)
-					.eq('is_active', true)
-					.limit(1)
-					.single();
-				if (brandErr || !brand) {
-					return json({ error: 'No active brand found for this organization' }, { status: 400 });
+				// Use provided brandId or fall back to first active brand
+				let brandId = v.brandId;
+				if (!brandId) {
+					const { data: brand, error: brandErr } = await supabaseAdmin
+						.from('brands')
+						.select('id')
+						.eq('organization_id', orgId)
+						.eq('is_active', true)
+						.limit(1)
+						.single();
+					if (brandErr || !brand) {
+						return json({ error: 'No active brand found for this organization' }, { status: 400 });
+					}
+					brandId = brand.id;
 				}
 
 				// Insert product
@@ -130,7 +152,7 @@ async function handleStructuredStep(
 					.from('products')
 					.insert({
 						organization_id: orgId,
-						brand_id: brand.id,
+						brand_id: brandId,
 						style_number: v.styleNumber,
 						name: v.name,
 						wholesale_price: v.wholesalePrice,

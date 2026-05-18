@@ -58,9 +58,20 @@ const accountManualPayload = z.object({
 	})
 });
 
+const brandManualPayload = z.object({
+	step: z.literal('brand-manual'),
+	value: z.object({
+		name: z.string().trim().min(1, 'Brand name is required').max(255),
+		contactName: z.string().trim().max(255).default(''),
+		contactEmail: z.union([z.literal(''), z.string().trim().email()]).default(''),
+		website: z.string().trim().max(500).default('')
+	})
+});
+
 const productManualPayload = z.object({
 	step: z.literal('product-manual'),
 	value: z.object({
+		brandId: z.string().uuid().optional(),
 		styleNumber: z.string().trim().min(1, 'Style number is required').max(100),
 		name: z.string().trim().min(1, 'Name is required').max(255),
 		wholesalePrice: z.coerce.number().min(0, 'Price must be 0 or more').max(99_999_999.99),
@@ -93,6 +104,7 @@ export const setupSaveSchema = z.discriminatedUnion('step', [
 	shippingDefaultPayload,
 	paymentMethodsPayload,
 	paymentTermsPayload,
+	brandManualPayload,
 	productManualPayload,
 	accountManualPayload,
 	memberInvitePayload,

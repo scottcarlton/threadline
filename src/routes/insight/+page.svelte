@@ -628,6 +628,54 @@
 		if (steps.length === 0) return;
 		setupWizard.start(steps);
 	}
+
+	function handleRepSetupWithStitch() {
+		const cl = data.setupChecklist;
+		if (!cl) return;
+		const steps: SetupStep[] = [];
+
+		if (!cl.hasBrands) {
+			steps.push({
+				id: 'brands',
+				question: "Let's add your first brand.",
+				type: 'navigate',
+				description: 'The fashion labels you represent.',
+				options: [
+					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
+				]
+			});
+		}
+
+		if (!cl.hasProducts) {
+			steps.push({
+				id: 'products',
+				question: 'Time to add some products.',
+				type: 'navigate',
+				description: 'Upload a linesheet or CSV, or add products one at a time.',
+				options: [
+					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
+				]
+			});
+		}
+
+		if (!cl.hasAccounts) {
+			steps.push({
+				id: 'accounts',
+				question: "Now let's add some accounts.",
+				type: 'navigate',
+				description: 'The buyers and retailers you sell to.',
+				options: [
+					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
+				]
+			});
+		}
+
+		if (steps.length === 0) return;
+		setupWizard.start(steps);
+	}
 </script>
 
 {#if data.isBrandOrg}
@@ -895,9 +943,7 @@
 	</div>
 {:else if data.setupComplete === false && data.setupChecklist}
 	{@const cl = data.setupChecklist}
-	{@const done = [cl.hasBrands, cl.hasProducts, cl.hasAccounts, cl.hasOrders].filter(
-		Boolean
-	).length}
+	{@const done = [cl.hasBrands, cl.hasProducts, cl.hasAccounts].filter(Boolean).length}
 	<div class="space-y-8">
 		<div>
 			<p class="text-sm text-muted-foreground">
@@ -914,6 +960,9 @@
 				Your AI-powered wholesale management platform. Complete the setup steps to unlock your full
 				dashboard.
 			</p>
+			<div class="mt-4 flex gap-4">
+				<Button variant="outline" onclick={handleRepSetupWithStitch}>Use Stitch</Button>
+			</div>
 		</div>
 
 		<div class="grid grid-cols-[1fr_360px] gap-10">

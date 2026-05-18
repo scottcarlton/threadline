@@ -39,8 +39,18 @@
 	let uploading = $state(false);
 
 	// ── Sub-stepper for manual product/account creation ──
-	let subMode = $state<'product' | 'account' | 'member' | 'partner' | null>(null);
+	let subMode = $state<'brand' | 'product' | 'account' | 'member' | 'partner' | null>(null);
 	let subStep = $state(0);
+
+	// Brand fields
+	let brandName = $state('');
+	let brandContact = $state('');
+	let brandEmail = $state('');
+	let brandWebsite = $state('');
+
+	// Product brand picker
+	let prodBrandId = $state('');
+	let prodBrands = $state<Array<{ id: string; name: string }>>([]);
 
 	// Product fields
 	let prodStyle = $state('');
@@ -88,6 +98,11 @@
 		addrZip = '';
 		subMode = null;
 		subStep = 0;
+		brandName = '';
+		brandContact = '';
+		brandEmail = '';
+		brandWebsite = '';
+		prodBrandId = '';
 		prodStyle = '';
 		prodName = '';
 		prodWholesale = '';
@@ -235,6 +250,7 @@
 				body: JSON.stringify({
 					step: 'product-manual',
 					value: {
+						brandId: prodBrandId || undefined,
 						styleNumber: prodStyle.trim(),
 						name: prodName.trim(),
 						wholesalePrice: parseFloat(prodWholesale),
@@ -321,6 +337,56 @@
 			prodSelectedSizes = prodSelectedSizes.filter((s) => s !== size);
 		} else {
 			prodSelectedSizes = [...prodSelectedSizes, size];
+		}
+	}
+
+	function resetBrandFields() {
+		brandName = '';
+		brandContact = '';
+		brandEmail = '';
+		brandWebsite = '';
+	}
+
+	async function submitBrand() {
+		if (!brandName.trim()) return;
+		saving = true;
+		try {
+			const res = await fetch('/api/setup/save', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					step: 'brand-manual',
+					value: {
+						name: brandName.trim(),
+						contactName: brandContact.trim(),
+						contactEmail: brandEmail.trim(),
+						website: brandWebsite.trim()
+					}
+				})
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({ error: 'Save failed' }));
+				toast.error(body.error ?? 'Failed to create brand');
+				saving = false;
+				return;
+			}
+			subStep = 1;
+		} catch {
+			toast.error('Something went wrong');
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function fetchBrandsForPicker() {
+		try {
+			const res = await fetch('/api/brands?active=true');
+			if (res.ok) {
+				const data = await res.json();
+				prodBrands = data.brands ?? [];
+			}
+		} catch {
+			prodBrands = [];
 		}
 	}
 
@@ -475,7 +541,79 @@
 					>
 				</div>
 			</div>
-			{#if subMode === 'product'}
+			{#if subMode === 'brand'}
+				<!-- Brand sub-stepper -->
+				{#if subStep === 0}
+					<div class="space-y-3">
+						<div>
+							<label class="mb-1 block text-sm text-zinc-400">Brand name</label>
+							<Input bind:value={brandName} placeholder="e.g. Velvet Rose" class={dockInput} />
+						</div>
+						<div>
+							<label class="mb-1 block text-sm text-zinc-400"
+								>Contact name <span class="text-zinc-600">(optional)</span></label
+							>
+							<Input bind:value={brandContact} placeholder="Jane Smith" class={dockInput} />
+						</div>
+						<div>
+							<label class="mb-1 block text-sm text-zinc-400"
+								>Contact email <span class="text-zinc-600">(optional)</span></label
+							>
+							<Input
+								bind:value={brandEmail}
+								placeholder="jane@velvetrose.com"
+								type="email"
+								class={dockInput}
+							/>
+						</div>
+						<div>
+							<label class="mb-1 block text-sm text-zinc-400"
+								>Website <span class="text-zinc-600">(optional)</span></label
+							>
+							<Input bind:value={brandWebsite} placeholder="velvetrose.com" class={dockInput} />
+						</div>
+					</div>
+					<div class="mt-4 flex items-center justify-between">
+						<button
+							onclick={() => {
+								subMode = null;
+								subStep = 0;
+							}}
+							class={dockBtn}>Back</button
+						>
+						<button
+							onclick={submitBrand}
+							disabled={!brandName.trim() || saving}
+							class={dockBtnPrimary}
+						>
+							{saving ? 'Adding…' : 'Add Brand'}
+						</button>
+					</div>
+				{:else if subStep === 1}
+					<!-- Success -->
+					<div class="py-2 text-center">
+						<p class="text-sm font-medium text-zinc-100">Brand added</p>
+						<p class="mt-1 text-sm text-zinc-400">{brandName}</p>
+						<div class="mt-4 flex justify-center gap-2">
+							<button
+								onclick={() => {
+									resetBrandFields();
+									subStep = 0;
+								}}
+								class={dockBtn}>Add another</button
+							>
+							<button
+								onclick={() => {
+									subMode = null;
+									subStep = 0;
+									advanceOrClose();
+								}}
+								class={dockBtnPrimary}>Continue</button
+							>
+						</div>
+					</div>
+				{/if}
+			{:else if subMode === 'product'}
 				{@const labels = ['General Information', 'Images', 'Sizes & Colors']}
 				{#if subStep < labels.length}
 					<p class="mt-1 text-sm text-zinc-500">
@@ -585,7 +723,30 @@
 
 				{#if subMode === 'product'}
 					<!-- Product sub-stepper -->
-					{#if subStep === 0}
+					{#if prodBrands.length > 1 && !prodBrandId}
+						<!-- Brand picker -->
+						<p class="mb-3 text-sm text-zinc-400">Which brand is this product for?</p>
+						{#each prodBrands as brand, i (brand.id)}
+							<button
+								onclick={() => {
+									prodBrandId = brand.id;
+								}}
+								class={dockOption}
+							>
+								<span class={dockBadge}>{i + 1}</span>
+								<span class="text-sm text-zinc-200">{brand.name}</span>
+							</button>
+						{/each}
+						<div class="mt-2 flex justify-end">
+							<button
+								onclick={() => {
+									subMode = null;
+									subStep = 0;
+								}}
+								class={dockBtn}>Back</button
+							>
+						</div>
+					{:else if subStep === 0}
 						<!-- Style & Pricing -->
 						<div class="space-y-3">
 							<div class="grid grid-cols-2 gap-3">
@@ -1127,6 +1288,9 @@
 								if (option.value === 'upload') {
 									if (step.id === 'products') {
 										fileInputEl?.click();
+									} else if (step.id === 'brands') {
+										setupWizard.close();
+										goto('/brands');
 									} else if (step.id === 'accounts') {
 										setupWizard.close();
 										goto('/accounts');
@@ -1135,8 +1299,11 @@
 										goto('/organization/members');
 									}
 								} else if (option.value === 'manual') {
-									if (step.id === 'products') {
+									if (step.id === 'brands') {
+										subMode = 'brand';
+									} else if (step.id === 'products') {
 										subMode = 'product';
+										fetchBrandsForPicker();
 									} else if (step.id === 'accounts') {
 										subMode = 'account';
 									} else if (step.id === 'team') {

@@ -100,26 +100,27 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const hasProducts = (productCountCheck.count ?? 0) > 0;
 	const hasAccounts = (accountCountCheck.count ?? 0) > 0;
 	const hasOrders = (orderCountCheck.count ?? 0) > 0;
-	const setupComplete = hasBrands && hasProducts && hasAccounts && hasOrders;
+	const setupComplete = hasBrands && hasProducts && hasAccounts;
 
-	// Get first brand ID for the "add products" link (rep-org onboarding only).
+	// Get brand list for the wizard's product brand picker + first brand link
+	let brandsList: Array<{ id: string; name: string }> = [];
 	let firstBrandId: string | null = null;
-	if (!nxBlsr && hasBrands && !hasProducts) {
-		const { data: firstBrand } = await supabase
+	if (!nxBlsr && hasBrands) {
+		const { data: brands } = await supabase
 			.from('brands')
-			.select('id')
+			.select('id, name')
 			.in('organization_id', orgScope)
 			.eq('is_active', true)
-			.limit(1)
-			.single();
-		firstBrandId = firstBrand?.id ?? null;
+			.order('created_at');
+		brandsList = (brands ?? []) as Array<{ id: string; name: string }>;
+		firstBrandId = brandsList[0]?.id ?? null;
 	}
 
 	// If setup isn't complete, return early with just the checklist data
 	if (!setupComplete) {
 		return {
 			setupComplete,
-			setupChecklist: { hasBrands, hasProducts, hasAccounts, hasOrders, firstBrandId },
+			setupChecklist: { hasBrands, hasProducts, hasAccounts, hasOrders, firstBrandId, brandsList },
 			insightActions: [],
 			scoreboard: [],
 			seasonSummary: [],
