@@ -31,20 +31,23 @@ function createSetupWizardStore() {
 		},
 		goBack() {
 			update((s) => {
-				if (s.currentIndex > 0) s.currentIndex--;
-				return s;
+				if (s.currentIndex > 0) {
+					return { ...s, currentIndex: s.currentIndex - 1 };
+				}
+				return { ...s };
 			});
 		},
 		goNext() {
 			update((s) => {
-				if (s.currentIndex < s.steps.length - 1) s.currentIndex++;
-				return s;
+				if (s.currentIndex < s.steps.length - 1) {
+					return { ...s, currentIndex: s.currentIndex + 1 };
+				}
+				return { ...s };
 			});
 		},
 		saveAnswer(stepId: string, answer: string | string[]) {
 			update((s) => {
-				s.answers[stepId] = answer;
-				return s;
+				return { ...s, answers: { ...s.answers, [stepId]: answer } };
 			});
 		},
 		close() {

@@ -92,7 +92,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			case 'orders':
 			case 'taxes':
 			case 'returns': {
-				if (value === 'skip') {
+				if (value === 'skip' || value === 'later') {
 					await supabaseAdmin.from('org_setup_status').upsert(
 						{
 							organization_id: orgId,

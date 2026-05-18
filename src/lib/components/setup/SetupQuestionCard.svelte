@@ -90,7 +90,7 @@
 		<!-- Options -->
 		<div class="space-y-1.5">
 			{#if step.type === 'single'}
-				{#each step.options ?? [] as option, i (option.value)}
+				{#each step.options ?? [] as option, i (i)}
 					<button
 						onclick={() => save(option.value)}
 						disabled={saving}
@@ -113,7 +113,7 @@
 					>
 				</div>
 			{:else if step.type === 'multi'}
-				{#each step.options ?? [] as option (option.value)}
+				{#each step.options ?? [] as option, i (i)}
 					<button
 						onclick={() => toggleMulti(option.value)}
 						disabled={saving}

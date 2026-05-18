@@ -23,3 +23,17 @@ create policy "org_setup_status_all"
       select organization_id from organization_members where profile_id = auth.uid()
     )
   );
+
+-- Seed default shipping methods for existing brand orgs that have none
+insert into organization_shipping_methods (organization_id, name, cost_type, delivery_window)
+select o.id, m.name, m.cost_type::text, m.delivery_window
+from organizations o
+cross join (values
+  ('Ground', 'flat', '5–7 business days'),
+  ('Express', 'flat', '2–3 business days'),
+  ('Overnight', 'flat', '1 business day')
+) as m(name, cost_type, delivery_window)
+where o.org_type = 'brand'
+  and not exists (
+    select 1 from organization_shipping_methods sm where sm.organization_id = o.id
+  );

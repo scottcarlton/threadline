@@ -568,24 +568,33 @@
 			steps.push({
 				id: 'orders',
 				question: 'Customize order settings?',
-				type: 'yesno',
-				skipLabel: 'Use defaults'
+				type: 'single',
+				options: [
+					{ label: 'Use defaults', value: 'skip' },
+					{ label: "I'll customize later", value: 'later' }
+				]
 			});
 		}
 		if (!ss?.taxes) {
 			steps.push({
 				id: 'taxes',
 				question: 'Any tax requirements?',
-				type: 'yesno',
-				skipLabel: 'No taxes'
+				type: 'single',
+				options: [
+					{ label: 'No tax requirements', value: 'skip' },
+					{ label: "I'll set this up later", value: 'later' }
+				]
 			});
 		}
 		if (!ss?.returns) {
 			steps.push({
 				id: 'returns',
 				question: 'Set up a return policy?',
-				type: 'yesno',
-				skipLabel: 'Skip for now'
+				type: 'single',
+				options: [
+					{ label: 'Skip for now', value: 'skip' },
+					{ label: "I'll set this up later", value: 'later' }
+				]
 			});
 		}
 
