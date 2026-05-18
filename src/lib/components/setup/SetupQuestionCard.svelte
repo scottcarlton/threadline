@@ -374,7 +374,7 @@
 				saving = false;
 				return;
 			}
-			subStep = 1;
+			subStep = 2;
 		} catch {
 			toast.error('Something went wrong');
 		} finally {
@@ -973,29 +973,39 @@
 				{:else if subMode === 'member' || subMode === 'partner'}
 					<!-- Member / Partner invite -->
 					{#if subStep === 0}
-						<div class="mb-3 inline-flex overflow-hidden rounded border border-zinc-700">
+						<!-- Choose: team member or rep partner -->
+						<button
+							onclick={() => {
+								subMode = 'member';
+								subStep = 1;
+								resetInviteFields();
+							}}
+							class={dockOption}
+						>
+							<span class={dockBadge}>1</span>
+							<span class="text-sm text-zinc-200">Invite a team member</span>
+						</button>
+						<button
+							onclick={() => {
+								subMode = 'partner';
+								subStep = 1;
+								resetInviteFields();
+							}}
+							class={dockOption}
+						>
+							<span class={dockBadge}>2</span>
+							<span class="text-sm text-zinc-200">Connect a rep partner</span>
+						</button>
+						<div class="mt-2 flex justify-end">
 							<button
-								type="button"
-								class="px-3 py-1.5 text-sm {subMode === 'member'
-									? 'bg-zinc-200 text-zinc-900'
-									: 'text-zinc-400 hover:text-zinc-200'}"
 								onclick={() => {
-									subMode = 'member';
-									resetInviteFields();
-								}}>Team member</button
-							>
-							<button
-								type="button"
-								class="px-3 py-1.5 text-sm {subMode === 'partner'
-									? 'bg-zinc-200 text-zinc-900'
-									: 'text-zinc-400 hover:text-zinc-200'}"
-								onclick={() => {
-									subMode = 'partner';
-									resetInviteFields();
-								}}>Rep partner</button
+									subMode = null;
+									subStep = 0;
+								}}
+								class={dockBtn}>Back</button
 							>
 						</div>
-
+					{:else if subStep === 1}
 						{#if subMode === 'member'}
 							<div class="space-y-3">
 								<div>
@@ -1040,7 +1050,6 @@
 							<div class="mt-4 flex items-center justify-between">
 								<button
 									onclick={() => {
-										subMode = null;
 										subStep = 0;
 									}}
 									class={dockBtn}>Back</button
@@ -1068,7 +1077,6 @@
 							<div class="mt-4 flex items-center justify-between">
 								<button
 									onclick={() => {
-										subMode = null;
 										subStep = 0;
 									}}
 									class={dockBtn}>Back</button
@@ -1082,7 +1090,7 @@
 								</button>
 							</div>
 						{/if}
-					{:else if subStep === 1}
+					{:else if subStep === 2}
 						<!-- Success -->
 						<div class="py-2 text-center">
 							<p class="text-sm font-medium text-zinc-100">
