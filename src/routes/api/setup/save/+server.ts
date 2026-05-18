@@ -107,6 +107,18 @@ async function handleStructuredStep(
 					})
 					.eq('id', orgId);
 				if (error) throw error;
+				// Mark payments as completed in setup status
+				await supabaseAdmin
+					.from('org_setup_status')
+					.upsert(
+						{
+							organization_id: orgId,
+							section: 'payments',
+							status: 'completed',
+							updated_at: new Date().toISOString()
+						},
+						{ onConflict: 'organization_id,section' }
+					);
 				break;
 			}
 

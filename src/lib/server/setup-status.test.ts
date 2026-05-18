@@ -71,7 +71,18 @@ describe('deriveSetupStatus', () => {
 		expect(status.shipping).toBe(true);
 	});
 
-	it('payments complete when default_payment_terms is set', () => {
+	it('payments complete when resolved in org_setup_status', () => {
+		const status = deriveSetupStatus(baseOrg, {
+			shippingMethodCount: 0,
+			productCount: 0,
+			accountCount: 0,
+			memberCount: 1,
+			resolvedSections: ['payments']
+		});
+		expect(status.payments).toBe(true);
+	});
+
+	it('payments not complete with just default_payment_terms', () => {
 		const status = deriveSetupStatus(
 			{ ...baseOrg, default_payment_terms: 'net_30' },
 			{
@@ -82,7 +93,7 @@ describe('deriveSetupStatus', () => {
 				resolvedSections: []
 			}
 		);
-		expect(status.payments).toBe(true);
+		expect(status.payments).toBe(false);
 	});
 
 	it('taxes complete when skipped', () => {

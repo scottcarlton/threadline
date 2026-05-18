@@ -52,7 +52,7 @@ export function deriveSetupStatus(org: OrgFields, counts: CountData): SetupStatu
 	return {
 		address: hasAddress,
 		shipping: hasShipping,
-		payments: Boolean(org.default_payment_terms),
+		payments: resolved.has('payments'),
 		orders: resolved.has('orders'),
 		taxes:
 			resolved.has('taxes') ||
