@@ -896,7 +896,11 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 	// onboarding state); for Nx-BLSR the caller pins brandChecklist to null
 	// anyway (the caller is sales role, not admin), so primaryOrgId is fine here.
 	const [productCount, teammateCount, salesRepCount] = await Promise.all([
-		admin.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
+		admin
+			.from('products')
+			.select('id', { count: 'exact', head: true })
+			.eq('organization_id', primaryOrgId)
+			.eq('is_active', true),
 		admin
 			.from('organization_members')
 			.select('id', { count: 'exact', head: true })

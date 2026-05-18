@@ -24,7 +24,7 @@ describe('deriveSetupStatus', () => {
 			productCount: 0,
 			accountCount: 0,
 			memberCount: 1,
-			skippedSections: []
+			resolvedSections: []
 		});
 		expect(status.address).toBe(false);
 		expect(status.shipping).toBe(false);
@@ -42,7 +42,7 @@ describe('deriveSetupStatus', () => {
 				productCount: 0,
 				accountCount: 0,
 				memberCount: 1,
-				skippedSections: []
+				resolvedSections: []
 			}
 		);
 		expect(status.address).toBe(true);
@@ -65,7 +65,7 @@ describe('deriveSetupStatus', () => {
 				productCount: 0,
 				accountCount: 0,
 				memberCount: 1,
-				skippedSections: []
+				resolvedSections: []
 			}
 		);
 		expect(status.shipping).toBe(true);
@@ -79,7 +79,7 @@ describe('deriveSetupStatus', () => {
 				productCount: 0,
 				accountCount: 0,
 				memberCount: 1,
-				skippedSections: []
+				resolvedSections: []
 			}
 		);
 		expect(status.payments).toBe(true);
@@ -91,7 +91,7 @@ describe('deriveSetupStatus', () => {
 			productCount: 0,
 			accountCount: 0,
 			memberCount: 1,
-			skippedSections: ['taxes']
+			resolvedSections: ['taxes']
 		});
 		expect(status.taxes).toBe(true);
 	});
@@ -104,7 +104,7 @@ describe('deriveSetupStatus', () => {
 				productCount: 0,
 				accountCount: 0,
 				memberCount: 1,
-				skippedSections: []
+				resolvedSections: []
 			}
 		);
 		expect(status.taxes).toBe(true);
@@ -116,7 +116,7 @@ describe('deriveSetupStatus', () => {
 			productCount: 0,
 			accountCount: 0,
 			memberCount: 1,
-			skippedSections: ['returns']
+			resolvedSections: ['returns']
 		});
 		expect(status.returns).toBe(true);
 	});
@@ -127,7 +127,7 @@ describe('deriveSetupStatus', () => {
 			productCount: 1,
 			accountCount: 0,
 			memberCount: 1,
-			skippedSections: []
+			resolvedSections: []
 		});
 		expect(status.products).toBe(true);
 	});
@@ -138,7 +138,7 @@ describe('deriveSetupStatus', () => {
 			productCount: 0,
 			accountCount: 0,
 			memberCount: 2,
-			skippedSections: []
+			resolvedSections: []
 		});
 		expect(status.members).toBe(true);
 	});
@@ -149,8 +149,19 @@ describe('deriveSetupStatus', () => {
 			productCount: 0,
 			accountCount: 0,
 			memberCount: 1,
-			skippedSections: ['members']
+			resolvedSections: ['members']
 		});
 		expect(status.members).toBe(true);
+	});
+
+	it('orders complete when resolved (skipped or completed)', () => {
+		const status = deriveSetupStatus(baseOrg, {
+			shippingMethodCount: 0,
+			productCount: 0,
+			accountCount: 0,
+			memberCount: 1,
+			resolvedSections: ['orders']
+		});
+		expect(status.orders).toBe(true);
 	});
 });

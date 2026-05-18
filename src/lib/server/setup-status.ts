@@ -34,7 +34,7 @@ type CountData = {
 	productCount: number;
 	accountCount: number;
 	memberCount: number;
-	skippedSections: string[];
+	resolvedSections: string[];
 };
 
 export function deriveSetupStatus(org: OrgFields, counts: CountData): SetupStatus {
@@ -47,23 +47,23 @@ export function deriveSetupStatus(org: OrgFields, counts: CountData): SetupStatu
 	const hasShipping =
 		counts.shippingMethodCount > 0 && Boolean(org.default_shipping_method_id) && shipFromResolved;
 
-	const skipped = new Set(counts.skippedSections);
+	const resolved = new Set(counts.resolvedSections);
 
 	return {
 		address: hasAddress,
 		shipping: hasShipping,
 		payments: Boolean(org.default_payment_terms),
-		orders: skipped.has('orders'),
+		orders: resolved.has('orders'),
 		taxes:
-			skipped.has('taxes') ||
+			resolved.has('taxes') ||
 			org.taxes_us_sales_tax_enabled ||
 			org.taxes_vat_enabled ||
 			org.taxes_gst_enabled,
-		returns: skipped.has('returns') || org.returns_window_days > 0,
+		returns: resolved.has('returns') || org.returns_window_days > 0,
 		profile: hasAddress && Boolean(org.time_zone),
 		products: counts.productCount > 0,
 		accounts: counts.accountCount > 0,
-		members: counts.memberCount > 1 || skipped.has('members')
+		members: counts.memberCount > 1 || resolved.has('members')
 	};
 }
 
@@ -107,6 +107,6 @@ export async function getSetupStatus(orgId: string): Promise<SetupStatus> {
 		productCount: productResult.count ?? 0,
 		accountCount: accountResult.count ?? 0,
 		memberCount: memberResult.count ?? 0,
-		skippedSections: (skipResult.data ?? []).map((r) => (r as { section: string }).section)
+		resolvedSections: (skipResult.data ?? []).map((r) => (r as { section: string }).section)
 	});
 }
