@@ -520,26 +520,24 @@
 			steps.push({
 				id: 'ship-from',
 				question: 'Is the shipping address the same as the business address?',
-				type: 'single',
-				options: [
-					{ label: 'Same as business address', value: 'yes' },
-					{ label: 'Different address', value: 'no' }
-				]
+				type: 'yesno'
 			});
-			steps.push({
-				id: 'shipping-default',
-				question: 'Select a default shipping method',
-				type: 'single',
-				options: methods.map((m) => ({
-					label: m.delivery_window ? `${m.name} — ${m.delivery_window}` : m.name,
-					value: m.name
-				}))
-			});
+			if (methods.length > 0) {
+				steps.push({
+					id: 'shipping-default',
+					question: 'Select a default shipping method',
+					type: 'single',
+					options: methods.map((m) => ({
+						label: m.delivery_window ? `${m.name} — ${m.delivery_window}` : m.name,
+						value: m.id
+					}))
+				});
+			}
 		}
 		if (!ss?.payments) {
 			steps.push({
 				id: 'payment-methods',
-				question: 'Select accepted payment methods',
+				question: 'Which payment methods do you accept?',
 				type: 'multi',
 				options: [
 					{ label: 'Credit Card', value: 'credit_card' },
@@ -551,7 +549,7 @@
 			});
 			steps.push({
 				id: 'payment-terms',
-				question: 'Select default payment terms',
+				question: 'What are your default payment terms?',
 				type: 'single',
 				options: [
 					{ label: 'Net 15', value: 'net_15' },
@@ -566,41 +564,30 @@
 		if (!ss?.orders) {
 			steps.push({
 				id: 'orders',
-				question: 'Customize order settings?',
-				type: 'single',
-				options: [
-					{ label: 'Use defaults', value: 'skip' },
-					{ label: "I'll customize later", value: 'later' }
-				]
+				question: 'Want to customize your order settings?',
+				type: 'yesno',
+				skipLabel: 'Use defaults'
 			});
 		}
 		if (!ss?.taxes) {
 			steps.push({
 				id: 'taxes',
-				question: 'Any tax requirements?',
-				type: 'single',
-				options: [
-					{ label: 'No tax requirements', value: 'skip' },
-					{ label: "I'll set this up later", value: 'later' }
-				]
+				question: 'Do you have any tax requirements?',
+				type: 'yesno',
+				skipLabel: 'No tax requirements'
 			});
 		}
 		if (!ss?.returns) {
 			steps.push({
 				id: 'returns',
-				question: 'Set up a return policy?',
-				type: 'single',
-				options: [
-					{ label: 'Skip for now', value: 'skip' },
-					{ label: "I'll set this up later", value: 'later' }
-				]
+				question: 'Do you want to set up a return policy?',
+				type: 'yesno',
+				skipLabel: 'Skip for now'
 			});
 		}
 
+		if (steps.length === 0) return;
 		setupWizard.start(steps);
-		// Open the AI dock input area to trigger visibility
-		const input = document.getElementById('ai-dock-input') as HTMLInputElement;
-		if (input) input.focus();
 	}
 </script>
 
