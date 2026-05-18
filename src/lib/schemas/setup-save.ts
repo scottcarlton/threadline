@@ -43,12 +43,26 @@ const gatewayPayload = z.object({
 	value: z.enum(['yes', 'skip'])
 });
 
+const productManualPayload = z.object({
+	step: z.literal('product-manual'),
+	value: z.object({
+		styleNumber: z.string().trim().min(1, 'Style number is required').max(100),
+		name: z.string().trim().min(1, 'Name is required').max(255),
+		wholesalePrice: z.coerce.number().min(0, 'Price must be 0 or more').max(99_999_999.99),
+		retailPrice: z.coerce.number().min(0).max(99_999_999.99).optional(),
+		category: z.string().trim().max(100).default(''),
+		sizes: z.array(z.string().trim().min(1)).default([]),
+		colors: z.array(z.string().trim().min(1)).default([])
+	})
+});
+
 export const setupSaveSchema = z.discriminatedUnion('step', [
 	addressPayload,
 	shipFromPayload,
 	shippingDefaultPayload,
 	paymentMethodsPayload,
-	paymentTermsPayload
+	paymentTermsPayload,
+	productManualPayload
 ]);
 
 export const setupGatewaySchema = gatewayPayload;

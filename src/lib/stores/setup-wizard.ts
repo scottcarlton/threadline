@@ -3,7 +3,8 @@ import { writable } from 'svelte/store';
 export type SetupStep = {
 	id: string;
 	question: string;
-	type: 'address' | 'single' | 'multi' | 'yesno';
+	type: 'address' | 'single' | 'multi' | 'yesno' | 'navigate' | 'product-manual';
+	description?: string;
 	options?: { label: string; value: string }[];
 	skipLabel?: string;
 };

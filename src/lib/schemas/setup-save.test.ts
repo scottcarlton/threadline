@@ -74,6 +74,30 @@ describe('setupSaveSchema', () => {
 			false
 		);
 	});
+
+	it('validates product-manual with required fields', () => {
+		const result = setupSaveSchema.safeParse({
+			step: 'product-manual',
+			value: {
+				styleNumber: 'ST-001',
+				name: 'Classic Tee',
+				wholesalePrice: 24.5
+			}
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it('rejects product-manual missing name', () => {
+		const result = setupSaveSchema.safeParse({
+			step: 'product-manual',
+			value: {
+				styleNumber: 'ST-001',
+				name: '',
+				wholesalePrice: 24.5
+			}
+		});
+		expect(result.success).toBe(false);
+	});
 });
 
 describe('setupGatewaySchema', () => {

@@ -3,7 +3,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 
 	let wizard = $derived($setupWizard);
@@ -24,6 +24,15 @@
 	let addrState = $state('');
 	let addrZip = $state('');
 
+	// Product manual fields
+	let prodStyle = $state('');
+	let prodName = $state('');
+	let prodWholesale = $state('');
+	let prodRetail = $state('');
+	let prodCategory = $state('');
+	let prodSizes = $state('');
+	let prodColors = $state('');
+
 	$effect(() => {
 		wizard.currentIndex;
 		resetInputs();
@@ -36,6 +45,13 @@
 		addrCity = '';
 		addrState = '';
 		addrZip = '';
+		prodStyle = '';
+		prodName = '';
+		prodWholesale = '';
+		prodRetail = '';
+		prodCategory = '';
+		prodSizes = '';
+		prodColors = '';
 
 		const saved = step ? wizard.answers[step.id] : undefined;
 		if (saved && step) {
@@ -92,6 +108,25 @@
 			setupWizard.goNext();
 		}
 		saving = false;
+	}
+
+	function handleProductSubmit() {
+		if (!prodStyle.trim() || !prodName.trim() || !prodWholesale.trim()) return;
+		save({
+			styleNumber: prodStyle.trim(),
+			name: prodName.trim(),
+			wholesalePrice: parseFloat(prodWholesale),
+			retailPrice: prodRetail.trim() ? parseFloat(prodRetail) : undefined,
+			category: prodCategory.trim(),
+			sizes: prodSizes
+				.split(',')
+				.map((s: string) => s.trim())
+				.filter(Boolean),
+			colors: prodColors
+				.split(',')
+				.map((s: string) => s.trim())
+				.filter(Boolean)
+		});
 	}
 
 	function handleAddressSubmit() {
@@ -220,6 +255,67 @@
 						</Button>
 					</div>
 				</div>
+			{:else if step.type === 'navigate'}
+				{#if step.description}
+					<p class="mb-3 text-sm text-muted-foreground">{step.description}</p>
+				{/if}
+				{#each step.options ?? [] as option, i (option.value)}
+					<button
+						onclick={() => {
+							if (option.value.startsWith('/')) {
+								setupWizard.close();
+								goto(option.value);
+							} else {
+								save(option.value);
+							}
+						}}
+						disabled={saving}
+						class="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-left transition-colors hover:bg-accent"
+					>
+						<span
+							class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-sm font-medium text-muted-foreground"
+						>
+							{i + 1}
+						</span>
+						<span class="text-sm">{option.label}</span>
+					</button>
+				{/each}
+				<div class="mt-2 flex justify-end">
+					<Button variant="outline" size="sm" onclick={() => save('skip')} disabled={saving}
+						>Skip</Button
+					>
+				</div>
+			{:else if step.type === 'product-manual'}
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleProductSubmit();
+					}}
+				>
+					<div class="space-y-2">
+						<Input bind:value={prodStyle} placeholder="Style number / SKU" />
+						<Input bind:value={prodName} placeholder="Product name" />
+						<div class="grid grid-cols-2 gap-2">
+							<Input bind:value={prodWholesale} placeholder="Wholesale price" type="number" />
+							<Input bind:value={prodRetail} placeholder="Retail price (optional)" type="number" />
+						</div>
+						<Input bind:value={prodCategory} placeholder="Category (e.g. Tops, Bottoms)" />
+						<Input bind:value={prodSizes} placeholder="Sizes — e.g. S, M, L, XL" />
+						<Input bind:value={prodColors} placeholder="Colors — e.g. Black, Navy, White" />
+					</div>
+					<div class="mt-3 flex justify-between">
+						<Button variant="outline" size="sm" onclick={() => save('skip')} disabled={saving}
+							>Skip</Button
+						>
+						<Button
+							type="submit"
+							size="sm"
+							disabled={!prodStyle.trim() || !prodName.trim() || !prodWholesale.trim() || saving}
+						>
+							{saving ? 'Saving...' : 'Add Product'}
+						</Button>
+					</div>
+				</form>
 			{:else if step.type === 'yesno'}
 				{#each [{ label: 'Yes', value: 'yes', idx: 1 }, { label: step.skipLabel ?? 'No, skip this', value: 'skip', idx: 2 }] as opt (opt.value)}
 					<button

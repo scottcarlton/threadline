@@ -105,6 +105,55 @@ async function handleStructuredStep(
 				if (error) throw error;
 				break;
 			}
+
+			case 'product-manual': {
+				const v = data.value;
+
+				// Look up brand for this org
+				const { data: brand, error: brandErr } = await supabaseAdmin
+					.from('brands')
+					.select('id')
+					.eq('organization_id', orgId)
+					.eq('is_active', true)
+					.limit(1)
+					.single();
+				if (brandErr || !brand) {
+					return json({ error: 'No active brand found for this organization' }, { status: 400 });
+				}
+
+				// Insert product
+				const { data: product, error: prodErr } = await supabaseAdmin
+					.from('products')
+					.insert({
+						organization_id: orgId,
+						brand_id: brand.id,
+						style_number: v.styleNumber,
+						name: v.name,
+						wholesale_price: v.wholesalePrice,
+						retail_price: v.retailPrice ?? null,
+						category: v.category || null,
+						is_active: true
+					})
+					.select('id')
+					.single();
+				if (prodErr || !product) throw prodErr ?? new Error('Product insert failed');
+
+				// Create variants from size × color matrix
+				const sizes = v.sizes.length > 0 ? v.sizes : [null];
+				const colors = v.colors.length > 0 ? v.colors : [null];
+				const variants = sizes.flatMap((size) =>
+					colors.map((color) => ({
+						product_id: product.id,
+						size,
+						color,
+						is_active: true
+					}))
+				);
+				const { error: varErr } = await supabaseAdmin.from('product_variants').insert(variants);
+				if (varErr) throw varErr;
+
+				break;
+			}
 		}
 
 		return json({ success: true });

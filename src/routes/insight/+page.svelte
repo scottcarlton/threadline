@@ -586,6 +586,25 @@
 			});
 		}
 
+		if (!ss?.products) {
+			steps.push({
+				id: 'products-choose',
+				question: 'Add your first product',
+				type: 'navigate',
+				description:
+					'Upload a linesheet (PDF) or CSV using the + button below, or add a product manually.',
+				options: [
+					{ label: 'Add manually', value: 'manual' },
+					{ label: 'Go to Products page', value: '/products' }
+				]
+			});
+			steps.push({
+				id: 'product-manual',
+				question: 'Add a product',
+				type: 'product-manual'
+			});
+		}
+
 		if (steps.length === 0) return;
 		setupWizard.start(steps);
 	}
