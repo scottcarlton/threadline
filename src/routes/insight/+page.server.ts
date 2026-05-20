@@ -4,6 +4,7 @@ import { refreshInsights } from '$lib/server/insights-engine.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listConnectedReps, listFederatedOrders } from '$lib/server/federation.js';
 import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
+import { getSetupStatus } from '$lib/server/setup-status.js';
 
 type BrandTopAccount = {
 	account_id: string;
@@ -39,7 +40,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			showSummary: [],
 			showAppointments: [],
 			styleVelocity: [],
-			velocityWindow: 14
+			velocityWindow: 14,
+			setupStatus: null,
+			shippingMethods: []
 		};
 	}
 
@@ -97,26 +100,27 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const hasProducts = (productCountCheck.count ?? 0) > 0;
 	const hasAccounts = (accountCountCheck.count ?? 0) > 0;
 	const hasOrders = (orderCountCheck.count ?? 0) > 0;
-	const setupComplete = hasBrands && hasProducts && hasAccounts && hasOrders;
+	const setupComplete = hasBrands && hasProducts && hasAccounts;
 
-	// Get first brand ID for the "add products" link (rep-org onboarding only).
+	// Get brand list for the wizard's product brand picker + first brand link
+	let brandsList: Array<{ id: string; name: string }> = [];
 	let firstBrandId: string | null = null;
-	if (!nxBlsr && hasBrands && !hasProducts) {
-		const { data: firstBrand } = await supabase
+	if (!nxBlsr && hasBrands) {
+		const { data: brands } = await supabase
 			.from('brands')
-			.select('id')
+			.select('id, name')
 			.in('organization_id', orgScope)
 			.eq('is_active', true)
-			.limit(1)
-			.single();
-		firstBrandId = firstBrand?.id ?? null;
+			.order('created_at');
+		brandsList = (brands ?? []) as Array<{ id: string; name: string }>;
+		firstBrandId = brandsList[0]?.id ?? null;
 	}
 
 	// If setup isn't complete, return early with just the checklist data
 	if (!setupComplete) {
 		return {
 			setupComplete,
-			setupChecklist: { hasBrands, hasProducts, hasAccounts, hasOrders, firstBrandId },
+			setupChecklist: { hasBrands, hasProducts, hasAccounts, hasOrders, firstBrandId, brandsList },
 			insightActions: [],
 			scoreboard: [],
 			seasonSummary: [],
@@ -134,7 +138,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			showSummary: [],
 			showAppointments: [],
 			styleVelocity: [],
-			velocityWindow: 14
+			velocityWindow: 14,
+			setupStatus: null,
+			shippingMethods: []
 		};
 	}
 
@@ -653,7 +659,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		commBrandParam,
 		commMonthParam,
 		styleVelocity,
-		velocityWindow
+		velocityWindow,
+		setupStatus: null,
+		shippingMethods: []
 	};
 };
 
@@ -667,6 +675,20 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 	// and union helpers + queries across them.
 	const brandOrgIds = Array.isArray(brandOrgIdInput) ? brandOrgIdInput : [brandOrgIdInput];
 	const primaryOrgId = brandOrgIds[0];
+
+	const [setupStatus, shippingMethodsResult] = await Promise.all([
+		getSetupStatus(primaryOrgId),
+		admin
+			.from('organization_shipping_methods')
+			.select('id, name, delivery_window')
+			.eq('organization_id', primaryOrgId)
+			.order('created_at')
+	]);
+	const shippingMethods = (shippingMethodsResult.data ?? []) as Array<{
+		id: string;
+		name: string;
+		delivery_window: string | null;
+	}>;
 
 	// Refresh insight_actions on every visit — cheap, and keeps cards fresh against
 	// newly quiet reps, newly submitted orders, etc. Run per-org for Nx-BLSR.
@@ -875,7 +897,11 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 	// onboarding state); for Nx-BLSR the caller pins brandChecklist to null
 	// anyway (the caller is sales role, not admin), so primaryOrgId is fine here.
 	const [productCount, teammateCount, salesRepCount] = await Promise.all([
-		admin.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
+		admin
+			.from('products')
+			.select('id', { count: 'exact', head: true })
+			.eq('organization_id', primaryOrgId)
+			.eq('is_active', true),
 		admin
 			.from('organization_members')
 			.select('id', { count: 'exact', head: true })
@@ -891,12 +917,17 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 	const hasConnectedRep = activeReps.length > 0 || (salesRepCount.count ?? 0) > 0;
 	const hasOrder = federatedOrders.length > 0;
 	const hasTeammates = (teammateCount.count ?? 0) > 1;
+
+	const setupComplete = setupStatus.address && setupStatus.shipping && setupStatus.payments;
+
 	const checklist = {
+		...setupStatus,
+		setupComplete,
 		hasProducts,
 		hasConnectedRep,
 		hasOrder,
 		hasTeammates,
-		complete: hasProducts && hasConnectedRep && hasOrder && hasTeammates
+		complete: setupComplete && setupStatus.products && setupStatus.accounts
 	};
 
 	// Browse-the-data payload (demoted but preserved)
@@ -917,6 +948,8 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 		scoreboard,
 		brandBrowse: browse,
 		brandChecklist: checklist as typeof checklist | null,
+		setupStatus,
+		shippingMethods,
 		// Rep-centric fields left empty so the shared page's type stays stable.
 		seasonSummary: [],
 		yearlySummary: [],
