@@ -8,10 +8,10 @@
 		TOTAL_LOADING_MIN_MS,
 		buildOrderPreviewFromCsv,
 		downloadOrderCsvTemplate,
-		ensureMinElapsed,
-		formatOrderPrice
+		ensureMinElapsed
 	} from './order-import-helpers.js';
 	import type { OrderImportResult } from '$lib/schemas/order-import.js';
+	import OrderImportPreview from './OrderImportPreview.svelte';
 
 	// Order import flow: tabs (Upload | Paste CSV) → loading stages →
 	// preview list → Save Items / Continue. CSV-only. Mirrors
@@ -349,47 +349,14 @@
 	</div>
 {:else}
 	<div class="space-y-3">
-		<div class="flex items-center justify-between">
-			<div class="inline-flex items-center gap-2 text-sm">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					viewBox="0 0 24 24"
-					fill="currentColor"
-					class="h-5 w-5 text-emerald-500"
-				>
-					<path
-						d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22ZM17.4571 9.45711L11 15.9142L6.79289 11.7071L8.20711 10.2929L11 13.0858L16.0429 8.04289L17.4571 9.45711Z"
-					/>
-				</svg>
-				Import successful
-			</div>
-			<p class="text-sm text-muted-foreground">
-				Showing {Math.min(previewRows.length, 10)} of {previewRows.length} orders
-			</p>
-		</div>
+		<OrderImportPreview rows={previewRows} onRowsChange={(updated) => (previewRows = updated)} />
 
-		<ul class="h-[16.5rem] space-y-2 overflow-y-auto pr-1">
-			{#each previewRows.slice(0, 10) as row, i (i)}
-				<li class="flex items-center gap-4 rounded-md border p-3">
-					<div class="min-w-0 flex-1 truncate text-sm">
-						<span class="font-medium">{(row.account as string) || 'Unknown'}</span>
-						<span class="text-muted-foreground">
-							· {(row.style_number as string) || '—'} · qty {row.qty ?? '—'}
-						</span>
-						{#if row.size || row.color}
-							<span class="text-muted-foreground">
-								· {[row.size, row.color].filter(Boolean).join(' ')}
-							</span>
-						{/if}
-					</div>
-					<p class="shrink-0 text-sm text-muted-foreground">
-						{formatOrderPrice(row.unit_price)}
-					</p>
-				</li>
-			{/each}
-		</ul>
-
-		<Button size="lg" class="h-12 w-full text-base" disabled={committing} onclick={commitImport}>
+		<Button
+			size="lg"
+			class="h-12 w-full text-base"
+			disabled={committing || previewRows.length === 0}
+			onclick={commitImport}
+		>
 			{committing ? commitPendingLabel : commitLabel}
 		</Button>
 
