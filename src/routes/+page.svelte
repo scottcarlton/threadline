@@ -7,6 +7,8 @@
 	import BrowserWrapper from '$lib/components/marketing/BrowserWrapper.svelte';
 	import Minithread from '$lib/components/marketing/minithread/Minithread.svelte';
 	import MinithreadNotifications from '$lib/components/marketing/minithread/MinithreadNotifications.svelte';
+	import MessagingPhone from '$lib/components/marketing/MessagingPhone.svelte';
+	import CommandBar from '$lib/components/marketing/CommandBar.svelte';
 
 	let faqOpen = $state<number | null>(null);
 	let heroNotificationsVisible = $state(true);
@@ -103,6 +105,9 @@
 					<div class="grid pt-12 sm:pt-24 md:grid-cols-2 md:pt-42">
 						<div>
 							<div class="mb-8 space-y-2">
+								<span class="rounded-md bg-accent/40 px-2 py-1 text-xs text-green-900"
+									>Private Beta</span
+								>
 								<h1
 									class="h-reveal text-3xl leading-10 opacity-0 sm:text-4xl sm:leading-12 md:text-5xl md:leading-14"
 								>
@@ -298,38 +303,45 @@
 					</div>
 					<div>
 						<ul class="mb-6 grid grid-cols-12 gap-6">
-							<li class="col-span-6 min-h-60 rounded-lg bg-neutral-200">
+							<li class="col-span-6 overflow-hidden rounded-lg bg-neutral-200">
 								<div class="space-y-2 p-6">
-									<div>
+									<div class="flex items-center gap-3">
 										<h3 class="text-xl">Email</h3>
+										<span class="rounded-md bg-neutral-300 px-2 py-1 text-xs">Private Beta</span>
 									</div>
 									<p class="text-neutral-600">
-										Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-										incididunt ut labore et dolore magna aliqua.
+										Never miss a beat with accounts in email. Email the order to Stitch and we’ll
+										take care of it from there. Currently available in private beta.
 									</p>
 								</div>
+								<div class="flex justify-center px-5">
+									<img src="/marketing/gmail.svg" alt="" class="w-full" />
+								</div>
 							</li>
-							<li class="col-span-6 min-h-60 rounded-lg bg-neutral-200">
+							<li class="col-span-6 overflow-hidden rounded-lg bg-neutral-200">
 								<div class="space-y-2 p-6">
-									<div>
+									<div class="flex items-center gap-3">
 										<h3 class="text-xl">Messaging</h3>
+										<span class="rounded-md bg-neutral-300 px-2 py-1 text-xs">Early Access</span>
 									</div>
 									<p class="text-neutral-600">
-										Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-										incididunt ut labore et dolore magna aliqua.
+										Create orders, even run your organization from apps you use everyday like
+										iMessage, Slack, Discord, or Telegram. Coming in early access.
 									</p>
 								</div>
+								<MessagingPhone />
 							</li>
-							<li class="col-span-6 min-h-60 rounded-lg bg-neutral-200">
+							<li class="col-span-6 overflow-hidden rounded-lg bg-neutral-200">
 								<div class="space-y-2 p-6">
 									<div>
 										<h3 class="text-xl">Command</h3>
 									</div>
 									<p class="text-neutral-600">
-										Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-										incididunt ut labore et dolore magna aliqua.
+										The command bar let’s search or take action from anywhere within Threadline. No
+										more trying to remember where or what to do.
 									</p>
 								</div>
+								<CommandBar />
 							</li>
 							<li class="col-span-6 min-h-60 rounded-lg bg-neutral-200">
 								<div class="space-y-2 p-6">
@@ -337,12 +349,12 @@
 										<h3 class="text-xl">Connection</h3>
 									</div>
 									<p class="text-neutral-600">
-										Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-										incididunt ut labore et dolore magna aliqua.
+										We’ve built Threadline to optimize connecting brands, reps and tools making it
+										easy to build your team.
 									</p>
 								</div>
 							</li>
-							<li class="col-span-3 space-y-2">
+							<li class="col-span-4 space-y-2 p-6">
 								<div class="flex items-center gap-2">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -357,14 +369,61 @@
 											d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
 										></path><!----></svg
 									>
-									<h3>Order</h3>
+									<h3>Workspace</h3>
+									<span class="rounded-md bg-neutral-200 px-2 py-1 text-xs">Public Release</span>
 								</div>
 								<p class="text-neutral-600">
-									Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-									incididunt ut labore et dolore magna aliqua.
+									Workspace allows you to customize how you view and work with your data. Use
+									pre-defined templates to start or create your own. Available in public release.
 								</p>
 							</li>
-							<li class="col-span-3 space-y-2">
+							<li class="col-span-4 space-y-2 p-6">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Sheets</h3>
+									<span class="rounded-md bg-neutral-200 px-2 py-1 text-xs">Public Release</span>
+								</div>
+								<p class="text-neutral-600">
+									More comfortable working with spreadsheets. We got you covered. Forget about
+									exporting data that eventually gets stale to other applications. Available in
+									public release.
+								</p>
+							</li>
+							<li class="col-span-4 space-y-2 p-6">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Orders</h3>
+								</div>
+								<p class="text-neutral-600">
+									Create orders end-to-end for accounts. Draft orders makes it easy to create orders
+									in advance for your accounts.
+								</p>
+							</li>
+							<li class="col-span-4 space-y-2 p-6">
 								<div class="flex items-center gap-2">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -382,11 +441,11 @@
 									<h3>Accounts</h3>
 								</div>
 								<p class="text-neutral-600">
-									Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-									incididunt ut labore et dolore magna aliqua.
+									Create, manage, even share your accounts across you organization so your entire
+									team stays update with the latest information.
 								</p>
 							</li>
-							<li class="col-span-3 space-y-2">
+							<li class="col-span-4 space-y-2 p-6">
 								<div class="flex items-center gap-2">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -404,11 +463,11 @@
 									<h3>Products</h3>
 								</div>
 								<p class="text-neutral-600">
-									Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-									incididunt ut labore et dolore magna aliqua.
+									Products can become complex to keep organized and current. We make this process
+									easy with smart imports, bulk operations or even allow Stitch to manage products.
 								</p>
 							</li>
-							<li class="col-span-3 space-y-2">
+							<li class="col-span-4 space-y-2 p-6">
 								<div class="flex items-center gap-2">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -426,14 +485,14 @@
 									<h3>Reports</h3>
 								</div>
 								<p class="text-neutral-600">
-									Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-									incididunt ut labore et dolore magna aliqua.
+									What organization doesn’t need insight into how and what is driving business. Use
+									pre-defined reports during private beta and custom reports coming in early
+									release.
 								</p>
 							</li>
 						</ul>
-						<p class="text-sm text-neutral-600">
-							The day-to-day, already covered. inbox, appointments, shows, territories, seasons,
-							expenses.
+						<p class="pl-6 text-sm text-neutral-600">
+							We even cover your inbox, appointments, shows, territories, seasons, expenses.
 						</p>
 					</div>
 					<!-- <ul class="grid gap-12 sm:gap-16 md:gap-24">
