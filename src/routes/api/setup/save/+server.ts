@@ -108,17 +108,15 @@ async function handleStructuredStep(
 					.eq('id', orgId);
 				if (error) throw error;
 				// Mark payments as completed in setup status
-				await supabaseAdmin
-					.from('org_setup_status')
-					.upsert(
-						{
-							organization_id: orgId,
-							section: 'payments',
-							status: 'completed',
-							updated_at: new Date().toISOString()
-						},
-						{ onConflict: 'organization_id,section' }
-					);
+				await supabaseAdmin.from('org_setup_status').upsert(
+					{
+						organization_id: orgId,
+						section: 'payments',
+						status: 'completed',
+						updated_at: new Date().toISOString()
+					},
+					{ onConflict: 'organization_id,section' }
+				);
 				break;
 			}
 
@@ -215,7 +213,6 @@ async function handleStructuredStep(
 			case 'member-invite': {
 				const v = data.value;
 				const userId = locals.session!.user.id;
-				const membershipId = locals.membership?.id;
 
 				const { data: invite, error: invErr } = await supabaseAdmin
 					.from('invitations')

@@ -1018,7 +1018,9 @@
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					class="cursor-text rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10"
+					class="cursor-text rounded-2xl bg-zinc-900 ring-1 ring-white/10 transition-shadow duration-200 {dockFocused
+						? 'shadow-[0_10px_40px_rgba(0,0,0,0.5)]'
+						: 'shadow-2xl'}"
 					onclick={(e) => {
 						if (!(e.target as HTMLElement).closest('button')) focusAiInput();
 					}}

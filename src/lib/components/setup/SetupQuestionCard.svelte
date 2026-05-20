@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { setupWizard, type SetupStep } from '$lib/stores/setup-wizard.js';
+	import { setupWizard } from '$lib/stores/setup-wizard.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 
 	const dockInput =
@@ -58,7 +59,6 @@
 	let prodWholesale = $state('');
 	let prodRetail = $state('');
 	let prodCategory = $state('');
-	let prodSizes = $state('');
 	let prodColors = $state('');
 	let prodImageEl: HTMLInputElement | undefined = $state();
 	let prodImageFile = $state<File | null>(null);
@@ -85,7 +85,7 @@
 	let inviteCommission = $state('10');
 
 	$effect(() => {
-		wizard.currentIndex;
+		void wizard.currentIndex;
 		resetInputs();
 	});
 
@@ -108,7 +108,6 @@
 		prodWholesale = '';
 		prodRetail = '';
 		prodCategory = '';
-		prodSizes = '';
 		prodColors = '';
 		prodImageFile = null;
 		prodImagePreview = '';
@@ -216,10 +215,10 @@
 				}
 				toast.success('Linesheet parsed — review your products');
 				setupWizard.close();
-				goto('/products');
+				goto(resolve('/products'));
 			} else {
 				setupWizard.close();
-				goto('/products');
+				goto(resolve('/products'));
 			}
 		} catch {
 			toast.error('Upload failed — please try again');
@@ -396,7 +395,6 @@
 		prodWholesale = '';
 		prodRetail = '';
 		prodCategory = '';
-		prodSizes = '';
 		prodColors = '';
 		prodImageFile = null;
 		prodImagePreview = '';
@@ -1292,13 +1290,13 @@
 										fileInputEl?.click();
 									} else if (step.id === 'brands') {
 										setupWizard.close();
-										goto('/brands');
+										goto(resolve('/brands'));
 									} else if (step.id === 'accounts') {
 										setupWizard.close();
-										goto('/accounts');
+										goto(resolve('/accounts'));
 									} else if (step.id === 'team') {
 										setupWizard.close();
-										goto('/organization/members');
+										goto(resolve('/organization/members'));
 									}
 								} else if (option.value === 'manual') {
 									if (step.id === 'brands') {

@@ -17,7 +17,6 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
-	import { conversation } from '$lib/stores/conversation.js';
 	import ActionFeed from '$lib/components/insights/ActionFeed.svelte';
 	import Scoreboard from '$lib/components/insights/Scoreboard.svelte';
 	import { setupWizard, type SetupStep } from '$lib/stores/setup-wizard.js';
@@ -496,14 +495,6 @@
 	// Setup checklist
 	const firstName = $derived(data.user?.display_name?.split(' ')[0] ?? 'there');
 
-	function handleShortcut(prompt: string) {
-		const input = document.getElementById('ai-dock-input') as HTMLInputElement;
-		if (input) {
-			input.focus();
-		}
-		conversation.sendMessage(prompt);
-	}
-
 	function handleSetupWithStitch() {
 		const ss = data.setupStatus;
 		const methods = data.shippingMethods ?? [];
@@ -733,11 +724,13 @@
 									<li class="flex items-center justify-between">
 										<div class="flex items-center gap-3">
 											<span class="text-sm">{item.done ? '●' : '○'}</span>
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
 												>{item.label}</a
 											>
 										</div>
 										{#if !item.done}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
 												>Setup</a
 											>
@@ -758,11 +751,13 @@
 									<li class="flex items-center justify-between">
 										<div class="flex items-center gap-3">
 											<span class="text-sm">{item.done ? '●' : '○'}</span>
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
 												>{item.label}</a
 											>
 										</div>
 										{#if !item.done}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
 												>Setup</a
 											>
@@ -778,13 +773,15 @@
 						<div class="flex items-center justify-between">
 							<div class="flex items-center gap-3">
 								<span class="text-sm">{ss?.profile ? '●' : '○'}</span>
-								<a href="/organization" class="text-sm font-medium text-primary hover:underline"
-									>Profile</a
+								<a
+									href={resolve('/organization')}
+									class="text-sm font-medium text-primary hover:underline">Profile</a
 								>
 							</div>
 							{#if !ss?.profile}
-								<a href="/organization" class="text-sm font-medium text-primary hover:underline"
-									>Setup</a
+								<a
+									href={resolve('/organization')}
+									class="text-sm font-medium text-primary hover:underline">Setup</a
 								>
 							{/if}
 						</div>
@@ -799,7 +796,7 @@
 							Not comfortable setting up your organization or need help using Threadline.
 						</p>
 						<a
-							href="https://calendly.com/threadline/setup"
+							href="https://calendar.app.google/8Pd2BN6tqToQd1Kt6"
 							target="_blank"
 							rel="noopener noreferrer"
 							class="mt-4 flex w-full items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
@@ -1001,6 +998,7 @@
 								<div class="flex items-center gap-3">
 									<span class="text-sm">{item.done ? '●' : '○'}</span>
 									{#if item.href && !item.done && !item.blocked}
+										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
 											>{item.label}</a
 										>
@@ -1012,6 +1010,7 @@
 									{#if item.blocked}
 										<span class="text-sm text-muted-foreground">Brand first</span>
 									{:else if item.href}
+										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
 											>Setup</a
 										>
@@ -1031,7 +1030,7 @@
 						Not comfortable setting up your organization or need help using Threadline.
 					</p>
 					<a
-						href="https://calendly.com/threadline/setup"
+						href="https://calendar.app.google/8Pd2BN6tqToQd1Kt6"
 						target="_blank"
 						rel="noopener noreferrer"
 						class="mt-4 flex w-full items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
