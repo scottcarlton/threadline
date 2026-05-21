@@ -4,6 +4,7 @@ import { computeAccountHealth } from '$lib/server/account-health.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { loadManagerScope } from '$lib/server/scoping.js';
 import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
+import { parseSort } from '$lib/utils/sort.js';
 
 const PAGE_SIZE = 50;
 
@@ -15,6 +16,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		return { accounts: [], hasMore: false, totalCount: 0, accountTotals: {}, accountHealth: {} };
 
 	const search = url.searchParams.get('search')?.trim() ?? '';
+	const sort = parseSort(url.searchParams.get('sort'));
 
 	const currentYear = new Date().getFullYear();
 
@@ -85,7 +87,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		.from('accounts')
 		.select('*, territories(name)', { count: 'exact' })
 		.is('archived_at', null)
-		.order('created_at', { ascending: false })
+		.order(sort.field, { ascending: sort.ascending })
 		.range(0, PAGE_SIZE - 1);
 
 	if (isBrandOrg && federatedAccountIds.length > 0) {
