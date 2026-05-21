@@ -6,9 +6,15 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { PinInput } from 'bits-ui';
 
+	import { page } from '$app/stores';
+
 	let email = $state('');
 	let otpCode = $state('');
-	let error = $state('');
+	let error = $state(
+		$page.url.searchParams.get('error') === 'not_whitelisted'
+			? "Threadline is currently in private beta. If you'd like access, reach out to hello@threadline.systems."
+			: ''
+	);
 	let loading = $state(false);
 	let mode = $state<'choose' | 'otp-email' | 'otp-verify' | 'google-email'>('choose');
 
@@ -29,11 +35,6 @@
 	async function signUpWithGoogle() {
 		error = '';
 		loading = true;
-		const allowed = await checkWhitelist(email);
-		if (!allowed) {
-			loading = false;
-			return;
-		}
 		const { error: err } = await supabase.auth.signInWithOAuth({
 			provider: 'google',
 			options: {
@@ -112,7 +113,7 @@
 
 	{#if mode === 'choose'}
 		<div class="flex flex-col gap-3">
-			<Button size="lg" onclick={() => (mode = 'google-email')} disabled={loading} class="w-full">
+			<Button size="lg" onclick={signUpWithGoogle} disabled={loading} class="w-full">
 				Continue with Google
 			</Button>
 
