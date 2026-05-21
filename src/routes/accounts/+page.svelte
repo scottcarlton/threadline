@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SearchDropdown } from '$lib/components/ui/input/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
 	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import AccountImportModal from '$lib/components/accounts/AccountImportModal.svelte';
 	import { toast } from 'svelte-sonner';
@@ -13,11 +14,50 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { debounce } from '$lib/utils/debounce.js';
+	import { parseSort, serializeSort, toggleSort, type SortField } from '$lib/utils/sort.js';
 
 	const PAGE_SIZE = 50;
 
 	let { data } = $props();
 	let showImport = $state(false);
+
+	let sort = $state(parseSort($page.url.searchParams.get('sort')));
+
+	const sortItems = [
+		{ value: '-created_at', label: 'Newest first' },
+		{ value: 'created_at', label: 'Oldest first' },
+		{ value: 'business_name', label: 'Name A–Z' },
+		{ value: '-business_name', label: 'Name Z–A' },
+		{ value: 'state', label: 'State A–Z' },
+		{ value: '-state', label: 'State Z–A' }
+	];
+	const sortValue = $derived(serializeSort(sort) || '-created_at');
+
+	function applySort(field: SortField) {
+		sort = toggleSort(sort, field);
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		const serialized = serializeSort(sort);
+		if (serialized) params.set('sort', serialized);
+		else params.delete('sort');
+		goto(resolve(`/accounts?${params.toString()}`), {
+			replaceState: true,
+			noScroll: true
+		});
+	}
+
+	function onSortChange(value: string) {
+		sort = parseSort(value);
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		const serialized = serializeSort(sort);
+		if (serialized) params.set('sort', serialized);
+		else params.delete('sort');
+		goto(resolve(`/accounts?${params.toString()}`), {
+			replaceState: true,
+			noScroll: true
+		});
+	}
 
 	// Account import is handled by <AccountImportModal>, which wraps
 	// <AccountImportFlow> and POSTs to /api/accounts/import on commit.
@@ -120,6 +160,8 @@
 			params.set('limit', String(PAGE_SIZE));
 			if (search) params.set('search', search);
 			if (showArchived) params.set('archived', 'true');
+			const sortParam = serializeSort(sort);
+			if (sortParam) params.set('sort', sortParam);
 			const res = await fetch(`/api/accounts/list?${params.toString()}`);
 			if (res.ok) {
 				const json = await res.json();
@@ -187,6 +229,12 @@
 				class="max-w-xs flex-1"
 			/>
 		{/snippet}
+		<SelectField
+			value={sortValue}
+			items={sortItems}
+			onValueChange={onSortChange}
+			class="min-h-[36px] w-auto min-w-[140px]"
+		/>
 		{#if archivedCount > 0}
 			<button
 				class="text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -230,8 +278,29 @@
 					<tr class="border-b">
 						<th
 							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
-							>Account</th
 						>
+							<button
+								class="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+								onclick={() => applySort('business_name')}
+							>
+								Account
+								{#if sort.field === 'business_name'}
+									<svg
+										class="h-3 w-3"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										{#if sort.ascending}
+											<path d="M12 19V5M5 12l7-7 7 7" />
+										{:else}
+											<path d="M12 5v14M5 12l7 7 7-7" />
+										{/if}
+									</svg>
+								{/if}
+							</button>
+						</th>
 						<th
 							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>Contact</th
