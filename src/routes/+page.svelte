@@ -9,6 +9,7 @@
 	import MinithreadNotifications from '$lib/components/marketing/minithread/MinithreadNotifications.svelte';
 	import MessagingPhone from '$lib/components/marketing/MessagingPhone.svelte';
 	import CommandBar from '$lib/components/marketing/CommandBar.svelte';
+	import EmailDemo from '$lib/components/marketing/EmailDemo.svelte';
 
 	let faqOpen = $state<number | null>(null);
 	let heroNotificationsVisible = $state(true);
@@ -314,9 +315,7 @@
 										take care of it from there. Currently available in private beta.
 									</p>
 								</div>
-								<div class="flex justify-center px-5">
-									<img src="/marketing/gmail.svg" alt="" class="w-full" />
-								</div>
+								<EmailDemo />
 							</li>
 							<li class="col-span-6 overflow-hidden rounded-lg bg-neutral-200">
 								<div class="space-y-2 p-6">
