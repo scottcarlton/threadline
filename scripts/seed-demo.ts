@@ -229,6 +229,8 @@ type Product = {
 	retail: number;
 	subcat: string;
 	season: 'Spring' | 'Summer' | 'Fall';
+	featured?: boolean;
+	attributes?: string[];
 };
 
 const PRODUCTS: readonly Product[] = [
@@ -240,7 +242,9 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 148,
 		retail: 375,
 		subcat: 'Blouse',
-		season: 'Spring'
+		season: 'Spring',
+		featured: true,
+		attributes: ['natural_fibers', 'made_in_usa', 'small_batch']
 	},
 	{
 		style: 'SP26-102',
@@ -258,7 +262,9 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 168,
 		retail: 425,
 		subcat: 'Blouse',
-		season: 'Spring'
+		season: 'Spring',
+		featured: true,
+		attributes: ['natural_fibers', 'ethically_sourced']
 	},
 	{
 		style: 'SP26-104',
@@ -276,7 +282,8 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 158,
 		retail: 395,
 		subcat: 'Blouse',
-		season: 'Spring'
+		season: 'Spring',
+		attributes: ['organic_materials', 'handmade']
 	},
 	{
 		style: 'SP26-106',
@@ -331,7 +338,9 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 124,
 		retail: 315,
 		subcat: 'Shirt',
-		season: 'Summer'
+		season: 'Summer',
+		featured: true,
+		attributes: ['natural_fibers', 'ethically_sourced']
 	},
 	{
 		style: 'SU26-202',
@@ -385,7 +394,8 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 128,
 		retail: 325,
 		subcat: 'Tank',
-		season: 'Summer'
+		season: 'Summer',
+		attributes: ['handmade', 'fair_trade', 'natural_fibers']
 	},
 	{
 		style: 'SU26-208',
@@ -457,7 +467,8 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 138,
 		retail: 345,
 		subcat: 'Blouse',
-		season: 'Summer'
+		season: 'Summer',
+		attributes: ['handmade', 'organic_materials', 'small_batch']
 	},
 	// Fall 2026
 	{
@@ -467,7 +478,9 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 162,
 		retail: 405,
 		subcat: 'Blouse',
-		season: 'Fall'
+		season: 'Fall',
+		featured: true,
+		attributes: ['natural_fibers', 'made_in_usa']
 	},
 	{
 		style: 'FA26-302',
@@ -476,7 +489,9 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 188,
 		retail: 475,
 		subcat: 'Blouse',
-		season: 'Fall'
+		season: 'Fall',
+		featured: true,
+		attributes: ['natural_fibers', 'limited_edition']
 	},
 	{
 		style: 'FA26-303',
@@ -512,7 +527,8 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 198,
 		retail: 495,
 		subcat: 'Blouse',
-		season: 'Fall'
+		season: 'Fall',
+		attributes: ['handmade', 'limited_edition', 'deadstock_fabric']
 	},
 	{
 		style: 'FA26-307',
@@ -530,7 +546,8 @@ const PRODUCTS: readonly Product[] = [
 		wholesale: 158,
 		retail: 395,
 		subcat: 'Top',
-		season: 'Fall'
+		season: 'Fall',
+		attributes: ['natural_fibers', 'ethically_sourced']
 	},
 	{
 		style: 'FA26-309',
@@ -599,7 +616,7 @@ const PRODUCTS: readonly Product[] = [
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL'] as const;
 
-type OrderStatus = 'submitted' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+type OrderStatus = 'submitted' | 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'cancelled';
 type SourceSpec =
 	| { kind: 'source'; name: 'Road' | 'JOOR' }
 	| { kind: 'show'; showName: 'Brand Assembly' | 'FIG' | 'CALA' };
@@ -619,8 +636,12 @@ type OrderSpec = {
 	confirmedOffset: number | null;
 	shippedOffset: number | null;
 	deliveredOffset: number | null;
+	preparingOffset?: number | null;
 	cancelledOffset?: number | null;
 	cancelledReason?: string;
+	trackingNumber?: string;
+	carrier?: string;
+	shippingCost?: number;
 	notes?: string;
 	poNumber?: string;
 	paymentTerms?: string; // 'net_15' | 'net_30' | 'net_60' | 'cod' | 'prepaid' …
@@ -629,7 +650,7 @@ type OrderSpec = {
 };
 
 const ORDERS: readonly OrderSpec[] = [
-	// Sofia (SH Showroom) — 13 orders
+	// Sofia (SH Showroom) — 14 orders (incl. 1 preparing, 1 cancelled)
 	{
 		repOrgName: 'SH Showroom',
 		repEmail: 'sofia@sofiahernandez.co',
@@ -689,8 +710,12 @@ const ORDERS: readonly OrderSpec[] = [
 		expectedOffset: -35,
 		submittedOffset: -34,
 		confirmedOffset: -32,
+		preparingOffset: -40,
 		shippedOffset: -38,
 		deliveredOffset: -31,
+		trackingNumber: '1Z999AA10123456790',
+		carrier: 'UPS',
+		shippingCost: 18,
 		lines: [
 			{ style: 'SP26-101', size: 'XS', qty: 3 },
 			{ style: 'SP26-104', size: 'XL', qty: 1 },
@@ -709,8 +734,12 @@ const ORDERS: readonly OrderSpec[] = [
 		expectedOffset: -33,
 		submittedOffset: -53,
 		confirmedOffset: -51,
+		preparingOffset: -38,
 		shippedOffset: -36,
 		deliveredOffset: -29,
+		trackingNumber: '794644790148',
+		carrier: 'FedEx',
+		shippingCost: 18,
 		lines: [
 			{ style: 'SP26-101', size: 'XS', qty: 5 },
 			{ style: 'SP26-104', size: 'L', qty: 3 },
@@ -751,8 +780,12 @@ const ORDERS: readonly OrderSpec[] = [
 		expectedOffset: 53,
 		submittedOffset: -25,
 		confirmedOffset: -23,
+		preparingOffset: -19,
 		shippedOffset: -17,
 		deliveredOffset: null,
+		trackingNumber: '1Z999AA10123456784',
+		carrier: 'UPS',
+		shippingCost: 42,
 		lines: [
 			{ style: 'SU26-201', size: 'XL', qty: 4 },
 			{ style: 'SU26-202', size: 'XS', qty: 3 },
@@ -838,8 +871,12 @@ const ORDERS: readonly OrderSpec[] = [
 		expectedOffset: 138,
 		submittedOffset: -21,
 		confirmedOffset: -18,
+		preparingOffset: -13,
 		shippedOffset: -11,
 		deliveredOffset: null,
+		trackingNumber: '9400111899223456789012',
+		carrier: 'USPS',
+		shippingCost: 18,
 		lines: [
 			{ style: 'FA26-301', size: 'L', qty: 2 },
 			{ style: 'FA26-303', size: 'XL', qty: 4 },
@@ -881,8 +918,12 @@ const ORDERS: readonly OrderSpec[] = [
 		expectedOffset: 146,
 		submittedOffset: -34,
 		confirmedOffset: -32,
+		preparingOffset: -28,
 		shippedOffset: -25,
 		deliveredOffset: null,
+		trackingNumber: '794644790132',
+		carrier: 'FedEx',
+		shippingCost: 36,
 		lines: [
 			{ style: 'FA26-303', size: 'L', qty: 5 },
 			{ style: 'FA26-307', size: 'XL', qty: 3 },
@@ -912,6 +953,33 @@ const ORDERS: readonly OrderSpec[] = [
 			{ style: 'FA26-311', size: 'M', qty: 5 },
 			{ style: 'FA26-313', size: 'XL', qty: 4 },
 			{ style: 'FA26-315', size: 'M', qty: 2 }
+		]
+	},
+	// Preparing order — confirmed and being packed, exercises the preparing
+	// badge + tracking fields on /orders and /orders/[id].
+	{
+		repOrgName: 'SH Showroom',
+		repEmail: 'sofia@sofiahernandez.co',
+		accountBiz: 'Maison Lumen',
+		season: 'Summer',
+		status: 'preparing',
+		source: { kind: 'source', name: 'Road' },
+		startOffset: 15,
+		expectedOffset: 45,
+		submittedOffset: -30,
+		confirmedOffset: -28,
+		preparingOffset: -3,
+		shippedOffset: null,
+		deliveredOffset: null,
+		trackingNumber: '794644790170',
+		carrier: 'FedEx',
+		shippingCost: 18,
+		paymentTerms: 'cod',
+		lines: [
+			{ style: 'SU26-203', size: 'S', qty: 2 },
+			{ style: 'SU26-203', size: 'M', qty: 3 },
+			{ style: 'SU26-206', size: 'M', qty: 2 },
+			{ style: 'SU26-211', size: 'L', qty: 3 }
 		]
 	},
 	// Lauren (Lauren Mackey) — 9 orders
@@ -955,8 +1023,12 @@ const ORDERS: readonly OrderSpec[] = [
 		expectedOffset: -41,
 		submittedOffset: -45,
 		confirmedOffset: -41,
+		preparingOffset: -45,
 		shippedOffset: -44,
 		deliveredOffset: -37,
+		trackingNumber: '794644790155',
+		carrier: 'FedEx',
+		shippingCost: 16,
 		lines: [
 			{ style: 'SP26-102', size: 'M', qty: 1 },
 			{ style: 'SP26-104', size: 'XL', qty: 5 },
@@ -976,8 +1048,12 @@ const ORDERS: readonly OrderSpec[] = [
 		expectedOffset: -51,
 		submittedOffset: -42,
 		confirmedOffset: -40,
+		preparingOffset: -55,
 		shippedOffset: -54,
 		deliveredOffset: -47,
+		trackingNumber: '1Z999AA10123456815',
+		carrier: 'UPS',
+		shippingCost: 18,
 		lines: [
 			{ style: 'SP26-101', size: 'XL', qty: 6 },
 			{ style: 'SP26-102', size: 'XL', qty: 4 },
@@ -1020,8 +1096,12 @@ const ORDERS: readonly OrderSpec[] = [
 		expectedOffset: 38,
 		submittedOffset: -41,
 		confirmedOffset: -38,
+		preparingOffset: -36,
 		shippedOffset: -34,
 		deliveredOffset: null,
+		trackingNumber: '1Z999AA10123456801',
+		carrier: 'UPS',
+		shippingCost: 16,
 		lines: [
 			{ style: 'SU26-202', size: 'M', qty: 5 },
 			{ style: 'SU26-205', size: 'XL', qty: 3 },
@@ -1082,8 +1162,12 @@ const ORDERS: readonly OrderSpec[] = [
 		expectedOffset: 138,
 		submittedOffset: -34,
 		confirmedOffset: -31,
+		preparingOffset: -28,
 		shippedOffset: -26,
 		deliveredOffset: null,
+		trackingNumber: '9400111899223456789028',
+		carrier: 'USPS',
+		shippingCost: 16,
 		lines: [
 			{ style: 'FA26-301', size: 'L', qty: 4 },
 			{ style: 'FA26-302', size: 'M', qty: 5 },
@@ -2380,7 +2464,14 @@ async function seedProductsAndVariants(
 
 	// Cycle a small color palette so variants render with variety. (color
 	// lives on product_variants, not products.)
-	const PRODUCT_COLOR_CYCLE = ['Ivory', 'Black', 'Sand', 'Sage', 'Navy', 'Rose'];
+	const PRODUCT_COLOR_CYCLE: Array<{ name: string; hex: string }> = [
+		{ name: 'Ivory', hex: '#FFFFF0' },
+		{ name: 'Black', hex: '#1A1A1A' },
+		{ name: 'Sand', hex: '#C2B280' },
+		{ name: 'Sage', hex: '#9CAF88' },
+		{ name: 'Navy', hex: '#1B2A4A' },
+		{ name: 'Rose', hex: '#D4A0A0' }
+	];
 	const colorByStyleNumber = new Map(
 		PRODUCTS.map((p, i) => [p.style, PRODUCT_COLOR_CYCLE[i % PRODUCT_COLOR_CYCLE.length]])
 	);
@@ -2397,6 +2488,8 @@ async function seedProductsAndVariants(
 		category: 'Tops',
 		subcategory: p.subcat,
 		is_active: true,
+		is_featured: p.featured ?? false,
+		attributes: p.attributes ?? [],
 		// ATS on every other style — enough to demo the badge filter without
 		// pretending the whole linesheet is in stock.
 		ats: i % 2 === 0
@@ -2413,6 +2506,7 @@ async function seedProductsAndVariants(
 		product_id: string;
 		size: string;
 		color: string;
+		color_hex: string | null;
 		sku: string;
 		stock_qty: number;
 		stock_threshold: number;
@@ -2421,6 +2515,7 @@ async function seedProductsAndVariants(
 	}> = [];
 	for (const row of inserted!) {
 		byStyle.set(row.style_number, { productId: row.id, variants: new Map() });
+		const colorEntry = colorByStyleNumber.get(row.style_number) ?? PRODUCT_COLOR_CYCLE[0];
 		for (const size of SIZES) {
 			// Sprinkle a price_override on ~10% of variants (XL of every-third
 			// product) so the override badge shows on variant rows.
@@ -2428,7 +2523,8 @@ async function seedProductsAndVariants(
 			variantRows.push({
 				product_id: row.id,
 				size,
-				color: colorByStyleNumber.get(row.style_number) ?? 'Ivory',
+				color: colorEntry.name,
+				color_hex: colorEntry.hex,
 				sku: `${row.style_number}-${size}`,
 				stock_qty: 20 + (hashString(row.style_number + size) % 80),
 				stock_threshold: 5,
@@ -2578,10 +2674,14 @@ async function seedOrders(
 			expected_ship_date: isoDate(o.expectedOffset),
 			submitted_at: isoTime(o.submittedOffset),
 			confirmed_at: o.confirmedOffset != null ? isoTime(o.confirmedOffset) : null,
+			preparing_at: o.preparingOffset != null ? isoTime(o.preparingOffset) : null,
 			shipped_at: o.shippedOffset != null ? isoTime(o.shippedOffset) : null,
 			delivered_at: o.deliveredOffset != null ? isoTime(o.deliveredOffset) : null,
 			cancelled_at: o.cancelledOffset != null ? isoTime(o.cancelledOffset) : null,
 			cancelled_reason: o.cancelledReason ?? null,
+			tracking_number: o.trackingNumber ?? null,
+			carrier: o.carrier ?? null,
+			shipping_cost: o.shippingCost ?? null,
 			shipped_amount: isShipped ? computedTotal : null,
 			notes:
 				o.notes ??
@@ -2795,6 +2895,20 @@ async function seedBrandProfile(
 	log('Elise Varga brand terms inserted');
 }
 
+async function seedBetaWhitelist(userIds: Map<string, string>): Promise<void> {
+	const rows = USERS.map((u) => ({
+		email: u.email,
+		invited_by: userIds.get(u.email)!,
+		notes: 'Demo seed user'
+	}));
+	const { error } = await supa.from('beta_whitelist').insert(rows);
+	if (error) {
+		console.error('✖ beta_whitelist insert:', error);
+		process.exit(1);
+	}
+	log(`${rows.length} emails added to beta whitelist`);
+}
+
 // ─── Orchestrator ───────────────────────────────────────────────────────────
 
 async function main() {
@@ -2826,6 +2940,9 @@ async function main() {
 
 	console.log('\n◆ Phase 5: buyers & cart');
 	await seedAcceptedBuyers(orgIds, accountIds, productMap);
+
+	console.log('\n◆ Phase 6: beta whitelist');
+	await seedBetaWhitelist(userIds);
 
 	const secs = ((Date.now() - started) / 1000).toFixed(1);
 	console.log(`\n✅ Done in ${secs}s.`);
