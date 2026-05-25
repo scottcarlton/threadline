@@ -150,7 +150,7 @@
 
 		<!-- Chat -->
 		<div class="flex flex-col gap-1 px-3.5 pt-0.5 pb-5">
-			{#each messages as msg}
+			{#each messages as msg (msg.id)}
 				{#if msg.type === 'typing'}
 					<div id={msg.id} class="typing-indicator">
 						<div class="typing-dot"></div>

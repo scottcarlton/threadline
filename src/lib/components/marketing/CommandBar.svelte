@@ -1,4 +1,5 @@
 <script lang="ts">
+	/* eslint-disable svelte/no-dom-manipulating */
 	import { inView } from 'motion';
 
 	let cmdEl = $state<HTMLElement | null>(null);

@@ -14,3 +14,6 @@ bun.lockb
 
 # Superpowers plugin generated files
 .superpowers/
+
+# Prototype HTML files
+/explorations/
