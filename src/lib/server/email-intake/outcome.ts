@@ -102,6 +102,7 @@ export async function executeOutcome(
 			account_id: resolved.accountId,
 			brand_id: resolved.brandId,
 			status: orderStatus,
+			channel: 'email',
 			created_by: resolved.userId,
 			notes: resolved.notes,
 			start_ship_date: resolved.startShipDate,
