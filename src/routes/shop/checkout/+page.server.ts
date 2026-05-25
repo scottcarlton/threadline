@@ -23,8 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		{ data: seasons },
 		{ data: account },
 		{ data: locations },
-		{ data: brandTerms },
-		{ data: portalSource }
+		{ data: brandTerms }
 	] = await Promise.all([
 		supabaseAdmin
 			.from('season_deliveries')
@@ -55,14 +54,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.from('brand_terms')
 			.select('id, brand_id, title, body, version')
 			.in('brand_id', buyerBrandIds.length ? buyerBrandIds : ['__none__'])
-			.eq('is_current', true),
-		supabaseAdmin
-			.from('source_types')
-			.select('id')
-			.eq('organization_id', organization.id)
-			.eq('name', 'Portal')
-			.eq('is_system', true)
-			.maybeSingle()
+			.eq('is_current', true)
 	]);
 
 	const brandSettingsMap = await resolveOrderSettings(supabaseAdmin, buyerBrandIds);
@@ -84,7 +76,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		account: account ?? null,
 		locations: locations ?? [],
 		brandTerms: brandTerms ?? [],
-		portalSourceTypeId: portalSource?.id ?? null,
 		acceptedPaymentMethods: (organization.accepted_payment_methods ?? []) as string[],
 		defaultPaymentMethod: (organization.default_payment_method ?? null) as string | null,
 		defaultPaymentTerms: (orgRow.default_payment_terms ?? null) as string | null,
