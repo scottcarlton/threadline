@@ -56,6 +56,7 @@ const PUBLIC_ROUTES = [
 	'/upload',
 	'/api/dev',
 	'/api/beta',
+	'/api/auth/check-whitelist',
 	'/beta',
 	'/legal'
 ];

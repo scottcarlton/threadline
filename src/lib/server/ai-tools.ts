@@ -23,6 +23,28 @@ import {
 // ai-tools module stays importable in unit tests where $env/dynamic/private
 // isn't wired. See notifyOrderSubmitted below.
 
+/**
+ * For brand orgs, resolve all order IDs visible through federation
+ * (federated_order_links) so AI queries can see rep-submitted orders.
+ * Returns null for rep orgs (they query by organization_id directly).
+ */
+async function getBrandOrderIds(ctx: ToolContext): Promise<string[] | null> {
+	if (ctx.orgType !== 'brand') return null;
+	const { data } = await supabaseAdmin
+		.from('federated_order_links')
+		.select('order_id')
+		.eq('target_org_id', ctx.organizationId)
+		.eq('status', 'active');
+	// Also include orders placed directly inside the brand org (in-house sales)
+	const { data: directOrders } = await supabaseAdmin
+		.from('orders')
+		.select('id')
+		.eq('organization_id', ctx.organizationId);
+	const fedIds = (data ?? []).map((r) => (r as { order_id: string }).order_id);
+	const directIds = (directOrders ?? []).map((r) => (r as { id: string }).id);
+	return [...new Set([...fedIds, ...directIds])];
+}
+
 type ToolContext = {
 	supabase: SupabaseClient;
 	organizationId: string;
@@ -783,23 +805,24 @@ async function queryData(input: Record<string, unknown>, ctx: ToolContext): Prom
 		selectStr = '*, brands(name), product_variants(color, size, sku)';
 	}
 
-	let query = ctx.supabase.from(table).select(selectStr);
+	// For brand orgs querying orders, use supabaseAdmin + federated IDs to bypass RLS
+	const useFederatedOrders = ctx.orgType === 'brand' && entity === 'orders';
+	const brandOrderIds = useFederatedOrders ? await getBrandOrderIds(ctx) : null;
+	let query = (useFederatedOrders ? supabaseAdmin : ctx.supabase).from(table).select(selectStr);
 
-	// Federation-aware tables: rely on RLS so federated rows (connected brand's brands/products,
-	// brand's view of rep orders/accounts) come through. Own-org-only tables keep the explicit
-	// organization_id filter.
-	const FEDERATION_AWARE = new Set(['brands', 'accounts', 'products', 'orders']);
+	const FEDERATION_AWARE = new Set(['brands', 'accounts', 'products']);
 
 	if (entity === 'order_lines') {
 		if (!filters.order_id)
 			return { success: false, error: 'order_id filter required for order_lines' };
+	} else if (useFederatedOrders && brandOrderIds) {
+		query = query.in('id', brandOrderIds.length > 0 ? brandOrderIds : ['__none__']);
 	} else if (entity === 'contacts') {
 		query = query.eq('organization_id', ctx.organizationId).in('status', ['new', 'saved']);
 	} else if (!FEDERATION_AWARE.has(entity)) {
 		query = query.eq('organization_id', ctx.organizationId);
 	}
 
-	// Apply brand scope for restricted entities
 	if (ctx.brandScope && entity === 'brands') {
 		query = query.in('id', ctx.brandScope);
 	}
@@ -871,13 +894,19 @@ async function getDashboardMetrics(
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	try {
-		// Total orders with optional filters
-		let ordersQuery = ctx.supabase
+		const brandOrderIds = await getBrandOrderIds(ctx);
+
+		let ordersQuery = supabaseAdmin
 			.from('orders')
 			.select('id, status, total_amount, created_at, brand_id, season_id, order_year', {
 				count: 'exact'
-			})
-			.eq('organization_id', ctx.organizationId);
+			});
+
+		if (brandOrderIds) {
+			ordersQuery = ordersQuery.in('id', brandOrderIds.length > 0 ? brandOrderIds : ['__none__']);
+		} else {
+			ordersQuery = ordersQuery.eq('organization_id', ctx.organizationId);
+		}
 
 		if (ctx.brandScope) {
 			ordersQuery = ordersQuery.in('brand_id', ctx.brandScope);
@@ -889,7 +918,6 @@ async function getDashboardMetrics(
 			ordersQuery = ordersQuery.eq('order_year', input.order_year as number);
 		}
 		if (input.season_name) {
-			// Resolve season first
 			const { data: seasons } = await ctx.supabase
 				.from('seasons')
 				.select('id')
@@ -903,14 +931,12 @@ async function getDashboardMetrics(
 
 		const { data: orders, count: orderCount } = await ordersQuery;
 
-		// Aggregate metrics
 		const totalRevenue = orders?.reduce((sum, o) => sum + (o.total_amount || 0), 0) ?? 0;
 		const statusCounts: Record<string, number> = {};
 		orders?.forEach((o) => {
 			statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
 		});
 
-		// Brand count
 		let brandsQuery = ctx.supabase
 			.from('brands')
 			.select('id', { count: 'exact' })
@@ -921,7 +947,6 @@ async function getDashboardMetrics(
 		}
 		const { count: brandCount } = await brandsQuery;
 
-		// Account count
 		const { count: accountCount } = await ctx.supabase
 			.from('accounts')
 			.select('id', { count: 'exact' })
@@ -1471,13 +1496,21 @@ async function getSalesReport(
 ): Promise<ToolResult> {
 	const groupBy = input.group_by as string;
 
-	let query = ctx.supabase
+	const brandOrderIds = await getBrandOrderIds(ctx);
+	const db = brandOrderIds ? supabaseAdmin : ctx.supabase;
+
+	let query = db
 		.from('orders')
 		.select(
 			'id, total_amount, brand_id, account_id, order_year, created_by, brands(name), accounts(business_name, territory_id, territories(name))'
 		)
-		.eq('organization_id', ctx.organizationId)
 		.neq('status', 'cancelled');
+
+	if (brandOrderIds) {
+		query = query.in('id', brandOrderIds.length > 0 ? brandOrderIds : ['__none__']);
+	} else {
+		query = query.eq('organization_id', ctx.organizationId);
+	}
 
 	if (ctx.brandScope) query = query.in('brand_id', ctx.brandScope);
 	if (input.order_year) query = query.eq('order_year', input.order_year as number);
@@ -1674,11 +1707,12 @@ async function getStyleVelocity(
 	const days = (input.days as number) ?? 14;
 	const minAccounts = (input.min_accounts as number) ?? 2;
 
-	const { data, error } = await ctx.supabase.rpc('get_style_velocity', {
-		org_id: ctx.organizationId,
-		days_back: days,
-		min_accounts: minAccounts
-	});
+	const rpcName = ctx.orgType === 'brand' ? 'get_style_velocity_for_brand' : 'get_style_velocity';
+	const rpcParams =
+		ctx.orgType === 'brand'
+			? { brand_org_id: ctx.organizationId, days_back: days, min_accounts: minAccounts }
+			: { org_id: ctx.organizationId, days_back: days, min_accounts: minAccounts };
+	const { data, error } = await ctx.supabase.rpc(rpcName, rpcParams);
 
 	if (error) return { success: false, error: error.message };
 
@@ -1703,19 +1737,26 @@ async function getCommissionReport(
 	input: Record<string, unknown>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	let query = ctx.supabase
+	const brandOrderIds = await getBrandOrderIds(ctx);
+	const db = brandOrderIds ? supabaseAdmin : ctx.supabase;
+
+	let query = db
 		.from('orders')
 		.select(
 			'id, total_amount, shipped_amount, brand_id, created_by, brands(name, commission_rate), accounts(business_name)'
 		)
-		.eq('organization_id', ctx.organizationId)
 		.neq('status', 'cancelled');
+
+	if (brandOrderIds) {
+		query = query.in('id', brandOrderIds.length > 0 ? brandOrderIds : ['__none__']);
+	} else {
+		query = query.eq('organization_id', ctx.organizationId);
+	}
 
 	if (ctx.brandScope) query = query.in('brand_id', ctx.brandScope);
 	if (input.order_year) query = query.eq('order_year', input.order_year as number);
 
 	if (input.brand_name) {
-		// Brands are federation-aware — a rep may filter by a connected brand.
 		const { data: brands } = await ctx.supabase
 			.from('brands')
 			.select('id')
