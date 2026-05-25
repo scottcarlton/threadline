@@ -1,12 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
-	// import { resolve } from '$app/paths';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
 	import EmailSignup from '$lib/components/marketing/EmailSignup.svelte';
 	import InstallCta from '$lib/components/pwa/InstallCta.svelte';
+	import BrowserWrapper from '$lib/components/marketing/BrowserWrapper.svelte';
+	import Minithread from '$lib/components/marketing/minithread/Minithread.svelte';
+	import MinithreadNotifications from '$lib/components/marketing/minithread/MinithreadNotifications.svelte';
+	import MessagingPhone from '$lib/components/marketing/MessagingPhone.svelte';
+	import CommandBar from '$lib/components/marketing/CommandBar.svelte';
+	import EmailDemo from '$lib/components/marketing/EmailDemo.svelte';
 
 	let faqOpen = $state<number | null>(null);
+	let heroNotificationsVisible = $state(true);
+	let heroOrgMode = $state<'brand' | 'rep'>('brand');
 
 	function toggleFaq(index: number) {
 		faqOpen = faqOpen === index ? null : index;
@@ -99,6 +106,9 @@
 					<div class="grid pt-12 sm:pt-24 md:grid-cols-2 md:pt-42">
 						<div>
 							<div class="mb-8 space-y-2">
+								<span class="rounded-md bg-accent/40 px-2 py-1 text-xs text-green-900"
+									>Private Beta</span
+								>
 								<h1
 									class="h-reveal text-3xl leading-10 opacity-0 sm:text-4xl sm:leading-12 md:text-5xl md:leading-14"
 								>
@@ -113,8 +123,43 @@
 						</div>
 					</div>
 					<div
-						class="h-60 rounded-lg bg-neutral-200 p-6 sm:h-80 sm:p-8 md:h-100 md:min-h-180 md:p-12"
-					></div>
+						data-hero-browser
+						class="relative min-h-60 overflow-hidden rounded-lg bg-neutral-200 p-6 pb-8 sm:min-h-80 sm:p-8 sm:pb-10 md:min-h-180 md:p-12 md:pb-12"
+					>
+						<!-- Brands / Sales toggle -->
+						<!-- Brands / Sales toggle -->
+						<div class="mb-3 flex justify-center">
+							<div class="inline-flex items-center gap-0.5 rounded-md bg-neutral-300/50 p-1">
+								<button
+									type="button"
+									onclick={() => (heroOrgMode = 'brand')}
+									class="cursor-pointer rounded-md px-4 py-1.5 font-mono text-xs transition-colors {heroOrgMode ===
+									'brand'
+										? 'bg-neutral-200 text-foreground'
+										: 'text-muted-foreground hover:text-foreground'}"
+								>
+									Brands
+								</button>
+								<button
+									type="button"
+									onclick={() => (heroOrgMode = 'rep')}
+									class="cursor-pointer rounded-md px-4 py-1.5 font-mono text-xs transition-colors {heroOrgMode ===
+									'rep'
+										? 'bg-neutral-200 text-foreground'
+										: 'text-muted-foreground hover:text-foreground'}"
+								>
+									Sales
+								</button>
+							</div>
+						</div>
+
+						<BrowserWrapper class="mx-auto aspect-video max-w-[1200px]">
+							<Minithread orgMode={heroOrgMode} />
+						</BrowserWrapper>
+
+						<!-- Notifications that slide in from the right -->
+						<MinithreadNotifications visible={heroNotificationsVisible} />
+					</div>
 					<!-- <div
 						class="flex h-100 min-h-180 items-end rounded-4xl bg-black p-12"
 						style="background-image: url('https://images.unsplash.com/photo-1753029226995-74b05a344bb1?q=80&w=3087&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'); background-size: cover; background-position: center;"
@@ -250,13 +295,206 @@
 			<section data-section="how-we-work">
 				<div class="grid gap-12 px-5 py-16 sm:gap-16 sm:px-8 sm:py-20 md:gap-24 md:px-12 md:py-24">
 					<div class="mx-auto grid max-w-220 gap-2 text-center">
-						<span class="font-mono">[How it works]</span>
+						<!-- <span class="font-mono">[How it works]</span> -->
 						<h2 class="text-3xl sm:text-4xl">
-							Stitch finds the work.
-							<span class="text-muted-foreground">Workers do the work.</span>
+							<!-- Stitch finds the work.
+							<span class="text-muted-foreground">Workers do the work.</span> -->
+							Built on todays work.
 						</h2>
 					</div>
-					<ul class="grid gap-12 sm:gap-16 md:gap-24">
+					<div>
+						<ul class="mb-6 grid grid-cols-12 gap-6">
+							<li class="col-span-6 overflow-hidden rounded-lg bg-neutral-200">
+								<div class="space-y-2 p-6">
+									<div class="flex items-center gap-3">
+										<h3 class="text-xl">Email</h3>
+										<span class="rounded-md bg-neutral-300 px-2 py-1 text-xs">Private Beta</span>
+									</div>
+									<p class="text-neutral-600">
+										Never miss a beat with accounts in email. Email the order to Stitch and we’ll
+										take care of it from there. Currently available in private beta.
+									</p>
+								</div>
+								<EmailDemo />
+							</li>
+							<li class="col-span-6 overflow-hidden rounded-lg bg-neutral-200">
+								<div class="space-y-2 p-6">
+									<div class="flex items-center gap-3">
+										<h3 class="text-xl">Messaging</h3>
+										<span class="rounded-md bg-neutral-300 px-2 py-1 text-xs">Early Access</span>
+									</div>
+									<p class="text-neutral-600">
+										Create orders, even run your organization from apps you use everyday like
+										iMessage, Slack, Discord, or Telegram. Coming in early access.
+									</p>
+								</div>
+								<MessagingPhone />
+							</li>
+							<li class="col-span-6 overflow-hidden rounded-lg bg-neutral-200">
+								<div class="space-y-2 p-6">
+									<div>
+										<h3 class="text-xl">Command</h3>
+									</div>
+									<p class="text-neutral-600">
+										The command bar let’s search or take action from anywhere within Threadline. No
+										more trying to remember where or what to do.
+									</p>
+								</div>
+								<CommandBar />
+							</li>
+							<li class="col-span-6 min-h-60 rounded-lg bg-neutral-200">
+								<div class="space-y-2 p-6">
+									<div>
+										<h3 class="text-xl">Connection</h3>
+									</div>
+									<p class="text-neutral-600">
+										We’ve built Threadline to optimize connecting brands, reps and tools making it
+										easy to build your team.
+									</p>
+								</div>
+							</li>
+							<li class="col-span-4 space-y-2 p-6">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+										></path><!----></svg
+									>
+									<h3>Workspace</h3>
+									<span class="rounded-md bg-neutral-200 px-2 py-1 text-xs">Public Release</span>
+								</div>
+								<p class="text-neutral-600">
+									Workspace allows you to customize how you view and work with your data. Use
+									pre-defined templates to start or create your own. Available in public release.
+								</p>
+							</li>
+							<li class="col-span-4 space-y-2 p-6">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Sheets</h3>
+									<span class="rounded-md bg-neutral-200 px-2 py-1 text-xs">Public Release</span>
+								</div>
+								<p class="text-neutral-600">
+									More comfortable working with spreadsheets. We got you covered. Forget about
+									exporting data that eventually gets stale to other applications. Available in
+									public release.
+								</p>
+							</li>
+							<li class="col-span-4 space-y-2 p-6">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Orders</h3>
+								</div>
+								<p class="text-neutral-600">
+									Create orders end-to-end for accounts. Draft orders makes it easy to create orders
+									in advance for your accounts.
+								</p>
+							</li>
+							<li class="col-span-4 space-y-2 p-6">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Accounts</h3>
+								</div>
+								<p class="text-neutral-600">
+									Create, manage, even share your accounts across you organization so your entire
+									team stays update with the latest information.
+								</p>
+							</li>
+							<li class="col-span-4 space-y-2 p-6">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Products</h3>
+								</div>
+								<p class="text-neutral-600">
+									Products can become complex to keep organized and current. We make this process
+									easy with smart imports, bulk operations or even allow Stitch to manage products.
+								</p>
+							</li>
+							<li class="col-span-4 space-y-2 p-6">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Reports</h3>
+								</div>
+								<p class="text-neutral-600">
+									What organization doesn’t need insight into how and what is driving business. Use
+									pre-defined reports during private beta and custom reports coming in early
+									release.
+								</p>
+							</li>
+						</ul>
+						<p class="pl-6 text-sm text-neutral-600">
+							We even cover your inbox, appointments, shows, territories, seasons, expenses.
+						</p>
+					</div>
+					<!-- <ul class="grid gap-12 sm:gap-16 md:gap-24">
 						<li class="grid items-center gap-6 md:grid-cols-12">
 							<div class="md:col-span-4">
 								<h3 class="mb-3 text-2xl">Stitch</h3>
@@ -282,13 +520,13 @@
 								class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-7 md:col-start-1 md:row-start-1 md:h-120"
 							></div>
 						</li>
-					</ul>
+					</ul> -->
 				</div>
 			</section>
 			<section data-section="faq">
 				<div class="grid gap-12 px-5 py-16 sm:gap-16 sm:px-8 sm:py-20 md:gap-24 md:px-12 md:py-24">
 					<div class="mx-auto grid max-w-220 gap-2 text-center">
-						<span class="font-mono">[FAQ]</span>
+						<!-- <span class="font-mono">[FAQ]</span> -->
 						<h2 class="text-3xl sm:text-4xl">
 							Common questions. <span class="text-muted-foreground">Clear answers.</span>
 						</h2>
@@ -356,7 +594,6 @@
 					<h2 class="text-3xl sm:text-4xl">Get early access to Threadline</h2>
 					<EmailSignup onsubmit={subscribeToBeta} />
 					<div class="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-						<span>Already have an account?</span>
 						<InstallCta />
 					</div>
 				</div>

@@ -93,5 +93,29 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			.eq('is_self_brand', true);
 	}
 
+	// Seed default shipping methods for brand orgs
+	if (validOrgType === 'brand') {
+		await supabaseAdmin.from('organization_shipping_methods').insert([
+			{
+				organization_id: org.id,
+				name: 'Ground',
+				cost_type: 'flat',
+				delivery_window: '5–7 business days'
+			},
+			{
+				organization_id: org.id,
+				name: 'Express',
+				cost_type: 'flat',
+				delivery_window: '2–3 business days'
+			},
+			{
+				organization_id: org.id,
+				name: 'Overnight',
+				cost_type: 'flat',
+				delivery_window: '1 business day'
+			}
+		]);
+	}
+
 	return json({ organization: org });
 };
