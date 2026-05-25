@@ -137,7 +137,7 @@ BEGIN
         WHEN 'season' THEN ', s.name'
         ELSE ''
       END
-    );
+    ) INTO result;
   END IF;
 
   RETURN result;

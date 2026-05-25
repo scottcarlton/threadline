@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { parseSort } from '$lib/utils/sort.js';
 
 const PAGE_SIZE = 50;
 
@@ -12,6 +13,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	const limit = parseInt(url.searchParams.get('limit') ?? String(PAGE_SIZE));
 	const search = url.searchParams.get('search')?.trim() ?? '';
 	const showArchived = url.searchParams.get('archived') === 'true';
+	const sort = parseSort(url.searchParams.get('sort'));
 
 	// Visible org IDs — asymmetric federation for accounts:
 	//   Rep orgs: own + all connected brand/rep orgs (implicit).
@@ -46,7 +48,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	let query = supabaseAdmin
 		.from('accounts')
 		.select('*, territories(name)', { count: 'exact' })
-		.order('created_at', { ascending: false })
+		.order(sort.field, { ascending: sort.ascending })
 		.range(offset, offset + limit - 1);
 
 	if (isBrandOrg && federatedAccountIds.length > 0) {
