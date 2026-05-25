@@ -26,6 +26,7 @@ declare global {
 			isBuyer: boolean;
 			buyerAccounts: AccountUser[] | null;
 			buyerBrandIds: string[] | null;
+			isSystemAdmin: boolean;
 		}
 		interface PageData {
 			session: Session | null;
@@ -39,6 +40,7 @@ declare global {
 			isBuyer: boolean;
 			buyerAccounts: AccountUser[] | null;
 			buyerBrandIds: string[] | null;
+			isSystemAdmin: boolean;
 		}
 	}
 }

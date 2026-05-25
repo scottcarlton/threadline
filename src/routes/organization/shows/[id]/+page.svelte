@@ -304,9 +304,7 @@
 		{#if editing}
 			<CardFooter class="justify-between">
 				<Button variant="outline" onclick={() => (editing = false)}>Cancel</Button>
-				<Button type="submit" form="edit-form" disabled={loading}>
-					{loading ? 'Saving...' : 'Save Changes'}
-				</Button>
+				<Button type="submit" form="edit-form" {loading}>Save Changes</Button>
 			</CardFooter>
 		{/if}
 	</Card>
@@ -433,9 +431,7 @@
 								<Input id="edit-date-notes" bind:value={editDateNotes} />
 							</div>
 							<div class="flex gap-2">
-								<Button type="submit" size="sm" disabled={editDateLoading}>
-									{editDateLoading ? 'Saving...' : 'Save'}
-								</Button>
+								<Button type="submit" size="sm" loading={editDateLoading}>Save</Button>
 								<Button variant="outline" size="sm" onclick={() => (editingDateId = null)}
 									>Cancel</Button
 								>
@@ -674,9 +670,7 @@
 							<Input id="new-date-notes" bind:value={newDateNotes} placeholder="Optional notes" />
 						</div>
 						<div class="flex gap-2">
-							<Button type="submit" size="sm" disabled={dateLoading}>
-								{dateLoading ? 'Saving...' : 'Save Date'}
-							</Button>
+							<Button type="submit" size="sm" loading={dateLoading}>Save Date</Button>
 							<Button variant="outline" size="sm" onclick={() => (addingDate = false)}
 								>Cancel</Button
 							>

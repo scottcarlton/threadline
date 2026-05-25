@@ -313,7 +313,7 @@ Footer:
 
 **Email Infrastructure:**
 
-- [ ] Select email platform (Resend, Postmark, SendGrid, or ConvertKit)
+- [x] Select email platform — Brevo (transactional + marketing + SMS)
 - [ ] Design email templates (responsive, on-brand)
 - [ ] Set up transactional vs marketing email separation
 - [ ] Configure email authentication (SPF, DKIM, DMARC for deliverability)
@@ -544,7 +544,7 @@ AI Agents
 
 | Category          | Recommended Tool                       | Purpose                                          |
 | ----------------- | -------------------------------------- | ------------------------------------------------ |
-| Email Marketing   | Resend or ConvertKit                   | Transactional + marketing emails                 |
+| Email Marketing   | Brevo                                  | Transactional + marketing emails + SMS           |
 | Analytics         | Google Analytics 4 + Plausible         | Traffic, conversions, privacy-friendly analytics |
 | SEO               | Google Search Console + Ahrefs/SEMrush | Rankings, keyword tracking, backlinks            |
 | Social Scheduling | Buffer or Typefully                    | Schedule posts across platforms                  |

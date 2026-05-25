@@ -616,8 +616,8 @@
 				</div>
 
 				<div class="mt-5">
-					<Button onclick={sendTestMessage} disabled={sendingTest} variant="outline" size="sm">
-						{sendingTest ? 'Sending...' : 'Send Test Message'}
+					<Button onclick={sendTestMessage} loading={sendingTest} variant="outline" size="sm">
+						Send Test Message
 					</Button>
 
 					{#if testResult === 'success'}

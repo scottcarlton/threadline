@@ -16,11 +16,12 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	const offset = parseInt(url.searchParams.get('offset') ?? '0', 10) || 0;
 	const category = url.searchParams.get('category') ?? '';
 	const showArchived = url.searchParams.get('archived') === 'true';
+	const ids = url.searchParams.getAll('id').filter(Boolean);
 
 	let query = locals.supabase
 		.from('products')
 		.select(
-			'id, brand_id, season_id, product_year, style_number, name, wholesale_price, category, ats, archived_at, product_variants(id, color, size, price_override, stock_qty, stock_threshold, shopify_variant_id), product_images(id, is_primary, sort_order)',
+			'id, brand_id, season_id, product_year, style_number, name, wholesale_price, category, ats, archived_at, product_variants(id, color, color_hex, size, price_override, stock_qty, stock_threshold, shopify_variant_id), product_images(id, is_primary, sort_order, role, variant_id)',
 			{ count: 'exact' }
 		)
 		// RLS handles org + federation visibility — no org_id filter here so
@@ -29,6 +30,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		.order('style_number')
 		.range(offset, offset + limit - 1);
 
+	if (ids.length > 0) query = query.in('id', ids);
 	if (!showArchived) query = query.is('archived_at', null);
 	if (brandIds.length > 0) query = query.in('brand_id', brandIds);
 	if (seasonIds.length > 0) query = query.in('season_id', seasonIds);

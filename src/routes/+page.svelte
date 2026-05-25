@@ -1,14 +1,28 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import MarketingNav from '$lib/components/marketing/MarketingNav.svelte';
-	// import { resolve } from '$app/paths';
 	import MarketingFooter from '$lib/components/marketing/MarketingFooter.svelte';
+	import EmailSignup from '$lib/components/marketing/EmailSignup.svelte';
 	import InstallCta from '$lib/components/pwa/InstallCta.svelte';
+	import BrowserWrapper from '$lib/components/marketing/BrowserWrapper.svelte';
+	import Minithread from '$lib/components/marketing/minithread/Minithread.svelte';
+	import MinithreadNotifications from '$lib/components/marketing/minithread/MinithreadNotifications.svelte';
 
 	let faqOpen = $state<number | null>(null);
+	let heroNotificationsVisible = $state(true);
+	let heroOrgMode = $state<'brand' | 'rep'>('brand');
 
 	function toggleFaq(index: number) {
 		faqOpen = faqOpen === index ? null : index;
+	}
+
+	async function subscribeToBeta(email: string) {
+		const res = await fetch('/api/beta/subscribe', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email })
+		});
+		return res.json();
 	}
 
 	onMount(async () => {
@@ -77,7 +91,7 @@
 </script>
 
 <svelte:head>
-	<title>Threadline — Wholesale Intelligence Platform</title>
+	<title>Threadline. AI-native wholesale system.</title>
 </svelte:head>
 
 <div>
@@ -85,29 +99,61 @@
 	<main>
 		<div>
 			<section data-section="hero">
-				<div class="grid gap-12 px-12 pt-32">
-					<div class="grid grid-cols-2 pt-42">
+				<div class="grid gap-8 px-5 pt-28 sm:gap-12 sm:px-8 md:px-12 md:pt-32">
+					<div class="grid pt-12 sm:pt-24 md:grid-cols-2 md:pt-42">
 						<div>
 							<div class="mb-8 space-y-2">
-								<h1 class="h-reveal text-5xl leading-14 opacity-0">Decisions, not dashboards.</h1>
+								<h1
+									class="h-reveal text-3xl leading-10 opacity-0 sm:text-4xl sm:leading-12 md:text-5xl md:leading-14"
+								>
+									We work where you work.
+								</h1>
 								<p class="h-reveal max-w-xl text-neutral-700 opacity-0">
-									We unify how reps and brands see, understand, and act on their business, no matter
-									where the signal comes from.
+									An AI-native wholesale system for brands and multi-brand reps. See what's moving,
+									what's not, and what to do.
 								</p>
 							</div>
-							<form
-								class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
-							>
-								<input
-									class="border-0 px-4 py-2 text-base outline-none"
-									type="email"
-									placeholder="Enter your email"
-								/>
-								<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
-							</form>
+							<EmailSignup onsubmit={subscribeToBeta} />
 						</div>
 					</div>
-					<div class="h-100 min-h-180 rounded-lg bg-neutral-200 p-12"></div>
+					<div
+						data-hero-browser
+						class="relative min-h-60 overflow-hidden rounded-lg bg-neutral-200 p-6 pb-8 sm:min-h-80 sm:p-8 sm:pb-10 md:min-h-180 md:p-12 md:pb-12"
+					>
+						<!-- Brands / Sales toggle -->
+						<!-- Brands / Sales toggle -->
+						<div class="mb-3 flex justify-center">
+							<div class="inline-flex items-center gap-0.5 rounded-md bg-neutral-300/50 p-1">
+								<button
+									type="button"
+									onclick={() => (heroOrgMode = 'brand')}
+									class="cursor-pointer rounded-md px-4 py-1.5 font-mono text-xs transition-colors {heroOrgMode ===
+									'brand'
+										? 'bg-neutral-200 text-foreground'
+										: 'text-muted-foreground hover:text-foreground'}"
+								>
+									Brands
+								</button>
+								<button
+									type="button"
+									onclick={() => (heroOrgMode = 'rep')}
+									class="cursor-pointer rounded-md px-4 py-1.5 font-mono text-xs transition-colors {heroOrgMode ===
+									'rep'
+										? 'bg-neutral-200 text-foreground'
+										: 'text-muted-foreground hover:text-foreground'}"
+								>
+									Sales
+								</button>
+							</div>
+						</div>
+
+						<BrowserWrapper class="mx-auto aspect-video max-w-[1200px]">
+							<Minithread orgMode={heroOrgMode} />
+						</BrowserWrapper>
+
+						<!-- Notifications that slide in from the right -->
+						<MinithreadNotifications visible={heroNotificationsVisible} />
+					</div>
 					<!-- <div
 						class="flex h-100 min-h-180 items-end rounded-4xl bg-black p-12"
 						style="background-image: url('https://images.unsplash.com/photo-1753029226995-74b05a344bb1?q=80&w=3087&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'); background-size: cover; background-position: center;"
@@ -129,7 +175,7 @@
 					</div> -->
 				</div>
 			</section>
-			<section data-section="about-threadline">
+			<!-- <section data-section="about-threadline">
 				<div class="px-12 pt-48 pb-24">
 					<div class="reveal grid grid-cols-[1fr_1.5fr] gap-4 opacity-0">
 						<div>
@@ -162,81 +208,78 @@
 						</div>
 					</div>
 				</div>
-			</section>
+			</section> -->
 			<section data-section="what-we-feature">
-				<div class="px-12 py-24">
-					<div class="grid gap-12">
+				<div class="px-5 py-16 sm:px-8 sm:py-20 md:px-12 md:py-24">
+					<div class="grid gap-8 sm:gap-12">
 						<div class="reveal grid max-w-220 gap-2 opacity-0">
-							<span class="font-mono">[What We Feature]</span>
-							<h2 class="text-4xl">
-								Reliable Ways to Move Goods Using <span class="text-muted-foreground"
-									>Modern Infrastructure And Intelligent Systems</span
-								>
+							<!-- <span class="font-mono">[What We Feature]</span> -->
+							<h2 class="text-3xl sm:text-4xl">
+								Work, without the <span class="text-muted-foreground">work</span>.
 							</h2>
 						</div>
-						<ul class="grid grid-cols-12 gap-6" data-stagger>
+						<ul class="grid grid-cols-1 gap-6 md:grid-cols-12" data-stagger>
 							<li
-								class="col-span-8 grid min-h-120 grid-cols-2 gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								class="grid min-h-80 gap-4 rounded-md bg-neutral-200 p-4 opacity-0 md:col-span-8 md:min-h-120 md:grid-cols-2"
 								data-s
 							>
 								<div>
-									<h3 class="mb-2 text-xl">Insight built around you.</h3>
+									<h3 class="mb-2 text-xl">The work behind the work, handled.</h3>
 									<p class="text-neutral-600">
-										Stitches surfaces cross-brand patterns, buyer behavior, and territory
-										opportunities unique to your portfolio — intelligence no single-brand platform
-										can see.
+										Workers run in the background. Order entry, report runs, status checks. Your
+										team focuses on the line, the relationship, and the buyer in front of them.
 									</p>
 								</div>
-								<div class="col-start-2 row-start-2">
-									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
+								<div class="md:col-start-2 md:row-start-2">
+									<div class="h-full min-h-40 w-full rounded-lg bg-neutral-100 md:min-h-0"></div>
 								</div>
 							</li>
 							<li
-								class="col-span-4 col-start-9 grid gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								class="grid gap-4 rounded-md bg-neutral-200 p-4 opacity-0 md:col-span-4 md:col-start-9"
 								data-s
 							>
 								<div>
-									<h3 class="mb-2 text-xl">Decisions, Not Guesses.</h3>
+									<h3 class="mb-2 text-xl">Decisions, not dashboards.</h3>
 									<p class="text-neutral-600">
-										Your tools show orders and line sheets. Threadline shows what's missing —
-										under-penetrated accounts, brands that should be paired together, and reorders
-										that should have happened last week.
+										Stitch surfaces what matters with the action already named. Brands see the
+										accounts going quiet. Reps see the buyer texting at 6pm. No charts to interpret,
+										no reports to run.
 									</p>
 								</div>
-								<div class="row-start-2">
-									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
+								<div class="md:row-start-2">
+									<div class="h-full min-h-40 w-full rounded-lg bg-neutral-100 md:min-h-0"></div>
 								</div>
 							</li>
 							<li
-								class="col-span-4 grid min-h-120 gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								class="grid min-h-80 gap-4 rounded-md bg-neutral-200 p-4 opacity-0 md:col-span-4 md:min-h-120"
 								data-s
 							>
 								<div>
-									<h3 class="mb-2 text-xl">Act on real-time signals.</h3>
+									<h3 class="mb-2 text-xl">Brands and reps, partners.</h3>
 									<p class="text-neutral-600">
-										Lead times have compressed to 102 days. Stitches integrates sell-through data
-										with social signals to trigger reorder recommendations and buyer alerts before
-										stock-outs happen.
+										Same data, same visibility, two-way flow. A brand invites a rep. The brand's
+										data lives in the rep's workspace; the rep's signal flows back. One system, no
+										parallel silos.
 									</p>
 								</div>
-								<div class="row-start-2">
-									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
+								<div class="md:row-start-2">
+									<div class="h-full min-h-40 w-full rounded-lg bg-neutral-100 md:min-h-0"></div>
 								</div>
 							</li>
 							<li
-								class="col-span-8 col-start-5 grid grid-cols-2 gap-4 rounded-md bg-neutral-200 p-4 opacity-0"
+								class="grid gap-4 rounded-md bg-neutral-200 p-4 opacity-0 md:col-span-8 md:col-start-5 md:grid-cols-2"
 								data-s
 							>
 								<div>
-									<h3 class="mb-2 text-xl">Autonomous work.</h3>
+									<h3 class="mb-2 text-xl">Built AI-native.</h3>
 									<p class="text-neutral-600">
-										Workers handle commission splits, order tracking, and buyer follow-ups in the
-										background. Custom Workers let you build your own — watching for the signals
-										that matter to your book of business.
+										Forward an email. Type or talk to Stitch. They become orders, accounts, answers.
+										Threadline was built for this from day one. AI isn't a feature on top, it's the
+										foundation.
 									</p>
 								</div>
-								<div class="col-start-2 row-start-2">
-									<div class="h-full w-full rounded-lg bg-neutral-100"></div>
+								<div class="md:col-start-2 md:row-start-2">
+									<div class="h-full min-h-40 w-full rounded-lg bg-neutral-100 md:min-h-0"></div>
 								</div>
 							</li>
 						</ul>
@@ -244,72 +287,195 @@
 				</div>
 			</section>
 			<section data-section="how-we-work">
-				<div class="grid gap-24 px-12 py-24">
+				<div class="grid gap-12 px-5 py-16 sm:gap-16 sm:px-8 sm:py-20 md:gap-24 md:px-12 md:py-24">
 					<div class="mx-auto grid max-w-220 gap-2 text-center">
-						<span class="font-mono">[How We Work]</span>
-						<h2 class="text-4xl">
-							Four Layers That <span class="text-muted-foreground">Turn Data Into Decisions</span>
+						<!-- <span class="font-mono">[How it works]</span> -->
+						<h2 class="text-3xl sm:text-4xl">
+							<!-- Stitch finds the work.
+							<span class="text-muted-foreground">Workers do the work.</span> -->
+							Built on todays work.
 						</h2>
 					</div>
-					<ul class="grid gap-24">
-						<li class="grid grid-cols-12 items-center gap-6">
-							<div class="col-span-4">
-								<h3 class="mb-3 text-2xl">Gaps</h3>
-								<p class="text-balance text-neutral-700">
-									Every application has blind spots — invisible fractures where data, context gets
-									lost. We find these gaps and reveal them.
+					<div>
+						<ul class="mb-6 grid grid-cols-12 gap-6">
+							<li class="col-span-6 min-h-60 rounded-lg bg-neutral-200">
+								<div class="space-y-2 p-6">
+									<div>
+										<h3 class="text-xl">Email</h3>
+									</div>
+									<p class="text-neutral-600">
+										Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+										incididunt ut labore et dolore magna aliqua.
+									</p>
+								</div>
+							</li>
+							<li class="col-span-6 min-h-60 rounded-lg bg-neutral-200">
+								<div class="space-y-2 p-6">
+									<div>
+										<h3 class="text-xl">Messaging</h3>
+									</div>
+									<p class="text-neutral-600">
+										Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+										incididunt ut labore et dolore magna aliqua.
+									</p>
+								</div>
+							</li>
+							<li class="col-span-6 min-h-60 rounded-lg bg-neutral-200">
+								<div class="space-y-2 p-6">
+									<div>
+										<h3 class="text-xl">Command</h3>
+									</div>
+									<p class="text-neutral-600">
+										Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+										incididunt ut labore et dolore magna aliqua.
+									</p>
+								</div>
+							</li>
+							<li class="col-span-6 min-h-60 rounded-lg bg-neutral-200">
+								<div class="space-y-2 p-6">
+									<div>
+										<h3 class="text-xl">Connection</h3>
+									</div>
+									<p class="text-neutral-600">
+										Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+										incididunt ut labore et dolore magna aliqua.
+									</p>
+								</div>
+							</li>
+							<li class="col-span-3 space-y-2">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+										></path><!----></svg
+									>
+									<h3>Order</h3>
+								</div>
+								<p class="text-neutral-600">
+									Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+									incididunt ut labore et dolore magna aliqua.
 								</p>
-							</div>
-							<div class="col-span-7 col-start-6 h-120 w-full rounded-lg bg-neutral-200"></div>
-						</li>
-						<li class="grid grid-cols-12 items-center gap-6">
-							<div class="col-span-4 col-start-9">
-								<h3 class="mb-3 text-2xl">Orchestration</h3>
+							</li>
+							<li class="col-span-3 space-y-2">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Accounts</h3>
+								</div>
+								<p class="text-neutral-600">
+									Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+									incididunt ut labore et dolore magna aliqua.
+								</p>
+							</li>
+							<li class="col-span-3 space-y-2">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Products</h3>
+								</div>
+								<p class="text-neutral-600">
+									Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+									incididunt ut labore et dolore magna aliqua.
+								</p>
+							</li>
+							<li class="col-span-3 space-y-2">
+								<div class="flex items-center gap-2">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-6 w-6 shrink-0"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+										></path><!----></svg
+									>
+									<h3>Reports</h3>
+								</div>
+								<p class="text-neutral-600">
+									Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+									incididunt ut labore et dolore magna aliqua.
+								</p>
+							</li>
+						</ul>
+						<p class="text-sm text-neutral-600">
+							The day-to-day, already covered. inbox, appointments, shows, territories, seasons,
+							expenses.
+						</p>
+					</div>
+					<!-- <ul class="grid gap-12 sm:gap-16 md:gap-24">
+						<li class="grid items-center gap-6 md:grid-cols-12">
+							<div class="md:col-span-4">
+								<h3 class="mb-3 text-2xl">Stitch</h3>
 								<p class="text-balance text-neutral-700">
-									Start directing outcomes. Orchestration means your systems anticipate, coordinate,
-									and adapt — so you focus on decisions, not mechanics.
+									Stitch is our AI. Send it an email, a text, or your voice, and Stitch turns the
+									input into orders, accounts, and answers. The patterns it surfaces across your
+									business become Stitches.
 								</p>
 							</div>
 							<div
-								class="col-span-7 col-start-1 row-start-1 h-120 w-full rounded-lg bg-neutral-200"
+								class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-7 md:col-start-6 md:h-120"
 							></div>
 						</li>
-						<li class="grid grid-cols-12 items-center gap-6">
-							<div class="col-span-4">
-								<h3 class="mb-3 text-2xl">Stitches</h3>
-								<p class="text-balance text-neutral-700">
-									We connect disparate signals into something actionable. A living, contextual
-									understanding that arrives before you ask for it.
-								</p>
-							</div>
-							<div class="col-span-7 col-start-6 h-120 w-full rounded-lg bg-neutral-200"></div>
-						</li>
-						<li class="grid grid-cols-12 items-center gap-6">
-							<div class="col-span-4 col-start-9">
+						<li class="grid items-center gap-6 md:grid-cols-12">
+							<div class="md:col-span-4 md:col-start-9">
 								<h3 class="mb-3 text-2xl">Workers</h3>
 								<p class="text-balance text-neutral-700">
-									Workers handle the work you shouldn't have to. Custom Workers focus on what only
-									you would think to look for.
+									Workers handle the work you shouldn't have to. Order entry, report runs, status
+									checks. Custom Workers go after what only your business would think to look for.
 								</p>
 							</div>
 							<div
-								class="col-span-7 col-start-1 row-start-1 h-120 w-full rounded-lg bg-neutral-200"
+								class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-7 md:col-start-1 md:row-start-1 md:h-120"
 							></div>
 						</li>
-					</ul>
+					</ul> -->
 				</div>
 			</section>
 			<section data-section="faq">
-				<div class="grid gap-24 px-12 py-24">
+				<div class="grid gap-12 px-5 py-16 sm:gap-16 sm:px-8 sm:py-20 md:gap-24 md:px-12 md:py-24">
 					<div class="mx-auto grid max-w-220 gap-2 text-center">
-						<span class="font-mono">[FAQ's]</span>
-						<h2 class="text-4xl">
-							Common Questions, <span class="text-muted-foreground">Clear Answers</span>
+						<!-- <span class="font-mono">[FAQ]</span> -->
+						<h2 class="text-3xl sm:text-4xl">
+							Common questions. <span class="text-muted-foreground">Clear answers.</span>
 						</h2>
 					</div>
-					<div class="mx-auto grid w-full max-w-280 grid-cols-2 items-start gap-8">
+					<div class="mx-auto grid w-full max-w-280 grid-cols-1 items-start gap-8 md:grid-cols-2">
 						<ul class="grid items-start">
-							{#each [{ q: 'What types of reps does Threadline work with?', a: 'Independent multi-brand reps, showroom owners, and sales agencies carrying fashion and apparel lines across any combination of wholesale platforms.' }, { q: 'Do brands need to switch to Threadline?', a: 'No. Threadline layers on top of existing platforms. Brands keep using JOOR, NuORDER, or whatever they prefer. Nothing changes for them.' }, { q: 'What makes Stitches different from analytics?', a: 'Analytics show what happened. Stitches shows what to do next \u2014 cross-brand patterns, buyer predictions, and contextual actions that arrive before you ask.' }, { q: 'How long does setup take?', a: 'Under one hour. Connect your existing platforms, import your buyer contacts, and Stitches starts learning your portfolio immediately.' }] as item, i (i)}
+							{#each [{ q: 'Who is Threadline for?', a: "Small-to-midsize fashion brands and the multi-brand reps. Threadline runs the day-to-day: orders, accounts, products, commissions, appointments, shows, expenses, reports. Stitch surfaces what matters; Workers handle the work that's tax on your day." }, { q: 'How do I switch to Threadline?', a: 'Hands-on during private beta. You bring your data in via CSV (accounts, brands, products) plus PDF linesheets that Stitch parses into products automatically. We map your fields with you during onboarding, so day one starts with your real data.' }, { q: 'What does Stitch do?', a: 'Stitch is our AI. It runs across your orders, accounts, and pipeline and surfaces what needs attention: revenue trending, accounts going quiet, orders stuck, shows performing, style velocity. Each one comes with what to do. You can also work with Stitch directly. Email orders to stitch@threadline.systems, or type or talk to Stitch to create orders, set up accounts, or pull data on the fly.' }, { q: 'How long does setup take?', a: 'Setup happens during onboarding. We bring your data in, walk you through the modules, and turn on email ordering and other integrations you want. Most teams are running in a session or two.' }] as item, i (i)}
 								<li class="grid w-full items-start border-t border-foreground p-6">
 									<button
 										class="flex w-full items-center justify-between gap-4 text-left"
@@ -325,7 +491,7 @@
 							{/each}
 						</ul>
 						<ul class="grid items-start">
-							{#each [{ q: 'What are Workers?', a: 'Workers are automated agents that handle repetitive tasks \u2014 commission tracking, reorder alerts, buyer follow-ups. Custom Workers let you build your own for the signals only you care about.' }, { q: 'How does commission automation work?', a: 'Set rate structures per brand, define splits between showroom owners and sub-reps, and Threadline calculates everything automatically \u2014 reconciled in real time, no spreadsheets.' }, { q: 'How does pricing work?', a: 'Free for individual reps to start. Premium tiers unlock Stitches AI, Workers, multi-brand analytics, and commission automation. Transparent pricing \u2014 no annual lock-in.' }, { q: 'Is my data shared between brands?', a: 'Never. Brand data stays siloed. Stitches generates cross-brand insights from your own portfolio data \u2014 no brand sees another brand\u2019s information.' }] as item, i (i)}
+							{#each [{ q: 'What are Workers?', a: "Workers are AI agents we build into Threadline. They run on events (a new order, an account going quiet) and take actions like drafting emails, updating records, or searching what's in your system. Custom Workers are the ones you build yourself, for the things only your business would think to look for." }, { q: 'How does Threadline connect brands and reps?', a: "Brands invite reps. The rep accepts and sees the brand's data in Threadline. When the rep places an order against the brand, the order flows back to the brand automatically. Each connection is its own silo: a rep carrying three brands sees the three brands' data in one Threadline; each brand only sees what's been written for them." }, { q: 'What about my data?', a: "Data is siloed by connection. A multi-brand rep can be invited by multiple brands, and only the data relevant to that connection is shared. Brand A never sees Brand B's data. Reps never see another rep's accounts. Row-level security enforces this at the database." }, { q: 'How does pricing work during beta?', a: 'The private beta is free. Beta participants get preferred pricing when Threadline moves to public release.' }] as item, i (i)}
 								<li class="grid w-full items-start border-t border-foreground p-6">
 									<button
 										class="flex w-full items-center justify-between gap-4 text-left"
@@ -346,36 +512,30 @@
 				</div>
 			</section>
 			<section data-section="clarity">
-				<div class="grid gap-8 px-12 py-24">
+				<div class="grid gap-8 px-5 py-16 sm:px-8 sm:py-20 md:px-12 md:py-24">
 					<div class="mx-auto grid max-w-220 space-y-2 text-center">
-						<h2 class="text-4xl">Clarity Starts With The Right Conversation</h2>
-						<p class="mx-auto max-w-8/12 text-balance text-neutral-700">
-							Threadline is building the intelligence layer fashion wholesale has been missing.
-							Let's talk about what it can do for your showroom.
+						<h2 class="text-3xl sm:text-4xl">Clarity starts with the right conversation.</h2>
+						<p class="mx-auto max-w-full text-balance text-neutral-700 sm:max-w-8/12">
+							Threadline is in private beta. We're working with a select group of brands and
+							multi-brand reps to refine the system before public launch.
 						</p>
 					</div>
-					<ul class="grid grid-cols-12 gap-6">
-						<li class="col-span-12 h-120 w-full rounded-lg bg-neutral-200"></li>
-						<li class="col-span-6 row-start-2 h-120 w-full rounded-lg bg-neutral-200"></li>
-						<li class="col-span-6 row-start-2 h-120 w-full rounded-lg bg-neutral-200"></li>
+					<ul class="grid grid-cols-1 gap-6 md:grid-cols-12">
+						<li class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-12 md:h-120"></li>
+						<li
+							class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-6 md:row-start-2 md:h-120"
+						></li>
+						<li
+							class="h-60 w-full rounded-lg bg-neutral-200 sm:h-80 md:col-span-6 md:row-start-2 md:h-120"
+						></li>
 					</ul>
 				</div>
 			</section>
 			<section data-section="cta">
-				<div class="grid justify-center space-y-6 px-12 py-24">
-					<h2 class="text-4xl">Get early access to Threadline</h2>
-					<form
-						class="grid max-w-lg grid-cols-[1fr_auto] rounded-lg border border-neutral-300 p-1.5 focus-within:border-foreground"
-					>
-						<input
-							class="border-0 px-4 py-2 text-base outline-none"
-							type="email"
-							placeholder="Enter your email"
-						/>
-						<button class="ml-2 rounded-md bg-accent px-5 py-3"> Request Access </button>
-					</form>
+				<div class="grid justify-center space-y-6 px-5 py-16 sm:px-8 sm:py-20 md:px-12 md:py-24">
+					<h2 class="text-3xl sm:text-4xl">Get early access to Threadline</h2>
+					<EmailSignup onsubmit={subscribeToBeta} />
 					<div class="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-						<span>Already have an account?</span>
 						<InstallCta />
 					</div>
 				</div>

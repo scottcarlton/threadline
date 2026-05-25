@@ -1,9 +1,10 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { getNxBlsrBrandOrgIds } from '$lib/server/nx-blsr';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const { membership, organization } = locals;
+	const { membership, organization, allMemberships } = locals;
 
 	if (!membership || !['admin', 'owner'].includes(membership.role)) {
 		return json({ error: 'Unauthorized' }, { status: 403 });
@@ -19,29 +20,48 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Missing required fields: email, accountId' }, { status: 400 });
 	}
 
-	// Verify account belongs to org
+	// Verify account exists
 	const { data: account } = await supabaseAdmin
 		.from('accounts')
 		.select('id, organization_id')
 		.eq('id', accountId)
-		.eq('organization_id', organization.id)
 		.single();
 
 	if (!account) {
 		return json({ error: 'Account not found' }, { status: 404 });
 	}
 
-	// Resolve effective brand list. If the inviter didn't pick any chips, grant
-	// access to every active brand in the inviting org — otherwise the buyer
-	// lands with no brands/products and can't shop. For a single-brand BOA
-	// this is the desired default; for multi-brand orgs the inviter can still
-	// scope by passing explicit brandIds.
+	// Verify caller has access: own-org (incl. Nx-BLSR) or active connection
+	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
+	const ownOrgIds = [...new Set([organization.id, ...brandOrgIds])];
+
+	if (!ownOrgIds.includes(account.organization_id)) {
+		const orFilter = ownOrgIds
+			.flatMap((id) => [
+				`and(rep_org_id.eq.${id},brand_org_id.eq.${account.organization_id})`,
+				`and(brand_org_id.eq.${id},rep_org_id.eq.${account.organization_id})`
+			])
+			.join(',');
+		const { data: conn } = await supabaseAdmin
+			.from('org_connections')
+			.select('id')
+			.eq('status', 'active')
+			.or(orFilter)
+			.maybeSingle();
+		if (!conn) {
+			return json({ error: 'Account not found' }, { status: 404 });
+		}
+	}
+
+	// Resolve effective brand list from the account's org (not the inviter's).
+	// If the inviter didn't pick any chips, grant access to every active brand
+	// in the account's org — otherwise the buyer lands with no products.
 	let effectiveBrandIds = Array.isArray(brandIds) ? (brandIds as string[]) : [];
 	if (effectiveBrandIds.length === 0) {
 		const { data: orgBrands } = await supabaseAdmin
 			.from('brands')
 			.select('id')
-			.eq('organization_id', organization.id)
+			.eq('organization_id', account.organization_id)
 			.eq('is_active', true);
 		effectiveBrandIds = (orgBrands ?? []).map((b: { id: string }) => b.id);
 	}
@@ -99,7 +119,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			const brandAccessRows = effectiveBrandIds.map((brandId: string) => ({
 				account_id: accountId,
 				brand_id: brandId,
-				organization_id: organization.id,
+				organization_id: account.organization_id,
 				granted_by: membership.profile_id
 			}));
 			await supabaseAdmin
@@ -115,7 +135,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.from('buyer_invitations')
 		.insert({
 			account_id: accountId,
-			organization_id: organization.id,
+			organization_id: account.organization_id,
 			email,
 			invited_by: membership.profile_id,
 			role: assignedRole
@@ -128,11 +148,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Create account_brand_access for selected brands
-	if (Array.isArray(brandIds) && brandIds.length > 0) {
-		const brandAccessRows = brandIds.map((brandId: string) => ({
+	if (effectiveBrandIds.length > 0) {
+		const brandAccessRows = effectiveBrandIds.map((brandId: string) => ({
 			account_id: accountId,
 			brand_id: brandId,
-			organization_id: organization.id,
+			organization_id: account.organization_id,
 			granted_by: membership.profile_id
 		}));
 		await supabaseAdmin

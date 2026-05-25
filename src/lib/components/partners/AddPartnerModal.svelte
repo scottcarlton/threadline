@@ -299,9 +299,7 @@
 										<p class="text-sm text-destructive">{$emailErrors.recipient_email[0]}</p>
 									{/if}
 								</div>
-								<Button type="submit" disabled={$emailSubmitting}>
-									{$emailSubmitting ? 'Sending…' : 'Send invite'}
-								</Button>
+								<Button type="submit" loading={$emailSubmitting}>Send invite</Button>
 							</div>
 						</form>
 					{/if}

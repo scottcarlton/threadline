@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { sendEmail } from '$lib/server/email.js';
-import { invite as inviteTemplate } from '$lib/server/email-templates.js';
+import { inviteParams } from '$lib/server/email-templates.js';
+import templateIds from '../../../../../emails/template-ids.json';
 import crypto from 'crypto';
 
 export const POST: RequestHandler = async ({ request, locals, url }) => {
@@ -181,15 +182,12 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	const inviterName = inviter?.display_name || inviterEmail || 'A teammate';
 	const acceptUrl = `${url.origin}/invite/${token}`;
 
-	const tpl = inviteTemplate({
-		inviterName,
-		organizationName: organization.name,
-		acceptUrl
-	});
-
 	const emailResult = await sendEmail({
 		to: email,
-		...tpl,
+		subject: `${inviterName} invited you to ${organization.name} on /Threadline`,
+		html: '',
+		templateId: templateIds['invite-org-member'],
+		params: inviteParams({ inviterName, organizationName: organization.name, acceptUrl, role }),
 		replyTo: inviterEmail,
 		template: 'invite',
 		relatedType: 'invitation',

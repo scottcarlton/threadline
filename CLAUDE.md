@@ -79,7 +79,7 @@ Run `bun run test:run` before claiming work is complete.
 
 ### Typography
 
-- Minimum body size is `text-sm` (14px). **Never use `text-xs`** (12px).
+- Minimum body size is `text-sm` (14px). **Avoid `text-xs`** (12px) unless explicitly approved by the user.
 - Establish clear heading hierarchy — don't rely on size alone to communicate structure.
 
 ### Icons & tooltips

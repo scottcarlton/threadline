@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
+import { isEmailWhitelisted, isBetaWhitelistEnabled } from '$lib/server/beta-whitelist';
 
 export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const code = url.searchParams.get('code');
@@ -9,6 +10,20 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	if (code) {
 		const { error } = await supabase.auth.exchangeCodeForSession(code);
 		if (!error) {
+			// Beta whitelist gate — check after OAuth succeeds
+			if (isBetaWhitelistEnabled()) {
+				const {
+					data: { user: whitelistUser }
+				} = await supabase.auth.getUser();
+				if (whitelistUser?.email) {
+					const allowed = await isEmailWhitelisted(whitelistUser.email);
+					if (!allowed) {
+						await supabase.auth.signOut();
+						throw redirect(303, '/signup?error=not_whitelisted');
+					}
+				}
+			}
+
 			if (next) {
 				throw redirect(303, next);
 			}

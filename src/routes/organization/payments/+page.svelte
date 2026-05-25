@@ -253,9 +253,7 @@
 		</section>
 
 		<div>
-			<Button type="submit" disabled={$submitting}>
-				{$submitting ? 'Saving…' : 'Save changes'}
-			</Button>
+			<Button type="submit" loading={$submitting} class="w-full sm:w-auto">Save changes</Button>
 		</div>
 	</form>
 </div>

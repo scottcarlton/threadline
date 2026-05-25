@@ -4,10 +4,16 @@
 	import { page } from '$app/stores';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import { SelectField } from '$lib/components/ui/select/index.js';
+	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
+	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import FilterBySheet from '$lib/components/shared/FilterBySheet.svelte';
+	import FilterSortSheet from '$lib/components/shared/FilterSortSheet.svelte';
+	import { isLgUp } from '$lib/utils/viewport.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
+	import { DropdownMenu } from 'bits-ui';
 	import {
 		Tooltip,
 		TooltipContent,
@@ -15,7 +21,6 @@
 		TooltipTrigger
 	} from '$lib/components/ui/tooltip/index.js';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
-	import { downloadCSV } from '$lib/utils/csv.js';
 	import OrderImportModal from '$lib/components/orders/OrderImportModal.svelte';
 	import { toast } from 'svelte-sonner';
 	import type { Order, Season } from '$lib/types/database.js';
@@ -42,6 +47,13 @@
 	};
 
 	import { debounce } from '$lib/utils/debounce.js';
+	import {
+		classifyOrder,
+		SPOTLIGHT_BUCKETS,
+		SPOTLIGHT_LABELS,
+		type SpotlightBucket
+	} from '$lib/utils/order-spotlight.js';
+	import { Popover } from 'bits-ui';
 
 	const PAGE_SIZE = 50;
 
@@ -117,8 +129,6 @@
 	const hasSourceOptions = $derived(showDates.length > 0 || sourceTypes.length > 0);
 	const isBrandOrg = $derived(Boolean(data.isBrandOrg));
 	const canCreate = $derived(data.membership?.role !== 'guest');
-	// Brand-level sales reps shouldn't export org-wide data.
-	const canExport = $derived(!(isBrandOrg && data.membership?.role === 'sales'));
 	const metrics = $derived(
 		data.metrics as {
 			pipelineValue: number;
@@ -127,9 +137,38 @@
 			shippedCount: number;
 			avgOrderValue: number;
 			needsAttention: { staleDrafts: number; overdueShipments: number; total: number };
+			spotlight: Record<SpotlightBucket, number> & { total: number };
 			conversion: { submitted: number; converted: number; rate: number };
 		}
 	);
+	const activeSpotlight = $derived($page.url.searchParams.get('spotlight'));
+	const spotlightOn = $derived(activeSpotlight != null);
+	const spotlightCounts = $derived(
+		metrics.spotlight ?? {
+			total: 0,
+			overdue: 0,
+			approaching_start: 0,
+			in_window: 0,
+			approaching_complete: 0,
+			stale_draft: 0
+		}
+	);
+	let spotlightMenuOpen = $state(false);
+	function setSpotlight(value: SpotlightBucket | 'all' | null) {
+		spotlightMenuOpen = false;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		if (value == null) params.delete('spotlight');
+		else params.set('spotlight', value);
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}
+	function toggleSpotlight() {
+		setSpotlight(spotlightOn ? null : 'all');
+	}
 
 	const fmt = new Intl.NumberFormat('en-US', {
 		style: 'currency',
@@ -138,19 +177,52 @@
 		maximumFractionDigits: 0
 	});
 
-	const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-	function attentionReason(o: OrderRow): 'stale-draft' | 'overdue' | null {
-		const status = (o as { status?: string }).status;
-		if (status === 'draft') {
-			const created = (o as { created_at?: string }).created_at;
-			if (created && Date.now() - new Date(created).getTime() > SEVEN_DAYS_MS) return 'stale-draft';
+	function rowSpotlight(o: OrderRow): SpotlightBucket[] {
+		return classifyOrder({
+			status: o.status,
+			start_ship_date: o.start_ship_date,
+			expected_ship_date: o.expected_ship_date,
+			shipped_at: o.shipped_at,
+			updated_at: o.updated_at
+		});
+	}
+
+	const SHIP_DAY_MS = 24 * 60 * 60 * 1000;
+	function fmtShortDate(iso: string): string {
+		return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+	}
+	function daysBetween(targetIso: string): number {
+		const today = new Date();
+		const t = new Date(`${targetIso}T00:00:00`);
+		const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+		const targetUtc = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+		return Math.round((targetUtc - todayUtc) / SHIP_DAY_MS);
+	}
+	function shipWindowMeta(o: OrderRow): { text: string; overdue: boolean } | null {
+		if (o.shipped_at) {
+			return { text: `Shipped ${fmtShortDate(o.shipped_at)}`, overdue: false };
 		}
-		if (status === 'submitted' || status === 'confirmed') {
-			const expected = (o as { expected_ship_date?: string | null }).expected_ship_date;
-			if (expected) {
-				const todayStr = new Date().toISOString().slice(0, 10);
-				if (expected < todayStr) return 'overdue';
+		if (o.status === 'delivered' && o.delivered_at) {
+			return { text: `Delivered ${fmtShortDate(o.delivered_at)}`, overdue: false };
+		}
+		const expected = o.expected_ship_date;
+		const start = o.start_ship_date;
+		if (expected) {
+			const dExpected = daysBetween(expected);
+			if (dExpected < 0) return { text: `Overdue · ${Math.abs(dExpected)}d`, overdue: true };
+			if (start) {
+				const dStart = daysBetween(start);
+				if (dStart > 0) {
+					if (dStart > 7) return null;
+					return { text: `${dStart}d to start`, overdue: false };
+				}
+				return { text: `${dExpected}d to complete`, overdue: false };
 			}
+			return { text: `${dExpected}d to ship`, overdue: false };
+		}
+		if (start) {
+			const dStart = daysBetween(start);
+			if (dStart > 0 && dStart <= 7) return { text: `${dStart}d to start`, overdue: false };
 		}
 		return null;
 	}
@@ -160,6 +232,7 @@
 		'draft',
 		'submitted',
 		'confirmed',
+		'preparing',
 		'shipped',
 		'delivered',
 		'cancelled'
@@ -169,11 +242,14 @@
 		draft: 'Draft',
 		submitted: 'Submitted',
 		confirmed: 'Confirmed',
+		preparing: 'Preparing',
 		shipped: 'Shipped',
 		delivered: 'Delivered',
 		cancelled: 'Cancelled'
 	};
-	const activeStatus = $derived($page.url.searchParams.get('status') ?? 'all');
+	const activeStatuses = $derived(
+		($page.url.searchParams.get('status') ?? '').split(',').filter(Boolean)
+	);
 	const activeType = $derived($page.url.searchParams.get('type') ?? 'order');
 	const activeFrom = $derived($page.url.searchParams.get('from'));
 	const activeTo = $derived($page.url.searchParams.get('to'));
@@ -302,9 +378,19 @@
 		draft: 'bg-zinc-100 text-zinc-600',
 		submitted: 'bg-amber-50 text-amber-700',
 		confirmed: 'bg-blue-50 text-blue-700',
+		preparing: 'bg-violet-50 text-violet-700',
 		shipped: 'bg-indigo-50 text-indigo-700',
 		delivered: 'bg-emerald-50 text-emerald-700',
 		cancelled: 'bg-red-50 text-red-700'
+	};
+	const statusDotColors: Record<string, string> = {
+		draft: 'bg-zinc-400',
+		submitted: 'bg-amber-500',
+		confirmed: 'bg-blue-500',
+		preparing: 'bg-violet-500',
+		shipped: 'bg-indigo-500',
+		delivered: 'bg-emerald-500',
+		cancelled: 'bg-red-500'
 	};
 
 	function seasonLabel(order: Order): string {
@@ -313,28 +399,6 @@
 		if (name) return name;
 		if (order.order_year) return String(order.order_year);
 		return '—';
-	}
-
-	function exportOrders() {
-		const rows = filtered.map((o) => ({
-			order_number: o.order_number,
-			account: o.accounts?.business_name ?? '',
-			brand: o.brands?.name ?? '',
-			season: o.seasons?.name ?? '',
-			year: o.order_year ?? '',
-			status: o.status,
-			created_by: o.profiles?.display_name ?? '',
-			source: o.show_dates?.shows?.name ?? o.source_types?.name ?? '',
-			ship_window_start: o.season_deliveries?.delivery_month
-				? `${o.season_deliveries.delivery_month}/01`
-				: '',
-			expected_ship_date: o.expected_ship_date ?? '',
-			shipped_at: o.shipped_at ?? '',
-			total_amount: o.total_amount,
-			shipped_amount: o.shipped_amount ?? '',
-			created_at: o.created_at
-		}));
-		downloadCSV(rows, 'orders.csv');
 	}
 
 	let showImport = $state(false);
@@ -358,6 +422,51 @@
 			noScroll: true
 		});
 	}
+
+	function setMultiFilter(key: string, values: string[]) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		if (values.length === 0) {
+			params.delete(key);
+		} else {
+			params.set(key, values.join(','));
+		}
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}
+
+	let filterSortOpen = $state(false);
+	let statusSheetOpen = $state(false);
+	let seasonSheetOpen = $state(false);
+	let brandSheetOpen = $state(false);
+	let sourceSheetOpen = $state(false);
+	let repSheetOpen = $state(false);
+	let dateSheetOpen = $state(false);
+
+	const activeSeasonCount = $derived(
+		($page.url.searchParams.get('season') ?? '').split(',').filter(Boolean).length
+	);
+	const activeBrandCount = $derived(
+		($page.url.searchParams.get('brand') ?? '').split(',').filter(Boolean).length
+	);
+	const activeRepCount = $derived(
+		($page.url.searchParams.get('rep') ?? '').split(',').filter(Boolean).length
+	);
+	const activeSourceCount = $derived(
+		($page.url.searchParams.get('source') ?? '').split(',').filter(Boolean).length
+	);
+
+	const hasActiveFilters = $derived(
+		activeStatuses.length > 0 ||
+			($page.url.searchParams.get('season') ?? '') !== '' ||
+			($page.url.searchParams.get('brand') ?? '') !== '' ||
+			($page.url.searchParams.get('source') ?? '') !== '' ||
+			($page.url.searchParams.get('from') ?? '') !== '' ||
+			($page.url.searchParams.get('rep') ?? '') !== ''
+	);
 
 	function setDateRange(from: string | null, to: string | null) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
@@ -397,14 +506,8 @@
 			? 'Note'
 			: 'Order'}{(data.totalCount ?? orderList.length) !== 1 ? 's' : ''}"
 	>
-		{#if filtered.length > 0 && canExport}
-			<Button variant="outline" onclick={exportOrders}>Export CSV</Button>
-		{/if}
-		{#if isBrandOrg && canCreate}
-			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
-		{/if}
 		{#if canCreate}
-			<Button href="/orders/new">
+			<Button href="/orders/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"
@@ -414,31 +517,162 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				New Order
+				New<span class="hidden sm:inline"> Order</span>
 			</Button>
 		{/if}
 	</PageHeader>
 
-	<!-- Type tabs: Orders / Notes -->
-	<div class="flex gap-1 border-b">
-		{#each ['order', 'note'] as t (t)}
-			{@const label = t === 'note' ? 'Notes' : 'Orders'}
+	<!-- Type tabs: Orders / Notes + Spotlight cluster -->
+	<div class="flex items-end justify-between border-b">
+		<div class="flex gap-1">
+			{#each ['order', 'note'] as t (t)}
+				{@const label = t === 'note' ? 'Notes' : 'Orders'}
+				<button
+					class="-mb-px px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors {activeType ===
+					t
+						? 'text-foreground'
+						: 'text-muted-foreground hover:text-foreground'}"
+					style="border-bottom: 1px solid {activeType === t ? 'currentColor' : 'transparent'}"
+					onclick={() => setFilter('type', t)}
+				>
+					{label}
+				</button>
+			{/each}
+		</div>
+
+		<div class="flex items-center pb-1">
 			<button
-				class="-mb-px px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors {activeType ===
-				t
-					? 'text-foreground'
-					: 'text-muted-foreground hover:text-foreground'}"
-				style="border-bottom: 1px solid {activeType === t ? 'currentColor' : 'transparent'}"
-				onclick={() => setFilter('type', t)}
+				type="button"
+				class="inline-flex items-center gap-2 rounded-l-md py-1 pr-2 pl-2 text-sm font-medium transition-colors hover:bg-muted/50"
+				onclick={toggleSpotlight}
+				aria-pressed={spotlightOn}
+				aria-label="Toggle spotlight filter"
 			>
-				{label}
+				<span class="relative flex h-2 w-2 items-center justify-center">
+					{#if spotlightOn && spotlightCounts.total > 0}
+						<span
+							class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500/60"
+						></span>
+					{/if}
+					<span
+						class="relative inline-flex h-2 w-2 rounded-full {spotlightCounts.total === 0
+							? 'bg-muted-foreground/40'
+							: spotlightOn
+								? 'bg-amber-500'
+								: 'bg-amber-500/60'}"
+					></span>
+				</span>
+				<span>Spotlight</span>
+				<span
+					class="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1.5 text-xs tabular-nums {spotlightOn
+						? 'text-foreground'
+						: 'text-muted-foreground'}"
+				>
+					{spotlightCounts.total}
+				</span>
 			</button>
-		{/each}
+
+			<Popover.Root bind:open={spotlightMenuOpen}>
+				<Popover.Trigger
+					class="inline-flex h-7 w-6 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:outline-none"
+					aria-label="Narrow spotlight"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+					</svg>
+				</Popover.Trigger>
+				<Popover.Content
+					class="animate-in fade-in-0 zoom-in-95 z-50 w-72 rounded-md border bg-background p-1 shadow-lg"
+					sideOffset={6}
+					align="end"
+				>
+					<button
+						type="button"
+						class="flex w-full items-center justify-between gap-3 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted/60 {activeSpotlight ===
+						'all'
+							? 'bg-muted/40 font-medium'
+							: ''}"
+						onclick={() => setSpotlight('all')}
+					>
+						<span class="flex items-center gap-2">
+							{#if activeSpotlight === 'all'}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="2"
+									><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg
+								>
+							{:else}
+								<span class="inline-block h-4 w-4"></span>
+							{/if}
+							All issues
+						</span>
+						<span class="text-muted-foreground tabular-nums">{spotlightCounts.total}</span>
+					</button>
+					<div class="my-1 h-px bg-border"></div>
+					{#each SPOTLIGHT_BUCKETS as bucket (bucket)}
+						{@const fullLabel = SPOTLIGHT_LABELS[bucket]}
+						{@const hintIdx = fullLabel.indexOf(' (')}
+						{@const labelName = hintIdx >= 0 ? fullLabel.slice(0, hintIdx) : fullLabel}
+						{@const labelHint = hintIdx >= 0 ? fullLabel.slice(hintIdx + 1) : ''}
+						<button
+							type="button"
+							class="flex w-full items-center justify-between gap-3 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted/60 {activeSpotlight ===
+							bucket
+								? 'bg-muted/40 font-medium'
+								: ''}"
+							onclick={() => setSpotlight(bucket)}
+						>
+							<span class="flex items-center gap-2">
+								{#if activeSpotlight === bucket}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+										><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg
+									>
+								{:else}
+									<span class="inline-block h-4 w-4"></span>
+								{/if}
+								{labelName}{#if labelHint}
+									<span class="text-xs text-muted-foreground">{labelHint}</span>
+								{/if}
+							</span>
+							<span class="text-muted-foreground tabular-nums">{spotlightCounts[bucket]}</span>
+						</button>
+					{/each}
+					{#if spotlightOn}
+						<div class="my-1 h-px bg-border"></div>
+						<button
+							type="button"
+							class="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+							onclick={() => setSpotlight(null)}
+						>
+							<span class="inline-block h-4 w-4"></span>
+							Clear spotlight
+						</button>
+					{/if}
+				</Popover.Content>
+			</Popover.Root>
+		</div>
 	</div>
 
 	<!-- Analytics Cards -->
 	<div
-		class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
+		class="hide-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
 	>
 		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
@@ -460,31 +694,13 @@
 			</CardContent>
 		</Card>
 
-		<Card
-			class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto {metrics.needsAttention.total > 0
-				? 'border-amber-300'
-				: ''}"
-		>
+		<Card class="w-[min(80%,18rem)] shrink-0 snap-start lg:w-auto">
 			<CardContent class="pt-4 pb-4">
-				<p
-					class="font-mono text-sm font-medium {metrics.needsAttention.total > 0
-						? 'text-amber-700'
-						: 'text-muted-foreground'}"
-				>
-					Needs Attention
-				</p>
-				<p
-					class="mt-1 text-2xl font-semibold {metrics.needsAttention.total > 0
-						? 'text-amber-700'
-						: ''}"
-				>
+				<p class="font-mono text-sm font-medium text-muted-foreground">Needs Attention</p>
+				<p class="mt-1 text-2xl font-semibold">
 					{metrics.needsAttention.total}
 				</p>
-				<p
-					class="mt-0.5 font-mono text-sm {metrics.needsAttention.total > 0
-						? 'text-amber-600'
-						: 'text-muted-foreground'}"
-				>
+				<p class="mt-0.5 font-mono text-sm text-muted-foreground">
 					{#if metrics.needsAttention.total === 0}
 						All orders on track
 					{:else}
@@ -511,16 +727,16 @@
 	</div>
 
 	<!-- Filters / Bulk action bar -->
-	<div
-		class="-mx-4 flex min-h-[44px] items-center gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0"
-	>
-		{#if selectedIds.size > 0}
-			{@const nextStatuses = bulkNextStatuses()}
+	{#if selectedIds.size > 0}
+		{@const nextStatuses = bulkNextStatuses()}
+		<div
+			class="-mx-4 flex min-h-[44px] items-center gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0"
+		>
 			<span class="text-sm font-medium">{selectedIds.size} selected</span>
 			<div class="h-5 w-px bg-border"></div>
 			{#if nextStatuses.length > 0}
 				{#each nextStatuses as status (status)}
-					<Button size="sm" onclick={() => bulkUpdateStatus(status)} disabled={bulkUpdating}>
+					<Button size="sm" onclick={() => bulkUpdateStatus(status)} loading={bulkUpdating}>
 						{status === 'submitted'
 							? 'Submit'
 							: status === 'confirmed'
@@ -550,98 +766,253 @@
 					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 				</svg>
 			</button>
-		{:else}
-			<SearchInput
-				placeholder="Search orders..."
-				value={search}
-				oninput={onSearchInput}
-				class="w-64 shrink-0"
-			/>
+		</div>
+	{:else}
+		<ListPageToolbar
+			{search}
+			{onSearchInput}
+			searchPlaceholder="Search orders..."
+			showFilterToggle={true}
+			{hasActiveFilters}
+			onFilterToggle={() => (filterSortOpen = true)}
+		>
 			{#if activeType !== 'note'}
-				<SelectField
-					value={activeStatus}
-					items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
-					placeholder="Status"
-					class="min-w-[120px] shrink-0"
-					onValueChange={(v) => setFilter('status', v)}
-				/>
+				{#if $isLgUp}
+					<SelectField
+						value={activeStatuses.length === 1 ? activeStatuses[0] : 'all'}
+						items={statusTabs.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+						placeholder="Status"
+						class="min-w-[120px] shrink-0"
+						onValueChange={(v) => setMultiFilter('status', v && v !== 'all' ? [v] : [])}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (statusSheetOpen = true)}
+					>
+						Status<span class={activeStatuses.length > 0 ? '' : 'invisible'}>
+							({activeStatuses.length})</span
+						>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/>
+						</svg>
+					</button>
+				{/if}
 			{/if}
-			<SelectField
-				class="min-w-[158px] shrink-0"
-				value={$page.url.searchParams.get('season') ?? ''}
-				items={[
-					{ value: '', label: 'All Seasons' },
-					...seasons.map((s) => ({ value: s.name, label: s.name }))
-				]}
-				placeholder="All Seasons"
-				onValueChange={(v) => setFilter('season', v)}
-			/>
+			<!-- Season -->
+			{#if $isLgUp}
+				<SeasonFilter
+					class="min-w-[158px] shrink-0"
+					{seasons}
+					value={$page.url.searchParams.get('season') ?? ''}
+					onValueChange={(v) => setFilter('season', v)}
+				/>
+			{:else}
+				<button
+					class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+					onclick={() => (seasonSheetOpen = true)}
+				>
+					Season<span class={activeSeasonCount > 0 ? '' : 'invisible'}> ({activeSeasonCount})</span>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4 text-muted-foreground"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+						><path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+						/></svg
+					>
+				</button>
+			{/if}
 			<div class="hidden lg:block lg:flex-1"></div>
+			<!-- Rep (brand orgs) -->
 			{#if isBrandOrg && reps.length > 0}
-				<SelectField
-					class="min-w-[158px] shrink-0"
-					value={$page.url.searchParams.get('rep') ?? ''}
-					items={[
-						{ value: '', label: 'All Reps' },
-						...reps.map((r) => ({ value: r.id, label: r.name }))
-					]}
-					placeholder="All Reps"
-					onValueChange={(v) => setFilter('rep', v)}
-				/>
+				{#if $isLgUp}
+					<SelectField
+						class="min-w-[158px] shrink-0"
+						value={$page.url.searchParams.get('rep') ?? ''}
+						items={[
+							{ value: '', label: 'All Reps' },
+							...reps.map((r) => ({ value: r.id, label: r.name }))
+						]}
+						placeholder="All Reps"
+						onValueChange={(v) => setFilter('rep', v)}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (repSheetOpen = true)}
+					>
+						Rep<span class={activeRepCount > 0 ? '' : 'invisible'}> ({activeRepCount})</span>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/></svg
+						>
+					</button>
+				{/if}
 			{/if}
+			<!-- Brand (rep orgs) -->
 			{#if !isBrandOrg}
+				{#if $isLgUp}
+					<BrandFilter
+						class="min-w-[158px] shrink-0"
+						{brands}
+						valueKey="name"
+						value={$page.url.searchParams.get('brand') ?? ''}
+						onValueChange={(v) => setFilter('brand', v)}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (brandSheetOpen = true)}
+					>
+						Brand<span class={activeBrandCount > 0 ? '' : 'invisible'}> ({activeBrandCount})</span>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/></svg
+						>
+					</button>
+				{/if}
+			{/if}
+			<!-- Source -->
+			{#if hasSourceOptions}
+				{#if $isLgUp}
+					<SelectField
+						class="max-w-[240px] min-w-[158px] shrink-0"
+						value={$page.url.searchParams.get('source') ?? ''}
+						items={sourceItems}
+						placeholder="All Sources"
+						onValueChange={(v) => setFilter('source', v)}
+					/>
+				{:else}
+					<button
+						class="flex min-h-[44px] min-w-[100px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+						onclick={() => (sourceSheetOpen = true)}
+					>
+						Source<span class={activeSourceCount > 0 ? '' : 'invisible'}>
+							({activeSourceCount})</span
+						>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-muted-foreground"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+							/></svg
+						>
+					</button>
+				{/if}
+			{/if}
+			<!-- Date -->
+			{#if $isLgUp}
 				<SelectField
 					class="min-w-[158px] shrink-0"
-					value={$page.url.searchParams.get('brand') ?? ''}
-					items={[
-						{ value: '', label: 'All Brands' },
-						...brands.map((b) => ({ value: b.name, label: b.name }))
-					]}
-					placeholder="All Brands"
-					onValueChange={(v) => setFilter('brand', v)}
+					value={activeDatePreset}
+					items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
+					placeholder="All Time"
+					onValueChange={(v) => onDatePresetChange(v as DatePresetId)}
 				/>
+				{#if activeDatePreset === 'custom'}
+					<input
+						type="date"
+						aria-label="From date"
+						class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+						value={activeFrom ?? ''}
+						onchange={(e) => setDateRange((e.target as HTMLInputElement).value || null, activeTo)}
+					/>
+					<span class="text-sm text-muted-foreground">to</span>
+					<input
+						type="date"
+						aria-label="To date"
+						class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
+						value={activeTo ?? ''}
+						onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
+					/>
+				{/if}
+			{:else}
+				<button
+					class="flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm border border-input bg-background px-3.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/50"
+					onclick={() => (dateSheetOpen = true)}
+				>
+					{activeDatePreset !== 'all' ? DATE_PRESET_LABELS[activeDatePreset] : 'Time'}
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4 text-muted-foreground"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+						><path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+						/></svg
+					>
+				</button>
 			{/if}
-			{#if hasSourceOptions}
-				<SelectField
-					class="max-w-[240px] min-w-[158px] shrink-0"
-					value={$page.url.searchParams.get('source') ?? ''}
-					items={sourceItems}
-					placeholder="All Sources"
-					onValueChange={(v) => setFilter('source', v)}
-				/>
-			{/if}
-			<SelectField
-				class="min-w-[158px] shrink-0"
-				value={activeDatePreset}
-				items={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
-				placeholder="All Time"
-				onValueChange={(v) => onDatePresetChange(v as DatePresetId)}
-			/>
-			{#if activeDatePreset === 'custom'}
-				<input
-					type="date"
-					aria-label="From date"
-					class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
-					value={activeFrom ?? ''}
-					onchange={(e) => setDateRange((e.target as HTMLInputElement).value || null, activeTo)}
-				/>
-				<span class="text-sm text-muted-foreground">to</span>
-				<input
-					type="date"
-					aria-label="To date"
-					class="min-h-[44px] rounded-lg border border-input bg-background px-3 text-sm"
-					value={activeTo ?? ''}
-					onchange={(e) => setDateRange(activeFrom, (e.target as HTMLInputElement).value || null)}
-				/>
-			{/if}
-		{/if}
-	</div>
+		</ListPageToolbar>
+	{/if}
 
 	{#if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
 			{#if search}
 				<p class="text-lg font-semibold">No orders match your search</p>
 				<p class="mt-2 text-sm text-muted-foreground">Try adjusting your filters</p>
+			{:else if spotlightOn}
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="mx-auto h-16 w-16 text-foreground"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="0.75"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+					/>
+				</svg>
+				<p class="mt-4 text-lg font-semibold">Nothing in the spotlight</p>
+				<p class="mt-2 text-sm text-muted-foreground">All orders are on track.</p>
 			{:else}
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -669,7 +1040,7 @@
 			<table class="w-full">
 				<thead>
 					<tr class="border-b">
-						<th class="w-8 py-2.5 pr-1 pl-4">
+						<th class="hidden w-8 py-2.5 pr-1 pl-4 sm:table-cell">
 							<Checkbox
 								checked={allSelected}
 								indeterminate={selectedIds.size > 0 && !allSelected}
@@ -709,13 +1080,10 @@
 							>Ship Window</th
 						>
 						<th
-							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase lg:table-cell"
-							>Shipped</th
-						>
-						<th
 							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
 							>Total</th
 						>
+						<th class="hidden w-10 px-4 py-2.5 sm:table-cell"></th>
 					</tr>
 				</thead>
 				<tbody class="divide-y">
@@ -749,25 +1117,44 @@
 						{@const shipWindowEnd = order.expected_ship_date
 							? `${monthNames[new Date(order.expected_ship_date + 'T00:00:00').getMonth()]} ${new Date(order.expected_ship_date + 'T00:00:00').getDate()}`
 							: null}
-						{@const reason = attentionReason(order)}
+						{@const rowBuckets = rowSpotlight(order)}
+						{@const rowTooltip = rowBuckets.map((b) => SPOTLIGHT_LABELS[b]).join(', ')}
+						{@const shipMeta = shipWindowMeta(order)}
 						<tr
-							class="group transition-colors hover:bg-muted/30 {selectedIds.has(order.id)
+							role="link"
+							tabindex="0"
+							aria-label={order.order_number}
+							onclick={() => goto(resolve(`/orders/${order.id}`))}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									goto(resolve(`/orders/${order.id}`));
+								}
+							}}
+							class="group cursor-pointer transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none {selectedIds.has(
+								order.id
+							)
 								? 'bg-primary/5'
 								: ''}"
 						>
-							<td class="w-8 py-3 pr-1 pl-4 align-top">
+							<td class="hidden w-8 py-3 pr-1 pl-4 align-top sm:table-cell">
 								<div class="flex h-5 items-center justify-center text-sm">
-									{#if reason}
+									{#if rowBuckets.length > 0}
 										<TooltipProvider delayDuration={150}>
 											<Tooltip>
 												<TooltipTrigger
 													class="inline-flex"
-													aria-label={reason === 'stale-draft' ? 'Stale note' : 'Overdue shipment'}
+													aria-label={rowTooltip}
+													onclick={(e) => e.stopPropagation()}
 												>
-													<span class="block h-2 w-2 rounded-full bg-amber-500"></span>
+													<span
+														class="block h-2 w-2 rounded-full {rowBuckets.includes('overdue')
+															? 'bg-red-500'
+															: 'bg-amber-500'}"
+													></span>
 												</TooltipTrigger>
 												<TooltipContent side="right">
-													{reason === 'stale-draft' ? 'Stale note' : 'Overdue shipment'}
+													{rowTooltip}
 												</TooltipContent>
 											</Tooltip>
 										</TooltipProvider>
@@ -778,6 +1165,8 @@
 									selectedIds.size > 0
 										? 'opacity-100'
 										: 'opacity-0 group-hover:opacity-100'} transition-opacity"
+									onclick={(e) => e.stopPropagation()}
+									role="presentation"
 								>
 									<Checkbox
 										checked={selectedIds.has(order.id)}
@@ -791,6 +1180,7 @@
 								</p>
 								<a
 									href={resolve(`/orders/${order.id}`)}
+									onclick={(e) => e.stopPropagation()}
 									class="font-mono text-base font-medium hover:underline">{order.order_number}</a
 								>
 								<p class="font-mono text-sm text-muted-foreground">{seasonLabel(order)}</p>
@@ -800,7 +1190,13 @@
 									<span class="text-sm font-medium text-muted-foreground">Note</span>
 								{:else}
 									<span
-										class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {statusBadgeColors[
+										class="inline-block h-2.5 w-2.5 rounded-full sm:hidden {statusDotColors[
+											order.status
+										] ?? 'bg-zinc-400'}"
+										aria-label={statusLabels[order.status] ?? order.status}
+									></span>
+									<span
+										class="hidden items-center rounded-full px-2.5 py-0.5 text-xs font-medium sm:inline-flex {statusBadgeColors[
 											order.status
 										] ?? 'bg-zinc-100 text-zinc-500'}"
 									>
@@ -848,7 +1244,7 @@
 									{/if}
 								{/if}
 								{#if showDate && !isBrandOrg && sourceLocation}
-									<p class="mt-0.5 font-mono text-sm text-muted-foreground">{sourceLocation}</p>
+									<p class="mt-0.5 font-mono text-xs text-muted-foreground">{sourceLocation}</p>
 								{/if}
 							</td>
 							{#if isBrandOrg}
@@ -876,7 +1272,7 @@
 										>
 									{/if}
 									{#if showDate && sourceLocation}
-										<p class="mt-0.5 font-mono text-sm text-muted-foreground">{sourceLocation}</p>
+										<p class="mt-0.5 font-mono text-xs text-muted-foreground">{sourceLocation}</p>
 									{/if}
 								</td>
 							{/if}
@@ -884,7 +1280,7 @@
 								<span class="text-sm {creatorName === '—' ? 'text-muted-foreground/50' : ''}"
 									>{creatorName}</span
 								>
-								<p class="font-mono text-sm text-muted-foreground">
+								<p class="font-mono text-xs text-muted-foreground">
 									{new Date(order.created_at).toLocaleDateString('en-US', {
 										month: 'short',
 										day: 'numeric',
@@ -893,26 +1289,17 @@
 								</p>
 							</td>
 							<td class="hidden px-4 py-3 lg:table-cell">
-								{#if shipWindowStart}
-									<span class="text-sm text-muted-foreground">{shipWindowStart}</span>
-									<p class="text-sm text-muted-foreground">{shipWindowEnd ?? '—'}</p>
-								{:else if shipWindowEnd}
-									<span class="text-sm text-muted-foreground">{shipWindowEnd}</span>
+								{#if shipWindowStart && shipWindowEnd}
+									<p class="text-sm text-muted-foreground">{shipWindowStart} – {shipWindowEnd}</p>
+								{:else if shipWindowStart || shipWindowEnd}
+									<p class="text-sm text-muted-foreground">{shipWindowStart ?? shipWindowEnd}</p>
 								{:else}
-									<span class="text-sm text-muted-foreground/50">—</span>
+									<p class="text-sm text-muted-foreground/50">—</p>
 								{/if}
-							</td>
-							<td class="hidden px-4 py-3 lg:table-cell">
-								{#if order.shipped_at}
-									<span class="text-sm text-muted-foreground"
-										>{new Date(order.shipped_at).toLocaleDateString('en-US', {
-											month: 'short',
-											day: 'numeric',
-											year: 'numeric'
-										})}</span
-									>
-								{:else}
-									<span class="text-sm text-muted-foreground/50">—</span>
+								{#if shipMeta}
+									<p class="text-xs {shipMeta.overdue ? 'text-red-700' : 'text-muted-foreground'}">
+										{shipMeta.text}
+									</p>
 								{/if}
 							</td>
 							<td class="px-4 py-3 text-right font-mono">
@@ -927,6 +1314,57 @@
 									<span class="text-sm">{fmt.format(Number(order.total_amount))}</span>
 									<p class="text-xs text-muted-foreground/50">—</p>
 								{/if}
+							</td>
+							<td class="hidden w-10 px-4 py-3 text-right align-middle sm:table-cell">
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger
+										aria-label="More actions"
+										onclick={(e: Event) => e.stopPropagation()}
+										onkeydown={(e: KeyboardEvent) => {
+											if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+										}}
+										class="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:outline-none [@media(hover:none)]:opacity-100"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											viewBox="0 0 24 24"
+											fill="currentColor"
+											class="h-4 w-4"
+											aria-hidden="true"
+										>
+											<circle cx="12" cy="5" r="1.75" />
+											<circle cx="12" cy="12" r="1.75" />
+											<circle cx="12" cy="19" r="1.75" />
+										</svg>
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Portal>
+										<DropdownMenu.Content
+											align="end"
+											sideOffset={4}
+											class="z-50 min-w-[10rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+										>
+											<DropdownMenu.Item
+												disabled
+												class="flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm opacity-50 outline-none"
+											>
+												Duplicate
+											</DropdownMenu.Item>
+											<DropdownMenu.Item
+												disabled
+												class="flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm opacity-50 outline-none"
+											>
+												Archive
+											</DropdownMenu.Item>
+											<DropdownMenu.Separator class="my-1 h-px bg-border" />
+											<DropdownMenu.Item
+												disabled
+												class="flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm text-destructive opacity-50 outline-none"
+											>
+												Delete
+											</DropdownMenu.Item>
+										</DropdownMenu.Content>
+									</DropdownMenu.Portal>
+								</DropdownMenu.Root>
 							</td>
 						</tr>
 					{/each}
@@ -944,6 +1382,223 @@
 		{/if}
 	{/if}
 </div>
+
+<FilterBySheet
+	open={statusSheetOpen}
+	onclose={() => (statusSheetOpen = false)}
+	title="Filter by Status"
+	options={statusTabs
+		.filter((s) => s !== 'all')
+		.map((s) => ({ value: s, label: statusLabels[s] ?? s }))}
+	selected={activeStatuses}
+	onApply={(values) => setMultiFilter('status', values)}
+/>
+
+<FilterBySheet
+	open={seasonSheetOpen}
+	onclose={() => (seasonSheetOpen = false)}
+	title="Filter by Season"
+	options={seasons.map((s) => ({ value: s.name, label: s.name }))}
+	selected={($page.url.searchParams.get('season') ?? '').split(',').filter(Boolean)}
+	onApply={(values) => setMultiFilter('season', values)}
+/>
+
+{#if isBrandOrg && reps.length > 0}
+	<FilterBySheet
+		open={repSheetOpen}
+		onclose={() => (repSheetOpen = false)}
+		title="Filter by Rep"
+		options={reps.map((r) => ({ value: r.id, label: r.name }))}
+		selected={($page.url.searchParams.get('rep') ?? '').split(',').filter(Boolean)}
+		onApply={(values) => setMultiFilter('rep', values)}
+	/>
+{/if}
+
+{#if !isBrandOrg}
+	<FilterBySheet
+		open={brandSheetOpen}
+		onclose={() => (brandSheetOpen = false)}
+		title="Filter by Brand"
+		options={brands.map((b) => ({ value: b.name, label: b.name }))}
+		selected={($page.url.searchParams.get('brand') ?? '').split(',').filter(Boolean)}
+		onApply={(values) => setMultiFilter('brand', values)}
+	/>
+{/if}
+
+{#if hasSourceOptions}
+	<FilterBySheet
+		open={sourceSheetOpen}
+		onclose={() => (sourceSheetOpen = false)}
+		title="Filter by Source"
+		options={sourceItems
+			.filter((s) => s.value !== '')
+			.map((s) => ({ value: s.value, label: s.label }))}
+		selected={($page.url.searchParams.get('source') ?? '').split(',').filter(Boolean)}
+		onApply={(values) => setMultiFilter('source', values)}
+	/>
+{/if}
+
+<FilterBySheet
+	open={dateSheetOpen}
+	onclose={() => (dateSheetOpen = false)}
+	title="Filter by Time"
+	options={Object.entries(DATE_PRESET_LABELS).map(([value, label]) => ({ value, label }))}
+	selected={activeDatePreset !== 'all' ? [activeDatePreset] : []}
+	onApply={(values) => onDatePresetChange((values[0] ?? 'all') as DatePresetId)}
+	singleSelect={true}
+/>
+
+<FilterSortSheet
+	open={filterSortOpen}
+	onclose={() => (filterSortOpen = false)}
+	onApply={() => {}}
+	onClear={() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+		const params = new URLSearchParams($page.url.searchParams);
+		params.delete('status');
+		params.delete('season');
+		params.delete('brand');
+		params.delete('source');
+		params.delete('rep');
+		params.delete('from');
+		params.delete('to');
+		goto(resolve(`/orders?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}}
+	activeCount={[
+		activeStatuses.length > 0,
+		($page.url.searchParams.get('season') ?? '') !== '',
+		($page.url.searchParams.get('brand') ?? '') !== '',
+		($page.url.searchParams.get('source') ?? '') !== '',
+		($page.url.searchParams.get('from') ?? '') !== '',
+		($page.url.searchParams.get('rep') ?? '') !== ''
+	].filter(Boolean).length}
+>
+	<div class="space-y-6">
+		<!-- Status -->
+		<div>
+			<h3 class="mb-3 text-sm font-medium text-muted-foreground">Status</h3>
+			<div class="space-y-2">
+				{#each statusTabs.filter((s) => s !== 'all') as s (s)}
+					<label class="flex items-center gap-3">
+						<Checkbox
+							checked={activeStatuses.includes(s)}
+							onCheckedChange={(v) => {
+								const next = v ? [...activeStatuses, s] : activeStatuses.filter((x) => x !== s);
+								setMultiFilter('status', next);
+							}}
+						/>
+						<span class="text-base">{statusLabels[s] ?? s}</span>
+					</label>
+				{/each}
+			</div>
+		</div>
+
+		<div class="h-px bg-border"></div>
+
+		<!-- Season -->
+		{#if seasons.length > 0}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Season</h3>
+				<div class="space-y-2">
+					{#each seasons as season (season.id)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('season') ?? '') === season.name}
+								onCheckedChange={(v) => setFilter('season', v ? season.name : '')}
+							/>
+							<span class="text-base">{season.name}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Brand (rep orgs only) -->
+		{#if !isBrandOrg && brands.length > 0}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Brand</h3>
+				<div class="space-y-2">
+					{#each brands as brand (brand.id)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('brand') ?? '') === brand.name}
+								onCheckedChange={(v) => setFilter('brand', v ? brand.name : '')}
+							/>
+							<span class="text-base">{brand.name}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Rep (brand orgs only) -->
+		{#if isBrandOrg && reps.length > 0}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Rep</h3>
+				<div class="space-y-2">
+					{#each reps as rep (rep.id)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('rep') ?? '') === rep.id}
+								onCheckedChange={(v) => setFilter('rep', v ? rep.id : '')}
+							/>
+							<span class="text-base">{rep.name}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Source -->
+		{#if hasSourceOptions}
+			<div>
+				<h3 class="mb-3 text-sm font-medium text-muted-foreground">Source</h3>
+				<div class="space-y-2">
+					{#each sourceItems.filter((s) => s.value !== '') as source (source.value)}
+						<label class="flex items-center gap-3">
+							<Checkbox
+								checked={($page.url.searchParams.get('source') ?? '') === source.value}
+								onCheckedChange={(v) => setFilter('source', v ? source.value : '')}
+							/>
+							<span class="text-base">{source.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+
+			<div class="h-px bg-border"></div>
+		{/if}
+
+		<!-- Date -->
+		<div>
+			<h3 class="mb-3 text-sm font-medium text-muted-foreground">Time Period</h3>
+			<div class="space-y-2">
+				{#each Object.entries(DATE_PRESET_LABELS) as [value, label] (value)}
+					<label class="flex items-center gap-3">
+						<input
+							type="radio"
+							name="date-filter"
+							class="h-5 w-5 accent-foreground"
+							checked={activeDatePreset === value}
+							onchange={() => onDatePresetChange(value as DatePresetId)}
+						/>
+						<span class="text-base">{label}</span>
+					</label>
+				{/each}
+			</div>
+		</div>
+	</div>
+</FilterSortSheet>
 
 {#if isBrandOrg}
 	<OrderImportModal

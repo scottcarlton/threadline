@@ -31,7 +31,7 @@
 	}
 </script>
 
-<OverlayPanel {open} {onclose} ariaLabel="Sections" side="left" width="280px">
+<OverlayPanel {open} {onclose} ariaLabel="Sections" side="left" width="100vw">
 	<div class="flex h-full flex-col overflow-y-auto p-4">
 		<div class="mb-4 flex items-center justify-between">
 			<span class="text-sm font-semibold">Sections</span>

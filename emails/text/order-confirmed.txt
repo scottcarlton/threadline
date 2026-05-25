@@ -1,10 +1,10 @@
-Order confirmed: {{{ORDER_NUMBER}}}
+Order confirmed: {{params.ORDER_NUMBER}}
 
-Account: {{{ACCOUNT_NAME}}}
-Brand:   {{{BRAND_NAME}}}
-Total:   {{{TOTAL}}}
+Account: {{params.ACCOUNT_NAME}}
+Brand:   {{params.BRAND_NAME}}
+Total:   {{params.TOTAL}}
 
-{{{BRAND_NAME}}} confirmed your order. You'll get another email when it ships.
+{{params.BRAND_NAME}} confirmed your order. You'll get another email when it ships.
 
-View order: {{{ORDER_URL}}}
+View order: {{params.ORDER_URL}}
 /Threadline · threadline.systems

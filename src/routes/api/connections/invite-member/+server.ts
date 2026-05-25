@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { sendEmail } from '$lib/server/email.js';
-import { invite as inviteTemplate } from '$lib/server/email-templates.js';
+import { inviteParams } from '$lib/server/email-templates.js';
+import templateIds from '../../../../../emails/template-ids.json';
 
 /**
  * Brand admin invites a specific user (by email) on the rep side of an
@@ -112,15 +113,12 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	const { data: inviterAuth } = await supabaseAdmin.auth.admin.getUserById(membership.profile_id);
 	const inviterName = inviter?.display_name || inviterAuth?.user?.email || 'A teammate';
 	const acceptUrl = `${url.origin}/connect/member/${inserted.token}`;
-	const tpl = inviteTemplate({
-		inviterName,
-		organizationName: organization.name,
-		acceptUrl
-	});
-
 	const emailResult = await sendEmail({
 		to: cleanEmail,
-		...tpl,
+		subject: `${inviterName} added you to ${organization.name} on /Threadline`,
+		html: '',
+		templateId: templateIds['invite-connection-member'],
+		params: inviteParams({ inviterName, organizationName: organization.name, acceptUrl }),
 		replyTo: inviterAuth?.user?.email,
 		template: 'invite',
 		relatedType: 'connection_member_invite',

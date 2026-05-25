@@ -1,22 +1,86 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
+	import { fly } from 'svelte/transition';
+	import { quintOut } from 'svelte/easing';
+	import { browser } from '$app/environment';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import { SearchDropdown } from '$lib/components/ui/input/index.js';
+	import { addRecent } from '$lib/stores/recent-searches.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
-	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
-	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
+	import ProductImageCarousel from '$lib/components/shared/ProductImageCarousel.svelte';
+	import QtyStepper from '$lib/components/shared/QtyStepper.svelte';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import { aggregateStockStatus } from '$lib/utils/products';
 	import type { CatalogProduct, CatalogCartItem, ProductVariant } from './catalog-picker-types.js';
+	import { catalogProductToCartItem } from './catalog-picker-types.js';
+	import SizeStepperSheet from './SizeStepperSheet.svelte';
+	import ColorPickerSheet from './ColorPickerSheet.svelte';
 	import {
 		primaryImageId,
+		colorPrimaryImageId,
 		productColors,
 		productSizes,
 		itemUnits,
+		itemColorCount,
 		itemTotal,
-		itemIsSized
+		itemIsSized,
+		colorUnits
 	} from './catalog-picker-types.js';
+
+	const STANDARD_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
+
+	let asideEl = $state<HTMLElement | null>(null);
+	let asideMounted = $state(false);
+	let asideAnimating = $state(false);
+	let lastSizingProductId = $state<string | null>(null);
+
+	$effect(() => {
+		if (!browser) return;
+		if (sizingProductId && !asideMounted) {
+			lastSizingProductId = sizingProductId;
+			asideMounted = true;
+			queueMicrotask(() => animateAsideIn());
+		} else if (sizingProductId && asideMounted) {
+			lastSizingProductId = sizingProductId;
+		} else if (!sizingProductId && asideMounted && !asideAnimating) {
+			animateAsideOut();
+		}
+	});
+
+	async function animateAsideIn() {
+		await new Promise((r) => requestAnimationFrame(r));
+		await new Promise((r) => requestAnimationFrame(r));
+		if (!asideEl) return;
+		const { animate } = await import('motion');
+		asideAnimating = true;
+		await animate(asideEl, { width: '380px', opacity: 1 } as Parameters<typeof animate>[1], {
+			type: 'spring',
+			stiffness: 300,
+			damping: 34,
+			mass: 1
+		}).finished?.catch(() => {});
+		asideAnimating = false;
+	}
+
+	async function animateAsideOut() {
+		if (!asideEl) {
+			asideMounted = false;
+			return;
+		}
+		const { animate } = await import('motion');
+		asideAnimating = true;
+		await animate(asideEl, { width: '0px', opacity: 0 } as Parameters<typeof animate>[1], {
+			duration: 0.28,
+			ease: [0.32, 0, 0.67, 0]
+		}).finished?.catch(() => {});
+		asideAnimating = false;
+		asideMounted = false;
+		lastSizingProductId = null;
+	}
 
 	type Props = {
 		open: boolean;
@@ -55,6 +119,8 @@
 	let modalLoading = $state(false);
 	let modalDebounce: ReturnType<typeof setTimeout> | undefined;
 	let sizingProductId = $state<string | null>(null);
+	let colorPickerProductId = $state<string | null>(null);
+	const hoveredImageByProduct = new SvelteMap<string, string>();
 
 	// Deduplicated seasons for dropdown display
 	const dedupedSeasons = $derived.by(() => {
@@ -102,6 +168,13 @@
 		modalDebounce = setTimeout(loadModalProducts, 250);
 	}
 
+	function onModalSearchCommit(term: string) {
+		modalSearch = term;
+		addRecent('catalog', term);
+		clearTimeout(modalDebounce);
+		loadModalProducts();
+	}
+
 	// ── Open/reset on visibility change ──────────────────────────────────────
 	// Track only `open`; the resets and loadModalProducts() read the same state
 	// they write, which would otherwise create an infinite effect loop.
@@ -137,6 +210,12 @@
 				if (!items[i].image_id) {
 					items[i].image_id = primaryImageId(product);
 				}
+				const cImgMap: Record<string, string> = {};
+				for (const c of items[i].available_colors) {
+					const imgId = colorPrimaryImageId(product, c);
+					if (imgId) cImgMap[c] = imgId;
+				}
+				items[i].color_image_ids = cImgMap;
 			}
 		});
 	});
@@ -161,25 +240,7 @@
 
 	function addProduct(p: CatalogProduct) {
 		if (productInCart(p)) return;
-		const colors = productColors(p);
-		const sizes = productSizes(p);
-		const size_qtys: Record<string, number> = {};
-		for (const s of sizes) size_qtys[s] = 0;
-		items.push({
-			product_id: p.id,
-			brand_id: p.brand_id,
-			season_id: p.season_id,
-			original_season_id: p.season_id,
-			product_year: p.product_year,
-			style_number: p.style_number,
-			name: p.name,
-			unit_price: p.wholesale_price,
-			image_id: primaryImageId(p),
-			available_colors: colors,
-			available_sizes: sizes,
-			selected_color: colors[0] ?? '',
-			size_qtys
-		});
+		items.push(catalogProductToCartItem(p));
 	}
 
 	function removeProduct(product_id: string) {
@@ -195,23 +256,22 @@
 
 	function openSizing(p: CatalogProduct) {
 		if (!productInCart(p)) addProduct(p);
+		const hoveredImg = hoveredImageByProduct.get(p.id);
+		if (hoveredImg) {
+			const img = p.product_images?.find((i) => i.id === hoveredImg);
+			if (img?.variant_id) {
+				const v = p.product_variants.find((pv) => pv.id === img.variant_id);
+				if (v?.color) {
+					const item = findItem(p.id);
+					if (item) item.selected_color = v.color;
+				}
+			}
+		}
 		sizingProductId = p.id;
 	}
 
 	function findItem(product_id: string): CatalogCartItem | undefined {
 		return items.find((it) => it.product_id === product_id);
-	}
-
-	function aggregateStockStatus(
-		variants: { stock_qty: number | null; stock_threshold: number | null }[]
-	): StockStatus | null {
-		const statuses = variants
-			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
-			.filter((s): s is StockStatus => s !== null);
-		if (statuses.length === 0) return null;
-		if (statuses.includes('out')) return 'out';
-		if (statuses.includes('low')) return 'low';
-		return 'in';
 	}
 
 	function findVariant(
@@ -224,6 +284,14 @@
 				(v) => (v.color ?? null) === (color ?? null) && (v.size ?? null) === (size ?? null)
 			) ?? null
 		);
+	}
+
+	function colorImageId(product: CatalogProduct, color: string): string | null {
+		return colorPrimaryImageId(product, color);
+	}
+
+	function colorHex(product: CatalogProduct, color: string): string | null {
+		return product.product_variants.find((v) => v.color === color)?.color_hex ?? null;
 	}
 
 	function productForItem(it: CatalogCartItem): CatalogProduct | null {
@@ -239,25 +307,22 @@
 {#if open}
 	<div class="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-modal="true">
 		<!-- Top bar -->
-		<div class="flex items-center justify-between border-b px-5 py-3">
-			<div>
-				<h2 class="text-lg font-semibold">Add Items</h2>
-				<p class="text-sm text-muted-foreground">
-					{items.length} added · {items.filter(itemIsSized).length} sized
-				</p>
-			</div>
+		<div class="flex items-center justify-between px-5 py-3">
+			<h2 class="text-lg font-semibold">Add Items</h2>
 			<div class="flex items-center gap-2">
 				<Button variant="ghost" onclick={onclose}>Cancel</Button>
-				<Button onclick={handleDone}>Done</Button>
 			</div>
 		</div>
 
 		<!-- Filters -->
-		<div class="flex flex-wrap items-center gap-3 border-b px-5 py-3">
-			<SearchInput
+		<div class="flex flex-wrap items-center gap-3 px-5 py-3">
+			<SearchDropdown
 				placeholder="Search style # or name…"
 				bind:value={modalSearch}
 				oninput={onModalSearchChange}
+				oncommit={onModalSearchCommit}
+				context="catalog"
+				suggestionType="products"
 				class="w-64"
 			/>
 			{#if dedupedSeasons.length > 1}
@@ -305,8 +370,8 @@
 		</div>
 
 		<!-- Body: grid + overlay sizing panel -->
-		<div class="relative flex flex-1 overflow-hidden">
-			<div class="flex-1 overflow-auto p-5">
+		<div class="relative flex flex-1 gap-4 overflow-hidden">
+			<div class="flex-1 overflow-auto pt-5 pb-32 md:px-5">
 				{#if modalLoading}
 					<div class="p-10 text-center text-sm text-muted-foreground">Loading…</div>
 				{:else if modalProducts.length === 0}
@@ -315,16 +380,33 @@
 						<p class="mt-1 text-sm text-muted-foreground">Adjust the filters above.</p>
 					</div>
 				{:else}
-					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+					<div class="grid grid-cols-2 gap-0 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
 						{#each modalProducts as p (p.id)}
 							{@const added = productInCart(p)}
-							{@const imgId = primaryImageId(p)}
 							{@const locked = lockedProductIds.includes(p.id)}
 							<div
-								class="relative flex flex-col rounded-lg border transition {added
-									? 'border-foreground'
-									: 'border-border'} {locked ? 'pointer-events-none' : ''}"
+								class="group/card relative flex flex-col transition {locked
+									? 'pointer-events-none'
+									: 'cursor-pointer'}"
+								role="button"
+								tabindex={locked ? -1 : 0}
+								aria-pressed={added}
+								onclick={() => {
+									if (!locked) toggleProduct(p);
+								}}
+								onkeydown={(e) => {
+									if (locked) return;
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										toggleProduct(p);
+									}
+								}}
 							>
+								{#if added && !locked}
+									<div
+										class="pointer-events-none absolute inset-0 z-10 border-6 border-foreground/20"
+									></div>
+								{/if}
 								{#if locked}
 									<span
 										class="absolute top-2 right-2 z-10 rounded-full bg-foreground px-2 py-0.5 text-sm font-medium text-background shadow-sm"
@@ -333,81 +415,84 @@
 									</span>
 								{/if}
 								<div class="flex flex-1 flex-col {locked ? 'opacity-50' : ''}">
-									<div class="aspect-square overflow-hidden rounded-t-lg bg-muted">
-										{#if imgId}
-											<img
-												src={`/api/products/${p.id}/images/${imgId}`}
-												alt=""
-												class="h-full w-full object-cover"
-											/>
-										{:else}
-											<div class="flex h-full w-full items-center justify-center">
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.5"
-													class="h-10 w-10 text-muted-foreground/40"
-												>
-													<rect x="3" y="3" width="18" height="18" rx="2" />
-													<circle cx="8.5" cy="8.5" r="1.5" />
-													<path d="M21 15l-5-5L5 21" />
-												</svg>
-											</div>
-										{/if}
-									</div>
-									<div class="flex flex-1 flex-col gap-1 p-3">
-										<div class="text-sm text-muted-foreground">{p.style_number}</div>
-										<div class="line-clamp-2 text-sm font-semibold">{p.name}</div>
-										<div class="text-sm text-muted-foreground">
-											{brandName(p.brand_id)}{p.season_id
-												? ' · ' + seasonLabel(p.season_id, p.product_year)
-												: ''}
-										</div>
-										<div class="mt-1 text-sm font-semibold">{fmt.format(p.wholesale_price)}</div>
-										{#if p.ats}
-											{@const agg = aggregateStockStatus(p.product_variants ?? [])}
-											{#if agg}
-												<div class="mt-1">
-													<StockPill status={agg} qty={null} hideQty />
-												</div>
-											{/if}
-										{/if}
-										<div class="mt-auto grid grid-cols-2 gap-2 pt-3">
-											{#if added}
-												{#if locked}
-													<Button
-														size="sm"
-														variant="outline"
-														onclick={() => toggleProduct(p)}
-														class="border-muted-foreground!"
+									<ProductImageCarousel
+										productId={p.id}
+										images={p.product_images ?? []}
+										alt={p.name}
+										aspect="aspect-square"
+										activeImageId={findItem(p.id)?.image_id}
+										onselect={(imageId) => {
+											hoveredImageByProduct.set(p.id, imageId);
+											const idx = items.findIndex((it) => it.product_id === p.id);
+											if (idx >= 0) items[idx].image_id = imageId;
+										}}
+									>
+										{#snippet overlay()}
+											{#if p.ats}
+												{@const agg = aggregateStockStatus(p.product_variants ?? [])}
+												{#if agg}
+													<div
+														class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
 													>
-														Remove
-													</Button>
-												{:else}
+														<StockPill status={agg} qty={null} hideQty />
+													</div>
+												{/if}
+											{/if}
+											{#if !locked}
+												<div
+													class="absolute top-2 right-2 p-2 transition-opacity [@media(hover:none)]:opacity-100 {added
+														? 'opacity-100'
+														: 'opacity-0 group-focus-within/card:opacity-100 group-hover/card:opacity-100'}"
+												>
+													<span class="pointer-events-none flex rounded-sm bg-white">
+														<Checkbox
+															checked={added}
+															class="h-6 w-6 group-hover/card:border-foreground"
+														/>
+													</span>
+												</div>
+												{#if added}
+													{@const cartItem = findItem(p.id)}
+													{@const totalUnits = cartItem ? itemUnits(cartItem) : 0}
+													{@const numColors = cartItem ? itemColorCount(cartItem) : 0}
 													<button
 														type="button"
-														class="inline-flex h-8 items-center justify-center rounded-md border border-red-500 bg-background px-3 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
-														onclick={() => toggleProduct(p)}
+														class="absolute right-4 bottom-4 left-4 inline-flex h-10 items-center justify-center rounded-md bg-background/80 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-background"
+														onclick={(e) => {
+															e.stopPropagation();
+															openSizing(p);
+														}}
 													>
-														Remove
+														{#if totalUnits > 0}
+															{numColors}
+															{numColors === 1 ? 'color' : 'colors'} · {totalUnits}
+															{totalUnits === 1 ? 'unit' : 'units'}
+														{:else}
+															Set Sizes
+														{/if}
 													</button>
 												{/if}
-											{:else}
-												<Button size="sm" onclick={() => toggleProduct(p)}>Add</Button>
 											{/if}
-											<Button
-												size="sm"
-												variant="outline"
-												disabled={!added}
-												onclick={() => openSizing(p)}
-												class={locked ? 'border-muted-foreground!' : ''}
-											>
-												Size
-											</Button>
+										{/snippet}
+									</ProductImageCarousel>
+									<article class="flex flex-1 flex-col p-3">
+										<span class="text-xs text-muted-foreground">{p.style_number}</span>
+										<div
+											class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+										>
+											<div class="min-w-0">
+												<h3 class="text-sm font-semibold">{p.name}</h3>
+												<p class="text-xs text-muted-foreground">
+													{brandName(p.brand_id)}{p.season_id
+														? ' · ' + seasonLabel(p.season_id, p.product_year)
+														: ''}
+												</p>
+											</div>
+											<p class="shrink-0 text-sm font-semibold sm:text-right">
+												{fmt.format(p.wholesale_price)}
+											</p>
 										</div>
-									</div>
+									</article>
 								</div>
 							</div>
 						{/each}
@@ -416,107 +501,278 @@
 			</div>
 
 			<!-- Sizing panel (overlay) -->
-			{#if sizingProductId}
-				{@const it = findItem(sizingProductId)}
+			{#if asideMounted && lastSizingProductId}
+				{@const it = findItem(lastSizingProductId)}
 				{#if it}
 					<aside
-						class="absolute top-0 right-0 bottom-0 z-10 flex w-[380px] flex-col border-l bg-background shadow-lg transition-transform duration-200"
+						bind:this={asideEl}
+						class="mr-4 mb-4 hidden shrink-0 flex-col overflow-hidden rounded-md border bg-background sm:flex"
+						style="width: 0px; opacity: 0; will-change: width, opacity;"
 					>
-						<div class="px-4 pt-5 pb-3">
-							<button
-								type="button"
-								class="mb-4 flex items-center gap-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-								onclick={() => (sizingProductId = null)}
-							>
-								<LongArrow direction="left" class="h-4 w-4" />
-								Back to products
-							</button>
-							<div class="text-sm text-muted-foreground">{it.style_number}</div>
-							<div class="text-base font-semibold">{it.name}</div>
-						</div>
-						<div class="flex-1 overflow-auto p-4">
-							{#if it.available_colors.length > 0}
-								<div class="mb-3">
-									<div class="mb-2 text-sm text-muted-foreground">Color</div>
-									<div class="flex flex-wrap gap-2">
-										{#each it.available_colors as color (color)}
-											{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
-											<button
-												type="button"
-												class="rounded-full px-3 py-1 text-sm font-medium transition {it.selected_color ===
-												color
-													? 'bg-foreground text-background'
-													: 'bg-muted text-muted-foreground hover:text-foreground'}"
-												onclick={() => (items[idx].selected_color = color)}
+						<div class="flex w-[380px] flex-1 flex-col">
+							<div class="px-4 pt-5 pb-3">
+								<button
+									type="button"
+									class="mb-4 flex items-center gap-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+									onclick={() => (sizingProductId = null)}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="currentColor"
+										class="h-4 w-4"
+										><path
+											d="M5 5H13V19H5V5ZM19 19H15V5H19V19ZM4 3C3.44772 3 3 3.44772 3 4V20C3 20.5523 3.44772 21 4 21H20C20.5523 21 21 20.5523 21 20V4C21 3.44772 20.5523 3 20 3H4ZM11 12L7 8.5V15.5L11 12Z"
+										></path></svg
+									>
+									Close
+								</button>
+								<span class="text-sm text-muted-foreground">{it.style_number}</span>
+								<h2 class="text-base font-semibold">{it.name}</h2>
+							</div>
+							<div class="flex-1 overflow-auto p-4">
+								{#if it.available_colors.length > 0}
+									<div class="mb-3">
+										<label class="mb-2 block text-sm text-muted-foreground">Color</label>
+										<div class="flex flex-wrap gap-3">
+											{#each it.available_colors as color (color)}
+												{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
+												{@const prod = productForItem(it)}
+												{@const thumbId = prod ? colorImageId(prod, color) : null}
+												{@const hex = prod ? colorHex(prod, color) : null}
+												{@const selected = it.selected_color === color}
+												{@const cUnits = colorUnits(it, color)}
+												<button
+													type="button"
+													class="flex flex-col items-center gap-1.5"
+													onclick={() => (items[idx].selected_color = color)}
+												>
+													<div class="relative">
+														{#if thumbId}
+															<img
+																src={`/api/products/${it.product_id}/images/${thumbId}`}
+																alt={color}
+																class="h-12 w-12 rounded-full object-cover ring-2 ring-offset-2 transition {selected
+																	? 'ring-foreground'
+																	: 'ring-transparent hover:ring-muted-foreground/40'}"
+															/>
+														{:else if hex}
+															<span
+																class="block h-12 w-12 rounded-full ring-2 ring-offset-2 transition {selected
+																	? 'ring-foreground'
+																	: 'ring-transparent hover:ring-muted-foreground/40'}"
+																style="background-color: {hex};"
+															></span>
+														{:else}
+															<span
+																class="flex h-12 w-12 items-center justify-center rounded-full text-sm font-medium ring-2 ring-offset-2 transition {selected
+																	? 'bg-foreground text-background ring-foreground'
+																	: 'bg-muted text-muted-foreground ring-transparent hover:ring-muted-foreground/40'}"
+															>
+																{color.slice(0, 2)}
+															</span>
+														{/if}
+														{#if cUnits > 0}
+															<span
+																class="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-md bg-[#6BC154] px-1 text-[11px] font-semibold text-white"
+															>
+																{cUnits}
+															</span>
+														{/if}
+													</div>
+													<span
+														class="text-sm {selected
+															? 'font-medium text-foreground'
+															: 'text-muted-foreground'}">{color}</span
+													>
+												</button>
+											{/each}
+										</div>
+									</div>
+								{/if}
+
+								{#if it.available_sizes.length > 0}
+									{@const cUnits = colorUnits(it, it.selected_color)}
+									{@const availableSet = new Set(it.available_sizes)}
+									<div class="mb-2 flex items-baseline justify-between">
+										<span class="text-sm text-muted-foreground">Sizes</span>
+										{#if cUnits > 0}
+											<span class="text-sm text-muted-foreground"
+												>{cUnits}
+												{cUnits === 1 ? 'unit' : 'units'} · {fmt.format(
+													cUnits * it.unit_price
+												)}</span
 											>
-												{color}
-											</button>
+										{/if}
+									</div>
+									<div class="grid grid-cols-2 gap-3">
+										{#each STANDARD_SIZES as size (size)}
+											{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
+											{@const prod = productForItem(it)}
+											{@const sizeQtys = it.color_size_qtys[it.selected_color]}
+											{@const qty = sizeQtys?.[size] ?? 0}
+											{@const available = availableSet.has(size)}
+											{@const variant =
+												prod?.ats && available ? findVariant(prod, it.selected_color, size) : null}
+											<div class="flex items-center gap-2">
+												<div class="flex-1">
+													<QtyStepper
+														value={qty}
+														label={size}
+														disabled={!available}
+														onchange={(n) => {
+															if (!items[idx].color_size_qtys[it.selected_color]) {
+																items[idx].color_size_qtys[it.selected_color] = {};
+															}
+															items[idx].color_size_qtys[it.selected_color][size] = n;
+														}}
+													/>
+												</div>
+												{#if variant && variant.stock_qty !== null}
+													<span
+														class="shrink-0 rounded-sm bg-emerald-500/10 px-1.5 py-0.5 text-xs whitespace-nowrap text-emerald-600 dark:text-emerald-400"
+														>{variant.stock_qty} in stock</span
+													>
+												{/if}
+											</div>
 										{/each}
 									</div>
-								</div>
-							{/if}
-
-							{#if it.available_sizes.length > 0}
-								<div class="mb-2 text-sm text-muted-foreground">Sizes</div>
-								<div class="flex flex-wrap gap-3">
-									{#each it.available_sizes as size (size)}
-										{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
-										{@const prod = productForItem(it)}
-										<div class="flex flex-col items-center gap-1">
-											<span class="text-sm text-muted-foreground">{size}</span>
-											<input
-												type="number"
-												min="0"
-												class="h-10 w-16 rounded border bg-background px-2 text-center text-sm"
-												value={it.size_qtys[size] ?? 0}
-												oninput={(e) => {
-													const n = parseInt((e.target as HTMLInputElement).value, 10);
-													items[idx].size_qtys[size] = Number.isNaN(n) ? 0 : Math.max(0, n);
-												}}
-											/>
-											{#if prod?.ats}
-												{@const variant = findVariant(prod, it.selected_color, size)}
-												{#if variant}
-													{@const stat = deriveStockStatus(
-														variant.stock_qty,
-														variant.stock_threshold
-													)}
-													{#if stat}
-														<StockPill status={stat} qty={variant.stock_qty} />
-													{/if}
-												{/if}
-											{/if}
-										</div>
-									{/each}
-								</div>
-							{:else}
-								{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
-								<div class="flex items-center gap-2">
-									<span class="text-sm text-muted-foreground">Qty:</span>
-									<input
-										type="number"
-										min="0"
-										class="h-10 w-20 rounded border bg-background px-2 text-center text-sm"
-										value={it.size_qtys[''] ?? 0}
-										oninput={(e) => {
-											const n = parseInt((e.target as HTMLInputElement).value, 10);
-											items[idx].size_qtys[''] = Number.isNaN(n) ? 0 : Math.max(0, n);
+								{:else}
+									{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
+									{@const activeColor = it.selected_color || ''}
+									{@const qty = it.color_size_qtys[activeColor]?.[''] ?? 0}
+									<label class="mb-2 block text-sm text-muted-foreground">Qty</label>
+									<QtyStepper
+										value={qty}
+										onchange={(n) => {
+											if (!items[idx].color_size_qtys[activeColor]) {
+												items[idx].color_size_qtys[activeColor] = {};
+											}
+											items[idx].color_size_qtys[activeColor][''] = n;
 										}}
 									/>
-								</div>
-							{/if}
-						</div>
-						<div class="border-t p-4 text-sm">
-							<div class="flex items-center justify-between">
-								<span class="text-muted-foreground">Total</span>
-								<span class="font-semibold">
-									{itemUnits(it)} units · {fmt.format(itemTotal(it))}
-								</span>
+								{/if}
 							</div>
 						</div>
 					</aside>
 				{/if}
 			{/if}
 		</div>
+
+		{#if items.length > 0}
+			{@const unsizedCount = items.filter((i) => !itemIsSized(i)).length}
+			{@const allUnits = items.reduce((s, i) => s + itemUnits(i), 0)}
+			{@const allTotal = items.reduce((s, i) => s + itemTotal(i), 0)}
+			<div class="pointer-events-none fixed inset-x-0 bottom-6 z-10 flex justify-center px-4">
+				<div
+					transition:fly={{ y: 80, duration: 320, easing: quintOut }}
+					class="pointer-events-auto flex w-[420px] items-center justify-between gap-6 rounded-lg bg-foreground py-2 pr-2 pl-6 text-background shadow-lg md:w-[560px] md:py-3 md:pr-3 md:pl-8"
+				>
+					<div>
+						<div class="text-sm">
+							{items.length}
+							{items.length === 1 ? 'Item' : 'Items'}
+							{#if unsizedCount > 0}
+								<span class="text-amber-400">
+									({unsizedCount} Unsized)
+								</span>
+							{/if}
+						</div>
+						{#if allUnits > 0}
+							<div class="text-sm opacity-70">
+								{allUnits}
+								{allUnits === 1 ? 'unit' : 'units'} ·
+								<span class="font-semibold">{fmt.format(allTotal)}</span>
+							</div>
+						{/if}
+					</div>
+					<button
+						type="button"
+						class="inline-flex h-10 items-center rounded-md bg-background px-8 text-sm font-medium text-foreground transition-colors hover:bg-background/90 md:h-12 md:px-12 md:text-base"
+						onclick={handleDone}
+					>
+						Done
+					</button>
+				</div>
+			</div>
+		{/if}
+
+		{#if true}
+			{@const sheetItem = sizingProductId ? findItem(sizingProductId) : undefined}
+			{@const sheetIdx = sheetItem
+				? items.findIndex((x) => x.product_id === sheetItem.product_id)
+				: -1}
+			{@const sheetProd = sheetItem ? productForItem(sheetItem) : null}
+			{@const sheetImg = sheetProd ? primaryImageId(sheetProd) : null}
+			{@const sheetStockBySize = (() => {
+				if (!sheetProd?.ats || !sheetItem) return undefined;
+				const map: Record<string, number | null> = {};
+				for (const size of sheetItem.available_sizes) {
+					const v = findVariant(sheetProd, sheetItem.selected_color, size);
+					map[size] = v?.stock_qty ?? null;
+				}
+				return map;
+			})()}
+			<div class="sm:hidden">
+				<SizeStepperSheet
+					open={!!sheetItem}
+					onClose={() => (sizingProductId = null)}
+					styleNumber={sheetItem?.style_number}
+					name={sheetItem?.name}
+					brand={sheetItem ? brandName(sheetItem.brand_id) : null}
+					season={sheetItem?.season_id
+						? seasonLabel(sheetItem.season_id, sheetItem.product_year)
+						: null}
+					color={sheetItem?.selected_color || null}
+					imageUrl={sheetItem && sheetImg
+						? `/api/products/${sheetItem.product_id}/images/${sheetImg}`
+						: null}
+					unitPrice={sheetItem?.unit_price}
+					sizes={sheetItem?.available_sizes}
+					qtys={sheetItem ? sheetItem.color_size_qtys[sheetItem.selected_color] : undefined}
+					stockBySize={sheetStockBySize}
+					onChange={(size, qty) => {
+						if (sheetIdx >= 0 && sheetItem) {
+							const c = sheetItem.selected_color || '';
+							if (!items[sheetIdx].color_size_qtys[c]) {
+								items[sheetIdx].color_size_qtys[c] = {};
+							}
+							items[sheetIdx].color_size_qtys[c][size] = qty;
+						}
+					}}
+					onColorPickerOpen={() => {
+						const id = sheetItem?.product_id ?? null;
+						sizingProductId = null;
+						if (id) colorPickerProductId = id;
+					}}
+				/>
+			</div>
+			{@const colorItem = colorPickerProductId ? findItem(colorPickerProductId) : undefined}
+			{@const colorIdx = colorItem
+				? items.findIndex((x) => x.product_id === colorItem.product_id)
+				: -1}
+			{@const colorProd = colorItem ? productForItem(colorItem) : null}
+			{@const colorImg = colorProd ? primaryImageId(colorProd) : null}
+			<div class="sm:hidden">
+				<ColorPickerSheet
+					open={!!colorItem}
+					onClose={() => (colorPickerProductId = null)}
+					styleNumber={colorItem?.style_number}
+					name={colorItem?.name}
+					brand={colorItem ? brandName(colorItem.brand_id) : null}
+					season={colorItem?.season_id
+						? seasonLabel(colorItem.season_id, colorItem.product_year)
+						: null}
+					imageUrl={colorItem && colorImg
+						? `/api/products/${colorItem.product_id}/images/${colorImg}`
+						: null}
+					colors={colorItem?.available_colors}
+					selected={colorItem?.selected_color || null}
+					onSelect={(c) => {
+						if (colorIdx >= 0) items[colorIdx].selected_color = c;
+					}}
+				/>
+			</div>
+		{/if}
 	</div>
 {/if}

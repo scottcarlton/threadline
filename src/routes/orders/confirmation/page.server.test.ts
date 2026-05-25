@@ -1,5 +1,4 @@
-import { describe, expect, it } from 'vitest';
-import { load } from './+page.server';
+import { describe, expect, it, vi } from 'vitest';
 
 type OrderRow = {
 	id: string;
@@ -42,18 +41,26 @@ const makeRow = (over: Partial<OrderRow> = {}): OrderRow => ({
 	...over
 });
 
-function makeSupabase(rows: OrderRow[]) {
-	return {
+let mockRows: OrderRow[] = [];
+
+vi.mock('$lib/server/supabase.js', () => ({
+	supabaseAdmin: {
 		from: () => ({
 			select: () => ({
-				in: async (_col: string, numbers: string[]) => ({
-					data: rows.filter((r) => numbers.includes(r.order_number)),
-					error: null
+				eq: () => ({
+					in: async (_col: string, numbers: string[]) => ({
+						data: mockRows.filter((r) => numbers.includes(r.order_number)),
+						error: null
+					})
 				})
 			})
 		})
-	};
-}
+	}
+}));
+
+const { load } = await import('./+page.server');
+
+const TEST_ORG_ID = 'org-test-123';
 
 type LoadResult = {
 	order_type: 'order' | 'note';
@@ -77,13 +84,15 @@ type LoadResult = {
 };
 
 function call(idsParam: string | null, rows: OrderRow[] = []) {
+	mockRows = rows;
 	const url = new URL('http://localhost/orders/confirmation');
 	if (idsParam !== null) url.searchParams.set('ids', idsParam);
 	const event = {
 		url,
-		locals: { supabase: makeSupabase(rows) }
+		locals: {
+			organization: { id: TEST_ORG_ID }
+		}
 	};
-	// Cast: the real RequestEvent has many more fields the load doesn't use.
 	return load(event as unknown as Parameters<typeof load>[0]);
 }
 

@@ -110,6 +110,28 @@
 	}
 }
 
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 180ms;
+	animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+::view-transition-old(root) {
+	animation-name: tl-fade-out;
+}
+::view-transition-new(root) {
+	animation-name: tl-fade-in;
+}
+@keyframes tl-fade-out {
+	to {
+		opacity: 0;
+	}
+}
+@keyframes tl-fade-in {
+	from {
+		opacity: 0;
+	}
+}
+
 button:not(:disabled),
 a[href],
 [role='button']:not([aria-disabled='true']),
@@ -122,7 +144,9 @@ label[for] {
 
 select:not([data-size='sm']),
 textarea:not([data-size='sm']) {
-	font-size: 0.875rem;
+	/* iOS Safari zooms on focus when font-size < 16px on any viewport.
+	   Keep at 16px everywhere — there is no safe breakpoint to drop below. */
+	font-size: 1rem;
 	min-height: 44px;
 }
 
@@ -234,4 +258,12 @@ body {
 .card-lift:hover {
 	transform: translateY(-4px);
 	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.hide-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+	display: none;
 }

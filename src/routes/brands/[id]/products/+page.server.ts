@@ -23,14 +23,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		supabase
 			.from('products')
 			.select(
-				'*, product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order)'
+				'*, product_variants(id, color, size), product_images(id, file_path, is_primary, sort_order, role, variant_id)'
 			)
 			.eq('brand_id', brandId)
-			.order('style_number'),
+			.order('created_at', { ascending: false }),
 		supabase
 			.from('seasons')
 			.select('id, name')
-			.eq('organization_id', organization.id)
+			.eq('organization_id', brand.organization_id)
 			.eq('is_active', true)
 			.order('name')
 	]);

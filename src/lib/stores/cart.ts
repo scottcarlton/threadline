@@ -12,6 +12,10 @@ export type CartItem = {
 	colors: string[];
 	sizes: string[];
 	addedAt: string;
+	seasonId: string | null;
+	seasonName: string | null;
+	selectedColor: string;
+	sizeQtys: Record<string, number>;
 };
 
 async function postAdd(productId: string) {
@@ -46,6 +50,10 @@ async function postClear() {
 	}
 }
 
+function cartKey(item: { productId: string; selectedColor: string }): string {
+	return item.selectedColor ? `${item.productId}::${item.selectedColor}` : item.productId;
+}
+
 function createCartStore() {
 	const { subscribe, set, update } = writable<CartItem[]>([]);
 
@@ -55,15 +63,28 @@ function createCartStore() {
 			set(items);
 		},
 		addItem(item: CartItem) {
+			const key = cartKey(item);
 			update((items) => {
-				if (items.some((i) => i.productId === item.productId)) return items;
+				if (items.some((i) => cartKey(i) === key)) return items;
 				return [...items, item];
 			});
 			postAdd(item.productId);
 		},
+		updateItem(productId: string, patch: Partial<CartItem>) {
+			update((items) => items.map((i) => (i.productId === productId ? { ...i, ...patch } : i)));
+		},
+		updateItemByKey(key: string, patch: Partial<CartItem>) {
+			update((items) => items.map((i) => (cartKey(i) === key ? { ...i, ...patch } : i)));
+		},
 		removeItem(productId: string) {
 			update((items) => items.filter((i) => i.productId !== productId));
 			postRemove(productId);
+		},
+		removeItemByKey(key: string) {
+			const items = get({ subscribe });
+			const item = items.find((i) => cartKey(i) === key);
+			update((items) => items.filter((i) => cartKey(i) !== key));
+			if (item) postRemove(item.productId);
 		},
 		clearCart() {
 			set([]);
@@ -71,7 +92,8 @@ function createCartStore() {
 		},
 		isInCart(productId: string): boolean {
 			return get({ subscribe }).some((i) => i.productId === productId);
-		}
+		},
+		cartKey
 	};
 }
 

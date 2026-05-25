@@ -48,7 +48,7 @@
 				'Unlimited orders',
 				'Priority support',
 				'Advanced reporting',
-				'AI assistant',
+				'Stitch AI assistant',
 				'Integrations'
 			]
 		},

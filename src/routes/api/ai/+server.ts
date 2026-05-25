@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
-import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT } from '$lib/server/ai-prompts.js';
+import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
@@ -549,6 +549,49 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 		}
 	},
 	{
+		name: 'get_sales_analytics',
+		description:
+			'Fast, pre-computed sales analytics with date range support. Use this for any time-scoped sales question ("this month", "Q2", "last 30 days", "May vs April"). Returns revenue, order count, units sold, and avg order value. Can group by brand, account, rep, season, date, status, or source (in-house vs agency — brand orgs only). Prefer this over get_dashboard_metrics and get_sales_report for any question involving a time period.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				date_from: {
+					type: 'string',
+					description:
+						'Start date in YYYY-MM-DD format. Derive from natural language: "this month" → first day of current month, "Q2 2026" → 2026-04-01, "last 30 days" → today minus 30.'
+				},
+				date_to: {
+					type: 'string',
+					description:
+						'End date in YYYY-MM-DD format. Derive from natural language: "this month" → today or last day of month, "Q2 2026" → 2026-06-30.'
+				},
+				season_name: {
+					type: 'string',
+					description: 'Filter by season name (fuzzy match). E.g. "Fall", "Spring 2026".'
+				},
+				brand_name: {
+					type: 'string',
+					description: 'Filter by brand name (fuzzy match).'
+				},
+				account_name: {
+					type: 'string',
+					description: 'Filter by account name (fuzzy match).'
+				},
+				rep_name: {
+					type: 'string',
+					description: 'Filter by rep name (fuzzy match).'
+				},
+				group_by: {
+					type: 'string',
+					enum: ['total', 'brand', 'account', 'rep', 'season', 'date', 'status', 'source'],
+					description:
+						'How to group results. "total" returns a single aggregate. "date" returns one row per day. "source" splits in-house vs agency (brand orgs only). Default: "total".'
+				}
+			},
+			required: []
+		}
+	},
+	{
 		name: 'get_style_velocity',
 		description:
 			'Get trending/hot-selling styles. Shows which styles are being ordered by the most accounts in a given time window. Useful for identifying demand signals and trending products.',
@@ -733,6 +776,167 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 			},
 			required: ['database_id']
 		}
+	},
+	{
+		name: 'check_setup_status',
+		description:
+			'Check which organization setup sections are complete, incomplete, or skipped. Returns a boolean map of all sections.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {},
+			required: []
+		}
+	},
+	{
+		name: 'update_org_settings',
+		description: 'Update organization profile settings (business address, timezone, legal name).',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				address_line1: { type: 'string', description: 'Street address line 1' },
+				address_line2: { type: 'string', description: 'Street address line 2' },
+				city: { type: 'string', description: 'City' },
+				state: { type: 'string', description: 'State/province code' },
+				zip: { type: 'string', description: 'ZIP/postal code' },
+				country: { type: 'string', description: 'ISO 2-letter country code' },
+				time_zone: { type: 'string', description: 'IANA timezone (e.g. America/New_York)' },
+				legal_business_name: { type: 'string', description: 'Legal business name' }
+			},
+			required: []
+		}
+	},
+	{
+		name: 'update_org_shipping',
+		description:
+			'Update organization shipping configuration (ship-from address, default method, free threshold).',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				use_business_address: {
+					type: 'boolean',
+					description: 'Use business address as ship-from'
+				},
+				shipping_from_line1: { type: 'string', description: 'Custom ship-from address line 1' },
+				shipping_from_line2: { type: 'string', description: 'Custom ship-from address line 2' },
+				shipping_from_city: { type: 'string', description: 'Custom ship-from city' },
+				shipping_from_state: { type: 'string', description: 'Custom ship-from state' },
+				shipping_from_zip: { type: 'string', description: 'Custom ship-from ZIP' },
+				shipping_from_country: { type: 'string', description: 'Custom ship-from country code' },
+				default_shipping_method_id: {
+					type: 'string',
+					description: 'UUID of the default shipping method'
+				},
+				default_method_name: {
+					type: 'string',
+					description: 'Name of default shipping method (fuzzy match)'
+				},
+				free_threshold_enabled: {
+					type: 'boolean',
+					description: 'Enable free shipping threshold'
+				},
+				free_threshold_amount: {
+					type: 'number',
+					description: 'Order amount for free shipping'
+				}
+			},
+			required: []
+		}
+	},
+	{
+		name: 'update_org_payments',
+		description:
+			'Update organization payment configuration (accepted methods, default terms, deposits).',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				accepted_methods: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Accepted payment method codes: credit_card, ach, check, wire, other'
+				},
+				default_method: { type: 'string', description: 'Default payment method code' },
+				default_terms: {
+					type: 'string',
+					description: 'Default payment terms: net_15, net_30, net_60, net_90, cod, prepaid, other'
+				},
+				required_deposit_enabled: {
+					type: 'boolean',
+					description: 'Require deposit on orders'
+				},
+				required_deposit_percent: {
+					type: 'number',
+					description: 'Deposit percentage (0-100)'
+				}
+			},
+			required: []
+		}
+	},
+	{
+		name: 'update_org_taxes',
+		description: 'Update organization tax configuration (US sales tax, VAT, GST).',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				pricing_display: {
+					type: 'string',
+					description: 'Tax display mode: exclusive or inclusive'
+				},
+				us_sales_tax_enabled: { type: 'boolean', description: 'Enable US sales tax' },
+				us_ein: { type: 'string', description: 'US EIN/tax ID' },
+				us_general_rate: { type: 'number', description: 'US general tax rate (0-100)' },
+				vat_enabled: { type: 'boolean', description: 'Enable VAT' },
+				vat_registration: { type: 'string', description: 'VAT registration number' },
+				vat_rate: { type: 'number', description: 'VAT rate (0-100)' },
+				gst_enabled: { type: 'boolean', description: 'Enable GST' },
+				gst_registration: { type: 'string', description: 'GST registration number' },
+				gst_rate: { type: 'number', description: 'GST rate (0-100)' }
+			},
+			required: []
+		}
+	},
+	{
+		name: 'update_org_returns',
+		description: 'Update organization return policy (window, restocking fee, return address).',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				window_days: { type: 'number', description: 'Return window in days (0 = no returns)' },
+				policy_text: { type: 'string', description: 'Return policy text (markdown)' },
+				use_ship_from_address: {
+					type: 'boolean',
+					description: 'Use ship-from address for returns'
+				},
+				address_line1: { type: 'string', description: 'Return address line 1' },
+				address_line2: { type: 'string', description: 'Return address line 2' },
+				address_city: { type: 'string', description: 'Return address city' },
+				address_state: { type: 'string', description: 'Return address state' },
+				address_zip: { type: 'string', description: 'Return address ZIP' },
+				address_country: { type: 'string', description: 'Return address country code' },
+				restocking_fee_type: { type: 'string', description: 'Fee type: percent or flat' },
+				restocking_fee_value: { type: 'number', description: 'Restocking fee value' },
+				buyer_pays_shipping: { type: 'boolean', description: 'Buyer pays return shipping' }
+			},
+			required: []
+		}
+	},
+	{
+		name: 'skip_setup_section',
+		description:
+			'Mark a setup section as skipped/not applicable or explicitly completed. Valid sections: orders, taxes, returns, members, products, accounts.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				section: {
+					type: 'string',
+					description: 'Section to update: orders, taxes, returns, members, products, accounts'
+				},
+				status: {
+					type: 'string',
+					description: 'Status to set: skipped (default) or completed'
+				}
+			},
+			required: ['section']
+		}
 	}
 ];
 
@@ -761,7 +965,13 @@ const WRITE_TOOLS = new Set([
 	'send_slack_message',
 	'send_discord_message',
 	'export_to_google_sheet',
-	'sync_to_notion'
+	'sync_to_notion',
+	'update_org_settings',
+	'update_org_shipping',
+	'update_org_payments',
+	'update_org_taxes',
+	'update_org_returns',
+	'skip_setup_section'
 ]);
 
 function describeCurrentPage(path: string): string {
@@ -829,6 +1039,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			agentToolWhitelist = agentBySlug.tool_whitelist;
 			cleanMessage = message.slice(slugMatch[0].length);
 		}
+	}
+
+	// Built-in setup mode — bypass org_agents lookup
+	if (resolvedAgentId === 'setup') {
+		agentPrompt = SETUP_PROMPT;
 	}
 
 	if (resolvedAgentId && !agentPrompt) {
@@ -943,7 +1158,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 - Brand access: ${brandScopeInfo}
 - Current date/time: ${dateStr} at ${timeStr}
 - Currently viewing: ${pageContext}${entityInfo}
-${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_commission_report, and get_style_velocity.' : ''}`;
+${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_sales_analytics, get_commission_report, and get_style_velocity.' : ''}`;
 
 	// Use structured system blocks for prompt caching
 	const systemBlocks: Anthropic.TextBlockParam[] = [

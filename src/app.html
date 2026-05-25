@@ -21,6 +21,18 @@
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
+		<script>
+			(function () {
+				var pref;
+				try {
+					pref = JSON.parse(localStorage.getItem('threadline-preferences') || '{}').appearance;
+				} catch (e) {}
+				var dark =
+					pref === 'dark' ||
+					((!pref || pref === 'auto') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+				if (dark) document.documentElement.classList.add('dark');
+			})();
+		</script>
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

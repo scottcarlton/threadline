@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { fly } from 'svelte/transition';
 
 	type Props = {
 		title: string;
@@ -11,6 +12,7 @@
 </script>
 
 <div
+	in:fly={{ y: -8, duration: 250 }}
 	class="sticky -top-4 z-20 -mx-4 flex items-center justify-between gap-4 bg-background px-4 pt-4 pb-3 sm:-top-6 sm:-mx-6 sm:px-6 sm:pt-6 sm:pb-4"
 >
 	<div>

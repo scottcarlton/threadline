@@ -17,9 +17,9 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
-	import { conversation } from '$lib/stores/conversation.js';
 	import ActionFeed from '$lib/components/insights/ActionFeed.svelte';
 	import Scoreboard from '$lib/components/insights/Scoreboard.svelte';
+	import { setupWizard, type SetupStep } from '$lib/stores/setup-wizard.js';
 
 	let { data } = $props();
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
@@ -495,12 +495,177 @@
 	// Setup checklist
 	const firstName = $derived(data.user?.display_name?.split(' ')[0] ?? 'there');
 
-	function handleShortcut(prompt: string) {
-		const input = document.getElementById('ai-dock-input') as HTMLInputElement;
-		if (input) {
-			input.focus();
+	function handleSetupWithStitch() {
+		const ss = data.setupStatus;
+		const methods = data.shippingMethods ?? [];
+		const steps: SetupStep[] = [];
+
+		if (!ss?.address) {
+			steps.push({
+				id: 'address',
+				question: "What's your business address?",
+				type: 'address'
+			});
 		}
-		conversation.sendMessage(prompt);
+		if (!ss?.shipping) {
+			steps.push({
+				id: 'ship-from',
+				question: 'Is the shipping address the same as the business address?',
+				type: 'yesno'
+			});
+			if (methods.length > 0) {
+				steps.push({
+					id: 'shipping-default',
+					question: 'Select a default shipping method',
+					type: 'single',
+					options: methods.map((m) => ({
+						label: m.delivery_window ? `${m.name} — ${m.delivery_window}` : m.name,
+						value: m.id
+					}))
+				});
+			}
+		}
+		if (!ss?.payments) {
+			steps.push({
+				id: 'payment-methods',
+				question: 'Which payment methods do you accept?',
+				type: 'multi',
+				options: [
+					{ label: 'Credit Card', value: 'credit_card' },
+					{ label: 'ACH / Bank Transfer', value: 'ach' },
+					{ label: 'Check', value: 'check' },
+					{ label: 'Wire Transfer', value: 'wire' },
+					{ label: 'Other', value: 'other' }
+				]
+			});
+			steps.push({
+				id: 'payment-terms',
+				question: 'What are your default payment terms?',
+				type: 'single',
+				options: [
+					{ label: 'Net 15', value: 'net_15' },
+					{ label: 'Net 30', value: 'net_30' },
+					{ label: 'Net 60', value: 'net_60' },
+					{ label: 'Net 90', value: 'net_90' },
+					{ label: 'COD', value: 'cod' },
+					{ label: 'Prepaid', value: 'prepaid' }
+				]
+			});
+		}
+		if (!ss?.orders) {
+			steps.push({
+				id: 'orders',
+				question: 'Want to customize your order settings?',
+				type: 'yesno',
+				skipLabel: 'Use defaults'
+			});
+		}
+		if (!ss?.taxes) {
+			steps.push({
+				id: 'taxes',
+				question: 'Do you have any tax requirements?',
+				type: 'yesno',
+				skipLabel: 'No tax requirements'
+			});
+		}
+		if (!ss?.returns) {
+			steps.push({
+				id: 'returns',
+				question: 'Do you want to set up a return policy?',
+				type: 'yesno',
+				skipLabel: 'Skip for now'
+			});
+		}
+
+		if (!ss?.products) {
+			steps.push({
+				id: 'products',
+				question: "Let's get some products set up.",
+				type: 'navigate',
+				description: 'Upload your linesheet, product files or add products manually.',
+				options: [
+					{ label: 'Upload file (PDF, CSV — max 20MB)', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
+				]
+			});
+		}
+
+		if (!ss?.accounts) {
+			steps.push({
+				id: 'accounts',
+				question: "Now let's add some accounts.",
+				type: 'navigate',
+				description: 'Upload your account list or add accounts manually.',
+				options: [
+					{ label: 'Upload file (CSV — max 5MB)', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
+				]
+			});
+		}
+
+		if (!ss?.members) {
+			steps.push({
+				id: 'team',
+				question: 'Time to build your team.',
+				type: 'navigate',
+				description: 'Upload your contact list or add team members and partners individually.',
+				options: [
+					{ label: 'Upload file (CSV — max 5MB)', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
+				]
+			});
+		}
+
+		if (steps.length === 0) return;
+		setupWizard.start(steps);
+	}
+
+	function handleRepSetupWithStitch() {
+		const cl = data.setupChecklist;
+		if (!cl) return;
+		const steps: SetupStep[] = [];
+
+		if (!cl.hasBrands) {
+			steps.push({
+				id: 'brands',
+				question: "Let's add your first brand.",
+				type: 'navigate',
+				description: 'The fashion labels you represent.',
+				options: [
+					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
+				]
+			});
+		}
+
+		if (!cl.hasProducts) {
+			steps.push({
+				id: 'products',
+				question: 'Time to add some products.',
+				type: 'navigate',
+				description: 'Upload your linesheet, product files or add products manually.',
+				options: [
+					{ label: 'Upload file (PDF, CSV — max 20MB)', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
+				]
+			});
+		}
+
+		if (!cl.hasAccounts) {
+			steps.push({
+				id: 'accounts',
+				question: "Now let's add some accounts.",
+				type: 'navigate',
+				description: 'The buyers and retailers you sell to.',
+				options: [
+					{ label: 'Upload file', value: 'upload' },
+					{ label: 'Add manually', value: 'manual' }
+				]
+			});
+		}
+
+		if (steps.length === 0) return;
+		setupWizard.start(steps);
 	}
 </script>
 
@@ -512,561 +677,365 @@
 		currency: 'USD',
 		maximumFractionDigits: 0
 	})}
-	{@const checklistDone = [
-		cl?.hasProducts,
-		cl?.hasConnectedRep,
-		cl?.hasOrder,
-		cl?.hasTeammates
-	].filter(Boolean).length}
 	<div class="space-y-8">
-		<header>
-			<h1 class="text-3xl">Insight</h1>
-			<p class="mt-1 text-sm text-muted-foreground">
-				What matters today across your connected rep network.
-			</p>
-		</header>
-
-		<!-- Onboarding checklist (Phase C) — disappears when all 4 are true -->
 		{#if cl && !cl.complete}
-			<Card>
-				<CardHeader>
-					<div class="flex items-center justify-between">
+			{@const ss = data.setupStatus}
+			{@const settingsDone = [
+				ss?.address,
+				ss?.shipping,
+				ss?.returns,
+				ss?.payments,
+				ss?.taxes
+			].filter(Boolean).length}
+			{@const systemDone = [ss?.products, ss?.accounts, ss?.members].filter(Boolean).length}
+
+			<div class="mb-6">
+				<h1 class="text-3xl font-bold">{firstName}, let's finish setting you up.</h1>
+				<p class="mt-1 text-muted-foreground">
+					To fully unlock the benefits we need to finish setting up your organization.
+				</p>
+			</div>
+
+			<div class="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
+				<div>
+					<Card class="mb-8">
+						<CardContent class="p-6">
+							<h2 class="text-lg font-semibold">Finish setup</h2>
+							<p class="mt-1 text-sm text-muted-foreground">
+								Our system is designed to help you get setup as quick as possible. Use Stitch below
+								to help you finish setup step by step, contact us or even setup the old fashion way,
+								manually, below.
+							</p>
+							<div class="mt-4">
+								<Button variant="outline" onclick={handleSetupWithStitch}>Use Stitch</Button>
+							</div>
+						</CardContent>
+					</Card>
+
+					<div id="setup-checklist" class="grid grid-cols-1 gap-12 lg:grid-cols-2">
+						<!-- Settings column -->
 						<div>
-							<CardTitle class="text-base">Finish setting up your brand portal</CardTitle>
-							<CardDescription>
-								{checklistDone} of 4 done — a few more steps to unlock the full dashboard.
-							</CardDescription>
+							<div class="mb-4 flex items-center justify-between">
+								<h2 class="text-lg font-semibold">Settings</h2>
+								<span class="text-sm text-muted-foreground">{settingsDone} of 5</span>
+							</div>
+							<ul class="space-y-3">
+								{#each [{ label: 'Orders', done: ss?.orders, href: '/organization/orders' }, { label: 'Shipping', done: ss?.shipping, href: '/organization/shipping' }, { label: 'Returns', done: ss?.returns, href: '/organization/returns' }, { label: 'Payments', done: ss?.payments, href: '/organization/payments' }, { label: 'Taxes', done: ss?.taxes, href: '/organization/taxes' }] as item (item.label)}
+									<li class="flex items-center justify-between">
+										<div class="flex items-center gap-3">
+											<span class="text-sm">{item.done ? '●' : '○'}</span>
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+												>{item.label}</a
+											>
+										</div>
+										{#if !item.done}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+												>Setup</a
+											>
+										{/if}
+									</li>
+								{/each}
+							</ul>
 						</div>
-						<div class="flex gap-1">
-							{#each [0, 1, 2, 3] as i (i)}
-								<div
-									class="h-1.5 w-8 rounded-full {i < checklistDone ? 'bg-foreground' : 'bg-border'}"
-								></div>
-							{/each}
+
+						<!-- System column -->
+						<div>
+							<div class="mb-4 flex items-center justify-between">
+								<h2 class="text-lg font-semibold">System</h2>
+								<span class="text-sm text-muted-foreground">{systemDone} of 3</span>
+							</div>
+							<ul class="space-y-3">
+								{#each [{ label: 'Products', done: ss?.products, href: '/products' }, { label: 'Accounts', done: ss?.accounts, href: '/accounts' }, { label: 'Members', done: ss?.members, href: '/organization/members' }] as item (item.label)}
+									<li class="flex items-center justify-between">
+										<div class="flex items-center gap-3">
+											<span class="text-sm">{item.done ? '●' : '○'}</span>
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+												>{item.label}</a
+											>
+										</div>
+										{#if !item.done}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+												>Setup</a
+											>
+										{/if}
+									</li>
+								{/each}
+							</ul>
 						</div>
 					</div>
-				</CardHeader>
-				<CardContent>
-					<ul class="divide-y">
-						<li class="flex items-center justify-between py-3">
+
+					<!-- Profile -->
+					<div class="mt-8">
+						<div class="flex items-center justify-between">
 							<div class="flex items-center gap-3">
-								<span class="text-lg">{cl.hasProducts ? '✓' : '○'}</span>
-								<div>
-									<div class="font-medium">Upload your catalog</div>
-									<div class="text-sm text-muted-foreground">
-										Add products buyers and reps can actually order.
-									</div>
-								</div>
+								<span class="text-sm">{ss?.profile ? '●' : '○'}</span>
+								<a
+									href={resolve('/organization')}
+									class="text-sm font-medium text-primary hover:underline">Profile</a
+								>
 							</div>
-							{#if !cl.hasProducts}
-								<Button size="sm" href="/products">Add products</Button>
+							{#if !ss?.profile}
+								<a
+									href={resolve('/organization')}
+									class="text-sm font-medium text-primary hover:underline">Setup</a
+								>
 							{/if}
-						</li>
-						<li class="flex items-center justify-between py-3">
-							<div class="flex items-center gap-3">
-								<span class="text-lg">{cl.hasConnectedRep ? '✓' : '○'}</span>
-								<div>
-									<div class="font-medium">Connect your first rep</div>
-									<div class="text-sm text-muted-foreground">
-										Generate an invite link and share it with your rep agency.
-									</div>
-								</div>
-							</div>
-							{#if !cl.hasConnectedRep}
-								<Button size="sm" href="/organization/partners">Invite reps</Button>
-							{/if}
-						</li>
-						<li class="flex items-center justify-between py-3">
-							<div class="flex items-center gap-3">
-								<span class="text-lg">{cl.hasOrder ? '✓' : '○'}</span>
-								<div>
-									<div class="font-medium">Receive your first order</div>
-									<div class="text-sm text-muted-foreground">
-										Once a connected rep writes an order, it lands here.
-									</div>
-								</div>
-							</div>
-						</li>
-						<li class="flex items-center justify-between py-3">
-							<div class="flex items-center gap-3">
-								<span class="text-lg">{cl.hasTeammates ? '✓' : '○'}</span>
-								<div>
-									<div class="font-medium">Invite teammates</div>
-									<div class="text-sm text-muted-foreground">
-										Add people from your brand org so you're not working solo.
-									</div>
-								</div>
-							</div>
-							{#if !cl.hasTeammates}
-								<Button size="sm" href="/organization/members">Invite team</Button>
-							{/if}
-						</li>
-					</ul>
-				</CardContent>
-			</Card>
-		{/if}
-
-		<!-- Scoreboard + ActionFeed: the hero -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_240px]">
-			<ActionFeed
-				insights={insightActions}
-				{isRefreshing}
-				onRefresh={handleRefresh}
-				onDismiss={handleDismiss}
-				onAct={handleAct}
-			/>
-			<div class="hidden lg:block">
-				<Scoreboard kpis={scoreboard} />
-			</div>
-		</div>
-
-		<!-- Browse the data — collapsed by default -->
-		{#if bb}
-			<details class="rounded-lg border">
-				<summary class="cursor-pointer list-none px-5 py-3 text-sm font-medium hover:bg-muted/30">
-					Browse the data
-				</summary>
-				<div class="space-y-6 p-5">
-					<div class="grid gap-6 lg:grid-cols-2">
-						<Card>
-							<CardHeader>
-								<CardTitle class="text-base">Quiet reps</CardTitle>
-								<CardDescription>No orders in the last 30 days.</CardDescription>
-							</CardHeader>
-							<CardContent>
-								{#if bb.repsQuiet30d.length === 0}
-									<p class="text-sm text-muted-foreground">
-										Every active rep has written recently.
-									</p>
-								{:else}
-									<ul class="divide-y">
-										{#each bb.repsQuiet30d as r (r.connection_id)}
-											<li class="flex items-center justify-between py-3">
-												<div>
-													<div class="font-medium">{r.rep_org_name}</div>
-													<div class="text-sm text-muted-foreground">
-														{r.last_order_at
-															? `Last order ${new Date(r.last_order_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-															: 'No orders yet'}
-													</div>
-												</div>
-												<Button variant="ghost" size="sm" href="/organization/partners"
-													>Manage</Button
-												>
-											</li>
-										{/each}
-									</ul>
-								{/if}
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardHeader>
-								<CardTitle class="text-base">Top accounts (90d)</CardTitle>
-								<CardDescription>By revenue across all connected reps.</CardDescription>
-							</CardHeader>
-							<CardContent>
-								{#if bb.topAccounts.length === 0}
-									<p class="text-sm text-muted-foreground">No orders in the last 90 days.</p>
-								{:else}
-									<ul class="divide-y">
-										{#each bb.topAccounts as a (a.account_id)}
-											<li class="flex items-center justify-between py-3">
-												<div>
-													<div class="font-medium">{a.business_name}</div>
-													<div class="text-sm text-muted-foreground">
-														{[a.city, a.state].filter(Boolean).join(', ') || '—'} · {a.order_count}
-														order{a.order_count === 1 ? '' : 's'}
-													</div>
-												</div>
-												<div class="font-mono text-sm">{fmtMoney.format(a.revenue)}</div>
-											</li>
-										{/each}
-									</ul>
-								{/if}
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardHeader>
-								<CardTitle class="text-base">Territory gaps</CardTitle>
-								<CardDescription>No account activity in the last 90 days.</CardDescription>
-							</CardHeader>
-							<CardContent>
-								{#if bb.territoryGaps.length === 0}
-									<p class="text-sm text-muted-foreground">All territories have recent activity.</p>
-								{:else}
-									<div class="flex flex-wrap gap-2">
-										{#each bb.territoryGaps as t (t.name)}
-											<span class="inline-flex rounded-full bg-muted px-3 py-1 text-sm"
-												>{t.name}</span
-											>
-										{/each}
-									</div>
-								{/if}
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardHeader>
-								<CardTitle class="text-base">Recent rep activity</CardTitle>
-								<CardDescription>Orders written in the last 30 days.</CardDescription>
-							</CardHeader>
-							<CardContent>
-								{#if bb.repsActive30d.length === 0}
-									<p class="text-sm text-muted-foreground">No rep activity in the last 30 days.</p>
-								{:else}
-									<ul class="divide-y">
-										{#each bb.repsActive30d as r (r.connection_id)}
-											<li class="flex items-center justify-between py-3">
-												<div>
-													<div class="font-medium">{r.rep_org_name}</div>
-													<div class="text-sm text-muted-foreground">
-														{r.order_count} order{r.order_count === 1 ? '' : 's'} · {fmtMoney.format(
-															r.revenue
-														)}
-													</div>
-												</div>
-												<Button variant="ghost" size="sm" href="/orders?rep={r.rep_org_id}"
-													>View</Button
-												>
-											</li>
-										{/each}
-									</ul>
-								{/if}
-							</CardContent>
-						</Card>
+						</div>
 					</div>
 				</div>
-			</details>
+
+				<!-- Help sidebar -->
+				<div class="sticky top-6 self-start">
+					<div class="rounded-lg border p-5">
+						<h3 class="text-sm font-semibold">Prefer a human?</h3>
+						<p class="mt-1 text-sm text-muted-foreground">
+							Not comfortable setting up your organization or need help using Threadline.
+						</p>
+						<a
+							href="https://calendar.app.google/8Pd2BN6tqToQd1Kt6"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="mt-4 flex w-full items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
+							>Schedule a meeting</a
+						>
+					</div>
+				</div>
+			</div>
+		{:else}
+			<header>
+				<h1 class="text-3xl">Insight</h1>
+				<p class="mt-1 text-sm text-muted-foreground">
+					What matters today across your connected rep network.
+				</p>
+			</header>
+		{/if}
+
+		{#if cl?.complete}
+			<!-- Scoreboard + ActionFeed: the hero -->
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_240px]">
+				<ActionFeed
+					insights={insightActions}
+					{isRefreshing}
+					onRefresh={handleRefresh}
+					onDismiss={handleDismiss}
+					onAct={handleAct}
+				/>
+				<div class="hidden lg:block">
+					<Scoreboard kpis={scoreboard} />
+				</div>
+			</div>
+
+			<!-- Browse the data — collapsed by default -->
+			{#if bb}
+				<details class="rounded-lg border">
+					<summary class="cursor-pointer list-none px-5 py-3 text-sm font-medium hover:bg-muted/30">
+						Browse the data
+					</summary>
+					<div class="space-y-6 p-5">
+						<div class="grid gap-6 lg:grid-cols-2">
+							<Card>
+								<CardHeader>
+									<CardTitle class="text-base">Quiet reps</CardTitle>
+									<CardDescription>No orders in the last 30 days.</CardDescription>
+								</CardHeader>
+								<CardContent>
+									{#if bb.repsQuiet30d.length === 0}
+										<p class="text-sm text-muted-foreground">
+											Every active rep has written recently.
+										</p>
+									{:else}
+										<ul class="divide-y">
+											{#each bb.repsQuiet30d as r (r.connection_id)}
+												<li class="flex items-center justify-between py-3">
+													<div>
+														<div class="font-medium">{r.rep_org_name}</div>
+														<div class="text-sm text-muted-foreground">
+															{r.last_order_at
+																? `Last order ${new Date(r.last_order_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+																: 'No orders yet'}
+														</div>
+													</div>
+													<Button variant="ghost" size="sm" href="/organization/partners"
+														>Manage</Button
+													>
+												</li>
+											{/each}
+										</ul>
+									{/if}
+								</CardContent>
+							</Card>
+
+							<Card>
+								<CardHeader>
+									<CardTitle class="text-base">Top accounts (90d)</CardTitle>
+									<CardDescription>By revenue across all connected reps.</CardDescription>
+								</CardHeader>
+								<CardContent>
+									{#if bb.topAccounts.length === 0}
+										<p class="text-sm text-muted-foreground">No orders in the last 90 days.</p>
+									{:else}
+										<ul class="divide-y">
+											{#each bb.topAccounts as a (a.account_id)}
+												<li class="flex items-center justify-between py-3">
+													<div>
+														<div class="font-medium">{a.business_name}</div>
+														<div class="text-sm text-muted-foreground">
+															{[a.city, a.state].filter(Boolean).join(', ') || '—'} · {a.order_count}
+															order{a.order_count === 1 ? '' : 's'}
+														</div>
+													</div>
+													<div class="font-mono text-sm">{fmtMoney.format(a.revenue)}</div>
+												</li>
+											{/each}
+										</ul>
+									{/if}
+								</CardContent>
+							</Card>
+
+							<Card>
+								<CardHeader>
+									<CardTitle class="text-base">Territory gaps</CardTitle>
+									<CardDescription>No account activity in the last 90 days.</CardDescription>
+								</CardHeader>
+								<CardContent>
+									{#if bb.territoryGaps.length === 0}
+										<p class="text-sm text-muted-foreground">
+											All territories have recent activity.
+										</p>
+									{:else}
+										<div class="flex flex-wrap gap-2">
+											{#each bb.territoryGaps as t (t.name)}
+												<span class="inline-flex rounded-full bg-muted px-3 py-1 text-sm"
+													>{t.name}</span
+												>
+											{/each}
+										</div>
+									{/if}
+								</CardContent>
+							</Card>
+
+							<Card>
+								<CardHeader>
+									<CardTitle class="text-base">Recent rep activity</CardTitle>
+									<CardDescription>Orders written in the last 30 days.</CardDescription>
+								</CardHeader>
+								<CardContent>
+									{#if bb.repsActive30d.length === 0}
+										<p class="text-sm text-muted-foreground">
+											No rep activity in the last 30 days.
+										</p>
+									{:else}
+										<ul class="divide-y">
+											{#each bb.repsActive30d as r (r.connection_id)}
+												<li class="flex items-center justify-between py-3">
+													<div>
+														<div class="font-medium">{r.rep_org_name}</div>
+														<div class="text-sm text-muted-foreground">
+															{r.order_count} order{r.order_count === 1 ? '' : 's'} · {fmtMoney.format(
+																r.revenue
+															)}
+														</div>
+													</div>
+													<Button variant="ghost" size="sm" href="/orders?rep={r.rep_org_id}"
+														>View</Button
+													>
+												</li>
+											{/each}
+										</ul>
+									{/if}
+								</CardContent>
+							</Card>
+						</div>
+					</div>
+				</details>
+			{/if}
 		{/if}
 	</div>
 {:else if data.setupComplete === false && data.setupChecklist}
 	{@const cl = data.setupChecklist}
-	{@const done = [cl.hasBrands, cl.hasProducts, cl.hasAccounts, cl.hasOrders].filter(
-		Boolean
-	).length}
+	{@const done = [cl.hasBrands, cl.hasProducts, cl.hasAccounts].filter(Boolean).length}
 	<div class="space-y-8">
-		<div>
-			<p class="text-sm text-muted-foreground">
-				<span class="font-mono"
-					>{new Date().toLocaleDateString('en-US', {
-						weekday: 'long',
-						month: 'long',
-						day: 'numeric'
-					})}</span
-				>
-			</p>
-			<h1 class="mt-1 text-4xl">Welcome to Threadline, {firstName}.</h1>
-			<p class="mt-3 text-base text-muted-foreground">
-				Your AI-powered wholesale management platform. Complete the setup steps to unlock your full
-				dashboard.
+		<div class="mb-6">
+			<h1 class="text-3xl font-bold">{firstName}, let's finish setting you up.</h1>
+			<p class="mt-1 text-muted-foreground">
+				Complete the setup steps below to unlock your full dashboard.
 			</p>
 		</div>
 
-		<div class="grid grid-cols-[1fr_360px] gap-10">
-			<!-- Left: Features & quick start -->
-			<div class="space-y-8">
-				<!-- What you can do -->
-				<div>
-					<h2 class="text-lg font-semibold">What you'll be able to do</h2>
-					<div class="mt-4 grid gap-3 sm:grid-cols-2">
-						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-medium">AI-powered insights</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									Ask about revenue, commissions, and trends in plain English.
-								</p>
-							</div>
+		<div class="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
+			<div>
+				<Card class="mb-8">
+					<CardContent class="p-6">
+						<h2 class="text-lg font-semibold">Finish setup</h2>
+						<p class="mt-1 text-sm text-muted-foreground">
+							Use Stitch below to help you finish setup step by step.
+						</p>
+						<div class="mt-4">
+							<Button variant="outline" onclick={handleRepSetupWithStitch}>Use Stitch</Button>
 						</div>
-						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-medium">Order management</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									Create, track, and manage wholesale orders end-to-end.
-								</p>
-							</div>
-						</div>
-						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-medium">Email drafting</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									AI writes professional emails, you review and send via Gmail.
-								</p>
-							</div>
-						</div>
-						<div class="flex items-start gap-3 rounded-lg border p-4">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ghost">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5 text-muted-foreground"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-medium">Account health</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									Track at-risk accounts and get follow-up recommendations.
-								</p>
-							</div>
-						</div>
-					</div>
-				</div>
+					</CardContent>
+				</Card>
 
-				<!-- Try asking -->
-				<div>
-					<h2 class="text-lg font-semibold">Try asking</h2>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Use the AI assistant at the bottom of the screen anytime.
-					</p>
-					<div class="mt-4 flex flex-wrap gap-2">
-						<button
-							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-ghost active:scale-[0.98]"
-							onclick={() =>
-								handleShortcut(
-									"Help me draft a professional email. Who should I write to and what's the context?"
-								)}>Draft an email</button
-						>
-						<button
-							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-ghost active:scale-[0.98]"
-							onclick={() => handleShortcut('What can you help me with?')}>What can you do?</button
-						>
-						<button
-							class="rounded-full border px-4 py-2 text-sm transition-colors hover:bg-ghost active:scale-[0.98]"
-							onclick={() =>
-								handleShortcut('Walk me through setting up my first brand and product catalog.')}
-							>Help me get started</button
-						>
+				<div id="setup-checklist">
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">Get started</h2>
+						<span class="text-sm text-muted-foreground">{done} of 3</span>
 					</div>
+					<div class="mb-4 h-1.5 w-full rounded-full bg-muted">
+						<div
+							class="h-1.5 rounded-full bg-foreground transition-all duration-500"
+							style="width: {(done / 3) * 100}%"
+						></div>
+					</div>
+
+					<ul class="space-y-3">
+						{#each [{ label: 'Add a brand', desc: 'The fashion labels you represent.', done: cl.hasBrands, href: '/brands/new', blocked: false }, { label: 'Add products', desc: 'Build your product catalog.', done: cl.hasProducts, href: cl.firstBrandId ? `/brands/${cl.firstBrandId}/products/new` : null, blocked: !cl.hasBrands }, { label: 'Create an account', desc: 'The buyers and retailers you sell to.', done: cl.hasAccounts, href: '/accounts/new', blocked: false }] as item (item.label)}
+							<li class="flex items-center justify-between">
+								<div class="flex items-center gap-3">
+									<span class="text-sm">{item.done ? '●' : '○'}</span>
+									{#if item.href && !item.done && !item.blocked}
+										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+											>{item.label}</a
+										>
+									{:else}
+										<span class="text-sm font-medium">{item.label}</span>
+									{/if}
+								</div>
+								{#if !item.done}
+									{#if item.blocked}
+										<span class="text-sm text-muted-foreground">Brand first</span>
+									{:else if item.href}
+										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
+											>Setup</a
+										>
+									{/if}
+								{/if}
+							</li>
+						{/each}
+					</ul>
 				</div>
 			</div>
 
-			<!-- Right: Setup checklist -->
-			<div class="sticky top-6 space-y-6 self-start">
-				<div>
-					<h2 class="text-lg font-semibold">Get started</h2>
-					<p class="mt-1 text-sm text-muted-foreground">{done} of 4 complete</p>
-					<div class="mt-3 h-1.5 w-full rounded-full bg-muted">
-						<div
-							class="h-1.5 rounded-full bg-foreground transition-all duration-500"
-							style="width: {(done / 4) * 100}%"
-						></div>
-					</div>
-				</div>
-
-				<div class="space-y-2">
-					<!-- 1. Add a brand -->
-					<div
-						class="flex items-center gap-3 rounded-lg border p-4 {cl.hasBrands ? 'opacity-60' : ''}"
+			<!-- Help sidebar -->
+			<div class="sticky top-6 self-start">
+				<div class="rounded-lg border p-5">
+					<h3 class="text-sm font-semibold">Prefer a human?</h3>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Not comfortable setting up your organization or need help using Threadline.
+					</p>
+					<a
+						href="https://calendar.app.google/8Pd2BN6tqToQd1Kt6"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="mt-4 flex w-full items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
+						>Schedule a meeting</a
 					>
-						<div
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {cl.hasBrands
-								? 'bg-foreground'
-								: 'border-2'}"
-						>
-							{#if cl.hasBrands}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-background"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
-								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-								</svg>
-							{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-semibold {cl.hasBrands ? 'line-through' : ''}">Add a brand</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">The fashion labels you represent.</p>
-						</div>
-						{#if !cl.hasBrands}
-							<a
-								href={resolve('/brands/new')}
-								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-								>Add</a
-							>
-						{/if}
-					</div>
-
-					<!-- 2. Add products -->
-					<div
-						class="flex items-center gap-3 rounded-lg border p-4 {cl.hasProducts
-							? 'opacity-60'
-							: ''}"
-					>
-						<div
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {cl.hasProducts
-								? 'bg-foreground'
-								: 'border-2'}"
-						>
-							{#if cl.hasProducts}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-background"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
-								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-								</svg>
-							{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-semibold {cl.hasProducts ? 'line-through' : ''}">
-								Add products
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">Build your product catalog.</p>
-						</div>
-						{#if !cl.hasProducts && cl.hasBrands && cl.firstBrandId}
-							<a
-								href={resolve(`/brands/${cl.firstBrandId}/products/new`)}
-								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-								>Add</a
-							>
-						{:else if !cl.hasProducts && !cl.hasBrands}
-							<span class="shrink-0 text-sm text-muted-foreground">Brand first</span>
-						{/if}
-					</div>
-
-					<!-- 3. Create an account -->
-					<div
-						class="flex items-center gap-3 rounded-lg border p-4 {cl.hasAccounts
-							? 'opacity-60'
-							: ''}"
-					>
-						<div
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {cl.hasAccounts
-								? 'bg-foreground'
-								: 'border-2'}"
-						>
-							{#if cl.hasAccounts}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-background"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
-								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-								</svg>
-							{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-semibold {cl.hasAccounts ? 'line-through' : ''}">
-								Create an account
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								Retail buyers and stores you sell to.
-							</p>
-						</div>
-						{#if !cl.hasAccounts}
-							<a
-								href={resolve('/accounts/new')}
-								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-								>Add</a
-							>
-						{/if}
-					</div>
-
-					<!-- 4. Create an order -->
-					<div
-						class="flex items-center gap-3 rounded-lg border p-4 {cl.hasOrders ? 'opacity-60' : ''}"
-					>
-						<div
-							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {cl.hasOrders
-								? 'bg-foreground'
-								: 'border-2'}"
-						>
-							{#if cl.hasOrders}
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-background"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="3"
-								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-								</svg>
-							{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-semibold {cl.hasOrders ? 'line-through' : ''}">
-								Create your first order
-							</p>
-							<p class="mt-0.5 text-sm text-muted-foreground">Tie it all together.</p>
-						</div>
-						{#if !cl.hasOrders && cl.hasBrands && cl.hasAccounts}
-							<a
-								href={resolve('/orders/new')}
-								class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-								>Create</a
-							>
-						{:else if !cl.hasOrders}
-							<span class="shrink-0 text-sm text-muted-foreground">Brand & account first</span>
-						{/if}
-					</div>
 				</div>
 			</div>
 		</div>

@@ -250,10 +250,13 @@
 
 	<div class="flex justify-between gap-2 pt-2">
 		<Button type="button" variant="outline" onclick={onCancel} disabled={submitting}>Back</Button>
-		<Button type="button" onclick={handleImport} disabled={submitting || products.length === 0}>
-			{submitting
-				? 'Importing…'
-				: `Import ${products.length} product${products.length === 1 ? '' : 's'}`}
+		<Button
+			type="button"
+			onclick={handleImport}
+			loading={submitting}
+			disabled={products.length === 0}
+		>
+			{`Import ${products.length} product${products.length === 1 ? '' : 's'}`}
 		</Button>
 	</div>
 </div>

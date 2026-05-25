@@ -32,38 +32,70 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	if (!preAccount) throw error(404, 'Account not found');
 
 	if (!ownOrgIdSet.has(preAccount.organization_id)) {
-		const orFilter = ownOrgIds
-			.flatMap((id) => [
-				`and(rep_org_id.eq.${id},brand_org_id.eq.${preAccount.organization_id})`,
-				`and(brand_org_id.eq.${id},rep_org_id.eq.${preAccount.organization_id})`
-			])
-			.join(',');
-		const { data: conn } = await supabaseAdmin
-			.from('org_connections')
-			.select('id')
-			.eq('status', 'active')
-			.or(orFilter)
-			.maybeSingle();
-		if (!conn) throw error(404, 'Account not found');
+		const isBrandOrg = locals.orgType === 'brand';
+		if (isBrandOrg) {
+			// Brand orgs only see rep accounts explicitly linked via federated_account_links
+			const { data: link } = await supabaseAdmin
+				.from('federated_account_links')
+				.select('id')
+				.eq('account_id', preAccount.id)
+				.in('target_org_id', ownOrgIds)
+				.maybeSingle();
+			if (!link) throw error(404, 'Account not found');
+		} else {
+			// Rep orgs see all accounts from connected brand orgs (implicit)
+			const orFilter = ownOrgIds
+				.flatMap((id) => [
+					`and(rep_org_id.eq.${id},brand_org_id.eq.${preAccount.organization_id})`,
+					`and(brand_org_id.eq.${id},rep_org_id.eq.${preAccount.organization_id})`
+				])
+				.join(',');
+			const { data: conn } = await supabaseAdmin
+				.from('org_connections')
+				.select('id')
+				.eq('status', 'active')
+				.or(orFilter)
+				.maybeSingle();
+			if (!conn) throw error(404, 'Account not found');
+		}
 	}
 
 	const supabase = supabaseAdmin;
 
+	// Brand orgs viewing a federated (rep-owned) account should only see
+	// orders for their own brands, not orders for other brands the rep carries.
+	const isBrandOrg = locals.orgType === 'brand';
+	const isFederatedAccount = !ownOrgIdSet.has(preAccount.organization_id);
+	let brandScopeIds: string[] | null = null;
+	if (isBrandOrg && isFederatedAccount) {
+		const { data: ownBrands } = await supabaseAdmin
+			.from('brands')
+			.select('id')
+			.in('organization_id', ownOrgIds);
+		brandScopeIds = (ownBrands ?? []).map((b) => b.id);
+	}
+
+	let ordersQuery = supabase
+		.from('orders')
+		.select('brand_id, total_amount, status, order_year, brands(id, name)')
+		.eq('account_id', params.id);
+	if (brandScopeIds) ordersQuery = ordersQuery.in('brand_id', brandScopeIds);
+
+	let recentOrdersQuery = supabase
+		.from('orders')
+		.select(
+			'id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)'
+		)
+		.eq('account_id', params.id)
+		.order('created_at', { ascending: false })
+		.limit(20);
+	if (brandScopeIds) recentOrdersQuery = recentOrdersQuery.in('brand_id', brandScopeIds);
+
 	const [accountRes, ordersRes, recentOrdersRes, appointmentsRes, emailLogsRes, locationsRes] =
 		await Promise.all([
 			supabase.from('accounts').select('*').eq('id', params.id).single(),
-			supabase
-				.from('orders')
-				.select('brand_id, total_amount, status, order_year, brands(id, name)')
-				.eq('account_id', params.id),
-			supabase
-				.from('orders')
-				.select(
-					'id, order_number, status, total_amount, created_at, submitted_at, confirmed_at, shipped_at, delivered_at, cancelled_at, brands(name)'
-				)
-				.eq('account_id', params.id)
-				.order('created_at', { ascending: false })
-				.limit(20),
+			ordersQuery,
+			recentOrdersQuery,
 			supabase
 				.from('appointments')
 				.select(

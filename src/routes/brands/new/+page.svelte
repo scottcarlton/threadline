@@ -172,9 +172,7 @@
 		</CardContent>
 		<CardFooter class="justify-between">
 			<Button variant="outline" href="/brands">Cancel</Button>
-			<Button type="submit" form="brand-form" disabled={$submitting}>
-				{$submitting ? 'Creating...' : 'Create Brand'}
-			</Button>
+			<Button type="submit" form="brand-form" loading={$submitting}>Create Brand</Button>
 		</CardFooter>
 	</Card>
 </div>

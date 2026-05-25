@@ -24,6 +24,8 @@
 	const isOrder = $derived(data.order_type === 'order');
 	const isSingle = $derived(data.count === 1);
 	const listType = $derived(isOrder ? 'order' : 'note');
+	const firstIsDraft = $derived(isOrder && data.rows[0]?.status === 'draft');
+	const detailNoun = $derived(isOrder ? (firstIsDraft ? 'draft' : 'order') : 'note');
 
 	const createdLabel = $derived.by(() => {
 		if (!data.createdAt) return null;
@@ -32,12 +34,15 @@
 	});
 
 	const headline = $derived.by(() => {
-		if (isOrder) return isSingle ? 'Order submitted.' : `${data.count} orders submitted.`;
+		if (isOrder) {
+			if (firstIsDraft) return isSingle ? 'Draft saved.' : `${data.count} drafts saved.`;
+			return isSingle ? 'Order submitted.' : `${data.count} orders submitted.`;
+		}
 		return isSingle ? 'Note saved.' : `${data.count} notes saved.`;
 	});
 
 	const eyebrow = $derived.by(() => {
-		if (isOrder) return 'Submitted';
+		if (isOrder) return firstIsDraft ? 'Saved as draft' : 'Submitted';
 		return isSingle ? 'Saved as note' : 'Saved as notes';
 	});
 
@@ -172,19 +177,35 @@
 	{/if}
 
 	<!-- Action bar -->
-	<div class="flex items-center justify-between gap-3">
+	<div
+		class="flex flex-col items-stretch gap-4 min-[756px]:grid min-[756px]:grid-cols-2 min-[756px]:items-start"
+	>
 		{#if isSingle}
-			<Button href={`${resolve('/orders')}?type=${listType}`} variant="outline">
+			<Button
+				size="lg"
+				variant="outline"
+				class="order-last w-full min-[756px]:order-none"
+				href={`${resolve('/orders')}?type=${listType}`}
+			>
 				Back to {listType === 'order' ? 'orders' : 'notes'}
 			</Button>
-			<Button href={resolve(`/orders/${firstOrderNumber}`)}>
-				View {listType === 'order' ? 'order' : 'note'}
+			<Button
+				size="lg"
+				class="order-first w-full min-[756px]:order-none"
+				href={resolve(`/orders/${firstOrderNumber}`)}
+			>
+				View {detailNoun}
 			</Button>
 		{:else}
-			<Button href={resolve(`/orders/${firstOrderNumber}`)} variant="outline">
-				View first {listType === 'order' ? 'order' : 'note'}
+			<Button
+				size="lg"
+				variant="outline"
+				class="w-full"
+				href={resolve(`/orders/${firstOrderNumber}`)}
+			>
+				View first {detailNoun}
 			</Button>
-			<Button href={`${resolve('/orders')}?type=${listType}`}>
+			<Button size="lg" class="w-full" href={`${resolve('/orders')}?type=${listType}`}>
 				Back to {listType === 'order' ? 'orders' : 'notes'}
 			</Button>
 		{/if}

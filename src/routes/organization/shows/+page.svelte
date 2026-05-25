@@ -368,9 +368,7 @@
 						placeholder="Brand Assembly"
 					/>
 				</div>
-				<Button type="submit" disabled={showLoading || !newShowName}>
-					{showLoading ? 'Creating...' : 'Create'}
-				</Button>
+				<Button type="submit" loading={showLoading} disabled={!newShowName}>Create</Button>
 				<Button variant="outline" onclick={() => (creatingShow = false)}>Cancel</Button>
 			</form>
 		</div>
@@ -532,9 +530,7 @@
 												class="w-44"
 											/>
 										</div>
-										<Button type="submit" size="sm" disabled={dateLoading}>
-											{dateLoading ? 'Saving...' : 'Save'}
-										</Button>
+										<Button type="submit" size="sm" loading={dateLoading}>Save</Button>
 										<Button variant="outline" size="sm" onclick={() => (addingDateForShowId = null)}
 											>Cancel</Button
 										>
@@ -643,9 +639,7 @@
 								></textarea>
 							</div>
 							<div class="flex gap-2">
-								<Button type="submit" size="sm" disabled={dLoading}
-									>{dLoading ? 'Saving...' : 'Save'}</Button
-								>
+								<Button type="submit" size="sm" loading={dLoading}>Save</Button>
 								<Button variant="outline" size="sm" onclick={() => (dEditing = false)}
 									>Cancel</Button
 								>
@@ -804,9 +798,7 @@
 								</div>
 							</div>
 							<div class="flex gap-2">
-								<Button type="submit" size="sm" disabled={dDateLoading}
-									>{dDateLoading ? 'Saving...' : 'Save'}</Button
-								>
+								<Button type="submit" size="sm" loading={dDateLoading}>Save</Button>
 								<Button variant="outline" size="sm" onclick={() => (dAddingDate = false)}
 									>Cancel</Button
 								>

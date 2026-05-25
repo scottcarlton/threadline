@@ -259,9 +259,7 @@
 		</section>
 
 		<div>
-			<Button type="submit" disabled={$submitting}>
-				{$submitting ? 'Saving…' : 'Save changes'}
-			</Button>
+			<Button type="submit" loading={$submitting} class="w-full sm:w-auto">Save changes</Button>
 		</div>
 	</form>
 
@@ -410,8 +408,8 @@
 					<Button type="button" variant="outline" onclick={() => (methodModalOpen = false)}>
 						Cancel
 					</Button>
-					<Button type="submit" disabled={methodSubmitting}>
-						{methodSubmitting ? 'Saving…' : editingMethod ? 'Save' : 'Add method'}
+					<Button type="submit" loading={methodSubmitting}>
+						{editingMethod ? 'Save' : 'Add method'}
 					</Button>
 				</div>
 			</form>

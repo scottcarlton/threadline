@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fly, fade } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { conversation } from '$lib/stores/conversation.js';
@@ -41,6 +42,22 @@
 	let selectedIndex = $state(0);
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 	let inputEl = $state<HTMLInputElement | undefined>(undefined);
+
+	let dragStartY = 0;
+	function handleTouchStart(e: TouchEvent) {
+		dragStartY = e.touches[0].clientY;
+	}
+	function handleTouchEnd(e: TouchEvent) {
+		const deltaY = e.changedTouches[0].clientY - dragStartY;
+		if (deltaY > 120) closeDialog();
+	}
+	function handleMouseDown(e: MouseEvent) {
+		dragStartY = e.clientY;
+	}
+	function handleMouseUp(e: MouseEvent) {
+		const deltaY = e.clientY - dragStartY;
+		if (deltaY > 120) closeDialog();
+	}
 
 	// Filtered groups
 	const contactResults = $derived(results.filter((r) => r.type === 'contact'));
@@ -509,17 +526,46 @@
 {#if open}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onclick={closeDialog}></div>
+	<div
+		transition:fade={{ duration: 150 }}
+		class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+		onclick={closeDialog}
+		ontouchstart={handleTouchStart}
+		ontouchend={handleTouchEnd}
+		onmousedown={handleMouseDown}
+		onmouseup={handleMouseUp}
+	></div>
 
+	<!-- Desktop: centered dialog — Mobile: bottom sheet -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" onclick={closeDialog}>
+	<div
+		class="fixed inset-0 z-50 flex items-end lg:items-start lg:justify-center lg:pt-[12vh]"
+		onclick={closeDialog}
+		ontouchstart={handleTouchStart}
+		ontouchend={handleTouchEnd}
+		onmousedown={handleMouseDown}
+		onmouseup={handleMouseUp}
+	>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="w-full max-w-2xl overflow-hidden rounded-none bg-zinc-900 shadow-2xl ring-1 ring-white/10"
+			transition:fly={{ y: 300, duration: 250 }}
+			class="h-[85dvh] w-full overflow-hidden rounded-t-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10 lg:h-auto lg:max-h-[70vh] lg:max-w-2xl lg:rounded-none"
 			onclick={(e: MouseEvent) => e.stopPropagation()}
+			ontouchstart={handleTouchStart}
+			ontouchend={handleTouchEnd}
+			onmousedown={handleMouseDown}
+			onmouseup={handleMouseUp}
 		>
+			<!-- Mobile drag handle — tap or swipe down to close -->
+			<button
+				class="flex w-full items-center justify-center pt-2 pb-1 lg:hidden"
+				onclick={closeDialog}
+				aria-label="Close"
+			>
+				<div class="h-1 w-10 rounded-full bg-muted-foreground/30"></div>
+			</button>
 			<!-- Input bar -->
 			<div class="flex items-center gap-3 px-5 py-4">
 				<svg
@@ -1007,8 +1053,8 @@
 				{/if}
 			</div>
 
-			<!-- Footer -->
-			<div class="flex items-center gap-5 px-5 py-2.5">
+			<!-- Footer — keyboard hints, desktop only -->
+			<div class="hidden items-center gap-5 px-5 py-2.5 lg:flex">
 				<div class="flex items-center gap-1.5">
 					<kbd class="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-zinc-400">↑↓</kbd
 					>

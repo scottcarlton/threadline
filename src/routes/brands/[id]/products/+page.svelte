@@ -5,12 +5,15 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input, SearchInput } from '$lib/components/ui/input/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
-	import { SelectField } from '$lib/components/ui/select/index.js';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
+	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
+	import CategoryFilter from '$lib/components/shared/CategoryFilter.svelte';
+	import { seasonIdsByName } from '$lib/utils/seasons.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
+	import ProductCard from '$lib/components/products/ProductCard.svelte';
 	import type { Product } from '$lib/types/database.js';
 
 	let { data } = $props();
@@ -40,13 +43,17 @@
 		[...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort()
 	);
 
+	const selectedSeasonIds = $derived(
+		seasonFilter ? new Set(seasonIdsByName(seasons, seasonFilter)) : null
+	);
 	const filtered = $derived(
 		products.filter((p) => {
 			const matchesSearch =
 				p.name.toLowerCase().includes(search.toLowerCase()) ||
 				p.style_number.toLowerCase().includes(search.toLowerCase()) ||
 				(p.category?.toLowerCase().includes(search.toLowerCase()) ?? false);
-			const matchesSeason = !seasonFilter || p.season_id === seasonFilter;
+			const matchesSeason =
+				!selectedSeasonIds || (p.season_id && selectedSeasonIds.has(p.season_id));
 			const matchesCategory = !categoryFilter || p.category === categoryFilter;
 			const price = Number(p.wholesale_price);
 			const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
@@ -64,8 +71,6 @@
 	);
 
 	const archivedCount = $derived(products.filter((p) => p.archived_at).length);
-	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
 	// Add product form
 	let adding = $state(false);
 	let newStyleNumber = $state('');
@@ -171,15 +176,6 @@
 		a.click();
 		URL.revokeObjectURL(url);
 	}
-
-	function getVariantSummary(variants: { color: string | null; size: string | null }[]): string {
-		const colors = new Set(variants.map((v) => v.color).filter(Boolean));
-		const sizes = new Set(variants.map((v) => v.size).filter(Boolean));
-		const parts: string[] = [];
-		if (colors.size > 0) parts.push(`${colors.size} color${colors.size > 1 ? 's' : ''}`);
-		if (sizes.size > 0) parts.push(`${sizes.size} size${sizes.size > 1 ? 's' : ''}`);
-		return parts.join(', ') || 'No variants';
-	}
 </script>
 
 <div class="space-y-6">
@@ -220,22 +216,12 @@
 		<div class="max-w-xs flex-1">
 			<SearchInput placeholder="Search products..." bind:value={search} />
 		</div>
-		<SelectField
-			items={[
-				{ value: '', label: 'All Seasons' },
-				...seasons.map((s) => ({ value: s.id, label: s.name }))
-			]}
-			bind:value={seasonFilter}
-			placeholder="All Seasons"
-		/>
+		<SeasonFilter {seasons} value={seasonFilter} onValueChange={(v) => (seasonFilter = v)} />
 		{#if categories.length > 0}
-			<SelectField
-				items={[
-					{ value: '', label: 'All Categories' },
-					...categories.map((c) => ({ value: c, label: c }))
-				]}
-				bind:value={categoryFilter}
-				placeholder="All Categories"
+			<CategoryFilter
+				{categories}
+				value={categoryFilter}
+				onValueChange={(v) => (categoryFilter = v)}
 			/>
 		{/if}
 		<PriceFilterDropdown bind:value={priceRange} maxPrice={maxProductPrice} />
@@ -318,9 +304,10 @@
 					<Button
 						size="sm"
 						onclick={handleAdd}
-						disabled={saving || !newStyleNumber.trim() || !newName.trim()}
+						loading={saving}
+						disabled={!newStyleNumber.trim() || !newName.trim()}
 					>
-						{saving ? 'Saving...' : 'Add Product'}
+						Add Product
 					</Button>
 					<Button variant="outline" size="sm" onclick={resetForm}>Cancel</Button>
 				</div>
@@ -338,65 +325,19 @@
 			</p>
 		</div>
 	{:else}
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 			{#each filtered as product (product.id)}
-				{@const primaryImage =
-					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
-				<a
+				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+				<ProductCard
+					productId={product.id}
 					href={resolve(`/brands/${brand.id}/products/${product.id}`)}
-					class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md {product.archived_at
-						? 'opacity-50'
-						: ''}"
-				>
-					<div class="aspect-[4/3] overflow-hidden rounded-t-xl bg-muted">
-						{#if primaryImage}
-							<img
-								src="/api/products/{product.id}/images/{primaryImage.id}"
-								alt={product.name}
-								class="h-full w-full object-cover"
-							/>
-						{:else}
-							<div class="flex h-full items-center justify-center text-muted-foreground">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-10 w-10"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-									/>
-								</svg>
-							</div>
-						{/if}
-					</div>
-					<div class="p-4">
-						<p class="text-xs text-muted-foreground">{product.style_number}</p>
-						<p class="mt-0.5 text-sm font-medium">{product.name}</p>
-						{#if product.season_id || product.product_year}
-							{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
-							</p>
-						{/if}
-						<div class="mt-2 flex items-center justify-between">
-							<span class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</span>
-							<span class="text-xs text-muted-foreground"
-								>{getVariantSummary(product.product_variants ?? [])}</span
-							>
-						</div>
-						{#if product.category}
-							<span
-								class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-								>{product.category}</span
-							>
-						{/if}
-					</div>
-				</a>
+					name={product.name}
+					styleNumber={product.style_number}
+					wholesalePrice={Number(product.wholesale_price)}
+					images={product.product_images ?? []}
+					seasonLabel={[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+					archived={!!product.archived_at}
+				/>
 			{/each}
 		</div>
 	{/if}

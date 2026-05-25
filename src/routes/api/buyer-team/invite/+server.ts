@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { sendEmail } from '$lib/server/email.js';
-import { invite as inviteTemplate } from '$lib/server/email-templates.js';
+import { inviteParams } from '$lib/server/email-templates.js';
+import templateIds from '../../../../../emails/template-ids.json';
 
 export const POST: RequestHandler = async ({ request, locals, url }) => {
 	if (!locals.user || !locals.isBuyer) {
@@ -125,15 +126,12 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		(await supabaseAdmin.from('profiles').select('display_name').eq('id', locals.user.id).single())
 			.data?.display_name ?? 'A teammate';
 
-	const tpl = inviteTemplate({
-		inviterName,
-		organizationName: businessName,
-		acceptUrl
-	});
-
 	await sendEmail({
 		to: trimmed,
-		...tpl,
+		subject: `${inviterName} added you to ${businessName} on /Threadline`,
+		html: '',
+		templateId: templateIds['invite-buyer-team'],
+		params: inviteParams({ inviterName, organizationName: businessName, acceptUrl }),
 		template: 'buyer_team_invite',
 		relatedType: 'buyer_invitation',
 		relatedId: firstToken

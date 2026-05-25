@@ -2,23 +2,32 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
+	import { SearchDropdown } from '$lib/components/ui/input/index.js';
 	import Switch from '$lib/components/ui/switch.svelte';
-	import { SelectField } from '$lib/components/ui/select/index.js';
 	import PriceFilterDropdown from '$lib/components/shared/PriceFilterDropdown.svelte';
 	import ProductImportModal from '$lib/components/products/ProductImportModal.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
+	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
-	import { deriveStockStatus, type StockStatus } from '$lib/inventory/status';
+	import ProductCard from '$lib/components/products/ProductCard.svelte';
+	import Skeleton from '$lib/components/ui/skeleton/skeleton.svelte';
+	import SeasonFilter from '$lib/components/shared/SeasonFilter.svelte';
+	import BrandFilter from '$lib/components/shared/BrandFilter.svelte';
+	import CategoryFilter from '$lib/components/shared/CategoryFilter.svelte';
+	import { seasonIdsByName } from '$lib/utils/seasons.js';
+	import { aggregateStockStatus } from '$lib/utils/products';
+	import { addRecent } from '$lib/stores/recent-searches.js';
 	import type { Product } from '$lib/types/database.js';
 
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import { debounce } from '$lib/utils/debounce.js';
+	import { selectedProductIds } from '$lib/stores/productSelection.js';
 
 	const PAGE_SIZE = 50;
 
 	type ProductRow = Product & {
+		brands: { id: string; name: string } | null;
 		product_variants: {
 			id: string;
 			color: string | null;
@@ -27,7 +36,14 @@
 			stock_threshold: number | null;
 			shopify_variant_id: string | null;
 		}[];
-		product_images: { id: string; file_path: string; is_primary: boolean }[];
+		product_images: {
+			id: string;
+			file_path: string;
+			is_primary: boolean;
+			sort_order: number | null;
+			role: 'primary' | 'hover' | null;
+			variant_id: string | null;
+		}[];
 	};
 
 	let { data } = $props();
@@ -42,6 +58,16 @@
 
 	// Mutable list — initial page from server, appended via infinite scroll
 	let productList = $state<ProductRow[]>([]);
+	let initialLoad = $state(true);
+	const isLoading = $derived(
+		initialLoad || (!!$navigating && $navigating.to?.url.pathname === '/products')
+	);
+	const selectedIds = $derived($selectedProductIds);
+	function toggleSelected(id: string, v: boolean) {
+		const current = $selectedProductIds;
+		if (v) selectedProductIds.set(current.includes(id) ? current : [...current, id]);
+		else selectedProductIds.set(current.filter((x) => x !== id));
+	}
 	let hasMore = $state(false);
 	let loadingMore = $state(false);
 	let sentinelEl = $state<HTMLDivElement | null>(null);
@@ -49,10 +75,12 @@
 	$effect(() => {
 		productList = data.products as ProductRow[];
 		hasMore = Boolean(data.hasMore);
+		initialLoad = false;
 	});
 
 	let search = $state($page.url.searchParams.get('search') ?? '');
 	let seasonFilter = $state($page.url.searchParams.get('season') ?? '');
+	let brandFilter = $state($page.url.searchParams.get('brand') ?? '');
 	let categoryFilter = $state($page.url.searchParams.get('category') ?? '');
 	let priceRange = $state<[number, number]>([0, 500]);
 	let atsOnly = $state(false);
@@ -86,7 +114,11 @@
 		const params = new URLSearchParams($page.url.searchParams);
 		if (!value) params.delete(key);
 		else params.set(key, value);
-		goto(resolve(`/products?${params.toString()}`), { replaceState: true });
+		goto(resolve(`/products?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	const debouncedSearch = debounce((value: string) => {
@@ -99,6 +131,12 @@
 		debouncedSearch(value);
 	}
 
+	function onSearchCommit(term: string) {
+		search = term;
+		addRecent('products', term);
+		setFilter('search', term);
+	}
+
 	// Infinite scroll
 	async function loadMore() {
 		if (loadingMore || !hasMore) return;
@@ -108,12 +146,15 @@
 			const params = new URLSearchParams();
 			params.set('offset', String(productList.length));
 			params.set('limit', String(PAGE_SIZE));
-			// Multi-brand mode (Nx-BLSR): append every self-brand id so the API
-			// pulls products across all of them. Single-brand: append the one.
-			const allBrandIds = (data.brands ?? []).map((b) => b.id);
-			for (const id of allBrandIds) params.append('brand_id', id);
+			// Multi-brand mode (Nx-BLSR or rep org): append every brand id so the
+			// API pulls products across all of them. If a brand filter is active,
+			// scope to that one brand instead.
+			const scopedBrandIds = brandFilter ? [brandFilter] : (data.brands ?? []).map((b) => b.id);
+			for (const id of scopedBrandIds) params.append('brand_id', id);
 			if (search) params.set('q', search);
-			if (seasonFilter) params.append('season_id', seasonFilter);
+			if (seasonFilter) {
+				for (const id of seasonIdsByName(seasons, seasonFilter)) params.append('season_id', id);
+			}
 			if (categoryFilter) params.set('category', categoryFilter);
 			if (showArchived) params.set('archived', 'true');
 			const res = await fetch(`/api/products?${params.toString()}`);
@@ -140,32 +181,9 @@
 		observer.observe(sentinelEl);
 		return () => observer.disconnect();
 	});
-	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
 	// Import is now handled by <ProductImportModal>, which wraps
 	// <ProductImportFlow> and POSTs to /api/products/import on commit.
 	// We just need to know when it finishes so we can refresh the list.
-
-	function aggregateStockStatus(
-		variants: { stock_qty: number | null; stock_threshold: number | null }[]
-	): StockStatus | null {
-		const statuses = variants
-			.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
-			.filter((s): s is StockStatus => s !== null);
-		if (statuses.length === 0) return null;
-		if (statuses.includes('out')) return 'out';
-		if (statuses.includes('low')) return 'low';
-		return 'in';
-	}
-
-	function getVariantSummary(variants: { color: string | null; size: string | null }[]): string {
-		const colors = new Set(variants.map((v) => v.color).filter(Boolean));
-		const sizes = new Set(variants.map((v) => v.size).filter(Boolean));
-		const parts: string[] = [];
-		if (colors.size > 0) parts.push(`${colors.size} color${colors.size > 1 ? 's' : ''}`);
-		if (sizes.size > 0) parts.push(`${sizes.size} size${sizes.size > 1 ? 's' : ''}`);
-		return parts.join(', ') || 'No variants';
-	}
 </script>
 
 <div class="space-y-6">
@@ -177,8 +195,10 @@
 			: ''}"
 	>
 		{#if canEdit && !isMultiBrand && brand}
-			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
-			<Button href="/products/new">
+			<Button variant="outline" class="hidden sm:inline-flex" onclick={() => (showImport = true)}
+				>Import</Button
+			>
+			<Button href="/products/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"
@@ -188,36 +208,46 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				Add Product
+				Add<span class="hidden sm:inline"> Product</span>
 			</Button>
 		{/if}
 	</PageHeader>
 
 	<!-- Filters -->
-	<div class="flex flex-wrap gap-3">
-		<div class="max-w-xs flex-1">
-			<SearchInput placeholder="Search products..." value={search} oninput={onSearchInput} />
-		</div>
-		<SelectField
-			items={[
-				{ value: '', label: 'All Seasons' },
-				...seasons.map((s) => ({ value: s.id, label: s.name }))
-			]}
+	<ListPageToolbar {search} {onSearchInput} searchPlaceholder="Search products...">
+		{#snippet searchSlot()}
+			<SearchDropdown
+				bind:value={search}
+				oninput={onSearchInput}
+				oncommit={onSearchCommit}
+				placeholder="Search products..."
+				context="products"
+				suggestionType="products"
+				class="w-64 shrink-0"
+			/>
+		{/snippet}
+		{#if (data.brands ?? []).length > 1}
+			<BrandFilter
+				brands={data.brands ?? []}
+				value={brandFilter}
+				onValueChange={(v) => {
+					brandFilter = v;
+					setFilter('brand', v);
+				}}
+			/>
+		{/if}
+		<SeasonFilter
+			{seasons}
 			value={seasonFilter}
-			placeholder="All Seasons"
 			onValueChange={(v) => {
 				seasonFilter = v;
 				setFilter('season', v);
 			}}
 		/>
 		{#if categories.length > 0}
-			<SelectField
-				items={[
-					{ value: '', label: 'All Categories' },
-					...categories.map((c) => ({ value: c, label: c }))
-				]}
+			<CategoryFilter
+				{categories}
 				value={categoryFilter}
-				placeholder="All Categories"
 				onValueChange={(v) => {
 					categoryFilter = v;
 					setFilter('category', v);
@@ -225,7 +255,7 @@
 			/>
 		{/if}
 		<PriceFilterDropdown bind:value={priceRange} maxPrice={maxProductPrice} />
-		<label class="ml-auto flex h-10 items-center gap-2 text-sm" for="ats-only">
+		<label class="flex h-10 shrink-0 items-center gap-2 text-sm lg:ml-auto" for="ats-only">
 			ATS Only
 			<Switch id="ats-only" bind:checked={atsOnly} aria-label="ATS Only" />
 		</label>
@@ -237,12 +267,26 @@
 				{showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
 			</button>
 		{/if}
-	</div>
+	</ListPageToolbar>
 
 	<!-- Product grid -->
-	{#if filtered.length === 0}
+	{#if isLoading}
+		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
+			<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
+			{#each Array(6) as _, i (i)}
+				<div>
+					<Skeleton class="aspect-square w-full rounded-none" />
+					<div class="p-4">
+						<Skeleton class="h-3 w-20" />
+						<Skeleton class="mt-2 h-4 w-32" />
+						<Skeleton class="mt-2 h-4 w-16" />
+					</div>
+				</div>
+			{/each}
+		</div>
+	{:else if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
-			{#if search || seasonFilter || categoryFilter || atsOnly}
+			{#if search || brandFilter || seasonFilter || categoryFilter || atsOnly}
 				<p class="text-lg font-semibold">No products match your filters</p>
 				<p class="mt-2 text-sm text-muted-foreground">Try adjusting your filters</p>
 			{:else}
@@ -267,73 +311,82 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 			{#each filtered as product (product.id)}
-				{@const primaryImage =
-					product.product_images?.find((i) => i.is_primary) ?? product.product_images?.[0]}
-				<a
-					href={resolve(`/products/${product.id}`)}
-					class="group rounded-none border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-md {product.archived_at
-						? 'opacity-50'
-						: ''}"
-				>
-					<div class="aspect-[4/3] overflow-hidden bg-muted">
-						{#if primaryImage}
-							<img
-								src="/api/products/{product.id}/images/{primaryImage.id}"
-								alt={product.name}
-								class="h-full w-full object-cover"
-							/>
-						{:else}
-							<div class="flex h-full items-center justify-center text-muted-foreground">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-10 w-10"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-									/>
-								</svg>
-							</div>
-						{/if}
-					</div>
-					<div class="p-4">
-						<p class="text-xs text-muted-foreground">{product.style_number}</p>
-						<p class="mt-0.5 text-sm font-medium">{product.name}</p>
-						{#if product.season_id || product.product_year}
-							{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
-							<p class="mt-0.5 text-sm text-muted-foreground">
-								{[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
-							</p>
-						{/if}
-						<div class="mt-2 flex items-center justify-between">
-							<span class="text-sm font-medium">{fmt.format(Number(product.wholesale_price))}</span>
-							<span class="text-xs text-muted-foreground"
-								>{getVariantSummary(product.product_variants ?? [])}</span
-							>
-						</div>
-						{#if product.ats}
-							{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
-							{#if stockAgg}
-								<div class="mt-2">
-									<StockPill status={stockAgg} qty={null} hideQty />
-								</div>
+				{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+				<div class="relative">
+					{#if selectedIds.includes(product.id)}
+						<div
+							class="pointer-events-none absolute inset-0 z-10 border-6 border-foreground/20"
+						></div>
+					{/if}
+					<ProductCard
+						productId={product.id}
+						href={resolve(`/products/${product.id}`)}
+						name={product.name}
+						styleNumber={product.style_number}
+						wholesalePrice={Number(product.wholesale_price)}
+						images={product.product_images ?? []}
+						brandName={product.brands?.name}
+						seasonLabel={[seasonRow?.name, product.product_year].filter(Boolean).join(' ')}
+						archived={!!product.archived_at}
+					>
+						{#snippet overlay()}
+							{#if product.ats}
+								{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
+								{#if stockAgg}
+									<div
+										class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+									>
+										<StockPill status={stockAgg} qty={null} hideQty />
+									</div>
+								{/if}
 							{/if}
-						{/if}
-						{#if product.category}
-							<span
-								class="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-								>{product.category}</span
+							{@const isSelected = selectedIds.includes(product.id)}
+							<button
+								type="button"
+								aria-label={isSelected ? 'Deselect product' : 'Select product'}
+								aria-pressed={isSelected}
+								class="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full shadow-md transition-all [@media(hover:none)]:opacity-100 {isSelected
+									? 'bg-foreground text-background opacity-100'
+									: 'bg-white text-foreground opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:scale-110 dark:bg-black'}"
+								onclick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									toggleSelected(product.id, !isSelected);
+								}}
 							>
-						{/if}
-					</div>
-				</a>
+								{#if isSelected}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2.5"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+									</svg>
+								{:else}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M12 4.5v15m7.5-7.5h-15"
+										/>
+									</svg>
+								{/if}
+							</button>
+						{/snippet}
+					</ProductCard>
+				</div>
 			{/each}
 		</div>
 

@@ -2,12 +2,13 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { SearchInput } from '$lib/components/ui/input/index.js';
-	import { downloadCSV } from '$lib/utils/csv.js';
+	import { SearchDropdown } from '$lib/components/ui/input/index.js';
+	import ListPageToolbar from '$lib/components/shared/ListPageToolbar.svelte';
 	import AccountImportModal from '$lib/components/accounts/AccountImportModal.svelte';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import type { Account } from '$lib/types/database.js';
+	import { addRecent } from '$lib/stores/recent-searches.js';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -39,8 +40,6 @@
 		(data.accountTags ?? {}) as Record<string, { id: string; name: string; color: string }[]>
 	);
 	const canEdit = $derived(data.membership?.role !== 'guest');
-	// Brand-level sales reps shouldn't export org-wide data.
-	const canExport = $derived(!(data.orgType === 'brand' && data.membership?.role === 'sales'));
 
 	const tagColorMap: Record<string, string> = {
 		amber: 'bg-amber-50 text-amber-700',
@@ -82,18 +81,32 @@
 	const archivedCount = $derived(accountList.filter((a) => a.archived_at).length);
 
 	// Debounced server-side search
-	const debouncedSearch = debounce((value: string) => {
+	function applySearch(value: string) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
 		const params = new URLSearchParams($page.url.searchParams);
 		if (value) params.set('search', value);
 		else params.delete('search');
-		goto(resolve(`/accounts?${params.toString()}`), { replaceState: true });
+		goto(resolve(`/accounts?${params.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}
+
+	const debouncedSearch = debounce((value: string) => {
+		applySearch(value);
 	}, 300);
 
 	function onSearchInput(e: Event) {
 		const value = (e.target as HTMLInputElement).value;
 		search = value;
 		debouncedSearch(value);
+	}
+
+	function onSearchCommit(term: string) {
+		search = term;
+		addRecent('accounts', term);
+		applySearch(term);
 	}
 
 	// Infinite scroll
@@ -131,21 +144,6 @@
 		observer.observe(sentinelEl);
 		return () => observer.disconnect();
 	});
-
-	function exportAccounts() {
-		const rows = filtered.map((a) => ({
-			business_name: a.business_name,
-			contact_first_name: a.contact_first_name ?? '',
-			contact_last_name: a.contact_last_name ?? '',
-			contact_email: a.contact_email ?? '',
-			phone: a.phone ?? '',
-			city: a.city ?? '',
-			state: a.state ?? '',
-			zip: a.zip ?? '',
-			status: a.archived_at ? 'Archived' : 'Active'
-		}));
-		downloadCSV(rows, 'accounts.csv');
-	}
 </script>
 
 <div class="space-y-6">
@@ -156,12 +154,8 @@
 			? 's'
 			: ''}"
 	>
-		{#if filtered.length > 0 && canExport}
-			<Button variant="outline" onclick={exportAccounts}>Export</Button>
-		{/if}
 		{#if canEdit}
-			<Button variant="outline" onclick={() => (showImport = true)}>Import</Button>
-			<Button href="/accounts/new">
+			<Button href="/accounts/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"
@@ -171,15 +165,28 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				Add Account
+				Add<span class="hidden sm:inline"> Account</span>
 			</Button>
 		{/if}
 	</PageHeader>
 
-	<div class="flex items-center gap-3">
-		<div class="max-w-xs flex-1">
-			<SearchInput placeholder="Search accounts..." value={search} oninput={onSearchInput} />
-		</div>
+	<ListPageToolbar
+		{search}
+		{onSearchInput}
+		searchPlaceholder="Search accounts..."
+		searchClass="max-w-xs flex-1"
+	>
+		{#snippet searchSlot()}
+			<SearchDropdown
+				bind:value={search}
+				oninput={onSearchInput}
+				oncommit={onSearchCommit}
+				placeholder="Search accounts..."
+				context="accounts"
+				suggestionType="accounts"
+				class="max-w-xs flex-1"
+			/>
+		{/snippet}
 		{#if archivedCount > 0}
 			<button
 				class="text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -188,7 +195,7 @@
 				{showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
 			</button>
 		{/if}
-	</div>
+	</ListPageToolbar>
 
 	{#if filtered.length === 0}
 		<div class="rounded-none p-12 text-center">
@@ -226,19 +233,19 @@
 							>Account</th
 						>
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>Contact</th
 						>
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>Territory</th
 						>
 						<th
-							class="px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-left text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>Health</th
 						>
 						<th
-							class="px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase"
+							class="hidden px-4 py-2.5 text-right text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase sm:table-cell"
 							>YTD Total</th
 						>
 					</tr>
@@ -246,11 +253,25 @@
 				<tbody class="divide-y">
 					{#each filtered as account (account.id)}
 						<tr
-							class="transition-colors hover:bg-muted/30 {account.archived_at ? 'opacity-50' : ''}"
+							role="link"
+							tabindex="0"
+							aria-label={account.business_name}
+							onclick={() => goto(resolve(`/accounts/${account.id}`))}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									goto(resolve(`/accounts/${account.id}`));
+								}
+							}}
+							class="cursor-pointer transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none {account.archived_at
+								? 'opacity-50'
+								: ''}"
 						>
 							<td class="px-4 py-3">
-								<a href={resolve(`/accounts/${account.id}`)} class="text-base hover:underline"
-									>{account.business_name}</a
+								<a
+									href={resolve(`/accounts/${account.id}`)}
+									onclick={(e) => e.stopPropagation()}
+									class="text-base hover:underline">{account.business_name}</a
 								>
 								<div class="mt-0.5 flex items-center gap-1.5">
 									{#if account.city || account.state}
@@ -267,7 +288,7 @@
 									{/each}
 								</div>
 							</td>
-							<td class="px-4 py-3">
+							<td class="hidden px-4 py-3 sm:table-cell">
 								<div class="text-sm text-foreground">
 									{[account.contact_first_name, account.contact_last_name]
 										.filter(Boolean)
@@ -277,13 +298,13 @@
 									<div class="font-mono text-sm text-muted-foreground">{account.contact_email}</div>
 								{/if}
 							</td>
-							<td class="px-4 py-3">
+							<td class="hidden px-4 py-3 sm:table-cell">
 								<span class="text-sm text-muted-foreground"
 									>{(account as Account & { territories?: { name?: string } | null }).territories
 										?.name ?? '—'}</span
 								>
 							</td>
-							<td class="px-4 py-3">
+							<td class="hidden px-4 py-3 sm:table-cell">
 								{#if account.archived_at}
 									<span
 										class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500"
@@ -300,7 +321,7 @@
 									</div>
 								{/if}
 							</td>
-							<td class="px-4 py-3 text-right font-mono">
+							<td class="hidden px-4 py-3 text-right font-mono sm:table-cell">
 								{#if accountTotals[account.id]}
 									<span class="text-sm">{fmt(accountTotals[account.id])}</span>
 								{:else}

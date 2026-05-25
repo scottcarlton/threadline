@@ -4,6 +4,7 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listFederatedOrders } from '$lib/server/federation.js';
 import { resolveOrderSearch, applyOrderSearch } from '$lib/server/orders/search.js';
 import { incrementDate } from '$lib/utils/date-presets.js';
+import { classifyOrder, parseSpotlightParam } from '$lib/utils/order-spotlight.js';
 
 const PAGE_SIZE = 50;
 
@@ -25,6 +26,17 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	const from = url.searchParams.get('from');
 	const to = url.searchParams.get('to');
 	const toExclusive = to ? incrementDate(to) : null;
+	const spotlight = parseSpotlightParam(url.searchParams.get('spotlight'));
+
+	function applySpotlight<T extends Parameters<typeof classifyOrder>[0]>(rows: T[]): T[] {
+		if (!spotlight) return rows;
+		return rows.filter((r) => {
+			const buckets = classifyOrder(r);
+			if (buckets.length === 0) return false;
+			if (spotlight === 'all') return true;
+			return buckets.includes(spotlight);
+		});
+	}
 
 	// ── Brand org: merge direct + federated, slice ────────────────────────
 	if (orgType === 'brand') {
@@ -118,9 +130,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		const orderMap = new Map<string, (typeof directOrders)[number]>();
 		for (const o of federatedReshaped) orderMap.set(o.id as string, o);
 		for (const o of directOrders) orderMap.set(o.id as string, o);
-		const all = [...orderMap.values()].sort((a, b) =>
+		const allRaw = [...orderMap.values()].sort((a, b) =>
 			String(b.created_at).localeCompare(String(a.created_at))
 		);
+		const all = applySpotlight(allRaw);
 
 		const page = all.slice(offset, offset + limit);
 		return json({ orders: page, hasMore: offset + limit < all.length });
@@ -169,9 +182,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		.from('orders')
 		.select(ORDER_SELECT, { count: 'exact' })
 		.eq('organization_id', organization.id)
-		.order('created_at', { ascending: false })
-		.range(offset, offset + limit - 1);
+		.order('created_at', { ascending: false });
 
+	if (!spotlight) query = query.range(offset, offset + limit - 1);
 	if (isSales) query = query.eq('created_by', locals.user?.id);
 	if (status) query = query.eq('status', status);
 	if (seasonIds && seasonIds.length > 0) query = query.in('season_id', seasonIds);
@@ -186,8 +199,14 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	}
 
 	const { data, count } = await query;
-	const orders = data ?? [];
-	const totalCount = count ?? orders.length;
+	const rawOrders = data ?? [];
 
-	return json({ orders, hasMore: offset + limit < totalCount });
+	if (spotlight) {
+		const filtered = applySpotlight(rawOrders);
+		const page = filtered.slice(offset, offset + limit);
+		return json({ orders: page, hasMore: offset + limit < filtered.length });
+	}
+
+	const totalCount = count ?? rawOrders.length;
+	return json({ orders: rawOrders, hasMore: offset + limit < totalCount });
 };

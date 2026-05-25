@@ -243,9 +243,7 @@
 		</CardContent>
 		<CardFooter class="justify-between">
 			<Button variant="outline" href="/organization/agents">Cancel</Button>
-			<Button onclick={handleCreate} disabled={loading}>
-				{loading ? 'Creating...' : 'Create Agent'}
-			</Button>
+			<Button onclick={handleCreate} {loading}>Create Agent</Button>
 		</CardFooter>
 	</Card>
 </div>

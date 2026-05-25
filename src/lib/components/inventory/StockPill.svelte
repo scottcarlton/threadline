@@ -14,21 +14,21 @@
 {#if status !== null}
 	{#if status === 'in'}
 		<span
-			class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-sm text-emerald-600 dark:text-emerald-400"
+			class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400"
 		>
 			<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
 			{hideQty || qty === null ? 'In stock' : `${qty} in stock`}
 		</span>
 	{:else if status === 'low'}
 		<span
-			class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-sm text-amber-600 dark:text-amber-400"
+			class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600 dark:text-amber-400"
 		>
 			<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
 			{hideQty || qty === null ? 'Low stock' : `${qty} left`}
 		</span>
 	{:else}
 		<span
-			class="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground"
+			class="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
 		>
 			<span class="h-1.5 w-1.5 rounded-full bg-muted-foreground/50"></span>
 			Out of stock

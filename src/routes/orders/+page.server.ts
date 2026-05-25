@@ -4,6 +4,11 @@ import { listFederatedOrders } from '$lib/server/federation.js';
 import { resolveOrderSearch, applyOrderSearch } from '$lib/server/orders/search.js';
 import { loadManagerScope } from '$lib/server/scoping.js';
 import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
+import {
+	classifyOrder,
+	parseSpotlightParam,
+	type SpotlightBucket
+} from '$lib/utils/order-spotlight.js';
 
 const PAGE_SIZE = 50;
 
@@ -18,6 +23,29 @@ function fromBoundary(yyyymmdd: string): string {
 }
 function toBoundary(yyyymmdd: string): string {
 	return `${yyyymmdd}T23:59:59.999-12:00`;
+}
+
+type SpotlightCounts = Record<SpotlightBucket, number> & { total: number };
+function emptySpotlight(): SpotlightCounts {
+	return {
+		total: 0,
+		overdue: 0,
+		approaching_start: 0,
+		in_window: 0,
+		approaching_complete: 0,
+		stale_draft: 0
+	};
+}
+function tallySpotlight<T extends Parameters<typeof classifyOrder>[0]>(
+	rows: readonly T[]
+): SpotlightCounts {
+	const counts = emptySpotlight();
+	for (const r of rows) {
+		const buckets = classifyOrder(r);
+		if (buckets.length > 0) counts.total++;
+		for (const b of buckets) counts[b]++;
+	}
+	return counts;
 }
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
@@ -35,10 +63,13 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const nxBlsr = isNxBlsr(brandOrgIdsForNx);
 	const ownOrgIds = organization ? (nxBlsr ? brandOrgIdsForNx : [organization.id]) : [];
 
-	const status = url.searchParams.get('status');
-	const seasonFilter = url.searchParams.get('season');
+	const statusParam = url.searchParams.get('status');
+	const statuses = statusParam ? statusParam.split(',').filter(Boolean) : [];
+	const seasonParam = url.searchParams.get('season');
+	const seasonFilters = seasonParam ? seasonParam.split(',').filter(Boolean) : [];
 	const year = url.searchParams.get('year');
-	const brandFilter = url.searchParams.get('brand');
+	const brandParam = url.searchParams.get('brand');
+	const brandFilters = brandParam ? brandParam.split(',').filter(Boolean) : [];
 	// Source filter unifies "shows" (show_dates) and "source types". Value
 	// is prefixed: `show:<show_date_id>` or `srctype:<source_type_id>`.
 	// Falls back to the legacy `?show=<id>` param for old links.
@@ -64,6 +95,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const to = url.searchParams.get('to');
 	// Default the totals / pagination to orders-only; notes tab flips this.
 	const activeType = url.searchParams.get('type') ?? 'order';
+	const spotlight = parseSpotlightParam(url.searchParams.get('spotlight'));
 	const fromTs = from ? fromBoundary(from) : null;
 	const toTs = to ? toBoundary(to) : null;
 	const toTsMs = toTs ? new Date(toTs).getTime() : null;
@@ -80,9 +112,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			.in('account_id', accountIds)
 			.order('created_at', { ascending: false });
 
-		if (status) query = query.eq('status', status);
-		if (brandFilter) query = query.eq('brand_id', brandFilter);
-		if (seasonFilter) query = query.eq('season_id', seasonFilter);
+		if (statuses.length > 0) query = query.in('status', statuses);
+		if (brandFilters.length > 0) query = query.in('brand_id', brandFilters);
+		if (seasonFilters.length > 0) query = query.in('season_id', seasonFilters);
 		if (fromTs) query = query.gte('created_at', fromTs);
 		if (toTs) query = query.lte('created_at', toTs);
 		if (activeType !== 'all') query = query.eq('order_type', activeType);
@@ -124,6 +156,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 						? orders.reduce((s, o) => s + Number(o.total_amount), 0) / orders.length
 						: 0,
 				needsAttention: { staleDrafts: 0, overdueShipments: 0, total: 0 },
+				spotlight: emptySpotlight(),
 				conversion: { submitted: 0, converted: 0, rate: 0 }
 			}
 		};
@@ -215,14 +248,18 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		// (scoped to visible orgs only so a user can't filter by something
 		// outside their reach).
 		let seasonIds: string[] | null = null;
-		if (seasonFilter) {
-			const key = seasonFilter.trim().toLowerCase();
-			seasonIds = allBoaSeasons.filter((s) => s.name.trim().toLowerCase() === key).map((s) => s.id);
+		if (seasonFilters.length > 0) {
+			const keys = seasonFilters.map((s) => s.trim().toLowerCase());
+			seasonIds = allBoaSeasons
+				.filter((s) => keys.includes(s.name.trim().toLowerCase()))
+				.map((s) => s.id);
 		}
 		let brandIds: string[] | null = null;
-		if (brandFilter) {
-			const key = brandFilter.trim().toLowerCase();
-			brandIds = allBoaBrands.filter((b) => b.name.trim().toLowerCase() === key).map((b) => b.id);
+		if (brandFilters.length > 0) {
+			const keys = brandFilters.map((b) => b.trim().toLowerCase());
+			brandIds = allBoaBrands
+				.filter((b) => keys.includes(b.name.trim().toLowerCase()))
+				.map((b) => b.id);
 		}
 		let sourceTypeIds: string[] | null = null;
 		if (sourceTypeName) {
@@ -280,7 +317,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				);
 			}
 		}
-		if (status) directQuery = directQuery.eq('status', status);
+		if (repOrgId) directQuery = directQuery.eq('rep_user_id', repOrgId);
+		if (statuses.length > 0) directQuery = directQuery.in('status', statuses);
 		if (seasonIds && seasonIds.length > 0) directQuery = directQuery.in('season_id', seasonIds);
 		if (year) directQuery = directQuery.eq('order_year', parseInt(year));
 		if (brandIds && brandIds.length > 0) directQuery = directQuery.in('brand_id', brandIds);
@@ -311,8 +349,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			: await Promise.all(ownOrgIds.map((id) => listFederatedOrders(supabaseAdmin, id)));
 		const allFederatedOrders = brandIsSales ? [] : federatedBatches.flat();
 		let federatedOrders = allFederatedOrders;
-		if (status) federatedOrders = federatedOrders.filter((o) => o.status === status);
-		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.rep_org_id === repOrgId);
+		if (statuses.length > 0)
+			federatedOrders = federatedOrders.filter((o) => statuses.includes(o.status));
+		if (repOrgId) federatedOrders = federatedOrders.filter((o) => o.created_by === repOrgId);
 		if (seasonIds)
 			federatedOrders = federatedOrders.filter(
 				(o) => o.season_id && seasonIds!.includes(o.season_id)
@@ -390,10 +429,19 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		const allOrdersUnfiltered = [...orderMap.values()].sort((a, b) =>
 			String(b.created_at).localeCompare(String(a.created_at))
 		);
-		const allOrders =
+		const allOrdersTyped =
 			activeType === 'all'
 				? allOrdersUnfiltered
 				: allOrdersUnfiltered.filter((o) => o.order_type === activeType);
+		const spotlightCounts = tallySpotlight(allOrdersTyped);
+		const allOrders = spotlight
+			? allOrdersTyped.filter((o) => {
+					const buckets = classifyOrder(o);
+					if (buckets.length === 0) return false;
+					if (spotlight === 'all') return true;
+					return buckets.includes(spotlight);
+				})
+			: allOrdersTyped;
 		const orders = allOrders.slice(0, PAGE_SIZE);
 
 		// Per-row commission rate lookup. Direct orders → BOA's organization_member
@@ -485,15 +533,19 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			if (!seasonMap.has(key)) seasonMap.set(key, s);
 		}
 		for (const o of allFederatedOrders) {
-			// Display the rep's person name in the filter chip (falls back to org
-			// name only if the rep's profile isn't resolvable). The filter value
-			// is still rep_org_id, so multiple reps from one rep-org collapse to
-			// whichever name wins first.
-			if (!repMap.has(o.rep_org_id)) {
-				repMap.set(o.rep_org_id, {
-					id: o.rep_org_id,
-					name: o.created_by_name ?? o.rep_org_name
+			if (o.created_by && o.created_by_name && !repMap.has(o.created_by)) {
+				repMap.set(o.created_by, {
+					id: o.created_by,
+					name: o.created_by_name
 				});
+			}
+		}
+		for (const o of directOrders) {
+			const repId = (o as { rep_user_id?: string | null }).rep_user_id;
+			const repName = (o as { rep_profile?: { display_name?: string } | null }).rep_profile
+				?.display_name;
+			if (repId && repName && !repMap.has(repId)) {
+				repMap.set(repId, { id: repId, name: repName });
 			}
 		}
 
@@ -512,7 +564,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			overdueShipments = 0,
 			submittedCount = 0,
 			convertedCount = 0;
-		for (const o of allOrders) {
+		for (const o of allOrdersTyped) {
 			const amount = Number(o.total_amount) || 0;
 			if (pipelineStatuses.has(o.status)) {
 				pipelineValue += amount;
@@ -552,14 +604,16 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				avgOrderValue:
 					deliveredCount > 0
 						? deliveredRevenue / deliveredCount
-						: allOrders.length > 0
-							? allOrders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) / allOrders.length
+						: allOrdersTyped.length > 0
+							? allOrdersTyped.reduce((s, o) => s + (Number(o.total_amount) || 0), 0) /
+								allOrdersTyped.length
 							: 0,
 				needsAttention: {
 					staleDrafts,
 					overdueShipments,
 					total: staleDrafts + overdueShipments
 				},
+				spotlight: spotlightCounts,
 				conversion: {
 					submitted: submittedCount,
 					converted: convertedCount,
@@ -625,14 +679,16 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 
 	// Resolve name-based filters to matching IDs across all visible orgs
 	let seasonIds: string[] | null = null;
-	if (seasonFilter) {
-		const key = seasonFilter.trim().toLowerCase();
-		seasonIds = allSeasons.filter((s) => s.name.trim().toLowerCase() === key).map((s) => s.id);
+	if (seasonFilters.length > 0) {
+		const keys = seasonFilters.map((s) => s.trim().toLowerCase());
+		seasonIds = allSeasons
+			.filter((s) => keys.includes(s.name.trim().toLowerCase()))
+			.map((s) => s.id);
 	}
 	let brandIds: string[] | null = null;
-	if (brandFilter) {
-		const key = brandFilter.trim().toLowerCase();
-		brandIds = allBrands.filter((b) => b.name.trim().toLowerCase() === key).map((b) => b.id);
+	if (brandFilters.length > 0) {
+		const keys = brandFilters.map((b) => b.trim().toLowerCase());
+		brandIds = allBrands.filter((b) => keys.includes(b.name.trim().toLowerCase())).map((b) => b.id);
 	}
 	let sourceTypeIds: string[] | null = null;
 	if (sourceTypeName) {
@@ -679,7 +735,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 				q = q.or(`created_by.in.(${createdByClause}),rep_user_id.in.(${repUserIdClause})`);
 			}
 		}
-		if (status) q = q.eq('status', status);
+		if (statuses.length > 0) q = q.in('status', statuses);
 		if (seasonIds && seasonIds.length > 0) q = q.in('season_id', seasonIds);
 		if (year) q = q.eq('order_year', parseInt(year));
 		if (brandIds && brandIds.length > 0) q = q.in('brand_id', brandIds);
@@ -707,15 +763,45 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	// 2. Lightweight metrics query (all matching, minimal columns)
 	let metricsQuery = supabaseAdmin
 		.from('orders')
-		.select('id, status, total_amount, created_at, expected_ship_date')
+		.select(
+			'id, status, total_amount, created_at, expected_ship_date, start_ship_date, shipped_at, updated_at'
+		)
 		.eq('organization_id', organization.id);
 	metricsQuery = applyFilters(metricsQuery);
+	const metricsResult = await metricsQuery;
+	const metricsRows = (metricsResult.data ?? []) as Array<{
+		id: string;
+		status: string;
+		total_amount: number | string;
+		created_at: string;
+		expected_ship_date: string | null;
+		start_ship_date: string | null;
+		shipped_at: string | null;
+		updated_at: string | null;
+	}>;
+	const spotlightCounts = tallySpotlight(metricsRows);
 
-	const [displayResult, metricsResult] = await Promise.all([displayQuery, metricsQuery]);
+	// When spotlight is active, restrict the display query to matching IDs
+	if (spotlight) {
+		const matchingIds = metricsRows
+			.filter((r) => {
+				const buckets = classifyOrder(r);
+				if (buckets.length === 0) return false;
+				if (spotlight === 'all') return true;
+				return buckets.includes(spotlight);
+			})
+			.map((r) => r.id);
+		if (matchingIds.length === 0) {
+			displayQuery = displayQuery.eq('id', '__none__');
+		} else {
+			displayQuery = displayQuery.in('id', matchingIds);
+		}
+	}
+
+	const displayResult = await displayQuery;
 
 	const orders = displayResult.data ?? [];
 	const totalCount = displayResult.count ?? orders.length;
-	const metricsRows = metricsResult.data ?? [];
 
 	// Compute analytics metrics from ALL matching orders
 	const now = new Date();
@@ -783,6 +869,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			overdueShipments,
 			total: staleDrafts + overdueShipments
 		},
+		spotlight: spotlightCounts,
 		conversion: {
 			submitted: submittedCount,
 			converted: convertedCount,

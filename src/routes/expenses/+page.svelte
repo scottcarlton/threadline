@@ -114,7 +114,7 @@
 			<Button variant="outline" onclick={exportExpenses}>Export CSV</Button>
 		{/if}
 		{#if canCreate}
-			<Button href="/expenses/new">
+			<Button href="/expenses/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="-ml-1 h-4 w-4"
@@ -124,7 +124,7 @@
 					stroke-width="2"
 					><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg
 				>
-				New Expense
+				New<span class="hidden sm:inline"> Expense</span>
 			</Button>
 		{/if}
 	</PageHeader>
@@ -263,10 +263,23 @@
 				</thead>
 				<tbody class="divide-y">
 					{#each filtered as expense (expense.id)}
-						<tr class="transition-colors hover:bg-muted/30">
+						<tr
+							role="link"
+							tabindex="0"
+							aria-label={expense.expense_number}
+							onclick={() => goto(resolve(`/expenses/${expense.id}`))}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									goto(resolve(`/expenses/${expense.id}`));
+								}
+							}}
+							class="cursor-pointer transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none"
+						>
 							<td class="w-48 px-4 py-3 whitespace-nowrap">
 								<a
 									href={resolve(`/expenses/${expense.id}`)}
+									onclick={(e) => e.stopPropagation()}
 									class="font-mono text-base font-medium hover:underline"
 									>{expense.expense_number}</a
 								>

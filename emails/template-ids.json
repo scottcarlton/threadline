@@ -1,0 +1,11 @@
+{
+	"order-submitted": 1,
+	"order-created": 2,
+	"order-confirmed": 3,
+	"order-shipped": 4,
+	"order-delivered": 5,
+	"invite-org-member": 6,
+	"invite-buyer-team": 7,
+	"invite-connection-member": 8,
+	"invite-org-connect": 9
+}

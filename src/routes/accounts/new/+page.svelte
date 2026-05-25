@@ -421,9 +421,7 @@
 			{#if step < 3}
 				<Button type="button" onclick={next}>Next</Button>
 			{:else}
-				<Button type="submit" form="account-form" disabled={$submitting}>
-					{$submitting ? 'Creating...' : 'Create Account'}
-				</Button>
+				<Button type="submit" form="account-form" loading={$submitting}>Create Account</Button>
 			{/if}
 		</CardFooter>
 	</Card>

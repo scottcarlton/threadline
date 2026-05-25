@@ -26,20 +26,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.eq('intake_id', params.intake_id)
 		.order('line_index');
 
-	// Fetch the full email from Resend if we have the ID
-	let emailBody: string | null = null;
-	if (intake.resend_email_id) {
-		try {
-			const { Resend } = await import('resend');
-			const { env } = await import('$env/dynamic/private');
-			const resend = new Resend(env.RESEND_API_KEY);
-			const { data: emailData } = await resend.emails.receiving.get(intake.resend_email_id);
-			emailBody = emailData?.text ?? emailData?.html ?? null;
-		} catch {
-			// Non-critical — show what we have
-		}
-	}
-
 	return {
 		intake: intake as {
 			id: string;
@@ -47,7 +33,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			to_email: string;
 			subject: string | null;
 			message_id: string;
-			resend_email_id: string;
+			provider_email_id: string;
+			email_body: string | null;
 			parsed_json: Record<string, unknown> | null;
 			status: string;
 			order_id: string | null;
@@ -64,7 +51,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			issues: Array<{ code: string; detail: string }> | null;
 			products: { name: string } | null;
 		}>,
-		emailBody
+		emailBody: (intake as { email_body?: string | null }).email_body ?? null
 	};
 };
 
@@ -73,7 +60,6 @@ export const actions: Actions = {
 		const { user, organization } = locals;
 		if (!user || !organization) return fail(401);
 
-		// Get the intake
 		const { data: intake } = await supabaseAdmin
 			.from('email_intakes')
 			.select('id, order_id, status')
@@ -89,7 +75,6 @@ export const actions: Actions = {
 			return fail(400, { message: 'Intake is not in review status' });
 		}
 
-		// Update order status to submitted
 		const { error: orderError } = await supabaseAdmin
 			.from('orders')
 			.update({ status: 'submitted', submitted_at: new Date().toISOString() })
@@ -99,13 +84,10 @@ export const actions: Actions = {
 			return fail(500, { message: 'Failed to submit order' });
 		}
 
-		// Update intake status
 		await supabaseAdmin
 			.from('email_intakes')
 			.update({ status: 'submitted', needs_review_reasons: null })
 			.eq('id', intake.id);
-
-		// TODO: send confirmation email
 
 		throw redirect(303, '/orders/review');
 	},
@@ -125,18 +107,14 @@ export const actions: Actions = {
 			return fail(404, { message: 'Intake not found' });
 		}
 
-		// Delete the draft order if it exists
 		if (intake.order_id) {
 			await supabaseAdmin.from('orders').delete().eq('id', intake.order_id);
 		}
 
-		// Update intake status
 		await supabaseAdmin
 			.from('email_intakes')
 			.update({ status: 'rejected', order_id: null })
 			.eq('id', intake.id);
-
-		// TODO: send bounce email
 
 		throw redirect(303, '/orders/review');
 	}

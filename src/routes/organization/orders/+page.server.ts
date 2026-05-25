@@ -98,7 +98,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, locals }) => {
+	saveSettings: async ({ request, locals }) => {
 		const denied = requireAdmin(locals);
 		if (denied) return fail(denied.status, { message: denied.error });
 		const orgId = locals.organization!.id;

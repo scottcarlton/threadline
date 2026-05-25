@@ -65,9 +65,7 @@
 				</div>
 
 				<div class="flex justify-end">
-					<Button type="submit" disabled={$submitting}>
-						{$submitting ? 'Saving…' : 'Save changes'}
-					</Button>
+					<Button type="submit" loading={$submitting}>Save changes</Button>
 				</div>
 			</form>
 		</CardContent>

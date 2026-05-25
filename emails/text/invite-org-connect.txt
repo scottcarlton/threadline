@@ -1,10 +1,10 @@
-{{{FROM_ORG_NAME}}} invited your org to connect on /Threadline
+{{params.FROM_ORG_NAME}} invited your org to connect on /Threadline
 
-{{{#if FROM_USER_NAME}}}{{{FROM_USER_NAME}}} at {{{FROM_ORG_NAME}}}{{{else}}}{{{FROM_ORG_NAME}}}{{{/if}}} invited your organization to connect on /Threadline.
+{% if params.FROM_USER_NAME %}{{params.FROM_USER_NAME}} at {{params.FROM_ORG_NAME}}{% else %}{{params.FROM_ORG_NAME}}{% endif %} invited your organization to connect on /Threadline.
 
-{{{#if PERSONAL_MESSAGE}}}"{{{PERSONAL_MESSAGE}}}"{{{/if}}}
+{% if params.PERSONAL_MESSAGE %}"{{params.PERSONAL_MESSAGE}}"{% endif %}
 
-Open invite: {{{INVITE_URL}}}
+Open invite: {{params.INVITE_URL}}
 
 Connections become active after both organizations confirm.
 /Threadline · threadline.systems

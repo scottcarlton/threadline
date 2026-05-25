@@ -1,7 +1,7 @@
-{{{INVITER_NAME}}} invited you to {{{ORGANIZATION_NAME}}} on /Threadline
+{{params.INVITER_NAME}} invited you to {{params.ORGANIZATION_NAME}} on /Threadline
 
-Join the {{{ORGANIZATION_NAME}}} buyer team to view orders, line sheets, and reorders.
+Join the {{params.ORGANIZATION_NAME}} buyer team to view orders, line sheets, and reorders.
 
-Accept: {{{ACCEPT_URL}}}
+Accept: {{params.ACCEPT_URL}}
 
 /Threadline · threadline.systems

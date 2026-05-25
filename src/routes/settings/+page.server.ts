@@ -5,8 +5,27 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, user, organization } = locals;
 
 	if (!user) {
-		return { emailConnected: false, emailAddress: null, notificationPreferences: null };
+		return {
+			emailConnected: false,
+			emailAddress: null,
+			notificationPreferences: null,
+			authEmail: null,
+			authPendingEmail: null,
+			authProviders: [] as string[]
+		};
 	}
+
+	const { user: authUser } = await locals.safeGetSession();
+	// `identities[].provider` is the canonical list of linked providers.
+	// `app_metadata.provider` reflects the *current* session's provider.
+	const authProviders = Array.from(
+		new Set(
+			[
+				...(authUser?.identities?.map((i) => i.provider) ?? []),
+				authUser?.app_metadata?.provider as string | undefined
+			].filter((p): p is string => typeof p === 'string')
+		)
+	);
 
 	const [emailRes, prefsRes] = await Promise.all([
 		supabase
@@ -28,7 +47,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		emailConnected: !!emailRes.data,
 		emailAddress: emailRes.data?.email_address ?? null,
 		notificationPreferences: prefsRes.data ?? null,
-		isBuyer: locals.isBuyer === true
+		isBuyer: locals.isBuyer === true,
+		authEmail: authUser?.email ?? null,
+		// Pending change confirmation: Supabase stores the requested-but-unconfirmed
+		// new address on `new_email` until both old + new mailboxes confirm.
+		authPendingEmail: (authUser as { new_email?: string } | null)?.new_email ?? null,
+		authProviders
 	};
 };
 
