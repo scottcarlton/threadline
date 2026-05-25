@@ -304,6 +304,7 @@ export async function submitOrder(
 				po_number: poNumberValue,
 				notes: internalNoteValue,
 				rep_user_id: finalizeData?.rep_user_id ?? null,
+				channel: finalizeData?.channel ?? (locals.isBuyer ? 'web-buyer' : 'web-rep'),
 				source_type_id: selectedSourceName
 					? (sourceByOrgName.get(`${orderOrgId}::${selectedSourceName.toLowerCase()}`) ?? null)
 					: null,

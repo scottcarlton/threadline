@@ -59,6 +59,9 @@ export const brandAgreementSchema = z.object({
 
 export type BrandAgreement = z.infer<typeof brandAgreementSchema>;
 
+export const ORDER_CHANNELS = ['web-rep', 'web-buyer', 'email', 'whatsapp', 'sms'] as const;
+export type OrderChannel = (typeof ORDER_CHANNELS)[number];
+
 export const finalizeSchema = z
 	.object({
 		submit_mode: z.enum(['note', 'order']),
@@ -69,6 +72,7 @@ export const finalizeSchema = z
 		freeform_name: trimmedOptional(120, 'Freeform name'),
 		contact_location_id: uuidOrNull,
 		rep_user_id: z.string().uuid(),
+		channel: z.enum(ORDER_CHANNELS).optional(),
 		source_type_id: uuidOrNull,
 		show_date_id: uuidOrNull,
 

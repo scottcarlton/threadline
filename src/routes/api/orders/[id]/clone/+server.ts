@@ -36,6 +36,7 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 			order_year: source.order_year,
 			show_id: source.show_id,
 			show_date_id: source.show_date_id,
+			channel: source.channel,
 			source_type_id: source.source_type_id,
 			delivery_id: source.delivery_id,
 			expected_ship_date: source.expected_ship_date,
