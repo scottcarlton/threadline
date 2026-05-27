@@ -71,6 +71,26 @@
 
 	const comingSoon: { name: string; description: string; category: string }[] = [
 		{
+			name: 'WhatsApp',
+			description: 'Place and manage orders through WhatsApp messaging',
+			category: 'Messaging'
+		},
+		{
+			name: 'iMessage',
+			description: 'Place and manage orders through iMessage',
+			category: 'Messaging'
+		},
+		{
+			name: 'Google Calendar',
+			description: 'Sync appointments, market dates, and buyer meetings',
+			category: 'Scheduling'
+		},
+		{
+			name: 'Calendly',
+			description: 'Let buyers book appointments with your reps directly',
+			category: 'Scheduling'
+		},
+		{
 			name: 'QuickBooks',
 			description: 'Sync orders and commissions with your accounting software',
 			category: 'Accounting'
@@ -79,6 +99,16 @@
 			name: 'Xero',
 			description: 'Export invoices and track payments automatically',
 			category: 'Accounting'
+		},
+		{
+			name: 'DocuSign',
+			description: 'Send and sign rep agreements and buyer credit applications',
+			category: 'Documents'
+		},
+		{
+			name: 'HubSpot',
+			description: 'Sync accounts and contacts with your CRM',
+			category: 'CRM'
 		},
 		{
 			name: 'Zapier',
