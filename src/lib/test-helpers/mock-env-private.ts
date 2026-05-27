@@ -4,3 +4,7 @@ export const GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
 export const GOOGLE_REDIRECT_URI = 'http://localhost/auth/callback';
 export const ANTHROPIC_API_KEY = 'test-anthropic-key';
 export const ELEVENLABS_API_KEY = 'test-elevenlabs-key';
+export const TWILIO_ACCOUNT_SID = 'test-twilio-sid';
+export const TWILIO_AUTH_TOKEN = 'test-twilio-auth';
+export const TWILIO_CONVERSATIONS_SERVICE_SID = 'test-twilio-conversations-sid';
+export const TWILIO_MESSAGING_NUMBER = '+15555555555';
