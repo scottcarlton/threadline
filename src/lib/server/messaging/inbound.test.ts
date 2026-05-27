@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTwilioWebhook, verifyTwilioSignature } from './inbound.js';
+import { parseTwilioWebhook } from './inbound.js';
 
 describe('parseTwilioWebhook', () => {
 	it('parses a WhatsApp message', () => {
