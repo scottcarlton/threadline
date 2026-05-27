@@ -317,7 +317,7 @@
 									<option value={preset.value}>{preset.label}</option>
 								{/each}
 							</select>
-							<p class="text-sm text-muted-foreground">Scheduled triggers coming soon</p>
+							<p class="text-sm text-muted-foreground">Runs on this schedule automatically</p>
 						</div>
 					{/if}
 
