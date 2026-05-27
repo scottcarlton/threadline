@@ -4,6 +4,7 @@ import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { createAccountSchema } from '$lib/schemas/account';
 import { isPaymentMethodCode, isPaymentPreferenceCode } from '$lib/payment-methods';
+import { emitIntegrationEvent } from '$lib/server/integrations/events.js';
 
 type SuccessMessage = { type: 'success'; accountId: string; inviteFailed: boolean };
 
@@ -21,7 +22,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, locals, fetch }) => {
+	default: async ({ request, locals, fetch, url }) => {
 		const form = await superValidate(request, zod4(createAccountSchema));
 
 		if (!form.valid) {
@@ -117,6 +118,13 @@ export const actions: Actions = {
 				message: `Account created, but locations failed: ${locErr.message}`
 			});
 		}
+
+		emitIntegrationEvent(orgId, 'new_account', {
+			accountName: business.name,
+			city: business.address.city || undefined,
+			state: business.address.state || undefined,
+			url: `${url.origin}/accounts/${accountId}`
+		});
 
 		let inviteFailed = false;
 		if (contact.email) {

@@ -283,6 +283,16 @@ async function createAccount(
 		});
 	}
 
+	if (data?.id) {
+		const { emitIntegrationEvent } = await import('./integrations/events.js');
+		emitIntegrationEvent(ctx.organizationId, 'new_account', {
+			accountName: businessName,
+			city: (input.city as string) ?? undefined,
+			state: (input.state as string) ?? undefined,
+			url: `${ctx.origin}/accounts/${data.id}`
+		});
+	}
+
 	return { success: true, data };
 }
 
@@ -528,7 +538,8 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 				total_amount: totalForNotify,
 				brand_id: brand.id,
 				account_id: account.id,
-				created_by: createdBy
+				created_by: createdBy,
+				organization_id: ctx.organizationId
 			},
 			ctx.origin
 		);
@@ -572,13 +583,15 @@ async function notifyOrderSubmitted(
 		brand_id: string;
 		account_id: string | null;
 		created_by: string;
+		organization_id: string;
 	},
 	origin: string
 ): Promise<void> {
 	try {
-		const [emailMod, notifMod] = await Promise.all([
+		const [emailMod, notifMod, eventsMod] = await Promise.all([
 			import('./order-emails.js'),
-			import('./notifications.js')
+			import('./notifications.js'),
+			import('./integrations/events.js')
 		]);
 		await Promise.allSettled([
 			emailMod.sendOrderEmail('submitted', order, origin),
@@ -587,7 +600,8 @@ async function notifyOrderSubmitted(
 				title: 'New order submitted',
 				body: `Order ${order.order_number} has been submitted`,
 				link: `/orders/${order.id}`
-			})
+			}),
+			eventsMod.emitOrderEvent(order.organization_id, order.id, 'submitted', origin)
 		]);
 	} catch (err) {
 		console.error('[ai-tools] notifyOrderSubmitted failed', err);
@@ -693,7 +707,7 @@ async function updateOrderStatus(
 
 	// If we just transitioned to 'submitted', fire the same notifications the
 	// manual /orders/new flow fires. Best-effort. Mirrors that handler.
-	if (status === 'submitted' && data) {
+	if (data) {
 		const row = data as {
 			id: string;
 			order_number: string;
@@ -702,17 +716,32 @@ async function updateOrderStatus(
 			account_id: string | null;
 			created_by: string;
 		};
-		await notifyOrderSubmitted(
-			{
-				id: row.id,
-				order_number: row.order_number,
-				total_amount: Number(row.total_amount ?? 0),
-				brand_id: row.brand_id,
-				account_id: row.account_id,
-				created_by: row.created_by
-			},
-			ctx.origin
-		);
+
+		if (status === 'submitted') {
+			await notifyOrderSubmitted(
+				{
+					id: row.id,
+					order_number: row.order_number,
+					total_amount: Number(row.total_amount ?? 0),
+					brand_id: row.brand_id,
+					account_id: row.account_id,
+					created_by: row.created_by,
+					organization_id: ctx.organizationId
+				},
+				ctx.origin
+			);
+		}
+
+		if (status === 'confirmed' || status === 'shipped' || status === 'cancelled') {
+			const { emitOrderEvent } = await import('./integrations/events.js');
+			await emitOrderEvent(
+				ctx.organizationId,
+				row.id,
+				status as 'confirmed' | 'shipped' | 'cancelled',
+				ctx.origin,
+				status === 'cancelled' ? { reason: input.reason as string | undefined } : undefined
+			);
+		}
 	}
 
 	return {

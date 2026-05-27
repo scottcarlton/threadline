@@ -10,6 +10,7 @@ import {
 import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import { notifyBrandAdmins } from '$lib/server/notifications.js';
+import { emitOrderEvent } from '$lib/server/integrations/events.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isPaymentPreferenceCode } from '$lib/payment-methods';
 import { finalizeSchema, type FinalizeInput } from '$lib/schemas/order-finalize';
@@ -380,6 +381,7 @@ export async function submitOrder(
 				body: `Order ${orderRow.order_number} has been ${isConfirmed ? 'confirmed' : 'submitted'}`,
 				link: `/orders/${orderRow.id}`
 			});
+			emitOrderEvent(orderOrgId, orderRow.id, isConfirmed ? 'confirmed' : 'submitted', origin);
 		}
 
 		createdIds.push(orderRow.id);
