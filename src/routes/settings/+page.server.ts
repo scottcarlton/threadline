@@ -27,11 +27,24 @@ export const load: PageServerLoad = async ({ locals }) => {
 		)
 	);
 
-	const [emailRes, prefsRes] = await Promise.all([
+	const [emailRes, outlookRes, msCalendarRes, prefsRes] = await Promise.all([
 		supabase
 			.from('email_connections')
 			.select('email_address')
 			.eq('profile_id', user.id)
+			.eq('provider', 'gmail')
+			.maybeSingle(),
+		supabase
+			.from('email_connections')
+			.select('email_address')
+			.eq('profile_id', user.id)
+			.eq('provider', 'outlook')
+			.maybeSingle(),
+		supabase
+			.from('email_connections')
+			.select('email_address')
+			.eq('profile_id', user.id)
+			.eq('provider', 'microsoft_calendar')
 			.maybeSingle(),
 		organization
 			? supabase
@@ -46,6 +59,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		emailConnected: !!emailRes.data,
 		emailAddress: emailRes.data?.email_address ?? null,
+		outlookConnected: !!outlookRes.data,
+		outlookEmail: outlookRes.data?.email_address ?? null,
+		msCalendarConnected: !!msCalendarRes.data,
+		msCalendarEmail: msCalendarRes.data?.email_address ?? null,
 		notificationPreferences: prefsRes.data ?? null,
 		isBuyer: locals.isBuyer === true,
 		authEmail: authUser?.email ?? null,

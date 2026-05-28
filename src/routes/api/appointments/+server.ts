@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { deleteAppointmentFromMsCalendar } from '$lib/server/integrations/calendar-sync.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { session, organization, membership } = locals;
@@ -136,6 +137,14 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Missing appointment ID' }, { status: 400 });
 	}
 
+	// Fetch calendar event IDs before deleting
+	const { data: existing } = await locals.supabase
+		.from('appointments')
+		.select('ms_calendar_event_id')
+		.eq('id', id)
+		.eq('organization_id', organization.id)
+		.single();
+
 	const { error: deleteError } = await locals.supabase
 		.from('appointments')
 		.delete()
@@ -144,6 +153,10 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 
 	if (deleteError) {
 		return json({ error: deleteError.message }, { status: 500 });
+	}
+
+	if (existing?.ms_calendar_event_id) {
+		deleteAppointmentFromMsCalendar(session.user.id, existing.ms_calendar_event_id);
 	}
 
 	return json({ success: true });
