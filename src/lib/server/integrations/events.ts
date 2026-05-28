@@ -60,6 +60,77 @@ const EVENT_FORMATTERS: {
 	})
 };
 
+type OrderStatus = 'submitted' | 'confirmed' | 'shipped' | 'cancelled';
+
+const STATUS_TO_EVENT: Record<OrderStatus, IntegrationEvent> = {
+	submitted: 'order_submitted',
+	confirmed: 'order_confirmed',
+	shipped: 'order_shipped',
+	cancelled: 'order_cancelled'
+};
+
+export async function emitOrderEvent(
+	organizationId: string,
+	orderId: string,
+	status: OrderStatus,
+	origin: string,
+	opts?: { reason?: string }
+): Promise<void> {
+	try {
+		const { data } = await supabaseAdmin
+			.from('orders')
+			.select('order_number, total_amount, accounts(business_name), brands(name)')
+			.eq('id', orderId)
+			.single();
+		if (!data) return;
+
+		const account = data.accounts as
+			| { business_name?: string }
+			| { business_name?: string }[]
+			| null;
+		const brand = data.brands as { name?: string } | { name?: string }[] | null;
+		const accountName =
+			(Array.isArray(account) ? account[0]?.business_name : account?.business_name) ??
+			'Unknown account';
+		const brandName = (Array.isArray(brand) ? brand[0]?.name : brand?.name) ?? 'Unknown brand';
+		const url = `${origin}/orders/${orderId}`;
+		const orderNumber = (data as { order_number: string }).order_number;
+		const total = Number((data as { total_amount: number | null }).total_amount ?? 0);
+		const event = STATUS_TO_EVENT[status];
+
+		if (event === 'order_submitted') {
+			await emitIntegrationEvent(organizationId, 'order_submitted', {
+				orderNumber,
+				accountName,
+				brandName,
+				total,
+				url
+			});
+		} else if (event === 'order_confirmed') {
+			await emitIntegrationEvent(organizationId, 'order_confirmed', {
+				orderNumber,
+				accountName,
+				url
+			});
+		} else if (event === 'order_shipped') {
+			await emitIntegrationEvent(organizationId, 'order_shipped', {
+				orderNumber,
+				accountName,
+				url
+			});
+		} else if (event === 'order_cancelled') {
+			await emitIntegrationEvent(organizationId, 'order_cancelled', {
+				orderNumber,
+				accountName,
+				url,
+				reason: opts?.reason
+			});
+		}
+	} catch (err) {
+		console.error('[events] emitOrderEvent failed', { orderId, status, err });
+	}
+}
+
 export async function emitIntegrationEvent<E extends IntegrationEvent>(
 	organizationId: string,
 	event: E,

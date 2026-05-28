@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import type { OrderEmailEvent } from '$lib/server/order-emails.js';
 import { createNotification, notifyBrandAdmins } from '$lib/server/notifications.js';
+import { emitOrderEvent } from '$lib/server/integrations/events.js';
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 	draft: ['submitted'],
@@ -127,6 +128,18 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 			body: `Order ${order.order_number} is being prepared for shipment`,
 			link: orderLink
 		});
+	}
+
+	const emittable = ['submitted', 'confirmed', 'shipped', 'cancelled'] as const;
+	type Emittable = (typeof emittable)[number];
+	if (emittable.includes(newStatus as Emittable)) {
+		emitOrderEvent(
+			organization.id,
+			order.id,
+			newStatus as Emittable,
+			url.origin,
+			newStatus === 'cancelled' ? { reason: body.reason } : undefined
+		);
 	}
 
 	return json({ success: true, status: newStatus });
