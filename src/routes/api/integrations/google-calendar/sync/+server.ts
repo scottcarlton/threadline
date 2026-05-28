@@ -8,11 +8,13 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	if (!locals.membership || !['admin', 'owner'].includes(locals.membership.role)) {
-		return json({ error: 'Forbidden' }, { status: 403 });
+	const userId = locals.user.id;
+	const orgId = locals.organization?.id;
+
+	if (!orgId) {
+		return json({ error: 'No active organization' }, { status: 400 });
 	}
 
-	const orgId = locals.organization!.id;
 	const body = (await request.json()) as { type: 'appointments' | 'shows'; ids: string[] };
 
 	if (!body.type || !body.ids?.length) {
@@ -38,7 +40,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			const show = showDate?.shows as Record<string, unknown> | null;
 
 			try {
-				await createCalendarEvent(orgId, url.origin, {
+				await createCalendarEvent(userId, url.origin, {
 					summary: `${account?.business_name ?? 'Appointment'}`,
 					description: [show?.name ? `Show: ${show.name}` : null, a.notes as string | null]
 						.filter(Boolean)
@@ -74,7 +76,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			const show = s.shows as Record<string, unknown> | null;
 
 			try {
-				await createCalendarEvent(orgId, url.origin, {
+				await createCalendarEvent(userId, url.origin, {
 					summary: (show?.name as string) ?? 'Market',
 					location: [s.venue, s.city, s.state].filter(Boolean).join(', ') || undefined,
 					startDate: s.start_date as string,
@@ -85,25 +87,6 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 				errors++;
 			}
 		}
-	}
-
-	// Log the sync
-	const { data: conn } = await supabaseAdmin
-		.from('integration_connections')
-		.select('id')
-		.eq('organization_id', orgId)
-		.eq('provider', 'google_calendar')
-		.single();
-
-	if (conn) {
-		await supabaseAdmin.from('integration_sync_log').insert({
-			organization_id: orgId,
-			connection_id: conn.id,
-			action: `sync_${body.type}`,
-			status: errors > 0 ? 'partial' : 'success',
-			details: { synced, errors, type: body.type },
-			triggered_by: locals.user.id
-		});
 	}
 
 	return json({ synced, errors });

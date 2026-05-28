@@ -7,15 +7,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
 	}
 
-	if (!locals.membership || !['admin', 'owner'].includes(locals.membership.role)) {
-		return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
-	}
-
-	const state = JSON.stringify({
-		userId: locals.user.id,
-		orgId: locals.organization!.id
-	});
-
+	const state = locals.user.id;
 	const authUrl = getAuthUrl(url.origin, state);
 	throw redirect(302, authUrl);
 };

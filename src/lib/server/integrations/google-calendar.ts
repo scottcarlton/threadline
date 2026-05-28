@@ -55,19 +55,18 @@ async function getAuthenticatedClient(connection: IntegrationConnection, origin:
 			updateData.token_expires_at = new Date(tokens.expiry_date).toISOString();
 		if (tokens.refresh_token) updateData.refresh_token = tokens.refresh_token;
 
-		await supabaseAdmin.from('integration_connections').update(updateData).eq('id', connection.id);
+		await supabaseAdmin.from('email_connections').update(updateData).eq('id', connection.id);
 	});
 
 	return client;
 }
 
-export async function getCalendarClient(organizationId: string, origin: string) {
+export async function getCalendarClient(profileId: string, origin: string) {
 	const { data: connection } = await supabaseAdmin
-		.from('integration_connections')
+		.from('email_connections')
 		.select('*')
-		.eq('organization_id', organizationId)
+		.eq('profile_id', profileId)
 		.eq('provider', 'google_calendar')
-		.eq('status', 'active')
 		.single();
 
 	if (!connection) return null;
@@ -91,11 +90,11 @@ export type CalendarEventInput = {
 };
 
 export async function createCalendarEvent(
-	organizationId: string,
+	profileId: string,
 	origin: string,
 	event: CalendarEventInput
 ): Promise<string | null> {
-	const client = await getCalendarClient(organizationId, origin);
+	const client = await getCalendarClient(profileId, origin);
 	if (!client) return null;
 
 	let start: { date: string } | { dateTime: string; timeZone: string };
@@ -144,11 +143,11 @@ export async function createCalendarEvent(
 }
 
 export async function deleteCalendarEvent(
-	organizationId: string,
+	profileId: string,
 	origin: string,
 	eventId: string
 ): Promise<boolean> {
-	const client = await getCalendarClient(organizationId, origin);
+	const client = await getCalendarClient(profileId, origin);
 	if (!client) return false;
 
 	await client.calendar.events.delete({
@@ -160,12 +159,12 @@ export async function deleteCalendarEvent(
 }
 
 export async function listCalendarEvents(
-	organizationId: string,
+	profileId: string,
 	origin: string,
 	timeMin: string,
 	timeMax: string
 ) {
-	const client = await getCalendarClient(organizationId, origin);
+	const client = await getCalendarClient(profileId, origin);
 	if (!client) return null;
 
 	const response = await client.calendar.events.list({

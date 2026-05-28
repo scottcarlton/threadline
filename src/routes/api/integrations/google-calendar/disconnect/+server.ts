@@ -7,14 +7,10 @@ export const POST: RequestHandler = async ({ locals }) => {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	if (!locals.membership || !['admin', 'owner'].includes(locals.membership.role)) {
-		return json({ error: 'Forbidden' }, { status: 403 });
-	}
-
 	await supabaseAdmin
-		.from('integration_connections')
+		.from('email_connections')
 		.delete()
-		.eq('organization_id', locals.organization!.id)
+		.eq('profile_id', locals.user.id)
 		.eq('provider', 'google_calendar');
 
 	return json({ success: true });

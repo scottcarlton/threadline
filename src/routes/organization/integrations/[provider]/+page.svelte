@@ -38,8 +38,7 @@
 		google_sheets: 'Google Sheets',
 		slack: 'Slack',
 		notion: 'Notion',
-		microsoft: 'Microsoft 365',
-		google_calendar: 'Google Calendar'
+		microsoft: 'Microsoft 365'
 	};
 
 	const dataTypes: { value: ExportDataType; label: string }[] = [
@@ -473,19 +472,6 @@
 						<p class="text-sm text-red-800">{msExportError}</p>
 					</div>
 				{/if}
-			</CardContent>
-		</Card>
-	{/if}
-
-	<!-- Google Calendar -->
-	{#if provider === 'google_calendar'}
-		<Card>
-			<CardContent class="p-6">
-				<h3 class="text-base font-semibold">Automatic sync</h3>
-				<p class="mt-1 text-sm text-muted-foreground">
-					Appointments and market dates are automatically synced to your Google Calendar when
-					created or updated.
-				</p>
 			</CardContent>
 		</Card>
 	{/if}

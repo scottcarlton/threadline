@@ -29,7 +29,7 @@ type ShowDateData = {
  * the caller and swallows errors so calendar outages don't break appointment CRUD.
  */
 export function syncAppointmentToCalendar(
-	organizationId: string,
+	userId: string,
 	origin: string,
 	appointment: AppointmentData
 ): void {
@@ -37,7 +37,7 @@ export function syncAppointmentToCalendar(
 	const startDate = appointment.scheduled_date;
 
 	doSync(async () => {
-		const eventId = await createCalendarEvent(organizationId, origin, {
+		const eventId = await createCalendarEvent(userId, origin, {
 			summary: appointment.accountName ?? 'Appointment',
 			description:
 				[appointment.showName ? `Show: ${appointment.showName}` : null, appointment.notes]
@@ -65,25 +65,25 @@ export function syncAppointmentToCalendar(
  * Delete an appointment's Google Calendar event. Fire-and-forget.
  */
 export function deleteAppointmentFromCalendar(
-	organizationId: string,
+	userId: string,
 	origin: string,
 	googleCalendarEventId: string
 ): void {
-	doSync(() => deleteCalendarEvent(organizationId, origin, googleCalendarEventId));
+	doSync(() => deleteCalendarEvent(userId, origin, googleCalendarEventId));
 }
 
 /**
  * Sync a show date to Google Calendar as an all-day event. Fire-and-forget.
  */
 export function syncShowDateToCalendar(
-	organizationId: string,
+	userId: string,
 	origin: string,
 	showDate: ShowDateData
 ): void {
 	if (!showDate.start_date) return;
 
 	doSync(async () => {
-		const eventId = await createCalendarEvent(organizationId, origin, {
+		const eventId = await createCalendarEvent(userId, origin, {
 			summary: showDate.showName ?? 'Market',
 			location:
 				[showDate.venue, showDate.city, showDate.state].filter(Boolean).join(', ') || undefined,

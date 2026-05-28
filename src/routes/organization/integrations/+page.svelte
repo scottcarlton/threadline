@@ -66,14 +66,6 @@
 			category: 'E-commerce',
 			connectUrl: null,
 			icon: 'shopify'
-		},
-		{
-			provider: 'google_calendar',
-			name: 'Google Calendar',
-			description: 'Sync appointments, market dates, and buyer meetings',
-			category: 'Scheduling',
-			connectUrl: '/api/integrations/google-calendar/connect',
-			icon: 'calendar'
 		}
 	];
 

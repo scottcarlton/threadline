@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-const VALID_PROVIDERS = ['google_sheets', 'slack', 'notion', 'microsoft', 'google_calendar'];
+const VALID_PROVIDERS = ['google_sheets', 'slack', 'notion', 'microsoft'];
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const provider = params.provider;

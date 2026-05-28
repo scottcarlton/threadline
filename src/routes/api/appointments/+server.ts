@@ -95,7 +95,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		}
 
-		syncAppointmentToCalendar(organization.id, request.url, {
+		syncAppointmentToCalendar(session.user.id, request.url, {
 			id: appointment.id,
 			scheduled_date: scheduled_date ?? null,
 			scheduled_time: scheduled_time ?? null,
@@ -206,7 +206,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 	}
 
 	if (existing?.google_calendar_event_id) {
-		deleteAppointmentFromCalendar(organization.id, request.url, existing.google_calendar_event_id);
+		deleteAppointmentFromCalendar(session.user.id, request.url, existing.google_calendar_event_id);
 	}
 
 	return json({ success: true });
