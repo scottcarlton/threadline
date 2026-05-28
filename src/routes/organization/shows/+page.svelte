@@ -100,20 +100,31 @@
 		dateError = '';
 		dateLoading = true;
 
-		const { error: err } = await supabase.from('show_dates').insert({
-			show_id: addingDateForShowId,
-			organization_id: data.organization?.id,
-			year: newDateYear,
-			month: newDateMonth,
-			venue: newDateVenue || null,
-			city: newDateCity || null,
-			state: newDateState || null
-		});
+		const { data: inserted, error: err } = await supabase
+			.from('show_dates')
+			.insert({
+				show_id: addingDateForShowId,
+				organization_id: data.organization?.id,
+				year: newDateYear,
+				month: newDateMonth,
+				venue: newDateVenue || null,
+				city: newDateCity || null,
+				state: newDateState || null
+			})
+			.select('id')
+			.single();
 
 		dateLoading = false;
 		if (err) {
 			dateError = err.message;
 		} else {
+			if (inserted?.id) {
+				fetch('/api/integrations/google-calendar/sync', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ type: 'shows', ids: [inserted.id] })
+				}).catch(() => {});
+			}
 			addingDateForShowId = null;
 			invalidateAll();
 		}
@@ -265,19 +276,30 @@
 		if (!drawerShow) return;
 		dDateError = '';
 		dDateLoading = true;
-		const { error: err } = await supabase.from('show_dates').insert({
-			show_id: drawerShow.id,
-			organization_id: data.organization?.id,
-			year: dNewYear,
-			month: dNewMonth,
-			venue: dNewVenue || null,
-			city: dNewCity || null,
-			state: dNewState || null
-		});
+		const { data: inserted, error: err } = await supabase
+			.from('show_dates')
+			.insert({
+				show_id: drawerShow.id,
+				organization_id: data.organization?.id,
+				year: dNewYear,
+				month: dNewMonth,
+				venue: dNewVenue || null,
+				city: dNewCity || null,
+				state: dNewState || null
+			})
+			.select('id')
+			.single();
 		dDateLoading = false;
 		if (err) {
 			dDateError = err.message;
 		} else {
+			if (inserted?.id) {
+				fetch('/api/integrations/google-calendar/sync', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ type: 'shows', ids: [inserted.id] })
+				}).catch(() => {});
+			}
 			dAddingDate = false;
 			dNewMonth = 1;
 			dNewYear = new Date().getFullYear();

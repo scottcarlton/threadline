@@ -126,13 +126,27 @@
 	});
 
 	const emailJustConnected = $derived($page.url.searchParams.get('email_connected') === 'true');
+	const calendarJustConnected = $derived(
+		$page.url.searchParams.get('calendar_connected') === 'true'
+	);
 	const outlookJustConnected = $derived($page.url.searchParams.get('outlook_connected') === 'true');
 	const msCalendarJustConnected = $derived(
 		$page.url.searchParams.get('ms_calendar_connected') === 'true'
 	);
 
+	let disconnectingCalendar = $state(false);
 	let disconnectingOutlook = $state(false);
 	let disconnectingMsCalendar = $state(false);
+
+	async function handleDisconnectCalendar() {
+		disconnectingCalendar = true;
+		try {
+			const res = await fetch('/api/integrations/google-calendar/disconnect', { method: 'POST' });
+			if (res.ok) await invalidateAll();
+		} finally {
+			disconnectingCalendar = false;
+		}
+	}
 
 	async function handleDisconnectOutlook() {
 		disconnectingOutlook = true;
@@ -475,6 +489,74 @@
 							/>
 						</svg>
 						Connect Microsoft Calendar
+					</Button>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
+	<!-- Connected Calendar -->
+	{#if !isBrandScoped && !data.isBuyer}
+		<div class="border-b pb-8">
+			<h3 class="text-[14px] font-semibold">Connected Calendar</h3>
+			<p class="mt-1 text-[13px] text-muted-foreground">
+				Connect your Google Calendar to auto-sync appointments and market dates
+			</p>
+
+			{#if calendarJustConnected}
+				<div
+					class="mt-4 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+						/>
+					</svg>
+					Google Calendar connected successfully!
+				</div>
+			{/if}
+
+			<div class="mt-4">
+				{#if data.calendarConnected}
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<span class="flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+							<div>
+								<p class="text-sm font-medium">{data.calendarEmail}</p>
+								<p class="text-[13px] text-muted-foreground">Google Calendar connected</p>
+							</div>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={handleDisconnectCalendar}
+							loading={disconnectingCalendar}
+						>
+							Disconnect
+						</Button>
+					</div>
+				{:else}
+					<Button href="/api/integrations/google-calendar/connect" class="w-full sm:w-auto">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4"
+							viewBox="0 0 24 24"
+							fill="currentColor"
+						>
+							<path
+								d="M9 1V3H15V1H17V3H21C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H7V1H9ZM20 11H4V19H20V11ZM7 5H4V9H20V5H17V7H15V5H9V7H7V5Z"
+							/>
+						</svg>
+						Connect Google Calendar
 					</Button>
 				{/if}
 			</div>
