@@ -34,11 +34,6 @@
 	let msExportError = $state('');
 	let msDataType = $state<ExportDataType>('orders');
 
-	// Google Calendar state
-	let calSyncType = $state<'appointments' | 'shows'>('appointments');
-	let calSyncing = $state(false);
-	let calSyncResult = $state<{ synced: number; errors: number } | null>(null);
-
 	const providerNames: Record<string, string> = {
 		google_sheets: 'Google Sheets',
 		slack: 'Slack',
@@ -140,34 +135,6 @@
 			msExportError = 'Export failed. Please try again.';
 		} finally {
 			msExporting = false;
-		}
-	}
-
-	async function syncToCalendar() {
-		calSyncing = true;
-		calSyncResult = null;
-		try {
-			const items = calSyncType === 'appointments' ? data.appointments : data.showDates;
-			const ids = (items as Array<{ id: string }>).map((i) => i.id);
-
-			if (ids.length === 0) {
-				calSyncResult = { synced: 0, errors: 0 };
-				return;
-			}
-
-			const res = await fetch('/api/integrations/google-calendar/sync', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ type: calSyncType, ids })
-			});
-			const body = await res.json();
-			if (!res.ok) throw new Error(body.error ?? 'Sync failed');
-			calSyncResult = body;
-			await invalidateAll();
-		} catch {
-			calSyncResult = { synced: 0, errors: 1 };
-		} finally {
-			calSyncing = false;
 		}
 	}
 
@@ -510,41 +477,15 @@
 		</Card>
 	{/if}
 
-	<!-- Google Calendar sync -->
+	<!-- Google Calendar -->
 	{#if provider === 'google_calendar'}
 		<Card>
 			<CardContent class="p-6">
-				<h3 class="text-base font-semibold">Sync to Google Calendar</h3>
+				<h3 class="text-base font-semibold">Automatic sync</h3>
 				<p class="mt-1 text-sm text-muted-foreground">
-					Push your appointments or market dates to your connected Google Calendar.
+					Appointments and market dates are automatically synced to your Google Calendar when
+					created or updated.
 				</p>
-
-				<div class="mt-4 flex items-center gap-3">
-					<label class="text-sm font-medium">Sync</label>
-					<select
-						class="rounded-md border bg-background px-3 py-1.5 text-sm"
-						bind:value={calSyncType}
-					>
-						<option value="appointments"
-							>Appointments ({(data.appointments as unknown[])?.length ?? 0})</option
-						>
-						<option value="shows"
-							>Upcoming Shows ({(data.showDates as unknown[])?.length ?? 0})</option
-						>
-					</select>
-					<Button variant="outline" size="sm" onclick={syncToCalendar} disabled={calSyncing}>
-						{calSyncing ? 'Syncing...' : 'Sync now'}
-					</Button>
-				</div>
-
-				{#if calSyncResult}
-					<p class="mt-3 text-sm text-muted-foreground">
-						{calSyncResult.synced} event{calSyncResult.synced !== 1 ? 's' : ''} synced
-						{#if calSyncResult.errors > 0}
-							, {calSyncResult.errors} failed
-						{/if}
-					</p>
-				{/if}
 			</CardContent>
 		</Card>
 	{/if}
