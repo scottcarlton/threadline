@@ -318,6 +318,14 @@ url = ""
 # Required for local sign in with Google auth.
 skip_nonce_check = true
 
+[auth.external.azure]
+enabled = true
+client_id = "env(MICROSOFT_CLIENT_ID)"
+secret = "env(MICROSOFT_CLIENT_SECRET)"
+redirect_uri = "http://localhost:54321/auth/v1/callback"
+url = "https://login.microsoftonline.com/common"
+skip_nonce_check = false
+
 [auth.external.apple]
 enabled = false
 client_id = ""
