@@ -86,26 +86,37 @@
 		dateError = '';
 		dateLoading = true;
 
-		const { error: err } = await supabase.from('show_dates').insert({
-			show_id: show.id,
-			organization_id: data.organization?.id,
-			year: newYear,
-			month: newMonth,
-			venue: newVenue || null,
-			city: newCity || null,
-			state: newState || null,
-			start_date: newStartDate || null,
-			end_date: newEndDate || null,
-			contact_name: newContactName || null,
-			contact_email: newContactEmail || null,
-			contact_phone: newContactPhone || null,
-			notes: newDateNotes || null
-		});
+		const { data: inserted, error: err } = await supabase
+			.from('show_dates')
+			.insert({
+				show_id: show.id,
+				organization_id: data.organization?.id,
+				year: newYear,
+				month: newMonth,
+				venue: newVenue || null,
+				city: newCity || null,
+				state: newState || null,
+				start_date: newStartDate || null,
+				end_date: newEndDate || null,
+				contact_name: newContactName || null,
+				contact_email: newContactEmail || null,
+				contact_phone: newContactPhone || null,
+				notes: newDateNotes || null
+			})
+			.select('id')
+			.single();
 
 		dateLoading = false;
 		if (err) {
 			dateError = err.message;
 		} else {
+			if (inserted?.id) {
+				fetch('/api/integrations/google-calendar/sync', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ type: 'shows', ids: [inserted.id] })
+				}).catch(() => {});
+			}
 			addingDate = false;
 			resetDateForm();
 			invalidateAll();
