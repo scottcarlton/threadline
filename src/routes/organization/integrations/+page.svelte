@@ -81,16 +81,6 @@
 			category: 'Messaging'
 		},
 		{
-			name: 'Google Calendar',
-			description: 'Sync appointments, market dates, and buyer meetings',
-			category: 'Scheduling'
-		},
-		{
-			name: 'Calendly',
-			description: 'Let buyers book appointments with your reps directly',
-			category: 'Scheduling'
-		},
-		{
 			name: 'QuickBooks',
 			description: 'Sync orders and commissions with your accounting software',
 			category: 'Accounting'
