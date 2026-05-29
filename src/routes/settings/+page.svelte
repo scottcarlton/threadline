@@ -289,9 +289,7 @@
 	{#if !isBrandScoped && !data.isBuyer}
 		<div class="border-b pb-8">
 			<h3 class="text-[14px] font-semibold">Connected Email</h3>
-			<p class="mt-1 text-[13px] text-muted-foreground">
-				Connect your Gmail to send and receive emails from Threadline
-			</p>
+			<p class="mt-1 text-sm text-muted-foreground">Send and receive emails from Threadline</p>
 
 			{#if emailJustConnected}
 				<div
@@ -315,54 +313,6 @@
 				</div>
 			{/if}
 
-			<div class="mt-4">
-				{#if data.emailConnected}
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-3">
-							<span class="flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-							<div>
-								<p class="text-sm font-medium">{data.emailAddress}</p>
-								<p class="text-[13px] text-muted-foreground">Gmail connected</p>
-							</div>
-						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={handleDisconnectEmail}
-							loading={disconnecting}
-						>
-							Disconnect
-						</Button>
-					</div>
-				{:else}
-					<Button href="/api/email/connect" class="w-full sm:w-auto">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
-							/>
-						</svg>
-						Connect Gmail
-					</Button>
-				{/if}
-			</div>
-		</div>
-
-		<!-- Connected Outlook Email -->
-		<div class="border-b pb-8">
-			<h3 class="text-[14px] font-semibold">Connected Outlook Email</h3>
-			<p class="mt-1 text-[13px] text-muted-foreground">
-				Connect your Outlook to send and receive emails from Threadline
-			</p>
-
 			{#if outlookJustConnected}
 				<div
 					class="mt-4 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400"
@@ -385,14 +335,54 @@
 				</div>
 			{/if}
 
-			<div class="mt-4">
+			<div class="mt-4 space-y-3">
+				<!-- Gmail -->
+				{#if data.emailConnected}
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<span class="flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+							<div>
+								<p class="text-sm font-medium">{data.emailAddress}</p>
+								<p class="text-sm text-muted-foreground">Gmail</p>
+							</div>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={handleDisconnectEmail}
+							loading={disconnecting}
+						>
+							Disconnect
+						</Button>
+					</div>
+				{:else}
+					<Button href="/api/email/connect" variant="outline" class="w-full sm:w-auto">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+							/>
+						</svg>
+						Connect Gmail
+					</Button>
+				{/if}
+
+				<!-- Outlook -->
 				{#if data.outlookConnected}
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-3">
 							<span class="flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
 							<div>
 								<p class="text-sm font-medium">{data.outlookEmail}</p>
-								<p class="text-[13px] text-muted-foreground">Outlook connected</p>
+								<p class="text-sm text-muted-foreground">Outlook</p>
 							</div>
 						</div>
 						<Button
@@ -405,7 +395,7 @@
 						</Button>
 					</div>
 				{:else}
-					<Button href="/api/email-outlook/connect" class="w-full sm:w-auto">
+					<Button href="/api/email-outlook/connect" variant="outline" class="w-full sm:w-auto">
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							class="h-4 w-4"
@@ -425,83 +415,13 @@
 				{/if}
 			</div>
 		</div>
-
-		<!-- Connected Microsoft Calendar -->
-		<div class="border-b pb-8">
-			<h3 class="text-[14px] font-semibold">Connected Microsoft Calendar</h3>
-			<p class="mt-1 text-[13px] text-muted-foreground">
-				Connect your Microsoft Calendar to auto-sync appointments and market dates
-			</p>
-
-			{#if msCalendarJustConnected}
-				<div
-					class="mt-4 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-						/>
-					</svg>
-					Microsoft Calendar connected successfully!
-				</div>
-			{/if}
-
-			<div class="mt-4">
-				{#if data.msCalendarConnected}
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-3">
-							<span class="flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-							<div>
-								<p class="text-sm font-medium">{data.msCalendarEmail}</p>
-								<p class="text-[13px] text-muted-foreground">Microsoft Calendar connected</p>
-							</div>
-						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={handleDisconnectMsCalendar}
-							loading={disconnectingMsCalendar}
-						>
-							Disconnect
-						</Button>
-					</div>
-				{:else}
-					<Button href="/api/integrations/microsoft-calendar/connect" class="w-full sm:w-auto">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path
-								d="M9 1V3H15V1H17V3H21C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H7V1H9ZM20 11H4V19H20V11ZM7 5H4V9H20V5H17V7H15V5H9V7H7V5Z"
-							/>
-						</svg>
-						Connect Microsoft Calendar
-					</Button>
-				{/if}
-			</div>
-		</div>
 	{/if}
 
 	<!-- Connected Calendar -->
 	{#if !isBrandScoped && !data.isBuyer}
 		<div class="border-b pb-8">
 			<h3 class="text-[14px] font-semibold">Connected Calendar</h3>
-			<p class="mt-1 text-[13px] text-muted-foreground">
-				Connect your Google Calendar to auto-sync appointments and market dates
-			</p>
+			<p class="mt-1 text-sm text-muted-foreground">Auto-sync appointments and market dates</p>
 
 			{#if calendarJustConnected}
 				<div
@@ -525,14 +445,37 @@
 				</div>
 			{/if}
 
-			<div class="mt-4">
+			{#if msCalendarJustConnected}
+				<div
+					class="mt-4 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+						/>
+					</svg>
+					Microsoft Calendar connected successfully!
+				</div>
+			{/if}
+
+			<div class="mt-4 space-y-3">
+				<!-- Google Calendar -->
 				{#if data.calendarConnected}
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-3">
 							<span class="flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
 							<div>
 								<p class="text-sm font-medium">{data.calendarEmail}</p>
-								<p class="text-[13px] text-muted-foreground">Google Calendar connected</p>
+								<p class="text-sm text-muted-foreground">Google Calendar</p>
 							</div>
 						</div>
 						<Button
@@ -545,7 +488,11 @@
 						</Button>
 					</div>
 				{:else}
-					<Button href="/api/integrations/google-calendar/connect" class="w-full sm:w-auto">
+					<Button
+						href="/api/integrations/google-calendar/connect"
+						variant="outline"
+						class="w-full sm:w-auto"
+					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							class="h-4 w-4"
@@ -557,6 +504,45 @@
 							/>
 						</svg>
 						Connect Google Calendar
+					</Button>
+				{/if}
+
+				<!-- Microsoft Calendar -->
+				{#if data.msCalendarConnected}
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<span class="flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+							<div>
+								<p class="text-sm font-medium">{data.msCalendarEmail}</p>
+								<p class="text-sm text-muted-foreground">Microsoft Calendar</p>
+							</div>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={handleDisconnectMsCalendar}
+							loading={disconnectingMsCalendar}
+						>
+							Disconnect
+						</Button>
+					</div>
+				{:else}
+					<Button
+						href="/api/integrations/microsoft-calendar/connect"
+						variant="outline"
+						class="w-full sm:w-auto"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4"
+							viewBox="0 0 24 24"
+							fill="currentColor"
+						>
+							<path
+								d="M9 1V3H15V1H17V3H21C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H7V1H9ZM20 11H4V19H20V11ZM7 5H4V9H20V5H17V7H15V5H9V7H7V5Z"
+							/>
+						</svg>
+						Connect Microsoft Calendar
 					</Button>
 				{/if}
 			</div>
