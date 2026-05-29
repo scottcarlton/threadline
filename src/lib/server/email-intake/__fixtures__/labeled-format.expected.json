@@ -1,0 +1,36 @@
+{
+	"description": "Fully labeled email with explicit Account/Brand/Ship window headers and notes. Happy path — all entities should resolve.",
+	"tags": ["happy-path", "labeled-format"],
+
+	"parser": {
+		"account_name": "Bloom Boutique",
+		"brand_name": "Monarch Haze",
+		"org_hint": null,
+		"item_count": 2,
+		"has_ship_window": true
+	},
+
+	"resolver": {
+		"kind": "resolved",
+		"expected_account_name": "Bloom Boutique",
+		"expected_brand_name": "Monarch Haze",
+		"expected_account_confidence_min": 0.8,
+		"lines": [
+			{
+				"expected_product_name": "Kailua Bubble Gauze Cotton Shirt",
+				"expected_confidence_min": 0.7,
+				"expected_sizes_with_variants": ["XS", "S", "L", "XL"]
+			},
+			{
+				"expected_product_name": "Catya Blouse",
+				"expected_confidence_min": 0.7,
+				"expected_sizes_with_variants": ["S", "L", "XL", "XXL"]
+			}
+		]
+	},
+
+	"outcome": {
+		"status": "submitted",
+		"expected_reason_codes": []
+	}
+}
