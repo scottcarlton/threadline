@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../../app.css';
+	import { resolve } from '$app/paths';
 	let { children } = $props();
 </script>
 
@@ -37,9 +38,9 @@
 		</div>
 		<p class="pb-6 text-center text-sm text-muted-foreground">
 			By signing in you agree to our
-			<a href="/legal/terms" class="underline hover:text-foreground">Terms of Service</a>
+			<a href={resolve('/legal/terms')} class="underline hover:text-foreground">Terms of Service</a>
 			&amp;
-			<a href="/legal/privacy" class="underline hover:text-foreground">Privacy Policy</a>
+			<a href={resolve('/legal/privacy')} class="underline hover:text-foreground">Privacy Policy</a>
 		</p>
 	</div>
 </div>
