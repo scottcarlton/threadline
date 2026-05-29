@@ -1,0 +1,31 @@
+{
+	"description": "Order with explicit Org: hint for multi-org disambiguation. Uses month-name date format.",
+	"tags": ["org-hint-required", "happy-path"],
+
+	"parser": {
+		"account_name": "Bloom Boutique",
+		"brand_name": null,
+		"org_hint": "Monarch Haze Showroom",
+		"item_count": 1,
+		"has_ship_window": true
+	},
+
+	"resolver": {
+		"kind": "resolved",
+		"expected_account_name": "Bloom Boutique",
+		"expected_brand_name": "Monarch Haze",
+		"expected_account_confidence_min": 0.8,
+		"lines": [
+			{
+				"expected_product_name": "Kailua Bubble Gauze Cotton Shirt",
+				"expected_confidence_min": 0.7,
+				"expected_sizes_with_variants": ["XS", "S"]
+			}
+		]
+	},
+
+	"outcome": {
+		"status": "submitted",
+		"expected_reason_codes": []
+	}
+}
