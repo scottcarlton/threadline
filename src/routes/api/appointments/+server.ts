@@ -3,7 +3,8 @@ import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import {
 	syncAppointmentToCalendar,
-	deleteAppointmentFromCalendar
+	deleteAppointmentFromCalendar,
+	deleteAppointmentFromMsCalendar
 } from '$lib/server/integrations/calendar-sync.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -187,10 +188,9 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Missing appointment ID' }, { status: 400 });
 	}
 
-	// Check for Google Calendar event to delete
 	const { data: existing } = await locals.supabase
 		.from('appointments')
-		.select('google_calendar_event_id')
+		.select('google_calendar_event_id, ms_calendar_event_id')
 		.eq('id', id)
 		.eq('organization_id', organization.id)
 		.single();
@@ -207,6 +207,9 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 
 	if (existing?.google_calendar_event_id) {
 		deleteAppointmentFromCalendar(session.user.id, request.url, existing.google_calendar_event_id);
+	}
+	if (existing?.ms_calendar_event_id) {
+		deleteAppointmentFromMsCalendar(session.user.id, existing.ms_calendar_event_id);
 	}
 
 	return json({ success: true });

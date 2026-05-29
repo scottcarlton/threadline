@@ -1,0 +1,36 @@
+{
+	"description": "Order with no ship window and no brand. Brand should resolve if org has a single brand; ship dates will be null.",
+	"tags": ["partial-ship-window", "implicit-brand"],
+
+	"parser": {
+		"account_name": "Riverside Boutique",
+		"brand_name": null,
+		"org_hint": null,
+		"item_count": 2,
+		"has_ship_window": false
+	},
+
+	"resolver": {
+		"kind": "resolved",
+		"expected_account_name": "Riverside Boutique",
+		"expected_brand_name": "Monarch Haze",
+		"expected_account_confidence_min": 0.8,
+		"lines": [
+			{
+				"expected_product_name": "Silk Wrap Dress",
+				"expected_confidence_min": 0.7,
+				"expected_sizes_with_variants": ["S", "M", "L"]
+			},
+			{
+				"expected_product_name": "Linen Palazzo Pants",
+				"expected_confidence_min": 0.7,
+				"expected_sizes_with_variants": ["S", "M", "L", "XL"]
+			}
+		]
+	},
+
+	"outcome": {
+		"status": "submitted",
+		"expected_reason_codes": []
+	}
+}
