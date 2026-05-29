@@ -31,7 +31,7 @@
 					>
 					<a
 						class="rounded-lg bg-foreground px-5 py-2.5 text-sm text-primary-foreground"
-						href={resolve(isBeta ? '/beta' : '/signup')}>Join Beta</a
+						href={resolve(isBeta ? '/beta' : '/login')}>Join Beta</a
 					>
 				{/if}
 			</div>

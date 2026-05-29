@@ -16,8 +16,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const { user: authUser } = await locals.safeGetSession();
-	// `identities[].provider` is the canonical list of linked providers.
-	// `app_metadata.provider` reflects the *current* session's provider.
 	const authProviders = Array.from(
 		new Set(
 			[
@@ -27,11 +25,30 @@ export const load: PageServerLoad = async ({ locals }) => {
 		)
 	);
 
-	const [emailRes, prefsRes] = await Promise.all([
+	const [emailRes, calendarRes, outlookRes, msCalendarRes, prefsRes] = await Promise.all([
 		supabase
 			.from('email_connections')
 			.select('email_address')
 			.eq('profile_id', user.id)
+			.eq('provider', 'gmail')
+			.maybeSingle(),
+		supabase
+			.from('email_connections')
+			.select('email_address')
+			.eq('profile_id', user.id)
+			.eq('provider', 'google_calendar')
+			.maybeSingle(),
+		supabase
+			.from('email_connections')
+			.select('email_address')
+			.eq('profile_id', user.id)
+			.eq('provider', 'outlook')
+			.maybeSingle(),
+		supabase
+			.from('email_connections')
+			.select('email_address')
+			.eq('profile_id', user.id)
+			.eq('provider', 'microsoft_calendar')
 			.maybeSingle(),
 		organization
 			? supabase
@@ -46,11 +63,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		emailConnected: !!emailRes.data,
 		emailAddress: emailRes.data?.email_address ?? null,
+		calendarConnected: !!calendarRes.data,
+		calendarEmail: calendarRes.data?.email_address ?? null,
+		outlookConnected: !!outlookRes.data,
+		outlookEmail: outlookRes.data?.email_address ?? null,
+		msCalendarConnected: !!msCalendarRes.data,
+		msCalendarEmail: msCalendarRes.data?.email_address ?? null,
 		notificationPreferences: prefsRes.data ?? null,
 		isBuyer: locals.isBuyer === true,
 		authEmail: authUser?.email ?? null,
-		// Pending change confirmation: Supabase stores the requested-but-unconfirmed
-		// new address on `new_email` until both old + new mailboxes confirm.
 		authPendingEmail: (authUser as { new_email?: string } | null)?.new_email ?? null,
 		authProviders
 	};

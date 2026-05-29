@@ -1,0 +1,36 @@
+{
+	"description": "Order with space-separated ship dates (7/1 7/31) and explicit brand. Tests a different org (Indigo Coast).",
+	"tags": ["happy-path", "space-separated-dates"],
+
+	"parser": {
+		"account_name": "The Style Bar",
+		"brand_name": "Indigo Coast",
+		"org_hint": null,
+		"item_count": 2,
+		"has_ship_window": true
+	},
+
+	"resolver": {
+		"kind": "resolved",
+		"expected_account_name": "The Style Bar",
+		"expected_brand_name": "Indigo Coast",
+		"expected_account_confidence_min": 0.8,
+		"lines": [
+			{
+				"expected_product_name": "Summer Breeze Top",
+				"expected_confidence_min": 0.7,
+				"expected_sizes_with_variants": ["XS", "S", "M", "L"]
+			},
+			{
+				"expected_product_name": "Ocean Wave Skirt",
+				"expected_confidence_min": 0.7,
+				"expected_sizes_with_variants": ["S", "M", "L"]
+			}
+		]
+	},
+
+	"outcome": {
+		"status": "submitted",
+		"expected_reason_codes": []
+	}
+}

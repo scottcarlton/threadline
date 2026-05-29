@@ -48,7 +48,6 @@ Sentry.init({
 
 const PUBLIC_ROUTES = [
 	'/login',
-	'/signup',
 	'/invite',
 	'/buyer-invite',
 	'/connect',
@@ -105,14 +104,6 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 	const isPublicRoute = PUBLIC_ROUTES.some((r) => event.url.pathname.startsWith(r));
 
-	// On beta, redirect /signup to /beta
-	if (
-		event.url.hostname === 'beta.threadline.systems' &&
-		event.url.pathname.startsWith('/signup')
-	) {
-		throw redirect(303, '/beta');
-	}
-
 	// Beta whitelist gate: reject users not on the whitelist
 	if (session && user && !isPublicRoute) {
 		const whitelisted = await isEmailWhitelisted(user.email ?? '');
@@ -127,11 +118,8 @@ const authHandle: Handle = async ({ event, resolve }) => {
 		throw redirect(303, '/login');
 	}
 
-	// Redirect authenticated users away from login/signup
-	if (
-		session &&
-		(event.url.pathname.startsWith('/login') || event.url.pathname.startsWith('/signup'))
-	) {
+	// Redirect authenticated users away from login
+	if (session && event.url.pathname.startsWith('/login')) {
 		throw redirect(303, isSystemAdminEmail(user?.email) ? '/system' : '/insight');
 	}
 

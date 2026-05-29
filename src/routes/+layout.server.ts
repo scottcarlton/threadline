@@ -1,6 +1,7 @@
 import type { LayoutServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import type { CartItem } from '$lib/stores/cart.js';
+import { resolveQueryScope } from '$lib/server/queries/scope.js';
 
 export const load: LayoutServerLoad = async ({ locals, depends }) => {
 	// Root layout load only reads from `locals` — without a dependency, SvelteKit
@@ -9,6 +10,10 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 	// null on public routes like /connect/[code]). Invalidate via `app:auth`.
 	depends('app:auth');
 	depends('data:cart');
+
+	if (!locals.queryScope) {
+		locals.queryScope = await resolveQueryScope(locals);
+	}
 
 	let agents: { id: string; name: string; slug: string; description: string | null }[] = [];
 
