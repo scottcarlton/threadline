@@ -145,17 +145,22 @@
 	}
 </script>
 
-<h2 class="mb-6 text-center text-xl font-semibold">
+<div class="mb-6 text-center">
+	<h2 class="text-xl font-semibold">
+		{#if mode === 'choose'}
+			Welcome to Threadline
+		{:else if mode === 'otp-email'}
+			Enter your email
+		{:else if mode === 'otp-verify'}
+			Enter the code sent to {email}
+		{:else if mode === 'sso-redirect'}
+			Redirecting to your identity provider...
+		{/if}
+	</h2>
 	{#if mode === 'choose'}
-		Sign in to Threadline
-	{:else if mode === 'otp-email'}
-		Enter your email
-	{:else if mode === 'otp-verify'}
-		Enter the code sent to {email}
-	{:else if mode === 'sso-redirect'}
-		Redirecting to your identity provider...
+		<p class="mt-1 text-sm text-muted-foreground">Sign in or create a Threadline account</p>
 	{/if}
-</h2>
+</div>
 
 <div>
 	{#if urlErrorMessage}
