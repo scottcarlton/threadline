@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -12,6 +11,7 @@
 	let ssoEmail = $state('');
 	let error = $state('');
 	let loading = $state(false);
+	let showOtherMethods = $state(false);
 	let mode = $state<'choose' | 'otp-email' | 'otp-verify' | 'sso-email' | 'sso-redirect'>('choose');
 
 	import { page } from '$app/stores';
@@ -46,18 +46,29 @@
 			}
 		});
 		loading = false;
-		if (err) {
-			error = err.message;
-		}
+		if (err) error = err.message;
+	}
+
+	async function signInWithMicrosoft() {
+		error = '';
+		loading = true;
+		const { error: err } = await supabase.auth.signInWithOAuth({
+			provider: 'azure',
+			options: {
+				redirectTo: `${window.location.origin}/auth/callback`,
+				scopes: 'email profile openid'
+			}
+		});
+		loading = false;
+		if (err) error = err.message;
 	}
 
 	async function sendOtp() {
 		error = '';
 		loading = true;
-
 		const { error: err } = await supabase.auth.signInWithOtp({
 			email,
-			options: { shouldCreateUser: false }
+			options: { shouldCreateUser: true }
 		});
 		loading = false;
 		if (err) {
@@ -104,7 +115,6 @@
 				return;
 			}
 
-			// Redirect to SSO
 			mode = 'sso-redirect';
 			const { data: ssoData, error: ssoError } = await supabase.auth.signInWithSSO({
 				domain: data.domain,
@@ -129,6 +139,7 @@
 
 	function reset() {
 		mode = 'choose';
+		showOtherMethods = false;
 		otpCode = '';
 		error = '';
 	}
@@ -136,7 +147,7 @@
 
 <h2 class="mb-6 text-center text-xl font-semibold">
 	{#if mode === 'choose'}
-		Log in to Threadline
+		Sign in to Threadline
 	{:else if mode === 'otp-email'}
 		Enter your email
 	{:else if mode === 'otp-verify'}
@@ -167,13 +178,41 @@
 				Continue with Google
 			</Button>
 
-			<Button size="lg" variant="outline" onclick={() => (mode = 'otp-email')} class="w-full">
-				Continue with Email
-			</Button>
+			{#if showOtherMethods}
+				<Button
+					size="lg"
+					variant="outline"
+					onclick={signInWithMicrosoft}
+					disabled={loading}
+					class="w-full"
+				>
+					Continue with Microsoft
+				</Button>
 
-			<Button size="lg" variant="outline" onclick={() => (mode = 'sso-email')} class="w-full">
-				Sign in with SSO
-			</Button>
+				<Button size="lg" variant="outline" onclick={() => (mode = 'otp-email')} class="w-full">
+					Continue with Email
+				</Button>
+
+				<Button size="lg" variant="outline" onclick={() => (mode = 'sso-email')} class="w-full">
+					Sign in with SSO
+				</Button>
+
+				<button
+					type="button"
+					class="mt-1 text-sm text-muted-foreground hover:text-foreground"
+					onclick={() => (showOtherMethods = false)}
+				>
+					Fewer options
+				</button>
+			{:else}
+				<button
+					type="button"
+					class="mt-1 text-sm text-muted-foreground hover:text-foreground"
+					onclick={() => (showOtherMethods = true)}
+				>
+					Show other sign-in options
+				</button>
+			{/if}
 		</div>
 	{:else if mode === 'otp-email'}
 		<form
@@ -249,7 +288,7 @@
 					bind:value={ssoEmail}
 					required
 				/>
-				<p class="text-xs text-muted-foreground">
+				<p class="text-sm text-muted-foreground">
 					Enter your work email to be redirected to your company's sign-in page
 				</p>
 			</div>
@@ -277,13 +316,14 @@
 	{/if}
 </div>
 
-<div class="mt-6 flex flex-col items-center gap-2 text-sm">
-	{#if mode !== 'choose'}
-		<button type="button" class="text-muted-foreground hover:text-foreground" onclick={reset}>
+{#if mode !== 'choose'}
+	<div class="mt-6 text-center">
+		<button
+			type="button"
+			class="text-sm text-muted-foreground hover:text-foreground"
+			onclick={reset}
+		>
 			Back
 		</button>
-	{/if}
-	<a href={resolve('/signup')} class="text-muted-foreground hover:text-foreground">
-		Don't have an account? Sign up
-	</a>
-</div>
+	</div>
+{/if}
