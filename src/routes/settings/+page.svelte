@@ -335,7 +335,7 @@
 				</div>
 			{/if}
 
-			<div class="mt-4 space-y-6">
+			<div class="mt-4 flex gap-4">
 				<!-- Gmail -->
 				{#if data.emailConnected}
 					<div class="flex items-center justify-between">
@@ -576,7 +576,7 @@
 				</div>
 			{/if}
 
-			<div class="mt-4 space-y-6">
+			<div class="mt-4 flex gap-4">
 				<!-- Google Calendar -->
 				{#if data.calendarConnected}
 					<div class="flex items-center justify-between">
