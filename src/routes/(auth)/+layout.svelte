@@ -22,16 +22,24 @@
 	</div>
 
 	<!-- Right: Auth form -->
-	<div class="flex w-full items-center justify-center px-6 lg:w-1/2">
-		<div class="w-full max-w-sm">
-			<div class="mb-10 text-center">
-				<div
-					class="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-none bg-primary text-lg font-light text-primary-foreground italic"
-				>
-					/
+	<div class="flex w-full flex-col px-6 lg:w-1/2">
+		<div class="flex flex-1 items-center justify-center">
+			<div class="w-full max-w-sm">
+				<div class="mb-10 text-center">
+					<div
+						class="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-none bg-primary text-lg font-light text-primary-foreground italic"
+					>
+						/
+					</div>
 				</div>
+				{@render children()}
 			</div>
-			{@render children()}
 		</div>
+		<p class="pb-6 text-center text-sm text-muted-foreground">
+			By signing in you agree to our
+			<a href="/legal/terms" class="underline hover:text-foreground">Terms of Service</a>
+			&amp;
+			<a href="/legal/privacy" class="underline hover:text-foreground">Privacy Policy</a>
+		</p>
 	</div>
 </div>

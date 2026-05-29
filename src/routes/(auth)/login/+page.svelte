@@ -316,8 +316,8 @@
 	{/if}
 </div>
 
-<div class="mt-6 flex flex-col items-center gap-2">
-	{#if mode !== 'choose'}
+{#if mode !== 'choose'}
+	<div class="mt-6 text-center">
 		<button
 			type="button"
 			class="text-sm text-muted-foreground hover:text-foreground"
@@ -325,11 +325,5 @@
 		>
 			Back
 		</button>
-	{/if}
-	<p class="text-sm text-muted-foreground">
-		By signing in you agree to our
-		<a href="/legal/terms" class="underline hover:text-foreground">Terms of Service</a>
-		&amp;
-		<a href="/legal/privacy" class="underline hover:text-foreground">Privacy Policy</a>
-	</p>
-</div>
+	</div>
+{/if}
