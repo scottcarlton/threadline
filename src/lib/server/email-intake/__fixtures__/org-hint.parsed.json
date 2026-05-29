@@ -1,0 +1,21 @@
+{
+	"account_name": "Bloom Boutique",
+	"brand_name": null,
+	"org_hint": "Monarch Haze Showroom",
+	"ship_window": {
+		"start": "May 20",
+		"end": "June 20"
+	},
+	"notes": null,
+	"items": [
+		{
+			"raw_text": "Kailua Bubble Gauze Cotton Shirt: 2 XS, 3 S",
+			"product_name": "Kailua Bubble Gauze Cotton Shirt",
+			"color": null,
+			"sizes": [
+				{ "size": "XS", "qty": 2 },
+				{ "size": "S", "qty": 3 }
+			]
+		}
+	]
+}
