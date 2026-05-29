@@ -176,7 +176,6 @@
 	const isAuthRoute = $derived(
 		$page.url.pathname === '/' ||
 			$page.url.pathname.startsWith('/login') ||
-			$page.url.pathname.startsWith('/signup') ||
 			$page.url.pathname.startsWith('/invite') ||
 			$page.url.pathname.startsWith('/buyer-invite') ||
 			$page.url.pathname.startsWith('/connect') ||
