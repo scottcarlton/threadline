@@ -19,7 +19,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 					const allowed = await isEmailWhitelisted(whitelistUser.email);
 					if (!allowed) {
 						await supabase.auth.signOut();
-						throw redirect(303, '/signup?error=not_whitelisted');
+						throw redirect(303, '/login?error=beta_not_whitelisted');
 					}
 				}
 			}
