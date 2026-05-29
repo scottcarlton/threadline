@@ -253,8 +253,6 @@
 				/>
 				{#if isGoogleManaged}
 					<p class="text-[13px] text-muted-foreground">Managed by Google.</p>
-				{:else if isSsoManaged}
-					<p class="text-[13px] text-muted-foreground">Managed by your identity provider.</p>
 				{:else if data.authPendingEmail}
 					<p class="text-[13px] text-amber-600 dark:text-amber-500">
 						Pending: <span class="font-medium">{data.authPendingEmail}</span> — confirm in both inboxes.
