@@ -1,4 +1,4 @@
-import { CALENDLY_CLIENT_ID, CALENDLY_CLIENT_SECRET } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { supabaseAdmin } from '../supabase.js';
 
 const REDIRECT_URI = '/api/integrations/calendly/callback';
@@ -7,7 +7,7 @@ const API_BASE = 'https://api.calendly.com';
 
 export function getCalendlyAuthUrl(origin: string, state: string): string {
 	const params = new URLSearchParams({
-		client_id: CALENDLY_CLIENT_ID,
+		client_id: env.CALENDLY_CLIENT_ID!,
 		response_type: 'code',
 		redirect_uri: `${origin}${REDIRECT_URI}`,
 		state
@@ -30,8 +30,8 @@ export async function exchangeCalendlyCode(
 		method: 'POST',
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 		body: new URLSearchParams({
-			client_id: CALENDLY_CLIENT_ID,
-			client_secret: CALENDLY_CLIENT_SECRET,
+			client_id: env.CALENDLY_CLIENT_ID!,
+			client_secret: env.CALENDLY_CLIENT_SECRET!,
 			code,
 			redirect_uri: `${origin}${REDIRECT_URI}`,
 			grant_type: 'authorization_code'
@@ -89,8 +89,8 @@ async function refreshCalendlyToken(
 		method: 'POST',
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 		body: new URLSearchParams({
-			client_id: CALENDLY_CLIENT_ID,
-			client_secret: CALENDLY_CLIENT_SECRET,
+			client_id: env.CALENDLY_CLIENT_ID!,
+			client_secret: env.CALENDLY_CLIENT_SECRET!,
 			refresh_token: refreshToken,
 			grant_type: 'refresh_token'
 		})
