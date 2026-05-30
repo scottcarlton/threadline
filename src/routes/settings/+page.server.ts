@@ -28,9 +28,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [connectionsRes, prefsRes] = await Promise.all([
 		supabase
 			.from('email_connections')
-			.select('provider, email_address')
+			.select('provider, email_address, scheduling_url')
 			.eq('profile_id', user.id)
-			.in('provider', ['gmail', 'google_calendar', 'outlook', 'microsoft_calendar']),
+			.in('provider', ['gmail', 'google_calendar', 'outlook', 'microsoft_calendar', 'calendly']),
 		organization
 			? supabase
 					.from('notification_preferences')
@@ -41,19 +41,22 @@ export const load: PageServerLoad = async ({ locals }) => {
 			: Promise.resolve({ data: null })
 	]);
 
-	const connByProvider = new Map(
-		(connectionsRes.data ?? []).map((c) => [c.provider, c.email_address])
-	);
+	type ConnectionRow = { provider: string; email_address: string | null; scheduling_url?: string };
+	const connections = (connectionsRes.data ?? []) as ConnectionRow[];
+	const connByProvider = new Map(connections.map((c) => [c.provider, c]));
 
 	return {
 		emailConnected: connByProvider.has('gmail'),
-		emailAddress: connByProvider.get('gmail') ?? null,
+		emailAddress: connByProvider.get('gmail')?.email_address ?? null,
 		calendarConnected: connByProvider.has('google_calendar'),
-		calendarEmail: connByProvider.get('google_calendar') ?? null,
+		calendarEmail: connByProvider.get('google_calendar')?.email_address ?? null,
 		outlookConnected: connByProvider.has('outlook'),
-		outlookEmail: connByProvider.get('outlook') ?? null,
+		outlookEmail: connByProvider.get('outlook')?.email_address ?? null,
 		msCalendarConnected: connByProvider.has('microsoft_calendar'),
-		msCalendarEmail: connByProvider.get('microsoft_calendar') ?? null,
+		msCalendarEmail: connByProvider.get('microsoft_calendar')?.email_address ?? null,
+		calendlyConnected: connByProvider.has('calendly'),
+		calendlyEmail: connByProvider.get('calendly')?.email_address ?? null,
+		calendlySchedulingUrl: connByProvider.get('calendly')?.scheduling_url ?? null,
 		notificationPreferences: prefsRes.data ?? null,
 		isBuyer: locals.isBuyer === true,
 		authEmail: authUser?.email ?? null,

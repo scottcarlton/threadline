@@ -11,7 +11,7 @@
 		{ "id": "acct-bloom", "organization_id": "org-mh", "business_name": "Bloom Boutique" },
 		{ "id": "acct-riverside", "organization_id": "org-mh", "business_name": "Riverside Boutique" },
 		{ "id": "acct-stylebar", "organization_id": "org-ic", "business_name": "The Style Bar" },
-		{ "id": "acct-blooms", "organization_id": "org-mh", "business_name": "Bloom's Garden Shop" }
+		{ "id": "acct-blooms", "organization_id": "org-mh", "business_name": "Bloom Brothers" }
 	],
 	"brands": [
 		{ "id": "brand-mh", "organization_id": "org-mh", "name": "Monarch Haze", "is_active": true },

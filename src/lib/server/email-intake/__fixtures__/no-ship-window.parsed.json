@@ -1,0 +1,30 @@
+{
+	"account_name": "Riverside Boutique",
+	"brand_name": null,
+	"org_hint": null,
+	"ship_window": null,
+	"notes": null,
+	"items": [
+		{
+			"raw_text": "Silk Wrap Dress: 1 S, 2 M, 1 L",
+			"product_name": "Silk Wrap Dress",
+			"color": null,
+			"sizes": [
+				{ "size": "S", "qty": 1 },
+				{ "size": "M", "qty": 2 },
+				{ "size": "L", "qty": 1 }
+			]
+		},
+		{
+			"raw_text": "Linen Palazzo Pants: 3 S, 2 M, 2 L, 1 XL",
+			"product_name": "Linen Palazzo Pants",
+			"color": null,
+			"sizes": [
+				{ "size": "S", "qty": 3 },
+				{ "size": "M", "qty": 2 },
+				{ "size": "L", "qty": 2 },
+				{ "size": "XL", "qty": 1 }
+			]
+		}
+	]
+}
