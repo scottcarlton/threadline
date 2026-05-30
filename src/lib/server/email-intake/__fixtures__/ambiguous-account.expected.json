@@ -1,5 +1,5 @@
 {
-	"description": "Account name 'Bloom' is ambiguous — matches both 'Bloom Boutique' and 'Bloom's Garden Shop' in the seed. Trigram scores should be close, triggering ambiguity delta. Needs review.",
+	"description": "Account name 'Bloom' is ambiguous — matches both 'Bloom Boutique' and 'Bloom Brothers' in the seed. Trigram scores are identical, triggering ambiguity delta. Needs review.",
 	"tags": ["ambiguous-account"],
 
 	"parser": {
