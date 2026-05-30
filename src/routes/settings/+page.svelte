@@ -133,10 +133,14 @@
 	const msCalendarJustConnected = $derived(
 		$page.url.searchParams.get('ms_calendar_connected') === 'true'
 	);
+	const calendlyJustConnected = $derived(
+		$page.url.searchParams.get('calendly_connected') === 'true'
+	);
 
 	let disconnectingCalendar = $state(false);
 	let disconnectingOutlook = $state(false);
 	let disconnectingMsCalendar = $state(false);
+	let disconnectingCalendly = $state(false);
 
 	async function handleDisconnectCalendar() {
 		disconnectingCalendar = true;
@@ -167,6 +171,16 @@
 			if (res.ok) await invalidateAll();
 		} finally {
 			disconnectingMsCalendar = false;
+		}
+	}
+
+	async function handleDisconnectCalendly() {
+		disconnectingCalendly = true;
+		try {
+			const res = await fetch('/api/integrations/calendly/disconnect', { method: 'POST' });
+			if (res.ok) await invalidateAll();
+		} finally {
+			disconnectingCalendly = false;
 		}
 	}
 
@@ -574,6 +588,28 @@
 				</div>
 			{/if}
 
+			{#if calendlyJustConnected}
+				<div
+					class="mt-4 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+						/>
+					</svg>
+					Calendly connected successfully!
+				</div>
+			{/if}
+
 			<div class="mt-4 flex gap-4">
 				<!-- Google Calendar -->
 				{#if data.calendarConnected}
@@ -771,6 +807,53 @@
 							/>
 						</svg>
 						Microsoft Calendar
+					</Button>
+				{/if}
+
+				<!-- Calendly -->
+				{#if data.calendlyConnected}
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<span class="flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+							<div>
+								<p class="text-sm font-medium">{data.calendlyEmail}</p>
+								<p class="text-sm text-muted-foreground">Calendly</p>
+							</div>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={handleDisconnectCalendly}
+							loading={disconnectingCalendly}
+						>
+							Disconnect
+						</Button>
+					</div>
+				{:else}
+					<Button
+						href="/api/integrations/calendly/connect"
+						variant="outline"
+						class="w-full sm:w-auto sm:min-w-[200px]"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 525.8 535.73">
+							<path
+								d="M360.4,347.4c-17,15.09-38.21,33.87-76.78,33.87h-23c-27.88,0-53.23-10.12-71.37-28.49-17.72-17.94-27.48-42.5-27.48-69.16V252.11c0-26.66,9.76-51.22,27.48-69.16,18.14-18.37,43.49-28.49,71.37-28.49h23c38.57,0,59.76,18.78,76.78,33.87,17.65,15.65,32.9,29.16,73.52,29.16a116.05,116.05,0,0,0,18.5-1.48c0-.12-.08-.23-.13-.35a139.23,139.23,0,0,0-8.55-17.55l-27.16-47.05A139.53,139.53,0,0,0,295.76,81.3H241.43a139.53,139.53,0,0,0-120.82,69.76L93.45,198.11a139.52,139.52,0,0,0,0,139.51l27.16,47.05a139.52,139.52,0,0,0,120.82,69.75h54.33a139.52,139.52,0,0,0,120.82-69.75l27.16-47.05a139.23,139.23,0,0,0,8.55-17.55c0-.12.09-.23.13-.35a116.05,116.05,0,0,0-18.5-1.48C393.3,318.24,378.05,331.75,360.4,347.4Z"
+								fill="#006bff"
+							/>
+							<path
+								d="M283.62,183h-23c-42.42,0-70.3,30.3-70.3,69.09v31.51c0,38.79,27.88,69.09,70.3,69.09h23c61.82,0,57-63,150.3-63a144.19,144.19,0,0,1,26.37,2.41,139.36,139.36,0,0,0,0-48.46,143.32,143.32,0,0,1-26.37,2.42C340.59,246.05,345.44,183,283.62,183Z"
+								fill="#006bff"
+							/>
+							<path
+								d="M513.91,315.13a130.21,130.21,0,0,0-53.62-23c0,.16-.05.32-.08.47a138.46,138.46,0,0,1-7.79,27.16A102.15,102.15,0,0,1,496.75,338c0,.14-.08.28-.13.43A237.8,237.8,0,0,1,463.33,406a240.67,240.67,0,0,1-52,53.48A239.3,239.3,0,0,1,98.65,98.65a239.43,239.43,0,0,1,398,98.69c.05.15.09.29.13.43A102.15,102.15,0,0,1,452.42,216a139.36,139.36,0,0,1,7.8,27.18c0,.15,0,.3.07.44a129.94,129.94,0,0,0,53.62-23c15.29-11.31,12.33-24.09,10-31.65C490.22,79.52,388.33,0,267.86,0,119.93,0,0,119.93,0,267.86S119.93,535.73,267.86,535.73c120.47,0,222.36-79.52,256-188.94C526.24,339.23,529.2,326.45,513.91,315.13Z"
+								fill="#006bff"
+							/>
+							<path
+								d="M452.42,216a116.05,116.05,0,0,1-18.5,1.48c-40.62,0-55.87-13.51-73.52-29.16-17-15.09-38.21-33.87-76.78-33.87h-23c-27.88,0-53.23,10.12-71.37,28.49-17.72,17.94-27.48,42.5-27.48,69.16v31.51c0,26.66,9.76,51.22,27.48,69.16,18.14,18.37,43.49,28.49,71.37,28.49h23c38.57,0,59.76-18.78,76.78-33.87,17.65-15.65,32.9-29.16,73.52-29.16a116.05,116.05,0,0,1,18.5,1.48,138.46,138.46,0,0,0,7.79-27.16c0-.15.06-.31.08-.47a144.19,144.19,0,0,0-26.37-2.41c-93.33,0-88.48,63-150.3,63h-23c-42.42,0-70.3-30.3-70.3-69.09V252.11c0-38.79,27.88-69.09,70.3-69.09h23c61.82,0,57,63,150.3,63a143.32,143.32,0,0,0,26.37-2.42c0-.14,0-.29-.07-.44A139.36,139.36,0,0,0,452.42,216Z"
+								fill="#0ae9ef"
+							/>
+						</svg>
+						Calendly
 					</Button>
 				{/if}
 			</div>
