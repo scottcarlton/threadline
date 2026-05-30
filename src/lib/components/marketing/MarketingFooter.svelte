@@ -8,12 +8,12 @@
 			<img src="/logos/mark_dark.svg" alt="Threadline" class="h-6 w-6" />
 		</div>
 
-		<p class="max-w-sm text-sm leading-relaxed text-muted-foreground">
+		<p class="max-w-sm font-mono text-sm leading-relaxed text-muted-foreground">
 			An agentic first systems company helping brands and multi-brand sales representatives find
 			gaps and turn signals into sales.
 		</p>
 
-		<div class="mt-14 flex items-center gap-6 text-sm text-muted-foreground">
+		<div class="mt-14 flex items-center gap-6 font-mono text-sm text-muted-foreground">
 			<a
 				href="https://www.linkedin.com/company/usethreadline/"
 				target="_blank"
@@ -34,7 +34,9 @@
 			>
 		</div>
 
-		<div class="mt-14 flex flex-wrap items-center gap-4 text-sm text-muted-foreground sm:gap-8">
+		<div
+			class="mt-14 flex flex-wrap items-center gap-4 font-mono text-sm text-muted-foreground sm:gap-8"
+		>
 			<span>&copy;2026 Threadline Systems</span>
 			<a href={resolve('/legal/terms')} class="transition-colors hover:text-foreground"
 				>Terms of Use</a

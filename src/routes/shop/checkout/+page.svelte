@@ -327,7 +327,8 @@
 			account_id: data.accountId,
 			contact_location_id: defaultLocation?.id ?? null,
 			rep_user_id: data.currentUser?.id ?? data.userId ?? '',
-			source_type_id: data.portalSourceTypeId,
+			channel: 'web-buyer' as const,
+			source_type_id: null,
 			show_date_id: null,
 			orders: orderGroups.map((g) => ({
 				brand_id: g.brandId,

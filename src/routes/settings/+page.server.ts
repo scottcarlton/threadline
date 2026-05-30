@@ -16,8 +16,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const { user: authUser } = await locals.safeGetSession();
-	// `identities[].provider` is the canonical list of linked providers.
-	// `app_metadata.provider` reflects the *current* session's provider.
 	const authProviders = Array.from(
 		new Set(
 			[
@@ -27,30 +25,64 @@ export const load: PageServerLoad = async ({ locals }) => {
 		)
 	);
 
-	const [emailRes, prefsRes] = await Promise.all([
-		supabase
-			.from('email_connections')
-			.select('email_address')
-			.eq('profile_id', user.id)
-			.maybeSingle(),
-		organization
-			? supabase
-					.from('notification_preferences')
-					.select('*')
-					.eq('user_id', user.id)
-					.eq('organization_id', organization.id)
-					.maybeSingle()
-			: Promise.resolve({ data: null })
-	]);
+	const [emailRes, calendarRes, outlookRes, msCalendarRes, calendlyRes, prefsRes] =
+		await Promise.all([
+			supabase
+				.from('email_connections')
+				.select('email_address')
+				.eq('profile_id', user.id)
+				.eq('provider', 'gmail')
+				.maybeSingle(),
+			supabase
+				.from('email_connections')
+				.select('email_address')
+				.eq('profile_id', user.id)
+				.eq('provider', 'google_calendar')
+				.maybeSingle(),
+			supabase
+				.from('email_connections')
+				.select('email_address')
+				.eq('profile_id', user.id)
+				.eq('provider', 'outlook')
+				.maybeSingle(),
+			supabase
+				.from('email_connections')
+				.select('email_address')
+				.eq('profile_id', user.id)
+				.eq('provider', 'microsoft_calendar')
+				.maybeSingle(),
+			supabase
+				.from('email_connections')
+				.select('email_address, scheduling_url')
+				.eq('profile_id', user.id)
+				.eq('provider', 'calendly')
+				.maybeSingle(),
+			organization
+				? supabase
+						.from('notification_preferences')
+						.select('*')
+						.eq('user_id', user.id)
+						.eq('organization_id', organization.id)
+						.maybeSingle()
+				: Promise.resolve({ data: null })
+		]);
 
 	return {
 		emailConnected: !!emailRes.data,
 		emailAddress: emailRes.data?.email_address ?? null,
+		calendarConnected: !!calendarRes.data,
+		calendarEmail: calendarRes.data?.email_address ?? null,
+		outlookConnected: !!outlookRes.data,
+		outlookEmail: outlookRes.data?.email_address ?? null,
+		msCalendarConnected: !!msCalendarRes.data,
+		msCalendarEmail: msCalendarRes.data?.email_address ?? null,
+		calendlyConnected: !!calendlyRes.data,
+		calendlyEmail: calendlyRes.data?.email_address ?? null,
+		calendlySchedulingUrl:
+			(calendlyRes.data as { scheduling_url?: string } | null)?.scheduling_url ?? null,
 		notificationPreferences: prefsRes.data ?? null,
 		isBuyer: locals.isBuyer === true,
 		authEmail: authUser?.email ?? null,
-		// Pending change confirmation: Supabase stores the requested-but-unconfirmed
-		// new address on `new_email` until both old + new mailboxes confirm.
 		authPendingEmail: (authUser as { new_email?: string } | null)?.new_email ?? null,
 		authProviders
 	};

@@ -2,6 +2,7 @@ export type UserRole = 'admin' | 'owner' | 'member' | 'sales' | 'guest';
 export type OrgType = 'rep' | 'brand';
 export type IntegrationProvider =
 	| 'google_sheets'
+	| 'google_calendar'
 	| 'slack'
 	| 'notion'
 	| 'microsoft'

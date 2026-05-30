@@ -1,0 +1,30 @@
+{
+	"account_name": "Bloom Boutique",
+	"brand_name": "Monarch Haze",
+	"org_hint": null,
+	"ship_window": {
+		"start": "7/1",
+		"end": "7/31"
+	},
+	"notes": null,
+	"items": [
+		{
+			"raw_text": "Kailua Bubble Gauze Cotton Shirt: 2 S, 1 3XL",
+			"product_name": "Kailua Bubble Gauze Cotton Shirt",
+			"color": null,
+			"sizes": [
+				{ "size": "S", "qty": 2 },
+				{ "size": "3XL", "qty": 1 }
+			]
+		},
+		{
+			"raw_text": "Catya Blouse - Monarch Haze: 1 S, 2 XXXL",
+			"product_name": "Catya Blouse",
+			"color": "Monarch Haze",
+			"sizes": [
+				{ "size": "S", "qty": 1 },
+				{ "size": "XXXL", "qty": 2 }
+			]
+		}
+	]
+}

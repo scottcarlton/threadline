@@ -71,6 +71,16 @@
 
 	const comingSoon: { name: string; description: string; category: string }[] = [
 		{
+			name: 'WhatsApp',
+			description: 'Place and manage orders through WhatsApp messaging',
+			category: 'Messaging'
+		},
+		{
+			name: 'iMessage',
+			description: 'Place and manage orders through iMessage',
+			category: 'Messaging'
+		},
+		{
 			name: 'QuickBooks',
 			description: 'Sync orders and commissions with your accounting software',
 			category: 'Accounting'
@@ -79,6 +89,16 @@
 			name: 'Xero',
 			description: 'Export invoices and track payments automatically',
 			category: 'Accounting'
+		},
+		{
+			name: 'DocuSign',
+			description: 'Send and sign rep agreements and buyer credit applications',
+			category: 'Documents'
+		},
+		{
+			name: 'HubSpot',
+			description: 'Sync accounts and contacts with your CRM',
+			category: 'CRM'
 		},
 		{
 			name: 'Zapier',
@@ -279,6 +299,17 @@
 								<path
 									d="M22.277 87.46V26.327c0-2.723 1.167-4.083 3.693-4.277l61.333-3.5c2.333-.193 3.5 1.36 3.5 4.083v60.74c0 2.723-.39 5.053-3.887 5.247l-58.807 3.5c-3.5.193-5.833-1.167-5.833-4.66zm59.357-56.66c.39 1.75 0 3.5-1.75 3.697l-2.917.583v44.333c-2.527 1.36-4.857 2.14-6.797 2.14-3.11 0-3.887-.973-6.217-3.887l-19.03-29.94v28.967l6.02 1.363s0 3.5-4.857 3.5l-13.39.777c-.39-.78 0-2.723 1.36-3.11l3.497-.943V38.503l-4.857-.39c-.39-1.75.583-4.277 3.307-4.473l14.357-.97 19.803 30.327V35.197l-5.053-.583c-.39-2.143 1.167-3.7 3.113-3.89l14.36-.923z"
 									fill="currentColor"
+								/>
+							</svg>
+						{:else if integration.icon === 'calendar'}
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-7 w-7 text-blue-600"
+								viewBox="0 0 24 24"
+								fill="currentColor"
+							>
+								<path
+									d="M9 1V3H15V1H17V3H21C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H7V1H9ZM20 11H4V19H20V11ZM7 5H4V9H20V5H17V7H15V5H9V7H7V5Z"
 								/>
 							</svg>
 						{:else if integration.icon === 'shopify'}

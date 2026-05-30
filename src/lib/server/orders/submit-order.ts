@@ -10,6 +10,7 @@ import {
 import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import { notifyBrandAdmins } from '$lib/server/notifications.js';
+import { emitOrderEvent } from '$lib/server/integrations/events.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isPaymentPreferenceCode } from '$lib/payment-methods';
 import { finalizeSchema, type FinalizeInput } from '$lib/schemas/order-finalize';
@@ -304,6 +305,7 @@ export async function submitOrder(
 				po_number: poNumberValue,
 				notes: internalNoteValue,
 				rep_user_id: finalizeData?.rep_user_id ?? null,
+				channel: finalizeData?.channel ?? (locals.isBuyer ? 'web-buyer' : 'web-rep'),
 				source_type_id: selectedSourceName
 					? (sourceByOrgName.get(`${orderOrgId}::${selectedSourceName.toLowerCase()}`) ?? null)
 					: null,
@@ -379,6 +381,7 @@ export async function submitOrder(
 				body: `Order ${orderRow.order_number} has been ${isConfirmed ? 'confirmed' : 'submitted'}`,
 				link: `/orders/${orderRow.id}`
 			});
+			emitOrderEvent(orderOrgId, orderRow.id, isConfirmed ? 'confirmed' : 'submitted', origin);
 		}
 
 		createdIds.push(orderRow.id);

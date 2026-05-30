@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getGmailClient, parseMessage, buildRawEmail } from './gmail.js';
 import { supabaseAdmin } from './supabase.js';
 import { computeAccountHealth } from './account-health.js';
+import { getSetupStatus } from './setup-status.js';
 import { sendSlackMessage } from './integrations/slack.js';
 import { sendDiscordMessage } from './integrations/discord.js';
 import {
@@ -21,6 +22,28 @@ import {
 // Submit-side effects (email + notifications) are loaded lazily so that the
 // ai-tools module stays importable in unit tests where $env/dynamic/private
 // isn't wired. See notifyOrderSubmitted below.
+
+/**
+ * For brand orgs, resolve all order IDs visible through federation
+ * (federated_order_links) so AI queries can see rep-submitted orders.
+ * Returns null for rep orgs (they query by organization_id directly).
+ */
+async function getBrandOrderIds(ctx: ToolContext): Promise<string[] | null> {
+	if (ctx.orgType !== 'brand') return null;
+	const { data } = await supabaseAdmin
+		.from('federated_order_links')
+		.select('order_id')
+		.eq('target_org_id', ctx.organizationId)
+		.eq('status', 'active');
+	// Also include orders placed directly inside the brand org (in-house sales)
+	const { data: directOrders } = await supabaseAdmin
+		.from('orders')
+		.select('id')
+		.eq('organization_id', ctx.organizationId);
+	const fedIds = (data ?? []).map((r) => (r as { order_id: string }).order_id);
+	const directIds = (directOrders ?? []).map((r) => (r as { id: string }).id);
+	return [...new Set([...fedIds, ...directIds])];
+}
 
 type ToolContext = {
 	supabase: SupabaseClient;
@@ -141,6 +164,20 @@ export async function executeToolCall(
 			return syncNotion(toolInput, ctx);
 		case 'pull_from_notion':
 			return pullNotion(toolInput, ctx);
+		case 'check_setup_status':
+			return checkSetupStatus(ctx);
+		case 'update_org_settings':
+			return updateOrgSettings(toolInput, ctx);
+		case 'update_org_shipping':
+			return updateOrgShipping(toolInput, ctx);
+		case 'update_org_payments':
+			return updateOrgPayments(toolInput, ctx);
+		case 'update_org_taxes':
+			return updateOrgTaxes(toolInput, ctx);
+		case 'update_org_returns':
+			return updateOrgReturns(toolInput, ctx);
+		case 'skip_setup_section':
+			return skipSetupSection(toolInput, ctx);
 		default:
 			return { success: false, error: `Unknown tool: ${toolName}` };
 	}
@@ -243,6 +280,16 @@ async function createAccount(
 			organization_id: ctx.organizationId,
 			email: contactEmail,
 			invited_by: ctx.userId
+		});
+	}
+
+	if (data?.id) {
+		const { emitIntegrationEvent } = await import('./integrations/events.js');
+		emitIntegrationEvent(ctx.organizationId, 'new_account', {
+			accountName: businessName,
+			city: (input.city as string) ?? undefined,
+			state: (input.state as string) ?? undefined,
+			url: `${ctx.origin}/accounts/${data.id}`
 		});
 	}
 
@@ -491,7 +538,8 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 				total_amount: totalForNotify,
 				brand_id: brand.id,
 				account_id: account.id,
-				created_by: createdBy
+				created_by: createdBy,
+				organization_id: ctx.organizationId
 			},
 			ctx.origin
 		);
@@ -535,13 +583,15 @@ async function notifyOrderSubmitted(
 		brand_id: string;
 		account_id: string | null;
 		created_by: string;
+		organization_id: string;
 	},
 	origin: string
 ): Promise<void> {
 	try {
-		const [emailMod, notifMod] = await Promise.all([
+		const [emailMod, notifMod, eventsMod] = await Promise.all([
 			import('./order-emails.js'),
-			import('./notifications.js')
+			import('./notifications.js'),
+			import('./integrations/events.js')
 		]);
 		await Promise.allSettled([
 			emailMod.sendOrderEmail('submitted', order, origin),
@@ -550,7 +600,8 @@ async function notifyOrderSubmitted(
 				title: 'New order submitted',
 				body: `Order ${order.order_number} has been submitted`,
 				link: `/orders/${order.id}`
-			})
+			}),
+			eventsMod.emitOrderEvent(order.organization_id, order.id, 'submitted', origin)
 		]);
 	} catch (err) {
 		console.error('[ai-tools] notifyOrderSubmitted failed', err);
@@ -656,7 +707,7 @@ async function updateOrderStatus(
 
 	// If we just transitioned to 'submitted', fire the same notifications the
 	// manual /orders/new flow fires. Best-effort. Mirrors that handler.
-	if (status === 'submitted' && data) {
+	if (data) {
 		const row = data as {
 			id: string;
 			order_number: string;
@@ -665,17 +716,32 @@ async function updateOrderStatus(
 			account_id: string | null;
 			created_by: string;
 		};
-		await notifyOrderSubmitted(
-			{
-				id: row.id,
-				order_number: row.order_number,
-				total_amount: Number(row.total_amount ?? 0),
-				brand_id: row.brand_id,
-				account_id: row.account_id,
-				created_by: row.created_by
-			},
-			ctx.origin
-		);
+
+		if (status === 'submitted') {
+			await notifyOrderSubmitted(
+				{
+					id: row.id,
+					order_number: row.order_number,
+					total_amount: Number(row.total_amount ?? 0),
+					brand_id: row.brand_id,
+					account_id: row.account_id,
+					created_by: row.created_by,
+					organization_id: ctx.organizationId
+				},
+				ctx.origin
+			);
+		}
+
+		if (status === 'confirmed' || status === 'shipped' || status === 'cancelled') {
+			const { emitOrderEvent } = await import('./integrations/events.js');
+			await emitOrderEvent(
+				ctx.organizationId,
+				row.id,
+				status as 'confirmed' | 'shipped' | 'cancelled',
+				ctx.origin,
+				status === 'cancelled' ? { reason: input.reason as string | undefined } : undefined
+			);
+		}
 	}
 
 	return {
@@ -768,23 +834,24 @@ async function queryData(input: Record<string, unknown>, ctx: ToolContext): Prom
 		selectStr = '*, brands(name), product_variants(color, size, sku)';
 	}
 
-	let query = ctx.supabase.from(table).select(selectStr);
+	// For brand orgs querying orders, use supabaseAdmin + federated IDs to bypass RLS
+	const useFederatedOrders = ctx.orgType === 'brand' && entity === 'orders';
+	const brandOrderIds = useFederatedOrders ? await getBrandOrderIds(ctx) : null;
+	let query = (useFederatedOrders ? supabaseAdmin : ctx.supabase).from(table).select(selectStr);
 
-	// Federation-aware tables: rely on RLS so federated rows (connected brand's brands/products,
-	// brand's view of rep orders/accounts) come through. Own-org-only tables keep the explicit
-	// organization_id filter.
-	const FEDERATION_AWARE = new Set(['brands', 'accounts', 'products', 'orders']);
+	const FEDERATION_AWARE = new Set(['brands', 'accounts', 'products']);
 
 	if (entity === 'order_lines') {
 		if (!filters.order_id)
 			return { success: false, error: 'order_id filter required for order_lines' };
+	} else if (useFederatedOrders && brandOrderIds) {
+		query = query.in('id', brandOrderIds.length > 0 ? brandOrderIds : ['__none__']);
 	} else if (entity === 'contacts') {
 		query = query.eq('organization_id', ctx.organizationId).in('status', ['new', 'saved']);
 	} else if (!FEDERATION_AWARE.has(entity)) {
 		query = query.eq('organization_id', ctx.organizationId);
 	}
 
-	// Apply brand scope for restricted entities
 	if (ctx.brandScope && entity === 'brands') {
 		query = query.in('id', ctx.brandScope);
 	}
@@ -856,13 +923,19 @@ async function getDashboardMetrics(
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	try {
-		// Total orders with optional filters
-		let ordersQuery = ctx.supabase
+		const brandOrderIds = await getBrandOrderIds(ctx);
+
+		let ordersQuery = supabaseAdmin
 			.from('orders')
 			.select('id, status, total_amount, created_at, brand_id, season_id, order_year', {
 				count: 'exact'
-			})
-			.eq('organization_id', ctx.organizationId);
+			});
+
+		if (brandOrderIds) {
+			ordersQuery = ordersQuery.in('id', brandOrderIds.length > 0 ? brandOrderIds : ['__none__']);
+		} else {
+			ordersQuery = ordersQuery.eq('organization_id', ctx.organizationId);
+		}
 
 		if (ctx.brandScope) {
 			ordersQuery = ordersQuery.in('brand_id', ctx.brandScope);
@@ -874,7 +947,6 @@ async function getDashboardMetrics(
 			ordersQuery = ordersQuery.eq('order_year', input.order_year as number);
 		}
 		if (input.season_name) {
-			// Resolve season first
 			const { data: seasons } = await ctx.supabase
 				.from('seasons')
 				.select('id')
@@ -888,14 +960,12 @@ async function getDashboardMetrics(
 
 		const { data: orders, count: orderCount } = await ordersQuery;
 
-		// Aggregate metrics
 		const totalRevenue = orders?.reduce((sum, o) => sum + (o.total_amount || 0), 0) ?? 0;
 		const statusCounts: Record<string, number> = {};
 		orders?.forEach((o) => {
 			statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
 		});
 
-		// Brand count
 		let brandsQuery = ctx.supabase
 			.from('brands')
 			.select('id', { count: 'exact' })
@@ -906,7 +976,6 @@ async function getDashboardMetrics(
 		}
 		const { count: brandCount } = await brandsQuery;
 
-		// Account count
 		const { count: accountCount } = await ctx.supabase
 			.from('accounts')
 			.select('id', { count: 'exact' })
@@ -1456,13 +1525,21 @@ async function getSalesReport(
 ): Promise<ToolResult> {
 	const groupBy = input.group_by as string;
 
-	let query = ctx.supabase
+	const brandOrderIds = await getBrandOrderIds(ctx);
+	const db = brandOrderIds ? supabaseAdmin : ctx.supabase;
+
+	let query = db
 		.from('orders')
 		.select(
 			'id, total_amount, brand_id, account_id, order_year, created_by, brands(name), accounts(business_name, territory_id, territories(name))'
 		)
-		.eq('organization_id', ctx.organizationId)
 		.neq('status', 'cancelled');
+
+	if (brandOrderIds) {
+		query = query.in('id', brandOrderIds.length > 0 ? brandOrderIds : ['__none__']);
+	} else {
+		query = query.eq('organization_id', ctx.organizationId);
+	}
 
 	if (ctx.brandScope) query = query.in('brand_id', ctx.brandScope);
 	if (input.order_year) query = query.eq('order_year', input.order_year as number);
@@ -1659,11 +1736,12 @@ async function getStyleVelocity(
 	const days = (input.days as number) ?? 14;
 	const minAccounts = (input.min_accounts as number) ?? 2;
 
-	const { data, error } = await ctx.supabase.rpc('get_style_velocity', {
-		org_id: ctx.organizationId,
-		days_back: days,
-		min_accounts: minAccounts
-	});
+	const rpcName = ctx.orgType === 'brand' ? 'get_style_velocity_for_brand' : 'get_style_velocity';
+	const rpcParams =
+		ctx.orgType === 'brand'
+			? { brand_org_id: ctx.organizationId, days_back: days, min_accounts: minAccounts }
+			: { org_id: ctx.organizationId, days_back: days, min_accounts: minAccounts };
+	const { data, error } = await ctx.supabase.rpc(rpcName, rpcParams);
 
 	if (error) return { success: false, error: error.message };
 
@@ -1688,19 +1766,26 @@ async function getCommissionReport(
 	input: Record<string, unknown>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	let query = ctx.supabase
+	const brandOrderIds = await getBrandOrderIds(ctx);
+	const db = brandOrderIds ? supabaseAdmin : ctx.supabase;
+
+	let query = db
 		.from('orders')
 		.select(
 			'id, total_amount, shipped_amount, brand_id, created_by, brands(name, commission_rate), accounts(business_name)'
 		)
-		.eq('organization_id', ctx.organizationId)
 		.neq('status', 'cancelled');
+
+	if (brandOrderIds) {
+		query = query.in('id', brandOrderIds.length > 0 ? brandOrderIds : ['__none__']);
+	} else {
+		query = query.eq('organization_id', ctx.organizationId);
+	}
 
 	if (ctx.brandScope) query = query.in('brand_id', ctx.brandScope);
 	if (input.order_year) query = query.eq('order_year', input.order_year as number);
 
 	if (input.brand_name) {
-		// Brands are federation-aware — a rep may filter by a connected brand.
 		const { data: brands } = await ctx.supabase
 			.from('brands')
 			.select('id')
@@ -2115,4 +2200,290 @@ async function pullNotion(input: Record<string, unknown>, ctx: ToolContext): Pro
 				'No pages found. Either Notion is not connected, the database ID is invalid, or the database is empty.'
 		};
 	return { success: true, data: { pages, count: pages.length } };
+}
+
+async function checkSetupStatus(ctx: ToolContext): Promise<ToolResult> {
+	try {
+		const status = await getSetupStatus(ctx.organizationId);
+		return { success: true, data: status };
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to check setup status'
+		};
+	}
+}
+
+async function updateOrgSettings(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+		if (input.address_line1 !== undefined) update.address_line1 = input.address_line1;
+		if (input.address_line2 !== undefined) update.address_line2 = input.address_line2;
+		if (input.city !== undefined) update.city = input.city;
+		if (input.state !== undefined) update.state = input.state;
+		if (input.zip !== undefined) update.zip = input.zip;
+		if (input.country !== undefined) update.country = input.country;
+		if (input.time_zone !== undefined) update.time_zone = input.time_zone;
+		if (input.legal_business_name !== undefined)
+			update.legal_business_name = input.legal_business_name;
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update settings'
+		};
+	}
+}
+
+async function updateOrgShipping(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+
+		if (input.use_business_address !== undefined)
+			update.shipping_use_business_address = input.use_business_address;
+		if (input.shipping_from_line1 !== undefined)
+			update.shipping_from_line1 = input.shipping_from_line1;
+		if (input.shipping_from_line2 !== undefined)
+			update.shipping_from_line2 = input.shipping_from_line2;
+		if (input.shipping_from_city !== undefined)
+			update.shipping_from_city = input.shipping_from_city;
+		if (input.shipping_from_state !== undefined)
+			update.shipping_from_state = input.shipping_from_state;
+		if (input.shipping_from_zip !== undefined) update.shipping_from_zip = input.shipping_from_zip;
+		if (input.shipping_from_country !== undefined)
+			update.shipping_from_country = input.shipping_from_country;
+		if (input.default_shipping_method_id !== undefined)
+			update.default_shipping_method_id = input.default_shipping_method_id;
+		if (input.free_threshold_enabled !== undefined)
+			update.shipping_free_threshold_enabled = input.free_threshold_enabled;
+		if (input.free_threshold_amount !== undefined)
+			update.shipping_free_threshold_amount = input.free_threshold_amount;
+
+		// If setting default by name, look up the method ID
+		if (input.default_method_name && typeof input.default_method_name === 'string') {
+			const { data: method } = await supabaseAdmin
+				.from('organization_shipping_methods')
+				.select('id')
+				.eq('organization_id', ctx.organizationId)
+				.ilike('name', `%${input.default_method_name}%`)
+				.limit(1)
+				.maybeSingle();
+
+			if (method) {
+				update.default_shipping_method_id = method.id;
+			}
+		}
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update shipping'
+		};
+	}
+}
+
+async function updateOrgPayments(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+
+		if (input.accepted_methods !== undefined)
+			update.accepted_payment_methods = input.accepted_methods;
+		if (input.default_method !== undefined) update.default_payment_method = input.default_method;
+		if (input.default_terms !== undefined) update.default_payment_terms = input.default_terms;
+		if (input.required_deposit_enabled !== undefined)
+			update.payments_required_deposit_enabled = input.required_deposit_enabled;
+		if (input.required_deposit_percent !== undefined)
+			update.payments_required_deposit_percent = input.required_deposit_percent;
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update payments'
+		};
+	}
+}
+
+async function updateOrgTaxes(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+
+		if (input.pricing_display !== undefined) update.taxes_pricing_display = input.pricing_display;
+		if (input.us_sales_tax_enabled !== undefined)
+			update.taxes_us_sales_tax_enabled = input.us_sales_tax_enabled;
+		if (input.us_ein !== undefined) update.taxes_us_ein = input.us_ein;
+		if (input.us_general_rate !== undefined) update.taxes_us_general_rate = input.us_general_rate;
+		if (input.vat_enabled !== undefined) update.taxes_vat_enabled = input.vat_enabled;
+		if (input.vat_registration !== undefined)
+			update.taxes_vat_registration = input.vat_registration;
+		if (input.vat_rate !== undefined) update.taxes_vat_rate = input.vat_rate;
+		if (input.gst_enabled !== undefined) update.taxes_gst_enabled = input.gst_enabled;
+		if (input.gst_registration !== undefined)
+			update.taxes_gst_registration = input.gst_registration;
+		if (input.gst_rate !== undefined) update.taxes_gst_rate = input.gst_rate;
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update taxes'
+		};
+	}
+}
+
+async function updateOrgReturns(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	try {
+		const update: Record<string, unknown> = {};
+
+		if (input.window_days !== undefined) update.returns_window_days = input.window_days;
+		if (input.policy_text !== undefined) update.returns_policy_text = input.policy_text || null;
+		if (input.use_ship_from_address !== undefined)
+			update.returns_use_ship_from_address = input.use_ship_from_address;
+		if (input.address_line1 !== undefined)
+			update.returns_address_line1 = input.address_line1 || null;
+		if (input.address_line2 !== undefined)
+			update.returns_address_line2 = input.address_line2 || null;
+		if (input.address_city !== undefined) update.returns_address_city = input.address_city || null;
+		if (input.address_state !== undefined)
+			update.returns_address_state = input.address_state || null;
+		if (input.address_zip !== undefined) update.returns_address_zip = input.address_zip || null;
+		if (input.address_country !== undefined)
+			update.returns_address_country = input.address_country || null;
+		if (input.restocking_fee_type !== undefined)
+			update.returns_restocking_fee_type = input.restocking_fee_type;
+		if (input.restocking_fee_value !== undefined)
+			update.returns_restocking_fee_value = input.restocking_fee_value;
+		if (input.buyer_pays_shipping !== undefined)
+			update.returns_buyer_pays_shipping = input.buyer_pays_shipping;
+
+		if (Object.keys(update).length === 0) {
+			return { success: false, error: 'No fields provided to update' };
+		}
+
+		update.updated_at = new Date().toISOString();
+		const { error } = await supabaseAdmin
+			.from('organizations')
+			.update(update)
+			.eq('id', ctx.organizationId);
+
+		if (error) return { success: false, error: error.message };
+		return {
+			success: true,
+			data: { updated: Object.keys(update).filter((k) => k !== 'updated_at') }
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update returns'
+		};
+	}
+}
+
+async function skipSetupSection(
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	const section = input.section as string;
+	const validSections = ['orders', 'taxes', 'returns', 'members', 'products', 'accounts'];
+	if (!validSections.includes(section)) {
+		return {
+			success: false,
+			error: `Invalid section: ${section}. Must be one of: ${validSections.join(', ')}`
+		};
+	}
+
+	const status = input.status === 'completed' ? 'completed' : 'skipped';
+
+	try {
+		const { error } = await supabaseAdmin.from('org_setup_status').upsert(
+			{
+				organization_id: ctx.organizationId,
+				section,
+				status,
+				updated_at: new Date().toISOString()
+			},
+			{ onConflict: 'organization_id,section' }
+		);
+
+		if (error) return { success: false, error: error.message };
+		return { success: true, data: { section, status } };
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to update section status'
+		};
+	}
 }

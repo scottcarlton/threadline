@@ -6,6 +6,7 @@ import type {
 	OrgType,
 	AccountUser
 } from '$lib/types/database';
+import type { QueryScope } from '$lib/server/queries/scope';
 
 declare global {
 	namespace App {
@@ -27,6 +28,7 @@ declare global {
 			buyerAccounts: AccountUser[] | null;
 			buyerBrandIds: string[] | null;
 			isSystemAdmin: boolean;
+			queryScope: QueryScope | null;
 		}
 		interface PageData {
 			session: Session | null;

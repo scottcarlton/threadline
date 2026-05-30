@@ -2,6 +2,7 @@
 	import { fly, fade } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/stores';
 	import { conversation } from '$lib/stores/conversation.js';
 	import { computePreset } from '$lib/utils/date-presets.js';
 
@@ -42,6 +43,30 @@
 	let selectedIndex = $state(0);
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 	let inputEl = $state<HTMLInputElement | undefined>(undefined);
+
+	type PageContext =
+		| 'order'
+		| 'account'
+		| 'brand'
+		| 'product'
+		| 'contact'
+		| 'appointment'
+		| 'inbox'
+		| 'report'
+		| 'default';
+
+	const pageContext: PageContext = $derived.by(() => {
+		const path = $page.url.pathname;
+		if (path.startsWith('/orders')) return 'order';
+		if (path.startsWith('/accounts')) return 'account';
+		if (path.startsWith('/brands')) return 'brand';
+		if (path.startsWith('/products')) return 'product';
+		if (path.startsWith('/organization/contacts')) return 'contact';
+		if (path.startsWith('/appointments')) return 'appointment';
+		if (path.startsWith('/inbox')) return 'inbox';
+		if (path.startsWith('/reports')) return 'report';
+		return 'default';
+	});
 
 	let dragStartY = 0;
 	function handleTouchStart(e: TouchEvent) {
@@ -84,8 +109,8 @@
 		}
 	};
 
-	const createItems = $derived<DefaultItem[]>(
-		isBuyer
+	const createItems: DefaultItem[] = $derived.by(() => {
+		const base: DefaultItem[] = isBuyer
 			? [newOrderItem]
 			: [
 					newOrderItem,
@@ -123,8 +148,12 @@
 								}
 							]
 						: [])
-				]
-	);
+				];
+		const promotedLabel = createContextMap[pageContext];
+		if (!promotedLabel) return base;
+		const match = base.find((item) => item.label === promotedLabel);
+		return promoteItem(base, match);
+	});
 
 	const navOrders: DefaultItem = {
 		kind: 'navigate',
@@ -261,13 +290,48 @@
 		}
 	];
 
-	const navigateItems = $derived<DefaultItem[]>(
-		isBuyer
+	const createContextMap: Record<PageContext, string | undefined> = {
+		order: 'New Order',
+		account: 'New Account',
+		brand: 'New Brand',
+		product: undefined,
+		contact: undefined,
+		appointment: 'New Appointment',
+		inbox: undefined,
+		report: undefined,
+		default: undefined
+	};
+
+	const navContextMap: Record<PageContext, DefaultItem | undefined> = {
+		order: navOrders,
+		account: navAccounts,
+		brand: navBrands,
+		product: undefined,
+		contact: undefined,
+		appointment: navAppointments,
+		inbox: navInbox,
+		report: navReports,
+		default: undefined
+	};
+
+	function promoteItem<T>(items: T[], item: T | undefined): T[] {
+		if (!item) return items;
+		const idx = items.indexOf(item);
+		if (idx <= 0) return items;
+		const copy = [...items];
+		copy.splice(idx, 1);
+		copy.unshift(item);
+		return copy;
+	}
+
+	const navigateItems: DefaultItem[] = $derived.by(() => {
+		const base = isBuyer
 			? [navOrders, navShop, navCart, navAccount, navSettings]
 			: isBrandOrg
 				? [navOrders, navReports, navAccounts, navInbox, navAppointments, navSettings]
-				: [navOrders, navAccounts, navBrands, navInbox, navAppointments, navReports, navSettings]
-	);
+				: [navOrders, navAccounts, navBrands, navInbox, navAppointments, navReports, navSettings];
+		return promoteItem(base, navContextMap[pageContext]);
+	});
 
 	const defaultItems = $derived([
 		...(isBrandOrg && !isBuyer ? brandOrderLinks : []),
@@ -359,20 +423,54 @@
 			: null
 	);
 
+	type ResultGroup = {
+		type: SearchResult['type'];
+		results: SearchResult[];
+		overflow?: ActionItem | null;
+	};
+
+	const contextResultOrder = $derived.by<ResultGroup[]>(() => {
+		const groups: ResultGroup[] = [
+			{ type: 'contact', results: contactResults },
+			{ type: 'brand', results: brandResults },
+			{ type: 'account', results: accountResults },
+			{ type: 'order', results: orderResults, overflow: orderOverflowAction }
+		];
+		const ctx = pageContext;
+		if (ctx === 'default') return groups;
+		const idx = groups.findIndex((g) => g.type === ctx);
+		if (idx > 0) {
+			const [promoted] = groups.splice(idx, 1);
+			groups.unshift(promoted);
+		}
+		return groups;
+	});
+
 	// Flatten all selectable items for keyboard nav
-	const allItems = $derived(
-		showDefaults
-			? defaultItems.map((d) => ({ kind: 'default' as const, data: d }))
-			: [
-					...contactResults.map((r) => ({ kind: 'result' as const, data: r })),
-					...brandResults.map((r) => ({ kind: 'result' as const, data: r })),
-					...accountResults.map((r) => ({ kind: 'result' as const, data: r })),
-					...orderResults.map((r) => ({ kind: 'result' as const, data: r })),
-					...(orderOverflowAction ? [{ kind: 'action' as const, data: orderOverflowAction }] : []),
-					...actions.map((a: ActionItem) => ({ kind: 'action' as const, data: a })),
-					...matchingDefaults.map((d) => ({ kind: 'default' as const, data: d }))
-				]
-	);
+	const allItems = $derived.by(() => {
+		if (showDefaults) {
+			return defaultItems.map((d) => ({ kind: 'default' as const, data: d }));
+		}
+		const items: Array<{
+			kind: 'result' | 'action' | 'default';
+			data: SearchResult | ActionItem | DefaultItem;
+		}> = [];
+		for (const group of contextResultOrder) {
+			for (const r of group.results) {
+				items.push({ kind: 'result', data: r });
+			}
+			if (group.overflow) {
+				items.push({ kind: 'action', data: group.overflow });
+			}
+		}
+		for (const a of actions) {
+			items.push({ kind: 'action', data: a });
+		}
+		for (const d of matchingDefaults) {
+			items.push({ kind: 'default', data: d });
+		}
+		return items;
+	});
 
 	function openDialog() {
 		open = true;
@@ -455,11 +553,11 @@
 		const item = allItems[selectedIndex];
 		if (!item) return;
 		if (item.kind === 'result') {
-			navigateTo(item.data);
+			navigateTo(item.data as SearchResult);
 		} else if (item.kind === 'default') {
-			item.data.action();
+			(item.data as DefaultItem).action();
 		} else {
-			item.data.action();
+			(item.data as ActionItem).action();
 		}
 	}
 
@@ -505,13 +603,35 @@
 		return groupOffset + itemIdx;
 	}
 
-	const contactOffset = 0;
-	const brandOffset = $derived(contactResults.length);
-	const accountOffset = $derived(brandOffset + brandResults.length);
-	const orderOffset = $derived(accountOffset + accountResults.length);
-	const orderOverflowOffset = $derived(orderOffset + orderResults.length);
-	const actionOffset = $derived(orderOverflowOffset + (orderOverflowAction ? 1 : 0));
-	const defaultMatchOffset = $derived(actionOffset + actions.length);
+	const groupOffsets = $derived.by(() => {
+		const offsets: Record<string, number> = {};
+		let cursor = 0;
+		for (const group of contextResultOrder) {
+			offsets[group.type] = cursor;
+			cursor += group.results.length;
+			if (group.overflow) cursor += 1;
+		}
+		offsets['action'] = cursor;
+		cursor += actions.length;
+		offsets['defaultMatch'] = cursor;
+		return offsets;
+	});
+
+	const groupLabels: Record<SearchResult['type'], string> = {
+		contact: 'Contacts',
+		brand: 'Brands',
+		account: 'Accounts',
+		order: 'Orders'
+	};
+
+	const groupIcons: Record<SearchResult['type'], string> = {
+		contact:
+			'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z',
+		brand:
+			'M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z M6 6h.008v.008H6V6z',
+		account: 'M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12',
+		order: orderDocIcon
+	};
 
 	function seasonBadgeClass(year?: number): string {
 		const currentYear = new Date().getFullYear();
@@ -716,224 +836,163 @@
 						No results for "{query}"
 					</div>
 				{:else if allItems.length > 0}
-					<!-- Contacts -->
-					{#if contactResults.length > 0}
-						<div class="px-5 pt-3 pb-1">
-							<span class="text-xs font-semibold tracking-wider text-white/40 uppercase"
-								>Contacts</span
-							>
-						</div>
-						{#each contactResults as result, i (result.id)}
-							<div
-								class="flex w-full items-center gap-3 px-5 py-2.5 transition-colors {getItemIndex(
-									contactOffset,
-									i
-								) === selectedIndex
-									? 'bg-zinc-800'
-									: 'hover:bg-zinc-800/60'}"
-								role="option"
-								tabindex="-1"
-								aria-selected={getItemIndex(contactOffset, i) === selectedIndex}
-								onmouseenter={() => (selectedIndex = getItemIndex(contactOffset, i))}
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4 shrink-0 text-zinc-500"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
+					<!-- Result groups — order determined by page context -->
+					{#each contextResultOrder as group (group.type)}
+						{#if group.results.length > 0}
+							<div class="px-5 pt-3 pb-1">
+								<span class="text-xs font-semibold tracking-wider text-white/40 uppercase"
+									>{groupLabels[group.type]}</span
 								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-									/>
-								</svg>
-								<div class="min-w-0 flex-1">
-									<p class="text-sm font-semibold text-zinc-100">{result.title}</p>
-									{#if result.subtitle}
-										<p class="text-sm text-zinc-400">{result.subtitle}</p>
-									{/if}
-								</div>
-								<div class="flex shrink-0 items-center gap-2">
-									{#if result.subtitle}
-										<button
-											class="rounded px-2 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
-											onclick={(e) => {
-												e.stopPropagation();
-												window.location.href = `mailto:${result.subtitle}`;
-												closeDialog();
-											}}
-										>
-											Email
-										</button>
-									{/if}
-									<button
-										class="rounded px-2 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
-										onclick={() => navigateTo(result)}
-									>
-										Go to {result.parentType ?? 'account'}
-									</button>
-								</div>
 							</div>
-						{/each}
-					{/if}
-
-					<!-- Brands -->
-					{#if brandResults.length > 0}
-						<div class="px-5 pt-3 pb-1">
-							<span class="text-xs font-semibold tracking-wider text-white/40 uppercase"
-								>Brands</span
-							>
-						</div>
-						{#each brandResults as result, i (result.id)}
-							<button
-								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {getItemIndex(
-									brandOffset,
-									i
-								) === selectedIndex
-									? 'bg-zinc-800'
-									: 'hover:bg-zinc-800/60'}"
-								onclick={() => navigateTo(result)}
-								onmouseenter={() => (selectedIndex = getItemIndex(brandOffset, i))}
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4 shrink-0 text-zinc-500"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z M6 6h.008v.008H6V6z"
-									/>
-								</svg>
-								<div class="min-w-0 flex-1">
-									<p class="text-sm font-semibold text-zinc-100">{result.title}</p>
-									{#if result.subtitle}
-										<p class="text-sm text-zinc-400">{result.subtitle}</p>
-									{/if}
-								</div>
-								<span class="shrink-0 text-xs text-zinc-600">Go to brand</span>
-							</button>
-						{/each}
-					{/if}
-
-					<!-- Accounts -->
-					{#if accountResults.length > 0}
-						<div class="px-5 pt-3 pb-1">
-							<span class="text-xs font-semibold tracking-wider text-white/40 uppercase"
-								>Accounts</span
-							>
-						</div>
-						{#each accountResults as result, i (result.id)}
-							<button
-								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {getItemIndex(
-									accountOffset,
-									i
-								) === selectedIndex
-									? 'bg-zinc-800'
-									: 'hover:bg-zinc-800/60'}"
-								onclick={() => navigateTo(result)}
-								onmouseenter={() => (selectedIndex = getItemIndex(accountOffset, i))}
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4 shrink-0 text-zinc-500"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"
-									/>
-								</svg>
-								<div class="min-w-0 flex-1">
-									<p class="text-sm font-semibold text-zinc-100">{result.title}</p>
-									{#if result.subtitle}
-										<p class="text-sm text-zinc-400">{result.subtitle}</p>
-									{/if}
-								</div>
-								<span class="shrink-0 text-xs text-zinc-600">Go to account</span>
-							</button>
-						{/each}
-					{/if}
-
-					<!-- Orders -->
-					{#if orderResults.length > 0}
-						<div class="px-5 pt-3 pb-1">
-							<span class="text-xs font-semibold tracking-wider text-white/40 uppercase"
-								>Orders</span
-							>
-						</div>
-						{#each orderResults as result, i (result.id)}
-							<button
-								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {getItemIndex(
-									orderOffset,
-									i
-								) === selectedIndex
-									? 'bg-zinc-800'
-									: 'hover:bg-zinc-800/60'}"
-								onclick={() => navigateTo(result)}
-								onmouseenter={() => (selectedIndex = getItemIndex(orderOffset, i))}
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4 shrink-0 text-zinc-500"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-									/>
-								</svg>
-								<div class="flex min-w-0 flex-1 items-center gap-3">
-									<span class="text-sm font-semibold text-zinc-100">{result.title}</span>
-									<span class="text-sm text-zinc-400">{result.subtitle}</span>
-									{#if result.meta?.seasonName}
-										<span
-											class="inline-flex rounded px-1.5 py-0.5 text-xs font-medium {seasonBadgeClass(
-												result.meta.orderYear
-											)}"
+							{#each group.results as result, i (result.id)}
+								{@const idx = getItemIndex(groupOffsets[group.type], i)}
+								{#if group.type === 'contact'}
+									<div
+										class="flex w-full items-center gap-3 px-5 py-2.5 transition-colors {idx ===
+										selectedIndex
+											? 'bg-zinc-800'
+											: 'hover:bg-zinc-800/60'}"
+										role="option"
+										tabindex="-1"
+										aria-selected={idx === selectedIndex}
+										onmouseenter={() => (selectedIndex = idx)}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4 shrink-0 text-zinc-500"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="1.5"
 										>
-											{result.meta.seasonName}{result.meta.orderYear
-												? ` ${result.meta.orderYear}`
-												: ''}
-										</span>
-									{/if}
-								</div>
-							</button>
-						{/each}
-						{#if orderOverflowCount > 0}
-							<button
-								class="flex w-full items-center gap-3 px-5 py-2 text-left transition-colors {orderOverflowOffset ===
-								selectedIndex
-									? 'bg-zinc-800'
-									: 'hover:bg-zinc-800/60'}"
-								onclick={() => {
-									closeDialog();
-									goto(resolve(`/orders?search=${encodeURIComponent(query.trim())}` as '/orders'));
-								}}
-								onmouseenter={() => (selectedIndex = orderOverflowOffset)}
-							>
-								<span class="h-4 w-4 shrink-0"></span>
-								<span class="text-sm text-zinc-400"
-									>+{orderOverflowCount} more order{orderOverflowCount !== 1 ? 's' : ''}</span
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d={groupIcons[group.type]}
+											/>
+										</svg>
+										<div class="min-w-0 flex-1">
+											<p class="text-sm font-semibold text-zinc-100">{result.title}</p>
+											{#if result.subtitle}
+												<p class="text-sm text-zinc-400">{result.subtitle}</p>
+											{/if}
+										</div>
+										<div class="flex shrink-0 items-center gap-2">
+											{#if result.subtitle}
+												<button
+													class="rounded px-2 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
+													onclick={(e) => {
+														e.stopPropagation();
+														window.location.href = `mailto:${result.subtitle}`;
+														closeDialog();
+													}}
+												>
+													Email
+												</button>
+											{/if}
+											<button
+												class="rounded px-2 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
+												onclick={() => navigateTo(result)}
+											>
+												Go to {result.parentType ?? 'account'}
+											</button>
+										</div>
+									</div>
+								{:else if group.type === 'order'}
+									<button
+										class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
+										selectedIndex
+											? 'bg-zinc-800'
+											: 'hover:bg-zinc-800/60'}"
+										onclick={() => navigateTo(result)}
+										onmouseenter={() => (selectedIndex = idx)}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4 shrink-0 text-zinc-500"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="1.5"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d={groupIcons[group.type]}
+											/>
+										</svg>
+										<div class="flex min-w-0 flex-1 items-center gap-3">
+											<span class="text-sm font-semibold text-zinc-100">{result.title}</span>
+											<span class="text-sm text-zinc-400">{result.subtitle}</span>
+											{#if result.meta?.seasonName}
+												<span
+													class="inline-flex rounded px-1.5 py-0.5 text-xs font-medium {seasonBadgeClass(
+														result.meta.orderYear
+													)}"
+												>
+													{result.meta.seasonName}{result.meta.orderYear
+														? ` ${result.meta.orderYear}`
+														: ''}
+												</span>
+											{/if}
+										</div>
+									</button>
+								{:else}
+									<button
+										class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
+										selectedIndex
+											? 'bg-zinc-800'
+											: 'hover:bg-zinc-800/60'}"
+										onclick={() => navigateTo(result)}
+										onmouseenter={() => (selectedIndex = idx)}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4 shrink-0 text-zinc-500"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="1.5"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d={groupIcons[group.type]}
+											/>
+										</svg>
+										<div class="min-w-0 flex-1">
+											<p class="text-sm font-semibold text-zinc-100">{result.title}</p>
+											{#if result.subtitle}
+												<p class="text-sm text-zinc-400">{result.subtitle}</p>
+											{/if}
+										</div>
+										<span class="shrink-0 text-xs text-zinc-600">Go to {group.type}</span>
+									</button>
+								{/if}
+							{/each}
+							{#if group.type === 'order' && orderOverflowCount > 0}
+								{@const overflowIdx = groupOffsets[group.type] + group.results.length}
+								<button
+									class="flex w-full items-center gap-3 px-5 py-2 text-left transition-colors {overflowIdx ===
+									selectedIndex
+										? 'bg-zinc-800'
+										: 'hover:bg-zinc-800/60'}"
+									onclick={() => {
+										closeDialog();
+										goto(
+											resolve(`/orders?search=${encodeURIComponent(query.trim())}` as '/orders')
+										);
+									}}
+									onmouseenter={() => (selectedIndex = overflowIdx)}
 								>
-							</button>
+									<span class="h-4 w-4 shrink-0"></span>
+									<span class="text-sm text-zinc-400"
+										>+{orderOverflowCount} more order{orderOverflowCount !== 1 ? 's' : ''}</span
+									>
+								</button>
+							{/if}
 						{/if}
-					{/if}
+					{/each}
 
 					<!-- Actions -->
 					{#if actions.length > 0}
@@ -943,15 +1002,14 @@
 							>
 						</div>
 						{#each actions as actionItem, i (actionItem.label)}
+							{@const idx = getItemIndex(groupOffsets['action'], i)}
 							<button
-								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {getItemIndex(
-									actionOffset,
-									i
-								) === selectedIndex
+								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
+								selectedIndex
 									? 'bg-zinc-800'
 									: 'hover:bg-zinc-800/60'}"
 								onclick={actionItem.action}
-								onmouseenter={() => (selectedIndex = getItemIndex(actionOffset, i))}
+								onmouseenter={() => (selectedIndex = idx)}
 							>
 								{#if actionItem.icon === 'plus'}
 									<svg
@@ -996,7 +1054,7 @@
 							>
 						</div>
 						{#each matchingCreateItems as item, i (item.label)}
-							{@const idx = defaultMatchOffset + i}
+							{@const idx = groupOffsets['defaultMatch'] + i}
 							<button
 								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
 								selectedIndex
@@ -1027,7 +1085,7 @@
 							>
 						</div>
 						{#each matchingNavigateItems as item, i (item.label)}
-							{@const idx = defaultMatchOffset + matchingCreateItems.length + i}
+							{@const idx = groupOffsets['defaultMatch'] + matchingCreateItems.length + i}
 							<button
 								class="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors {idx ===
 								selectedIndex

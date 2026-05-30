@@ -1,0 +1,31 @@
+{
+	"description": "Account name 'Bloom' is ambiguous — matches both 'Bloom Boutique' and 'Bloom Brothers' in the seed. Trigram scores are identical, triggering ambiguity delta. Needs review.",
+	"tags": ["ambiguous-account"],
+
+	"parser": {
+		"account_name": "Bloom",
+		"brand_name": "Monarch Haze",
+		"org_hint": null,
+		"item_count": 1,
+		"has_ship_window": true
+	},
+
+	"resolver": {
+		"kind": "resolved",
+		"expected_account_name": null,
+		"expected_brand_name": "Monarch Haze",
+		"expected_account_confidence_min": 0.0,
+		"lines": [
+			{
+				"expected_product_name": "Kailua Bubble Gauze Cotton Shirt",
+				"expected_confidence_min": 0.7,
+				"expected_sizes_with_variants": ["S", "M"]
+			}
+		]
+	},
+
+	"outcome": {
+		"status": "needs_review",
+		"expected_reason_codes": ["account_low_confidence"]
+	}
+}

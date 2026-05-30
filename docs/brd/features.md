@@ -620,32 +620,143 @@ Custom AI agents that can be configured per organization with triggers and tool 
 
 ---
 
-### 2.16 Text Message (SMS) AI Ordering
+### 2.16 Messaging AI (WhatsApp + SMS + iMessage)
 
 **Status: Not Implemented**
+**Provider: Twilio Conversations API (WhatsApp Business API + Programmable Messaging + Apple Messages for Business)**
 
-AI-powered order placement and management via SMS text messaging, enabling buyers and reps to interact with Threadline through natural language text messages.
+AI-powered conversational assistant accessible via WhatsApp, SMS, and iMessage (Apple Messages for Business). Users — reps, brand admins (BOA), and buyers — can place orders, check inventory, look up accounts, ask about sales, and send photos of POs or line sheets, all through natural language messaging. All three channels share a single conversational AI infrastructure via Twilio's Conversations API; only the transport adapter and rich-message formatting differ.
 
-**Outstanding Features:**
+**Two-phase rollout:** Phase 1 ships WhatsApp + SMS. Phase 2 adds iMessage via Apple Business Register enrollment with Twilio as MSP. Both phases share all backend infrastructure; Phase 2 is configuration and rich-message formatting, not new architecture.
 
-- [ ] Inbound SMS number per org (e.g., Twilio, Vonage)
-- [ ] AI-powered natural language order parsing ("I need 24 units of Style #4012 in S/M/L")
-- [ ] Order confirmation and status check via text
-- [ ] Product lookup and availability queries
-- [ ] Reorder support based on order history
-- [ ] Multi-turn conversation handling (clarifications, quantity adjustments)
-- [ ] Phone number provisioning and management per org
-- [ ] Rate limiting and spam protection
-- [ ] Opt-in/opt-out compliance (TCPA)
-- [ ] Message logging and audit trail
-- [ ] Fallback to human rep when AI confidence is low
+#### Problem
 
-**Open Questions:**
+Reps, brand admins, and buyers already use WhatsApp, SMS, and iMessage to discuss orders, ask about inventory, and share line sheets — then manually re-enter everything into Threadline. This double-handling is slow, error-prone, and invisible to the platform. Unlike email (fire-and-forget), messaging conversations are naturally multi-turn, and the existing email intake pipeline doesn't support back-and-forth. Messaging is where the deals happen; Threadline should meet users there.
 
-- Should this be a dedicated phone number per org or a shared short code?
-- MMS support for sending line sheets or order confirmations as images/PDFs?
-- Should reps also be able to place orders on behalf of buyers via SMS?
-- International SMS support needed?
+#### Goal
+
+Any Threadline user can message a single number or tap a link, be identified and scoped to their org and role, and accomplish core tasks — placing orders, checking inventory, looking up accounts — through natural-language conversation across WhatsApp, SMS, and iMessage.
+
+#### User stories
+
+- As a **rep**, I want to text an order to WhatsApp from a trade show, so the order lands in Threadline without opening a laptop.
+- As a **brand admin (BOA)**, I want to ask WhatsApp about my org's sales or account status, so I get answers without logging into the dashboard.
+- As a **buyer**, I want to send a photo of a PO via WhatsApp or iMessage, so it becomes a draft order my rep can confirm.
+- As a **rep**, I want to SMS "What's in stock for Acme, Classic Tee?" and get an answer in seconds.
+- As a **buyer on iPhone**, I want to tap "Message us" in a Threadline email and land in iMessage, so I can place an order without downloading an app.
+
+#### Proposed solution
+
+1. **Twilio Conversations API** — single integration for all three channels (WhatsApp, SMS, iMessage via Apple Messages for Business). One webhook endpoint, one message model, one agent.
+2. **Two-phase rollout** — Phase 1: WhatsApp + SMS (Twilio Messaging setup only). Phase 2: iMessage (add Apple Business Register enrollment + Twilio as MSP). Both phases share all infrastructure; Phase 2 is configuration, not code.
+3. **Identity binding** — on first message from an unknown number/device, the system prompts for email verification. Phone/device ID stored on `profiles`. Subsequent messages skip this.
+4. **Conversational Claude agent** — multi-turn agent with tool-use. Tools: `place_order`, `lookup_inventory`, `check_order_status`, `search_accounts`, `get_report_summary`. Each tool calls existing server modules. Replaces the single-shot `parseInboundOrder` pattern from email intake.
+5. **Rich messages where available** — WhatsApp: interactive buttons, list messages. iMessage: list pickers (product catalogs), quick replies, time pickers. SMS: plain text fallback. The agent selects the richest format the channel supports.
+6. **Image/attachment parsing** — when a user sends a photo (line sheet, PO, handwritten order), the system passes it to Claude Vision for extraction, then feeds the result into the same `resolveEntities` pipeline used by email intake (`src/lib/server/email-intake/resolve.ts`).
+7. **Session management** — conversations tracked in `messaging_sessions`. Sessions expire after 30 min of inactivity, can be resumed. Incomplete orders saved as drafts on expiry.
+8. **Reuse email intake resolution** — `resolveEntities`, `decideOutcome`, `executeOutcome` from `src/lib/server/email-intake/` are shared. Channel adapter normalizes inbound webhooks into a `ReceivedMessage` type.
+9. **Entry points for iMessage** — "Message us" button in Help & Support UI. Apple Business Chat URL (`bcrw.apple.com/urn:biz:...`) embeddable in onboarding emails, marketing campaigns, email signatures, and QR codes at trade shows.
+
+#### Acceptance criteria
+
+- [ ] User sends a WhatsApp or SMS message to the Threadline number and receives a response within 10 seconds
+- [ ] First-time users are prompted to verify identity; verified phone/device ID is persisted to `profiles`
+- [ ] A rep can place an order via multi-turn conversation ("Order for Bloom Boutique: 3 M, 2 L of the Classic Tee" → clarification if needed → order created as draft)
+- [ ] A BOA can ask "What were my sales last month?" and receive a summary scoped to their org
+- [ ] A rep can ask "What's in stock for Acme, Classic Tee?" and get an inventory answer
+- [ ] Sending a photo of a PO or line sheet produces a parsed draft order with line items (Claude Vision)
+- [ ] Orders created via messaging appear in `/orders` with correct `channel` (whatsapp/sms/imessage)
+- [ ] WhatsApp messages with multiple products render as interactive list messages (not plain text walls)
+- [ ] iMessage conversations render list pickers for product selection and quick replies for confirmations
+- [ ] SMS falls back to plain text with numbered options for disambiguation
+- [ ] All messages (inbound + outbound) are stored in `messaging_messages`
+- [ ] Rate limiting: 120 messages/hour per phone number, friendly rejection message on exceed
+- [ ] Unknown numbers that fail identity verification after 3 attempts are rejected
+- [ ] The agent never goes silent — every message gets a response, including "I didn't understand that"
+- [ ] Same conversational flow works across all three channels (only media richness differs)
+- [ ] "Message us" link in onboarding/marketing emails opens iMessage on Apple devices
+
+#### Edge cases
+
+- **User in multiple orgs:** after identity binding, ask which org context ("You're in Acme Reps and Beta Agency — which one?"). Allow switching mid-session with "switch org."
+- **Ambiguous product match:** same confidence thresholds as email intake (product ≥ 0.7, account ≥ 0.6). Below threshold, ask to clarify rather than guess.
+- **Media without text:** user sends a photo with no caption. System responds: "Got your image — is this a PO or line sheet you'd like me to turn into an order?"
+- **Session expiry mid-order:** save as draft, notify: "Your draft order for Bloom Boutique has been saved. Reply 'resume' to continue."
+- **Group chats (WhatsApp):** ignore messages from WhatsApp groups — only process 1:1 conversations.
+- **International numbers:** store and match in E.164 format.
+- **SMS character limits:** break long responses into 160-char segments; Twilio handles concatenation.
+- **iMessage on non-Apple device:** the `bcrw.apple.com` link gracefully falls back (shows a web page, doesn't break). Marketing emails should include WhatsApp link alongside.
+- **Channel switching mid-conversation:** user starts on WhatsApp, continues on iMessage. Sessions are per-channel; the agent treats these as separate conversations (shared order history is visible via tools, but conversation context doesn't cross channels).
+
+#### Out of scope
+
+- Apple Pay in-conversation payments (Phase 3 — after MVP)
+- Per-org phone numbers (shared number only for MVP)
+- Proactive/broadcast outbound messages (reply-only for MVP)
+- Voice messages / audio transcription
+- Read receipts / typing indicators
+- Conversation log UI in the app (stored in DB, no admin UI for MVP)
+- MMS image sending from Threadline to user (outbound media)
+- Apple Maps / Spotlight entry points (Phase 2 focuses on email/marketing links + Help & Support button only)
+
+#### UX notes (per `docs/design/frontend-ux.md`)
+
+- **Core action:** send a natural-language message, get a structured result (order, answer, confirmation)
+- **Mental model:** texting a knowledgeable colleague, not filling out a form. The agent should use industry language naturally (line sheets, at-once orders, sell-through).
+- **Progressive disclosure:** start with the simplest interpretation; ask clarifying questions only when genuinely ambiguous. Rich messages (list pickers, buttons) reduce back-and-forth by letting users tap instead of type.
+- **Reversibility:** orders created via messaging start as drafts; user can say "cancel that" within the session
+- **Error handling:** every message gets a response. Low-confidence situations escalate to "I'm not sure — want me to connect you with your rep?" rather than guessing wrong.
+
+#### Data / API notes
+
+**New tables:**
+
+- `messaging_sessions` — `id`, `profile_id`, `organization_id`, `phone_number`, `channel` (whatsapp/sms/imessage), `conversation_history` (JSONB), `status` (active/expired/completed), `created_at`, `updated_at`, `expires_at`
+- `messaging_messages` — `id`, `session_id`, `direction` (inbound/outbound), `body`, `media_url`, `media_type`, `provider_message_id`, `created_at`
+
+**Modified tables:**
+
+- `profiles` — add `messaging_phone` (text, nullable, unique) for WhatsApp + SMS. Add `apple_business_id` (text, nullable, unique) for Apple Messages for Business (uses opaque device tokens, not phone numbers).
+- `order_channel` enum — already includes `'whatsapp'` and `'sms'`. Add `'imessage'`.
+
+**New endpoints:**
+
+- `POST /api/webhooks/messaging` — Twilio Conversations webhook (handles all three channels)
+- `GET /api/webhooks/messaging` — Twilio webhook verification
+
+**New server modules:**
+
+- `src/lib/server/messaging/inbound.ts` — Twilio Conversations webhook adapter → `ReceivedMessage`
+- `src/lib/server/messaging/agent.ts` — conversational Claude agent with tool-use
+- `src/lib/server/messaging/session.ts` — session CRUD, expiry, resume
+- `src/lib/server/messaging/send.ts` — outbound via Twilio Conversations API
+- `src/lib/server/messaging/rich.ts` — channel-aware message formatting (list pickers for iMessage, interactive lists for WhatsApp, plain text for SMS)
+
+**Reused modules:** `resolve.ts` (entity resolution), `outcome.ts` (decision logic), trigram RPCs (`trigram_match_accounts`, `trigram_match_brands`, `trigram_match_products`)
+
+**Env vars:** `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_CONVERSATIONS_SERVICE_SID`
+
+#### Permissions
+
+- Any authenticated user with a verified phone/device can interact via messaging
+- Responses scoped to the user's org and role — same access rules as the web UI
+- Identity verification required before any data access
+- RLS policies apply to all data fetched by the agent's tools
+- Feature gated by subscription tier (not metered per-message)
+- Admin/Owner can enable/disable messaging for the org in settings
+
+#### Open questions
+
+- Should the messaging agent share context with email intake? (e.g., user emails an order then texts "did you get my order?")
+- Which subscription tiers include messaging?
+- TCPA compliance for SMS: does user-initiated contact constitute consent, or do we need explicit opt-in before responding?
+- Apple Business Register approval timeline — should we start enrollment now to avoid blocking Phase 2?
+- Should there be a "connect your WhatsApp" step in onboarding, or is identity-binding-on-first-message sufficient?
+- Brevo also supports WhatsApp and SMS — should we evaluate Brevo as an alternative to Twilio given we already use Brevo for email? Could reduce vendor count.
+
+#### Estimate
+
+**L** — Phase 1 (WhatsApp + SMS): 2–3 weeks. The webhook adapter and identity binding reuse email intake patterns, but the multi-turn conversational agent with tool-use is new infrastructure. Phase 2 (iMessage): 1 week additional — mostly Apple enrollment + rich message formatting, no new backend architecture. Image parsing via Claude Vision adds surface area to both phases.
 
 ---
 
@@ -1010,34 +1121,34 @@ Limited real-time features exist (appointment count polling, unread email count)
 
 ## 5. Feature Readiness Summary
 
-| Feature              | Status         | Notes                                                 |
-| -------------------- | -------------- | ----------------------------------------------------- |
-| Orders               | ✅ Complete    | Core workflow fully functional                        |
-| Products & Catalog   | ✅ Complete    | Includes AI linesheet parser                          |
-| Brands               | ✅ Complete    | Scoping and commission config working                 |
-| Accounts             | ✅ Complete    | Health scoring in DB, not yet in UI                   |
-| Appointments         | ✅ Complete    | No calendar view yet                                  |
-| Expenses             | ✅ Complete    | Approval workflow functional                          |
-| Email Integration    | ✅ Complete    | Gmail only; Outlook partial                           |
-| Insights             | ✅ Complete    | AI briefing and action cards                          |
-| Shows & Events       | ✅ Complete    | Document storage and visit tracking                   |
-| Contacts             | ✅ Complete    | Gmail auto-discovery working                          |
-| Territories          | ✅ Complete    | Basic assignment and reporting                        |
-| Reports              | ✅ Complete    | 8 pre-built templates; custom builder planned         |
-| Search               | ✅ Complete    | ILIKE-based global search                             |
-| Buyer Portal         | ✅ Complete    | Shopping cart is client-side only                     |
-| Brand Org Experience | ⚠️ Partial     | Org type exists; brand-specific UX largely absent     |
-| SMS AI Ordering      | 🔴 Not Started | AI-powered order placement via text message           |
-| Email AI Ordering    | 🔴 Not Started | AI-powered order placement via inbound email          |
-| Connections          | ⚠️ Partial     | DB infrastructure complete; UI minimal                |
-| AI Agents            | ⚠️ Partial     | Event triggers work; scheduled triggers pending       |
-| Integrations         | ⚠️ Partial     | 5 live; 4 planned (QuickBooks, Xero, Shopify, Zapier) |
-| Voice                | ⚠️ Partial     | TTS works; STT endpoint is a stub                     |
-| Security & SSO       | ✅ Complete    | SAML SSO with enforcement                             |
-| Billing              | 🔴 Stub        | UI only; no payment processing                        |
-| Workspace            | 🔴 Placeholder | Route exists; no functionality                        |
-| Notifications        | 🔴 Not Started | No centralized system                                 |
-| Mobile               | 🔴 Not Started | No mobile optimization                                |
+| Feature                       | Status         | Notes                                                              |
+| ----------------------------- | -------------- | ------------------------------------------------------------------ |
+| Orders                        | ✅ Complete    | Core workflow fully functional                                     |
+| Products & Catalog            | ✅ Complete    | Includes AI linesheet parser                                       |
+| Brands                        | ✅ Complete    | Scoping and commission config working                              |
+| Accounts                      | ✅ Complete    | Health scoring in DB, not yet in UI                                |
+| Appointments                  | ✅ Complete    | No calendar view yet                                               |
+| Expenses                      | ✅ Complete    | Approval workflow functional                                       |
+| Email Integration             | ✅ Complete    | Gmail only; Outlook partial                                        |
+| Insights                      | ✅ Complete    | AI briefing and action cards                                       |
+| Shows & Events                | ✅ Complete    | Document storage and visit tracking                                |
+| Contacts                      | ✅ Complete    | Gmail auto-discovery working                                       |
+| Territories                   | ✅ Complete    | Basic assignment and reporting                                     |
+| Reports                       | ✅ Complete    | 8 pre-built templates; custom builder planned                      |
+| Search                        | ✅ Complete    | ILIKE-based global search                                          |
+| Buyer Portal                  | ✅ Complete    | Shopping cart is client-side only                                  |
+| Brand Org Experience          | ⚠️ Partial     | Org type exists; brand-specific UX largely absent                  |
+| Messaging AI (WhatsApp + SMS) | 🔴 Not Started | Conversational AI ordering + queries via WhatsApp and SMS (Twilio) |
+| Email AI Ordering             | 🔴 Not Started | AI-powered order placement via inbound email                       |
+| Connections                   | ⚠️ Partial     | DB infrastructure complete; UI minimal                             |
+| AI Agents                     | ⚠️ Partial     | Event triggers work; scheduled triggers pending                    |
+| Integrations                  | ⚠️ Partial     | 5 live; 4 planned (QuickBooks, Xero, Shopify, Zapier)              |
+| Voice                         | ⚠️ Partial     | TTS works; STT endpoint is a stub                                  |
+| Security & SSO                | ✅ Complete    | SAML SSO with enforcement                                          |
+| Billing                       | 🔴 Stub        | UI only; no payment processing                                     |
+| Workspace                     | 🔴 Placeholder | Route exists; no functionality                                     |
+| Notifications                 | 🔴 Not Started | No centralized system                                              |
+| Mobile                        | 🔴 Not Started | No mobile optimization                                             |
 
 ---
 

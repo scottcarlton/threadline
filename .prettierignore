@@ -11,3 +11,9 @@ bun.lockb
 # Email templates have hand-tuned table-based HTML and Mustache tags
 # that prettier would mangle.
 /emails/
+
+# Superpowers plugin generated files
+.superpowers/
+
+# Prototype HTML files
+/explorations/

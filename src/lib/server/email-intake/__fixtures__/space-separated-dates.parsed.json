@@ -1,0 +1,33 @@
+{
+	"account_name": "The Style Bar",
+	"brand_name": "Indigo Coast",
+	"org_hint": null,
+	"ship_window": {
+		"start": "7/1",
+		"end": "7/31"
+	},
+	"notes": null,
+	"items": [
+		{
+			"raw_text": "Summer Breeze Top: 2 XS, 3 S, 4 M, 2 L",
+			"product_name": "Summer Breeze Top",
+			"color": null,
+			"sizes": [
+				{ "size": "XS", "qty": 2 },
+				{ "size": "S", "qty": 3 },
+				{ "size": "M", "qty": 4 },
+				{ "size": "L", "qty": 2 }
+			]
+		},
+		{
+			"raw_text": "Ocean Wave Skirt: 1 S, 2 M, 3 L",
+			"product_name": "Ocean Wave Skirt",
+			"color": null,
+			"sizes": [
+				{ "size": "S", "qty": 1 },
+				{ "size": "M", "qty": 2 },
+				{ "size": "L", "qty": 3 }
+			]
+		}
+	]
+}

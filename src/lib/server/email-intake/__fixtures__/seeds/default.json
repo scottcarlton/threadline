@@ -1,0 +1,203 @@
+{
+	"organizations": [
+		{ "id": "org-mh", "name": "Monarch Haze Showroom", "org_type": "rep" },
+		{ "id": "org-ic", "name": "Indigo Coast Studio", "org_type": "rep" }
+	],
+	"users": [
+		{ "id": "user-mh-1", "organization_id": "org-mh" },
+		{ "id": "user-ic-1", "organization_id": "org-ic" }
+	],
+	"accounts": [
+		{ "id": "acct-bloom", "organization_id": "org-mh", "business_name": "Bloom Boutique" },
+		{ "id": "acct-riverside", "organization_id": "org-mh", "business_name": "Riverside Boutique" },
+		{ "id": "acct-stylebar", "organization_id": "org-ic", "business_name": "The Style Bar" },
+		{ "id": "acct-blooms", "organization_id": "org-mh", "business_name": "Bloom Brothers" }
+	],
+	"brands": [
+		{ "id": "brand-mh", "organization_id": "org-mh", "name": "Monarch Haze", "is_active": true },
+		{ "id": "brand-ic", "organization_id": "org-ic", "name": "Indigo Coast", "is_active": true }
+	],
+	"products": [
+		{
+			"id": "prod-kailua",
+			"brand_id": "brand-mh",
+			"name": "Kailua Bubble Gauze Cotton Shirt",
+			"organization_id": "org-mh"
+		},
+		{
+			"id": "prod-catya",
+			"brand_id": "brand-mh",
+			"name": "Catya Blouse",
+			"organization_id": "org-mh"
+		},
+		{
+			"id": "prod-silk-wrap",
+			"brand_id": "brand-mh",
+			"name": "Silk Wrap Dress",
+			"organization_id": "org-mh"
+		},
+		{
+			"id": "prod-linen-palazzo",
+			"brand_id": "brand-mh",
+			"name": "Linen Palazzo Pants",
+			"organization_id": "org-mh"
+		},
+		{
+			"id": "prod-summer-breeze",
+			"brand_id": "brand-ic",
+			"name": "Summer Breeze Top",
+			"organization_id": "org-ic"
+		},
+		{
+			"id": "prod-ocean-wave",
+			"brand_id": "brand-ic",
+			"name": "Ocean Wave Skirt",
+			"organization_id": "org-ic"
+		}
+	],
+	"product_variants": [
+		{
+			"id": "var-k-xs",
+			"product_id": "prod-kailua",
+			"size": "XS",
+			"color": null,
+			"unit_price": 68
+		},
+		{ "id": "var-k-s", "product_id": "prod-kailua", "size": "S", "color": null, "unit_price": 68 },
+		{ "id": "var-k-m", "product_id": "prod-kailua", "size": "M", "color": null, "unit_price": 68 },
+		{ "id": "var-k-l", "product_id": "prod-kailua", "size": "L", "color": null, "unit_price": 68 },
+		{
+			"id": "var-k-xl",
+			"product_id": "prod-kailua",
+			"size": "XL",
+			"color": null,
+			"unit_price": 68
+		},
+		{
+			"id": "var-c-s-mh",
+			"product_id": "prod-catya",
+			"size": "S",
+			"color": "Monarch Haze",
+			"unit_price": 82
+		},
+		{
+			"id": "var-c-l-mh",
+			"product_id": "prod-catya",
+			"size": "L",
+			"color": "Monarch Haze",
+			"unit_price": 82
+		},
+		{
+			"id": "var-c-xl-mh",
+			"product_id": "prod-catya",
+			"size": "XL",
+			"color": "Monarch Haze",
+			"unit_price": 82
+		},
+		{
+			"id": "var-c-xxl-mh",
+			"product_id": "prod-catya",
+			"size": "XXL",
+			"color": "Monarch Haze",
+			"unit_price": 82
+		},
+		{
+			"id": "var-swd-s",
+			"product_id": "prod-silk-wrap",
+			"size": "S",
+			"color": null,
+			"unit_price": 120
+		},
+		{
+			"id": "var-swd-m",
+			"product_id": "prod-silk-wrap",
+			"size": "M",
+			"color": null,
+			"unit_price": 120
+		},
+		{
+			"id": "var-swd-l",
+			"product_id": "prod-silk-wrap",
+			"size": "L",
+			"color": null,
+			"unit_price": 120
+		},
+		{
+			"id": "var-lpp-s",
+			"product_id": "prod-linen-palazzo",
+			"size": "S",
+			"color": null,
+			"unit_price": 95
+		},
+		{
+			"id": "var-lpp-m",
+			"product_id": "prod-linen-palazzo",
+			"size": "M",
+			"color": null,
+			"unit_price": 95
+		},
+		{
+			"id": "var-lpp-l",
+			"product_id": "prod-linen-palazzo",
+			"size": "L",
+			"color": null,
+			"unit_price": 95
+		},
+		{
+			"id": "var-lpp-xl",
+			"product_id": "prod-linen-palazzo",
+			"size": "XL",
+			"color": null,
+			"unit_price": 95
+		},
+		{
+			"id": "var-sbt-xs",
+			"product_id": "prod-summer-breeze",
+			"size": "XS",
+			"color": null,
+			"unit_price": 55
+		},
+		{
+			"id": "var-sbt-s",
+			"product_id": "prod-summer-breeze",
+			"size": "S",
+			"color": null,
+			"unit_price": 55
+		},
+		{
+			"id": "var-sbt-m",
+			"product_id": "prod-summer-breeze",
+			"size": "M",
+			"color": null,
+			"unit_price": 55
+		},
+		{
+			"id": "var-sbt-l",
+			"product_id": "prod-summer-breeze",
+			"size": "L",
+			"color": null,
+			"unit_price": 55
+		},
+		{
+			"id": "var-ows-s",
+			"product_id": "prod-ocean-wave",
+			"size": "S",
+			"color": null,
+			"unit_price": 72
+		},
+		{
+			"id": "var-ows-m",
+			"product_id": "prod-ocean-wave",
+			"size": "M",
+			"color": null,
+			"unit_price": 72
+		},
+		{
+			"id": "var-ows-l",
+			"product_id": "prod-ocean-wave",
+			"size": "L",
+			"color": null,
+			"unit_price": 72
+		}
+	]
+}
