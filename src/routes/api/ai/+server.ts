@@ -971,7 +971,8 @@ const WRITE_TOOLS = new Set([
 	'update_org_payments',
 	'update_org_taxes',
 	'update_org_returns',
-	'skip_setup_section'
+	'skip_setup_section',
+	'update_products'
 ]);
 
 function describeCurrentPage(path: string): string {

@@ -62,8 +62,16 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	if (rawManagerId === undefined) {
 		manager_id =
 			inviterEligibleAsManager && (role === 'member' || role === 'sales') ? membership.id : null;
+	} else if (typeof rawManagerId === 'string' && rawManagerId.length > 0) {
+		const { data: validManager } = await supabaseAdmin
+			.from('organization_members')
+			.select('id')
+			.eq('id', rawManagerId)
+			.eq('organization_id', organization.id)
+			.maybeSingle();
+		manager_id = validManager ? rawManagerId : null;
 	} else {
-		manager_id = typeof rawManagerId === 'string' && rawManagerId.length > 0 ? rawManagerId : null;
+		manager_id = null;
 	}
 
 	// Look up any existing auth user for this email
@@ -103,30 +111,48 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		}
 
 		if (scopedBrandIds.length > 0) {
-			const rows = scopedBrandIds.map((brandId) => ({
-				member_id: inserted.id,
-				brand_id: brandId,
-				granted_by: membership.profile_id
-			}));
-			await supabaseAdmin.from('member_brand_access').insert(rows);
+			const { data: validBrands } = await supabaseAdmin
+				.from('brands')
+				.select('id')
+				.eq('organization_id', organization.id)
+				.in('id', scopedBrandIds);
+			const validBrandIds = validBrands?.map((b) => b.id) ?? [];
 
-			if (commission > 0) {
-				const commissionRows = scopedBrandIds.map((brandId) => ({
-					organization_id: organization.id,
+			if (validBrandIds.length > 0) {
+				const rows = validBrandIds.map((brandId) => ({
 					member_id: inserted.id,
 					brand_id: brandId,
-					rate: commission
+					granted_by: membership.profile_id
 				}));
-				await supabaseAdmin.from('member_brand_commissions').insert(commissionRows);
+				await supabaseAdmin.from('member_brand_access').insert(rows);
+
+				if (commission > 0) {
+					const commissionRows = validBrandIds.map((brandId) => ({
+						organization_id: organization.id,
+						member_id: inserted.id,
+						brand_id: brandId,
+						rate: commission
+					}));
+					await supabaseAdmin.from('member_brand_commissions').insert(commissionRows);
+				}
 			}
 		}
 
 		if (scopedTerritoryIds.length > 0) {
-			const territoryRows = scopedTerritoryIds.map((territoryId) => ({
-				organization_member_id: inserted.id,
-				territory_id: territoryId
-			}));
-			await supabaseAdmin.from('member_territories').insert(territoryRows);
+			const { data: validTerritories } = await supabaseAdmin
+				.from('territories')
+				.select('id')
+				.eq('organization_id', organization.id)
+				.in('id', scopedTerritoryIds);
+			const validTerritoryIds = validTerritories?.map((t) => t.id) ?? [];
+
+			if (validTerritoryIds.length > 0) {
+				const territoryRows = validTerritoryIds.map((territoryId) => ({
+					organization_member_id: inserted.id,
+					territory_id: territoryId
+				}));
+				await supabaseAdmin.from('member_territories').insert(territoryRows);
+			}
 		}
 
 		return json({ success: true, autoAdded: true });

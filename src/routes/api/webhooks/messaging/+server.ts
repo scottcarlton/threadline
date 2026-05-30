@@ -84,11 +84,13 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
 	const { data: org } = await supabaseAdmin
 		.from('organizations')
-		.select('name')
+		.select('name, org_type')
 		.eq('id', organizationId)
 		.single();
 
-	const orgName = ((org as Record<string, unknown> | null)?.name as string) ?? 'your organization';
+	const orgRow = org as Record<string, unknown> | null;
+	const orgName = (orgRow?.name as string) ?? 'your organization';
+	const orgType = ((orgRow?.org_type as string) === 'brand' ? 'brand' : 'rep') as 'rep' | 'brand';
 
 	const { data: profile } = await supabaseAdmin
 		.from('profiles')
@@ -128,6 +130,7 @@ export const POST: RequestHandler = async ({ request, url }) => {
 		organizationId,
 		userId: identity.userId,
 		brandScope,
+		orgType,
 		mediaUrl: message.mediaUrl
 	});
 
