@@ -203,12 +203,35 @@ async function createBrand(input: Record<string, unknown>, ctx: ToolContext): Pr
 	return { success: true, data };
 }
 
+const BRAND_UPDATE_FIELDS = [
+	'name',
+	'logo_url',
+	'contact_name',
+	'contact_first_name',
+	'contact_last_name',
+	'contact_email',
+	'contact_phone',
+	'website',
+	'notes',
+	'is_active',
+	'commission_rate'
+] as const;
+
 async function updateBrand(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	const { brand_id, ...updates } = input;
+	const brand_id = input.brand_id as string;
+	const patch: Record<string, unknown> = {};
+	for (const key of BRAND_UPDATE_FIELDS) {
+		if (key in input) patch[key] = input[key];
+	}
+	if (Object.keys(patch).length === 0) {
+		return { success: false, error: 'No allowed fields in updates' };
+	}
+	patch.updated_at = new Date().toISOString();
+
 	const { data, error } = await ctx.supabase
 		.from('brands')
-		.update(updates)
-		.eq('id', brand_id as string)
+		.update(patch)
+		.eq('id', brand_id)
 		.eq('organization_id', ctx.organizationId)
 		.select()
 		.single();
@@ -296,15 +319,42 @@ async function createAccount(
 	return { success: true, data };
 }
 
+const ACCOUNT_UPDATE_FIELDS = [
+	'business_name',
+	'contact_name',
+	'contact_first_name',
+	'contact_last_name',
+	'contact_email',
+	'phone',
+	'address_line1',
+	'address_line2',
+	'city',
+	'state',
+	'zip',
+	'country',
+	'notes',
+	'is_active',
+	'territory_id'
+] as const;
+
 async function updateAccount(
 	input: Record<string, unknown>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const { account_id, ...updates } = input;
+	const account_id = input.account_id as string;
+	const patch: Record<string, unknown> = {};
+	for (const key of ACCOUNT_UPDATE_FIELDS) {
+		if (key in input) patch[key] = input[key];
+	}
+	if (Object.keys(patch).length === 0) {
+		return { success: false, error: 'No allowed fields in updates' };
+	}
+	patch.updated_at = new Date().toISOString();
+
 	const { data, error } = await ctx.supabase
 		.from('accounts')
-		.update(updates)
-		.eq('id', account_id as string)
+		.update(patch)
+		.eq('id', account_id)
 		.eq('organization_id', ctx.organizationId)
 		.select()
 		.single();

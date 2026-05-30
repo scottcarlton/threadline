@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 				}
 			}
 
-			if (next) {
+			if (next && next.startsWith('/') && !next.startsWith('//')) {
 				throw redirect(303, next);
 			}
 

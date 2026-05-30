@@ -25,31 +25,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		)
 	);
 
-	const [emailRes, calendarRes, outlookRes, msCalendarRes, prefsRes] = await Promise.all([
+	const [connectionsRes, prefsRes] = await Promise.all([
 		supabase
 			.from('email_connections')
-			.select('email_address')
+			.select('provider, email_address')
 			.eq('profile_id', user.id)
-			.eq('provider', 'gmail')
-			.maybeSingle(),
-		supabase
-			.from('email_connections')
-			.select('email_address')
-			.eq('profile_id', user.id)
-			.eq('provider', 'google_calendar')
-			.maybeSingle(),
-		supabase
-			.from('email_connections')
-			.select('email_address')
-			.eq('profile_id', user.id)
-			.eq('provider', 'outlook')
-			.maybeSingle(),
-		supabase
-			.from('email_connections')
-			.select('email_address')
-			.eq('profile_id', user.id)
-			.eq('provider', 'microsoft_calendar')
-			.maybeSingle(),
+			.in('provider', ['gmail', 'google_calendar', 'outlook', 'microsoft_calendar']),
 		organization
 			? supabase
 					.from('notification_preferences')
@@ -60,15 +41,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 			: Promise.resolve({ data: null })
 	]);
 
+	const connByProvider = new Map(
+		(connectionsRes.data ?? []).map((c) => [c.provider, c.email_address])
+	);
+
 	return {
-		emailConnected: !!emailRes.data,
-		emailAddress: emailRes.data?.email_address ?? null,
-		calendarConnected: !!calendarRes.data,
-		calendarEmail: calendarRes.data?.email_address ?? null,
-		outlookConnected: !!outlookRes.data,
-		outlookEmail: outlookRes.data?.email_address ?? null,
-		msCalendarConnected: !!msCalendarRes.data,
-		msCalendarEmail: msCalendarRes.data?.email_address ?? null,
+		emailConnected: connByProvider.has('gmail'),
+		emailAddress: connByProvider.get('gmail') ?? null,
+		calendarConnected: connByProvider.has('google_calendar'),
+		calendarEmail: connByProvider.get('google_calendar') ?? null,
+		outlookConnected: connByProvider.has('outlook'),
+		outlookEmail: connByProvider.get('outlook') ?? null,
+		msCalendarConnected: connByProvider.has('microsoft_calendar'),
+		msCalendarEmail: connByProvider.get('microsoft_calendar') ?? null,
 		notificationPreferences: prefsRes.data ?? null,
 		isBuyer: locals.isBuyer === true,
 		authEmail: authUser?.email ?? null,

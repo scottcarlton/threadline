@@ -48,7 +48,7 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 		// Get org info for context
 		const { data: org } = await supabaseAdmin
 			.from('organizations')
-			.select('name')
+			.select('name, org_type')
 			.eq('id', params.orgId)
 			.single();
 
@@ -104,7 +104,7 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 					organizationId: params.orgId,
 					userId: '', // Agent runs as system
 					brandScope: null, // Full access
-					orgType: 'rep', // Default for automated agents
+					orgType: (org?.org_type as 'rep' | 'brand') ?? 'rep',
 					origin: ''
 				});
 

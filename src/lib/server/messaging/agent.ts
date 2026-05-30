@@ -21,6 +21,7 @@ type AgentInput = {
 	organizationId: string;
 	userId: string;
 	brandScope: string[] | null;
+	orgType: 'rep' | 'brand';
 	mediaUrl?: string | null;
 };
 
@@ -124,7 +125,8 @@ async function executeMessagingTool(
 	input: Record<string, unknown>,
 	organizationId: string,
 	userId: string,
-	brandScope: string[] | null
+	brandScope: string[] | null,
+	orgType: 'rep' | 'brand'
 ): Promise<string> {
 	switch (toolName) {
 		case 'lookup_inventory': {
@@ -225,7 +227,7 @@ async function executeMessagingTool(
 					organizationId,
 					userId,
 					brandScope,
-					orgType: 'rep',
+					orgType,
 					origin: 'messaging'
 				}
 			);
@@ -304,7 +306,8 @@ export async function runAgent(input: AgentInput): Promise<string> {
 					tool.input as Record<string, unknown>,
 					input.organizationId,
 					input.userId,
-					input.brandScope
+					input.brandScope,
+					input.orgType
 				);
 				toolResults.push({
 					type: 'tool_result',

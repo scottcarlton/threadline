@@ -131,5 +131,7 @@ export function syncShowDateToCalendar(
 }
 
 function doSync(fn: () => Promise<unknown>): void {
-	fn().catch(() => {});
+	fn().catch((err) => {
+		console.error('[calendar-sync]', err instanceof Error ? err.message : err);
+	});
 }

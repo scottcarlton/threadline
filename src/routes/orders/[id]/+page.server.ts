@@ -102,18 +102,19 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		}
 	}
 
-	// Mark this order as viewed by the current user. Drives the Orders nav badge
-	// ('unviewed' drops once the user opens the detail page). Best-effort — don't
-	// fail the page load if the upsert errors.
+	// Mark this order as viewed — fire-and-forget, don't block the page load.
 	if (locals.user?.id) {
-		await supabaseAdmin.from('order_views').upsert(
-			{
-				order_id: resolvedOrderId,
-				profile_id: locals.user.id,
-				viewed_at: new Date().toISOString()
-			},
-			{ onConflict: 'order_id,profile_id' }
-		);
+		supabaseAdmin
+			.from('order_views')
+			.upsert(
+				{
+					order_id: resolvedOrderId,
+					profile_id: locals.user.id,
+					viewed_at: new Date().toISOString()
+				},
+				{ onConflict: 'order_id,profile_id' }
+			)
+			.then(() => {});
 	}
 
 	// Load brand assets, commission override, rep info, comments, and audits in parallel
