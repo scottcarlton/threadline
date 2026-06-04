@@ -233,7 +233,7 @@
 					class="mt-1 text-sm text-muted-foreground hover:text-foreground"
 					onclick={() => (showOtherMethods = true)}
 				>
-					Show other sign in options
+					Show other options
 				</button>
 			{/if}
 		</div>

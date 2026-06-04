@@ -13,7 +13,7 @@ export async function isEmailWhitelisted(email: string): Promise<boolean> {
 		.select('id')
 		.ilike('email', email)
 		.limit(1)
-		.single();
+		.maybeSingle();
 
 	return !!data;
 }

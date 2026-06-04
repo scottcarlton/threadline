@@ -110,7 +110,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		);
 	}
 
-	const [accountsRes, ordersRes, healthMap, tagAssignmentsRes] = await Promise.all([
+	const [accountsRes, ordersRes, healthMap] = await Promise.all([
 		accountsQuery,
 		// YTD totals span every org the viewer can see accounts for. For a BOA,
 		// most account orders are created by the connected rep org (different
@@ -122,13 +122,20 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			.eq('order_year', currentYear),
 		// Health across every org the viewer can see accounts for — so federated
 		// accounts show a score too, computed against their own org's orders.
-		computeAccountHealth(supabaseAdmin, visibleOrgIds),
-		supabaseAdmin
-			.from('account_tag_assignments')
-			.select('account_id, account_tags(id, name, color)')
+		computeAccountHealth(supabaseAdmin, visibleOrgIds)
 	]);
 
 	const accounts = accountsRes.data ?? [];
+
+	// Fetch tags only for the accounts on this page
+	const pageAccountIds = accounts.map((a) => (a as { id: string }).id);
+	const tagAssignmentsRes =
+		pageAccountIds.length > 0
+			? await supabaseAdmin
+					.from('account_tag_assignments')
+					.select('account_id, account_tags(id, name, color)')
+					.in('account_id', pageAccountIds)
+			: { data: [] };
 
 	// Build YTD totals per account
 	const totals: Record<string, number> = {};
