@@ -122,6 +122,39 @@ export function parseMessage(msg: gmail_v1.Schema$Message): GmailMessage {
 	};
 }
 
+function findPartByMime(payload: gmail_v1.Schema$MessagePart, mime: string): string | null {
+	if (payload.mimeType === mime && payload.body?.data) {
+		return decodeBase64Url(payload.body.data);
+	}
+	if (payload.parts) {
+		for (const part of payload.parts) {
+			const found = findPartByMime(part, mime);
+			if (found !== null) return found;
+		}
+	}
+	return null;
+}
+
+/**
+ * Extract a message body for rich display, preferring the HTML part so the
+ * inbox can render it like a real mail client. Falls back to text/plain.
+ */
+export function extractHtmlBody(payload: gmail_v1.Schema$MessagePart | undefined): {
+	content: string;
+	isHtml: boolean;
+} {
+	if (!payload) return { content: '', isHtml: false };
+
+	const html = findPartByMime(payload, 'text/html');
+	if (html !== null) return { content: html, isHtml: true };
+
+	const text = findPartByMime(payload, 'text/plain');
+	if (text !== null) return { content: text, isHtml: false };
+
+	if (payload.body?.data) return { content: decodeBase64Url(payload.body.data), isHtml: false };
+	return { content: '', isHtml: false };
+}
+
 export type EmailAttachment = {
 	filename: string;
 	mimeType: string;

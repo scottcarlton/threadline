@@ -13,11 +13,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 		return { connected: false, emailAddress: null };
 	}
 
-	const { data: connection } = await supabase
+	// Only email providers gate the inbox — calendar connections (google_calendar,
+	// microsoft_calendar, calendly) also live in email_connections, so a bare
+	// .maybeSingle() would error once a user connects both email and a calendar.
+	const { data: connections } = await supabase
 		.from('email_connections')
-		.select('email_address')
+		.select('email_address, provider')
 		.eq('profile_id', user.id)
-		.maybeSingle();
+		.in('provider', ['gmail', 'outlook']);
+
+	const emailRows = connections ?? [];
+	const connection = emailRows.find((c) => c.provider === 'gmail') ?? emailRows[0] ?? null;
 
 	// Load account email map for auto-linking + manual links
 	const orgId = locals.organization?.id;

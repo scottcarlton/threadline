@@ -44,16 +44,42 @@ export async function exchangeOutlookCode(
 		throw new Error(`Microsoft OAuth error: ${data.error_description ?? data.error}`);
 	}
 
-	const profile = await fetch('https://graph.microsoft.com/v1.0/me', {
-		headers: { Authorization: `Bearer ${data.access_token}` }
-	}).then((r) => r.json());
+	// Prefer the id_token's email claim — Graph /me returns UnknownError for
+	// personal Outlook.com accounts, so it can't be relied on for the address.
+	let email = emailFromIdToken(data.id_token) ?? '';
+	if (!email) {
+		try {
+			const profile = await fetch('https://graph.microsoft.com/v1.0/me', {
+				headers: { Authorization: `Bearer ${data.access_token}` }
+			}).then((r) => r.json());
+			email = (profile.mail ?? profile.userPrincipalName ?? '') as string;
+		} catch {
+			email = '';
+		}
+	}
 
 	return {
 		accessToken: data.access_token as string,
 		refreshToken: (data.refresh_token ?? '') as string,
 		expiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
-		email: (profile.mail ?? profile.userPrincipalName ?? '') as string
+		email
 	};
+}
+
+/** Extract the email/UPN claim from an OIDC id_token (JWT). Returns null if absent. */
+export function emailFromIdToken(idToken: string | undefined | null): string | null {
+	if (!idToken) return null;
+	const payload = idToken.split('.')[1];
+	if (!payload) return null;
+	try {
+		const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(
+			'utf-8'
+		);
+		const claims = JSON.parse(json) as { email?: string; preferred_username?: string };
+		return claims.email ?? claims.preferred_username ?? null;
+	} catch {
+		return null;
+	}
 }
 
 export async function getOutlookUserToken(profileId: string): Promise<string | null> {

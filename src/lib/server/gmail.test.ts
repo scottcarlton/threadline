@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMessage, buildRawEmail } from './gmail.js';
+import { parseMessage, buildRawEmail, extractHtmlBody } from './gmail.js';
 
 function decodeBase64Url(encoded: string): string {
 	const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
@@ -160,6 +160,56 @@ describe('parseMessage', () => {
 
 		// parseMessage does not guard against undefined payload — this documents the current behavior
 		expect(() => parseMessage(msg)).toThrow();
+	});
+});
+
+describe('extractHtmlBody', () => {
+	it('prefers the text/html part and flags it as HTML', () => {
+		const payload = {
+			mimeType: 'multipart/alternative',
+			parts: [
+				{ mimeType: 'text/plain', body: { data: encodeBase64Url('plain version') } },
+				{ mimeType: 'text/html', body: { data: encodeBase64Url('<p>html version</p>') } }
+			]
+		};
+		const result = extractHtmlBody(payload);
+		expect(result.isHtml).toBe(true);
+		expect(result.content).toBe('<p>html version</p>');
+	});
+
+	it('falls back to text/plain when no HTML part exists', () => {
+		const payload = {
+			mimeType: 'multipart/alternative',
+			parts: [{ mimeType: 'text/plain', body: { data: encodeBase64Url('only plain') } }]
+		};
+		const result = extractHtmlBody(payload);
+		expect(result.isHtml).toBe(false);
+		expect(result.content).toBe('only plain');
+	});
+
+	it('recurses into nested multipart structures to find HTML', () => {
+		const payload = {
+			mimeType: 'multipart/mixed',
+			parts: [
+				{
+					mimeType: 'multipart/alternative',
+					parts: [{ mimeType: 'text/html', body: { data: encodeBase64Url('<b>nested</b>') } }]
+				}
+			]
+		};
+		const result = extractHtmlBody(payload);
+		expect(result.isHtml).toBe(true);
+		expect(result.content).toBe('<b>nested</b>');
+	});
+
+	it('uses a single-part body when there are no parts', () => {
+		const payload = { mimeType: 'text/plain', body: { data: encodeBase64Url('single part') } };
+		const result = extractHtmlBody(payload);
+		expect(result).toEqual({ content: 'single part', isHtml: false });
+	});
+
+	it('returns empty for an undefined payload', () => {
+		expect(extractHtmlBody(undefined)).toEqual({ content: '', isHtml: false });
 	});
 });
 
