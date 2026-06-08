@@ -533,7 +533,7 @@
 							<div class="flex-1 overflow-auto p-4">
 								{#if it.available_colors.length > 0}
 									<div class="mb-3">
-										<label class="mb-2 block text-sm text-muted-foreground">Color</label>
+										<span class="mb-2 block text-sm text-muted-foreground">Color</span>
 										<div class="flex flex-wrap gap-3">
 											{#each it.available_colors as color (color)}
 												{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
@@ -641,7 +641,7 @@
 									{@const idx = items.findIndex((x) => x.product_id === it.product_id)}
 									{@const activeColor = it.selected_color || ''}
 									{@const qty = it.color_size_qtys[activeColor]?.[''] ?? 0}
-									<label class="mb-2 block text-sm text-muted-foreground">Qty</label>
+									<span class="mb-2 block text-sm text-muted-foreground">Qty</span>
 									<QtyStepper
 										value={qty}
 										onchange={(n) => {

@@ -16,6 +16,7 @@
 
 	import { page } from '$app/stores';
 	import { get } from 'svelte/store';
+	import { resolve } from '$app/paths';
 
 	const errorMessages: Record<string, string> = {
 		sso_required: 'Your organization requires SSO. Please sign in with SSO below.',
@@ -24,8 +25,7 @@
 		invitation_expired: 'That invitation has expired. Ask your admin to send a new one.',
 		invite_accept_failed:
 			'Something went wrong accepting that invitation. Please try again or contact your admin.',
-		beta_not_whitelisted:
-			"Threadline is currently in private beta. If you'd like access, reach out to hello@threadline.systems."
+		beta_not_whitelisted: 'Threadline is in private beta.'
 	};
 
 	const urlError = get(page).url.searchParams.get('error');
@@ -165,7 +165,14 @@
 <div>
 	{#if urlErrorMessage}
 		<Alert variant="destructive" class="mb-4">
-			<AlertDescription>{urlErrorMessage}</AlertDescription>
+			<AlertDescription>
+				{urlErrorMessage}
+				{#if urlError === 'beta_not_whitelisted'}
+					<a href={resolve('/beta')} class="font-medium underline underline-offset-4"
+						>Join the private beta →</a
+					>
+				{/if}
+			</AlertDescription>
 		</Alert>
 	{/if}
 
@@ -237,6 +244,12 @@
 				</button>
 			{/if}
 		</div>
+		<p class="mt-6 text-center text-sm text-muted-foreground">
+			Not in the beta? <a
+				href={resolve('/beta')}
+				class="font-medium text-foreground underline underline-offset-4">Join the private beta</a
+			>
+		</p>
 	{:else if mode === 'otp-email'}
 		<form
 			onsubmit={(e) => {
