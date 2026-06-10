@@ -1,24 +1,17 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getGmailClient, parseMessage } from '$lib/server/gmail';
+import { getThread } from '$lib/server/email/service';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
 	if (!locals.session || !locals.user) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const gmail = await getGmailClient(locals.user.id);
-	if (!gmail) {
-		return json({ error: 'Gmail not connected' }, { status: 400 });
+	try {
+		const messages = await getThread(locals.user.id, params.id);
+		return json({ messages });
+	} catch (err) {
+		console.error('Thread fetch error:', err);
+		return json({ messages: [], error: 'Failed to fetch thread' });
 	}
-
-	const thread = await gmail.users.threads.get({
-		userId: 'me',
-		id: params.id,
-		format: 'full'
-	});
-
-	const messages = (thread.data.messages ?? []).map((msg) => parseMessage(msg));
-
-	return json({ messages });
 };

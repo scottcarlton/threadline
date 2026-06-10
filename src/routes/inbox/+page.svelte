@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import ComposeModal from '$lib/components/email/ComposeModal.svelte';
+	import { renderEmailBody } from '$lib/utils/sanitize-email.js';
 
 	type EmailItem = {
 		id: string;
@@ -22,6 +23,7 @@
 		fromEmail: string;
 		date: string;
 		body: string;
+		bodyIsHtml: boolean;
 	};
 
 	let { data } = $props();
@@ -188,7 +190,13 @@
 			const res = await fetch(`/api/email/thread/${threadId}`);
 			if (res.ok) {
 				const json = await res.json();
-				type ThreadMsg = { id: string; from?: string; date?: string; body?: string };
+				type ThreadMsg = {
+					id: string;
+					from?: string;
+					date?: string;
+					body?: string;
+					bodyIsHtml?: boolean;
+				};
 				threadMessages = (json.messages ?? []).map((m: ThreadMsg) => {
 					const parsed = parseFromHeader(m.from ?? '');
 					return {
@@ -196,7 +204,8 @@
 						from: parsed.name,
 						fromEmail: parsed.email,
 						date: m.date ?? '',
-						body: m.body ?? ''
+						body: m.body ?? '',
+						bodyIsHtml: m.bodyIsHtml ?? false
 					};
 				});
 			}
@@ -223,7 +232,8 @@
 					to: selectedEmail.fromEmail,
 					subject: `Re: ${selectedEmail.subject}`,
 					body: replyBody,
-					threadId: selectedEmail.threadId
+					threadId: selectedEmail.threadId,
+					inReplyTo: selectedEmail.id
 				})
 			});
 			if (res.ok) {
@@ -281,7 +291,7 @@
 			</svg>
 			<h2 class="mt-4 text-lg font-semibold">Connect your email</h2>
 			<p class="mt-2 text-sm text-muted-foreground">
-				Connect your Gmail account to send and receive emails directly from Threadline.
+				Connect your Gmail or Outlook account to send and receive emails directly from Threadline.
 			</p>
 			<Button class="mt-5" href="/settings">Go to Settings</Button>
 		</div>
@@ -573,8 +583,9 @@
 											{formatRelativeTime(message.date)}
 										</span>
 									</div>
-									<div class="mt-3 text-sm leading-relaxed whitespace-pre-wrap">
-										{message.body}
+									<div class="email-html mt-3 text-sm leading-relaxed">
+										<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitized via renderEmailBody (DOMPurify) -->
+										{@html renderEmailBody(message.body, message.bodyIsHtml)}
 									</div>
 								</div>
 							{/each}
@@ -604,3 +615,31 @@
 
 	<ComposeModal open={composeOpen} ontoggle={() => (composeOpen = !composeOpen)} />
 {/if}
+
+<style>
+	/* Contain rich HTML email bodies so their own markup can't break the layout. */
+	.email-html {
+		overflow-x: auto;
+		word-break: break-word;
+	}
+	.email-html :global(img) {
+		max-width: 100%;
+		height: auto;
+	}
+	.email-html :global(table) {
+		max-width: 100%;
+	}
+	.email-html :global(a) {
+		color: rgb(37, 99, 235);
+		text-decoration: underline;
+	}
+	.email-html :global(blockquote) {
+		margin: 0.5em 0;
+		padding-left: 0.75em;
+		border-left: 3px solid var(--border, rgba(0, 0, 0, 0.1));
+		color: var(--muted-foreground, rgba(0, 0, 0, 0.6));
+	}
+	.email-html :global(p) {
+		margin: 0 0 0.5em;
+	}
+</style>

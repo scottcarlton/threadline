@@ -11,20 +11,7 @@ import {
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
-import type {
-	OrgType,
-	OrganizationMember,
-	Organization,
-	AccountUser
-} from '$lib/types/database.js';
-
-type MembershipWithOrg = OrganizationMember & { organizations: Organization };
-type BrandAccessRow = { brand_id: string; brands?: { name?: string } | { name?: string }[] | null };
-type BuyerAccountRow = AccountUser & {
-	account_id: string;
-	accounts?: { organization_id?: string } | null;
-};
-type SsoIdentity = { provider?: string };
+import { loadUserContext, applyUserContext } from '$lib/server/auth.js';
 
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
@@ -52,6 +39,7 @@ const PUBLIC_ROUTES = [
 	'/buyer-invite',
 	'/connect',
 	'/auth/callback',
+	'/logout',
 	'/upload',
 	'/api/dev',
 	'/api/beta',
@@ -125,132 +113,41 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 	// Load user context for authenticated routes
 	if (session && user && !isPublicRoute) {
-		// System super-admin path: above-org identity, no org/buyer context.
-		// Confines the session to /system/** and its API/logout escape hatches.
-		if (isSystemAdminEmail(user.email)) {
-			const { data: profile } = await supabaseAdmin
-				.from('profiles')
-				.select('*')
-				.eq('id', user.id)
-				.single();
-			event.locals.user = profile;
-			event.locals.isSystemAdmin = true;
-			const path = event.url.pathname;
-			const allowed =
-				path.startsWith('/system') || path.startsWith('/api/') || path.startsWith('/logout');
-			if (!allowed) throw redirect(303, '/system');
-			return resolve(event);
-		}
+		const context = await loadUserContext(
+			supabase,
+			supabaseAdmin,
+			user,
+			event.cookies.get('active_org_id')
+		);
+		applyUserContext(event.locals, context);
 
-		const [{ data: profile }, { data: allMemberships }] = await Promise.all([
-			supabaseAdmin.from('profiles').select('*').eq('id', user.id).single(),
-			supabase.from('organization_members').select('*, organizations(*)').eq('profile_id', user.id)
-		]);
-
-		if (allMemberships?.length) {
-			const typedMemberships = allMemberships as MembershipWithOrg[];
-			event.locals.allMemberships = typedMemberships;
-
-			// Determine active org from cookie, fallback to first membership
-			const activeOrgId = event.cookies.get('active_org_id');
-			const membership = activeOrgId
-				? (typedMemberships.find((m) => m.organization_id === activeOrgId) ?? typedMemberships[0])
-				: typedMemberships[0];
-
-			// Org member path
-			let brandScope: string[] | null = null;
-			let scopedBrandNames: string[] | null = null;
-			if (['member', 'sales', 'guest'].includes(membership.role)) {
-				const { data: brandAccess } = await supabase
-					.from('member_brand_access')
-					.select('brand_id, brands(name)')
-					.eq('member_id', membership.id);
-				if (brandAccess?.length) {
-					const rows = brandAccess as BrandAccessRow[];
-					brandScope = rows.map((b) => b.brand_id);
-					scopedBrandNames = rows
-						.map((b) => {
-							const brand = b.brands;
-							if (!brand) return undefined;
-							if (Array.isArray(brand)) return brand[0]?.name;
-							return brand.name;
-						})
-						.filter((n): n is string => Boolean(n));
-				}
+		switch (context.kind) {
+			case 'system_admin': {
+				// Confine the system super-admin session to /system/** and its
+				// API/logout escape hatches.
+				const path = event.url.pathname;
+				const allowed =
+					path.startsWith('/system') || path.startsWith('/api/') || path.startsWith('/logout');
+				if (!allowed) throw redirect(303, '/system');
+				return resolve(event);
 			}
-
-			const org = membership?.organizations;
-			event.locals.user = profile;
-			event.locals.membership = membership;
-			event.locals.organization = org ?? null;
-			event.locals.orgType = (org?.org_type as OrgType) ?? 'rep';
-			event.locals.brandScope = brandScope;
-			event.locals.scopedBrandNames = scopedBrandNames;
-
-			// SSO enforcement: if org requires SSO, verify user authenticated via SSO
-			if (org?.sso_enforced && user.email) {
-				const emailDomain = user.email.split('@')[1]?.toLowerCase();
-				if (emailDomain) {
-					const { data: ssoProvider } = await supabaseAdmin
-						.from('organization_sso_providers')
-						.select('id')
-						.eq('organization_id', org.id)
-						.eq('domain', emailDomain)
-						.limit(1)
-						.single();
-
-					if (ssoProvider) {
-						const isSsoSession =
-							user.app_metadata?.provider === 'sso' ||
-							user.identities?.some((i: SsoIdentity) => i.provider === 'sso');
-						if (!isSsoSession) {
-							await supabase.auth.signOut();
-							throw redirect(303, '/login?error=sso_required');
-						}
-					}
+			case 'org_member': {
+				// SSO enforcement: org requires SSO but session isn't an SSO session.
+				if (context.ssoRequired) {
+					await supabase.auth.signOut();
+					throw redirect(303, '/login?error=sso_required');
 				}
+				break;
 			}
-		} else {
-			// Check if user is a buyer
-			const { data: buyerAccess } = await supabase
-				.from('account_users')
-				.select('*, accounts(*, organizations(*))')
-				.eq('profile_id', user.id);
-
-			if (buyerAccess?.length) {
-				const typedBuyerAccess = buyerAccess as BuyerAccountRow[];
-				event.locals.user = profile;
-				event.locals.isBuyer = true;
-				event.locals.buyerAccounts = typedBuyerAccess;
-
-				// Load accessible brand IDs (use admin client to bypass RLS)
-				const accountIds = typedBuyerAccess.map((a) => a.account_id);
-				const { data: brandAccess } = await supabaseAdmin
-					.from('account_brand_access')
-					.select('brand_id')
-					.in('account_id', accountIds);
-				event.locals.buyerBrandIds =
-					(brandAccess as Array<{ brand_id: string }> | null)?.map((b) => b.brand_id) ?? null;
-
-				// Set organization from the account's org (use admin to bypass RLS)
-				const orgId = typedBuyerAccess[0]?.accounts?.organization_id;
-				if (orgId) {
-					const { data: org } = await supabaseAdmin
-						.from('organizations')
-						.select('*')
-						.eq('id', orgId)
-						.single();
-					if (org) event.locals.organization = org;
-				}
-			} else {
-				// No org membership and not a buyer — redirect to onboarding
-				event.locals.user = profile;
+			case 'onboarding': {
+				// No org membership and not a buyer — redirect to onboarding.
 				if (
 					!event.url.pathname.startsWith('/onboarding') &&
 					!event.url.pathname.startsWith('/api/')
 				) {
 					throw redirect(303, '/onboarding');
 				}
+				break;
 			}
 		}
 	}

@@ -50,6 +50,8 @@
 
 	async function signOut() {
 		await supabase.auth.signOut();
+		// Clear the httpOnly active_org_id cookie server-side; client signOut can't.
+		await fetch('/logout', { method: 'POST' });
 		goto(resolve('/login'));
 	}
 </script>
