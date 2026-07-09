@@ -5,7 +5,7 @@ import { resolveBuyerContext } from './buyer-context.js';
 type Response = { data: unknown; error?: { message: string } | null };
 
 /**
- * Hand-rolled chainable Supabase mock (same convention as stores.test.ts /
+ * Hand-rolled chainable Supabase mock (same convention as retailers.test.ts /
  * connections.test.ts). Responses are keyed by table name; every `.from(table)`
  * call is recorded in `queriedTables` so tests can assert a table was NEVER hit.
  */
@@ -32,10 +32,10 @@ function makeClient(responses: Record<string, Response> = {}) {
 }
 
 describe('resolveBuyerContext', () => {
-	it('returns not-a-buyer when neither account_users nor store_users has a row', async () => {
+	it('returns not-a-buyer when neither account_users nor retailer_users has a row', async () => {
 		const { client } = makeClient({
 			account_users: { data: [], error: null },
-			store_users: { data: [], error: null }
+			retailer_users: { data: [], error: null }
 		});
 		const { client: admin } = makeClient();
 
@@ -46,19 +46,22 @@ describe('resolveBuyerContext', () => {
 			buyerAccounts: [],
 			buyerBrandIds: [],
 			organization: null,
-			store: null
+			retailer: null
 		});
 	});
 
-	it('treats a store-only user as a buyer with empty accounts and the embedded store', async () => {
-		const store = {
-			id: 'store-1',
+	it('treats a retailer-only user as a buyer with empty accounts and the embedded retailer', async () => {
+		const retailer = {
+			id: 'retailer-1',
 			business_name: 'Acme Apparel',
 			onboarding_completed_at: null
 		};
 		const { client } = makeClient({
 			account_users: { data: [], error: null },
-			store_users: { data: [{ id: 'su-1', store_id: 'store-1', stores: store }], error: null }
+			retailer_users: {
+				data: [{ id: 'ru-1', retailer_id: 'retailer-1', retailers: retailer }],
+				error: null
+			}
 		});
 		const { client: admin } = makeClient();
 
@@ -68,14 +71,14 @@ describe('resolveBuyerContext', () => {
 		expect(ctx.buyerAccounts).toEqual([]);
 		expect(ctx.buyerBrandIds).toEqual([]);
 		expect(ctx.organization).toBeNull();
-		expect(ctx.store).toEqual(store);
+		expect(ctx.retailer).toEqual(retailer);
 	});
 
-	it('issues no account-scoped round-trips for a store-only user', async () => {
+	it('issues no account-scoped round-trips for a retailer-only user', async () => {
 		const { client } = makeClient({
 			account_users: { data: [], error: null },
-			store_users: {
-				data: [{ id: 'su-1', store_id: 'store-1', stores: { id: 'store-1' } }],
+			retailer_users: {
+				data: [{ id: 'ru-1', retailer_id: 'retailer-1', retailers: { id: 'retailer-1' } }],
 				error: null
 			}
 		});
@@ -100,7 +103,7 @@ describe('resolveBuyerContext', () => {
 				],
 				error: null
 			},
-			store_users: { data: [], error: null }
+			retailer_users: { data: [], error: null }
 		});
 		const { client: admin, queriedTables: adminTables } = makeClient({
 			account_brand_access: {
@@ -117,21 +120,24 @@ describe('resolveBuyerContext', () => {
 		expect(ctx.buyerAccounts[0].account_id).toBe('acct-1');
 		expect(ctx.buyerBrandIds).toEqual(['brand-1', 'brand-2']);
 		expect(ctx.organization).toEqual(org);
-		expect(ctx.store).toBeNull();
+		expect(ctx.retailer).toBeNull();
 
 		expect(adminTables).toContain('account_brand_access');
 		expect(adminTables).toContain('organizations');
 	});
 
-	it('unions accounts and store when a user has both', async () => {
+	it('unions accounts and retailer when a user has both', async () => {
 		const org = { id: 'org-1', name: 'Brand Org' };
-		const store = { id: 'store-9', business_name: 'Dual Co' };
+		const retailer = { id: 'retailer-9', business_name: 'Dual Co' };
 		const { client } = makeClient({
 			account_users: {
 				data: [{ id: 'au-1', account_id: 'acct-1', accounts: { organization_id: 'org-1' } }],
 				error: null
 			},
-			store_users: { data: [{ id: 'su-1', store_id: 'store-9', stores: store }], error: null }
+			retailer_users: {
+				data: [{ id: 'ru-1', retailer_id: 'retailer-9', retailers: retailer }],
+				error: null
+			}
 		});
 		const { client: admin } = makeClient({
 			account_brand_access: { data: [{ brand_id: 'brand-1' }], error: null },
@@ -144,6 +150,6 @@ describe('resolveBuyerContext', () => {
 		expect(ctx.buyerAccounts).toHaveLength(1);
 		expect(ctx.buyerBrandIds).toEqual(['brand-1']);
 		expect(ctx.organization).toEqual(org);
-		expect(ctx.store).toEqual(store);
+		expect(ctx.retailer).toEqual(retailer);
 	});
 });

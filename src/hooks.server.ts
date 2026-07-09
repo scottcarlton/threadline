@@ -91,7 +91,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.buyerAccounts = null;
 	event.locals.buyerBrandIds = null;
 	event.locals.organization = null;
-	event.locals.store = null;
+	event.locals.retailer = null;
 	event.locals.isSystemAdmin = false;
 	event.locals.orgType = 'rep';
 	event.locals.allMemberships = [];
@@ -206,8 +206,8 @@ const authHandle: Handle = async ({ event, resolve }) => {
 			}
 		} else {
 			// Not an org member — check if the user is a buyer (invited into a
-			// brand account, or a self-signup retailer store). Both populate the
-			// buyer portal; a store user has store_users but no account_users.
+			// brand account, or a self-signup retailer). Both populate the
+			// buyer portal; a retailer user has retailer_users but no account_users.
 			const buyerContext = await resolveBuyerContext(supabase, supabaseAdmin, user.id);
 
 			if (buyerContext.isBuyer) {
@@ -215,16 +215,16 @@ const authHandle: Handle = async ({ event, resolve }) => {
 				event.locals.isBuyer = true;
 				event.locals.buyerAccounts = buyerContext.buyerAccounts;
 				event.locals.buyerBrandIds = buyerContext.buyerBrandIds;
-				event.locals.store = buyerContext.store;
-				// A store user has no brand org, so organization stays null for them.
+				event.locals.retailer = buyerContext.retailer;
+				// A retailer user has no brand org, so organization stays null for them.
 				// Only overwrite the null default when we actually resolved an org.
 				if (buyerContext.organization) {
 					event.locals.organization = buyerContext.organization;
 				}
 			} else {
 				// No org membership and not a buyer — redirect to onboarding. A
-				// store signup mid-wizard also lands here (createStore only writes
-				// the store_users row at step 3), so /onboarding is correct for it.
+				// retailer signup mid-wizard also lands here (createRetailer only writes
+				// the retailer_users row at step 3), so /onboarding is correct for it.
 				event.locals.user = profile;
 				if (
 					!event.url.pathname.startsWith('/onboarding') &&

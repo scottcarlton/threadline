@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createStore } from './stores.js';
+import { createRetailer } from './retailers.js';
 
 type Op = 'select' | 'insert' | 'update' | 'unknown';
 
@@ -79,10 +79,10 @@ function makeMock({
 	return { supabase, captured };
 }
 
-describe('createStore', () => {
-	it('creates a store and a founding buyer_admin store_users row', async () => {
-		const insertedStore = {
-			id: 'store-1',
+describe('createRetailer', () => {
+	it('creates a retailer and a founding buyer_admin retailer_users row', async () => {
+		const insertedRetailer = {
+			id: 'retailer-1',
 			business_name: 'Acme Apparel',
 			website: null,
 			phone: null,
@@ -99,26 +99,26 @@ describe('createStore', () => {
 		};
 		const { supabase, captured } = makeMock({
 			select: { data: null, error: null },
-			insert: { data: insertedStore, error: null }
+			insert: { data: insertedRetailer, error: null }
 		});
 
-		const result = await createStore(supabase, {
+		const result = await createRetailer(supabase, {
 			userId: 'user-1',
 			businessName: 'Acme Apparel',
 			displayName: 'Ada Rep'
 		});
 
-		expect(result).toEqual({ store: insertedStore });
+		expect(result).toEqual({ retailer: insertedRetailer });
 
 		const inserts = captured.filter((c) => c.op === 'insert');
 		expect(inserts).toHaveLength(2);
 
-		const storeInsert = inserts.find((c) => c.table === 'stores');
-		expect(storeInsert?.insertPayload).toEqual({ business_name: 'Acme Apparel' });
+		const retailerInsert = inserts.find((c) => c.table === 'retailers');
+		expect(retailerInsert?.insertPayload).toEqual({ business_name: 'Acme Apparel' });
 
-		const memberInsert = inserts.find((c) => c.table === 'store_users');
+		const memberInsert = inserts.find((c) => c.table === 'retailer_users');
 		expect(memberInsert?.insertPayload).toEqual({
-			store_id: 'store-1',
+			retailer_id: 'retailer-1',
 			profile_id: 'user-1',
 			role: 'buyer_admin'
 		});
@@ -128,22 +128,22 @@ describe('createStore', () => {
 		expect(profileUpdate?.updatePayload).toEqual({ display_name: 'Ada Rep' });
 	});
 
-	it('is idempotent: an existing store_users row short-circuits with zero inserts', async () => {
-		const existingStore = {
-			id: 'store-existing',
-			business_name: 'Existing Store',
+	it('is idempotent: an existing retailer_users row short-circuits with zero inserts', async () => {
+		const existingRetailer = {
+			id: 'retailer-existing',
+			business_name: 'Existing Retailer',
 			created_at: '2026-01-01T00:00:00.000Z'
 		};
 		const { supabase, captured } = makeMock({
-			select: { data: { stores: existingStore }, error: null }
+			select: { data: { retailers: existingRetailer }, error: null }
 		});
 
-		const result = await createStore(supabase, {
+		const result = await createRetailer(supabase, {
 			userId: 'user-1',
 			businessName: 'Acme Apparel'
 		});
 
-		expect(result).toEqual({ store: existingStore });
+		expect(result).toEqual({ retailer: existingRetailer });
 		expect(captured.filter((c) => c.op === 'insert')).toHaveLength(0);
 		expect(captured.filter((c) => c.op === 'update')).toHaveLength(0);
 	});
@@ -151,7 +151,7 @@ describe('createStore', () => {
 	it('rejects a blank/whitespace business name with 400 and touches the DB zero times', async () => {
 		const { supabase, captured } = makeMock();
 
-		const result = await createStore(supabase, {
+		const result = await createRetailer(supabase, {
 			userId: 'user-1',
 			businessName: '   '
 		});
@@ -162,58 +162,58 @@ describe('createStore', () => {
 	});
 
 	it('trims the business name before inserting', async () => {
-		const insertedStore = { id: 'store-2', business_name: 'Trimmed Co' };
+		const insertedRetailer = { id: 'retailer-2', business_name: 'Trimmed Co' };
 		const { supabase, captured } = makeMock({
 			select: { data: null, error: null },
-			insert: { data: insertedStore, error: null }
+			insert: { data: insertedRetailer, error: null }
 		});
 
-		await createStore(supabase, {
+		await createRetailer(supabase, {
 			userId: 'user-1',
 			businessName: '   Trimmed Co   '
 		});
 
-		const storeInsert = captured.find((c) => c.op === 'insert' && c.table === 'stores');
-		expect(storeInsert?.insertPayload).toEqual({ business_name: 'Trimmed Co' });
+		const retailerInsert = captured.find((c) => c.op === 'insert' && c.table === 'retailers');
+		expect(retailerInsert?.insertPayload).toEqual({ business_name: 'Trimmed Co' });
 	});
 
-	it('surfaces a stores insert error as status 500 and skips the store_users insert', async () => {
+	it('surfaces a retailers insert error as status 500 and skips the retailer_users insert', async () => {
 		const { supabase, captured } = makeMock({
 			select: { data: null, error: null },
-			insert: { data: null, error: { message: 'stores insert failed' } }
+			insert: { data: null, error: { message: 'retailers insert failed' } }
 		});
 
-		const result = await createStore(supabase, {
+		const result = await createRetailer(supabase, {
 			userId: 'user-1',
 			businessName: 'Acme Apparel'
 		});
 
-		expect(result).toEqual({ error: 'stores insert failed', status: 500 });
+		expect(result).toEqual({ error: 'retailers insert failed', status: 500 });
 
 		const inserts = captured.filter((c) => c.op === 'insert');
 		expect(inserts).toHaveLength(1);
-		expect(inserts[0].table).toBe('stores');
+		expect(inserts[0].table).toBe('retailers');
 	});
 
-	it('surfaces a store_users insert error as status 500 after the store was created', async () => {
-		const insertedStore = { id: 'store-3', business_name: 'Acme Apparel' };
+	it('surfaces a retailer_users insert error as status 500 after the retailer was created', async () => {
+		const insertedRetailer = { id: 'retailer-3', business_name: 'Acme Apparel' };
 		const { supabase, captured } = makeMock({
 			select: { data: null, error: null },
 			inserts: {
-				stores: { data: insertedStore, error: null },
-				store_users: { data: null, error: { message: 'store_users insert failed' } }
+				retailers: { data: insertedRetailer, error: null },
+				retailer_users: { data: null, error: { message: 'retailer_users insert failed' } }
 			}
 		});
 
-		const result = await createStore(supabase, {
+		const result = await createRetailer(supabase, {
 			userId: 'user-1',
 			businessName: 'Acme Apparel'
 		});
 
-		expect(result).toEqual({ error: 'store_users insert failed', status: 500 });
+		expect(result).toEqual({ error: 'retailer_users insert failed', status: 500 });
 
-		// The stores insert did happen; both inserts were attempted.
+		// The retailers insert did happen; both inserts were attempted.
 		const inserts = captured.filter((c) => c.op === 'insert');
-		expect(inserts.map((c) => c.table)).toEqual(['stores', 'store_users']);
+		expect(inserts.map((c) => c.table)).toEqual(['retailers', 'retailer_users']);
 	});
 });

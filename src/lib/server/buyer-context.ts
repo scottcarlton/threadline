@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AccountUser, Organization, Store } from '$lib/types/database.js';
+import type { AccountUser, Organization, Retailer } from '$lib/types/database.js';
 
 /**
  * A row from `account_users` with the account (and its org id) embedded. This is
@@ -16,20 +16,20 @@ export type BuyerContext = {
 	buyerAccounts: BuyerAccountRow[];
 	buyerBrandIds: string[];
 	organization: Organization | null;
-	store: Store | null;
+	retailer: Retailer | null;
 };
 
 /**
  * Resolves whether a user is a buyer and, if so, their buyer context.
  *
  * A "buyer" is anyone who either was invited into a brand's account
- * (`account_users`) OR self-signed-up as a retailer store (`store_users`). Both
+ * (`account_users`) OR self-signed-up as a retailer (`retailer_users`). Both
  * populate the buyer portal.
  *
  * IMPORTANT — self-signup broke two invariants that older code assumed:
- * - `buyerAccounts` can be `[]` for a VALID buyer (a store user has no account
+ * - `buyerAccounts` can be `[]` for a VALID buyer (a retailer user has no account
  *   rows). Callers MUST NOT assume `buyerAccounts[0]` exists.
- * - `organization` can be `null` for a VALID buyer (a store user belongs to no
+ * - `organization` can be `null` for a VALID buyer (a retailer user belongs to no
  *   brand org). Callers MUST NOT assume an org is present.
  *
  * `buyerBrandIds` and `organization` are only resolved when there ARE account
@@ -42,24 +42,24 @@ export async function resolveBuyerContext(
 	admin: SupabaseClient,
 	userId: string
 ): Promise<BuyerContext> {
-	const [{ data: accountData }, { data: storeData }] = await Promise.all([
+	const [{ data: accountData }, { data: retailerData }] = await Promise.all([
 		client
 			.from('account_users')
 			.select('*, accounts(*, organizations(*))')
 			.eq('profile_id', userId),
-		client.from('store_users').select('*, stores(*)').eq('profile_id', userId)
+		client.from('retailer_users').select('*, retailers(*)').eq('profile_id', userId)
 	]);
 
 	const buyerAccounts = (accountData as BuyerAccountRow[] | null) ?? [];
-	const storeRows = (storeData as Array<{ stores?: Store | null }> | null) ?? [];
+	const retailerRows = (retailerData as Array<{ retailers?: Retailer | null }> | null) ?? [];
 
-	if (buyerAccounts.length === 0 && storeRows.length === 0) {
+	if (buyerAccounts.length === 0 && retailerRows.length === 0) {
 		return {
 			isBuyer: false,
 			buyerAccounts: [],
 			buyerBrandIds: [],
 			organization: null,
-			store: null
+			retailer: null
 		};
 	}
 
@@ -83,15 +83,15 @@ export async function resolveBuyerContext(
 		}
 	}
 
-	// `store_users.store_id -> stores.id` is a to-one FK embed: PostgREST returns
-	// it as an object, not an array. Cast directly (no Array.isArray dance).
-	const store = (storeRows[0]?.stores as Store | null | undefined) ?? null;
+	// `retailer_users.retailer_id -> retailers.id` is a to-one FK embed: PostgREST
+	// returns it as an object, not an array. Cast directly (no Array.isArray dance).
+	const retailer = (retailerRows[0]?.retailers as Retailer | null | undefined) ?? null;
 
 	return {
 		isBuyer: true,
 		buyerAccounts,
 		buyerBrandIds,
 		organization,
-		store
+		retailer
 	};
 }

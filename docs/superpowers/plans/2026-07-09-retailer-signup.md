@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A store (retailer) signs up unaided, gets a `stores` row, and lands on the existing buyer portal with correct empty states.
+**Goal:** A store (retailer) signs up unaided, gets a `retailers` row, and lands on the existing buyer portal with correct empty states.
 
-**Architecture:** A store is NOT an `organizations` row. Two new tables (`stores`, `store_users`) plus a nullable `accounts.store_id` seam. `org_type` stays `('rep','brand')`. Store users are buyers: `locals.isBuyer = true` with `buyerAccounts: []` and `organization: null`. Two pieces of logic are extracted from inline code into testable server modules (`stores.ts`, `buyer-context.ts`) because the repo's test convention (`src/lib/server/connections.test.ts`) tests extracted functions taking a `SupabaseClient`, not `RequestHandler`s.
+**Architecture:** A store is NOT an `organizations` row. Two new tables (`retailers`, `retailer_users`) plus a nullable `accounts.retailer_id` seam. `org_type` stays `('rep','brand')`. Store users are buyers: `locals.isBuyer = true` with `buyerAccounts: []` and `organization: null`. Two pieces of logic are extracted from inline code into testable server modules (`retailers.ts`, `buyer-context.ts`) because the repo's test convention (`src/lib/server/connections.test.ts`) tests extracted functions taking a `SupabaseClient`, not `RequestHandler`s.
 
 **Tech Stack:** SvelteKit 2 + Svelte 5 runes, TypeScript, Supabase (Postgres + RLS + `@supabase/ssr`), Vitest, Tailwind v4, bun.
 
-**Spec:** `docs/superpowers/specs/2026-07-09-store-signup-design.md`
+**Spec:** `docs/superpowers/specs/2026-07-09-retailer-signup-design.md`
 
 **Working directory:** `/Users/scottcarlton/Sites/threadline/.worktrees/store-signup` (branch `feat/store-signup`). All paths below are relative to it. All commands run from it.
 
@@ -28,29 +28,29 @@ The spec was written before every file was read. Three things it got wrong. This
 
 **Create:**
 
-| Path                                                  | Responsibility                                                       |
-| ----------------------------------------------------- | -------------------------------------------------------------------- |
-| `supabase/migrations/20260709000001_store_signup.sql` | `stores`, `store_users`, `accounts.store_id`, RLS helpers + policies |
-| `src/lib/server/stores.ts`                            | `createStore()` — idempotent store + founding `store_users` insert   |
-| `src/lib/server/stores.test.ts`                       | unit tests for `createStore()`                                       |
-| `src/lib/server/buyer-context.ts`                     | `resolveBuyerContext()` — unions `account_users` + `store_users`     |
-| `src/lib/server/buyer-context.test.ts`                | unit tests for `resolveBuyerContext()`                               |
-| `src/routes/api/onboarding/create-store/+server.ts`   | thin POST wrapper around `createStore()`                             |
+| Path                                                     | Responsibility                                                                |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `supabase/migrations/20260709000001_retailer_signup.sql` | `retailers`, `retailer_users`, `accounts.retailer_id`, RLS helpers + policies |
+| `src/lib/server/retailers.ts`                            | `createRetailer()` — idempotent store + founding `retailer_users` insert      |
+| `src/lib/server/retailers.test.ts`                       | unit tests for `createRetailer()`                                             |
+| `src/lib/server/buyer-context.ts`                        | `resolveBuyerContext()` — unions `account_users` + `retailer_users`           |
+| `src/lib/server/buyer-context.test.ts`                   | unit tests for `resolveBuyerContext()`                                        |
+| `src/routes/api/onboarding/create-retailer/+server.ts`   | thin POST wrapper around `createRetailer()`                                   |
 
 **Modify:**
 
-| Path                                          | Change                                                                                        |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `src/lib/types/database.ts`                   | add `Store`, `StoreUser` interfaces; add `store_id` to `Account`                              |
-| `src/app.d.ts`                                | add `store: Store \| null` to `Locals` and `PageData`                                         |
-| `src/hooks.server.ts:214-243`                 | call `resolveBuyerContext()`; store users no longer fall to the `/onboarding` redirect        |
-| `src/routes/auth/callback/+server.ts:48-57`   | check `store_users` alongside `account_users`                                                 |
-| `src/routes/+layout.server.ts:97-103`         | pass `store` through to `PageData`                                                            |
-| `src/routes/onboarding/+page.server.ts`       | bounce on `store.onboarding_completed_at`; return `store`                                     |
-| `src/routes/onboarding/+page.svelte`          | third "Store" card; `saveStoreType()`; store-aware `finish()`, step persistence, `stepLabels` |
-| `src/routes/dashboard/+page.svelte`           | store name in header; empty state; hide dead quick-actions                                    |
-| `src/routes/account/+page.server.ts:11`       | guard `undefined` `accountId`                                                                 |
-| `src/routes/shop/checkout/+page.server.ts:16` | guard `undefined` `accountId`                                                                 |
+| Path                                          | Change                                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `src/lib/types/database.ts`                   | add `Retailer`, `RetailerUser` interfaces; add `retailer_id` to `Account`                        |
+| `src/app.d.ts`                                | add `retailer: Retailer \| null` to `Locals` and `PageData`                                      |
+| `src/hooks.server.ts:214-243`                 | call `resolveBuyerContext()`; store users no longer fall to the `/onboarding` redirect           |
+| `src/routes/auth/callback/+server.ts:48-57`   | check `retailer_users` alongside `account_users`                                                 |
+| `src/routes/+layout.server.ts:97-103`         | pass `retailer` through to `PageData`                                                            |
+| `src/routes/onboarding/+page.server.ts`       | bounce on `retailer.onboarding_completed_at`; return `retailer`                                  |
+| `src/routes/onboarding/+page.svelte`          | third "Store" card; `saveRetailerType()`; store-aware `finish()`, step persistence, `stepLabels` |
+| `src/routes/dashboard/+page.svelte`           | store name in header; empty state; hide dead quick-actions                                       |
+| `src/routes/account/+page.server.ts:11`       | guard `undefined` `accountId`                                                                    |
+| `src/routes/shop/checkout/+page.server.ts:16` | guard `undefined` `accountId`                                                                    |
 
 ---
 
@@ -76,11 +76,11 @@ Ask the user to confirm (a) and (b) before starting Task 7.
 
 ---
 
-## Task 1: Migration — `stores`, `store_users`, `accounts.store_id`, RLS
+## Task 1: Migration — `retailers`, `retailer_users`, `accounts.retailer_id`, RLS
 
 **Files:**
 
-- Create: `supabase/migrations/20260709000001_store_signup.sql`
+- Create: `supabase/migrations/20260709000001_retailer_signup.sql`
 
 - [ ] **Step 1: Confirm local Supabase is running**
 
@@ -94,22 +94,22 @@ Expected: one row, `postgres`. If this fails, run `bunx supabase start` first. N
 
 - [ ] **Step 2: Write the migration**
 
-Create `supabase/migrations/20260709000001_store_signup.sql`:
+Create `supabase/migrations/20260709000001_retailer_signup.sql`:
 
 ```sql
 -- ============================================================
--- Store self-signup: stores, store_users, accounts.store_id
+-- Retailer self-signup: retailers, retailer_users, accounts.retailer_id
 --
--- A store (retailer) is NOT an organizations row. Widening
--- organizations.org_type to include 'store' would push a third org type
+-- A retailer (retailer) is NOT an organizations row. Widening
+-- organizations.org_type to include 'retailer' would push a third org type
 -- through every `.eq('organization_id', ...)` filter, every RLS policy
 -- that assumes rep|brand, and get_connected_org_ids(). See
--- docs/superpowers/specs/2026-07-09-store-signup-design.md.
+-- docs/superpowers/specs/2026-07-09-retailer-signup-design.md.
 --
--- A store user is a buyer with an identity but (initially) zero accounts.
+-- A retailer user is a buyer with an identity but (initially) zero accounts.
 -- ============================================================
 
-CREATE TABLE stores (
+CREATE TABLE retailers (
   id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   business_name           TEXT NOT NULL,
   website                 TEXT,
@@ -126,40 +126,40 @@ CREATE TABLE stores (
   updated_at              TIMESTAMPTZ DEFAULT NOW()
 );
 
--- No slug. create-org slugifies and 409s on collision; two real stores can
+-- No slug. create-org slugifies and 409s on collision; two real retailers can
 -- legitimately share a business name, and a uniqueness constraint here would
--- reject valid signups. Stores have no public URL in v1.
+-- reject valid signups. Retailers have no public URL in v1.
 
-CREATE TABLE store_users (
+CREATE TABLE retailer_users (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  store_id    UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  retailer_id    UUID NOT NULL REFERENCES retailers(id) ON DELETE CASCADE,
   profile_id  UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   role        TEXT NOT NULL DEFAULT 'buyer' CHECK (role IN ('buyer', 'buyer_admin')),
   created_at  TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(store_id, profile_id)
+  UNIQUE(retailer_id, profile_id)
 );
 
-CREATE INDEX idx_store_users_profile_id ON store_users(profile_id);
-CREATE INDEX idx_store_users_store_id ON store_users(store_id);
+CREATE INDEX idx_retailer_users_profile_id ON retailer_users(profile_id);
+CREATE INDEX idx_retailer_users_retailer_id ON retailer_users(retailer_id);
 
 -- The seam for phase-2 brand-initiated linking. Written by nothing in v1.
-ALTER TABLE accounts ADD COLUMN store_id UUID REFERENCES stores(id) ON DELETE SET NULL;
-CREATE INDEX idx_accounts_store_id ON accounts(store_id) WHERE store_id IS NOT NULL;
+ALTER TABLE accounts ADD COLUMN retailer_id UUID REFERENCES retailers(id) ON DELETE SET NULL;
+CREATE INDEX idx_accounts_retailer_id ON accounts(retailer_id) WHERE retailer_id IS NOT NULL;
 
 -- ============================================================
 -- Helpers (SECURITY DEFINER, so they bypass RLS and cannot recurse)
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION get_user_store_ids()
+CREATE OR REPLACE FUNCTION get_user_retailer_ids()
 RETURNS SETOF UUID AS $$
-  SELECT store_id FROM store_users WHERE profile_id = auth.uid();
+  SELECT retailer_id FROM retailer_users WHERE profile_id = auth.uid();
 $$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 
-CREATE OR REPLACE FUNCTION is_store_admin(_store_id UUID)
+CREATE OR REPLACE FUNCTION is_retailer_admin(_retailer_id UUID)
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
-    SELECT 1 FROM store_users
-    WHERE store_id = _store_id
+    SELECT 1 FROM retailer_users
+    WHERE retailer_id = _retailer_id
       AND profile_id = auth.uid()
       AND role = 'buyer_admin'
   );
@@ -168,44 +168,44 @@ $$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 -- ============================================================
 -- RLS — deliberately closed.
 --
--- No brand or rep can read `stores` in v1. The cross-org searchable
+-- No brand or rep can read `retailers` in v1. The cross-org searchable
 -- directory is the first table scoped by neither org nor connection; phase 2
 -- opens that read surface deliberately, with its own review and its own
 -- public/private column split. It does not arrive as a side effect of signup.
 --
 -- There is no INSERT policy on either table: rows are created exclusively by
--- supabaseAdmin in createStore() (@supabase/ssr drops the JWT on writes).
+-- supabaseAdmin in createRetailer() (@supabase/ssr drops the JWT on writes).
 -- ============================================================
 
-ALTER TABLE stores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE retailers ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Store users see own store"
-  ON stores FOR SELECT
-  USING (id IN (SELECT get_user_store_ids()));
+CREATE POLICY "Retailer users see own retailer"
+  ON retailers FOR SELECT
+  USING (id IN (SELECT get_user_retailer_ids()));
 
-CREATE POLICY "Store admins update own store"
-  ON stores FOR UPDATE
-  USING (is_store_admin(id))
-  WITH CHECK (is_store_admin(id));
+CREATE POLICY "Retailer admins update own retailer"
+  ON retailers FOR UPDATE
+  USING (is_retailer_admin(id))
+  WITH CHECK (is_retailer_admin(id));
 
-ALTER TABLE store_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE retailer_users ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Store users see own membership"
-  ON store_users FOR SELECT
+CREATE POLICY "Retailer users see own membership"
+  ON retailer_users FOR SELECT
   USING (profile_id = auth.uid());
 
-CREATE POLICY "Store users see teammates"
-  ON store_users FOR SELECT
-  USING (store_id IN (SELECT get_user_store_ids()));
+CREATE POLICY "Retailer users see teammates"
+  ON retailer_users FOR SELECT
+  USING (retailer_id IN (SELECT get_user_retailer_ids()));
 
-CREATE POLICY "Store admins manage team"
-  ON store_users FOR UPDATE
-  USING (is_store_admin(store_id))
-  WITH CHECK (is_store_admin(store_id));
+CREATE POLICY "Retailer admins manage team"
+  ON retailer_users FOR UPDATE
+  USING (is_retailer_admin(retailer_id))
+  WITH CHECK (is_retailer_admin(retailer_id));
 
-CREATE POLICY "Store admins remove team"
-  ON store_users FOR DELETE
-  USING (is_store_admin(store_id));
+CREATE POLICY "Retailer admins remove team"
+  ON retailer_users FOR DELETE
+  USING (is_retailer_admin(retailer_id));
 ```
 
 - [ ] **Step 3: Apply the migration**
@@ -216,7 +216,7 @@ Run (from the worktree, not the main repo):
 bunx supabase migration up
 ```
 
-Expected: `Applying migration 20260709000001_store_signup.sql...` and no error.
+Expected: `Applying migration 20260709000001_retailer_signup.sql...` and no error.
 
 - [ ] **Step 4: Reload the PostgREST schema cache**
 
@@ -233,12 +233,12 @@ Expected: `NOTIFY`. Skipping this makes the new tables 404 from the JS client ev
 Run:
 
 ```bash
-docker exec -i supabase_db_threadline psql -U postgres -d postgres -c "\d stores" \
-  -c "\d store_users" \
-  -c "select column_name from information_schema.columns where table_name='accounts' and column_name='store_id';"
+docker exec -i supabase_db_threadline psql -U postgres -d postgres -c "\d retailers" \
+  -c "\d retailer_users" \
+  -c "select column_name from information_schema.columns where table_name='accounts' and column_name='retailer_id';"
 ```
 
-Expected: both tables printed; final query returns one row, `store_id`.
+Expected: both tables printed; final query returns one row, `retailer_id`.
 
 - [ ] **Step 6: Verify RLS is closed to brands and reps**
 
@@ -248,15 +248,15 @@ This is the assertion that proves the public read surface was not opened early. 
 docker exec -i supabase_db_threadline psql -U postgres -d postgres <<'SQL'
 BEGIN;
 
--- Seed a store owned by nobody in particular.
-INSERT INTO stores (id, business_name)
-VALUES ('11111111-1111-1111-1111-111111111111', 'RLS Probe Store');
+-- Seed a retailer owned by nobody in particular.
+INSERT INTO retailers (id, business_name)
+VALUES ('11111111-1111-1111-1111-111111111111', 'RLS Probe Retailer');
 
--- Simulate an authenticated user who is NOT a store user.
+-- Simulate an authenticated user who is NOT a retailer user.
 -- SET LOCAL requires a transaction block, hence the BEGIN above.
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
-SELECT count(*) AS should_be_zero FROM stores;
+SELECT count(*) AS should_be_zero FROM retailers;
 
 RESET ROLE;
 ROLLBACK;  -- discards the probe row; no cleanup DELETE needed
@@ -268,8 +268,8 @@ Expected: `should_be_zero | 0`. If it returns 1, a policy is too permissive — 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/20260709000001_store_signup.sql
-git commit -m "feat(db): add stores, store_users, accounts.store_id with closed RLS"
+git add supabase/migrations/20260709000001_retailer_signup.sql
+git commit -m "feat(db): add retailers, retailer_users, accounts.retailer_id with closed RLS"
 ```
 
 ---
@@ -283,10 +283,10 @@ git commit -m "feat(db): add stores, store_users, accounts.store_id with closed 
 
 `src/lib/types/database.ts` is hand-written (interfaces, not generated). Add these near the existing `AccountUser` interface (around line 661).
 
-- [ ] **Step 1: Add the `Store` and `StoreUser` interfaces**
+- [ ] **Step 1: Add the `Retailer` and `RetailerUser` interfaces**
 
 ```ts
-export interface Store {
+export interface Retailer {
 	id: string;
 	business_name: string;
 	website: string | null;
@@ -303,24 +303,24 @@ export interface Store {
 	updated_at: string;
 }
 
-export interface StoreUser {
+export interface RetailerUser {
 	id: string;
-	store_id: string;
+	retailer_id: string;
 	profile_id: string;
 	role: 'buyer' | 'buyer_admin';
 	created_at: string;
 }
 ```
 
-- [ ] **Step 2: Add `store_id` to the existing `Account` interface**
+- [ ] **Step 2: Add `retailer_id` to the existing `Account` interface**
 
 In `interface Account` (starts line 268), add:
 
 ```ts
-store_id: string | null;
+retailer_id: string | null;
 ```
 
-- [ ] **Step 3: Add `store` to `App.Locals` and `App.PageData`**
+- [ ] **Step 3: Add `retailer` to `App.Locals` and `App.PageData`**
 
 In `src/app.d.ts`, extend the import:
 
@@ -331,52 +331,52 @@ import type {
 	OrganizationMember,
 	OrgType,
 	AccountUser,
-	Store
+	Retailer
 } from '$lib/types/database';
 ```
 
 Then add to **both** `interface Locals` and `interface PageData`, directly after the `buyerBrandIds` line:
 
 ```ts
-store: Store | null;
+retailer: Retailer | null;
 ```
 
 - [ ] **Step 4: Typecheck**
 
 Run: `bun run check`
-Expected: 0 errors. (`locals.store` is not yet assigned anywhere; the type is `Store | null` and `hooks.server.ts` initializes locals, so this compiles. If `check` reports `store` missing on an object literal in `hooks.server.ts` or `+layout.server.ts`, that is expected and fixed in Tasks 4 and 5 — note the error and continue only if it is exactly that. Any other error must be fixed now.)
+Expected: 0 errors. (`locals.retailer` is not yet assigned anywhere; the type is `Retailer | null` and `hooks.server.ts` initializes locals, so this compiles. If `check` reports `retailer` missing on an object literal in `hooks.server.ts` or `+layout.server.ts`, that is expected and fixed in Tasks 4 and 5 — note the error and continue only if it is exactly that. Any other error must be fixed now.)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/lib/types/database.ts src/app.d.ts
-git commit -m "feat(types): add Store, StoreUser, locals.store"
+git commit -m "feat(types): add Retailer, RetailerUser, locals.retailer"
 ```
 
 ---
 
-## Task 3: `createStore()` server module (TDD)
+## Task 3: `createRetailer()` server module (TDD)
 
 **Files:**
 
-- Create: `src/lib/server/stores.ts`
-- Test: `src/lib/server/stores.test.ts`
+- Create: `src/lib/server/retailers.ts`
+- Test: `src/lib/server/retailers.test.ts`
 
 Mirrors the idempotency guarantee of `create-org` (`src/routes/api/onboarding/create-org/+server.ts:21-31`): a refresh, resubmit, or bounce back into `/onboarding` must never create a second store.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `src/lib/server/stores.test.ts`:
+Create `src/lib/server/retailers.test.ts`:
 
 ```ts
 import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createStore } from './stores.js';
+import { createRetailer } from './retailers.js';
 
 type TableResponses = {
-	store_users_existing?: { data: unknown; error: null };
-	stores_insert?: { data: unknown; error: { message: string } | null };
-	store_users_insert?: { error: { message: string } | null };
+	retailer_users_existing?: { data: unknown; error: null };
+	retailers_insert?: { data: unknown; error: { message: string } | null };
+	retailer_users_insert?: { error: { message: string } | null };
 	profiles_update?: { error: null };
 };
 
@@ -394,16 +394,18 @@ function makeMock(responses: TableResponses = {}) {
 				eq: () => builder,
 				limit: () => builder,
 				maybeSingle: () => {
-					if (table === 'store_users') {
-						return Promise.resolve(responses.store_users_existing ?? { data: null, error: null });
+					if (table === 'retailer_users') {
+						return Promise.resolve(
+							responses.retailer_users_existing ?? { data: null, error: null }
+						);
 					}
 					return Promise.resolve({ data: null, error: null });
 				},
 				single: () => {
-					if (table === 'stores') {
+					if (table === 'retailers') {
 						return Promise.resolve(
-							responses.stores_insert ?? {
-								data: { id: 'store-1', business_name: 'Anderson & Co' },
+							responses.retailers_insert ?? {
+								data: { id: 'retailer-1', business_name: 'Anderson & Co' },
 								error: null
 							}
 						);
@@ -412,8 +414,8 @@ function makeMock(responses: TableResponses = {}) {
 				},
 				insert: (payload: Record<string, unknown>) => {
 					inserts.push({ table, payload });
-					if (table === 'store_users') {
-						return Promise.resolve(responses.store_users_insert ?? { error: null });
+					if (table === 'retailer_users') {
+						return Promise.resolve(responses.retailer_users_insert ?? { error: null });
 					}
 					return builder;
 				},
@@ -426,52 +428,52 @@ function makeMock(responses: TableResponses = {}) {
 	return { client, inserts };
 }
 
-describe('createStore', () => {
-	it('creates a store and a founding buyer_admin store_users row', async () => {
+describe('createRetailer', () => {
+	it('creates a retailer and a founding buyer_admin retailer_users row', async () => {
 		const { client, inserts } = makeMock();
 
-		const result = await createStore(client, {
+		const result = await createRetailer(client, {
 			userId: 'user-1',
 			businessName: 'Anderson & Co',
 			displayName: 'Dana Anderson'
 		});
 
 		expect(result.error).toBeUndefined();
-		expect(result.store).toEqual({ id: 'store-1', business_name: 'Anderson & Co' });
+		expect(result.retailer).toEqual({ id: 'retailer-1', business_name: 'Anderson & Co' });
 
-		const storeInsert = inserts.find((i) => i.table === 'stores');
-		expect(storeInsert?.payload).toEqual({ business_name: 'Anderson & Co' });
+		const retailerInsert = inserts.find((i) => i.table === 'retailers');
+		expect(retailerInsert?.payload).toEqual({ business_name: 'Anderson & Co' });
 
-		const memberInsert = inserts.find((i) => i.table === 'store_users');
+		const memberInsert = inserts.find((i) => i.table === 'retailer_users');
 		expect(memberInsert?.payload).toEqual({
-			store_id: 'store-1',
+			retailer_id: 'retailer-1',
 			profile_id: 'user-1',
 			role: 'buyer_admin'
 		});
 	});
 
-	it('is idempotent — an existing store_users row short-circuits, inserting nothing', async () => {
+	it('is idempotent — an existing retailer_users row short-circuits, inserting nothing', async () => {
 		const { client, inserts } = makeMock({
-			store_users_existing: {
-				data: { stores: { id: 'store-existing', business_name: 'Anderson & Co' } },
+			retailer_users_existing: {
+				data: { retailers: { id: 'retailer-existing', business_name: 'Anderson & Co' } },
 				error: null
 			}
 		});
 
-		const result = await createStore(client, {
+		const result = await createRetailer(client, {
 			userId: 'user-1',
 			businessName: 'Anderson & Co',
 			displayName: 'Dana Anderson'
 		});
 
-		expect(result.store).toEqual({ id: 'store-existing', business_name: 'Anderson & Co' });
+		expect(result.retailer).toEqual({ id: 'retailer-existing', business_name: 'Anderson & Co' });
 		expect(inserts).toHaveLength(0);
 	});
 
 	it('rejects a blank business name without touching the database', async () => {
 		const { client, inserts } = makeMock();
 
-		const result = await createStore(client, {
+		const result = await createRetailer(client, {
 			userId: 'user-1',
 			businessName: '   ',
 			displayName: 'Dana Anderson'
@@ -485,22 +487,22 @@ describe('createStore', () => {
 	it('trims the business name before insert', async () => {
 		const { client, inserts } = makeMock();
 
-		await createStore(client, {
+		await createRetailer(client, {
 			userId: 'user-1',
 			businessName: '  Anderson & Co  ',
 			displayName: 'Dana Anderson'
 		});
 
-		const storeInsert = inserts.find((i) => i.table === 'stores');
-		expect(storeInsert?.payload).toEqual({ business_name: 'Anderson & Co' });
+		const retailerInsert = inserts.find((i) => i.table === 'retailers');
+		expect(retailerInsert?.payload).toEqual({ business_name: 'Anderson & Co' });
 	});
 
-	it('surfaces a store insert error and does not insert a membership', async () => {
+	it('surfaces a retailer insert error and does not insert a membership', async () => {
 		const { client, inserts } = makeMock({
-			stores_insert: { data: null, error: { message: 'boom' } }
+			retailers_insert: { data: null, error: { message: 'boom' } }
 		});
 
-		const result = await createStore(client, {
+		const result = await createRetailer(client, {
 			userId: 'user-1',
 			businessName: 'Anderson & Co',
 			displayName: 'Dana Anderson'
@@ -508,40 +510,40 @@ describe('createStore', () => {
 
 		expect(result.error).toBe('boom');
 		expect(result.status).toBe(500);
-		expect(inserts.find((i) => i.table === 'store_users')).toBeUndefined();
+		expect(inserts.find((i) => i.table === 'retailer_users')).toBeUndefined();
 	});
 });
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `bunx vitest run src/lib/server/stores.test.ts`
-Expected: FAIL — `Failed to resolve import "./stores.js"`.
+Run: `bunx vitest run src/lib/server/retailers.test.ts`
+Expected: FAIL — `Failed to resolve import "./retailers.js"`.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/lib/server/stores.ts`:
+Create `src/lib/server/retailers.ts`:
 
 ```ts
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Store } from '$lib/types/database';
+import type { Retailer } from '$lib/types/database';
 
-export type CreateStoreInput = {
+export type CreateRetailerInput = {
 	userId: string;
 	businessName: string;
 	displayName?: string;
 };
 
-export type CreateStoreResult = {
-	store?: Store;
+export type CreateRetailerResult = {
+	retailer?: Retailer;
 	error?: string;
 	status?: number;
 };
 
 /**
- * Creates a store and its founding buyer_admin membership.
+ * Creates a retailer and its founding buyer_admin membership.
  *
- * Idempotent: if the user already has a store_users row we return that store
+ * Idempotent: if the user already has a retailer_users row we return that retailer
  * rather than inserting a second one. Mirrors the founding-admin check in
  * create-org — a refresh, resubmit, or bounce back into /onboarding must not
  * mint duplicates.
@@ -549,44 +551,44 @@ export type CreateStoreResult = {
  * `client` must be supabaseAdmin: @supabase/ssr v0.10.0 drops the JWT on
  * writes, so the caller performs the auth check at the app layer.
  */
-export async function createStore(
+export async function createRetailer(
 	client: SupabaseClient,
-	{ userId, businessName, displayName }: CreateStoreInput
-): Promise<CreateStoreResult> {
+	{ userId, businessName, displayName }: CreateRetailerInput
+): Promise<CreateRetailerResult> {
 	const name = businessName?.trim();
 	if (!name) {
 		return { error: 'Business name is required', status: 400 };
 	}
 
 	const { data: existing } = await client
-		.from('store_users')
-		.select('stores(*)')
+		.from('retailer_users')
+		.select('retailers(*)')
 		.eq('profile_id', userId)
 		.limit(1)
 		.maybeSingle();
 
-	const existingStore = (existing as { stores?: Store } | null)?.stores;
-	if (existingStore) {
-		return { store: existingStore };
+	const existingRetailer = (existing as { retailers?: Retailer } | null)?.retailers;
+	if (existingRetailer) {
+		return { retailer: existingRetailer };
 	}
 
 	if (displayName) {
 		await client.from('profiles').update({ display_name: displayName }).eq('id', userId);
 	}
 
-	const { data: store, error: storeError } = await client
-		.from('stores')
+	const { data: retailer, error: retailerError } = await client
+		.from('retailers')
 		.insert({ business_name: name })
 		.select()
 		.single();
 
-	if (storeError || !store) {
-		return { error: storeError?.message ?? 'Failed to create store', status: 500 };
+	if (retailerError || !retailer) {
+		return { error: retailerError?.message ?? 'Failed to create retailer', status: 500 };
 	}
 
-	// First user of a store is its admin — matches buyer-invite/send:69-78.
-	const { error: memberError } = await client.from('store_users').insert({
-		store_id: store.id,
+	// First user of a retailer is its admin — matches buyer-invite/send:69-78.
+	const { error: memberError } = await client.from('retailer_users').insert({
+		retailer_id: retailer.id,
 		profile_id: userId,
 		role: 'buyer_admin'
 	});
@@ -595,29 +597,29 @@ export async function createStore(
 		return { error: memberError.message, status: 500 };
 	}
 
-	return { store: store as Store };
+	return { retailer: retailer as Retailer };
 }
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `bunx vitest run src/lib/server/stores.test.ts`
+Run: `bunx vitest run src/lib/server/retailers.test.ts`
 Expected: PASS, 5 tests.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/server/stores.ts src/lib/server/stores.test.ts
-git commit -m "feat(server): add idempotent createStore()"
+git add src/lib/server/retailers.ts src/lib/server/retailers.test.ts
+git commit -m "feat(server): add idempotent createRetailer()"
 ```
 
 ---
 
-## Task 4: `POST /api/onboarding/create-store`
+## Task 4: `POST /api/onboarding/create-retailer`
 
 **Files:**
 
-- Create: `src/routes/api/onboarding/create-store/+server.ts`
+- Create: `src/routes/api/onboarding/create-retailer/+server.ts`
 
 - [ ] **Step 1: Write the endpoint**
 
@@ -625,7 +627,7 @@ git commit -m "feat(server): add idempotent createStore()"
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-import { createStore } from '$lib/server/stores.js';
+import { createRetailer } from '$lib/server/retailers.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { session } = await locals.safeGetSession();
@@ -633,11 +635,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const { storeName, displayName } = await request.json();
+	const { retailerName, displayName } = await request.json();
 
-	const result = await createStore(supabaseAdmin, {
+	const result = await createRetailer(supabaseAdmin, {
 		userId: session.user.id,
-		businessName: storeName,
+		businessName: retailerName,
 		displayName
 	});
 
@@ -645,7 +647,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: result.error }, { status: result.status ?? 500 });
 	}
 
-	return json({ store: result.store });
+	return json({ retailer: result.retailer });
 };
 ```
 
@@ -657,8 +659,8 @@ Expected: 0 new errors from this file.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/routes/api/onboarding/create-store/+server.ts
-git commit -m "feat(api): add POST /api/onboarding/create-store"
+git add src/routes/api/onboarding/create-retailer/+server.ts
+git commit -m "feat(api): add POST /api/onboarding/create-retailer"
 ```
 
 ---
@@ -689,7 +691,7 @@ import { resolveBuyerContext } from './buyer-context.js';
 
 function makeClients({
 	accountUsers = [] as unknown[],
-	storeUsers = [] as unknown[],
+	retailerUsers = [] as unknown[],
 	brandAccess = [] as unknown[],
 	organization = null as unknown
 }) {
@@ -707,7 +709,7 @@ function makeClients({
 
 	function rowsFor(table: string) {
 		if (table === 'account_users') return accountUsers;
-		if (table === 'store_users') return storeUsers;
+		if (table === 'retailer_users') return retailerUsers;
 		if (table === 'account_brand_access') return brandAccess;
 		return [];
 	}
@@ -715,18 +717,18 @@ function makeClients({
 	return { client, admin: client };
 }
 
-const STORE = { id: 'store-1', business_name: 'Anderson & Co' };
+const RETAILER = { id: 'retailer-1', business_name: 'Anderson & Co' };
 
 describe('resolveBuyerContext', () => {
-	it('returns isBuyer=false when the user is neither a buyer nor a store user', async () => {
+	it('returns isBuyer=false when the user is neither a buyer nor a retailer user', async () => {
 		const { client, admin } = makeClients({});
 		const ctx = await resolveBuyerContext(client, admin, 'user-1');
 		expect(ctx.isBuyer).toBe(false);
 	});
 
-	it('a store user with zero accounts is a buyer with [] accounts and null organization', async () => {
+	it('a retailer user with zero accounts is a buyer with [] accounts and null organization', async () => {
 		const { client, admin } = makeClients({
-			storeUsers: [{ store_id: 'store-1', profile_id: 'user-1', stores: STORE }]
+			retailerUsers: [{ retailer_id: 'retailer-1', profile_id: 'user-1', retailers: RETAILER }]
 		});
 
 		const ctx = await resolveBuyerContext(client, admin, 'user-1');
@@ -735,10 +737,10 @@ describe('resolveBuyerContext', () => {
 		expect(ctx.buyerAccounts).toEqual([]);
 		expect(ctx.buyerBrandIds).toEqual([]);
 		expect(ctx.organization).toBeNull();
-		expect(ctx.store).toEqual(STORE);
+		expect(ctx.retailer).toEqual(RETAILER);
 	});
 
-	it('an invited buyer with accounts and no store keeps todays behavior', async () => {
+	it('an invited buyer with accounts and no retailer keeps todays behavior', async () => {
 		const account = { account_id: 'acct-1', accounts: { organization_id: 'org-1' } };
 		const { client, admin } = makeClients({
 			accountUsers: [account],
@@ -752,14 +754,14 @@ describe('resolveBuyerContext', () => {
 		expect(ctx.buyerAccounts).toEqual([account]);
 		expect(ctx.buyerBrandIds).toEqual(['brand-1']);
 		expect(ctx.organization).toEqual({ id: 'org-1', name: 'Acme' });
-		expect(ctx.store).toBeNull();
+		expect(ctx.retailer).toBeNull();
 	});
 
-	it('a user who is both a store user and an invited buyer gets the union', async () => {
+	it('a user who is both a retailer user and an invited buyer gets the union', async () => {
 		const account = { account_id: 'acct-1', accounts: { organization_id: 'org-1' } };
 		const { client, admin } = makeClients({
 			accountUsers: [account],
-			storeUsers: [{ store_id: 'store-1', profile_id: 'user-1', stores: STORE }],
+			retailerUsers: [{ retailer_id: 'retailer-1', profile_id: 'user-1', retailers: RETAILER }],
 			brandAccess: [{ brand_id: 'brand-1' }],
 			organization: { id: 'org-1', name: 'Acme' }
 		});
@@ -768,7 +770,7 @@ describe('resolveBuyerContext', () => {
 
 		expect(ctx.isBuyer).toBe(true);
 		expect(ctx.buyerAccounts).toEqual([account]);
-		expect(ctx.store).toEqual(STORE);
+		expect(ctx.retailer).toEqual(RETAILER);
 	});
 });
 ```
@@ -784,7 +786,7 @@ Create `src/lib/server/buyer-context.ts`:
 
 ```ts
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Organization, Store } from '$lib/types/database';
+import type { Organization, Retailer } from '$lib/types/database';
 
 export type BuyerAccountRow = {
 	account_id: string;
@@ -796,7 +798,7 @@ export type BuyerContext = {
 	buyerAccounts: BuyerAccountRow[];
 	buyerBrandIds: string[];
 	organization: Organization | null;
-	store: Store | null;
+	retailer: Retailer | null;
 };
 
 const NOT_A_BUYER: BuyerContext = {
@@ -804,7 +806,7 @@ const NOT_A_BUYER: BuyerContext = {
 	buyerAccounts: [],
 	buyerBrandIds: [],
 	organization: null,
-	store: null
+	retailer: null
 };
 
 /**
@@ -812,9 +814,9 @@ const NOT_A_BUYER: BuyerContext = {
  *
  * A buyer is either:
  *   - an invited buyer (account_users, created by /api/buyer-invite), or
- *   - a self-signup store user (store_users, created by /api/onboarding/create-store).
+ *   - a self-signup retailer user (retailer_users, created by /api/onboarding/create-retailer).
  *
- * A store user has zero accounts until a brand links them, so `buyerAccounts`
+ * A retailer user has zero accounts until a brand links them, so `buyerAccounts`
  * may be `[]` and `organization` may be `null` for a perfectly valid buyer.
  * Callers must not assume buyerAccounts[0] exists.
  *
@@ -826,18 +828,18 @@ export async function resolveBuyerContext(
 	admin: SupabaseClient,
 	userId: string
 ): Promise<BuyerContext> {
-	const [{ data: buyerAccess }, { data: storeAccess }] = await Promise.all([
+	const [{ data: buyerAccess }, { data: retailerAccess }] = await Promise.all([
 		client
 			.from('account_users')
 			.select('*, accounts(*, organizations(*))')
 			.eq('profile_id', userId),
-		client.from('store_users').select('*, stores(*)').eq('profile_id', userId)
+		client.from('retailer_users').select('*, retailers(*)').eq('profile_id', userId)
 	]);
 
 	const accounts = (buyerAccess ?? []) as BuyerAccountRow[];
-	const stores = (storeAccess ?? []) as Array<{ stores?: Store }>;
+	const retailers = (retailerAccess ?? []) as Array<{ retailers?: Retailer }>;
 
-	if (!accounts.length && !stores.length) {
+	if (!accounts.length && !retailers.length) {
 		return NOT_A_BUYER;
 	}
 
@@ -864,7 +866,7 @@ export async function resolveBuyerContext(
 		buyerAccounts: accounts,
 		buyerBrandIds,
 		organization,
-		store: stores[0]?.stores ?? null
+		retailer: retailers[0]?.retailers ?? null
 	};
 }
 ```
@@ -893,13 +895,13 @@ Replace the entire `else` block at `src/hooks.server.ts:213-254` (the block begi
 				event.locals.isBuyer = true;
 				event.locals.buyerAccounts = buyerCtx.buyerAccounts;
 				event.locals.buyerBrandIds = buyerCtx.buyerBrandIds;
-				event.locals.store = buyerCtx.store;
-				// A self-signup store has no linked accounts yet, so no org.
+				event.locals.retailer = buyerCtx.retailer;
+				// A self-signup retailer has no linked accounts yet, so no org.
 				if (buyerCtx.organization) event.locals.organization = buyerCtx.organization;
 			} else {
 				// No org membership and not a buyer — redirect to onboarding.
-				// Mid-wizard store signups land here correctly: they have no
-				// store_users row until step 3 calls create-store.
+				// Mid-wizard retailer signups land here correctly: they have no
+				// retailer_users row until step 3 calls create-retailer.
 				event.locals.user = profile;
 				if (
 					!event.url.pathname.startsWith('/onboarding') &&
@@ -911,13 +913,13 @@ Replace the entire `else` block at `src/hooks.server.ts:213-254` (the block begi
 		}
 ```
 
-Also initialize `store` wherever the other `locals` defaults are set (search for `event.locals.isBuyer = false` or the locals initialization block near the top of `authHandle`) and add:
+Also initialize `retailer` wherever the other `locals` defaults are set (search for `event.locals.isBuyer = false` or the locals initialization block near the top of `authHandle`) and add:
 
 ```ts
-event.locals.store = null;
+event.locals.retailer = null;
 ```
 
-If no such initialization block exists, add `event.locals.store = null;` immediately before the `if (allMemberships?.length) {` line so org members and system admins get a defined value.
+If no such initialization block exists, add `event.locals.retailer = null;` immediately before the `if (allMemberships?.length) {` line so org members and system admins get a defined value.
 
 - [ ] **Step 6: Verify nothing regressed**
 
@@ -928,7 +930,7 @@ Expected: 0 type errors; all tests pass. The pre-existing `BuyerAccountRow` type
 
 ```bash
 git add src/lib/server/buyer-context.ts src/lib/server/buyer-context.test.ts src/hooks.server.ts
-git commit -m "fix(auth): treat store users as buyers, ending the onboarding redirect loop"
+git commit -m "fix(auth): treat retailer users as buyers, ending the onboarding redirect loop"
 ```
 
 ---
@@ -941,7 +943,7 @@ git commit -m "fix(auth): treat store users as buyers, ending the onboarding red
 - Modify: `src/routes/onboarding/+page.server.ts`
 - Modify: `src/routes/+layout.server.ts`
 
-- [ ] **Step 1: Add the `store_users` check to the OAuth callback**
+- [ ] **Step 1: Add the `retailer_users` check to the OAuth callback**
 
 In `src/routes/auth/callback/+server.ts`, replace the `buyerAccess` block (lines 48-57):
 
@@ -961,12 +963,12 @@ if (buyerAccess) {
 with:
 
 ```ts
-const [{ data: buyerAccess }, { data: storeAccess }] = await Promise.all([
+const [{ data: buyerAccess }, { data: retailerAccess }] = await Promise.all([
 	supabase.from('account_users').select('id').eq('profile_id', user.id).limit(1).maybeSingle(),
-	supabase.from('store_users').select('id').eq('profile_id', user.id).limit(1).maybeSingle()
+	supabase.from('retailer_users').select('id').eq('profile_id', user.id).limit(1).maybeSingle()
 ]);
 
-if (buyerAccess || storeAccess) {
+if (buyerAccess || retailerAccess) {
 	throw redirect(303, '/dashboard');
 }
 ```
@@ -979,14 +981,14 @@ In `src/routes/onboarding/+page.server.ts`, change the destructure and add the s
 
 ```ts
 export const load: PageServerLoad = async ({ locals }) => {
-	const { organization, store, user, supabase } = locals;
+	const { organization, retailer, user, supabase } = locals;
 
 	if (!user) {
 		throw redirect(303, '/login');
 	}
 
-	// A store that finished onboarding belongs in the buyer portal.
-	if (store?.onboarding_completed_at) {
+	// A retailer that finished onboarding belongs in the buyer portal.
+	if (retailer?.onboarding_completed_at) {
 		throw redirect(303, '/dashboard');
 	}
 
@@ -995,23 +997,23 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 ```
 
-and add `store` to the returned object:
+and add `retailer` to the returned object:
 
 ```ts
 return {
 	organization: organization ?? null,
-	store: store ?? null,
+	retailer: retailer ?? null,
 	seasons: seasons as { id: string; name: string }[],
 	user
 };
 ```
 
-- [ ] **Step 3: Pass `store` through the root layout**
+- [ ] **Step 3: Pass `retailer` through the root layout**
 
 In `src/routes/+layout.server.ts`, in the returned object (near line 97-103, beside `buyerAccounts`), add:
 
 ```ts
-		store: locals.store,
+		retailer: locals.retailer,
 ```
 
 - [ ] **Step 4: Verify**
@@ -1023,7 +1025,7 @@ Expected: 0 errors, all tests pass.
 
 ```bash
 git add src/routes/auth/callback/+server.ts src/routes/onboarding/+page.server.ts src/routes/+layout.server.ts
-git commit -m "feat(auth): route store users to the buyer portal"
+git commit -m "feat(auth): route retailer users to the buyer portal"
 ```
 
 ---
@@ -1047,7 +1049,7 @@ let orgType = $state<'rep' | 'brand' | null>(null);
 to:
 
 ```ts
-let orgType = $state<'rep' | 'brand' | 'store' | null>(null);
+let orgType = $state<'rep' | 'brand' | 'retailer' | null>(null);
 ```
 
 - [ ] **Step 2: Add the store to `effectiveOrgType` and `stepLabels`**
@@ -1057,7 +1059,7 @@ At line ~324, `effectiveOrgType` currently defaults to `'rep'`. Replace the `ste
 ```ts
 const effectiveOrgType = $derived(orgType ?? 'rep');
 const stepLabels = $derived(
-	effectiveOrgType === 'store'
+	effectiveOrgType === 'retailer'
 		? [
 				{ number: 1, label: 'Your Name' },
 				{ number: 2, label: 'Your Business' },
@@ -1083,20 +1085,20 @@ const stepLabels = $derived(
 );
 ```
 
-- [ ] **Step 3: Add `saveStoreType()` and branch `saveOrgType()`**
+- [ ] **Step 3: Add `saveRetailerType()` and branch `saveOrgType()`**
 
 `saveOrgType()` (line 435) posts to `/api/onboarding/create-org`. A store must not. Add a sibling function immediately after `saveOrgType()`:
 
 ```ts
-async function saveStoreType() {
+async function saveRetailerType() {
 	loading = true;
 	error = '';
 
-	const res = await fetch('/api/onboarding/create-store', {
+	const res = await fetch('/api/onboarding/create-retailer', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
-			storeName: orgName.trim(),
+			retailerName: orgName.trim(),
 			displayName: displayName
 		})
 	});
@@ -1105,15 +1107,15 @@ async function saveStoreType() {
 
 	if (!res.ok) {
 		const body = await res.json();
-		error = body.error || 'Failed to create store';
+		error = body.error || 'Failed to create retailer';
 		return;
 	}
 
-	const { store } = await res.json();
+	const { retailer } = await res.json();
 	await supabase
-		.from('stores')
+		.from('retailers')
 		.update({ onboarding_completed_at: new Date().toISOString() })
-		.eq('id', store.id);
+		.eq('id', retailer.id);
 
 	window.location.href = '/dashboard';
 }
@@ -1123,24 +1125,24 @@ A store's wizard ends at step 3, so `onboarding_completed_at` is set here rather
 
 - [ ] **Step 4: Add the third card to the step-3 markup**
 
-After the Independent Sales Rep card (which ends around line 805), add a third card. It mirrors the sibling cards' structure exactly; the only differences are `orgType === 'store'`, the click handler, the icon path, and the copy.
+After the Independent Sales Rep card (which ends around line 805), add a third card. It mirrors the sibling cards' structure exactly; the only differences are `orgType === 'retailer'`, the click handler, the icon path, and the copy.
 
 Use the **approved** copy from sign-off (a). Use the shopping-bag `d` copied **verbatim** from `src/routes/dashboard/+page.svelte:64` per sign-off (b) — do not draw a new path.
 
 ```svelte
 <button
 	class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
-	'store'
+	'retailer'
 		? 'border-foreground'
 		: 'border-border hover:border-foreground'}"
 	onclick={() => {
-		orgType = 'store';
-		saveStoreType();
+		orgType = 'retailer';
+		saveRetailerType();
 	}}
 >
 	<div
 		class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
-		'store'
+		'retailer'
 			? 'bg-foreground text-background'
 			: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
 	>
@@ -1160,7 +1162,7 @@ Use the **approved** copy from sign-off (a). Use the shopping-bag `d` copied **v
 		</svg>
 	</div>
 	<div>
-		<p class="font-medium">Store</p>
+		<p class="font-medium">Retailer</p>
 		<p class="mt-1 text-sm text-muted-foreground">
 			<!-- APPROVED COPY FROM SIGN-OFF (a) GOES HERE -->
 		</p>
@@ -1172,7 +1174,7 @@ Before writing this, open the Brand card at lines 726-760 and copy its exact `<s
 
 - [ ] **Step 5: Guard the step-persistence effect**
 
-The `$effect` at line ~588 writes `onboarding_step` to `organizations` and early-returns when `data.organization?.id` is falsy. A store has no org, so it early-returns and persists nothing. That is correct for v1 (a store's wizard is three steps and ends by navigating away), so **leave it unchanged**. Do not add store step persistence — YAGNI, and `stores.onboarding_step` defaults to 1.
+The `$effect` at line ~588 writes `onboarding_step` to `organizations` and early-returns when `data.organization?.id` is falsy. A store has no org, so it early-returns and persists nothing. That is correct for v1 (a store's wizard is three steps and ends by navigating away), so **leave it unchanged**. Do not add store step persistence — YAGNI, and `retailers.onboarding_step` defaults to 1.
 
 - [ ] **Step 6: Verify**
 
@@ -1185,7 +1187,7 @@ Then check the Vite dev console for `state_referenced_locally` warnings (per the
 
 ```bash
 git add src/routes/onboarding/+page.svelte
-git commit -m "feat(onboarding): add Store as a third business type"
+git commit -m "feat(onboarding): add Retailer as a third business type"
 ```
 
 ---
@@ -1206,7 +1208,7 @@ Run: `cat src/routes/dashboard/+page.svelte`
 
 Do not edit from the excerpts in this plan. The stats grid is at lines 31-46, quick actions at 48-84, recent orders at 86+.
 
-- [ ] **Step 2: Source the store name from `locals.store`**
+- [ ] **Step 2: Source the store name from `locals.retailer`**
 
 Replace line 22:
 
@@ -1218,9 +1220,9 @@ with:
 
 ```ts
 const accountName = $derived(
-	data.buyerAccounts?.[0]?.accounts?.business_name ?? data.store?.business_name ?? 'your account'
+	data.buyerAccounts?.[0]?.accounts?.business_name ?? data.retailer?.business_name ?? 'your account'
 );
-// A self-signup store has no linked accounts and no brand access until a
+// A self-signup retailer has no linked accounts and no brand access until a
 // brand connects. Everything below the header is meaningless until then.
 const hasBrandAccess = $derived((data.buyerBrandIds?.length ?? 0) > 0);
 ```
@@ -1275,7 +1277,7 @@ Expected: 0 errors.
 
 ```bash
 git add src/routes/dashboard/+page.svelte
-git commit -m "feat(dashboard): store-aware header and zero-brand empty state"
+git commit -m "feat(dashboard): retailer-aware header and zero-brand empty state"
 ```
 
 ---
@@ -1299,13 +1301,13 @@ Run: `cat src/routes/account/+page.server.ts src/routes/shop/checkout/+page.serv
 
 ```ts
 if (!accountId) {
-	// Self-signup store: no linked account yet. Render the profile from
-	// locals.store instead of the (non-existent) account row.
-	return { account: null, store: locals.store };
+	// Self-signup retailer: no linked account yet. Render the profile from
+	// locals.retailer instead of the (non-existent) account row.
+	return { account: null, retailer: locals.retailer };
 }
 ```
 
-Then make `src/routes/account/+page.svelte` render `data.store?.business_name` when `data.account` is null. Read that file before editing it and match its existing markup; do not restyle it.
+Then make `src/routes/account/+page.svelte` render `data.retailer?.business_name` when `data.account` is null. Read that file before editing it and match its existing markup; do not restyle it.
 
 - [ ] **Step 3: Guard `/shop/checkout`**
 
@@ -1374,11 +1376,11 @@ Sign in as an existing invited buyer (one with `account_users` rows). Confirm `/
 
 - [ ] **Step 4: Manual — verify no regression for reps and brands**
 
-Sign in as a rep-org admin and a brand-org admin. Confirm `/insight`, `/accounts`, and `/brands` load. Confirm neither can see the `stores` table:
+Sign in as a rep-org admin and a brand-org admin. Confirm `/insight`, `/accounts`, and `/brands` load. Confirm neither can see the `retailers` table:
 
 ```bash
 docker exec -i supabase_db_threadline psql -U postgres -d postgres \
-  -c "select count(*) from stores;"
+  -c "select count(*) from retailers;"
 ```
 
 (as `postgres` this returns all rows — the RLS check is Task 1 Step 6, which is the authoritative one.)
@@ -1395,7 +1397,7 @@ Use the `git-pre` skill, or:
 
 ```bash
 git push -u origin feat/store-signup
-gh pr create --base dev --title "feat: store self-signup" --body "..."
+gh pr create --base dev --title "feat: retailer self-signup" --body "..."
 ```
 
 Base branch is `dev`, never `main`.
@@ -1404,14 +1406,14 @@ Base branch is `dev`, never `main`.
 
 ## Self-review of this plan
 
-**Spec coverage:** `stores` + `store_users` + `accounts.store_id` → Task 1. Closed RLS → Task 1. Types → Task 2. `create-store` idempotency + `buyer_admin` → Tasks 3-4. Hooks redirect loop + the two changed invariants → Task 5. `auth/callback` + `/onboarding` bounce → Task 6. Third card → Task 7. Empty states → Task 8. `buyerAccounts[0]` consumers → Task 9. Manual verification → Task 10. No slug, no self-brand, no seasons, no shipping methods, no welcome carousel → Task 3 impl + Task 7 Step 3. Out-of-scope items are absent, as intended.
+**Spec coverage:** `retailers` + `retailer_users` + `accounts.retailer_id` → Task 1. Closed RLS → Task 1. Types → Task 2. `create-retailer` idempotency + `buyer_admin` → Tasks 3-4. Hooks redirect loop + the two changed invariants → Task 5. `auth/callback` + `/onboarding` bounce → Task 6. Third card → Task 7. Empty states → Task 8. `buyerAccounts[0]` consumers → Task 9. Manual verification → Task 10. No slug, no self-brand, no seasons, no shipping methods, no welcome carousel → Task 3 impl + Task 7 Step 3. Out-of-scope items are absent, as intended.
 
 **Deviations from the spec, all documented above:** `/shop` needs no work (already correct); `/dashboard` needs an empty state _and_ dead-link removal (spec missed both); RLS is verified by `psql`, not by an automated harness that does not exist.
 
-**Type consistency:** `createStore(client, {userId, businessName, displayName})` → `CreateStoreResult {store?, error?, status?}`, used identically in Task 3 and Task 4. `resolveBuyerContext(client, admin, userId)` → `BuyerContext {isBuyer, buyerAccounts, buyerBrandIds, organization, store}`, used identically in Task 5. `Store` / `StoreUser` defined in Task 2 and imported by Tasks 3 and 5. `locals.store` declared in Task 2, assigned in Task 5, read in Tasks 6, 8, 9.
+**Type consistency:** `createRetailer(client, {userId, businessName, displayName})` → `CreateRetailerResult {retailer?, error?, status?}`, used identically in Task 3 and Task 4. `resolveBuyerContext(client, admin, userId)` → `BuyerContext {isBuyer, buyerAccounts, buyerBrandIds, organization, retailer}`, used identically in Task 5. `Retailer` / `RetailerUser` defined in Task 2 and imported by Tasks 3 and 5. `locals.retailer` declared in Task 2, assigned in Task 5, read in Tasks 6, 8, 9.
 
 **Known gaps, stated rather than hidden:**
 
 - Task 9 Step 2 cannot show final code for `/account/+page.svelte` because the file was not read during planning. The step instructs the implementer to read it first and match its markup. This is a genuine unknown, not a placeholder for known content.
-- The `event.locals.store = null` initialization site in `hooks.server.ts` (Task 5 Step 5) was not located precisely during planning. The step tells the implementer where to look and what to do if it is absent.
+- The `event.locals.retailer = null` initialization site in `hooks.server.ts` (Task 5 Step 5) was not located precisely during planning. The step tells the implementer where to look and what to do if it is absent.
 - Copy and icon for Tasks 7 and 8 are drafted but require user sign-off, per `CLAUDE.md`'s prohibition on inventing user-facing copy.

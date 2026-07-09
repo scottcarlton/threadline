@@ -24,25 +24,25 @@ A store signs up unaided, gets a durable business identity, and lands on the exi
 
 A store is **not** an `organizations` row.
 
-Rejected: `org_type='store'`. It would give org name, slug, settings, and member roles for free, but a third org type would then flow through every `.eq('organization_id', currentOrgId)` filter, every RLS policy that assumes `rep|brand`, and `get_connected_org_ids()`. `hooks.server.ts` would treat store users as org members and route them to `/insight`. This is the federation-boundary collapse that `CLAUDE.md` warns against.
+Rejected: `org_type='retailer'`. It would give org name, slug, settings, and member roles for free, but a third org type would then flow through every `.eq('organization_id', currentOrgId)` filter, every RLS policy that assumes `rep|brand`, and `get_connected_org_ids()`. `hooks.server.ts` would treat store users as org members and route them to `/insight`. This is the federation-boundary collapse that `CLAUDE.md` warns against.
 
 Rejected: nullable `accounts.organization_id`. An orphan row with `organization_id IS NULL` passes no RLS policy and is invisible to everyone including its owner. And a store adopted by two brands can only have one `organization_id`.
 
-Chosen: **a global `stores` directory table, plus per-org `accounts` rows that link to it.** This matches the existing buyer-scoping model: one buyer user = one business identity; the business has separate `accounts` rows in each brand-org; the portal merges across them.
+Chosen: **a global `retailers` directory table, plus per-org `accounts` rows that link to it.** This matches the existing buyer-scoping model: one buyer user = one business identity; the business has separate `accounts` rows in each brand-org; the portal merges across them.
 
 ### Identity is read-through, not synced
 
-When phase 2 lands, a brand's linked `accounts` row will **read** identity fields from `stores` at query time rather than holding copies. There is one row, so it cannot drift. No fanout job, no conflict resolution, no reconciliation.
+When phase 2 lands, a brand's linked `accounts` row will **read** identity fields from `retailers` at query time rather than holding copies. There is one row, so it cannot drift. No fanout job, no conflict resolution, no reconciliation.
 
 Field ownership (established now, enforced in phase 2):
 
-| Store-owned (`stores`)                                                   | Org-owned (`accounts`, private per-org)              |
-| ------------------------------------------------------------------------ | ---------------------------------------------------- |
-| `business_name`, `website`                                               | `notes`                                              |
-| address, `phone`                                                         | `territory_id`                                       |
-| buyer contacts (via `store_users` → `profiles`, not columns on `stores`) | `payment_terms`, `payment_preference`                |
-|                                                                          | `commission_rate_override`, `order_minimum_override` |
-|                                                                          | tags, `archived_at`                                  |
+| Store-owned (`retailers`)                                                      | Org-owned (`accounts`, private per-org)              |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `business_name`, `website`                                                     | `notes`                                              |
+| address, `phone`                                                               | `territory_id`                                       |
+| buyer contacts (via `retailer_users` → `profiles`, not columns on `retailers`) | `payment_terms`, `payment_preference`                |
+|                                                                                | `commission_rate_override`, `order_minimum_override` |
+|                                                                                | tags, `archived_at`                                  |
 
 Two brands can both link the same store, disagree completely on terms and territory, and still both see the store's current address.
 
@@ -51,7 +51,7 @@ Two brands can both link the same store, disagree completely on terms and territ
 One migration. Nothing existing is altered except one added nullable column.
 
 ```sql
-CREATE TABLE stores (
+CREATE TABLE retailers (
   id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   business_name           TEXT NOT NULL,
   website                 TEXT,
@@ -68,37 +68,37 @@ CREATE TABLE stores (
   updated_at              TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE store_users (
+CREATE TABLE retailer_users (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  store_id    UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  retailer_id    UUID NOT NULL REFERENCES retailers(id) ON DELETE CASCADE,
   profile_id  UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   role        TEXT NOT NULL DEFAULT 'buyer' CHECK (role IN ('buyer','buyer_admin')),
   created_at  TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(store_id, profile_id)
+  UNIQUE(retailer_id, profile_id)
 );
 
 -- The seam for phase-2 brand-initiated linking. Written by nothing in v1.
-ALTER TABLE accounts ADD COLUMN store_id UUID REFERENCES stores(id) ON DELETE SET NULL;
+ALTER TABLE accounts ADD COLUMN retailer_id UUID REFERENCES retailers(id) ON DELETE SET NULL;
 ```
 
 Decisions:
 
-- **`onboarding_step` / `onboarding_completed_at` on `stores`**, mirroring `organizations` (`20260428000001_onboarding_state.sql:12-13`). The wizard's resume-on-refresh behavior needs somewhere to persist and a store has no org row.
+- **`onboarding_step` / `onboarding_completed_at` on `retailers`**, mirroring `organizations` (`20260428000001_onboarding_state.sql:12-13`). The wizard's resume-on-refresh behavior needs somewhere to persist and a store has no org row.
 - **`role` mirrors `account_users`'s `('buyer','buyer_admin')`** so phase-2 linking carries roles across with no mapping table.
-- **`accounts.store_id` ships now, unused.** One line today; a second migration against the busiest table in the schema if deferred.
+- **`accounts.retailer_id` ships now, unused.** One line today; a second migration against the busiest table in the schema if deferred.
 - **No `slug`.** `create-org` slugifies and 409s on collision. Stores need no public URL in v1, and two real stores can legitimately share a name — uniqueness here would reject valid signups.
 
 ### RLS — deliberately closed
 
-In v1 **no brand or rep can read `stores` at all.**
+In v1 **no brand or rep can read `retailers` at all.**
 
 ```sql
-CREATE FUNCTION get_user_store_ids() RETURNS SETOF UUID ...
-  SELECT store_id FROM store_users WHERE profile_id = auth.uid();
+CREATE FUNCTION get_user_retailer_ids() RETURNS SETOF UUID ...
+  SELECT retailer_id FROM retailer_users WHERE profile_id = auth.uid();
 ```
 
-- `stores`: a store user selects and updates their own store. Nobody else.
-- `store_users`: a store user selects rows for their store; `buyer_admin` manages them.
+- `retailers`: a store user selects and updates their own store. Nobody else.
+- `retailer_users`: a store user selects rows for their store; `buyer_admin` manages them.
 
 The cross-org readable directory — the first table in the system scoped by neither org nor connection — is a real new read surface. Phase 2 opens it deliberately, with its own review and its own public/private column split. It does not arrive as a side effect of signup.
 
@@ -108,19 +108,19 @@ No new signup entry point. `/login` already creates users for anyone (`shouldCre
 
 Steps 1 and 2 already collect exactly what a store needs — display name (step 1) and business name (step 2). The store path is steps 1 → 2 → 3, then done. No new wizard step.
 
-**Step 3 gains a third card.** `src/routes/onboarding/+page.svelte:702-805` renders two cards writing `orgType = 'rep' | 'brand'`. This becomes `accountType = 'rep' | 'brand' | 'store'`. Selecting Store calls a new `POST /api/onboarding/create-store` instead of `create-org`.
+**Step 3 gains a third card.** `src/routes/onboarding/+page.svelte:702-805` renders two cards writing `orgType = 'rep' | 'brand'`. This becomes `accountType = 'rep' | 'brand' | 'retailer'`. Selecting Store calls a new `POST /api/onboarding/create-retailer` instead of `create-org`.
 
 Card copy is user-facing and will be drafted against `docs/brand/guidelines.md` §1.5 at implementation time. The existing cards are one-line role statements ("I represent multiple brands and manage accounts, orders, and commissions"); the store card matches that shape.
 
-**`POST /api/onboarding/create-store`** mirrors `create-org`'s structure, using `supabaseAdmin` (per the `@supabase/ssr` JWT-drop-on-writes constraint) with an app-layer auth check:
+**`POST /api/onboarding/create-retailer`** mirrors `create-org`'s structure, using `supabaseAdmin` (per the `@supabase/ssr` JWT-drop-on-writes constraint) with an app-layer auth check:
 
 1. Auth guard; 401 without a session.
-2. **Idempotency:** if the user already has a `store_users` row, return that store. Mirrors the `organization_members` check at `create-org:21-31`; protects against refresh and resubmit.
+2. **Idempotency:** if the user already has a `retailer_users` row, return that store. Mirrors the `organization_members` check at `create-org:21-31`; protects against refresh and resubmit.
 3. `UPDATE profiles SET display_name`.
-4. `INSERT stores { business_name }`.
-5. `INSERT store_users { store_id, profile_id, role: 'buyer_admin' }` — first user is admin, matching `buyer-invite/send:69-78`.
+4. `INSERT retailers { business_name }`.
+5. `INSERT retailer_users { retailer_id, profile_id, role: 'buyer_admin' }` — first user is admin, matching `buyer-invite/send:69-78`.
 
-`finish()` sets `stores.onboarding_completed_at` and redirects to `/dashboard`.
+`finish()` sets `retailers.onboarding_completed_at` and redirects to `/dashboard`.
 
 Not done for stores: self-brand, seasons, shipping methods (all brand-org concerns, `create-org:88-117`). The step-6 welcome carousel is skipped — its copy is rep/brand specific.
 
@@ -133,15 +133,15 @@ Three files. This is where the current system actually breaks.
 `isBuyer` derives only from `account_users` (line 215-218). A self-signup store has none, falls through to the `else` at line 244, and gets `throw redirect(303, '/onboarding')` — **an infinite loop.** This is the one thing that must be fixed for any of this to work.
 
 ```ts
-const [{ data: buyerAccess }, { data: storeAccess }] = await Promise.all([
+const [{ data: buyerAccess }, { data: retailerAccess }] = await Promise.all([
   supabase.from('account_users').select('*, accounts(*, organizations(*))').eq('profile_id', user.id),
-  supabase.from('store_users').select('*, stores(*)').eq('profile_id', user.id)
+  supabase.from('retailer_users').select('*, retailers(*)').eq('profile_id', user.id)
 ]);
 
-if (buyerAccess?.length || storeAccess?.length) {
+if (buyerAccess?.length || retailerAccess?.length) {
   locals.isBuyer = true;
-  locals.buyerAccounts = buyerAccess ?? [];   // [] for a fresh store
-  locals.store = storeAccess?.[0]?.stores ?? null;
+  locals.buyerAccounts = buyerAccess ?? [];   // [] for a fresh retailer
+  locals.retailer = retailerAccess?.[0]?.retailers ?? null;
   locals.buyerBrandIds = ...                  // [] when no accounts
   locals.organization = ...                   // only when buyerAccounts is non-empty
 }
@@ -152,15 +152,15 @@ Two invariants change. Every consumer must tolerate them:
 - **`locals.buyerAccounts` can now be `[]` for a valid buyer.** Previously non-empty by construction.
 - **`locals.organization` can be `null` for a valid buyer.** Previously always set from `buyerAccounts[0].accounts.organization_id` (`hooks.server.ts:234-241`).
 
-Mid-wizard (after step 1, before step 3) a user has no `store_users` row and is correctly still "neither org member nor buyer," so `/onboarding` remains the right destination. This works only because `create-store` fires at step 3. It needs a test.
+Mid-wizard (after step 1, before step 3) a user has no `retailer_users` row and is correctly still "neither org member nor buyer," so `/onboarding` remains the right destination. This works only because `create-retailer` fires at step 3. It needs a test.
 
 ### `src/routes/onboarding/+page.server.ts:18`
 
-Bounces on `organization?.onboarding_completed_at`. Add the store branch: bounce to `/dashboard` on `store?.onboarding_completed_at`.
+Bounces on `organization?.onboarding_completed_at`. Add the store branch: bounce to `/dashboard` on `retailer?.onboarding_completed_at`.
 
 ### `src/routes/auth/callback/+server.ts`
 
-Checks org membership (line 37), then `account_users` (line 48), then falls to `/onboarding`. Insert a `store_users` check alongside `account_users`; both route to `/dashboard`.
+Checks org membership (line 37), then `account_users` (line 48), then falls to `/onboarding`. Insert a `retailer_users` check alongside `account_users`; both route to `/dashboard`.
 
 ### Downstream consumers
 
@@ -168,7 +168,7 @@ Checks org membership (line 37), then `account_users` (line 48), then falls to `
 | ------------------------------- | ---- | ----------------------------------------------------------- | --------------------------------------------- |
 | `account/+page.server.ts`       | 11   | `buyerAccounts[0].account_id`                               | `undefined` → render empty profile            |
 | `shop/checkout/+page.server.ts` | 16   | `buyerAccounts[0].account_id`                               | `undefined` → unreachable (no brands to shop) |
-| `dashboard/+page.svelte`        | 22   | `buyerAccounts[0].accounts.business_name ?? 'your account'` | should read `store.business_name`             |
+| `dashboard/+page.svelte`        | 22   | `buyerAccounts[0].accounts.business_name ?? 'your account'` | should read `retailer.business_name`          |
 | `+layout.server.ts`             | 20   | `if (locals.organization && ...)`                           | already guarded                               |
 
 `dashboard/+page.server.ts` already survives zero accounts: `accountIds ?? []` (line 13) and the `['__none__']` sentinel (line 26) return empty rather than throw.
@@ -179,13 +179,13 @@ Checks org membership (line 37), then `account_users` (line 48), then falls to `
 
 **Unit** (colocated `*.test.ts`):
 
-- `create-store`: idempotency (second call returns the same store, no duplicate `store_users`); first user gets `buyer_admin`; missing `business_name` rejected.
-- Hooks buyer-resolution: `store_users` only → `isBuyer` true, `buyerAccounts: []`, `organization: null`. `account_users` only → unchanged from today (regression guard). Both → union.
+- `create-retailer`: idempotency (second call returns the same store, no duplicate `retailer_users`); first user gets `buyer_admin`; missing `business_name` rejected.
+- Hooks buyer-resolution: `retailer_users` only → `isBuyer` true, `buyerAccounts: []`, `organization: null`. `account_users` only → unchanged from today (regression guard). Both → union.
 
 **RLS** (this is a new table; these are the assertions that matter):
 
-- A store user reads their own `stores` row; a second store's user gets zero rows.
-- A brand-org admin and a rep-org admin each get **zero rows** selecting `stores`. This proves the public read surface was not opened early.
+- A store user reads their own `retailers` row; a second store's user gets zero rows.
+- A brand-org admin and a rep-org admin each get **zero rows** selecting `retailers`. This proves the public read surface was not opened early.
 
 **Manual — required, cannot be typechecked.** Sign up as a store end-to-end, then load `/dashboard`, `/shop`, `/account`, `/account/team` with zero linked accounts.
 
@@ -193,16 +193,16 @@ The four `locals.organization` / `buyerAccounts` consumers above were found by g
 
 ## Out of scope for v1
 
-- The `stores` public/searchable read surface, and its public/private column split.
+- The `retailers` public/searchable read surface, and its public/private column split.
 - Brand-side search UI and "add client from directory."
 - Brand-initiated claim of existing unlinked `accounts` rows, and the match heuristic (contact-email exact match, then business name + zip fuzzy).
-- Read-through of identity fields from `stores` into `accounts`. `accounts.store_id` exists; nothing reads it.
+- Read-through of identity fields from `retailers` into `accounts`. `accounts.retailer_id` exists; nothing reads it.
 - Store team invites. `/account/team` already exists, and a store signing up solo has nobody to invite.
 - Store onboarding welcome carousel.
 
 ## Phase 2 (not designed here)
 
-Discovery and linking. Brand-initiated claim: a brand opening an unlinked account sees "This looks like Anderson & Co on Threadline — link?", confirms, and `store_id` is set. The brand controls its own row; no approval round-trip.
+Discovery and linking. Brand-initiated claim: a brand opening an unlinked account sees "This looks like Anderson & Co on Threadline — link?", confirms, and `retailer_id` is set. The brand controls its own row; no approval round-trip.
 
 The rejected alternative was store-initiated claim, which would tell any store that signs up exactly which brands already hold their record — a privacy leak and a soft enumeration oracle.
 

@@ -52,7 +52,7 @@
 	let firstName = $state('');
 	let lastName = $state('');
 	let orgName = $state('');
-	let orgType = $state<'rep' | 'brand' | 'store' | null>(null);
+	let orgType = $state<'rep' | 'brand' | 'retailer' | null>(null);
 	let brandName = $state('');
 	let brandEmail = $state('');
 	let inviteEmail = $state('');
@@ -322,7 +322,7 @@
 	// Total steps for the indicator (brand skips step 4)
 	const effectiveOrgType = $derived(orgType ?? 'rep');
 	const stepLabels = $derived(
-		effectiveOrgType === 'store'
+		effectiveOrgType === 'retailer'
 			? [
 					{ number: 1, label: 'Your Name' },
 					{ number: 2, label: 'Your Business' },
@@ -486,15 +486,15 @@
 		step = effectiveOrgType === 'brand' ? catalogStep : 4;
 	}
 
-	async function saveStoreType() {
+	async function saveRetailerType() {
 		loading = true;
 		error = '';
 
-		const res = await fetch('/api/onboarding/create-store', {
+		const res = await fetch('/api/onboarding/create-retailer', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
-				storeName: orgName.trim(),
+				retailerName: orgName.trim(),
 				displayName: displayName
 			})
 		});
@@ -503,15 +503,15 @@
 
 		if (!res.ok) {
 			const body = await res.json();
-			error = body.error || 'Failed to create store';
+			error = body.error || 'Failed to create retailer';
 			return;
 		}
 
-		const { store } = await res.json();
+		const { retailer } = await res.json();
 		await supabase
-			.from('stores')
+			.from('retailers')
 			.update({ onboarding_completed_at: new Date().toISOString() })
-			.eq('id', store.id);
+			.eq('id', retailer.id);
 
 		window.location.href = '/dashboard';
 	}
@@ -839,17 +839,17 @@
 						</button>
 						<button
 							class="group flex h-full w-full flex-col items-start gap-3 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
-							'store'
+							'retailer'
 								? 'border-foreground'
 								: 'border-border hover:border-foreground'}"
 							onclick={() => {
-								orgType = 'store';
-								saveStoreType();
+								orgType = 'retailer';
+								saveRetailerType();
 							}}
 						>
 							<div
 								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
-								'store'
+								'retailer'
 									? 'bg-foreground text-background'
 									: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
 							>

@@ -287,7 +287,7 @@ export interface Account {
 	shipping_method: string | null;
 	commission_rate_override: number | null;
 	order_minimum_override: number | null;
-	store_id: string | null;
+	retailer_id: string | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;
@@ -671,7 +671,7 @@ export interface AccountUser {
 	profiles?: Profile;
 }
 
-export interface Store {
+export interface Retailer {
 	id: string;
 	business_name: string;
 	website: string | null;
@@ -688,9 +688,9 @@ export interface Store {
 	updated_at: string;
 }
 
-export interface StoreUser {
+export interface RetailerUser {
 	id: string;
-	store_id: string;
+	retailer_id: string;
 	profile_id: string;
 	role: 'buyer' | 'buyer_admin';
 	created_at: string;
