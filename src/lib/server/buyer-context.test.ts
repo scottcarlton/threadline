@@ -60,7 +60,7 @@ describe('resolveBuyerContext', () => {
 			account_users: { data: [], error: null },
 			store_users: { data: [{ id: 'su-1', store_id: 'store-1', stores: store }], error: null }
 		});
-		const { client: admin, queriedTables: adminTables } = makeClient();
+		const { client: admin } = makeClient();
 
 		const ctx = await resolveBuyerContext(client, admin, 'user-1');
 
@@ -69,11 +69,25 @@ describe('resolveBuyerContext', () => {
 		expect(ctx.buyerBrandIds).toEqual([]);
 		expect(ctx.organization).toBeNull();
 		expect(ctx.store).toEqual(store);
+	});
 
-		// No accounts → no admin round-trips. `.in('account_id', [])` and
-		// `.eq('id', undefined)` would both be malformed.
+	it('issues no account-scoped round-trips for a store-only user', async () => {
+		const { client } = makeClient({
+			account_users: { data: [], error: null },
+			store_users: {
+				data: [{ id: 'su-1', store_id: 'store-1', stores: { id: 'store-1' } }],
+				error: null
+			}
+		});
+		const { client: admin, queriedTables: adminTables } = makeClient();
+
+		await resolveBuyerContext(client, admin, 'user-1');
+
+		// With no accounts, `.in('account_id', [])` and `.eq('id', undefined)`
+		// would be malformed — the admin client must not be touched at all.
 		expect(adminTables).not.toContain('account_brand_access');
 		expect(adminTables).not.toContain('organizations');
+		expect(admin.from).not.toHaveBeenCalled();
 	});
 
 	it('reproduces the existing invited-buyer path (regression guard)', async () => {
