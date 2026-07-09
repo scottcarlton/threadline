@@ -11,19 +11,11 @@ import {
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
-import type {
-	OrgType,
-	OrganizationMember,
-	Organization,
-	AccountUser
-} from '$lib/types/database.js';
+import { resolveBuyerContext } from '$lib/server/buyer-context.js';
+import type { OrgType, OrganizationMember, Organization } from '$lib/types/database.js';
 
 type MembershipWithOrg = OrganizationMember & { organizations: Organization };
 type BrandAccessRow = { brand_id: string; brands?: { name?: string } | { name?: string }[] | null };
-type BuyerAccountRow = AccountUser & {
-	account_id: string;
-	accounts?: { organization_id?: string } | null;
-};
 type SsoIdentity = { provider?: string };
 
 Sentry.init({
@@ -212,39 +204,26 @@ const authHandle: Handle = async ({ event, resolve }) => {
 				}
 			}
 		} else {
-			// Check if user is a buyer
-			const { data: buyerAccess } = await supabase
-				.from('account_users')
-				.select('*, accounts(*, organizations(*))')
-				.eq('profile_id', user.id);
+			// Not an org member — check if the user is a buyer (invited into a
+			// brand account, or a self-signup retailer store). Both populate the
+			// buyer portal; a store user has store_users but no account_users.
+			const buyerContext = await resolveBuyerContext(supabase, supabaseAdmin, user.id);
 
-			if (buyerAccess?.length) {
-				const typedBuyerAccess = buyerAccess as BuyerAccountRow[];
+			if (buyerContext.isBuyer) {
 				event.locals.user = profile;
 				event.locals.isBuyer = true;
-				event.locals.buyerAccounts = typedBuyerAccess;
-
-				// Load accessible brand IDs (use admin client to bypass RLS)
-				const accountIds = typedBuyerAccess.map((a) => a.account_id);
-				const { data: brandAccess } = await supabaseAdmin
-					.from('account_brand_access')
-					.select('brand_id')
-					.in('account_id', accountIds);
-				event.locals.buyerBrandIds =
-					(brandAccess as Array<{ brand_id: string }> | null)?.map((b) => b.brand_id) ?? null;
-
-				// Set organization from the account's org (use admin to bypass RLS)
-				const orgId = typedBuyerAccess[0]?.accounts?.organization_id;
-				if (orgId) {
-					const { data: org } = await supabaseAdmin
-						.from('organizations')
-						.select('*')
-						.eq('id', orgId)
-						.single();
-					if (org) event.locals.organization = org;
+				event.locals.buyerAccounts = buyerContext.buyerAccounts;
+				event.locals.buyerBrandIds = buyerContext.buyerBrandIds;
+				event.locals.store = buyerContext.store;
+				// A store user has no brand org, so organization stays null for them.
+				// Only overwrite the null default when we actually resolved an org.
+				if (buyerContext.organization) {
+					event.locals.organization = buyerContext.organization;
 				}
 			} else {
-				// No org membership and not a buyer — redirect to onboarding
+				// No org membership and not a buyer — redirect to onboarding. A
+				// store signup mid-wizard also lands here (createStore only writes
+				// the store_users row at step 3), so /onboarding is correct for it.
 				event.locals.user = profile;
 				if (
 					!event.url.pathname.startsWith('/onboarding') &&
