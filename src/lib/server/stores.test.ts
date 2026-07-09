@@ -17,10 +17,12 @@ type OpResponse = { data: unknown; error?: { message: string } | null };
 function makeMock({
 	select,
 	insert,
+	inserts,
 	update
 }: {
 	select?: OpResponse;
 	insert?: OpResponse;
+	inserts?: Record<string, OpResponse>;
 	update?: OpResponse;
 } = {}) {
 	const captured: Captured[] = [];
@@ -42,7 +44,7 @@ function makeMock({
 
 		const response =
 			op === 'insert'
-				? (insert ?? { data: null, error: null })
+				? (inserts?.[table] ?? insert ?? { data: null, error: null })
 				: op === 'update'
 					? (update ?? { data: null, error: null })
 					: (select ?? { data: null, error: null });
@@ -191,5 +193,27 @@ describe('createStore', () => {
 		const inserts = captured.filter((c) => c.op === 'insert');
 		expect(inserts).toHaveLength(1);
 		expect(inserts[0].table).toBe('stores');
+	});
+
+	it('surfaces a store_users insert error as status 500 after the store was created', async () => {
+		const insertedStore = { id: 'store-3', business_name: 'Acme Apparel' };
+		const { supabase, captured } = makeMock({
+			select: { data: null, error: null },
+			inserts: {
+				stores: { data: insertedStore, error: null },
+				store_users: { data: null, error: { message: 'store_users insert failed' } }
+			}
+		});
+
+		const result = await createStore(supabase, {
+			userId: 'user-1',
+			businessName: 'Acme Apparel'
+		});
+
+		expect(result).toEqual({ error: 'store_users insert failed', status: 500 });
+
+		// The stores insert did happen; both inserts were attempted.
+		const inserts = captured.filter((c) => c.op === 'insert');
+		expect(inserts.map((c) => c.table)).toEqual(['stores', 'store_users']);
 	});
 });

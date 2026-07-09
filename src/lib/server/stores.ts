@@ -44,8 +44,7 @@ export async function createStore(
 		.limit(1)
 		.maybeSingle();
 
-	const existingStores = (existing as { stores?: Store | Store[] } | null)?.stores;
-	const existingStore = Array.isArray(existingStores) ? existingStores[0] : existingStores;
+	const existingStore = (existing as { stores?: Store } | null)?.stores;
 	if (existingStore) {
 		return { store: existingStore };
 	}
