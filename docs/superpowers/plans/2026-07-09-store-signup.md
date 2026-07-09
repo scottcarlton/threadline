@@ -87,7 +87,7 @@ Ask the user to confirm (a) and (b) before starting Task 7.
 Run:
 
 ```bash
-psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c "select current_database();"
+docker exec -i supabase_db_threadline psql -U postgres -d postgres -c "select current_database();"
 ```
 
 Expected: one row, `postgres`. If this fails, run `bunx supabase start` first. Never apply this migration against a remote project.
@@ -223,7 +223,7 @@ Expected: `Applying migration 20260709000001_store_signup.sql...` and no error.
 Run:
 
 ```bash
-psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c "NOTIFY pgrst, 'reload schema';"
+docker exec -i supabase_db_threadline psql -U postgres -d postgres -c "NOTIFY pgrst, 'reload schema';"
 ```
 
 Expected: `NOTIFY`. Skipping this makes the new tables 404 from the JS client even though they exist.
@@ -233,7 +233,7 @@ Expected: `NOTIFY`. Skipping this makes the new tables 404 from the JS client ev
 Run:
 
 ```bash
-psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c "\d stores" \
+docker exec -i supabase_db_threadline psql -U postgres -d postgres -c "\d stores" \
   -c "\d store_users" \
   -c "select column_name from information_schema.columns where table_name='accounts' and column_name='store_id';"
 ```
@@ -245,18 +245,21 @@ Expected: both tables printed; final query returns one row, `store_id`.
 This is the assertion that proves the public read surface was not opened early. Run:
 
 ```bash
-psql postgresql://postgres:postgres@127.0.0.1:54322/postgres <<'SQL'
+docker exec -i supabase_db_threadline psql -U postgres -d postgres <<'SQL'
+BEGIN;
+
 -- Seed a store owned by nobody in particular.
 INSERT INTO stores (id, business_name)
 VALUES ('11111111-1111-1111-1111-111111111111', 'RLS Probe Store');
 
 -- Simulate an authenticated user who is NOT a store user.
+-- SET LOCAL requires a transaction block, hence the BEGIN above.
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 SELECT count(*) AS should_be_zero FROM stores;
-RESET ROLE;
 
-DELETE FROM stores WHERE id = '11111111-1111-1111-1111-111111111111';
+RESET ROLE;
+ROLLBACK;  -- discards the probe row; no cleanup DELETE needed
 SQL
 ```
 
@@ -1374,7 +1377,7 @@ Sign in as an existing invited buyer (one with `account_users` rows). Confirm `/
 Sign in as a rep-org admin and a brand-org admin. Confirm `/insight`, `/accounts`, and `/brands` load. Confirm neither can see the `stores` table:
 
 ```bash
-psql postgresql://postgres:postgres@127.0.0.1:54322/postgres \
+docker exec -i supabase_db_threadline psql -U postgres -d postgres \
   -c "select count(*) from stores;"
 ```
 
