@@ -102,6 +102,7 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 		isBuyer: locals.isBuyer,
 		buyerAccounts: locals.buyerAccounts,
 		buyerBrandIds: locals.buyerBrandIds,
+		store: locals.store,
 		isSystemAdmin: locals.isSystemAdmin,
 		agents,
 		cartItems

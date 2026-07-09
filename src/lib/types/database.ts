@@ -287,6 +287,7 @@ export interface Account {
 	shipping_method: string | null;
 	commission_rate_override: number | null;
 	order_minimum_override: number | null;
+	store_id: string | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;
@@ -668,6 +669,31 @@ export interface AccountUser {
 	created_at: string;
 	accounts?: Account & { organizations?: Organization };
 	profiles?: Profile;
+}
+
+export interface Store {
+	id: string;
+	business_name: string;
+	website: string | null;
+	phone: string | null;
+	address_line1: string | null;
+	address_line2: string | null;
+	city: string | null;
+	state: string | null;
+	zip: string | null;
+	country: string | null;
+	onboarding_step: number;
+	onboarding_completed_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface StoreUser {
+	id: string;
+	store_id: string;
+	profile_id: string;
+	role: 'buyer' | 'buyer_admin';
+	created_at: string;
 }
 
 export interface AccountBrandAccess {

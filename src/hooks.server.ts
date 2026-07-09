@@ -98,6 +98,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.isBuyer = false;
 	event.locals.buyerAccounts = null;
 	event.locals.buyerBrandIds = null;
+	event.locals.store = null;
 	event.locals.isSystemAdmin = false;
 	event.locals.orgType = 'rep';
 	event.locals.allMemberships = [];
