@@ -52,7 +52,7 @@
 	let firstName = $state('');
 	let lastName = $state('');
 	let orgName = $state('');
-	let orgType = $state<'rep' | 'brand' | null>(null);
+	let orgType = $state<'rep' | 'brand' | 'store' | null>(null);
 	let brandName = $state('');
 	let brandEmail = $state('');
 	let inviteEmail = $state('');
@@ -322,23 +322,29 @@
 	// Total steps for the indicator (brand skips step 4)
 	const effectiveOrgType = $derived(orgType ?? 'rep');
 	const stepLabels = $derived(
-		effectiveOrgType === 'brand'
+		effectiveOrgType === 'store'
 			? [
 					{ number: 1, label: 'Your Name' },
 					{ number: 2, label: 'Your Business' },
-					{ number: 3, label: 'Business Type' },
-					{ number: 4, label: 'Catalog' },
-					{ number: 5, label: 'Invite Members' },
-					{ number: 6, label: 'Get Started' }
+					{ number: 3, label: 'Business Type' }
 				]
-			: [
-					{ number: 1, label: 'Your Name' },
-					{ number: 2, label: 'Your Business' },
-					{ number: 3, label: 'Business Type' },
-					{ number: 4, label: 'First Brand' },
-					{ number: 5, label: 'Invite Members' },
-					{ number: 6, label: 'Get Started' }
-				]
+			: effectiveOrgType === 'brand'
+				? [
+						{ number: 1, label: 'Your Name' },
+						{ number: 2, label: 'Your Business' },
+						{ number: 3, label: 'Business Type' },
+						{ number: 4, label: 'Catalog' },
+						{ number: 5, label: 'Invite Members' },
+						{ number: 6, label: 'Get Started' }
+					]
+				: [
+						{ number: 1, label: 'Your Name' },
+						{ number: 2, label: 'Your Business' },
+						{ number: 3, label: 'Business Type' },
+						{ number: 4, label: 'First Brand' },
+						{ number: 5, label: 'Invite Members' },
+						{ number: 6, label: 'Get Started' }
+					]
 	);
 
 	// Welcome carousel slides
@@ -478,6 +484,36 @@
 		// Brand orgs go to Catalog (self-brand is auto-created by trigger).
 		// Rep orgs go to their First Brand step.
 		step = effectiveOrgType === 'brand' ? catalogStep : 4;
+	}
+
+	async function saveStoreType() {
+		loading = true;
+		error = '';
+
+		const res = await fetch('/api/onboarding/create-store', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				storeName: orgName.trim(),
+				displayName: displayName
+			})
+		});
+
+		loading = false;
+
+		if (!res.ok) {
+			const body = await res.json();
+			error = body.error || 'Failed to create store';
+			return;
+		}
+
+		const { store } = await res.json();
+		await supabase
+			.from('stores')
+			.update({ onboarding_completed_at: new Date().toISOString() })
+			.eq('id', store.id);
+
+		window.location.href = '/dashboard';
 	}
 
 	async function saveBrand() {
@@ -798,6 +834,44 @@
 								<p class="text-sm font-semibold">Independent Sales Rep</p>
 								<p class="mt-0.5 text-sm text-muted-foreground">
 									I represent multiple brands and manage accounts, orders, and commissions.
+								</p>
+							</div>
+						</button>
+						<button
+							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
+							'store'
+								? 'border-foreground'
+								: 'border-border hover:border-foreground'}"
+							onclick={() => {
+								orgType = 'store';
+								saveStoreType();
+							}}
+						>
+							<div
+								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
+								'store'
+									? 'bg-foreground text-background'
+									: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									stroke-width="1.5"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+									/>
+								</svg>
+							</div>
+							<div>
+								<p class="text-sm font-semibold">Retailer</p>
+								<p class="mt-0.5 text-sm text-muted-foreground">
+									I buy wholesale from brands and want my orders and account details in one place.
 								</p>
 							</div>
 						</button>
