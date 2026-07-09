@@ -2,10 +2,15 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const { organization, user, supabase } = locals;
+	const { organization, store, user, supabase } = locals;
 
 	if (!user) {
 		throw redirect(303, '/login');
+	}
+
+	// A store that finished onboarding belongs in the buyer portal.
+	if (store?.onboarding_completed_at) {
+		throw redirect(303, '/dashboard');
 	}
 
 	// Bounce to /insight only when the user's primary org has finished
@@ -37,6 +42,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		organization: organization ?? null,
+		store: store ?? null,
 		seasons: seasons as { id: string; name: string }[],
 		user
 	};

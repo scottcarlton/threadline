@@ -45,14 +45,17 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 					throw redirect(303, '/insight');
 				}
 
-				const { data: buyerAccess } = await supabase
-					.from('account_users')
-					.select('id')
-					.eq('profile_id', user.id)
-					.limit(1)
-					.single();
+				const [{ data: buyerAccess }, { data: storeAccess }] = await Promise.all([
+					supabase
+						.from('account_users')
+						.select('id')
+						.eq('profile_id', user.id)
+						.limit(1)
+						.maybeSingle(),
+					supabase.from('store_users').select('id').eq('profile_id', user.id).limit(1).maybeSingle()
+				]);
 
-				if (buyerAccess) {
+				if (buyerAccess || storeAccess) {
 					throw redirect(303, '/dashboard');
 				}
 
