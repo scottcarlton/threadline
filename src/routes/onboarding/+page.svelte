@@ -759,9 +759,9 @@
 							This determines your Threadline experience. You can always adjust later.
 						</p>
 					</div>
-					<div class="space-y-3">
+					<div class="grid grid-cols-3 gap-3">
 						<button
-							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
+							class="group flex h-full w-full flex-col items-start gap-3 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
 							'brand'
 								? 'border-foreground'
 								: 'border-border hover:border-foreground'}"
@@ -800,7 +800,7 @@
 							</div>
 						</button>
 						<button
-							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
+							class="group flex h-full w-full flex-col items-start gap-3 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
 							'rep'
 								? 'border-foreground'
 								: 'border-border hover:border-foreground'}"
@@ -838,7 +838,7 @@
 							</div>
 						</button>
 						<button
-							class="group flex w-full items-start gap-4 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
+							class="group flex h-full w-full flex-col items-start gap-3 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
 							'store'
 								? 'border-foreground'
 								: 'border-border hover:border-foreground'}"
