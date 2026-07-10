@@ -4,6 +4,7 @@ import { supabaseAdmin } from '$lib/server/supabase';
 import { isEmailWhitelisted, isBetaWhitelistEnabled } from '$lib/server/beta-whitelist';
 import { landingPathForOrgType } from '$lib/server/landing';
 import type { OrgType } from '$lib/types/database';
+import { isSsoSession } from '$lib/server/auth';
 
 export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const code = url.searchParams.get('code');
@@ -65,8 +66,11 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 					throw redirect(303, '/dashboard');
 				}
 
-				// SSO users without membership: auto-link to org via domain
-				if (user.email) {
+				// SSO users without membership: auto-link to org via domain.
+				// Gate on an actual SSO session — a plain OAuth/magic-link signup whose
+				// email domain happens to match an org's SSO provider must NOT be
+				// auto-joined to that org. Only the org's IdP can vouch for membership.
+				if (user.email && isSsoSession(user)) {
 					const emailDomain = user.email.split('@')[1]?.toLowerCase();
 					if (emailDomain) {
 						const { data: ssoProvider } = await supabaseAdmin

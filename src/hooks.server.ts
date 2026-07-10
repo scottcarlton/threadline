@@ -11,13 +11,9 @@ import {
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
-import { resolveBuyerContext, resolveRetailerBuyerContext } from '$lib/server/buyer-context.js';
+import { loadUserContext, applyUserContext } from '$lib/server/auth.js';
 import { landingPathForOrgType } from '$lib/server/landing.js';
-import type { OrgType, OrganizationMember, Organization } from '$lib/types/database.js';
-
-type MembershipWithOrg = OrganizationMember & { organizations: Organization };
-type BrandAccessRow = { brand_id: string; brands?: { name?: string } | { name?: string }[] | null };
-type SsoIdentity = { provider?: string };
+import type { OrgType } from '$lib/types/database.js';
 
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
@@ -45,6 +41,7 @@ const PUBLIC_ROUTES = [
 	'/buyer-invite',
 	'/connect',
 	'/auth/callback',
+	'/logout',
 	'/upload',
 	'/api/dev',
 	'/api/beta',
@@ -138,139 +135,41 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 	// Load user context for authenticated routes
 	if (session && user && !isPublicRoute) {
-		// System super-admin path: above-org identity, no org/buyer context.
-		// Confines the session to /system/** and its API/logout escape hatches.
-		if (isSystemAdminEmail(user.email)) {
-			const { data: profile } = await supabaseAdmin
-				.from('profiles')
-				.select('*')
-				.eq('id', user.id)
-				.single();
-			event.locals.user = profile;
-			event.locals.isSystemAdmin = true;
-			const path = event.url.pathname;
-			const allowed =
-				path.startsWith('/system') || path.startsWith('/api/') || path.startsWith('/logout');
-			if (!allowed) throw redirect(303, '/system');
-			return resolve(event);
-		}
+		const context = await loadUserContext(
+			supabase,
+			supabaseAdmin,
+			user,
+			event.cookies.get('active_org_id')
+		);
+		applyUserContext(event.locals, context);
 
-		const [{ data: profile }, { data: allMemberships }] = await Promise.all([
-			supabaseAdmin.from('profiles').select('*').eq('id', user.id).single(),
-			supabase.from('organization_members').select('*, organizations(*)').eq('profile_id', user.id)
-		]);
-
-		if (allMemberships?.length) {
-			const typedMemberships = allMemberships as MembershipWithOrg[];
-			event.locals.allMemberships = typedMemberships;
-
-			// Determine active org from cookie, fallback to first membership
-			const activeOrgId = event.cookies.get('active_org_id');
-			const membership = activeOrgId
-				? (typedMemberships.find((m) => m.organization_id === activeOrgId) ?? typedMemberships[0])
-				: typedMemberships[0];
-
-			const org = membership?.organizations;
-
-			if (org?.org_type === 'retailer') {
-				// Retailer orgs ARE buyers. They reach the buyer portal (/dashboard),
-				// not /insight, so we skip the rep/brand brand-scope + SSO-enforcement
-				// setup entirely. Shopping access (SP3) resolves through the brands'
-				// `accounts` rows linked to this retailer org via `retailer_org_id` —
-				// mirroring the extended `get_buyer_account_ids()` RLS helper.
-				const retailerCtx = await resolveRetailerBuyerContext(supabaseAdmin, org.id, user.id);
-				event.locals.user = profile;
-				event.locals.membership = membership;
-				event.locals.organization = org;
-				event.locals.orgType = 'retailer';
-				event.locals.isBuyer = true;
-				event.locals.buyerAccounts = retailerCtx.buyerAccounts;
-				event.locals.buyerBrandIds = retailerCtx.buyerBrandIds;
-				event.locals.brandScope = null;
-				event.locals.scopedBrandNames = null;
-			} else {
-				// Rep/brand org member path
-				let brandScope: string[] | null = null;
-				let scopedBrandNames: string[] | null = null;
-				if (['member', 'sales', 'guest'].includes(membership.role)) {
-					const { data: brandAccess } = await supabase
-						.from('member_brand_access')
-						.select('brand_id, brands(name)')
-						.eq('member_id', membership.id);
-					if (brandAccess?.length) {
-						const rows = brandAccess as BrandAccessRow[];
-						brandScope = rows.map((b) => b.brand_id);
-						scopedBrandNames = rows
-							.map((b) => {
-								const brand = b.brands;
-								if (!brand) return undefined;
-								if (Array.isArray(brand)) return brand[0]?.name;
-								return brand.name;
-							})
-							.filter((n): n is string => Boolean(n));
-					}
-				}
-
-				event.locals.user = profile;
-				event.locals.membership = membership;
-				event.locals.organization = org ?? null;
-				event.locals.orgType = (org?.org_type as OrgType) ?? 'rep';
-				event.locals.brandScope = brandScope;
-				event.locals.scopedBrandNames = scopedBrandNames;
-
-				// SSO enforcement: if org requires SSO, verify user authenticated via SSO
-				if (org?.sso_enforced && user.email) {
-					const emailDomain = user.email.split('@')[1]?.toLowerCase();
-					if (emailDomain) {
-						const { data: ssoProvider } = await supabaseAdmin
-							.from('organization_sso_providers')
-							.select('id')
-							.eq('organization_id', org.id)
-							.eq('domain', emailDomain)
-							.limit(1)
-							.single();
-
-						if (ssoProvider) {
-							const isSsoSession =
-								user.app_metadata?.provider === 'sso' ||
-								user.identities?.some((i: SsoIdentity) => i.provider === 'sso');
-							if (!isSsoSession) {
-								await supabase.auth.signOut();
-								throw redirect(303, '/login?error=sso_required');
-							}
-						}
-					}
-				}
+		switch (context.kind) {
+			case 'system_admin': {
+				// Confine the system super-admin session to /system/** and its
+				// API/logout escape hatches.
+				const path = event.url.pathname;
+				const allowed =
+					path.startsWith('/system') || path.startsWith('/api/') || path.startsWith('/logout');
+				if (!allowed) throw redirect(303, '/system');
+				return resolve(event);
 			}
-		} else {
-			// Not an org member — check if the user is a legacy invited buyer
-			// (account_users, no membership). Retailer-org members are buyers too
-			// but resolve in the membership branch above, since they have a
-			// membership row.
-			const buyerContext = await resolveBuyerContext(supabase, supabaseAdmin, user.id);
-
-			if (buyerContext.isBuyer) {
-				event.locals.user = profile;
-				event.locals.isBuyer = true;
-				event.locals.buyerAccounts = buyerContext.buyerAccounts;
-				event.locals.buyerBrandIds = buyerContext.buyerBrandIds;
-				// An invited buyer whose account has no brand access yet has no org,
-				// so organization stays null. Only overwrite the null default when we
-				// actually resolved an org.
-				if (buyerContext.organization) {
-					event.locals.organization = buyerContext.organization;
+			case 'org_member': {
+				// SSO enforcement: org requires SSO but session isn't an SSO session.
+				if (context.ssoRequired) {
+					await supabase.auth.signOut();
+					throw redirect(303, '/login?error=sso_required');
 				}
-			} else {
-				// No org membership and not a buyer — redirect to onboarding. A
-				// retailer signup mid-wizard also lands here (createRetailer only
-				// creates the org + membership at step 3), so /onboarding is correct.
-				event.locals.user = profile;
+				break;
+			}
+			case 'onboarding': {
+				// No org membership and not a buyer — redirect to onboarding.
 				if (
 					!event.url.pathname.startsWith('/onboarding') &&
 					!event.url.pathname.startsWith('/api/')
 				) {
 					throw redirect(303, '/onboarding');
 				}
+				break;
 			}
 		}
 	}
