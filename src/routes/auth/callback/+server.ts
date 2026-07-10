@@ -2,6 +2,8 @@ import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { isEmailWhitelisted, isBetaWhitelistEnabled } from '$lib/server/beta-whitelist';
+import { landingPathForOrgType } from '$lib/server/landing';
+import type { OrgType } from '$lib/types/database';
 
 export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const code = url.searchParams.get('code');
@@ -49,7 +51,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 						}
 					).organizations;
 					const orgType = Array.isArray(orgRel) ? orgRel[0]?.org_type : orgRel?.org_type;
-					throw redirect(303, orgType === 'retailer' ? '/dashboard' : '/insight');
+					throw redirect(303, landingPathForOrgType((orgType as OrgType) ?? 'rep'));
 				}
 
 				const { data: buyerAccess } = await supabase

@@ -15,7 +15,7 @@
 
 -- Widen org_type to admit retailers. The auto_create_self_brand trigger only
 -- fires for org_type='brand', so retailer orgs are correctly skipped.
-ALTER TABLE organizations DROP CONSTRAINT organizations_org_type_check;
+ALTER TABLE organizations DROP CONSTRAINT IF EXISTS organizations_org_type_check;
 ALTER TABLE organizations
   ADD CONSTRAINT organizations_org_type_check CHECK (org_type IN ('rep', 'brand', 'retailer'));
 

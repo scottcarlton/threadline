@@ -38,22 +38,21 @@ export async function createRetailer(
 		return { error: 'Business name is required', status: 400 };
 	}
 
-	// Idempotency: if this user already founded a retailer org, return it untouched.
+	// Idempotency: if this user already founded a retailer org, return it
+	// untouched. Filter by org_type='retailer' SERVER-SIDE via an inner join —
+	// a bare `.limit(1)` with a post-filter could return a rep/brand membership
+	// for a user who admins both, fail the check, and mint a duplicate retailer.
 	const { data: existing } = await client
 		.from('organization_members')
-		.select('organizations(*)')
+		.select('organizations!inner(*)')
 		.eq('profile_id', userId)
-		.eq('role', 'admin')
+		.eq('organizations.org_type', 'retailer')
 		.limit(1)
 		.maybeSingle();
 
 	const existingOrg = (existing as { organizations?: Organization | null } | null)?.organizations;
-	if (existingOrg && existingOrg.org_type === 'retailer') {
+	if (existingOrg) {
 		return { organization: existingOrg };
-	}
-
-	if (displayName) {
-		await client.from('profiles').update({ display_name: displayName }).eq('id', userId);
 	}
 
 	// Retailers are orgs now, so they get a slug like every other org. Reject on
@@ -74,9 +73,17 @@ export async function createRetailer(
 		return { error: 'That organization name is taken. Please pick another.', status: 409 };
 	}
 
+	// A retailer's wizard ends at creation (no further SP1 steps), so completion
+	// is atomic with creation — set onboarding_completed_at in the INSERT rather
+	// than relying on an unchecked client-side follow-up write.
 	const { data: org, error: orgError } = await client
 		.from('organizations')
-		.insert({ name: trimmedName, slug, org_type: 'retailer' })
+		.insert({
+			name: trimmedName,
+			slug,
+			org_type: 'retailer',
+			onboarding_completed_at: new Date().toISOString()
+		})
 		.select()
 		.single();
 
@@ -95,7 +102,16 @@ export async function createRetailer(
 	});
 
 	if (memberError) {
+		// Roll back the just-created org: an ownerless org would hold the slug
+		// forever and 409 every future retry for everyone.
+		await client.from('organizations').delete().eq('id', createdOrg.id);
 		return { error: memberError.message, status: 500 };
+	}
+
+	// Only mutate the profile once org + membership are committed — a display_name
+	// write before the slug/insert guards would persist even on a 409/500.
+	if (displayName) {
+		await client.from('profiles').update({ display_name: displayName }).eq('id', userId);
 	}
 
 	return { organization: createdOrg };

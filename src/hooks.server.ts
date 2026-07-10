@@ -12,6 +12,7 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
 import { resolveBuyerContext } from '$lib/server/buyer-context.js';
+import { landingPathForOrgType } from '$lib/server/landing.js';
 import type { OrgType, OrganizationMember, Organization } from '$lib/types/database.js';
 
 type MembershipWithOrg = OrganizationMember & { organizations: Organization };
@@ -132,7 +133,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 			: rows[0];
 		const activeOrg = active?.organizations;
 		const activeType = Array.isArray(activeOrg) ? activeOrg[0]?.org_type : activeOrg?.org_type;
-		throw redirect(303, activeType === 'retailer' ? '/dashboard' : '/insight');
+		throw redirect(303, landingPathForOrgType((activeType as OrgType) ?? 'rep'));
 	}
 
 	// Load user context for authenticated routes
@@ -183,6 +184,8 @@ const authHandle: Handle = async ({ event, resolve }) => {
 				event.locals.isBuyer = true;
 				event.locals.buyerAccounts = [];
 				event.locals.buyerBrandIds = [];
+				event.locals.brandScope = null;
+				event.locals.scopedBrandNames = null;
 			} else {
 				// Rep/brand org member path
 				let brandScope: string[] | null = null;

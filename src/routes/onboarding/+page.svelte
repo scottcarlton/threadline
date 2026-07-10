@@ -507,12 +507,9 @@
 			return;
 		}
 
-		const { organization } = await res.json();
-		await supabase
-			.from('organizations')
-			.update({ onboarding_completed_at: new Date().toISOString() })
-			.eq('id', organization.id);
-
+		// createRetailer sets onboarding_completed_at atomically at creation, so
+		// there is nothing left to write here — just enter the buyer portal.
+		await res.json();
 		window.location.href = '/dashboard';
 	}
 

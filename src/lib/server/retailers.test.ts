@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createRetailer } from './retailers.js';
 
-type Op = 'select' | 'insert' | 'update' | 'unknown';
+type Op = 'select' | 'insert' | 'update' | 'delete' | 'unknown';
 
 type Captured = {
 	op: Op;
@@ -51,7 +51,9 @@ function makeMock({
 				? (inserts?.[table] ?? { data: null, error: null })
 				: op === 'update'
 					? (update ?? { data: null, error: null })
-					: (selects?.[table] ?? { data: null, error: null });
+					: op === 'delete'
+						? { data: null, error: null }
+						: (selects?.[table] ?? { data: null, error: null });
 
 		builder.single = vi.fn().mockResolvedValue(response);
 		builder.maybeSingle = vi.fn().mockResolvedValue(response);
@@ -75,6 +77,7 @@ function makeMock({
 				captured[captured.length - 1].updatePayload = payload;
 				return c;
 			});
+			tableBuilder.delete = vi.fn(() => chain('delete', table));
 
 			return tableBuilder;
 		})
@@ -90,7 +93,7 @@ describe('createRetailer', () => {
 			name: 'Acme Apparel',
 			slug: 'acme-apparel',
 			org_type: 'retailer',
-			onboarding_completed_at: null,
+			onboarding_completed_at: '2026-07-10T12:00:00.000Z',
 			created_at: '2026-07-10T12:00:00.000Z'
 		};
 		const { supabase, captured } = makeMock({
@@ -115,12 +118,14 @@ describe('createRetailer', () => {
 		const inserts = captured.filter((c) => c.op === 'insert');
 		expect(inserts.map((c) => c.table)).toEqual(['organizations', 'organization_members']);
 
+		// Completion is atomic with creation: onboarding_completed_at is in the INSERT.
 		const orgInsert = inserts.find((c) => c.table === 'organizations');
-		expect(orgInsert?.insertPayload).toEqual({
+		expect(orgInsert?.insertPayload).toMatchObject({
 			name: 'Acme Apparel',
 			slug: 'acme-apparel',
 			org_type: 'retailer'
 		});
+		expect(typeof orgInsert?.insertPayload?.onboarding_completed_at).toBe('string');
 
 		const memberInsert = inserts.find((c) => c.table === 'organization_members');
 		expect(memberInsert?.insertPayload).toMatchObject({
@@ -135,12 +140,17 @@ describe('createRetailer', () => {
 		expect(captured.some((c) => c.table === 'seasons')).toBe(false);
 		expect(captured.some((c) => c.table === 'organization_shipping_methods')).toBe(false);
 
-		// displayName provided → profiles.display_name updated.
+		// displayName provided → profiles.display_name updated, AFTER org + member.
 		const profileUpdate = captured.find((c) => c.op === 'update' && c.table === 'profiles');
 		expect(profileUpdate?.updatePayload).toEqual({ display_name: 'Ada Buyer' });
+		const profileIdx = captured.findIndex((c) => c.op === 'update' && c.table === 'profiles');
+		const memberIdx = captured.findIndex(
+			(c) => c.op === 'insert' && c.table === 'organization_members'
+		);
+		expect(profileIdx).toBeGreaterThan(memberIdx);
 	});
 
-	it('is idempotent: an existing retailer-org admin membership short-circuits with zero inserts', async () => {
+	it('is idempotent: an existing retailer-org membership short-circuits with zero writes', async () => {
 		const existingOrg = {
 			id: 'org-existing',
 			name: 'Existing Retailer',
@@ -161,21 +171,32 @@ describe('createRetailer', () => {
 		expect(result).toEqual({ organization: existingOrg });
 		expect(captured.filter((c) => c.op === 'insert')).toHaveLength(0);
 		expect(captured.filter((c) => c.op === 'update')).toHaveLength(0);
+		expect(captured.filter((c) => c.op === 'delete')).toHaveLength(0);
+
+		// The idempotency lookup filters org_type='retailer' SERVER-SIDE.
+		const idempotencyQuery = captured.find(
+			(c) => c.op === 'select' && c.table === 'organization_members'
+		);
+		expect(idempotencyQuery?.filters).toContainEqual({
+			method: 'eq',
+			column: 'organizations.org_type',
+			value: 'retailer'
+		});
 	});
 
-	it('does not short-circuit on a non-retailer admin membership — it creates a retailer org', async () => {
+	it('creates a NEW retailer org for a user who admins only a rep org (server-side filter excludes it)', async () => {
+		// A rep-admin user has no RETAILER membership, so the org_type-filtered
+		// idempotency query returns nothing — createRetailer must mint a retailer
+		// org, never return the rep org.
 		const insertedOrg = {
-			id: 'org-2',
+			id: 'retailer-new',
 			name: 'Acme Apparel',
 			slug: 'acme-apparel',
 			org_type: 'retailer'
 		};
 		const { supabase, captured } = makeMock({
 			selects: {
-				organization_members: {
-					data: { organizations: { id: 'rep-org', org_type: 'rep' } },
-					error: null
-				},
+				organization_members: { data: null, error: null },
 				organizations: { data: null, error: null }
 			},
 			inserts: {
@@ -233,7 +254,7 @@ describe('createRetailer', () => {
 		});
 
 		const orgInsert = captured.find((c) => c.op === 'insert' && c.table === 'organizations');
-		expect(orgInsert?.insertPayload).toEqual({
+		expect(orgInsert?.insertPayload).toMatchObject({
 			name: 'Trimmed Co',
 			slug: 'trimmed-co',
 			org_type: 'retailer'
@@ -283,7 +304,7 @@ describe('createRetailer', () => {
 		expect(inserts[0].table).toBe('organizations');
 	});
 
-	it('surfaces a membership insert error as status 500 after the org was created', async () => {
+	it('rolls back the org (delete) when the membership insert fails, freeing the slug', async () => {
 		const insertedOrg = {
 			id: 'org-4',
 			name: 'Acme Apparel',
@@ -303,12 +324,21 @@ describe('createRetailer', () => {
 
 		const result = await createRetailer(supabase, {
 			userId: 'user-1',
-			businessName: 'Acme Apparel'
+			businessName: 'Acme Apparel',
+			displayName: 'Ada Buyer'
 		});
 
 		expect(result).toEqual({ error: 'members insert failed', status: 500 });
 
 		const inserts = captured.filter((c) => c.op === 'insert');
 		expect(inserts.map((c) => c.table)).toEqual(['organizations', 'organization_members']);
+
+		// The orphan org is deleted so it doesn't hold the slug forever.
+		const del = captured.find((c) => c.op === 'delete' && c.table === 'organizations');
+		expect(del).toBeDefined();
+		expect(del?.filters).toContainEqual({ method: 'eq', column: 'id', value: 'org-4' });
+
+		// display_name is written only on success — never on a rolled-back attempt.
+		expect(captured.some((c) => c.op === 'update' && c.table === 'profiles')).toBe(false);
 	});
 });

@@ -999,7 +999,9 @@ function describeCurrentPage(path: string): string {
 }
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.session || !locals.user || !locals.organization) {
+	// Buyers — retailer-org members and legacy account_users buyers alike — have a
+	// session/user/org but must never reach the org AI endpoint.
+	if (!locals.session || !locals.user || !locals.organization || locals.isBuyer) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
