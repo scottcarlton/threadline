@@ -11,7 +11,7 @@ import {
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
-import { resolveBuyerContext } from '$lib/server/buyer-context.js';
+import { resolveBuyerContext, resolveRetailerBuyerContext } from '$lib/server/buyer-context.js';
 import { landingPathForOrgType } from '$lib/server/landing.js';
 import type { OrgType, OrganizationMember, Organization } from '$lib/types/database.js';
 
@@ -174,16 +174,18 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 			if (org?.org_type === 'retailer') {
 				// Retailer orgs ARE buyers. They reach the buyer portal (/dashboard),
-				// not /insight, so we set isBuyer with an empty buyer context and skip
-				// the rep/brand brand-scope + SSO-enforcement setup entirely. Shopping
-				// access (buyerBrandIds) arrives in SP3 via connection-derived access.
+				// not /insight, so we skip the rep/brand brand-scope + SSO-enforcement
+				// setup entirely. Shopping access (SP3) resolves through the brands'
+				// `accounts` rows linked to this retailer org via `retailer_org_id` —
+				// mirroring the extended `get_buyer_account_ids()` RLS helper.
+				const retailerCtx = await resolveRetailerBuyerContext(supabaseAdmin, org.id, user.id);
 				event.locals.user = profile;
 				event.locals.membership = membership;
 				event.locals.organization = org;
 				event.locals.orgType = 'retailer';
 				event.locals.isBuyer = true;
-				event.locals.buyerAccounts = [];
-				event.locals.buyerBrandIds = [];
+				event.locals.buyerAccounts = retailerCtx.buyerAccounts;
+				event.locals.buyerBrandIds = retailerCtx.buyerBrandIds;
 				event.locals.brandScope = null;
 				event.locals.scopedBrandNames = null;
 			} else {
