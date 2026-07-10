@@ -211,6 +211,38 @@ describe('loadUserContext', () => {
 		expect(result.organization).toEqual({ id: 'org-9' });
 	});
 
+	it('resolves a retailer-org member to the retailer branch with linked-account brand access', async () => {
+		const supabase = createMockSupabase({
+			organization_members: {
+				data: [
+					makeMembership({
+						role: 'admin',
+						organizations: { id: 'ret-org-1', org_type: 'retailer', sso_enforced: false }
+					} as Partial<MembershipWithOrg>)
+				]
+			}
+		});
+		const admin = createMockSupabase({
+			profiles: { data: { id: 'user-1' } },
+			accounts: {
+				data: [{ id: 'acct-1', business_name: 'Anderson Retail', organization_id: 'brand-org-1' }]
+			},
+			account_brand_access: { data: [{ brand_id: 'b1' }] }
+		});
+
+		const result = await loadUserContext(supabase, admin, makeUser(), undefined);
+		expect(result.kind).toBe('retailer');
+		if (result.kind !== 'retailer') return;
+		expect(result.organization).toEqual({
+			id: 'ret-org-1',
+			org_type: 'retailer',
+			sso_enforced: false
+		});
+		expect(result.buyerBrandIds).toEqual(['b1']);
+		expect(result.buyerAccounts).toHaveLength(1);
+		expect(result.buyerAccounts[0].account_id).toBe('acct-1');
+	});
+
 	it('resolves to onboarding when there are no memberships and no buyer access', async () => {
 		const supabase = createMockSupabase({
 			organization_members: { data: [] },
@@ -255,5 +287,24 @@ describe('applyUserContext', () => {
 		expect(locals.isBuyer).toBe(true);
 		expect(locals.buyerBrandIds).toEqual(['b1']);
 		expect(locals.organization).toEqual({ id: 'org-9' });
+	});
+
+	it('sets hybrid org-member + buyer flags for the retailer branch', () => {
+		const locals = blankLocals();
+		applyUserContext(locals, {
+			kind: 'retailer',
+			profile: { id: 'u' },
+			allMemberships: [{ id: 'mem-1' }],
+			membership: { id: 'mem-1' },
+			organization: { id: 'ret-org-1' },
+			buyerAccounts: [],
+			buyerBrandIds: ['b1']
+		} as unknown as UserContextResult);
+		expect(locals.isBuyer).toBe(true);
+		expect(locals.orgType).toBe('retailer');
+		expect(locals.buyerBrandIds).toEqual(['b1']);
+		expect(locals.organization).toEqual({ id: 'ret-org-1' });
+		expect(locals.allMemberships).toHaveLength(1);
+		expect(locals.brandScope).toBeNull();
 	});
 });

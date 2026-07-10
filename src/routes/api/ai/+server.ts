@@ -999,7 +999,9 @@ function describeCurrentPage(path: string): string {
 }
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.session || !locals.user || !locals.organization) {
+	// Buyers — retailer-org members and legacy account_users buyers alike — have a
+	// session/user/org but must never reach the org AI endpoint.
+	if (!locals.session || !locals.user || !locals.organization || locals.isBuyer) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
@@ -1357,7 +1359,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 					organizationId: locals.organization!.id,
 					userId: locals.user!.id,
 					brandScope: locals.brandScope,
-					orgType: locals.orgType,
+					orgType: locals.orgType === 'brand' ? 'brand' : 'rep',
 					origin
 				});
 
@@ -1543,7 +1545,7 @@ function streamResponse(params: StreamResponseParams): Response {
 							organizationId: params.locals.organization!.id,
 							userId: params.locals.user!.id,
 							brandScope: params.locals.brandScope,
-							orgType: params.locals.orgType,
+							orgType: params.locals.orgType === 'brand' ? 'brand' : 'rep',
 							origin: params.origin
 						});
 

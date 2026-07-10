@@ -2,6 +2,8 @@ import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { isEmailWhitelisted, isBetaWhitelistEnabled } from '$lib/server/beta-whitelist';
+import { landingPathForOrgType } from '$lib/server/landing';
+import type { OrgType } from '$lib/types/database';
 import { isSsoSession } from '$lib/server/auth';
 
 export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
@@ -37,13 +39,20 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 			if (user) {
 				const { data: membership } = await supabase
 					.from('organization_members')
-					.select('id')
+					.select('organizations(org_type)')
 					.eq('profile_id', user.id)
 					.limit(1)
-					.single();
+					.maybeSingle();
 
 				if (membership) {
-					throw redirect(303, '/insight');
+					// Retailer-org members are buyers → /dashboard; rep/brand → /insight.
+					const orgRel = (
+						membership as {
+							organizations?: { org_type?: string } | { org_type?: string }[] | null;
+						}
+					).organizations;
+					const orgType = Array.isArray(orgRel) ? orgRel[0]?.org_type : orgRel?.org_type;
+					throw redirect(303, landingPathForOrgType((orgType as OrgType) ?? 'rep'));
 				}
 
 				const { data: buyerAccess } = await supabase
@@ -51,7 +60,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 					.select('id')
 					.eq('profile_id', user.id)
 					.limit(1)
-					.single();
+					.maybeSingle();
 
 				if (buyerAccess) {
 					throw redirect(303, '/dashboard');
