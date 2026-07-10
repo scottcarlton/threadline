@@ -91,7 +91,6 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.buyerAccounts = null;
 	event.locals.buyerBrandIds = null;
 	event.locals.organization = null;
-	event.locals.retailer = null;
 	event.locals.isSystemAdmin = false;
 	event.locals.orgType = 'rep';
 	event.locals.allMemberships = [];
@@ -114,7 +113,26 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 	// Redirect authenticated users away from login
 	if (session && event.url.pathname.startsWith('/login')) {
-		throw redirect(303, isSystemAdminEmail(user?.email) ? '/system' : '/insight');
+		if (isSystemAdminEmail(user?.email)) {
+			throw redirect(303, '/system');
+		}
+		// Retailer-org members belong in the buyer portal (/dashboard); rep/brand
+		// members go to /insight. Resolve the active membership's org_type to fork.
+		const { data: loginMemberships } = await supabase
+			.from('organization_members')
+			.select('organization_id, organizations(org_type)')
+			.eq('profile_id', user?.id ?? '');
+		const activeOrgId = event.cookies.get('active_org_id');
+		const rows = (loginMemberships ?? []) as Array<{
+			organization_id: string;
+			organizations: { org_type?: string } | { org_type?: string }[] | null;
+		}>;
+		const active = activeOrgId
+			? (rows.find((m) => m.organization_id === activeOrgId) ?? rows[0])
+			: rows[0];
+		const activeOrg = active?.organizations;
+		const activeType = Array.isArray(activeOrg) ? activeOrg[0]?.org_type : activeOrg?.org_type;
+		throw redirect(303, activeType === 'retailer' ? '/dashboard' : '/insight');
 	}
 
 	// Load user context for authenticated routes
@@ -151,63 +169,79 @@ const authHandle: Handle = async ({ event, resolve }) => {
 				? (typedMemberships.find((m) => m.organization_id === activeOrgId) ?? typedMemberships[0])
 				: typedMemberships[0];
 
-			// Org member path
-			let brandScope: string[] | null = null;
-			let scopedBrandNames: string[] | null = null;
-			if (['member', 'sales', 'guest'].includes(membership.role)) {
-				const { data: brandAccess } = await supabase
-					.from('member_brand_access')
-					.select('brand_id, brands(name)')
-					.eq('member_id', membership.id);
-				if (brandAccess?.length) {
-					const rows = brandAccess as BrandAccessRow[];
-					brandScope = rows.map((b) => b.brand_id);
-					scopedBrandNames = rows
-						.map((b) => {
-							const brand = b.brands;
-							if (!brand) return undefined;
-							if (Array.isArray(brand)) return brand[0]?.name;
-							return brand.name;
-						})
-						.filter((n): n is string => Boolean(n));
-				}
-			}
-
 			const org = membership?.organizations;
-			event.locals.user = profile;
-			event.locals.membership = membership;
-			event.locals.organization = org ?? null;
-			event.locals.orgType = (org?.org_type as OrgType) ?? 'rep';
-			event.locals.brandScope = brandScope;
-			event.locals.scopedBrandNames = scopedBrandNames;
 
-			// SSO enforcement: if org requires SSO, verify user authenticated via SSO
-			if (org?.sso_enforced && user.email) {
-				const emailDomain = user.email.split('@')[1]?.toLowerCase();
-				if (emailDomain) {
-					const { data: ssoProvider } = await supabaseAdmin
-						.from('organization_sso_providers')
-						.select('id')
-						.eq('organization_id', org.id)
-						.eq('domain', emailDomain)
-						.limit(1)
-						.single();
+			if (org?.org_type === 'retailer') {
+				// Retailer orgs ARE buyers. They reach the buyer portal (/dashboard),
+				// not /insight, so we set isBuyer with an empty buyer context and skip
+				// the rep/brand brand-scope + SSO-enforcement setup entirely. Shopping
+				// access (buyerBrandIds) arrives in SP3 via connection-derived access.
+				event.locals.user = profile;
+				event.locals.membership = membership;
+				event.locals.organization = org;
+				event.locals.orgType = 'retailer';
+				event.locals.isBuyer = true;
+				event.locals.buyerAccounts = [];
+				event.locals.buyerBrandIds = [];
+			} else {
+				// Rep/brand org member path
+				let brandScope: string[] | null = null;
+				let scopedBrandNames: string[] | null = null;
+				if (['member', 'sales', 'guest'].includes(membership.role)) {
+					const { data: brandAccess } = await supabase
+						.from('member_brand_access')
+						.select('brand_id, brands(name)')
+						.eq('member_id', membership.id);
+					if (brandAccess?.length) {
+						const rows = brandAccess as BrandAccessRow[];
+						brandScope = rows.map((b) => b.brand_id);
+						scopedBrandNames = rows
+							.map((b) => {
+								const brand = b.brands;
+								if (!brand) return undefined;
+								if (Array.isArray(brand)) return brand[0]?.name;
+								return brand.name;
+							})
+							.filter((n): n is string => Boolean(n));
+					}
+				}
 
-					if (ssoProvider) {
-						const isSsoSession =
-							user.app_metadata?.provider === 'sso' ||
-							user.identities?.some((i: SsoIdentity) => i.provider === 'sso');
-						if (!isSsoSession) {
-							await supabase.auth.signOut();
-							throw redirect(303, '/login?error=sso_required');
+				event.locals.user = profile;
+				event.locals.membership = membership;
+				event.locals.organization = org ?? null;
+				event.locals.orgType = (org?.org_type as OrgType) ?? 'rep';
+				event.locals.brandScope = brandScope;
+				event.locals.scopedBrandNames = scopedBrandNames;
+
+				// SSO enforcement: if org requires SSO, verify user authenticated via SSO
+				if (org?.sso_enforced && user.email) {
+					const emailDomain = user.email.split('@')[1]?.toLowerCase();
+					if (emailDomain) {
+						const { data: ssoProvider } = await supabaseAdmin
+							.from('organization_sso_providers')
+							.select('id')
+							.eq('organization_id', org.id)
+							.eq('domain', emailDomain)
+							.limit(1)
+							.single();
+
+						if (ssoProvider) {
+							const isSsoSession =
+								user.app_metadata?.provider === 'sso' ||
+								user.identities?.some((i: SsoIdentity) => i.provider === 'sso');
+							if (!isSsoSession) {
+								await supabase.auth.signOut();
+								throw redirect(303, '/login?error=sso_required');
+							}
 						}
 					}
 				}
 			}
 		} else {
-			// Not an org member — check if the user is a buyer (invited into a
-			// brand account, or a self-signup retailer). Both populate the
-			// buyer portal; a retailer user has retailer_users but no account_users.
+			// Not an org member — check if the user is a legacy invited buyer
+			// (account_users, no membership). Retailer-org members are buyers too
+			// but resolve in the membership branch above, since they have a
+			// membership row.
 			const buyerContext = await resolveBuyerContext(supabase, supabaseAdmin, user.id);
 
 			if (buyerContext.isBuyer) {
@@ -215,16 +249,16 @@ const authHandle: Handle = async ({ event, resolve }) => {
 				event.locals.isBuyer = true;
 				event.locals.buyerAccounts = buyerContext.buyerAccounts;
 				event.locals.buyerBrandIds = buyerContext.buyerBrandIds;
-				event.locals.retailer = buyerContext.retailer;
-				// A retailer user has no brand org, so organization stays null for them.
-				// Only overwrite the null default when we actually resolved an org.
+				// An invited buyer whose account has no brand access yet has no org,
+				// so organization stays null. Only overwrite the null default when we
+				// actually resolved an org.
 				if (buyerContext.organization) {
 					event.locals.organization = buyerContext.organization;
 				}
 			} else {
 				// No org membership and not a buyer — redirect to onboarding. A
-				// retailer signup mid-wizard also lands here (createRetailer only writes
-				// the retailer_users row at step 3), so /onboarding is correct for it.
+				// retailer signup mid-wizard also lands here (createRetailer only
+				// creates the org + membership at step 3), so /onboarding is correct.
 				event.locals.user = profile;
 				if (
 					!event.url.pathname.startsWith('/onboarding') &&

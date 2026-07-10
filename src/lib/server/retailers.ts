@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Retailer } from '$lib/types/database.js';
+import type { Organization } from '$lib/types/database.js';
 
 type CreateRetailerInput = {
 	userId: string;
@@ -8,24 +8,26 @@ type CreateRetailerInput = {
 };
 
 type CreateRetailerResult = {
-	retailer?: Retailer;
+	organization?: Organization;
 	error?: string;
 	status?: number;
 };
 
 /**
- * Creates a retailer and enrolls the founding user as its `buyer_admin`.
+ * Creates a retailer organization (`org_type='retailer'`) and enrolls the
+ * founding user as its `admin` member. Mirrors `api/onboarding/create-org`'s
+ * org+member structure, minus the brand-only seeding (self-brand trigger,
+ * seasons, shipping methods) — a retailer org has none of those.
  *
  * Idempotency: a user reaching this path twice (re-submit, refresh, bouncing
- * back to onboarding) must not spawn a second retailer. We first look for any
- * existing `retailer_users` membership for this user and, if found, return that
- * retailer without inserting anything — mirroring the founding-admin guard in
- * `api/onboarding/create-org`.
+ * back to onboarding) must not spawn a second retailer org. We first look for
+ * any existing retailer-org membership for this user and, if found, return that
+ * org without inserting anything — mirroring the founding-admin guard in
+ * `create-org`.
  *
- * `client` MUST be `supabaseAdmin`. Neither `retailers` nor `retailer_users` has
- * an INSERT RLS policy: rows are created only via the service-role client,
- * because @supabase/ssr v0.10.0 drops the JWT on writes. The caller is
- * responsible for the app-layer auth check before invoking this.
+ * `client` MUST be `supabaseAdmin` — @supabase/ssr v0.10.0 drops the JWT on
+ * writes, so org/member inserts go through the service-role client with an
+ * app-layer auth check performed by the caller.
  */
 export async function createRetailer(
 	client: SupabaseClient,
@@ -36,45 +38,65 @@ export async function createRetailer(
 		return { error: 'Business name is required', status: 400 };
 	}
 
-	// Idempotency: if this user already belongs to a retailer, return it untouched.
+	// Idempotency: if this user already founded a retailer org, return it untouched.
 	const { data: existing } = await client
-		.from('retailer_users')
-		.select('retailers(*)')
+		.from('organization_members')
+		.select('organizations(*)')
 		.eq('profile_id', userId)
+		.eq('role', 'admin')
 		.limit(1)
 		.maybeSingle();
 
-	const existingRetailer = (existing as { retailers?: Retailer } | null)?.retailers;
-	if (existingRetailer) {
-		return { retailer: existingRetailer };
+	const existingOrg = (existing as { organizations?: Organization | null } | null)?.organizations;
+	if (existingOrg && existingOrg.org_type === 'retailer') {
+		return { organization: existingOrg };
 	}
 
 	if (displayName) {
 		await client.from('profiles').update({ display_name: displayName }).eq('id', userId);
 	}
 
-	const { data: retailer, error: retailerError } = await client
-		.from('retailers')
-		.insert({ business_name: trimmedName })
+	// Retailers are orgs now, so they get a slug like every other org. Reject on
+	// collision (don't suffix-mint) — the form can ask for a different name.
+	const slug = trimmedName
+		.toLowerCase()
+		.replace(/[^a-z0-9\s-]/g, '')
+		.replace(/\s+/g, '-')
+		.substring(0, 50);
+
+	const { data: slugTaken } = await client
+		.from('organizations')
+		.select('id')
+		.eq('slug', slug)
+		.maybeSingle();
+
+	if (slugTaken) {
+		return { error: 'That organization name is taken. Please pick another.', status: 409 };
+	}
+
+	const { data: org, error: orgError } = await client
+		.from('organizations')
+		.insert({ name: trimmedName, slug, org_type: 'retailer' })
 		.select()
 		.single();
 
-	if (retailerError) {
-		return { error: retailerError.message, status: 500 };
+	if (orgError) {
+		return { error: orgError.message, status: 500 };
 	}
 
-	const createdRetailer = retailer as Retailer;
+	const createdOrg = org as Organization;
 
-	// First user of a retailer is its admin (mirrors api/buyer-invite/send).
-	const { error: memberError } = await client.from('retailer_users').insert({
-		retailer_id: createdRetailer.id,
+	// First user of a retailer org is its admin (mirrors create-org).
+	const { error: memberError } = await client.from('organization_members').insert({
+		organization_id: createdOrg.id,
 		profile_id: userId,
-		role: 'buyer_admin'
+		role: 'admin',
+		accepted_at: new Date().toISOString()
 	});
 
 	if (memberError) {
 		return { error: memberError.message, status: 500 };
 	}
 
-	return { retailer: createdRetailer };
+	return { organization: createdOrg };
 }

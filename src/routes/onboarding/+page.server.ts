@@ -2,26 +2,21 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const { organization, retailer, user, supabase } = locals;
+	const { organization, user, supabase } = locals;
 
 	if (!user) {
 		throw redirect(303, '/login');
 	}
 
-	// A retailer that finished onboarding belongs in the buyer portal.
-	if (retailer?.onboarding_completed_at) {
-		throw redirect(303, '/dashboard');
-	}
-
-	// Bounce to /insight only when the user's primary org has finished
-	// onboarding. Mid-onboarding users (membership exists but
-	// onboarding_completed_at is NULL) are allowed back in to resume from
-	// their last step. Rep-only edge cases that previously caused dup orgs
-	// (re-entering onboarding because they had 0 brands) are still
-	// prevented because rep orgs go through the same finish flow that sets
-	// onboarding_completed_at.
+	// Bounce a completed org out of onboarding. Mid-onboarding users (membership
+	// exists but onboarding_completed_at is NULL) are allowed back in to resume
+	// from their last step. A completed retailer org belongs in the buyer portal
+	// (/dashboard); rep/brand orgs go to /insight. Rep-only edge cases that
+	// previously caused dup orgs (re-entering onboarding because they had 0
+	// brands) are still prevented because every org goes through the same finish
+	// flow that sets onboarding_completed_at.
 	if (organization?.onboarding_completed_at) {
-		throw redirect(303, '/insight');
+		throw redirect(303, organization.org_type === 'retailer' ? '/dashboard' : '/insight');
 	}
 
 	// Org seasons feed the catalog step's <ProductImportFlow> so it can
@@ -42,7 +37,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		organization: organization ?? null,
-		retailer: retailer ?? null,
 		seasons: seasons as { id: string; name: string }[],
 		user
 	};

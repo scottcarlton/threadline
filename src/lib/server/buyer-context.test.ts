@@ -32,10 +32,9 @@ function makeClient(responses: Record<string, Response> = {}) {
 }
 
 describe('resolveBuyerContext', () => {
-	it('returns not-a-buyer when neither account_users nor retailer_users has a row', async () => {
+	it('returns not-a-buyer when account_users has no rows, and touches admin zero times', async () => {
 		const { client } = makeClient({
-			account_users: { data: [], error: null },
-			retailer_users: { data: [], error: null }
+			account_users: { data: [], error: null }
 		});
 		const { client: admin } = makeClient();
 
@@ -45,55 +44,13 @@ describe('resolveBuyerContext', () => {
 			isBuyer: false,
 			buyerAccounts: [],
 			buyerBrandIds: [],
-			organization: null,
-			retailer: null
+			organization: null
 		});
-	});
-
-	it('treats a retailer-only user as a buyer with empty accounts and the embedded retailer', async () => {
-		const retailer = {
-			id: 'retailer-1',
-			business_name: 'Acme Apparel',
-			onboarding_completed_at: null
-		};
-		const { client } = makeClient({
-			account_users: { data: [], error: null },
-			retailer_users: {
-				data: [{ id: 'ru-1', retailer_id: 'retailer-1', retailers: retailer }],
-				error: null
-			}
-		});
-		const { client: admin } = makeClient();
-
-		const ctx = await resolveBuyerContext(client, admin, 'user-1');
-
-		expect(ctx.isBuyer).toBe(true);
-		expect(ctx.buyerAccounts).toEqual([]);
-		expect(ctx.buyerBrandIds).toEqual([]);
-		expect(ctx.organization).toBeNull();
-		expect(ctx.retailer).toEqual(retailer);
-	});
-
-	it('issues no account-scoped round-trips for a retailer-only user', async () => {
-		const { client } = makeClient({
-			account_users: { data: [], error: null },
-			retailer_users: {
-				data: [{ id: 'ru-1', retailer_id: 'retailer-1', retailers: { id: 'retailer-1' } }],
-				error: null
-			}
-		});
-		const { client: admin, queriedTables: adminTables } = makeClient();
-
-		await resolveBuyerContext(client, admin, 'user-1');
-
-		// With no accounts, `.in('account_id', [])` and `.eq('id', undefined)`
-		// would be malformed — the admin client must not be touched at all.
-		expect(adminTables).not.toContain('account_brand_access');
-		expect(adminTables).not.toContain('organizations');
+		// No accounts → no account-scoped lookups; admin must not be touched.
 		expect(admin.from).not.toHaveBeenCalled();
 	});
 
-	it('reproduces the existing invited-buyer path (regression guard)', async () => {
+	it('resolves an invited buyer with accounts, brand access, and org (regression guard)', async () => {
 		const org = { id: 'org-1', name: 'Brand Org' };
 		const { client } = makeClient({
 			account_users: {
@@ -102,8 +59,7 @@ describe('resolveBuyerContext', () => {
 					{ id: 'au-2', account_id: 'acct-2', accounts: { organization_id: 'org-1' } }
 				],
 				error: null
-			},
-			retailer_users: { data: [], error: null }
+			}
 		});
 		const { client: admin, queriedTables: adminTables } = makeClient({
 			account_brand_access: {
@@ -120,36 +76,28 @@ describe('resolveBuyerContext', () => {
 		expect(ctx.buyerAccounts[0].account_id).toBe('acct-1');
 		expect(ctx.buyerBrandIds).toEqual(['brand-1', 'brand-2']);
 		expect(ctx.organization).toEqual(org);
-		expect(ctx.retailer).toBeNull();
 
 		expect(adminTables).toContain('account_brand_access');
 		expect(adminTables).toContain('organizations');
 	});
 
-	it('unions accounts and retailer when a user has both', async () => {
-		const org = { id: 'org-1', name: 'Brand Org' };
-		const retailer = { id: 'retailer-9', business_name: 'Dual Co' };
+	it('leaves organization null (but still resolves brand access) when the account has no org id', async () => {
 		const { client } = makeClient({
 			account_users: {
-				data: [{ id: 'au-1', account_id: 'acct-1', accounts: { organization_id: 'org-1' } }],
-				error: null
-			},
-			retailer_users: {
-				data: [{ id: 'ru-1', retailer_id: 'retailer-9', retailers: retailer }],
+				data: [{ id: 'au-1', account_id: 'acct-1', accounts: {} }],
 				error: null
 			}
 		});
-		const { client: admin } = makeClient({
-			account_brand_access: { data: [{ brand_id: 'brand-1' }], error: null },
-			organizations: { data: org, error: null }
+		const { client: admin, queriedTables: adminTables } = makeClient({
+			account_brand_access: { data: [{ brand_id: 'brand-1' }], error: null }
 		});
 
 		const ctx = await resolveBuyerContext(client, admin, 'user-1');
 
 		expect(ctx.isBuyer).toBe(true);
-		expect(ctx.buyerAccounts).toHaveLength(1);
 		expect(ctx.buyerBrandIds).toEqual(['brand-1']);
-		expect(ctx.organization).toEqual(org);
-		expect(ctx.retailer).toEqual(retailer);
+		expect(ctx.organization).toBeNull();
+		expect(adminTables).toContain('account_brand_access');
+		expect(adminTables).not.toContain('organizations');
 	});
 });

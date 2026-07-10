@@ -20,9 +20,7 @@
 		data.buyerData as { recentOrders: BuyerOrder[]; brands: BuyerBrand[] } | undefined
 	);
 	const accountName = $derived(
-		data.buyerAccounts?.[0]?.accounts?.business_name ??
-			data.retailer?.business_name ??
-			'your account'
+		data.buyerAccounts?.[0]?.accounts?.business_name ?? data.organization?.name ?? 'your account'
 	);
 	// A self-signup retailer has no linked accounts and no brand access until a
 	// brand connects. Everything below the header is meaningless until then.

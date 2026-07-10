@@ -1357,7 +1357,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 					organizationId: locals.organization!.id,
 					userId: locals.user!.id,
 					brandScope: locals.brandScope,
-					orgType: locals.orgType,
+					orgType: locals.orgType === 'brand' ? 'brand' : 'rep',
 					origin
 				});
 
@@ -1543,7 +1543,7 @@ function streamResponse(params: StreamResponseParams): Response {
 							organizationId: params.locals.organization!.id,
 							userId: params.locals.user!.id,
 							brandScope: params.locals.brandScope,
-							orgType: params.locals.orgType,
+							orgType: params.locals.orgType === 'brand' ? 'brand' : 'rep',
 							origin: params.origin
 						});
 

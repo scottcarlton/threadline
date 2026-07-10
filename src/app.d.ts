@@ -4,8 +4,7 @@ import type {
 	Organization,
 	OrganizationMember,
 	OrgType,
-	AccountUser,
-	Retailer
+	AccountUser
 } from '$lib/types/database';
 import type { QueryScope } from '$lib/server/queries/scope';
 
@@ -28,7 +27,6 @@ declare global {
 			isBuyer: boolean;
 			buyerAccounts: AccountUser[] | null;
 			buyerBrandIds: string[] | null;
-			retailer: Retailer | null;
 			isSystemAdmin: boolean;
 			queryScope: QueryScope | null;
 		}
@@ -44,7 +42,6 @@ declare global {
 			isBuyer: boolean;
 			buyerAccounts: AccountUser[] | null;
 			buyerBrandIds: string[] | null;
-			retailer: Retailer | null;
 			isSystemAdmin: boolean;
 		}
 	}

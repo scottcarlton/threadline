@@ -36,31 +36,30 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 			if (user) {
 				const { data: membership } = await supabase
 					.from('organization_members')
+					.select('organizations(org_type)')
+					.eq('profile_id', user.id)
+					.limit(1)
+					.maybeSingle();
+
+				if (membership) {
+					// Retailer-org members are buyers → /dashboard; rep/brand → /insight.
+					const orgRel = (
+						membership as {
+							organizations?: { org_type?: string } | { org_type?: string }[] | null;
+						}
+					).organizations;
+					const orgType = Array.isArray(orgRel) ? orgRel[0]?.org_type : orgRel?.org_type;
+					throw redirect(303, orgType === 'retailer' ? '/dashboard' : '/insight');
+				}
+
+				const { data: buyerAccess } = await supabase
+					.from('account_users')
 					.select('id')
 					.eq('profile_id', user.id)
 					.limit(1)
-					.single();
+					.maybeSingle();
 
-				if (membership) {
-					throw redirect(303, '/insight');
-				}
-
-				const [{ data: buyerAccess }, { data: retailerAccess }] = await Promise.all([
-					supabase
-						.from('account_users')
-						.select('id')
-						.eq('profile_id', user.id)
-						.limit(1)
-						.maybeSingle(),
-					supabase
-						.from('retailer_users')
-						.select('id')
-						.eq('profile_id', user.id)
-						.limit(1)
-						.maybeSingle()
-				]);
-
-				if (buyerAccess || retailerAccess) {
+				if (buyerAccess) {
 					throw redirect(303, '/dashboard');
 				}
 

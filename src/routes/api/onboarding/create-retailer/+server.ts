@@ -21,5 +21,5 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: result.error }, { status: result.status ?? 500 });
 	}
 
-	return json({ retailer: result.retailer });
+	return json({ organization: result.organization });
 };

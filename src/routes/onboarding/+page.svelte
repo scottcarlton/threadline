@@ -507,11 +507,11 @@
 			return;
 		}
 
-		const { retailer } = await res.json();
+		const { organization } = await res.json();
 		await supabase
-			.from('retailers')
+			.from('organizations')
 			.update({ onboarding_completed_at: new Date().toISOString() })
-			.eq('id', retailer.id);
+			.eq('id', organization.id);
 
 		window.location.href = '/dashboard';
 	}

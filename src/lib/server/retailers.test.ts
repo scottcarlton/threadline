@@ -14,14 +14,18 @@ type Captured = {
 
 type OpResponse = { data: unknown; error?: { message: string } | null };
 
+/**
+ * Chainable Supabase mock. Select responses are keyed by table so the two
+ * distinct selects createRetailer issues — the idempotency check on
+ * `organization_members` and the slug-collision check on `organizations` — can
+ * return different data. Insert responses are likewise keyed by table.
+ */
 function makeMock({
-	select,
-	insert,
+	selects,
 	inserts,
 	update
 }: {
-	select?: OpResponse;
-	insert?: OpResponse;
+	selects?: Record<string, OpResponse>;
 	inserts?: Record<string, OpResponse>;
 	update?: OpResponse;
 } = {}) {
@@ -44,10 +48,10 @@ function makeMock({
 
 		const response =
 			op === 'insert'
-				? (inserts?.[table] ?? insert ?? { data: null, error: null })
+				? (inserts?.[table] ?? { data: null, error: null })
 				: op === 'update'
 					? (update ?? { data: null, error: null })
-					: (select ?? { data: null, error: null });
+					: (selects?.[table] ?? { data: null, error: null });
 
 		builder.single = vi.fn().mockResolvedValue(response);
 		builder.maybeSingle = vi.fn().mockResolvedValue(response);
@@ -80,62 +84,73 @@ function makeMock({
 }
 
 describe('createRetailer', () => {
-	it('creates a retailer and a founding buyer_admin retailer_users row', async () => {
-		const insertedRetailer = {
-			id: 'retailer-1',
-			business_name: 'Acme Apparel',
-			website: null,
-			phone: null,
-			address_line1: null,
-			address_line2: null,
-			city: null,
-			state: null,
-			zip: null,
-			country: null,
-			onboarding_step: 0,
+	it('creates a retailer org and a founding admin membership, no self-brand seeded', async () => {
+		const insertedOrg = {
+			id: 'org-1',
+			name: 'Acme Apparel',
+			slug: 'acme-apparel',
+			org_type: 'retailer',
 			onboarding_completed_at: null,
-			created_at: '2026-04-17T12:00:00.000Z',
-			updated_at: '2026-04-17T12:00:00.000Z'
+			created_at: '2026-07-10T12:00:00.000Z'
 		};
 		const { supabase, captured } = makeMock({
-			select: { data: null, error: null },
-			insert: { data: insertedRetailer, error: null }
+			selects: {
+				organization_members: { data: null, error: null },
+				organizations: { data: null, error: null }
+			},
+			inserts: {
+				organizations: { data: insertedOrg, error: null },
+				organization_members: { data: null, error: null }
+			}
 		});
 
 		const result = await createRetailer(supabase, {
 			userId: 'user-1',
 			businessName: 'Acme Apparel',
-			displayName: 'Ada Rep'
+			displayName: 'Ada Buyer'
 		});
 
-		expect(result).toEqual({ retailer: insertedRetailer });
+		expect(result).toEqual({ organization: insertedOrg });
 
 		const inserts = captured.filter((c) => c.op === 'insert');
-		expect(inserts).toHaveLength(2);
+		expect(inserts.map((c) => c.table)).toEqual(['organizations', 'organization_members']);
 
-		const retailerInsert = inserts.find((c) => c.table === 'retailers');
-		expect(retailerInsert?.insertPayload).toEqual({ business_name: 'Acme Apparel' });
-
-		const memberInsert = inserts.find((c) => c.table === 'retailer_users');
-		expect(memberInsert?.insertPayload).toEqual({
-			retailer_id: 'retailer-1',
-			profile_id: 'user-1',
-			role: 'buyer_admin'
+		const orgInsert = inserts.find((c) => c.table === 'organizations');
+		expect(orgInsert?.insertPayload).toEqual({
+			name: 'Acme Apparel',
+			slug: 'acme-apparel',
+			org_type: 'retailer'
 		});
 
-		// displayName was provided → profiles.display_name updated.
+		const memberInsert = inserts.find((c) => c.table === 'organization_members');
+		expect(memberInsert?.insertPayload).toMatchObject({
+			organization_id: 'org-1',
+			profile_id: 'user-1',
+			role: 'admin'
+		});
+		expect(typeof memberInsert?.insertPayload?.accepted_at).toBe('string');
+
+		// Nothing brand-only was touched.
+		expect(captured.some((c) => c.table === 'brands')).toBe(false);
+		expect(captured.some((c) => c.table === 'seasons')).toBe(false);
+		expect(captured.some((c) => c.table === 'organization_shipping_methods')).toBe(false);
+
+		// displayName provided → profiles.display_name updated.
 		const profileUpdate = captured.find((c) => c.op === 'update' && c.table === 'profiles');
-		expect(profileUpdate?.updatePayload).toEqual({ display_name: 'Ada Rep' });
+		expect(profileUpdate?.updatePayload).toEqual({ display_name: 'Ada Buyer' });
 	});
 
-	it('is idempotent: an existing retailer_users row short-circuits with zero inserts', async () => {
-		const existingRetailer = {
-			id: 'retailer-existing',
-			business_name: 'Existing Retailer',
-			created_at: '2026-01-01T00:00:00.000Z'
+	it('is idempotent: an existing retailer-org admin membership short-circuits with zero inserts', async () => {
+		const existingOrg = {
+			id: 'org-existing',
+			name: 'Existing Retailer',
+			slug: 'existing-retailer',
+			org_type: 'retailer'
 		};
 		const { supabase, captured } = makeMock({
-			select: { data: { retailers: existingRetailer }, error: null }
+			selects: {
+				organization_members: { data: { organizations: existingOrg }, error: null }
+			}
 		});
 
 		const result = await createRetailer(supabase, {
@@ -143,9 +158,42 @@ describe('createRetailer', () => {
 			businessName: 'Acme Apparel'
 		});
 
-		expect(result).toEqual({ retailer: existingRetailer });
+		expect(result).toEqual({ organization: existingOrg });
 		expect(captured.filter((c) => c.op === 'insert')).toHaveLength(0);
 		expect(captured.filter((c) => c.op === 'update')).toHaveLength(0);
+	});
+
+	it('does not short-circuit on a non-retailer admin membership — it creates a retailer org', async () => {
+		const insertedOrg = {
+			id: 'org-2',
+			name: 'Acme Apparel',
+			slug: 'acme-apparel',
+			org_type: 'retailer'
+		};
+		const { supabase, captured } = makeMock({
+			selects: {
+				organization_members: {
+					data: { organizations: { id: 'rep-org', org_type: 'rep' } },
+					error: null
+				},
+				organizations: { data: null, error: null }
+			},
+			inserts: {
+				organizations: { data: insertedOrg, error: null },
+				organization_members: { data: null, error: null }
+			}
+		});
+
+		const result = await createRetailer(supabase, {
+			userId: 'user-1',
+			businessName: 'Acme Apparel'
+		});
+
+		expect(result).toEqual({ organization: insertedOrg });
+		expect(captured.filter((c) => c.op === 'insert').map((c) => c.table)).toEqual([
+			'organizations',
+			'organization_members'
+		]);
 	});
 
 	it('rejects a blank/whitespace business name with 400 and touches the DB zero times', async () => {
@@ -161,11 +209,22 @@ describe('createRetailer', () => {
 		expect(captured).toHaveLength(0);
 	});
 
-	it('trims the business name before inserting', async () => {
-		const insertedRetailer = { id: 'retailer-2', business_name: 'Trimmed Co' };
+	it('trims the business name and slugifies it before inserting', async () => {
+		const insertedOrg = {
+			id: 'org-3',
+			name: 'Trimmed Co',
+			slug: 'trimmed-co',
+			org_type: 'retailer'
+		};
 		const { supabase, captured } = makeMock({
-			select: { data: null, error: null },
-			insert: { data: insertedRetailer, error: null }
+			selects: {
+				organization_members: { data: null, error: null },
+				organizations: { data: null, error: null }
+			},
+			inserts: {
+				organizations: { data: insertedOrg, error: null },
+				organization_members: { data: null, error: null }
+			}
 		});
 
 		await createRetailer(supabase, {
@@ -173,35 +232,19 @@ describe('createRetailer', () => {
 			businessName: '   Trimmed Co   '
 		});
 
-		const retailerInsert = captured.find((c) => c.op === 'insert' && c.table === 'retailers');
-		expect(retailerInsert?.insertPayload).toEqual({ business_name: 'Trimmed Co' });
+		const orgInsert = captured.find((c) => c.op === 'insert' && c.table === 'organizations');
+		expect(orgInsert?.insertPayload).toEqual({
+			name: 'Trimmed Co',
+			slug: 'trimmed-co',
+			org_type: 'retailer'
+		});
 	});
 
-	it('surfaces a retailers insert error as status 500 and skips the retailer_users insert', async () => {
+	it('rejects a slug collision with 409 and inserts nothing', async () => {
 		const { supabase, captured } = makeMock({
-			select: { data: null, error: null },
-			insert: { data: null, error: { message: 'retailers insert failed' } }
-		});
-
-		const result = await createRetailer(supabase, {
-			userId: 'user-1',
-			businessName: 'Acme Apparel'
-		});
-
-		expect(result).toEqual({ error: 'retailers insert failed', status: 500 });
-
-		const inserts = captured.filter((c) => c.op === 'insert');
-		expect(inserts).toHaveLength(1);
-		expect(inserts[0].table).toBe('retailers');
-	});
-
-	it('surfaces a retailer_users insert error as status 500 after the retailer was created', async () => {
-		const insertedRetailer = { id: 'retailer-3', business_name: 'Acme Apparel' };
-		const { supabase, captured } = makeMock({
-			select: { data: null, error: null },
-			inserts: {
-				retailers: { data: insertedRetailer, error: null },
-				retailer_users: { data: null, error: { message: 'retailer_users insert failed' } }
+			selects: {
+				organization_members: { data: null, error: null },
+				organizations: { data: { id: 'taken-org' }, error: null }
 			}
 		});
 
@@ -210,10 +253,62 @@ describe('createRetailer', () => {
 			businessName: 'Acme Apparel'
 		});
 
-		expect(result).toEqual({ error: 'retailer_users insert failed', status: 500 });
+		expect(result).toEqual({
+			error: 'That organization name is taken. Please pick another.',
+			status: 409
+		});
+		expect(captured.filter((c) => c.op === 'insert')).toHaveLength(0);
+	});
 
-		// The retailers insert did happen; both inserts were attempted.
+	it('surfaces an organizations insert error as status 500 and skips the membership insert', async () => {
+		const { supabase, captured } = makeMock({
+			selects: {
+				organization_members: { data: null, error: null },
+				organizations: { data: null, error: null }
+			},
+			inserts: {
+				organizations: { data: null, error: { message: 'organizations insert failed' } }
+			}
+		});
+
+		const result = await createRetailer(supabase, {
+			userId: 'user-1',
+			businessName: 'Acme Apparel'
+		});
+
+		expect(result).toEqual({ error: 'organizations insert failed', status: 500 });
+
 		const inserts = captured.filter((c) => c.op === 'insert');
-		expect(inserts.map((c) => c.table)).toEqual(['retailers', 'retailer_users']);
+		expect(inserts).toHaveLength(1);
+		expect(inserts[0].table).toBe('organizations');
+	});
+
+	it('surfaces a membership insert error as status 500 after the org was created', async () => {
+		const insertedOrg = {
+			id: 'org-4',
+			name: 'Acme Apparel',
+			slug: 'acme-apparel',
+			org_type: 'retailer'
+		};
+		const { supabase, captured } = makeMock({
+			selects: {
+				organization_members: { data: null, error: null },
+				organizations: { data: null, error: null }
+			},
+			inserts: {
+				organizations: { data: insertedOrg, error: null },
+				organization_members: { data: null, error: { message: 'members insert failed' } }
+			}
+		});
+
+		const result = await createRetailer(supabase, {
+			userId: 'user-1',
+			businessName: 'Acme Apparel'
+		});
+
+		expect(result).toEqual({ error: 'members insert failed', status: 500 });
+
+		const inserts = captured.filter((c) => c.op === 'insert');
+		expect(inserts.map((c) => c.table)).toEqual(['organizations', 'organization_members']);
 	});
 });
