@@ -114,23 +114,37 @@ const authHandle: Handle = async ({ event, resolve }) => {
 		if (isSystemAdminEmail(user?.email)) {
 			throw redirect(303, '/system');
 		}
-		// Retailer-org members belong in the buyer portal (/dashboard); rep/brand
-		// members go to /insight. Resolve the active membership's org_type to fork.
+		// Resolve where an authenticated user hitting /login belongs, in one hop:
+		// org members by their active org type (retailer → /dashboard, rep/brand →
+		// /insight); a membership-less legacy buyer straight to the portal; anyone
+		// else to onboarding. Mirrors auth/callback so buyers never bounce via
+		// /insight.
 		const { data: loginMemberships } = await supabase
 			.from('organization_members')
 			.select('organization_id, organizations(org_type)')
 			.eq('profile_id', user?.id ?? '');
-		const activeOrgId = event.cookies.get('active_org_id');
 		const rows = (loginMemberships ?? []) as Array<{
 			organization_id: string;
 			organizations: { org_type?: string } | { org_type?: string }[] | null;
 		}>;
-		const active = activeOrgId
-			? (rows.find((m) => m.organization_id === activeOrgId) ?? rows[0])
-			: rows[0];
-		const activeOrg = active?.organizations;
-		const activeType = Array.isArray(activeOrg) ? activeOrg[0]?.org_type : activeOrg?.org_type;
-		throw redirect(303, landingPathForOrgType((activeType as OrgType) ?? 'rep'));
+		if (rows.length) {
+			const activeOrgId = event.cookies.get('active_org_id');
+			const active = activeOrgId
+				? (rows.find((m) => m.organization_id === activeOrgId) ?? rows[0])
+				: rows[0];
+			const activeOrg = active?.organizations;
+			const activeType = Array.isArray(activeOrg) ? activeOrg[0]?.org_type : activeOrg?.org_type;
+			throw redirect(303, landingPathForOrgType((activeType as OrgType) ?? 'rep'));
+		}
+		// No membership: a legacy invited buyer (account_users) lands on the portal
+		// directly; a not-yet-onboarded user goes to onboarding.
+		const { data: buyerAccess } = await supabase
+			.from('account_users')
+			.select('id')
+			.eq('profile_id', user?.id ?? '')
+			.limit(1)
+			.maybeSingle();
+		throw redirect(303, buyerAccess ? '/dashboard' : '/onboarding');
 	}
 
 	// Load user context for authenticated routes
