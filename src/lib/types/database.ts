@@ -1,5 +1,5 @@
 export type UserRole = 'admin' | 'owner' | 'member' | 'sales' | 'guest';
-export type OrgType = 'rep' | 'brand';
+export type OrgType = 'rep' | 'brand' | 'retailer';
 export type IntegrationProvider =
 	| 'google_sheets'
 	| 'google_calendar'
@@ -287,6 +287,7 @@ export interface Account {
 	shipping_method: string | null;
 	commission_rate_override: number | null;
 	order_minimum_override: number | null;
+	retailer_org_id: string | null;
 	is_active: boolean;
 	archived_at: string | null;
 	created_at: string;

@@ -24,6 +24,7 @@ import type {
 	AccountUser
 } from '$lib/types/database.js';
 import { isSystemAdminEmail } from '$lib/server/system-admin.js';
+import { resolveRetailerBuyerContext } from '$lib/server/buyer-context.js';
 
 export type MembershipWithOrg = OrganizationMember & { organizations: Organization };
 type BrandAccessRow = { brand_id: string; brands?: { name?: string } | { name?: string }[] | null };
@@ -99,6 +100,19 @@ export type UserContextResult =
 			buyerBrandIds: string[] | null;
 			organization: Organization | null;
 	  }
+	| {
+			// A retailer-org member is a hybrid: an org member (membership,
+			// allMemberships, org) AND a buyer (isBuyer, buyerAccounts). Their
+			// shopping scope resolves through accounts linked to the retailer org via
+			// `retailer_org_id`, not `account_users`. They land on the buyer portal.
+			kind: 'retailer';
+			profile: Profile | null;
+			allMemberships: MembershipWithOrg[];
+			membership: MembershipWithOrg;
+			organization: Organization | null;
+			buyerAccounts: BuyerAccountRow[];
+			buyerBrandIds: string[] | null;
+	  }
 	| { kind: 'onboarding'; profile: Profile | null };
 
 /**
@@ -154,6 +168,28 @@ export async function loadUserContext(
 	if (allMemberships?.length) {
 		const typedMemberships = allMemberships as MembershipWithOrg[];
 		const membership = resolveActiveMembership(typedMemberships, activeOrgId);
+		const org = membership?.organizations ?? null;
+
+		// Retailer-org members are buyers. They skip the rep/brand brand-scope +
+		// SSO-enforcement setup entirely; shopping access resolves through the
+		// brands' `accounts` rows linked to this retailer org via `retailer_org_id`
+		// (the extended `get_buyer_account_ids()` RLS helper mirrors this).
+		if (org?.org_type === 'retailer') {
+			const { buyerAccounts, buyerBrandIds } = await resolveRetailerBuyerContext(
+				admin,
+				org.id,
+				user.id
+			);
+			return {
+				kind: 'retailer',
+				profile: profile ?? null,
+				allMemberships: typedMemberships,
+				membership,
+				organization: org,
+				buyerAccounts,
+				buyerBrandIds
+			};
+		}
 
 		let brandScope: string[] | null = null;
 		let scopedBrandNames: string[] | null = null;
@@ -165,7 +201,6 @@ export async function loadUserContext(
 			({ brandScope, scopedBrandNames } = extractBrandScope(brandAccess as BrandAccessRow[]));
 		}
 
-		const org = membership?.organizations ?? null;
 		const ssoRequired = await isSsoEnforcementBreached(admin, org, user);
 
 		return {
@@ -239,6 +274,20 @@ export function applyUserContext(locals: App.Locals, result: UserContextResult):
 			locals.buyerAccounts = result.buyerAccounts;
 			locals.buyerBrandIds = result.buyerBrandIds;
 			if (result.organization) locals.organization = result.organization;
+			return;
+		case 'retailer':
+			// Hybrid: org-member locals (for the org switcher) AND buyer locals (for
+			// the portal). orgType='retailer'; brand-scope is not applicable.
+			locals.user = result.profile;
+			locals.allMemberships = result.allMemberships;
+			locals.membership = result.membership;
+			locals.organization = result.organization;
+			locals.orgType = 'retailer';
+			locals.isBuyer = true;
+			locals.buyerAccounts = result.buyerAccounts;
+			locals.buyerBrandIds = result.buyerBrandIds;
+			locals.brandScope = null;
+			locals.scopedBrandNames = null;
 			return;
 		case 'onboarding':
 			locals.user = result.profile;

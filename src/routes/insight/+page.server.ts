@@ -1,4 +1,5 @@
 import type { PageServerLoad } from './$types';
+import { redirect } from '@sveltejs/kit';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { refreshInsights } from '$lib/server/insights-engine.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
@@ -17,6 +18,13 @@ type BrandTopAccount = {
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('data:dashboard');
+
+	// Buyers (invited buyers and self-signup stores) belong in the buyer
+	// portal. Several sign-in paths funnel authenticated users here.
+	if (locals.isBuyer) {
+		redirect(303, '/dashboard');
+	}
+
 	const { supabase, organization, orgType, allMemberships } = locals;
 	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
 	const nxBlsr = isNxBlsr(brandOrgIds);
