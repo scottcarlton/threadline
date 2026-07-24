@@ -12,6 +12,14 @@
 	import { invalidateAll } from '$app/navigation';
 	import { fade, fly, scale } from 'svelte/transition';
 	import { cubicOut, backOut } from 'svelte/easing';
+	import {
+		resumePhaseIndex,
+		nextCursor,
+		phaseStatus,
+		canGoPrev,
+		canGoNext,
+		isSkippable
+	} from '$lib/components/onboarding/machine';
 
 	let { data } = $props();
 
@@ -168,9 +176,7 @@
 	// onboarding_step (1-based phase) tells us which phase to resume at. Reading
 	// `data` once at init is intentional (SSR provides the current value).
 	// svelte-ignore state_referenced_locally
-	let phaseIndex = $state(
-		Math.min(Math.max((data.organization?.onboarding_step ?? 1) - 1, 0), phases.length - 1)
-	);
+	let phaseIndex = $state(resumePhaseIndex(data.organization?.onboarding_step, phases.length));
 	let subIndex = $state(0);
 	let draft = $state('');
 	let completed = $state(false);
@@ -205,19 +211,14 @@
 	const phase = $derived(phases[phaseIndex]);
 	const sub = $derived(phase.subs[subIndex]);
 	const questionCount = $derived(phase.subs.length);
-	const canPrev = $derived(subIndex > 0);
-	const canNext = $derived(subIndex < questionCount - 1);
+	const canPrev = $derived(canGoPrev({ phaseIndex, subIndex }));
+	const canNext = $derived(canGoNext({ phaseIndex, subIndex }, phases));
 	const hasDraft = $derived(draft.trim().length > 0);
 	const revealMs = $derived(prefersReduced ? 0 : 320);
 
 	const cursorKey = (p: number, s: number) => `${p}.${s}`;
 
-	function phaseState(i: number): 'done' | 'active' | 'upcoming' {
-		if (completed) return 'done';
-		if (i < phaseIndex) return 'done';
-		if (i === phaseIndex) return 'active';
-		return 'upcoming';
-	}
+	const phaseState = (i: number) => phaseStatus(i, { phaseIndex, subIndex }, completed);
 
 	// Mock stat cards — in P2 these come from real import row counts.
 	const STAT_DEMO: Record<string, { n: string; label: string }> = {
@@ -245,14 +246,10 @@
 	}
 
 	function advanceGlobal() {
-		if (subIndex < phase.subs.length - 1) {
-			subIndex++;
-		} else if (phaseIndex < phases.length - 1) {
-			phaseIndex++;
-			subIndex = 0;
-		} else {
-			completed = true;
-		}
+		const { cursor, completed: done } = nextCursor({ phaseIndex, subIndex }, phases);
+		phaseIndex = cursor.phaseIndex;
+		subIndex = cursor.subIndex;
+		if (done) completed = true;
 	}
 
 	function complete(state: 'done' | 'skipped') {
@@ -711,7 +708,7 @@
 						<p class="mt-3 text-sm text-red-400">{errorMsg}</p>
 					{/if}
 
-					{#if !sub.required && inputRevealed}
+					{#if isSkippable(sub) && inputRevealed}
 						<div
 							class="mt-4 flex justify-end"
 							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
