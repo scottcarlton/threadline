@@ -9,6 +9,7 @@
 	//   t0     greeting types in  +  AI prompt springs up
 	//   ~560ms stepper assembles (progress, then roadmap staggered)
 	//   ~1080ms conversation panel opens → first question types → flow begins
+	import { untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { fade, fly, scale } from 'svelte/transition';
 	import { cubicOut, backOut } from 'svelte/easing';
@@ -20,6 +21,8 @@
 		canGoNext,
 		isSkippable
 	} from '$lib/components/onboarding/machine';
+	import { parseCSV } from '$lib/utils/csv-parse';
+	import { buildAccountPreviewFromCsv } from '$lib/components/accounts/account-import-helpers';
 
 	let { data } = $props();
 
@@ -102,6 +105,14 @@
 			title: 'Import Files',
 			subtitle: 'Upload members, accounts, products, and orders',
 			subs: [
+				{
+					id: 'members',
+					question: 'Who else is on your team? Drop a list or invite them by email.',
+					placeholder: 'name@company.com',
+					kind: 'upload',
+					dropTitle: 'Drop your team list',
+					dropHint: "Add a CSV of names and emails and I'll send the invites."
+				},
 				{
 					id: 'accounts',
 					question: "Add the accounts you sell to. Drop a file and I'll bring them in.",
@@ -193,6 +204,10 @@
 	let loading = $state(false);
 	let errorMsg = $state('');
 
+	// File upload (dock-native: + button, dropzone click, drag-and-drop)
+	let fileInput = $state<HTMLInputElement>();
+	let dragActive = $state(false);
+
 	// Entrance orchestration state
 	let prefersReduced = $state(false);
 	let welcomeTyped = $state('');
@@ -220,13 +235,7 @@
 
 	const phaseState = (i: number) => phaseStatus(i, { phaseIndex, subIndex }, completed);
 
-	// Mock stat cards — in P2 these come from real import row counts.
-	const STAT_DEMO: Record<string, { n: string; label: string }> = {
-		accounts: { n: '500', label: 'Accounts Added' },
-		products: { n: '312', label: 'Products Added' },
-		orders: { n: '48', label: 'Orders Added' }
-	};
-
+	// Stat cards are driven by real import counts only — never placeholder numbers.
 	function addStat(demo: { n: string; label: string }) {
 		const idx = stats.length;
 		const target = Number(demo.n);
@@ -254,10 +263,6 @@
 
 	function complete(state: 'done' | 'skipped') {
 		subStates[cursorKey(phaseIndex, subIndex)] = state;
-		if (state === 'done' && phase.id === 'import') {
-			const demo = STAT_DEMO[sub.id];
-			if (demo && !stats.some((s) => s.label === demo.label)) addStat(demo);
-		}
 		draft = '';
 		advanceGlobal();
 	}
@@ -347,6 +352,235 @@
 			return;
 		}
 		complete('done');
+	}
+
+	// ── File upload ────────────────────────────────────────────────────────
+	function openFilePicker() {
+		errorMsg = '';
+		fileInput?.click();
+	}
+
+	function onFilePicked(e: Event) {
+		const target = e.currentTarget as HTMLInputElement;
+		const file = target.files?.[0];
+		if (file) void handleFile(file);
+		target.value = '';
+	}
+
+	function onDragOver(e: DragEvent) {
+		if (!showConversation || sub.kind !== 'upload' || ingestState !== 'idle') return;
+		e.preventDefault();
+		dragActive = true;
+	}
+
+	function onDragLeave() {
+		dragActive = false;
+	}
+
+	function onDrop(e: DragEvent) {
+		dragActive = false;
+		if (!showConversation || sub.kind !== 'upload' || ingestState !== 'idle') return;
+		e.preventDefault();
+		const file = e.dataTransfer?.files?.[0];
+		if (file) void handleFile(file);
+	}
+
+	// ── Ingestion: drop → read → preview → confirm → commit ────────────────
+	// Nothing is written until the user confirms. Invites in particular send
+	// real email, so friction is matched to the blast radius.
+	type IngestRow = { primary: string; secondary: string };
+	type MemberDraft = { email: string; role: string; commissionRate: number | null; name: string };
+
+	let ingestState = $state<'idle' | 'reading' | 'preview' | 'committing'>('idle');
+	let ingestFileName = $state('');
+	let ingestRows = $state<IngestRow[]>([]);
+	let ingestNoun = $state('');
+	let memberDrafts: MemberDraft[] = [];
+	let accountDrafts: Record<string, unknown>[] = [];
+
+	function resetIngest() {
+		ingestState = 'idle';
+		ingestFileName = '';
+		ingestRows = [];
+		memberDrafts = [];
+		accountDrafts = [];
+	}
+
+	function pickHeader(headers: string[], candidates: string[]): string | null {
+		const lowered = headers.map((h) => h.trim().toLowerCase());
+		for (const c of candidates) {
+			const i = lowered.indexOf(c);
+			if (i !== -1) return lowered[i];
+		}
+		return null;
+	}
+
+	function normalizeRole(raw: string): string {
+		const v = raw.trim().toLowerCase();
+		if (v.includes('admin')) return 'admin';
+		if (v.includes('sales')) return 'sales';
+		if (v.includes('guest')) return 'guest';
+		return 'member';
+	}
+
+	function parseMembers(headers: string[], rows: Record<string, string>[]): MemberDraft[] {
+		const emailH = pickHeader(headers, ['email', 'email address', 'email_address']);
+		if (!emailH) return [];
+		const firstH = pickHeader(headers, ['first name', 'first_name', 'firstname']);
+		const lastH = pickHeader(headers, ['last name', 'last_name', 'lastname']);
+		const roleH = pickHeader(headers, ['role', 'member role']);
+		const commH = pickHeader(headers, ['commission', 'commission rate', 'commission_rate']);
+
+		const out: MemberDraft[] = [];
+		for (const row of rows) {
+			const email = (row[emailH] ?? '').trim();
+			if (!email || !email.includes('@')) continue;
+			const role = roleH ? normalizeRole(row[roleH] ?? '') : 'member';
+			let commissionRate: number | null = null;
+			if (role === 'sales' && commH) {
+				const n = Number((row[commH] ?? '').replace('%', '').trim());
+				if (Number.isFinite(n) && n > 0) commissionRate = n;
+			}
+			const name = [firstH ? row[firstH] : '', lastH ? row[lastH] : '']
+				.map((s) => (s ?? '').trim())
+				.filter(Boolean)
+				.join(' ');
+			out.push({ email, role, commissionRate, name });
+		}
+		return out;
+	}
+
+	const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
+
+	async function handleFile(file: File) {
+		if (sub.kind !== 'upload' || ingestState !== 'idle') return;
+		errorMsg = '';
+		ingestFileName = file.name;
+		ingestState = 'reading';
+
+		// A short scanning beat so the read is legible rather than a flash.
+		const readAt = performance.now();
+		let text = '';
+		try {
+			text = await file.text();
+		} catch {
+			resetIngest();
+			errorMsg = "I couldn't read that file.";
+			return;
+		}
+		const elapsed = performance.now() - readAt;
+		if (!prefersReduced && elapsed < 700) {
+			await new Promise((r) => setTimeout(r, 700 - elapsed));
+		}
+
+		const { headers, rows } = parseCSV(text);
+
+		if (sub.id === 'members') {
+			memberDrafts = parseMembers(headers, rows);
+			if (memberDrafts.length === 0) {
+				resetIngest();
+				errorMsg =
+					"I couldn't find any email addresses in that file. A CSV with an Email column works best.";
+				return;
+			}
+			ingestNoun = memberDrafts.length === 1 ? 'person' : 'people';
+			ingestRows = memberDrafts.map((m) => ({
+				primary: m.name || m.email,
+				secondary: [
+					m.name ? m.email : '',
+					roleLabel(m.role),
+					m.commissionRate ? `${m.commissionRate}%` : ''
+				]
+					.filter(Boolean)
+					.join(' · ')
+			}));
+			ingestState = 'preview';
+			return;
+		}
+
+		if (sub.id === 'accounts') {
+			const { previewRows } = buildAccountPreviewFromCsv(headers, rows);
+			accountDrafts = previewRows.filter(
+				(r) => typeof r.business_name === 'string' && (r.business_name as string).trim().length > 0
+			);
+			if (accountDrafts.length === 0) {
+				resetIngest();
+				errorMsg =
+					"I couldn't find any accounts in that file. A CSV with a business name column works best.";
+				return;
+			}
+			ingestNoun = accountDrafts.length === 1 ? 'account' : 'accounts';
+			ingestRows = accountDrafts.map((a) => ({
+				primary: String(a.business_name ?? ''),
+				secondary: [a.city, a.state]
+					.map((v) => (v ? String(v) : ''))
+					.filter(Boolean)
+					.join(', ')
+			}));
+			ingestState = 'preview';
+			return;
+		}
+
+		// Products and orders aren't connected yet — say so rather than invent a count.
+		resetIngest();
+		errorMsg = "Catalog and order imports aren't connected yet — skip this one for now.";
+	}
+
+	async function confirmIngest() {
+		ingestState = 'committing';
+		try {
+			if (sub.id === 'members') {
+				let sent = 0;
+				for (const m of memberDrafts) {
+					const res = await fetch('/api/invite/send', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							email: m.email,
+							role: m.role,
+							commissionRate: m.commissionRate ?? undefined
+						})
+					});
+					if (res.ok) sent++;
+				}
+				if (sent === 0) {
+					ingestState = 'preview';
+					errorMsg = 'None of those invites could be sent — they may already be members.';
+					return;
+				}
+				addStat({ n: String(sent), label: sent === 1 ? 'Member Invited' : 'Members Invited' });
+				resetIngest();
+				advanceGlobal();
+				return;
+			}
+
+			if (sub.id === 'accounts') {
+				const res = await fetch('/api/accounts/import', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ accounts: accountDrafts })
+				});
+				const result = await res.json();
+				if (!res.ok) {
+					ingestState = 'preview';
+					errorMsg = result.error || 'That import failed. Please try again.';
+					return;
+				}
+				const created = Number(result.created ?? 0);
+				if (created > 0) {
+					addStat({
+						n: String(created),
+						label: created === 1 ? 'Account Added' : 'Accounts Added'
+					});
+				}
+				resetIngest();
+				advanceGlobal();
+				return;
+			}
+		} catch {
+			ingestState = 'preview';
+			errorMsg = 'Something went wrong. Please try again.';
+		}
 	}
 
 	function onInputKeydown(e: KeyboardEvent) {
@@ -446,6 +680,14 @@
 			});
 	});
 
+	// Moving to a different question abandons any un-confirmed ingest.
+	$effect(() => {
+		void sub.id;
+		untrack(() => {
+			if (ingestState !== 'committing') resetIngest();
+		});
+	});
+
 	// Question typewriter — only after the conversation panel opens; retype on
 	// every question change.
 	$effect(() => {
@@ -484,7 +726,21 @@
 	<title>Welcome to Threadline</title>
 </svelte:head>
 
-<div class="min-h-dvh bg-background text-foreground">
+<input
+	bind:this={fileInput}
+	type="file"
+	accept=".csv,.pdf,text/csv,application/pdf"
+	class="hidden"
+	onchange={onFilePicked}
+/>
+
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+	class="min-h-dvh bg-background text-foreground"
+	ondragover={onDragOver}
+	ondragleave={onDragLeave}
+	ondrop={onDrop}
+>
 	<!-- Scrolling content: same max-w-2xl column as the dock, with px-6 so the text
 	     is inset 24px on both sides. -->
 	<div class="mx-auto max-w-2xl px-6 pt-20 pb-[380px] lg:pt-24">
@@ -694,21 +950,87 @@
 					{/if}
 
 					{#if sub.kind === 'upload' && inputRevealed}
-						<button
-							onclick={answer}
-							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
-							class="w-full rounded-xl border border-dashed border-zinc-600 px-6 py-8 text-center transition-colors hover:border-zinc-400 hover:bg-zinc-800/40"
-						>
-							<p class="text-base font-medium text-zinc-100">{sub.dropTitle}</p>
-							<p class="mt-1 text-sm text-zinc-500">{sub.dropHint}</p>
-						</button>
+						{#if ingestState === 'idle'}
+							<button
+								onclick={openFilePicker}
+								in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								class="w-full rounded-xl border border-dashed px-6 py-8 text-center transition-colors {dragActive
+									? 'border-zinc-300 bg-zinc-800/60'
+									: 'border-zinc-600 hover:border-zinc-400 hover:bg-zinc-800/40'}"
+							>
+								<p class="text-base font-medium text-zinc-100">{sub.dropTitle}</p>
+								<p class="mt-1 text-sm text-zinc-500">{sub.dropHint}</p>
+							</button>
+						{:else if ingestState === 'reading'}
+							<div
+								class="flex items-center gap-3 rounded-xl bg-zinc-800/60 px-4 py-4"
+								in:fade={{ duration: 140 }}
+							>
+								<div
+									class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200"
+								></div>
+								<p class="text-sm text-zinc-300">
+									Reading <span class="font-medium text-zinc-100">{ingestFileName}</span>…
+								</p>
+							</div>
+						{:else}
+							<!-- Preview: what I found, awaiting confirmation -->
+							<div
+								class="mt-1"
+								in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+							>
+								<p class="text-base text-zinc-100">
+									I found <span class="font-medium">{ingestRows.length} {ingestNoun}</span> in
+									<span class="text-zinc-300">{ingestFileName}</span>.
+								</p>
+								<ul class="mt-2 divide-y divide-white/5 overflow-hidden rounded-xl bg-zinc-800/50">
+									{#each ingestRows.slice(0, 4) as row, i (row.primary + i)}
+										<li class="flex items-baseline justify-between gap-3 px-4 py-2.5">
+											<span class="text-sm font-medium text-zinc-100">{row.primary}</span>
+											{#if row.secondary}
+												<span class="shrink-0 text-sm text-zinc-400">{row.secondary}</span>
+											{/if}
+										</li>
+									{/each}
+									{#if ingestRows.length > 4}
+										<li class="px-4 py-2.5 text-sm text-zinc-400">
+											and {ingestRows.length - 4} more
+										</li>
+									{/if}
+								</ul>
+
+								<div class="mt-3 flex items-center gap-2">
+									<button
+										onclick={confirmIngest}
+										disabled={ingestState === 'committing'}
+										class="inline-flex items-center gap-2 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-60"
+									>
+										{#if ingestState === 'committing'}
+											<span
+												class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-400 border-t-zinc-900"
+											></span>
+											{sub.id === 'members' ? 'Sending…' : 'Importing…'}
+										{:else}
+											{sub.id === 'members' ? 'Send invites' : 'Import them'}
+										{/if}
+									</button>
+									<button
+										onclick={resetIngest}
+										disabled={ingestState === 'committing'}
+										class="rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100 disabled:opacity-60"
+									>
+										Use a different file
+									</button>
+								</div>
+							</div>
+						{/if}
 					{/if}
 
 					{#if errorMsg}
 						<p class="mt-3 text-sm text-red-400">{errorMsg}</p>
 					{/if}
 
-					{#if isSkippable(sub) && inputRevealed}
+					{#if isSkippable(sub) && inputRevealed && ingestState === 'idle'}
 						<div
 							class="mt-4 flex justify-end"
 							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
@@ -740,6 +1062,7 @@
 					/>
 					<div class="mt-2 flex items-center justify-between">
 						<button
+							onclick={openFilePicker}
 							class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 active:scale-95"
 							aria-label="Attach file"
 						>
@@ -831,14 +1154,40 @@
 					</p>
 					<a
 						href="/onboarding"
-						class="mt-3 inline-block text-sm font-medium underline-offset-4 hover:underline"
+						class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
 					>
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.5"
+							class="h-4 w-4"
+							aria-hidden="true"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+							/>
+						</svg>
 						Schedule a Meeting
 					</a>
 				</div>
 			</aside>
 		</div>
 	</div>
+
+	{#if dragActive}
+		<div
+			class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-background/70 backdrop-blur-sm"
+			transition:fade={{ duration: 120 }}
+		>
+			<div class="rounded-2xl border-2 border-dashed border-foreground/40 px-12 py-10 text-center">
+				<p class="text-lg font-semibold">Drop to import</p>
+				<p class="mt-1 text-sm text-muted-foreground">CSV or PDF</p>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
