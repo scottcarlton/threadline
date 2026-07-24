@@ -35,9 +35,26 @@ export const load: PageServerLoad = async ({ locals }) => {
 			).data ?? [])
 		: [];
 
+	// The product import posts to api/products/import, which requires a brandId.
+	// For a brand-org that's the self-brand row the auto_create_self_brand
+	// trigger inserts at creation. Null until the org exists (created mid-flow),
+	// so the client re-reads this after invalidateAll().
+	const selfBrandId =
+		organization?.org_type === 'brand'
+			? ((
+					await supabase
+						.from('brands')
+						.select('id')
+						.eq('organization_id', organization.id)
+						.eq('is_self_brand', true)
+						.maybeSingle()
+				).data?.id ?? null)
+			: null;
+
 	return {
 		organization: organization ?? null,
 		seasons: seasons as { id: string; name: string }[],
+		selfBrandId: selfBrandId as string | null,
 		user
 	};
 };

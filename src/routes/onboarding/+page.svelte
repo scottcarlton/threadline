@@ -23,6 +23,7 @@
 	} from '$lib/components/onboarding/machine';
 	import { parseCSV } from '$lib/utils/csv-parse';
 	import { buildAccountPreviewFromCsv } from '$lib/components/accounts/account-import-helpers';
+	import { suggestColumnMapping } from '$lib/utils/csv-column-suggest';
 
 	let { data } = $props();
 
@@ -119,7 +120,7 @@
 					placeholder: 'You can paste your data here too…',
 					kind: 'upload',
 					dropTitle: 'Drop your account list',
-					dropHint: "Add a CSV or PDF file and I'll get to work on it."
+					dropHint: "Add a CSV and I'll get to work on it."
 				},
 				{
 					id: 'products',
@@ -127,7 +128,7 @@
 					placeholder: 'You can paste your data here too…',
 					kind: 'upload',
 					dropTitle: 'Drop your product list',
-					dropHint: "Add a CSV or PDF file and I'll get to work on it."
+					dropHint: "Add a CSV or PDF line sheet and I'll read it."
 				},
 				{
 					id: 'orders',
@@ -135,7 +136,7 @@
 					placeholder: 'You can paste your data here too…',
 					kind: 'upload',
 					dropTitle: 'Drop your orders',
-					dropHint: "Add a CSV or PDF file and I'll get to work on it."
+					dropHint: "Add a CSV and I'll match them up."
 				}
 			]
 		},
@@ -395,8 +396,25 @@
 	let ingestFileName = $state('');
 	let ingestRows = $state<IngestRow[]>([]);
 	let ingestNoun = $state('');
+	type ProductDraft = {
+		style_number: string;
+		name: string;
+		wholesale_price: number;
+		season_id: string | null;
+	};
+	type OrderRowDraft = {
+		account: string;
+		style_number: string;
+		qty: number;
+		unit_price: number | null;
+		color: string | null;
+		size: string | null;
+	};
+
 	let memberDrafts: MemberDraft[] = [];
 	let accountDrafts: Record<string, unknown>[] = [];
+	let productDrafts: ProductDraft[] = [];
+	let orderDrafts: OrderRowDraft[] = [];
 
 	function resetIngest() {
 		ingestState = 'idle';
@@ -404,6 +422,8 @@
 		ingestRows = [];
 		memberDrafts = [];
 		accountDrafts = [];
+		productDrafts = [];
+		orderDrafts = [];
 	}
 
 	function pickHeader(headers: string[], candidates: string[]): string | null {
@@ -452,11 +472,128 @@
 
 	const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 
+	const toNumber = (raw: string): number | null => {
+		const n = Number((raw ?? '').replace(/[$,]/g, '').trim());
+		return Number.isFinite(n) ? n : null;
+	};
+
+	// Products use the app's shared column-suggestion mapper so onboarding
+	// accepts the same headers as the /products import.
+	function parseProducts(headers: string[], rows: Record<string, string>[]): ProductDraft[] {
+		const headerByField = new Map<string, string>();
+		for (const h of headers) {
+			const field = suggestColumnMapping(h);
+			if (field && !headerByField.has(field)) headerByField.set(field, h.trim().toLowerCase());
+		}
+		const styleH = headerByField.get('style_number');
+		const nameH = headerByField.get('name');
+		const priceH = headerByField.get('wholesale_price');
+		if (!styleH || !nameH || !priceH) return [];
+
+		const out: ProductDraft[] = [];
+		for (const row of rows) {
+			const style_number = (row[styleH] ?? '').trim();
+			const name = (row[nameH] ?? '').trim();
+			const price = toNumber(row[priceH] ?? '');
+			if (!style_number || !name || price === null) continue;
+			out.push({ style_number, name, wholesale_price: price, season_id: null });
+		}
+		return out;
+	}
+
+	function parseOrders(headers: string[], rows: Record<string, string>[]): OrderRowDraft[] {
+		const accountH = pickHeader(headers, ['account', 'business name', 'business_name', 'customer']);
+		const styleH = pickHeader(headers, ['style number', 'style_number', 'style', 'sku']);
+		const qtyH = pickHeader(headers, ['qty', 'quantity', 'units']);
+		if (!accountH || !styleH || !qtyH) return [];
+		const priceH = pickHeader(headers, ['unit price', 'unit_price', 'price', 'wholesale price']);
+		const colorH = pickHeader(headers, ['color', 'colour']);
+		const sizeH = pickHeader(headers, ['size']);
+
+		const out: OrderRowDraft[] = [];
+		for (const row of rows) {
+			const account = (row[accountH] ?? '').trim();
+			const style_number = (row[styleH] ?? '').trim();
+			const qty = toNumber(row[qtyH] ?? '');
+			if (!account || !style_number || qty === null || qty <= 0) continue;
+			out.push({
+				account,
+				style_number,
+				qty: Math.trunc(qty),
+				unit_price: priceH ? toNumber(row[priceH] ?? '') : null,
+				color: colorH ? (row[colorH] ?? '').trim() || null : null,
+				size: sizeH ? (row[sizeH] ?? '').trim() || null : null
+			});
+		}
+		return out;
+	}
+
+	const money = (n: number) =>
+		n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
 	async function handleFile(file: File) {
 		if (sub.kind !== 'upload' || ingestState !== 'idle') return;
 		errorMsg = '';
 		ingestFileName = file.name;
 		ingestState = 'reading';
+
+		const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+		// PDF line sheets go through the AI parser; only products supports it.
+		if (isPdf) {
+			if (sub.id !== 'products') {
+				resetIngest();
+				errorMsg = 'I can only read PDF line sheets on the catalog step. Try a CSV here.';
+				return;
+			}
+			if (!data.selfBrandId) {
+				resetIngest();
+				errorMsg =
+					"Product imports need a brand catalog — that's only set up for brand organizations right now.";
+				return;
+			}
+			try {
+				const fd = new FormData();
+				fd.append('file', file);
+				const res = await fetch('/api/products/parse-linesheet', { method: 'POST', body: fd });
+				const body = await res.json();
+				if (!res.ok) {
+					resetIngest();
+					errorMsg = body.error || "I couldn't read that line sheet.";
+					return;
+				}
+				const parsed = Array.isArray(body.products) ? body.products : [];
+				productDrafts = parsed
+					.filter(
+						(p: Record<string, unknown>) =>
+							p && typeof p.style_number === 'string' && typeof p.name === 'string'
+					)
+					.map((p: Record<string, unknown>) => ({
+						style_number: String(p.style_number).trim(),
+						name: String(p.name).trim(),
+						wholesale_price: Number(p.wholesale_price ?? 0),
+						season_id: null
+					}))
+					.filter((p: ProductDraft) => p.style_number && p.name);
+				if (productDrafts.length === 0) {
+					resetIngest();
+					errorMsg = "I couldn't find any products in that line sheet.";
+					return;
+				}
+				ingestNoun = productDrafts.length === 1 ? 'product' : 'products';
+				ingestRows = productDrafts.map((p) => ({
+					primary: p.name,
+					secondary: [p.style_number, p.wholesale_price ? money(p.wholesale_price) : '']
+						.filter(Boolean)
+						.join(' · ')
+				}));
+				ingestState = 'preview';
+			} catch {
+				resetIngest();
+				errorMsg = "I couldn't read that line sheet.";
+			}
+			return;
+		}
 
 		// A short scanning beat so the read is legible rather than a flash.
 		const readAt = performance.now();
@@ -521,9 +658,48 @@
 			return;
 		}
 
-		// Products and orders aren't connected yet — say so rather than invent a count.
+		if (sub.id === 'products') {
+			if (!data.selfBrandId) {
+				resetIngest();
+				errorMsg =
+					"Product imports need a brand catalog — that's only set up for brand organizations right now.";
+				return;
+			}
+			productDrafts = parseProducts(headers, rows);
+			if (productDrafts.length === 0) {
+				resetIngest();
+				errorMsg =
+					"I couldn't read that catalog. A CSV with style number, name, and wholesale price columns works best.";
+				return;
+			}
+			ingestNoun = productDrafts.length === 1 ? 'product' : 'products';
+			ingestRows = productDrafts.map((p) => ({
+				primary: p.name,
+				secondary: [p.style_number, money(p.wholesale_price)].filter(Boolean).join(' · ')
+			}));
+			ingestState = 'preview';
+			return;
+		}
+
+		if (sub.id === 'orders') {
+			orderDrafts = parseOrders(headers, rows);
+			if (orderDrafts.length === 0) {
+				resetIngest();
+				errorMsg =
+					"I couldn't read those orders. A CSV with account, style number, and quantity columns works best.";
+				return;
+			}
+			ingestNoun = orderDrafts.length === 1 ? 'order line' : 'order lines';
+			ingestRows = orderDrafts.map((o) => ({
+				primary: o.account,
+				secondary: [o.style_number, `${o.qty} units`].filter(Boolean).join(' · ')
+			}));
+			ingestState = 'preview';
+			return;
+		}
+
 		resetIngest();
-		errorMsg = "Catalog and order imports aren't connected yet — skip this one for now.";
+		errorMsg = "I don't know how to read that one yet.";
 	}
 
 	async function confirmIngest() {
@@ -573,6 +749,59 @@
 						label: created === 1 ? 'Account Added' : 'Accounts Added'
 					});
 				}
+				resetIngest();
+				advanceGlobal();
+				return;
+			}
+
+			if (sub.id === 'products') {
+				const res = await fetch('/api/products/import', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						brandId: data.selfBrandId,
+						onConflict: 'skip',
+						products: productDrafts
+					})
+				});
+				const result = await res.json();
+				if (!res.ok) {
+					ingestState = 'preview';
+					errorMsg = result.error || 'That import failed. Please try again.';
+					return;
+				}
+				const created = Number(result.created ?? 0);
+				if (created > 0) {
+					addStat({
+						n: String(created),
+						label: created === 1 ? 'Product Added' : 'Products Added'
+					});
+				}
+				resetIngest();
+				advanceGlobal();
+				return;
+			}
+
+			if (sub.id === 'orders') {
+				const res = await fetch('/api/orders/import', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ rows: orderDrafts })
+				});
+				const result = await res.json();
+				if (!res.ok) {
+					ingestState = 'preview';
+					errorMsg = result.error || 'That import failed. Please try again.';
+					return;
+				}
+				const created = Number(result.created ?? 0);
+				if (created === 0) {
+					ingestState = 'preview';
+					errorMsg =
+						'None of those rows matched an account and product — bring those in first, then try again.';
+					return;
+				}
+				addStat({ n: String(created), label: created === 1 ? 'Order Added' : 'Orders Added' });
 				resetIngest();
 				advanceGlobal();
 				return;
