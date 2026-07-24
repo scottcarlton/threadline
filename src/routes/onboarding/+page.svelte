@@ -1,17 +1,26 @@
 <script lang="ts">
-	// P0 — static shell + mock state machine + orchestrated entrance. No
-	// persistence or API calls yet; answering/skipping/chevrons only move the
-	// cursor. Wiring lands in P1+. Copy is provisional and NOT final — run it
-	// against docs/brand/guidelines.md §1.5 before ship (tracked in the plan).
+	// Onboarding — conversational shell with orchestrated entrance.
+	// P0: shell + mock state machine. P1: General Information wired to
+	// create-org / create-retailer with resume. Import/Settings/Integrations
+	// (P2+) still advance via the mock. Copy is provisional and NOT final — run
+	// it against docs/brand/guidelines.md §1.5 before ship.
 	//
 	// Entrance choreography (mount):
 	//   t0     greeting types in  +  AI prompt springs up
 	//   ~560ms stepper assembles (progress, then roadmap staggered)
 	//   ~1080ms conversation panel opens → first question types → flow begins
+	import { invalidateAll } from '$app/navigation';
 	import { fade, fly, scale } from 'svelte/transition';
 	import { cubicOut, backOut } from 'svelte/easing';
 
-	type SubKind = 'text' | 'upload';
+	let { data } = $props();
+
+	type SubKind = 'text' | 'upload' | 'choice';
+	interface OrgOption {
+		value: 'brand' | 'rep' | 'retailer';
+		label: string;
+		description: string;
+	}
 	interface SubStep {
 		id: string;
 		question: string;
@@ -20,6 +29,7 @@
 		kind: SubKind;
 		dropTitle?: string;
 		dropHint?: string;
+		options?: OrgOption[];
 	}
 	interface Phase {
 		id: string;
@@ -48,7 +58,27 @@
 					question: 'What kind of organization are you setting up?',
 					placeholder: 'Choose your organization type',
 					required: true,
-					kind: 'text'
+					kind: 'choice',
+					options: [
+						{
+							value: 'brand',
+							label: 'Brand',
+							description:
+								'I manage my product catalog, track orders across all sales channels, and work with reps.'
+						},
+						{
+							value: 'rep',
+							label: 'Independent Sales Rep',
+							description:
+								'I represent multiple brands and manage accounts, orders, and commissions.'
+						},
+						{
+							value: 'retailer',
+							label: 'Retailer',
+							description:
+								'I buy wholesale from brands and want my orders and account details in one place.'
+						}
+					]
 				},
 				{
 					id: 'orgName',
@@ -134,12 +164,28 @@
 	const SUBTITLE =
 		"Let's set up your organization — a few quick questions and we'll build out your catalog and accounts.";
 
-	let phaseIndex = $state(0);
+	// Resume: the org row only exists once General Information is done, and its
+	// onboarding_step (1-based phase) tells us which phase to resume at. Reading
+	// `data` once at init is intentional (SSR provides the current value).
+	// svelte-ignore state_referenced_locally
+	let phaseIndex = $state(
+		Math.min(Math.max((data.organization?.onboarding_step ?? 1) - 1, 0), phases.length - 1)
+	);
 	let subIndex = $state(0);
 	let draft = $state('');
 	let completed = $state(false);
 	let subStates = $state<Record<string, 'done' | 'skipped'>>({});
 	let stats = $state<{ n: string; label: string; display: number }[]>([]);
+
+	// General Information answers — held in memory until create-org. Not resumable
+	// pre-org by design (plan §0 decision 2).
+	let values = $state<{
+		name: string;
+		orgType: 'brand' | 'rep' | 'retailer' | null;
+		orgName: string;
+	}>({ name: '', orgType: null, orgName: '' });
+	let loading = $state(false);
+	let errorMsg = $state('');
 
 	// Entrance orchestration state
 	let prefersReduced = $state(false);
@@ -219,10 +265,92 @@
 		advanceGlobal();
 	}
 
-	const answer = () => complete('done');
 	const skip = () => complete('skipped');
 	const prevSub = () => canPrev && subIndex--;
 	const nextSub = () => canNext && subIndex++;
+
+	// Persist the resume cursor (1-based phase) once the org exists. Server-side
+	// via supabaseAdmin — browser writes through @supabase/ssr don't land reliably.
+	async function persistCursor() {
+		await fetch('/api/onboarding/progress', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ onboardingStep: phaseIndex + 1 })
+		}).catch(() => {});
+	}
+
+	function chooseOrgType(value: 'brand' | 'rep' | 'retailer') {
+		values.orgType = value;
+		errorMsg = '';
+		advanceGlobal();
+	}
+
+	// Create the org from the collected General Information, then move into Import
+	// Files. Retailers terminate at creation (create-retailer redirects to /dashboard).
+	async function createOrg() {
+		if (loading) return;
+		loading = true;
+		errorMsg = '';
+		try {
+			if (values.orgType === 'retailer') {
+				const res = await fetch('/api/onboarding/create-retailer', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ retailerName: values.orgName, displayName: values.name })
+				});
+				if (!res.ok) {
+					errorMsg = (await res.json()).error || 'Could not create your organization.';
+					loading = false;
+					return;
+				}
+				window.location.href = '/dashboard';
+				return;
+			}
+
+			const res = await fetch('/api/onboarding/create-org', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					orgName: values.orgName,
+					displayName: values.name,
+					orgType: values.orgType
+				})
+			});
+			if (!res.ok) {
+				errorMsg = (await res.json()).error || 'Could not create your organization.';
+				loading = false;
+				return;
+			}
+			// Re-run load so data.organization is populated before we persist the cursor.
+			await invalidateAll();
+			draft = '';
+			advanceGlobal();
+			await persistCursor();
+		} catch {
+			errorMsg = 'Something went wrong. Please try again.';
+		} finally {
+			loading = false;
+		}
+	}
+
+	// Answering depends on the current sub-step. General Information writes real
+	// data; other phases (P2+) still use the mock advance.
+	function answer() {
+		if (phase.id === 'general') {
+			if (sub.id === 'name') {
+				if (!draft.trim()) return;
+				values.name = draft.trim();
+				draft = '';
+				advanceGlobal();
+			} else if (sub.id === 'orgName') {
+				if (!draft.trim()) return;
+				values.orgName = draft.trim();
+				void createOrg();
+			}
+			return;
+		}
+		complete('done');
+	}
 
 	function onInputKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter' && !e.shiftKey && hasDraft && showConversation) {
@@ -548,15 +676,39 @@
 							></span>{/if}
 					</p>
 
+					{#if sub.kind === 'choice' && inputRevealed}
+						<div
+							class="space-y-2"
+							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+						>
+							{#each sub.options ?? [] as opt (opt.value)}
+								<button
+									onclick={() => chooseOrgType(opt.value)}
+									class="w-full rounded-xl border bg-zinc-800/40 p-4 text-left transition-colors hover:border-zinc-500 hover:bg-zinc-800 active:scale-[0.99] {values.orgType ===
+									opt.value
+										? 'border-zinc-200'
+										: 'border-zinc-700'}"
+								>
+									<p class="text-base font-medium text-zinc-100">{opt.label}</p>
+									<p class="mt-0.5 text-sm text-zinc-400">{opt.description}</p>
+								</button>
+							{/each}
+						</div>
+					{/if}
+
 					{#if sub.kind === 'upload' && inputRevealed}
 						<button
 							onclick={answer}
 							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
-							class="mt-4 w-full rounded-xl border border-dashed border-zinc-600 px-6 py-8 text-center transition-colors hover:border-zinc-400 hover:bg-zinc-800/40"
+							class="w-full rounded-xl border border-dashed border-zinc-600 px-6 py-8 text-center transition-colors hover:border-zinc-400 hover:bg-zinc-800/40"
 						>
 							<p class="text-base font-medium text-zinc-100">{sub.dropTitle}</p>
 							<p class="mt-1 text-sm text-zinc-500">{sub.dropHint}</p>
 						</button>
+					{/if}
+
+					{#if errorMsg}
+						<p class="mt-3 text-sm text-red-400">{errorMsg}</p>
 					{/if}
 
 					{#if !sub.required && inputRevealed}
@@ -585,8 +737,9 @@
 					<input
 						bind:value={draft}
 						onkeydown={onInputKeydown}
+						disabled={loading}
 						placeholder={sub.placeholder}
-						class="w-full bg-transparent px-2 py-2 text-base text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+						class="w-full bg-transparent px-2 py-2 text-base text-zinc-100 placeholder:text-zinc-500 focus:outline-none disabled:opacity-50"
 					/>
 					<div class="mt-2 flex items-center justify-between">
 						<button
@@ -605,7 +758,14 @@
 							</svg>
 						</button>
 
-						{#if hasDraft}
+						{#if loading}
+							<!-- Creating org -->
+							<div class="flex h-9 w-9 items-center justify-center">
+								<div
+									class="h-5 w-5 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200"
+								></div>
+							</div>
+						{:else if hasDraft}
 							<!-- Send -->
 							<button
 								onclick={answer}
