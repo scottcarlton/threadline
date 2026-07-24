@@ -1,1378 +1,707 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import ProductImportFlow from '$lib/components/products/ProductImportFlow.svelte';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
-	import { supabase } from '$lib/supabase.js';
-	import { stripProtocol } from '$lib/utils/website';
+	// P0 — static shell + mock state machine + orchestrated entrance. No
+	// persistence or API calls yet; answering/skipping/chevrons only move the
+	// cursor. Wiring lands in P1+. Copy is provisional and NOT final — run it
+	// against docs/brand/guidelines.md §1.5 before ship (tracked in the plan).
+	//
+	// Entrance choreography (mount):
+	//   t0     greeting types in  +  AI prompt springs up
+	//   ~560ms stepper assembles (progress, then roadmap staggered)
+	//   ~1080ms conversation panel opens → first question types → flow begins
+	import { fade, fly, scale } from 'svelte/transition';
+	import { cubicOut, backOut } from 'svelte/easing';
 
-	let { data } = $props();
-	const existingOrg = $derived(data.organization);
-
-	// For Google OAuth users, pre-fill name from auth metadata
-	let authUserMeta: Record<string, unknown> = {};
-
-	async function loadAuthMeta() {
-		const { data: authData } = await supabase.auth.getUser();
-		if (!authData?.user?.user_metadata) return;
-		authUserMeta = authData.user.user_metadata;
-		if (nameInitialized) return;
-
-		// Google hands us given_name / family_name separately — prefer those over
-		// splitting a single `name` string, which misses compound surnames.
-		const given = String(authUserMeta.given_name ?? '').trim();
-		const family = String(authUserMeta.family_name ?? '').trim();
-		if (given || family) {
-			firstName = given;
-			lastName = family;
-			nameInitialized = true;
-			return;
-		}
-		const fullName = String(authUserMeta.full_name ?? authUserMeta.name ?? '').trim();
-		if (fullName) {
-			const parts = fullName.split(/\s+/);
-			firstName = parts[0] ?? '';
-			lastName = parts.slice(1).join(' ');
-			nameInitialized = true;
-		}
+	type SubKind = 'text' | 'upload';
+	interface SubStep {
+		id: string;
+		question: string;
+		placeholder: string;
+		required?: boolean;
+		kind: SubKind;
+		dropTitle?: string;
+		dropHint?: string;
+	}
+	interface Phase {
+		id: string;
+		title: string;
+		subtitle: string;
+		subs: SubStep[];
 	}
 
-	// Also pre-fill from existing profile display_name
-	const prefillName = $derived(data.user?.display_name ?? '');
-
-	// Hydrate from the persisted onboarding_step so a refresh resumes where
-	// the user left off. Reading `data` once at init is intentional — SSR
-	// already provides the up-to-date value, and after that step is driven
-	// by user action. svelte-ignore state_referenced_locally
-	// svelte-ignore state_referenced_locally
-	let step = $state(data.organization?.onboarding_step ?? 1);
-	// svelte-ignore state_referenced_locally
-	let lastPersistedStep = $state<number | null>(data.organization?.onboarding_step ?? null);
-	let firstName = $state('');
-	let lastName = $state('');
-	let orgName = $state('');
-	let orgType = $state<'rep' | 'brand' | 'retailer' | null>(null);
-	let brandName = $state('');
-	let brandEmail = $state('');
-	let inviteEmail = $state('');
-	let inviteRole = $state<'admin' | 'member' | 'sales' | 'guest'>('member');
-	let inviteCommissionRate = $state<string>('');
-	let loading = $state(false);
-	let error = $state('');
-
-	// Welcome carousel state
-	let carouselIndex = $state(0);
-
-	// Import state
-	let brandImportMode = $state(false);
-	let brandPasteText = $state('');
-	let parsedBrands = $state<
+	// Brand-flavored set for the P0 mock. The org-type-aware matrix (rep/brand)
+	// is P2 — this is representative, not final.
+	const phases: Phase[] = [
 		{
-			name: string;
-			email: string;
-			first_name: string;
-			last_name: string;
-			phone: string;
-			website: string;
-		}[]
-	>([]);
-	let brandFileInput: HTMLInputElement | undefined = $state();
-
-	let memberImportMode = $state(false);
-	let memberPasteText = $state('');
-	let parsedMembers = $state<{ email: string; role: string }[]>([]);
-	let memberFileInput: HTMLInputElement | undefined = $state();
-
-	// CSV/TSV parser
-	function parseCSV(
-		text: string,
-		columnMap: Record<string, string>,
-		defaults: Record<string, string> = {}
-	): Record<string, string>[] {
-		const lines = text
-			.trim()
-			.split('\n')
-			.map((l) => l.trim())
-			.filter(Boolean);
-		if (lines.length === 0) return [];
-
-		// Detect delimiter
-		const firstLine = lines[0];
-		const delimiter = firstLine.includes('\t') ? '\t' : ',';
-
-		// Check if first row is headers
-		const firstCells = firstLine
-			.split(delimiter)
-			.map((c) => c.trim().toLowerCase().replace(/['"]/g, ''));
-		const knownColumns = Object.keys(columnMap);
-		const hasHeaders = firstCells.some((c) => knownColumns.includes(c));
-
-		let headers: string[];
-		let dataStart: number;
-
-		if (hasHeaders) {
-			headers = firstCells;
-			dataStart = 1;
-		} else {
-			// Assume columns in order of columnMap keys
-			headers = knownColumns.slice(0, firstCells.length);
-			dataStart = 0;
-		}
-
-		const rows: Record<string, string>[] = [];
-		for (let i = dataStart; i < lines.length; i++) {
-			const cells = lines[i].split(delimiter).map((c) => c.trim().replace(/^['"]|['"]$/g, ''));
-			const row: Record<string, string> = { ...defaults };
-			for (let j = 0; j < headers.length; j++) {
-				const mapped = columnMap[headers[j]] ?? headers[j];
-				if (cells[j]) row[mapped] = cells[j];
-			}
-			rows.push(row);
-		}
-		return rows;
-	}
-
-	const brandColumnMap: Record<string, string> = {
-		name: 'name',
-		brand: 'name',
-		'brand name': 'name',
-		brand_name: 'name',
-		email: 'email',
-		contact_email: 'email',
-		'contact email': 'email',
-		first_name: 'first_name',
-		'first name': 'first_name',
-		firstname: 'first_name',
-		last_name: 'last_name',
-		'last name': 'last_name',
-		lastname: 'last_name',
-		phone: 'phone',
-		contact_phone: 'phone',
-		'contact phone': 'phone',
-		website: 'website',
-		url: 'website',
-		site: 'website'
-	};
-
-	const memberColumnMap: Record<string, string> = {
-		email: 'email',
-		'email address': 'email',
-		email_address: 'email',
-		role: 'role',
-		'member role': 'role'
-	};
-
-	function parseBrandInput(text: string) {
-		const rows = parseCSV(text, brandColumnMap);
-		parsedBrands = rows
-			.filter((r) => r.name?.trim())
-			.map((r) => ({
-				name: r.name?.trim() ?? '',
-				email: r.email?.trim() ?? '',
-				first_name: r.first_name?.trim() ?? '',
-				last_name: r.last_name?.trim() ?? '',
-				phone: r.phone?.trim() ?? '',
-				website: r.website?.trim() ?? ''
-			}));
-	}
-
-	function parseMemberInput(text: string) {
-		const rows = parseCSV(text, memberColumnMap, { role: 'member' });
-		const validRoles = ['admin', 'member', 'sales', 'guest'];
-		parsedMembers = rows
-			.filter((r) => r.email?.trim() && r.email.includes('@'))
-			.map((r) => ({
-				email: r.email.trim(),
-				role: validRoles.includes(r.role?.toLowerCase()) ? r.role.toLowerCase() : 'member'
-			}));
-	}
-
-	function handleBrandFile(e: Event) {
-		const file = (e.target as HTMLInputElement).files?.[0];
-		if (!file) return;
-		const reader = new FileReader();
-		reader.onload = () => {
-			const text = reader.result as string;
-			brandPasteText = text;
-			parseBrandInput(text);
-		};
-		reader.readAsText(file);
-	}
-
-	function handleMemberFile(e: Event) {
-		const file = (e.target as HTMLInputElement).files?.[0];
-		if (!file) return;
-		const reader = new FileReader();
-		reader.onload = () => {
-			const text = reader.result as string;
-			memberPasteText = text;
-			parseMemberInput(text);
-		};
-		reader.readAsText(file);
-	}
-
-	function removeParsedBrand(index: number) {
-		parsedBrands = parsedBrands.filter((_, i) => i !== index);
-	}
-
-	function removeParsedMember(index: number) {
-		parsedMembers = parsedMembers.filter((_, i) => i !== index);
-	}
-
-	async function importBrands() {
-		if (!orgId || parsedBrands.length === 0) return;
-		loading = true;
-		error = '';
-
-		const rows = parsedBrands.map((b) => ({
-			organization_id: orgId,
-			name: b.name,
-			contact_email: b.email || null,
-			contact_first_name: b.first_name || null,
-			contact_last_name: b.last_name || null,
-			contact_phone: b.phone || null,
-			website: stripProtocol(b.website) || null,
-			is_active: true
-		}));
-
-		const { error: err } = await supabase.from('brands').insert(rows);
-		loading = false;
-		if (err) {
-			error = err.message;
-			return;
-		}
-		step = 5;
-	}
-
-	async function importMembers() {
-		if (parsedMembers.length === 0) return;
-		loading = true;
-		error = '';
-
-		let failed = 0;
-		for (const member of parsedMembers) {
-			const res = await fetch('/api/invite/send', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: member.email, role: member.role, brandIds: [] })
-			});
-			if (!res.ok) failed++;
-		}
-
-		loading = false;
-		if (failed > 0) {
-			error = `${failed} of ${parsedMembers.length} invitations failed to send.`;
-		}
-		step = welcomeStep;
-	}
-
-	const displayName = $derived(`${firstName.trim()} ${lastName.trim()}`.trim());
-
-	// Track org created during onboarding
-	let createdOrgId = $state<string | null>(null);
-	const orgId = $derived(existingOrg?.id ?? createdOrgId);
-
-	let nameInitialized = false;
-	let orgNameInitialized = false;
-
-	// Load auth metadata on mount (for Google OAuth name pre-fill)
-	$effect(() => {
-		loadAuthMeta();
-	});
-
-	$effect(() => {
-		if (prefillName && !nameInitialized && !prefillName.includes('@')) {
-			const parts = prefillName.split(' ');
-			firstName = parts[0] ?? '';
-			lastName = parts.slice(1).join(' ') ?? '';
-			nameInitialized = true;
-		}
-	});
-
-	$effect(() => {
-		if (existingOrg?.name && !orgNameInitialized) {
-			orgName = existingOrg.name;
-			orgNameInitialized = true;
-		}
-	});
-
-	// If user already has an org (e.g. from old signup flow), skip to step that makes sense
-	$effect(() => {
-		if (existingOrg && step === 1) {
-			if (data.user?.display_name) {
-				step = 2;
-			}
-		}
-	});
-
-	// Skip the name step entirely when we already have both first AND last name
-	// (e.g. Google OAuth handed them to us, or an existing display_name parsed
-	// cleanly). If only one is present, show step 1 so the user can fill in the
-	// missing half — we require both on this flow. Flag-guarded so going back
-	// to step 1 to edit doesn't re-auto-advance.
-	let nameStepSkipped = false;
-	$effect(() => {
-		if (step === 1 && nameInitialized && firstName.trim() && lastName.trim() && !nameStepSkipped) {
-			nameStepSkipped = true;
-			step = 2;
-		}
-	});
-
-	// Total steps for the indicator (brand skips step 4)
-	const effectiveOrgType = $derived(orgType ?? 'rep');
-	const stepLabels = $derived(
-		effectiveOrgType === 'retailer'
-			? [
-					{ number: 1, label: 'Your Name' },
-					{ number: 2, label: 'Your Business' },
-					{ number: 3, label: 'Business Type' }
-				]
-			: effectiveOrgType === 'brand'
-				? [
-						{ number: 1, label: 'Your Name' },
-						{ number: 2, label: 'Your Business' },
-						{ number: 3, label: 'Business Type' },
-						{ number: 4, label: 'Catalog' },
-						{ number: 5, label: 'Invite Members' },
-						{ number: 6, label: 'Get Started' }
-					]
-				: [
-						{ number: 1, label: 'Your Name' },
-						{ number: 2, label: 'Your Business' },
-						{ number: 3, label: 'Business Type' },
-						{ number: 4, label: 'First Brand' },
-						{ number: 5, label: 'Invite Members' },
-						{ number: 6, label: 'Get Started' }
-					]
-	);
-
-	// Welcome carousel slides
-	const repSlides = [
-		{
-			title: 'Manage all your brands in one place',
-			description: 'Track orders, commissions, and accounts across every brand you represent.',
-			icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
+			id: 'general',
+			title: 'General Information',
+			subtitle: 'Name, Organization Type and Organization Name',
+			subs: [
+				{
+					id: 'name',
+					question: "Hello. Let's get you set up — first, what should I call you?",
+					placeholder: 'First and last name',
+					required: true,
+					kind: 'text'
+				},
+				{
+					id: 'orgType',
+					question: 'What kind of organization are you setting up?',
+					placeholder: 'Choose your organization type',
+					required: true,
+					kind: 'text'
+				},
+				{
+					id: 'orgName',
+					question: 'And what should we call your organization?',
+					placeholder: 'Organization name',
+					required: true,
+					kind: 'text'
+				}
+			]
 		},
 		{
-			title: 'AI-powered insights',
-			description:
-				'Ask questions in plain English. Get instant answers about revenue, commissions, and account health.',
-			icon: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z'
+			id: 'import',
+			title: 'Import Files',
+			subtitle: 'Upload members, accounts, products, and orders',
+			subs: [
+				{
+					id: 'accounts',
+					question: "Add the accounts you sell to. Drop a file and I'll bring them in.",
+					placeholder: 'You can paste your data here too…',
+					kind: 'upload',
+					dropTitle: 'Drop your account list',
+					dropHint: "Add a CSV or PDF file and I'll get to work on it."
+				},
+				{
+					id: 'products',
+					question: "Add your product catalog. Drop your line sheet and I'll read it.",
+					placeholder: 'You can paste your data here too…',
+					kind: 'upload',
+					dropTitle: 'Drop your product list',
+					dropHint: "Add a CSV or PDF file and I'll get to work on it."
+				},
+				{
+					id: 'orders',
+					question: "Have existing orders? Drop them in and I'll match them up.",
+					placeholder: 'You can paste your data here too…',
+					kind: 'upload',
+					dropTitle: 'Drop your orders',
+					dropHint: "Add a CSV or PDF file and I'll get to work on it."
+				}
+			]
 		},
 		{
-			title: 'Connect with brands',
-			description:
-				"Link your Threadline to a brand's for shared order visibility and authoritative pricing.",
-			icon: 'M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.182-9.182a4.5 4.5 0 00-6.364 6.364l4.5 4.5a4.5 4.5 0 006.364-6.364l-1.757-1.757'
+			id: 'settings',
+			title: 'Settings',
+			subtitle: 'Add details about your organization',
+			subs: [
+				{
+					id: 'address',
+					question: "Where's your business based?",
+					placeholder: 'Business address',
+					kind: 'text'
+				},
+				{
+					id: 'terms',
+					question: 'What payment terms do you offer by default?',
+					placeholder: 'e.g. Net 30',
+					kind: 'text'
+				}
+			]
+		},
+		{
+			id: 'integrations',
+			title: 'Integrations',
+			subtitle: 'Connect external resources for your organization.',
+			subs: [
+				{
+					id: 'accounting',
+					question: 'Want to connect your accounting? I can sync orders to QuickBooks.',
+					placeholder: 'Search integrations…',
+					kind: 'text'
+				},
+				{
+					id: 'email',
+					question: 'Connect your email and calendar to keep everything in one place.',
+					placeholder: 'Search integrations…',
+					kind: 'text'
+				}
+			]
 		}
 	];
 
-	const brandSlides = [
-		{
-			title: 'Your product catalog, centralized',
-			description: 'Manage your full product line with variants, pricing, and images in one place.',
-			icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
-		},
-		{
-			title: 'See orders from every channel',
-			description:
-				'Connected reps auto-share orders. Internal team members enter theirs directly. One unified view.',
-			icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
-		},
-		{
-			title: 'AI that knows your business',
-			description:
-				'Ask about top accounts, rep performance, product trends — get answers instantly.',
-			icon: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z'
-		}
-	];
+	const WELCOME = 'Welcome to Threadline';
+	const SUBTITLE =
+		"Let's set up your organization — a few quick questions and we'll build out your catalog and accounts.";
 
-	const slides = $derived(effectiveOrgType === 'brand' ? brandSlides : repSlides);
+	let phaseIndex = $state(0);
+	let subIndex = $state(0);
+	let draft = $state('');
+	let completed = $state(false);
+	let subStates = $state<Record<string, 'done' | 'skipped'>>({});
+	let stats = $state<{ n: string; label: string; display: number }[]>([]);
 
-	async function saveName() {
-		if (!firstName.trim() || !lastName.trim()) return;
-		loading = true;
-		error = '';
+	// Entrance orchestration state
+	let prefersReduced = $state(false);
+	let welcomeTyped = $state('');
+	let welcomeTyping = $state(false);
+	let subtitleTyped = $state('');
+	let subtitleTyping = $state(false);
+	let showPrompt = $state(false);
+	let showStepper = $state(false);
+	let showConversation = $state(false);
 
-		if (existingOrg) {
-			const { error: err } = await supabase
-				.from('profiles')
-				.update({ display_name: displayName })
-				.eq('id', data.user.id);
+	// Question typewriter state
+	let typed = $state('');
+	let typing = $state(false);
+	let inputRevealed = $state(false);
 
-			loading = false;
-			if (err) {
-				error = err.message;
-				return;
-			}
-			step = 2;
-			return;
-		}
+	const phase = $derived(phases[phaseIndex]);
+	const sub = $derived(phase.subs[subIndex]);
+	const questionCount = $derived(phase.subs.length);
+	const canPrev = $derived(subIndex > 0);
+	const canNext = $derived(subIndex < questionCount - 1);
+	const hasDraft = $derived(draft.trim().length > 0);
+	const revealMs = $derived(prefersReduced ? 0 : 320);
 
-		loading = false;
-		step = 2;
+	const cursorKey = (p: number, s: number) => `${p}.${s}`;
+
+	function phaseState(i: number): 'done' | 'active' | 'upcoming' {
+		if (completed) return 'done';
+		if (i < phaseIndex) return 'done';
+		if (i === phaseIndex) return 'active';
+		return 'upcoming';
 	}
 
-	async function saveOrg() {
-		if (!orgName.trim()) return;
-		loading = true;
-		error = '';
+	// Mock stat cards — in P2 these come from real import row counts.
+	const STAT_DEMO: Record<string, { n: string; label: string }> = {
+		accounts: { n: '500', label: 'Accounts Added' },
+		products: { n: '312', label: 'Products Added' },
+		orders: { n: '48', label: 'Orders Added' }
+	};
 
-		if (existingOrg) {
-			const { error: err } = await supabase
-				.from('organizations')
-				.update({ name: orgName.trim() })
-				.eq('id', existingOrg.id);
-
-			loading = false;
-			if (err) {
-				error = err.message;
-				return;
-			}
-			step = 3;
-			return;
-		}
-
-		loading = false;
-		step = 3;
+	function addStat(demo: { n: string; label: string }) {
+		const idx = stats.length;
+		const target = Number(demo.n);
+		stats = [...stats, { n: demo.n, label: demo.label, display: prefersReduced ? target : 0 }];
+		if (prefersReduced) return;
+		// Count-up micro-interaction.
+		const start = performance.now();
+		const dur = 700;
+		const step = (t: number) => {
+			const p = Math.min(1, (t - start) / dur);
+			const eased = 1 - Math.pow(1 - p, 3);
+			const row = stats[idx];
+			if (row) row.display = Math.round(target * eased);
+			if (p < 1) requestAnimationFrame(step);
+		};
+		requestAnimationFrame(step);
 	}
 
-	async function saveOrgType() {
-		if (!orgType) return;
-		loading = true;
-		error = '';
-
-		if (!existingOrg) {
-			const res = await fetch('/api/onboarding/create-org', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					orgName: orgName.trim(),
-					displayName: displayName,
-					orgType
-				})
-			});
-
-			loading = false;
-
-			if (!res.ok) {
-				const body = await res.json();
-				error = body.error || 'Failed to create organization';
-				return;
-			}
-
-			const { organization } = await res.json();
-			createdOrgId = organization.id;
-			// Re-run the load fn so data.organization is populated on the
-			// client. Without this, ensureSelfBrandId at commit time sees
-			// a null org and the import fails silently.
-			await invalidateAll();
+	function advanceGlobal() {
+		if (subIndex < phase.subs.length - 1) {
+			subIndex++;
+		} else if (phaseIndex < phases.length - 1) {
+			phaseIndex++;
+			subIndex = 0;
 		} else {
-			const { error: err } = await supabase
-				.from('organizations')
-				.update({ org_type: orgType })
-				.eq('id', existingOrg.id);
-
-			loading = false;
-			if (err) {
-				error = err.message;
-				return;
-			}
+			completed = true;
 		}
-
-		// Brand orgs go to Catalog (self-brand is auto-created by trigger).
-		// Rep orgs go to their First Brand step.
-		step = effectiveOrgType === 'brand' ? catalogStep : 4;
 	}
 
-	async function saveRetailerType() {
-		loading = true;
-		error = '';
+	function complete(state: 'done' | 'skipped') {
+		subStates[cursorKey(phaseIndex, subIndex)] = state;
+		if (state === 'done' && phase.id === 'import') {
+			const demo = STAT_DEMO[sub.id];
+			if (demo && !stats.some((s) => s.label === demo.label)) addStat(demo);
+		}
+		draft = '';
+		advanceGlobal();
+	}
 
-		const res = await fetch('/api/onboarding/create-retailer', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				retailerName: orgName.trim(),
-				displayName: displayName
-			})
+	const answer = () => complete('done');
+	const skip = () => complete('skipped');
+	const prevSub = () => canPrev && subIndex--;
+	const nextSub = () => canNext && subIndex++;
+
+	function onInputKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' && !e.shiftKey && hasDraft && showConversation) {
+			e.preventDefault();
+			answer();
+		}
+	}
+
+	// Motion actions — spring physics for the two hero moments. Both start hidden
+	// (inline opacity:0) and end visible even under reduced-motion.
+	function springUp(node: HTMLElement, y = 56) {
+		const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		if (reduced) {
+			node.style.opacity = '1';
+			return;
+		}
+		import('motion').then(({ animate }) => {
+			animate(node, { opacity: [0, 1], y: [y, 0] } as Parameters<typeof animate>[1], {
+				type: 'spring',
+				stiffness: 300,
+				damping: 30,
+				mass: 1
+			});
 		});
-
-		loading = false;
-
-		if (!res.ok) {
-			const body = await res.json();
-			error = body.error || 'Failed to create retailer';
-			return;
-		}
-
-		// createRetailer sets onboarding_completed_at atomically at creation, so
-		// there is nothing left to write here — just enter the buyer portal.
-		await res.json();
-		window.location.href = '/dashboard';
 	}
 
-	async function saveBrand() {
-		if (!brandName.trim()) {
-			step = 5;
+	function openPanel(node: HTMLElement) {
+		const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		if (reduced) {
+			node.style.opacity = '1';
 			return;
 		}
-		if (!orgId) {
-			error = 'Organization not found. Please go back.';
-			return;
-		}
-		loading = true;
-		error = '';
-
-		const { error: err } = await supabase.from('brands').insert({
-			organization_id: orgId,
-			name: brandName.trim(),
-			contact_email: brandEmail.trim() || null,
-			is_active: true
+		node.style.transformOrigin = 'bottom center';
+		import('motion').then(({ animate }) => {
+			animate(
+				node,
+				{ opacity: [0, 1], transform: ['scale(0.96)', 'scale(1)'] } as Parameters<
+					typeof animate
+				>[1],
+				{ type: 'spring', stiffness: 420, damping: 32, mass: 0.9 }
+			);
 		});
-
-		loading = false;
-		if (err) {
-			error = err.message;
-			return;
-		}
-		step = 5;
 	}
 
-	// Catalog step is brand-only, sits between Business Type and Invite Members
-	const catalogStep = 4;
-	// Invite step number depends on org type
-	const inviteStep = $derived(effectiveOrgType === 'brand' ? 5 : 5);
-	const welcomeStep = $derived(effectiveOrgType === 'brand' ? 6 : 6);
-
-	// ── Catalog step (brand onboarding) ────────────────────────────────────
-	// The full import flow (tabs → loading stages → preview → commit) lives
-	// in <ProductImportFlow>. This page just resolves the destination brand
-	// (the org's auto-created self-brand) via `ensureSelfBrandId` and
-	// advances the wizard on completion.
-	let importBrandId = $state<string | null>(null);
-
-	async function ensureSelfBrandId(): Promise<string | null> {
-		if (importBrandId) return importBrandId;
-		if (!data.organization) return null;
-		const { data: selfBrand } = await supabase
-			.from('brands')
-			.select('id')
-			.eq('organization_id', data.organization.id)
-			.eq('is_self_brand', true)
-			.maybeSingle();
-		if (!selfBrand) return null;
-		importBrandId = selfBrand.id;
-		return selfBrand.id;
-	}
-
-	function skipCatalog() {
-		step = inviteStep;
-	}
-
-	async function sendInvite() {
-		if (!inviteEmail.trim()) {
-			step = welcomeStep;
-			return;
-		}
-		loading = true;
-		error = '';
-
-		const res = await fetch('/api/invite/send', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				email: inviteEmail.trim(),
-				role: inviteRole,
-				brandIds: [],
-				commissionRate: inviteRole === 'sales' ? parseFloat(inviteCommissionRate) || 0 : undefined
-			})
-		});
-
-		loading = false;
-		if (!res.ok) {
-			const body = await res.json();
-			error = body.error || 'Failed to send invitation';
-			return;
-		}
-		step = welcomeStep;
-	}
-
-	function goBack() {
-		if (step === 1) return;
-		step = step - 1;
-	}
-
-	async function finish() {
-		// Mark onboarding complete so the next /onboarding visit bounces to
-		// /insight instead of resuming the wizard.
-		if (data.organization) {
-			await supabase
-				.from('organizations')
-				.update({ onboarding_completed_at: new Date().toISOString() })
-				.eq('id', data.organization.id);
-		}
-		window.location.href = '/insight';
-	}
-
-	// Persist step transitions so a refresh mid-onboarding resumes here
-	// rather than starting over.
+	// Orchestrate the entrance once on mount.
+	let didEnter = false;
 	$effect(() => {
-		const orgId = data.organization?.id;
-		if (!orgId) return;
-		if (step === lastPersistedStep) return;
-		const newStep = step;
-		void supabase.from('organizations').update({ onboarding_step: newStep }).eq('id', orgId);
-		lastPersistedStep = newStep;
+		if (didEnter) return;
+		didEnter = true;
+		prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		if (prefersReduced) {
+			welcomeTyped = WELCOME;
+			subtitleTyped = SUBTITLE;
+			showPrompt = true;
+			showStepper = true;
+			showConversation = true;
+			return;
+		}
+
+		const timers: ReturnType<typeof setTimeout>[] = [];
+
+		// t0 — greeting heading types + prompt springs up (prompt shown via {#if}).
+		showPrompt = true;
+		welcomeTyping = true;
+		let hi = 0;
+		const headingId = setInterval(() => {
+			hi++;
+			welcomeTyped = WELCOME.slice(0, hi);
+			if (hi >= WELCOME.length) {
+				clearInterval(headingId);
+				welcomeTyping = false;
+				// Subtitle types right behind the heading (faster).
+				subtitleTyping = true;
+				let si = 0;
+				const subId = setInterval(() => {
+					si++;
+					subtitleTyped = SUBTITLE.slice(0, si);
+					if (si >= SUBTITLE.length) {
+						clearInterval(subId);
+						subtitleTyping = false;
+						// Greeting done → assemble stepper, then open the panel.
+						showStepper = true;
+						timers.push(setTimeout(() => (showConversation = true), 620));
+					}
+				}, 12);
+				timers.push(subId);
+			}
+		}, 30);
+		timers.push(headingId);
+
+		return () =>
+			timers.forEach((t) => {
+				clearInterval(t);
+				clearTimeout(t);
+			});
+	});
+
+	// Question typewriter — only after the conversation panel opens; retype on
+	// every question change.
+	$effect(() => {
+		const full = sub.question;
+		if (!showConversation) {
+			typed = '';
+			typing = false;
+			inputRevealed = false;
+			return;
+		}
+		inputRevealed = false;
+		const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		if (reduced) {
+			typed = full;
+			typing = false;
+			inputRevealed = true;
+			return;
+		}
+		typed = '';
+		typing = true;
+		let i = 0;
+		const id = setInterval(() => {
+			i++;
+			typed = full.slice(0, i);
+			if (i >= full.length) {
+				clearInterval(id);
+				typing = false;
+				inputRevealed = true;
+			}
+		}, 22);
+		return () => clearInterval(id);
 	});
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-background">
-	<div class="w-full max-w-2xl px-6">
-		<!-- Logo (hidden on welcome step) -->
-		{#if step < welcomeStep}
-			<div class="mb-8 text-center">
-				<div
-					class="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-none bg-primary text-lg font-light text-primary-foreground italic"
-				>
-					/
-				</div>
-				<h1 class="text-xl font-semibold">Welcome to Threadline</h1>
-				<p class="mt-1 text-sm text-muted-foreground">Let's get your workspace set up</p>
+<svelte:head>
+	<title>Welcome to Threadline</title>
+</svelte:head>
+
+<div class="min-h-dvh bg-background text-foreground">
+	<!-- Scrolling content: same max-w-2xl column as the dock, with px-6 so the text
+	     is inset 24px on both sides. -->
+	<div class="mx-auto max-w-2xl px-6 pt-20 pb-[380px] lg:pt-24">
+		<!-- Brand mark (static) -->
+		<div class="flex justify-center">
+			<div
+				class="flex h-12 w-12 items-center justify-center rounded-[2px] bg-foreground text-background"
+			>
+				<svg viewBox="0 0 43 43" fill="none" class="h-6 w-6" aria-hidden="true">
+					<path d="M11 42.5L24.8799 1H31.5899L17.71 42.5H11Z" fill="currentColor" />
+				</svg>
 			</div>
-		{/if}
-
-		<!-- Content -->
-		<div class="space-y-6">
-			{#if error}
-				<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-					{error}
-				</div>
-			{/if}
-
-			{#if step === 1}
-				<div class="space-y-5">
-					<div>
-						<h2 class="text-lg font-semibold">What's your name?</h2>
-						<p class="mt-1 text-sm text-muted-foreground">
-							This is how your team will see you in Threadline.
-						</p>
-					</div>
-					<form
-						onsubmit={(e) => {
-							e.preventDefault();
-							saveName();
-						}}
-						class="space-y-4"
-					>
-						<div class="grid grid-cols-2 gap-4">
-							<div class="space-y-2">
-								<Label for="first-name">First name</Label>
-								<Input id="first-name" bind:value={firstName} placeholder="Jane" required />
-							</div>
-							<div class="space-y-2">
-								<Label for="last-name">Last name</Label>
-								<Input id="last-name" bind:value={lastName} placeholder="Smith" required />
-							</div>
-						</div>
-						<Button
-							size="lg"
-							type="submit"
-							class="h-12 w-full text-base"
-							disabled={loading || !firstName.trim() || !lastName.trim()}
-						>
-							{loading ? 'Saving...' : 'Continue'}
-						</Button>
-					</form>
-				</div>
-			{:else if step === 2}
-				<div class="space-y-5">
-					<button
-						class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-						onclick={goBack}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-3.5 w-3.5"
-							fill="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
-							/>
-						</svg>
-						Back
-					</button>
-					<div>
-						<h2 class="text-lg font-semibold">Name your business</h2>
-						<p class="mt-1 text-sm text-muted-foreground">
-							This is your organization in Threadline — where you'll manage brands, accounts, and
-							orders.
-						</p>
-					</div>
-					<form
-						onsubmit={(e) => {
-							e.preventDefault();
-							saveOrg();
-						}}
-						class="space-y-4"
-					>
-						<div class="space-y-2">
-							<Label for="org-name">Business name</Label>
-							<Input id="org-name" bind:value={orgName} placeholder="Your Company Inc." required />
-						</div>
-						<Button
-							size="lg"
-							type="submit"
-							class="h-12 w-full text-base"
-							disabled={loading || !orgName.trim()}
-						>
-							{loading ? 'Creating...' : 'Continue'}
-						</Button>
-					</form>
-				</div>
-			{:else if step === 3}
-				<div class="space-y-5">
-					<button
-						class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-						onclick={goBack}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-3.5 w-3.5"
-							fill="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
-							/>
-						</svg>
-						Back
-					</button>
-					<div>
-						<h2 class="text-lg font-semibold">What best describes your business?</h2>
-						<p class="mt-1 text-sm text-muted-foreground">
-							This determines your Threadline experience. You can always adjust later.
-						</p>
-					</div>
-					<div class="grid grid-cols-3 gap-3">
-						<button
-							class="group flex h-full w-full flex-col items-start gap-3 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
-							'brand'
-								? 'border-foreground'
-								: 'border-border hover:border-foreground'}"
-							onclick={() => {
-								orgType = 'brand';
-								saveOrgType();
-							}}
-						>
-							<div
-								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
-								'brand'
-									? 'bg-foreground text-background'
-									: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-semibold">Brand</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									I manage my product catalog, track orders across all sales channels, and work with
-									reps.
-								</p>
-							</div>
-						</button>
-						<button
-							class="group flex h-full w-full flex-col items-start gap-3 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
-							'rep'
-								? 'border-foreground'
-								: 'border-border hover:border-foreground'}"
-							onclick={() => {
-								orgType = 'rep';
-								saveOrgType();
-							}}
-						>
-							<div
-								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
-								'rep'
-									? 'bg-foreground text-background'
-									: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-semibold">Independent Sales Rep</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									I represent multiple brands and manage accounts, orders, and commissions.
-								</p>
-							</div>
-						</button>
-						<button
-							class="group flex h-full w-full flex-col items-start gap-3 rounded-lg border p-5 text-left transition-colors duration-200 {orgType ===
-							'retailer'
-								? 'border-foreground'
-								: 'border-border hover:border-foreground'}"
-							onclick={() => {
-								orgType = 'retailer';
-								saveRetailerType();
-							}}
-						>
-							<div
-								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {orgType ===
-								'retailer'
-									? 'bg-foreground text-background'
-									: 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'}"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-5 w-5"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-									/>
-								</svg>
-							</div>
-							<div>
-								<p class="text-sm font-semibold">Retailer</p>
-								<p class="mt-0.5 text-sm text-muted-foreground">
-									I buy wholesale from brands and want my orders and account details in one place.
-								</p>
-							</div>
-						</button>
-					</div>
-				</div>
-			{:else if step === catalogStep && effectiveOrgType === 'brand'}
-				<div class="space-y-5">
-					<button
-						class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-						onclick={goBack}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-3.5 w-3.5"
-							fill="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
-							/>
-						</svg>
-						Back
-					</button>
-					<div>
-						<h2 class="text-lg font-semibold">Add your products</h2>
-						<p class="mt-1 text-sm text-muted-foreground">
-							Import your products by uploading a PDF or CSV file or paste a CSV
-						</p>
-					</div>
-
-					<ProductImportFlow
-						brand={ensureSelfBrandId}
-						seasons={data.seasons}
-						onComplete={() => (step = inviteStep)}
-					/>
-				</div>
-			{:else if step === 4 && effectiveOrgType === 'rep'}
-				<div class="space-y-5">
-					<button
-						class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-						onclick={goBack}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-3.5 w-3.5"
-							fill="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
-							/>
-						</svg>
-						Back
-					</button>
-					<div>
-						<h2 class="text-lg font-semibold">Add your brands</h2>
-						<p class="mt-1 text-sm text-muted-foreground">
-							Brands are the fashion labels you represent. You can always add more later.
-						</p>
-					</div>
-
-					{#if !brandImportMode}
-						<!-- Single brand form -->
-						<form
-							onsubmit={(e) => {
-								e.preventDefault();
-								saveBrand();
-							}}
-							class="space-y-4"
-						>
-							<div class="space-y-2">
-								<Label for="brand-name">Brand name</Label>
-								<Input id="brand-name" bind:value={brandName} placeholder="e.g. Acme Fashion" />
-							</div>
-							<div class="space-y-2">
-								<Label for="brand-email"
-									>Contact email <span class="text-muted-foreground">(optional)</span></Label
-								>
-								<Input
-									id="brand-email"
-									type="email"
-									bind:value={brandEmail}
-									placeholder="contact@brand.com"
-								/>
-							</div>
-							<Button size="lg" type="submit" class="h-12 w-full text-base" disabled={loading}>
-								{loading ? 'Adding...' : 'Add Brand'}
-							</Button>
-						</form>
-						<button
-							class="text-sm text-muted-foreground transition-colors hover:text-foreground"
-							onclick={() => (brandImportMode = true)}
-						>
-							Import multiple brands
-						</button>
-					{:else}
-						<!-- Import mode -->
-						<div class="space-y-4">
-							<div class="space-y-2">
-								<Label for="brand-paste">Paste from spreadsheet or CSV</Label>
-								<textarea
-									id="brand-paste"
-									bind:value={brandPasteText}
-									oninput={() => parseBrandInput(brandPasteText)}
-									rows="5"
-									placeholder="name, email, phone, website&#10;Acme Fashion, hello@acme.com, 555-1234, acme.com&#10;Beta Label, info@beta.com"
-									class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-								></textarea>
-							</div>
-
-							<div class="flex items-center gap-3">
-								<div class="h-px flex-1 bg-border"></div>
-								<span class="text-sm text-muted-foreground">or</span>
-								<div class="h-px flex-1 bg-border"></div>
-							</div>
-
-							<div>
-								<input
-									type="file"
-									accept=".csv,.tsv,.txt"
-									bind:this={brandFileInput}
-									onchange={handleBrandFile}
-									class="hidden"
-								/>
-								<Button variant="outline" class="w-full" onclick={() => brandFileInput?.click()}>
-									Upload CSV file
-								</Button>
-							</div>
-
-							<!-- Preview table -->
-							{#if parsedBrands.length > 0}
-								<div class="space-y-2">
-									<p class="text-sm font-medium">
-										{parsedBrands.length} brand{parsedBrands.length !== 1 ? 's' : ''} found
-									</p>
-									<div class="max-h-48 overflow-y-auto rounded-md border">
-										<table class="w-full text-sm">
-											<thead class="sticky top-0 bg-muted">
-												<tr>
-													<th class="px-3 py-2 text-left font-medium">Name</th>
-													<th class="px-3 py-2 text-left font-medium">Email</th>
-													<th class="w-8 px-3 py-2"></th>
-												</tr>
-											</thead>
-											<tbody>
-												{#each parsedBrands as brand, i (i)}
-													<tr class="border-t">
-														<td class="px-3 py-2">{brand.name}</td>
-														<td class="px-3 py-2 text-muted-foreground">{brand.email || '—'}</td>
-														<td class="px-3 py-2">
-															<button
-																aria-label="Remove brand"
-																class="text-muted-foreground hover:text-destructive"
-																onclick={() => removeParsedBrand(i)}
-															>
-																<svg
-																	xmlns="http://www.w3.org/2000/svg"
-																	class="h-4 w-4"
-																	fill="none"
-																	viewBox="0 0 24 24"
-																	stroke="currentColor"
-																	stroke-width="2"
-																>
-																	<path
-																		stroke-linecap="round"
-																		stroke-linejoin="round"
-																		d="M6 18L18 6M6 6l12 12"
-																	/>
-																</svg>
-															</button>
-														</td>
-													</tr>
-												{/each}
-											</tbody>
-										</table>
-									</div>
-									<Button
-										size="lg"
-										class="h-12 w-full text-base"
-										disabled={loading}
-										onclick={importBrands}
-									>
-										{loading
-											? 'Importing...'
-											: `Import ${parsedBrands.length} Brand${parsedBrands.length !== 1 ? 's' : ''}`}
-									</Button>
-								</div>
-							{/if}
-						</div>
-						<button
-							class="text-sm text-muted-foreground transition-colors hover:text-foreground"
-							onclick={() => {
-								brandImportMode = false;
-								parsedBrands = [];
-								brandPasteText = '';
-							}}
-						>
-							Add a single brand instead
-						</button>
-					{/if}
-				</div>
-			{:else if step === inviteStep || (step === 5 && effectiveOrgType === 'rep')}
-				<div class="space-y-5">
-					<button
-						class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-						onclick={goBack}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-3.5 w-3.5"
-							fill="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								d="M22.0003 13.0001L22.0004 11.0002L5.82845 11.0002L9.77817 7.05044L8.36396 5.63623L2 12.0002L8.36396 18.3642L9.77817 16.9499L5.8284 13.0002L22.0003 13.0001Z"
-							/>
-						</svg>
-						Back
-					</button>
-					<div>
-						<h2 class="text-lg font-semibold">Invite your team</h2>
-						<p class="mt-1 text-sm text-muted-foreground">
-							Collaborate with your team by inviting them to your organization.
-						</p>
-					</div>
-
-					{#if !memberImportMode}
-						<!-- Single invite form -->
-						<form
-							onsubmit={(e) => {
-								e.preventDefault();
-								sendInvite();
-							}}
-							class="space-y-4"
-						>
-							<div class="space-y-2">
-								<Label for="invite-email">Email address</Label>
-								<Input
-									id="invite-email"
-									type="email"
-									bind:value={inviteEmail}
-									placeholder="teammate@example.com"
-								/>
-							</div>
-							<div class="space-y-2">
-								<Label for="invite-role">Role</Label>
-								<select
-									id="invite-role"
-									class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-									bind:value={inviteRole}
-								>
-									<option value="admin">Admin</option>
-									<option value="member">Member</option>
-									<option value="sales">Sales</option>
-									<option value="guest">Guest</option>
-								</select>
-							</div>
-							{#if inviteRole === 'sales'}
-								<div class="space-y-2">
-									<Label for="invite-commission">Commission rate (%)</Label>
-									<Input
-										id="invite-commission"
-										type="number"
-										min="0"
-										max="100"
-										step="0.25"
-										placeholder="0"
-										bind:value={inviteCommissionRate}
-									/>
-									<p class="text-sm text-muted-foreground">
-										Applied to every order this rep writes. You can override per-brand later.
-									</p>
-								</div>
-							{/if}
-							<Button size="lg" type="submit" class="h-12 w-full text-base" disabled={loading}>
-								{loading ? 'Sending...' : 'Send Invite'}
-							</Button>
-						</form>
-						<button
-							class="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-							onclick={() => (memberImportMode = true)}
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-4 w-4"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-								stroke-width="1.75"
-								aria-hidden="true"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 7.5 12 3m0 0 4.5 4.5M12 3v13.5"
-								/>
-							</svg>
-							Import Members
-						</button>
-					{:else}
-						<!-- Import mode -->
-						<div class="space-y-4">
-							<div class="space-y-2">
-								<Label for="member-paste">Paste from spreadsheet or CSV</Label>
-								<textarea
-									id="member-paste"
-									bind:value={memberPasteText}
-									oninput={() => parseMemberInput(memberPasteText)}
-									rows="5"
-									placeholder="email, role&#10;alice@example.com, member&#10;bob@example.com, admin&#10;carol@example.com"
-									class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-								></textarea>
-							</div>
-
-							<div class="flex items-center gap-3">
-								<div class="h-px flex-1 bg-border"></div>
-								<span class="text-sm text-muted-foreground">or</span>
-								<div class="h-px flex-1 bg-border"></div>
-							</div>
-
-							<div>
-								<input
-									type="file"
-									accept=".csv,.tsv,.txt"
-									bind:this={memberFileInput}
-									onchange={handleMemberFile}
-									class="hidden"
-								/>
-								<Button variant="outline" class="w-full" onclick={() => memberFileInput?.click()}>
-									Upload CSV file
-								</Button>
-							</div>
-
-							<!-- Preview table -->
-							{#if parsedMembers.length > 0}
-								<div class="space-y-2">
-									<p class="text-sm font-medium">
-										{parsedMembers.length} member{parsedMembers.length !== 1 ? 's' : ''} found
-									</p>
-									<div class="max-h-48 overflow-y-auto rounded-md border">
-										<table class="w-full text-sm">
-											<thead class="sticky top-0 bg-muted">
-												<tr>
-													<th class="px-3 py-2 text-left font-medium">Email</th>
-													<th class="px-3 py-2 text-left font-medium">Role</th>
-													<th class="w-8 px-3 py-2"></th>
-												</tr>
-											</thead>
-											<tbody>
-												{#each parsedMembers as member, i (i)}
-													<tr class="border-t">
-														<td class="px-3 py-2">{member.email}</td>
-														<td class="px-3 py-2 text-muted-foreground capitalize">{member.role}</td
-														>
-														<td class="px-3 py-2">
-															<button
-																aria-label="Remove member"
-																class="text-muted-foreground hover:text-destructive"
-																onclick={() => removeParsedMember(i)}
-															>
-																<svg
-																	xmlns="http://www.w3.org/2000/svg"
-																	class="h-4 w-4"
-																	fill="none"
-																	viewBox="0 0 24 24"
-																	stroke="currentColor"
-																	stroke-width="2"
-																>
-																	<path
-																		stroke-linecap="round"
-																		stroke-linejoin="round"
-																		d="M6 18L18 6M6 6l12 12"
-																	/>
-																</svg>
-															</button>
-														</td>
-													</tr>
-												{/each}
-											</tbody>
-										</table>
-									</div>
-									<Button
-										size="lg"
-										class="h-12 w-full text-base"
-										disabled={loading}
-										onclick={importMembers}
-									>
-										{loading
-											? 'Sending invites...'
-											: `Invite ${parsedMembers.length} Member${parsedMembers.length !== 1 ? 's' : ''}`}
-									</Button>
-								</div>
-							{/if}
-						</div>
-						<button
-							class="text-sm text-muted-foreground transition-colors hover:text-foreground"
-							onclick={() => {
-								memberImportMode = false;
-								parsedMembers = [];
-								memberPasteText = '';
-							}}
-						>
-							Invite a single member instead
-						</button>
-					{/if}
-				</div>
-			{:else if step === welcomeStep}
-				<!-- Welcome / Get Started carousel -->
-				<div class="space-y-8 text-center">
-					<!-- Carousel -->
-					<div class="relative overflow-hidden">
-						<div
-							class="flex transition-transform duration-300 ease-in-out"
-							style="transform: translateX(-{carouselIndex * 100}%)"
-						>
-							{#each slides as slide (slide.title)}
-								<div class="w-full shrink-0 px-4">
-									<div class="mx-auto max-w-md space-y-4 py-6">
-										<div
-											class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-ghost"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												class="h-8 w-8 text-foreground"
-												fill="none"
-												viewBox="0 0 24 24"
-												stroke="currentColor"
-												stroke-width="1.5"
-											>
-												<path stroke-linecap="round" stroke-linejoin="round" d={slide.icon} />
-											</svg>
-										</div>
-										<h3 class="text-lg font-semibold">{slide.title}</h3>
-										<p class="text-sm text-muted-foreground">{slide.description}</p>
-									</div>
-								</div>
-							{/each}
-						</div>
-
-						<!-- Dots -->
-						<div class="mt-4 flex items-center justify-center gap-2">
-							{#each slides.map((_, i) => i) as i (i)}
-								<button
-									class="h-2 rounded-full transition-all {carouselIndex === i
-										? 'w-6 bg-foreground'
-										: 'w-2 bg-muted-foreground/30'}"
-									onclick={() => (carouselIndex = i)}
-									aria-label="Go to slide {i + 1}"
-								></button>
-							{/each}
-						</div>
-					</div>
-
-					<button
-						class="text-sm text-muted-foreground transition-colors hover:text-foreground"
-						onclick={finish}
-					>
-						Skip
-					</button>
-				</div>
-			{/if}
 		</div>
 
-		<!-- Step progress bar + skip -->
-		{#if step < welcomeStep}
-			{@const progressSteps = stepLabels.filter((s) => s.number < welcomeStep)}
-			<div class="mt-10 flex flex-col items-center gap-4">
-				<div class="flex items-center gap-2">
-					{#each progressSteps as s (s.number)}
-						<button
-							class="h-2 rounded-full transition-all {step === s.number
-								? 'w-8 bg-foreground'
-								: step > s.number
-									? 'w-2 bg-foreground'
-									: 'w-2 bg-muted-foreground/20'}"
-							onclick={() => {
-								if (s.number < step) step = s.number;
-							}}
-							disabled={s.number >= step}
-							aria-label="Step {s.number}: {s.label}"
-						></button>
+		<!-- Greeting (typed) -->
+		<div class="mt-14">
+			<h1 class="min-h-[2rem] text-2xl font-semibold tracking-tight">
+				{welcomeTyped}{#if welcomeTyping}<span
+						class="onb-caret ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] bg-foreground"
+					></span>{/if}
+			</h1>
+			<p class="mt-2 min-h-[3rem] text-base text-foreground">
+				{subtitleTyped}{#if subtitleTyping}<span
+						class="onb-caret ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[2px] bg-foreground"
+					></span>{/if}
+			</p>
+		</div>
+
+		<!-- Stepper: progress + roadmap, assembles after the greeting -->
+		{#if showStepper}
+			<div
+				class="mt-10"
+				in:fly={{ y: prefersReduced ? 0 : 10, duration: revealMs, easing: cubicOut }}
+			>
+				<p class="text-sm text-muted-foreground">Step {phaseIndex + 1} of {phases.length}</p>
+				<div class="mt-3 flex gap-2">
+					{#each phases as _, i (i)}
+						<span class="relative h-1.5 w-20 overflow-hidden rounded-full bg-muted">
+							<span
+								class="absolute inset-0 origin-left rounded-full bg-foreground transition-transform duration-500 ease-out {i <=
+								phaseIndex
+									? 'scale-x-100'
+									: 'scale-x-0'}"
+							></span>
+						</span>
 					{/each}
 				</div>
-				{#if (step === catalogStep && effectiveOrgType === 'brand') || (step === 4 && effectiveOrgType === 'rep') || step === inviteStep || (step === 5 && effectiveOrgType === 'rep')}
-					<button
-						class="text-sm text-muted-foreground transition-colors hover:text-foreground"
-						onclick={() => {
-							if (step === catalogStep && effectiveOrgType === 'brand') skipCatalog();
-							else if (step === 4 && effectiveOrgType === 'rep') step = 5;
-							else step = welcomeStep;
+			</div>
+
+			<ol class="mt-8 space-y-5">
+				{#each phases as p, i (p.id)}
+					{@const st = phaseState(i)}
+					<li
+						class="flex gap-3"
+						in:fly={{
+							y: prefersReduced ? 0 : 10,
+							duration: prefersReduced ? 0 : 360,
+							delay: prefersReduced ? 0 : 80 + i * 70,
+							easing: cubicOut
 						}}
 					>
-						I'll do this later
-					</button>
-				{/if}
-			</div>
+						<span class="mt-0.5 shrink-0">
+							{#if st === 'done'}
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.75"
+									class="h-6 w-6 text-foreground"
+									aria-hidden="true"
+									in:scale={{
+										start: prefersReduced ? 1 : 0.5,
+										duration: prefersReduced ? 0 : 320,
+										easing: backOut
+									}}
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+									/>
+								</svg>
+							{:else}
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.75"
+									class="h-6 w-6 {st === 'active' ? 'text-foreground' : 'text-muted-foreground/40'}"
+									aria-hidden="true"
+								>
+									<circle cx="12" cy="12" r="9" />
+								</svg>
+							{/if}
+						</span>
+						<div>
+							<p
+								class="font-semibold {st === 'active'
+									? 'text-foreground'
+									: 'text-muted-foreground'}"
+							>
+								{p.title}
+							</p>
+							<p class="text-sm {st === 'active' ? 'text-foreground' : 'text-muted-foreground'}">
+								{p.subtitle}
+							</p>
+						</div>
+					</li>
+				{/each}
+			</ol>
 		{/if}
+	</div>
+
+	<!-- Fixed prompt dock (page-centered) + right rail anchored to its right edge -->
+	<div class="fixed inset-x-0 bottom-0 z-30 flex justify-center px-6 pb-6">
+		<div class="relative w-full max-w-2xl">
+			<!-- Conversation panel: opens last, onto the prompt -->
+			{#if completed}
+				<div
+					class="mb-4 rounded-2xl bg-zinc-900 p-6 text-zinc-100 shadow-2xl ring-1 ring-white/10"
+					in:fade={{ duration: revealMs }}
+				>
+					<p class="text-base font-medium text-zinc-50">You're all set.</p>
+					<p class="mt-1 text-sm text-zinc-400">
+						This is a P0 mock — completion redirect and persistence land in later phases.
+					</p>
+				</div>
+			{:else if showConversation}
+				<div
+					use:openPanel
+					style="opacity: 0"
+					class="mb-4 rounded-2xl bg-zinc-900 p-5 text-zinc-100 shadow-2xl ring-1 ring-white/10"
+				>
+					<div class="flex items-center justify-between">
+						<span class="font-mono text-sm text-zinc-500">{phase.title}</span>
+						<div class="flex items-center gap-1.5 font-mono text-sm text-zinc-400">
+							<button
+								onclick={prevSub}
+								disabled={!canPrev}
+								class="rounded p-0.5 transition-colors hover:text-zinc-100 disabled:opacity-30 disabled:hover:text-zinc-400"
+								aria-label="Previous question"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									class="h-4 w-4"
+									aria-hidden="true"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M15.75 19.5L8.25 12l7.5-7.5"
+									/>
+								</svg>
+							</button>
+							<span>Question {subIndex + 1} of {questionCount}</span>
+							<button
+								onclick={nextSub}
+								disabled={!canNext}
+								class="rounded p-0.5 transition-colors hover:text-zinc-100 disabled:opacity-30 disabled:hover:text-zinc-400"
+								aria-label="Next question"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									class="h-4 w-4"
+									aria-hidden="true"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M8.25 4.5l7.5 7.5-7.5 7.5"
+									/>
+								</svg>
+							</button>
+						</div>
+					</div>
+
+					<p class="mt-4 min-h-[3rem] text-base leading-relaxed text-zinc-50">
+						{typed}{#if typing}<span
+								class="onb-caret ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] bg-zinc-300"
+							></span>{/if}
+					</p>
+
+					{#if sub.kind === 'upload' && inputRevealed}
+						<button
+							onclick={answer}
+							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+							class="mt-4 w-full rounded-xl border border-dashed border-zinc-600 px-6 py-8 text-center transition-colors hover:border-zinc-400 hover:bg-zinc-800/40"
+						>
+							<p class="text-base font-medium text-zinc-100">{sub.dropTitle}</p>
+							<p class="mt-1 text-sm text-zinc-500">{sub.dropHint}</p>
+						</button>
+					{/if}
+
+					{#if !sub.required && inputRevealed}
+						<div
+							class="mt-4 flex justify-end"
+							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+						>
+							<button
+								onclick={skip}
+								class="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
+							>
+								Skip
+							</button>
+						</div>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- AI prompt (input bar): springs up first, persists as the anchor -->
+			{#if showPrompt}
+				<div
+					use:springUp={56}
+					style="opacity: 0"
+					class="rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
+				>
+					<input
+						bind:value={draft}
+						onkeydown={onInputKeydown}
+						placeholder={sub.placeholder}
+						class="w-full bg-transparent px-2 py-2 text-base text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+					/>
+					<div class="mt-2 flex items-center justify-between">
+						<button
+							class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 active:scale-95"
+							aria-label="Attach file"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+								class="h-5 w-5"
+								aria-hidden="true"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+							</svg>
+						</button>
+
+						{#if hasDraft}
+							<!-- Send -->
+							<button
+								onclick={answer}
+								in:scale={{ start: 0.8, duration: 160, easing: cubicOut }}
+								class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 active:scale-95"
+								aria-label="Send"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2.5"
+									class="h-4 w-4"
+									aria-hidden="true"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
+									/>
+								</svg>
+							</button>
+						{:else}
+							<!-- Voice idle (P0: visual only) -->
+							<button
+								class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 active:scale-95"
+								aria-label="Voice input"
+							>
+								<div class="flex items-center gap-[2px]">
+									<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
+									<span class="h-[18px] w-[3px] rounded-full bg-current"></span>
+									<span class="h-[12px] w-[3px] rounded-full bg-current"></span>
+									<span class="h-[6px] w-[3px] rounded-full bg-current"></span>
+								</div>
+							</button>
+						{/if}
+					</div>
+				</div>
+			{/if}
+
+			<!-- Right rail: stat cards + human handoff, anchored to the dock's right edge.
+			     xl+ only so it never overflows narrower desktops (desktop-first). -->
+			<aside class="fixed right-10 bottom-6 hidden w-56 xl:block">
+				{#if stats.length}
+					<div class="mb-6 space-y-2">
+						{#each stats as s (s.label)}
+							<div
+								class="flex items-baseline gap-2 rounded-xl bg-muted px-4 py-3"
+								in:fly={{
+									y: prefersReduced ? 0 : 12,
+									duration: prefersReduced ? 0 : 420,
+									easing: cubicOut
+								}}
+							>
+								<span class="text-xl font-semibold tabular-nums">{s.display}</span>
+								<span class="text-sm text-foreground">{s.label}</span>
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				<div>
+					<p class="font-semibold">Prefer a human?</p>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Not comfortable setting up your organization, or need help using Threadline.
+					</p>
+					<a
+						href="/onboarding"
+						class="mt-3 inline-block text-sm font-medium underline-offset-4 hover:underline"
+					>
+						Schedule a Meeting
+					</a>
+				</div>
+			</aside>
+		</div>
 	</div>
 </div>
 
-<svelte:window
-	onkeydown={(e) => {
-		if (step !== welcomeStep) return;
-		if (e.key === 'ArrowRight' && carouselIndex < slides.length - 1) carouselIndex++;
-		else if (e.key === 'ArrowLeft' && carouselIndex > 0) carouselIndex--;
-	}}
-/>
+<style>
+	@keyframes onb-blink {
+		0%,
+		49% {
+			opacity: 1;
+		}
+		50%,
+		100% {
+			opacity: 0;
+		}
+	}
+	.onb-caret {
+		animation: onb-blink 1s steps(1, end) infinite;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.onb-caret {
+			animation: none;
+			opacity: 0;
+		}
+	}
+</style>
