@@ -27,11 +27,11 @@
 
 	let { data } = $props();
 
-	type SubKind = 'text' | 'upload' | 'choice';
-	interface OrgOption {
-		value: 'brand' | 'rep' | 'retailer';
+	type SubKind = 'text' | 'upload' | 'choice' | 'multi' | 'address';
+	interface ChoiceOption {
+		value: string;
 		label: string;
-		description: string;
+		description?: string;
 	}
 	interface SubStep {
 		id: string;
@@ -41,7 +41,7 @@
 		kind: SubKind;
 		dropTitle?: string;
 		dropHint?: string;
-		options?: OrgOption[];
+		options?: ChoiceOption[];
 	}
 	interface Phase {
 		id: string;
@@ -149,13 +149,31 @@
 					id: 'address',
 					question: "Where's your business based?",
 					placeholder: 'Business address',
-					kind: 'text'
+					kind: 'address'
 				},
 				{
-					id: 'terms',
+					id: 'payment-terms',
 					question: 'What payment terms do you offer by default?',
-					placeholder: 'e.g. Net 30',
-					kind: 'text'
+					placeholder: 'Choose your default terms',
+					kind: 'choice',
+					options: [
+						{ value: 'net_30', label: 'Net 30', description: 'Payment due 30 days after invoice.' },
+						{ value: 'net_60', label: 'Net 60', description: 'Payment due 60 days after invoice.' },
+						{ value: 'net_15', label: 'Net 15', description: 'Payment due 15 days after invoice.' },
+						{ value: 'prepaid', label: 'Prepaid', description: 'Payment before the order ships.' }
+					]
+				},
+				{
+					id: 'payment-methods',
+					question: 'How do your buyers pay you?',
+					placeholder: 'Choose all that apply',
+					kind: 'multi',
+					options: [
+						{ value: 'credit_card', label: 'Credit card' },
+						{ value: 'ach', label: 'ACH transfer' },
+						{ value: 'check', label: 'Check' },
+						{ value: 'wire', label: 'Wire transfer' }
+					]
 				}
 			]
 		},
@@ -187,13 +205,38 @@
 	// Resume: the org row only exists once General Information is done, and its
 	// onboarding_step (1-based phase) tells us which phase to resume at. Reading
 	// `data` once at init is intentional (SSR provides the current value).
+	// Resume. onboarding_state (JSONB) carries the exact cursor, which sub-steps
+	// are done/skipped, and the import counts, so a refresh doesn't drop you back
+	// to the top of a phase and re-run work you already finished. Falls back to
+	// the phase-only onboarding_step for orgs written before that column existed.
 	// svelte-ignore state_referenced_locally
-	let phaseIndex = $state(resumePhaseIndex(data.organization?.onboarding_step, phases.length));
-	let subIndex = $state(0);
+	const saved = (data.organization?.onboarding_state ?? null) as {
+		phase?: number;
+		sub?: number;
+		subStates?: Record<string, 'done' | 'skipped'>;
+		stats?: { n: string; label: string }[];
+	} | null;
+
+	// svelte-ignore state_referenced_locally
+	let phaseIndex = $state(
+		typeof saved?.phase === 'number'
+			? Math.min(Math.max(saved.phase, 0), phases.length - 1)
+			: resumePhaseIndex(data.organization?.onboarding_step, phases.length)
+	);
+	// svelte-ignore state_referenced_locally
+	let subIndex = $state(
+		typeof saved?.sub === 'number'
+			? Math.min(Math.max(saved.sub, 0), (phases[phaseIndex]?.subs.length ?? 1) - 1)
+			: 0
+	);
 	let draft = $state('');
 	let completed = $state(false);
-	let subStates = $state<Record<string, 'done' | 'skipped'>>({});
-	let stats = $state<{ n: string; label: string; display: number }[]>([]);
+	// svelte-ignore state_referenced_locally
+	let subStates = $state<Record<string, 'done' | 'skipped'>>({ ...(saved?.subStates ?? {}) });
+	// svelte-ignore state_referenced_locally
+	let stats = $state<{ n: string; label: string; display: number }[]>(
+		(saved?.stats ?? []).map((s) => ({ ...s, display: Number(s.n) || 0 }))
+	);
 
 	// General Information answers — held in memory until create-org. Not resumable
 	// pre-org by design (plan §0 decision 2).
@@ -205,9 +248,24 @@
 	let loading = $state(false);
 	let errorMsg = $state('');
 
+	// Completion
+	let finishing = $state(false);
+	let landingPath = $state('/insight');
+	let redirectTimer: ReturnType<typeof setTimeout> | null = null;
+
 	// File upload (dock-native: + button, dropzone click, drag-and-drop)
 	let fileInput = $state<HTMLInputElement>();
 	let dragActive = $state(false);
+
+	// Settings answers
+	let address = $state({ line1: '', line2: '', city: '', state: '', zip: '', country: 'US' });
+	let selectedMethods = $state<string[]>([]);
+	const addressComplete = $derived(
+		address.line1.trim() !== '' &&
+			address.city.trim() !== '' &&
+			address.state.trim() !== '' &&
+			address.zip.trim() !== ''
+	);
 
 	// Entrance orchestration state
 	let prefersReduced = $state(false);
@@ -233,6 +291,24 @@
 	const revealMs = $derived(prefersReduced ? 0 : 320);
 
 	const cursorKey = (p: number, s: number) => `${p}.${s}`;
+	const subState = (p: number, s: number) => subStates[cursorKey(p, s)];
+	const currentSubState = $derived(subStates[cursorKey(phaseIndex, subIndex)]);
+
+	// Short labels for the per-phase progress readout in the roadmap.
+	const SUB_LABELS: Record<string, string> = {
+		name: 'Name',
+		orgType: 'Type',
+		orgName: 'Organization',
+		members: 'Team',
+		accounts: 'Accounts',
+		products: 'Products',
+		orders: 'Orders',
+		address: 'Address',
+		'payment-terms': 'Terms',
+		'payment-methods': 'Payments',
+		accounting: 'Accounting',
+		email: 'Email'
+	};
 
 	const phaseState = (i: number) => phaseStatus(i, { phaseIndex, subIndex }, completed);
 
@@ -256,10 +332,47 @@
 	}
 
 	function advanceGlobal() {
+		// Every path out of a sub-step funnels through here, so record completion
+		// once. `complete('skipped')` sets its own state first and is preserved.
+		const key = cursorKey(phaseIndex, subIndex);
+		if (!subStates[key]) subStates[key] = 'done';
+
 		const { cursor, completed: done } = nextCursor({ phaseIndex, subIndex }, phases);
 		phaseIndex = cursor.phaseIndex;
 		subIndex = cursor.subIndex;
-		if (done) completed = true;
+		if (done) {
+			completed = true;
+			void finishOnboarding();
+		} else {
+			void persistCursor();
+		}
+	}
+
+	// Terminal step: mark the org complete, let the summary land, then hand off
+	// to the app. The button is always there so a slow/failed write never traps
+	// anyone on this screen.
+	async function finishOnboarding() {
+		finishing = true;
+		try {
+			const res = await fetch('/api/onboarding/progress', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ complete: true })
+			});
+			const body = await res.json().catch(() => ({}));
+			if (body?.landing) landingPath = body.landing;
+		} catch {
+			// Fall through — the manual button still works.
+		}
+		finishing = false;
+		if (!prefersReduced) {
+			redirectTimer = setTimeout(() => goToApp(), 2600);
+		}
+	}
+
+	function goToApp() {
+		if (redirectTimer) clearTimeout(redirectTimer);
+		window.location.href = landingPath;
 	}
 
 	function complete(state: 'done' | 'skipped') {
@@ -275,10 +388,20 @@
 	// Persist the resume cursor (1-based phase) once the org exists. Server-side
 	// via supabaseAdmin — browser writes through @supabase/ssr don't land reliably.
 	async function persistCursor() {
+		// No org yet during General Information — nothing to write to.
+		if (!data.organization?.id) return;
 		await fetch('/api/onboarding/progress', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ onboardingStep: phaseIndex + 1 })
+			body: JSON.stringify({
+				onboardingStep: phaseIndex + 1,
+				onboardingState: {
+					phase: phaseIndex,
+					sub: subIndex,
+					subStates: { ...subStates },
+					stats: stats.map((s) => ({ n: s.n, label: s.label }))
+				}
+			})
 		}).catch(() => {});
 	}
 
@@ -286,6 +409,66 @@
 		values.orgType = value;
 		errorMsg = '';
 		advanceGlobal();
+	}
+
+	// Settings steps post structured payloads to api/setup/save.
+	async function saveSetupStep(step: string, value: unknown): Promise<boolean> {
+		const res = await fetch('/api/setup/save', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ step, value })
+		});
+		if (!res.ok) {
+			const body = await res.json().catch(() => ({}));
+			errorMsg = body.error || "That didn't save. Please try again.";
+			return false;
+		}
+		return true;
+	}
+
+	// A single-select choice. Org type is local-only (it feeds create-org);
+	// everything else writes through setup/save.
+	async function chooseOption(value: string) {
+		errorMsg = '';
+		if (sub.id === 'orgType') {
+			chooseOrgType(value as 'brand' | 'rep' | 'retailer');
+			return;
+		}
+		loading = true;
+		const ok = await saveSetupStep(sub.id, value);
+		loading = false;
+		if (ok) advanceGlobal();
+	}
+
+	function toggleMethod(value: string) {
+		selectedMethods = selectedMethods.includes(value)
+			? selectedMethods.filter((v) => v !== value)
+			: [...selectedMethods, value];
+	}
+
+	async function submitMethods() {
+		if (selectedMethods.length === 0) return;
+		errorMsg = '';
+		loading = true;
+		const ok = await saveSetupStep('payment-methods', selectedMethods);
+		loading = false;
+		if (ok) advanceGlobal();
+	}
+
+	async function submitAddress() {
+		if (!addressComplete) return;
+		errorMsg = '';
+		loading = true;
+		const ok = await saveSetupStep('address', {
+			line1: address.line1.trim(),
+			line2: address.line2.trim(),
+			city: address.city.trim(),
+			state: address.state.trim(),
+			zip: address.zip.trim(),
+			country: (address.country || 'US').trim().toUpperCase().slice(0, 2)
+		});
+		loading = false;
+		if (ok) advanceGlobal();
 	}
 
 	// Create the org from the collected General Information, then move into Import
@@ -327,8 +510,8 @@
 			// Re-run load so data.organization is populated before we persist the cursor.
 			await invalidateAll();
 			draft = '';
+			// advanceGlobal persists the new cursor now that the org exists.
 			advanceGlobal();
-			await persistCursor();
 		} catch {
 			errorMsg = 'Something went wrong. Please try again.';
 		} finally {
@@ -352,7 +535,45 @@
 			}
 			return;
 		}
+		// The members step also accepts a single email typed into the bar.
+		if (sub.id === 'members') {
+			void inviteOne(draft.trim());
+			return;
+		}
+		// Only free-text steps advance from the input bar. Choice, multi, address
+		// and upload steps commit through their own controls, so a stray Enter
+		// must not skip past an unsaved answer.
+		if (sub.kind !== 'text') return;
 		complete('done');
+	}
+
+	// Single invite typed into the prompt bar (the "or invite them by email" path).
+	async function inviteOne(email: string) {
+		if (!email.includes('@') || email.length < 3) {
+			errorMsg = "That doesn't look like an email address.";
+			return;
+		}
+		errorMsg = '';
+		loading = true;
+		try {
+			const res = await fetch('/api/invite/send', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email, role: 'member' })
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				errorMsg = body.error || "That invite couldn't be sent.";
+				return;
+			}
+			addStat({ n: '1', label: 'Member Invited' });
+			draft = '';
+			advanceGlobal();
+		} catch {
+			errorMsg = "That invite couldn't be sent.";
+		} finally {
+			loading = false;
+		}
 	}
 
 	// ── File upload ────────────────────────────────────────────────────────
@@ -1076,6 +1297,55 @@
 							<p class="text-sm {st === 'active' ? 'text-foreground' : 'text-muted-foreground'}">
 								{p.subtitle}
 							</p>
+
+							{#if st === 'active' && !completed}
+								<!-- What's done in this phase so far -->
+								<div class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+									{#each p.subs as s, si (s.id)}
+										{@const state = subState(i, si)}
+										<span
+											class="inline-flex items-center gap-1 text-sm {si === subIndex
+												? 'font-medium text-foreground'
+												: state
+													? 'text-muted-foreground'
+													: 'text-muted-foreground/50'}"
+										>
+											{#if state === 'done'}
+												<svg
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+													stroke-width="2.5"
+													class="h-3.5 w-3.5"
+													aria-hidden="true"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														d="M4.5 12.75l6 6 9-13.5"
+													/>
+												</svg>
+											{:else if state === 'skipped'}
+												<svg
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+													stroke-width="2"
+													class="h-3.5 w-3.5"
+													aria-hidden="true"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														d="M6 18L18 6M6 6l12 12"
+													/>
+												</svg>
+											{/if}
+											{SUB_LABELS[s.id] ?? s.id}
+										</span>
+									{/each}
+								</div>
+							{/if}
 						</div>
 					</li>
 				{/each}
@@ -1092,10 +1362,67 @@
 					class="mb-4 rounded-2xl bg-zinc-900 p-6 text-zinc-100 shadow-2xl ring-1 ring-white/10"
 					in:fade={{ duration: revealMs }}
 				>
-					<p class="text-base font-medium text-zinc-50">You're all set.</p>
-					<p class="mt-1 text-sm text-zinc-400">
-						This is a P0 mock — completion redirect and persistence land in later phases.
-					</p>
+					{#if finishing}
+						<div class="flex items-center gap-3">
+							<div
+								class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200"
+							></div>
+							<p class="text-base text-zinc-100">Getting your workspace ready…</p>
+						</div>
+					{:else}
+						<p class="text-base font-medium text-zinc-50">
+							You're all set{values.name ? `, ${values.name.split(' ')[0]}` : ''}.
+						</p>
+						{#if stats.length}
+							<ul class="mt-3 space-y-1">
+								{#each stats as s (s.label)}
+									<li class="flex items-center gap-2 text-sm text-zinc-300">
+										<svg
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											class="h-4 w-4 shrink-0 text-zinc-400"
+											aria-hidden="true"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M4.5 12.75l6 6 9-13.5"
+											/>
+										</svg>
+										{s.n}
+										{s.label.replace(/^\d+\s*/, '')}
+									</li>
+								{/each}
+							</ul>
+						{:else}
+							<p class="mt-1 text-sm text-zinc-400">
+								You can bring in your accounts and catalog any time from the app.
+							</p>
+						{/if}
+
+						<button
+							onclick={goToApp}
+							class="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
+						>
+							Go to Threadline
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								class="h-4 w-4"
+								aria-hidden="true"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M4.5 12h15m0 0l-6-6m6 6l-6 6"
+								/>
+							</svg>
+						</button>
+					{/if}
 				</div>
 			{:else if showConversation}
 				<div
@@ -1104,7 +1431,14 @@
 					class="mb-4 rounded-2xl bg-zinc-900 p-5 text-zinc-100 shadow-2xl ring-1 ring-white/10"
 				>
 					<div class="flex items-center justify-between">
-						<span class="font-mono text-sm text-zinc-500">{phase.title}</span>
+						<span class="flex items-center gap-2 font-mono text-sm text-zinc-500">
+							{phase.title}
+							{#if currentSubState}
+								<span class="rounded bg-zinc-800 px-1.5 py-0.5 font-sans text-sm text-zinc-400">
+									{currentSubState === 'done' ? 'Done' : 'Skipped'}
+								</span>
+							{/if}
+						</span>
 						<div class="flex items-center gap-1.5 font-mono text-sm text-zinc-400">
 							<button
 								onclick={prevSub}
@@ -1165,16 +1499,87 @@
 						>
 							{#each sub.options ?? [] as opt (opt.value)}
 								<button
-									onclick={() => chooseOrgType(opt.value)}
-									class="w-full rounded-xl border bg-zinc-800/40 p-4 text-left transition-colors hover:border-zinc-500 hover:bg-zinc-800 active:scale-[0.99] {values.orgType ===
+									onclick={() => chooseOption(opt.value)}
+									disabled={loading}
+									class="w-full rounded-xl border bg-zinc-800/40 p-4 text-left transition-colors hover:border-zinc-500 hover:bg-zinc-800 active:scale-[0.99] disabled:opacity-60 {values.orgType ===
 									opt.value
 										? 'border-zinc-200'
 										: 'border-zinc-700'}"
 								>
 									<p class="text-base font-medium text-zinc-100">{opt.label}</p>
-									<p class="mt-0.5 text-sm text-zinc-400">{opt.description}</p>
+									{#if opt.description}
+										<p class="mt-0.5 text-sm text-zinc-400">{opt.description}</p>
+									{/if}
 								</button>
 							{/each}
+						</div>
+					{/if}
+
+					{#if sub.kind === 'multi' && inputRevealed}
+						<div in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}>
+							<div class="flex flex-wrap gap-2">
+								{#each sub.options ?? [] as opt (opt.value)}
+									<button
+										onclick={() => toggleMethod(opt.value)}
+										class="rounded-lg border px-3.5 py-2 text-sm transition-colors {selectedMethods.includes(
+											opt.value
+										)
+											? 'border-zinc-200 bg-zinc-100 text-zinc-900'
+											: 'border-zinc-700 bg-zinc-800/40 text-zinc-300 hover:border-zinc-500'}"
+									>
+										{opt.label}
+									</button>
+								{/each}
+							</div>
+							<button
+								onclick={submitMethods}
+								disabled={selectedMethods.length === 0 || loading}
+								class="mt-3 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+							>
+								{loading ? 'Saving…' : 'Save'}
+							</button>
+						</div>
+					{/if}
+
+					{#if sub.kind === 'address' && inputRevealed}
+						<div
+							class="space-y-2"
+							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+						>
+							<input
+								bind:value={address.line1}
+								placeholder="Street address"
+								class="w-full rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+							/>
+							<input
+								bind:value={address.line2}
+								placeholder="Suite, floor (optional)"
+								class="w-full rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+							/>
+							<div class="flex gap-2">
+								<input
+									bind:value={address.city}
+									placeholder="City"
+									class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+								/>
+								<input
+									bind:value={address.state}
+									placeholder="State"
+									class="w-24 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+								/>
+								<input
+									bind:value={address.zip}
+									placeholder="ZIP"
+									class="w-28 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+								/>
+							</div>
+							<button
+								onclick={submitAddress}
+								disabled={!addressComplete || loading}
+								class="rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+							>
+								{loading ? 'Saving…' : 'Save address'}
+							</button>
 						</div>
 					{/if}
 
@@ -1276,7 +1681,7 @@
 			{/if}
 
 			<!-- AI prompt (input bar): springs up first, persists as the anchor -->
-			{#if showPrompt}
+			{#if showPrompt && !completed}
 				<div
 					use:springUp={56}
 					style="opacity: 0"
@@ -1357,52 +1762,59 @@
 
 			<!-- Right rail: stat cards + human handoff, anchored to the dock's right edge.
 			     xl+ only so it never overflows narrower desktops (desktop-first). -->
-			<aside class="fixed right-10 bottom-6 hidden w-56 xl:block">
-				{#if stats.length}
-					<div class="mb-6 space-y-2">
-						{#each stats as s (s.label)}
-							<div
-								class="flex items-baseline gap-2 rounded-xl bg-muted px-4 py-3"
-								in:fly={{
-									y: prefersReduced ? 0 : 12,
-									duration: prefersReduced ? 0 : 420,
-									easing: cubicOut
-								}}
-							>
-								<span class="text-xl font-semibold tabular-nums">{s.display}</span>
-								<span class="text-sm text-foreground">{s.label}</span>
-							</div>
-						{/each}
-					</div>
-				{/if}
+			{#if showPrompt}
+				<aside
+					class="fixed right-10 bottom-6 hidden w-56 xl:block"
+					in:fade={{ duration: revealMs }}
+				>
+					{#if stats.length}
+						<div class="mb-6 space-y-2">
+							{#each stats as s (s.label)}
+								<div
+									class="flex items-baseline gap-2 rounded-xl bg-muted px-4 py-3"
+									in:fly={{
+										y: prefersReduced ? 0 : 12,
+										duration: prefersReduced ? 0 : 420,
+										easing: cubicOut
+									}}
+								>
+									<span class="text-xl font-semibold tabular-nums">{s.display}</span>
+									<span class="text-sm text-foreground">{s.label}</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
 
-				<div>
-					<p class="font-semibold">Prefer a human?</p>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Not comfortable setting up your organization, or need help using Threadline.
-					</p>
-					<a
-						href="/onboarding"
-						class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
-					>
-						<svg
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.5"
-							class="h-4 w-4"
-							aria-hidden="true"
+					<div>
+						<p class="font-semibold">Prefer a human?</p>
+						<p class="mt-1 text-sm text-muted-foreground">
+							Not comfortable setting up your organization, or need help using Threadline.
+						</p>
+						<a
+							href="https://calendar.app.google/c8NotsgGCKcKgajD6"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-							/>
-						</svg>
-						Schedule a Meeting
-					</a>
-				</div>
-			</aside>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+								class="h-4 w-4"
+								aria-hidden="true"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+								/>
+							</svg>
+							Schedule a Meeting
+						</a>
+					</div>
+				</aside>
+			{/if}
 		</div>
 	</div>
 

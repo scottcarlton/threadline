@@ -107,6 +107,13 @@ export interface Organization {
 	payments_surcharge_pass_to_buyer: boolean;
 	onboarding_step: number;
 	onboarding_completed_at: string | null;
+	/** Resume cursor: { phase, sub, subStates, stats }. Written alongside onboarding_step. */
+	onboarding_state: {
+		phase?: number;
+		sub?: number;
+		subStates?: Record<string, 'done' | 'skipped'>;
+		stats?: { n: string; label: string }[];
+	} | null;
 	created_at: string;
 	updated_at: string;
 }
