@@ -34,6 +34,22 @@ Hybrid architecture (§4.2) and the org-type matrix (§4.4, rep/brand only per d
 
 ---
 
+## 0b. Known issues found while building (deferred)
+
+- **Pending invitations are invisible app-wide (pre-existing RLS bug).** Every
+  `SELECT` on `invitations` as the `authenticated` role fails with
+  `permission denied for table users`, because the policy
+  `Invitation readable by token holder or org admin`
+  (`supabase/migrations/20260530000001_security_review_fixes.sql:17`) sub-queries
+  `auth.users`, which `authenticated` cannot read. `/organization/members` does
+  `invResult.data ?? []`, so the error becomes an empty list and the "Pending
+  Invitations" section never renders. Reproduced directly against the local DB.
+  Fix is one line — `OR email = (auth.jwt() ->> 'email')` — same semantics, no
+  grant on `auth.users`. Deferred until onboarding is finished; belongs on its
+  own branch since it touches shared security policy.
+
+---
+
 ## 1. Goal
 
 Replace the current stepped onboarding with a conversational, distraction-free first-run flow where a pinned AI prompt (Stitch) is the primary interaction. The screen has three layers:

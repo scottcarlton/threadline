@@ -24,14 +24,19 @@
 	import { parseCSV } from '$lib/utils/csv-parse';
 	import { buildAccountPreviewFromCsv } from '$lib/components/accounts/account-import-helpers';
 	import { suggestColumnMapping } from '$lib/utils/csv-column-suggest';
+	import { startVoiceCapture, type VoiceCaptureHandle } from '$lib/utils/voice-capture';
 
 	let { data } = $props();
 
-	type SubKind = 'text' | 'upload' | 'choice' | 'multi' | 'address';
+	type SubKind = 'text' | 'upload' | 'choice' | 'multi' | 'address' | 'connect';
 	interface ChoiceOption {
 		value: string;
 		label: string;
 		description?: string;
+		/** OAuth connect endpoint, for `connect` steps. */
+		url?: string;
+		/** Inline SVG path, carried over from the previous onboarding cards. */
+		icon?: string;
 	}
 	interface SubStep {
 		id: string;
@@ -76,19 +81,22 @@
 							value: 'brand',
 							label: 'Brand',
 							description:
-								'I manage my product catalog, track orders across all sales channels, and work with reps.'
+								'I manage my product catalog, track orders across all sales channels, and work with reps.',
+							icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
 						},
 						{
 							value: 'rep',
 							label: 'Independent Sales Rep',
 							description:
-								'I represent multiple brands and manage accounts, orders, and commissions.'
+								'I represent multiple brands and manage accounts, orders, and commissions.',
+							icon: 'M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z'
 						},
 						{
 							value: 'retailer',
 							label: 'Retailer',
 							description:
-								'I buy wholesale from brands and want my orders and account details in one place.'
+								'I buy wholesale from brands and want my orders and account details in one place.',
+							icon: 'M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z'
 						}
 					]
 				},
@@ -183,16 +191,39 @@
 			subtitle: 'Connect external resources for your organization.',
 			subs: [
 				{
-					id: 'accounting',
-					question: 'Want to connect your accounting? I can sync orders to QuickBooks.',
-					placeholder: 'Search integrations…',
-					kind: 'text'
-				},
-				{
-					id: 'email',
-					question: 'Connect your email and calendar to keep everything in one place.',
-					placeholder: 'Search integrations…',
-					kind: 'text'
+					id: 'connect',
+					// Only providers with a live connect flow are listed here — see
+					// src/routes/organization/integrations. QuickBooks/Xero are still
+					// coming-soon, so onboarding must not promise them.
+					question: 'Last thing — want to connect the tools you already use?',
+					placeholder: 'You can always connect these later',
+					kind: 'connect',
+					options: [
+						{
+							value: 'slack',
+							label: 'Slack',
+							description: 'Notifications for new orders and status changes.',
+							url: '/api/integrations/slack/connect'
+						},
+						{
+							value: 'microsoft',
+							label: 'Microsoft 365',
+							description: 'Outlook email, Teams notifications, and Excel exports.',
+							url: '/api/integrations/microsoft/connect'
+						},
+						{
+							value: 'google_sheets',
+							label: 'Google Sheets',
+							description: 'Export orders, accounts, and reports to spreadsheets.',
+							url: '/api/integrations/google-sheets/connect'
+						},
+						{
+							value: 'notion',
+							label: 'Notion',
+							description: 'Two-way sync for orders, brands, lookbooks, and docs.',
+							url: '/api/integrations/notion/connect'
+						}
+					]
 				}
 			]
 		}
@@ -257,9 +288,44 @@
 	let fileInput = $state<HTMLInputElement>();
 	let dragActive = $state(false);
 
+	// Conversation panel collapse — shrinks to its header behind the prompt bar.
+	let panelCollapsed = $state(false);
+
+	// Voice dictation. Uses the same capture/STT module as the app's prompt bar;
+	// here the transcript fills the current answer rather than starting a chat.
+	let voiceState = $state<'idle' | 'listening' | 'processing'>('idle');
+	let voiceCapture: VoiceCaptureHandle | null = null;
+
+	async function toggleVoice() {
+		if (voiceState !== 'idle') {
+			voiceCapture?.stop();
+			voiceCapture = null;
+			return;
+		}
+		errorMsg = '';
+		voiceCapture = await startVoiceCapture({
+			onState: (s) => (voiceState = s),
+			onResult: (text) => {
+				voiceState = 'idle';
+				voiceCapture = null;
+				// Dictation appends, so speaking twice builds one answer.
+				draft = draft.trim() ? `${draft.trim()} ${text}` : text;
+			},
+			onError: (message) => {
+				voiceState = 'idle';
+				voiceCapture = null;
+				errorMsg = message;
+			}
+		});
+		if (!voiceCapture) voiceState = 'idle';
+	}
+
 	// Settings answers
 	let address = $state({ line1: '', line2: '', city: '', state: '', zip: '', country: 'US' });
 	let selectedMethods = $state<string[]>([]);
+	// Integrations the user opened. OAuth completes in a new tab, so we can't
+	// confirm the connection from here — this only tracks what they started.
+	let startedConnections = $state<string[]>([]);
 	const addressComplete = $derived(
 		address.line1.trim() !== '' &&
 			address.city.trim() !== '' &&
@@ -291,24 +357,7 @@
 	const revealMs = $derived(prefersReduced ? 0 : 320);
 
 	const cursorKey = (p: number, s: number) => `${p}.${s}`;
-	const subState = (p: number, s: number) => subStates[cursorKey(p, s)];
 	const currentSubState = $derived(subStates[cursorKey(phaseIndex, subIndex)]);
-
-	// Short labels for the per-phase progress readout in the roadmap.
-	const SUB_LABELS: Record<string, string> = {
-		name: 'Name',
-		orgType: 'Type',
-		orgName: 'Organization',
-		members: 'Team',
-		accounts: 'Accounts',
-		products: 'Products',
-		orders: 'Orders',
-		address: 'Address',
-		'payment-terms': 'Terms',
-		'payment-methods': 'Payments',
-		accounting: 'Accounting',
-		email: 'Email'
-	};
 
 	const phaseState = (i: number) => phaseStatus(i, { phaseIndex, subIndex }, completed);
 
@@ -1196,9 +1245,7 @@
 	<div class="mx-auto max-w-2xl px-6 pt-20 pb-[380px] lg:pt-24">
 		<!-- Brand mark (static) -->
 		<div class="flex justify-center">
-			<div
-				class="flex h-12 w-12 items-center justify-center rounded-[2px] bg-foreground text-background"
-			>
+			<div class="flex h-12 w-12 items-center justify-center bg-foreground text-background">
 				<svg viewBox="0 0 43 43" fill="none" class="h-6 w-6" aria-hidden="true">
 					<path d="M11 42.5L24.8799 1H31.5899L17.71 42.5H11Z" fill="currentColor" />
 				</svg>
@@ -1297,55 +1344,6 @@
 							<p class="text-sm {st === 'active' ? 'text-foreground' : 'text-muted-foreground'}">
 								{p.subtitle}
 							</p>
-
-							{#if st === 'active' && !completed}
-								<!-- What's done in this phase so far -->
-								<div class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-									{#each p.subs as s, si (s.id)}
-										{@const state = subState(i, si)}
-										<span
-											class="inline-flex items-center gap-1 text-sm {si === subIndex
-												? 'font-medium text-foreground'
-												: state
-													? 'text-muted-foreground'
-													: 'text-muted-foreground/50'}"
-										>
-											{#if state === 'done'}
-												<svg
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="2.5"
-													class="h-3.5 w-3.5"
-													aria-hidden="true"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M4.5 12.75l6 6 9-13.5"
-													/>
-												</svg>
-											{:else if state === 'skipped'}
-												<svg
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="2"
-													class="h-3.5 w-3.5"
-													aria-hidden="true"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M6 18L18 6M6 6l12 12"
-													/>
-												</svg>
-											{/if}
-											{SUB_LABELS[s.id] ?? s.id}
-										</span>
-									{/each}
-								</div>
-							{/if}
 						</div>
 					</li>
 				{/each}
@@ -1425,12 +1423,23 @@
 					{/if}
 				</div>
 			{:else if showConversation}
+				<!-- Collapsed, the panel shrinks to its header and tucks in behind the
+				     prompt bar, which sits above it (z-10). -->
 				<div
 					use:openPanel
 					style="opacity: 0"
-					class="mb-4 rounded-2xl bg-zinc-900 p-5 text-zinc-100 shadow-2xl ring-1 ring-white/10"
+					class="rounded-2xl bg-zinc-900 text-zinc-100 shadow-2xl ring-1 ring-white/10 transition-all duration-300 ease-out {panelCollapsed
+						? 'mx-5 -mb-7 px-5 pt-4 pb-8'
+						: 'mb-4 p-5'}"
 				>
-					<div class="flex items-center justify-between">
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="flex items-center justify-between {panelCollapsed ? 'cursor-pointer' : ''}"
+						onclick={() => {
+							if (panelCollapsed) panelCollapsed = false;
+						}}
+					>
 						<span class="flex items-center gap-2 font-mono text-sm text-zinc-500">
 							{phase.title}
 							{#if currentSubState}
@@ -1443,6 +1452,7 @@
 							<button
 								onclick={prevSub}
 								disabled={!canPrev}
+								class:hidden={panelCollapsed}
 								class="rounded p-0.5 transition-colors hover:text-zinc-100 disabled:opacity-30 disabled:hover:text-zinc-400"
 								aria-label="Previous question"
 							>
@@ -1465,6 +1475,7 @@
 							<button
 								onclick={nextSub}
 								disabled={!canNext}
+								class:hidden={panelCollapsed}
 								class="rounded p-0.5 transition-colors hover:text-zinc-100 disabled:opacity-30 disabled:hover:text-zinc-400"
 								aria-label="Next question"
 							>
@@ -1483,200 +1494,288 @@
 									/>
 								</svg>
 							</button>
+
+							<!-- Collapse to just this header. stopPropagation, or the click
+							     bubbles to the header's expand handler and undoes itself. -->
+							<button
+								onclick={(e) => {
+									e.stopPropagation();
+									panelCollapsed = true;
+								}}
+								class:hidden={panelCollapsed}
+								class="ml-1.5 rounded p-0.5 transition-colors hover:text-zinc-100"
+								aria-label="Collapse panel"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									class="h-4 w-4"
+									aria-hidden="true"
+								>
+									<path stroke-linecap="round" d="M5 12h14" />
+								</svg>
+							</button>
 						</div>
 					</div>
 
-					<p class="mt-4 min-h-[3rem] text-base leading-relaxed text-zinc-50">
-						{typed}{#if typing}<span
-								class="onb-caret ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] bg-zinc-300"
-							></span>{/if}
-					</p>
+					<!-- Body: collapses to zero height via grid-rows -->
+					<div
+						class="grid transition-all duration-300 ease-out {panelCollapsed
+							? 'grid-rows-[0fr] opacity-0'
+							: 'grid-rows-[1fr] opacity-100'}"
+					>
+						<div class="overflow-hidden">
+							<p class="mt-4 min-h-[3rem] text-base leading-relaxed text-zinc-50">
+								{typed}{#if typing}<span
+										class="onb-caret ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] bg-zinc-300"
+									></span>{/if}
+							</p>
 
-					{#if sub.kind === 'choice' && inputRevealed}
-						<div
-							class="space-y-2"
-							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
-						>
-							{#each sub.options ?? [] as opt (opt.value)}
-								<button
-									onclick={() => chooseOption(opt.value)}
-									disabled={loading}
-									class="w-full rounded-xl border bg-zinc-800/40 p-4 text-left transition-colors hover:border-zinc-500 hover:bg-zinc-800 active:scale-[0.99] disabled:opacity-60 {values.orgType ===
-									opt.value
-										? 'border-zinc-200'
-										: 'border-zinc-700'}"
-								>
-									<p class="text-base font-medium text-zinc-100">{opt.label}</p>
-									{#if opt.description}
-										<p class="mt-0.5 text-sm text-zinc-400">{opt.description}</p>
-									{/if}
-								</button>
-							{/each}
-						</div>
-					{/if}
-
-					{#if sub.kind === 'multi' && inputRevealed}
-						<div in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}>
-							<div class="flex flex-wrap gap-2">
-								{#each sub.options ?? [] as opt (opt.value)}
-									<button
-										onclick={() => toggleMethod(opt.value)}
-										class="rounded-lg border px-3.5 py-2 text-sm transition-colors {selectedMethods.includes(
-											opt.value
-										)
-											? 'border-zinc-200 bg-zinc-100 text-zinc-900'
-											: 'border-zinc-700 bg-zinc-800/40 text-zinc-300 hover:border-zinc-500'}"
-									>
-										{opt.label}
-									</button>
-								{/each}
-							</div>
-							<button
-								onclick={submitMethods}
-								disabled={selectedMethods.length === 0 || loading}
-								class="mt-3 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
-							>
-								{loading ? 'Saving…' : 'Save'}
-							</button>
-						</div>
-					{/if}
-
-					{#if sub.kind === 'address' && inputRevealed}
-						<div
-							class="space-y-2"
-							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
-						>
-							<input
-								bind:value={address.line1}
-								placeholder="Street address"
-								class="w-full rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
-							/>
-							<input
-								bind:value={address.line2}
-								placeholder="Suite, floor (optional)"
-								class="w-full rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
-							/>
-							<div class="flex gap-2">
-								<input
-									bind:value={address.city}
-									placeholder="City"
-									class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
-								/>
-								<input
-									bind:value={address.state}
-									placeholder="State"
-									class="w-24 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
-								/>
-								<input
-									bind:value={address.zip}
-									placeholder="ZIP"
-									class="w-28 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
-								/>
-							</div>
-							<button
-								onclick={submitAddress}
-								disabled={!addressComplete || loading}
-								class="rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
-							>
-								{loading ? 'Saving…' : 'Save address'}
-							</button>
-						</div>
-					{/if}
-
-					{#if sub.kind === 'upload' && inputRevealed}
-						{#if ingestState === 'idle'}
-							<button
-								onclick={openFilePicker}
-								in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
-								class="w-full rounded-xl border border-dashed px-6 py-8 text-center transition-colors {dragActive
-									? 'border-zinc-300 bg-zinc-800/60'
-									: 'border-zinc-600 hover:border-zinc-400 hover:bg-zinc-800/40'}"
-							>
-								<p class="text-base font-medium text-zinc-100">{sub.dropTitle}</p>
-								<p class="mt-1 text-sm text-zinc-500">{sub.dropHint}</p>
-							</button>
-						{:else if ingestState === 'reading'}
-							<div
-								class="flex items-center gap-3 rounded-xl bg-zinc-800/60 px-4 py-4"
-								in:fade={{ duration: 140 }}
-							>
+							{#if sub.kind === 'choice' && inputRevealed}
 								<div
-									class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200"
-								></div>
-								<p class="text-sm text-zinc-300">
-									Reading <span class="font-medium text-zinc-100">{ingestFileName}</span>…
-								</p>
-							</div>
-						{:else}
-							<!-- Preview: what I found, awaiting confirmation -->
-							<div
-								class="mt-1"
-								in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
-							>
-								<p class="text-base text-zinc-100">
-									I found <span class="font-medium">{ingestRows.length} {ingestNoun}</span> in
-									<span class="text-zinc-300">{ingestFileName}</span>.
-								</p>
-								<ul class="mt-2 divide-y divide-white/5 overflow-hidden rounded-xl bg-zinc-800/50">
-									{#each ingestRows.slice(0, 4) as row, i (row.primary + i)}
-										<li class="flex items-baseline justify-between gap-3 px-4 py-2.5">
-											<span class="text-sm font-medium text-zinc-100">{row.primary}</span>
-											{#if row.secondary}
-												<span class="shrink-0 text-sm text-zinc-400">{row.secondary}</span>
-											{/if}
-										</li>
+									class="space-y-2"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									{#each sub.options ?? [] as opt (opt.value)}
+										<button
+											onclick={() => chooseOption(opt.value)}
+											disabled={loading}
+											class="w-full rounded-xl border bg-zinc-800/40 p-4 text-left transition-colors hover:border-zinc-500 hover:bg-zinc-800 active:scale-[0.99] disabled:opacity-60 {values.orgType ===
+											opt.value
+												? 'border-zinc-200'
+												: 'border-zinc-700'}"
+										>
+											<span class="flex items-start gap-3">
+												{#if opt.icon}
+													<span
+														class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-zinc-300"
+													>
+														<svg
+															viewBox="0 0 24 24"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.5"
+															class="h-5 w-5"
+															aria-hidden="true"
+														>
+															<path stroke-linecap="round" stroke-linejoin="round" d={opt.icon} />
+														</svg>
+													</span>
+												{/if}
+												<span class="min-w-0">
+													<span class="block text-base font-medium text-zinc-100">{opt.label}</span>
+													{#if opt.description}
+														<span class="mt-0.5 block text-sm text-zinc-400">{opt.description}</span
+														>
+													{/if}
+												</span>
+											</span>
+										</button>
 									{/each}
-									{#if ingestRows.length > 4}
-										<li class="px-4 py-2.5 text-sm text-zinc-400">
-											and {ingestRows.length - 4} more
-										</li>
-									{/if}
-								</ul>
+								</div>
+							{/if}
 
-								<div class="mt-3 flex items-center gap-2">
+							{#if sub.kind === 'connect' && inputRevealed}
+								<div
+									class="space-y-2"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									{#each sub.options ?? [] as opt (opt.value)}
+										<a
+											href={opt.url}
+											target="_blank"
+											rel="noopener noreferrer"
+											onclick={() => (startedConnections = [...startedConnections, opt.value])}
+											class="flex items-center justify-between gap-3 rounded-xl border border-zinc-700 bg-zinc-800/40 p-4 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+										>
+											<span class="min-w-0">
+												<span class="block text-base font-medium text-zinc-100">{opt.label}</span>
+												{#if opt.description}
+													<span class="mt-0.5 block text-sm text-zinc-400">{opt.description}</span>
+												{/if}
+											</span>
+											<span class="shrink-0 text-sm text-zinc-400">
+												{startedConnections.includes(opt.value) ? 'Opened' : 'Connect'}
+											</span>
+										</a>
+									{/each}
 									<button
-										onclick={confirmIngest}
-										disabled={ingestState === 'committing'}
-										class="inline-flex items-center gap-2 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-60"
+										onclick={() => complete('done')}
+										class="mt-1 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
 									>
-										{#if ingestState === 'committing'}
-											<span
-												class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-400 border-t-zinc-900"
-											></span>
-											{sub.id === 'members' ? 'Sending…' : 'Importing…'}
-										{:else}
-											{sub.id === 'members' ? 'Send invites' : 'Import them'}
-										{/if}
-									</button>
-									<button
-										onclick={resetIngest}
-										disabled={ingestState === 'committing'}
-										class="rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100 disabled:opacity-60"
-									>
-										Use a different file
+										{startedConnections.length ? 'Done connecting' : 'Finish setup'}
 									</button>
 								</div>
-							</div>
-						{/if}
-					{/if}
+							{/if}
 
-					{#if errorMsg}
-						<p class="mt-3 text-sm text-red-400">{errorMsg}</p>
-					{/if}
+							{#if sub.kind === 'multi' && inputRevealed}
+								<div in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}>
+									<div class="flex flex-wrap gap-2">
+										{#each sub.options ?? [] as opt (opt.value)}
+											<button
+												onclick={() => toggleMethod(opt.value)}
+												class="rounded-lg border px-3.5 py-2 text-sm transition-colors {selectedMethods.includes(
+													opt.value
+												)
+													? 'border-zinc-200 bg-zinc-100 text-zinc-900'
+													: 'border-zinc-700 bg-zinc-800/40 text-zinc-300 hover:border-zinc-500'}"
+											>
+												{opt.label}
+											</button>
+										{/each}
+									</div>
+									<button
+										onclick={submitMethods}
+										disabled={selectedMethods.length === 0 || loading}
+										class="mt-3 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+									>
+										{loading ? 'Saving…' : 'Save'}
+									</button>
+								</div>
+							{/if}
 
-					{#if isSkippable(sub) && inputRevealed && ingestState === 'idle'}
-						<div
-							class="mt-4 flex justify-end"
-							in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
-						>
-							<button
-								onclick={skip}
-								class="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
-							>
-								Skip
-							</button>
+							{#if sub.kind === 'address' && inputRevealed}
+								<div
+									class="space-y-2"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									<input
+										bind:value={address.line1}
+										placeholder="Street address"
+										class="w-full rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+									/>
+									<input
+										bind:value={address.line2}
+										placeholder="Suite, floor (optional)"
+										class="w-full rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+									/>
+									<div class="flex gap-2">
+										<input
+											bind:value={address.city}
+											placeholder="City"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={address.state}
+											placeholder="State"
+											class="w-24 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={address.zip}
+											placeholder="ZIP"
+											class="w-28 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+									</div>
+									<button
+										onclick={submitAddress}
+										disabled={!addressComplete || loading}
+										class="rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+									>
+										{loading ? 'Saving…' : 'Save address'}
+									</button>
+								</div>
+							{/if}
+
+							{#if sub.kind === 'upload' && inputRevealed}
+								{#if ingestState === 'idle'}
+									<button
+										onclick={openFilePicker}
+										in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+										class="w-full rounded-xl border border-dashed px-6 py-8 text-center transition-colors {dragActive
+											? 'border-zinc-300 bg-zinc-800/60'
+											: 'border-zinc-600 hover:border-zinc-400 hover:bg-zinc-800/40'}"
+									>
+										<p class="text-base font-medium text-zinc-100">{sub.dropTitle}</p>
+										<p class="mt-1 text-sm text-zinc-500">{sub.dropHint}</p>
+									</button>
+								{:else if ingestState === 'reading'}
+									<div
+										class="flex items-center gap-3 rounded-xl bg-zinc-800/60 px-4 py-4"
+										in:fade={{ duration: 140 }}
+									>
+										<div
+											class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200"
+										></div>
+										<p class="text-sm text-zinc-300">
+											Reading <span class="font-medium text-zinc-100">{ingestFileName}</span>…
+										</p>
+									</div>
+								{:else}
+									<!-- Preview: what I found, awaiting confirmation -->
+									<div
+										class="mt-1"
+										in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+									>
+										<p class="text-base text-zinc-100">
+											I found <span class="font-medium">{ingestRows.length} {ingestNoun}</span> in
+											<span class="text-zinc-300">{ingestFileName}</span>.
+										</p>
+										<ul
+											class="mt-2 divide-y divide-white/5 overflow-hidden rounded-xl bg-zinc-800/50"
+										>
+											{#each ingestRows.slice(0, 4) as row, i (row.primary + i)}
+												<li class="flex items-baseline justify-between gap-3 px-4 py-2.5">
+													<span class="text-sm font-medium text-zinc-100">{row.primary}</span>
+													{#if row.secondary}
+														<span class="shrink-0 text-sm text-zinc-400">{row.secondary}</span>
+													{/if}
+												</li>
+											{/each}
+											{#if ingestRows.length > 4}
+												<li class="px-4 py-2.5 text-sm text-zinc-400">
+													and {ingestRows.length - 4} more
+												</li>
+											{/if}
+										</ul>
+
+										<div class="mt-3 flex items-center gap-2">
+											<button
+												onclick={confirmIngest}
+												disabled={ingestState === 'committing'}
+												class="inline-flex items-center gap-2 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-60"
+											>
+												{#if ingestState === 'committing'}
+													<span
+														class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-400 border-t-zinc-900"
+													></span>
+													{sub.id === 'members' ? 'Sending…' : 'Importing…'}
+												{:else}
+													{sub.id === 'members' ? 'Send invites' : 'Import them'}
+												{/if}
+											</button>
+											<button
+												onclick={resetIngest}
+												disabled={ingestState === 'committing'}
+												class="rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100 disabled:opacity-60"
+											>
+												Use a different file
+											</button>
+										</div>
+									</div>
+								{/if}
+							{/if}
+
+							{#if errorMsg}
+								<p class="mt-3 text-sm text-red-400">{errorMsg}</p>
+							{/if}
+
+							{#if isSkippable(sub) && inputRevealed && ingestState === 'idle'}
+								<div
+									class="mt-4 flex justify-end"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									<button
+										onclick={skip}
+										class="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
+									>
+										Skip
+									</button>
+								</div>
+							{/if}
 						</div>
-					{/if}
+					</div>
 				</div>
 			{/if}
 
@@ -1685,7 +1784,7 @@
 				<div
 					use:springUp={56}
 					style="opacity: 0"
-					class="rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
+					class="relative z-10 rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/10"
 				>
 					<input
 						bind:value={draft}
@@ -1743,17 +1842,46 @@
 								</svg>
 							</button>
 						{:else}
-							<!-- Voice idle (P0: visual only) -->
+							<!-- Voice dictation — fills the current answer -->
 							<button
-								class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 active:scale-95"
-								aria-label="Voice input"
+								onclick={toggleVoice}
+								class="flex h-9 w-9 items-center justify-center rounded-full transition-colors active:scale-95 {voiceState ===
+								'listening'
+									? 'bg-blue-500 text-white'
+									: 'bg-white text-zinc-900 hover:bg-zinc-200'}"
+								aria-label={voiceState === 'idle' ? 'Voice input' : 'Stop listening'}
 							>
-								<div class="flex items-center gap-[2px]">
-									<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
-									<span class="h-[18px] w-[3px] rounded-full bg-current"></span>
-									<span class="h-[12px] w-[3px] rounded-full bg-current"></span>
-									<span class="h-[6px] w-[3px] rounded-full bg-current"></span>
-								</div>
+								{#if voiceState === 'processing'}
+									<div
+										class="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 border-t-zinc-900"
+									></div>
+								{:else}
+									<div class="flex items-center gap-[2px]">
+										<span
+											class="{voiceState === 'listening'
+												? 'voice-bar'
+												: ''} h-[8px] w-[3px] rounded-full bg-current"
+										></span>
+										<span
+											class="{voiceState === 'listening'
+												? 'voice-bar'
+												: ''} h-[18px] w-[3px] rounded-full bg-current"
+											style="animation-delay: 0.15s"
+										></span>
+										<span
+											class="{voiceState === 'listening'
+												? 'voice-bar'
+												: ''} h-[12px] w-[3px] rounded-full bg-current"
+											style="animation-delay: 0.3s"
+										></span>
+										<span
+											class="{voiceState === 'listening'
+												? 'voice-bar'
+												: ''} h-[6px] w-[3px] rounded-full bg-current"
+											style="animation-delay: 0.45s"
+										></span>
+									</div>
+								{/if}
 							</button>
 						{/if}
 					</div>
@@ -1849,6 +1977,27 @@
 		.onb-caret {
 			animation: none;
 			opacity: 0;
+		}
+	}
+
+	/* Matches the prompt bar's listening indicator (see +layout.svelte). */
+	.voice-bar {
+		animation: voice-wave 0.6s ease-in-out infinite alternate;
+		will-change: transform;
+	}
+
+	@keyframes voice-wave {
+		0% {
+			transform: scaleY(0.4);
+		}
+		100% {
+			transform: scaleY(1);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.voice-bar {
+			animation: none;
 		}
 	}
 </style>
