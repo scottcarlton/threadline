@@ -35,9 +35,37 @@ export const load: PageServerLoad = async ({ locals }) => {
 			).data ?? [])
 		: [];
 
+	// The product import posts to api/products/import, which requires a brandId.
+	// For a brand-org that's the self-brand row the auto_create_self_brand
+	// trigger inserts at creation. Null until the org exists (created mid-flow),
+	// so the client re-reads this after invalidateAll().
+	const selfBrandId =
+		organization?.org_type === 'brand'
+			? ((
+					await supabase
+						.from('brands')
+						.select('id')
+						.eq('organization_id', organization.id)
+						.eq('is_self_brand', true)
+						.maybeSingle()
+				).data?.id ?? null)
+			: null;
+
+	// The user's own mailbox (Gmail/Outlook), not an org resource — the
+	// Connections step shows which one is attached, or offers both.
+	const { data: mailbox } = await supabase
+		.from('email_connections')
+		.select('provider, email_address')
+		.eq('profile_id', user.id)
+		.order('updated_at', { ascending: false })
+		.limit(1)
+		.maybeSingle();
+
 	return {
 		organization: organization ?? null,
+		mailbox: (mailbox ?? null) as { provider: string; email_address: string } | null,
 		seasons: seasons as { id: string; name: string }[],
+		selfBrandId: selfBrandId as string | null,
 		user
 	};
 };
