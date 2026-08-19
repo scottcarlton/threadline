@@ -21,6 +21,7 @@
 	import { registerServiceWorker, isOnline } from '$lib/stores/pwa.js';
 	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
 	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
+	import { startVoiceCapture, type VoiceCaptureHandle } from '$lib/utils/voice-capture';
 	import { conversation } from '$lib/stores/conversation.js';
 	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import { setupWizard } from '$lib/stores/setup-wizard.js';
@@ -551,7 +552,6 @@
 		voiceMode = false;
 		voiceState = 'idle';
 		stopMicStream();
-		clearTimeout(silenceTimer);
 		if (currentAudio) {
 			currentAudio.pause();
 			currentAudio = null;
@@ -561,131 +561,34 @@
 		}
 	}
 
-	let mediaRecorder = $state<MediaRecorder | null>(null);
-	let audioChunks: Blob[] = [];
-	let silenceTimer: ReturnType<typeof setTimeout> | undefined;
-	let audioContext: AudioContext | null = null;
-	let analyser: AnalyserNode | null = null;
-	let micStream: MediaStream | null = null;
+	// Recording + transcription live in $lib/utils/voice-capture so this dock and
+	// onboarding share one implementation. The loop below (speak → send → hear a
+	// reply → listen again) is what's specific to voice *conversation* mode.
+	let capture: VoiceCaptureHandle | null = null;
 
 	async function startListening() {
 		if (!voiceMode) return;
 		voiceState = 'listening';
-
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-			micStream = stream;
-
-			// Set up silence detection
-			audioContext = new AudioContext();
-			const source = audioContext.createMediaStreamSource(stream);
-			analyser = audioContext.createAnalyser();
-			analyser.fftSize = 512;
-			source.connect(analyser);
-
-			// Pick a supported mime type
-			let mimeType = 'audio/webm;codecs=opus';
-			if (typeof MediaRecorder !== 'undefined' && !MediaRecorder.isTypeSupported(mimeType)) {
-				mimeType = 'audio/webm';
-				if (!MediaRecorder.isTypeSupported(mimeType)) {
-					mimeType = 'audio/mp4';
-					if (!MediaRecorder.isTypeSupported(mimeType)) {
-						mimeType = ''; // let browser pick default
-					}
-				}
-			}
-			const recorder = mimeType
-				? new MediaRecorder(stream, { mimeType })
-				: new MediaRecorder(stream);
-			mediaRecorder = recorder;
-			audioChunks = [];
-			let speechDetected = false;
-
-			recorder.ondataavailable = (e) => {
-				if (e.data.size > 0) audioChunks.push(e.data);
-			};
-
-			recorder.onstop = async () => {
-				clearTimeout(silenceTimer);
+		capture = await startVoiceCapture({
+			onState: (s) => {
+				if (voiceMode) voiceState = s;
+			},
+			onResult: async (text) => {
 				if (!voiceMode) return;
-				if (audioChunks.length === 0 || !speechDetected) {
-					startListening();
-					return;
-				}
-				const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-				voiceState = 'processing';
-				await transcribeAndSend(audioBlob);
-			};
-
-			recorder.start(250); // collect in 250ms chunks
-
-			// Monitor audio levels for silence detection
-			const dataArray = new Uint8Array(analyser.frequencyBinCount);
-			let silentFrames = 0;
-			const SILENCE_THRESHOLD = 15;
-			const SILENCE_FRAMES_TO_STOP = 12; // ~1.5s at 125ms intervals
-
-			function checkAudio() {
-				if (!voiceMode || !analyser || recorder.state !== 'recording') return;
-
-				analyser.getByteFrequencyData(dataArray);
-				const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-
-				if (avg > SILENCE_THRESHOLD) {
-					speechDetected = true;
-					silentFrames = 0;
-				} else if (speechDetected) {
-					silentFrames++;
-					if (silentFrames >= SILENCE_FRAMES_TO_STOP) {
-						recorder.stop();
-						return;
-					}
-				}
-
-				silenceTimer = setTimeout(checkAudio, 125);
+				await sendVoiceMessage(text);
+			},
+			// Nothing audible or transcription failed — keep the loop alive.
+			onError: () => {
+				if (voiceMode) startListening();
 			}
-			checkAudio();
-		} catch (err) {
-			console.error('Mic access failed:', err);
-			exitVoiceMode();
-		}
+		});
+		// Null means mic access was refused; there's nothing to listen with.
+		if (!capture && voiceMode) exitVoiceMode();
 	}
 
 	function stopMicStream() {
-		if (micStream) {
-			micStream.getTracks().forEach((t) => t.stop());
-			micStream = null;
-		}
-		if (audioContext) {
-			audioContext.close();
-			audioContext = null;
-			analyser = null;
-		}
-		if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-			mediaRecorder.stop();
-		}
-		mediaRecorder = null;
-	}
-
-	async function transcribeAndSend(audioBlob: Blob) {
-		stopMicStream();
-		try {
-			const res = await fetch('/api/voice/stt', {
-				method: 'POST',
-				headers: { 'Content-Type': 'audio/webm' },
-				body: audioBlob
-			});
-			const data = await res.json();
-			// Strip non-speech artifacts like [music playing], (background noise), etc.
-			const text = data.text?.replace(/\[.*?\]|\(.*?\)/g, '').trim();
-			if (!text || !voiceMode) {
-				if (voiceMode) startListening();
-				return;
-			}
-			await sendVoiceMessage(text);
-		} catch {
-			if (voiceMode) startListening();
-		}
+		capture?.cancel();
+		capture = null;
 	}
 
 	async function sendVoiceMessage(text: string) {

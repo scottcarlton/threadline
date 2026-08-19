@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { takeReturnPath } from '$lib/server/oauth-return';
 import type { RequestHandler } from './$types';
 import { exchangeOutlookCode } from '$lib/server/integrations/microsoft/outlook-user';
 import { supabaseAdmin } from '$lib/server/supabase';
@@ -45,5 +46,5 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		{ onConflict: 'profile_id, provider' }
 	);
 
-	throw redirect(303, '/settings?outlook_connected=true');
+	throw redirect(303, takeReturnPath(cookies, 'outlook_connected=true'));
 };

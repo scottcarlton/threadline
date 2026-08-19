@@ -3,8 +3,9 @@ import type { RequestHandler } from './$types';
 import { exchangeCode, getOAuthClient } from '$lib/server/gmail';
 import { google } from 'googleapis';
 import { supabaseAdmin } from '$lib/server/supabase';
+import { takeReturnPath } from '$lib/server/oauth-return';
 
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	if (!locals.session || !locals.user) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
 	}
@@ -46,5 +47,5 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		{ onConflict: 'profile_id, provider' }
 	);
 
-	throw redirect(303, '/settings?email_connected=true');
+	throw redirect(303, takeReturnPath(cookies, 'email_connected=true'));
 };
