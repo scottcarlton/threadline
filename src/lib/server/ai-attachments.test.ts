@@ -4,6 +4,8 @@ import {
 	base64ByteLength,
 	MAX_FILES,
 	MAX_FILE_BYTES,
+	MAX_PDF_BYTES,
+	MAX_TOTAL_BYTES,
 	MAX_TEXT_BYTES
 } from './ai-attachments.js';
 
@@ -58,9 +60,36 @@ describe('buildAttachmentBlocks', () => {
 		});
 	});
 
-	// The core of the fix: binary formats used to be utf-8 decoded and inlined
-	// as garbage rather than rejected.
-	it('rejects a binary type instead of inlining mojibake', () => {
+	// A PDF used to be utf-8 decoded into mojibake. It now goes as a document
+	// block, the same way parse-linesheet sends line sheets.
+	it('sends a PDF as a document block, not decoded text', () => {
+		const result = buildAttachmentBlocks([
+			{ name: 'linesheet.pdf', type: 'application/pdf', data: b64('%PDF-1.7') }
+		]);
+		expect(result).toMatchObject({ ok: true });
+		if (!result.ok) return;
+		expect(result.blocks[0]).toMatchObject({
+			type: 'document',
+			source: { type: 'base64', media_type: 'application/pdf' }
+		});
+	});
+
+	it('allows a PDF above the image ceiling but below the PDF ceiling', () => {
+		const result = buildAttachmentBlocks([
+			{ name: 'big.pdf', type: 'application/pdf', data: b64OfSize(MAX_FILE_BYTES + 1024) }
+		]);
+		expect(result).toMatchObject({ ok: true });
+	});
+
+	it('rejects a PDF over the PDF ceiling', () => {
+		const result = buildAttachmentBlocks([
+			{ name: 'huge.pdf', type: 'application/pdf', data: b64OfSize(MAX_PDF_BYTES + 1024) }
+		]);
+		expect(result).toMatchObject({ ok: false });
+	});
+
+	// Still rejected: unlike PDF, there is no honest way to send these.
+	it('rejects a binary office format instead of inlining mojibake', () => {
 		const result = buildAttachmentBlocks([
 			{ name: 'sheet.xlsx', type: 'application/vnd.ms-excel', data: b64('PK') }
 		]);
@@ -92,12 +121,13 @@ describe('buildAttachmentBlocks', () => {
 	});
 
 	it('rejects a payload that is only oversized in aggregate', () => {
-		const files = Array.from({ length: 4 }, () => ({
-			name: 'big.png',
-			type: 'image/png',
-			data: b64OfSize(4 * 1024 * 1024)
+		const files = Array.from({ length: 2 }, () => ({
+			name: 'big.pdf',
+			type: 'application/pdf',
+			data: b64OfSize(MAX_PDF_BYTES - 1024)
 		}));
 		expect(buildAttachmentBlocks(files)).toMatchObject({ ok: false });
+		expect(MAX_TOTAL_BYTES).toBeLessThan((MAX_PDF_BYTES - 1024) * 2);
 	});
 
 	it('rejects a malformed attachment', () => {

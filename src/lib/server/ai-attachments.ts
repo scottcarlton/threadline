@@ -7,6 +7,10 @@ export type FilePayload = { name: string; type: string; data: string };
 // image (heic, svg) reached the API as a malformed request.
 export const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
+// PDFs go to the model as a document block, the same way parse-linesheet
+// sends line sheets. Decoding one as UTF-8 text would produce mojibake.
+export const PDF_TYPE = 'application/pdf';
+
 // Types we can honestly read as UTF-8 text. Binary office formats are excluded
 // on purpose: decoding them as text produces mojibake, not content.
 export const ALLOWED_TEXT_TYPES = new Set([
@@ -19,9 +23,16 @@ export const ALLOWED_TEXT_TYPES = new Set([
 
 export const MAX_FILES = 5;
 export const MAX_FILE_BYTES = 5 * 1024 * 1024; // Anthropic's per-image ceiling
-export const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
+// Matches the line sheet uploader's ceiling, since these are the same documents.
+export const MAX_PDF_BYTES = 20 * 1024 * 1024;
+export const MAX_TOTAL_BYTES = 25 * 1024 * 1024;
 // Roughly the largest text that can fit the context window with room to answer.
 export const MAX_TEXT_BYTES = 512 * 1024;
+
+/** Per-file ceiling, which depends on how the file will be sent. */
+export function fileCeiling(type: string): number {
+	return type === PDF_TYPE ? MAX_PDF_BYTES : MAX_FILE_BYTES;
+}
 
 /** Decoded byte length of a base64 string, without allocating the buffer. */
 export function base64ByteLength(data: string): number {
@@ -63,11 +74,13 @@ export function buildAttachmentBlocks(files: unknown): AttachmentResult {
 		const bytes = base64ByteLength(file.data);
 		totalBytes += bytes;
 
-		if (bytes > MAX_FILE_BYTES) {
-			return { ok: false, error: `"${name}" is too large. Maximum size is 5MB per file.` };
+		const ceiling = fileCeiling(file.type);
+		if (bytes > ceiling) {
+			const mb = Math.round(ceiling / (1024 * 1024));
+			return { ok: false, error: `"${name}" is too large. Maximum size is ${mb}MB.` };
 		}
 		if (totalBytes > MAX_TOTAL_BYTES) {
-			return { ok: false, error: 'Those files are too large together. Maximum is 15MB total.' };
+			return { ok: false, error: 'Those files are too large together. Maximum is 25MB total.' };
 		}
 
 		if (file.type.startsWith('image/')) {
@@ -88,10 +101,18 @@ export function buildAttachmentBlocks(files: unknown): AttachmentResult {
 			continue;
 		}
 
+		if (file.type === PDF_TYPE) {
+			blocks.push({
+				type: 'document',
+				source: { type: 'base64', media_type: 'application/pdf', data: file.data }
+			} as unknown as Anthropic.ContentBlockParam);
+			continue;
+		}
+
 		if (!ALLOWED_TEXT_TYPES.has(file.type)) {
 			return {
 				ok: false,
-				error: `"${name}" is not a supported file type. Attach an image, or a CSV, TXT, JSON, or Markdown file.`
+				error: `"${name}" is not a supported file type. Attach an image, a PDF, or a CSV, TXT, JSON, or Markdown file.`
 			};
 		}
 		if (bytes > MAX_TEXT_BYTES) {
