@@ -51,8 +51,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 				).data?.id ?? null)
 			: null;
 
+	// The user's own mailbox (Gmail/Outlook), not an org resource — the
+	// Connections step shows which one is attached, or offers both.
+	const { data: mailbox } = await supabase
+		.from('email_connections')
+		.select('provider, email_address')
+		.eq('profile_id', user.id)
+		.order('updated_at', { ascending: false })
+		.limit(1)
+		.maybeSingle();
+
 	return {
 		organization: organization ?? null,
+		mailbox: (mailbox ?? null) as { provider: string; email_address: string } | null,
 		seasons: seasons as { id: string; name: string }[],
 		selfBrandId: selfBrandId as string | null,
 		user

@@ -6,6 +6,9 @@ import {
 	canGoPrev,
 	canGoNext,
 	isSkippable,
+	statLabel,
+	restoreStats,
+	matchOrgType,
 	type MachinePhase
 } from './machine';
 
@@ -119,5 +122,83 @@ describe('isSkippable', () => {
 
 	it('undefined is not skippable', () => {
 		expect(isSkippable(undefined)).toBe(false);
+	});
+});
+
+describe('stat cards', () => {
+	it('derives one label per step, singular and plural', () => {
+		expect(statLabel('members', 1)).toBe('Member Added');
+		expect(statLabel('members', 10)).toBe('Members Added');
+		expect(statLabel('accounts', 2)).toBe('Accounts Added');
+		expect(statLabel('products', 0)).toBe('Products Added');
+		expect(statLabel('orders', 0)).toBe('Orders Added');
+	});
+
+	it('restores every saved step, not just the first', () => {
+		const restored = restoreStats([
+			{ key: 'members', n: '10', label: 'Members Added' },
+			{ key: 'accounts', n: '2', label: 'Accounts Added' },
+			{ key: 'orders', n: '0', label: 'Orders Added', note: 'Skipped for now' }
+		]);
+		expect(restored.map((s) => s.key)).toEqual(['members', 'accounts', 'orders']);
+		expect(restored.map((s) => s.display)).toEqual([10, 2, 0]);
+		expect(restored[2].note).toBe('Skipped for now');
+	});
+
+	it('collapses a skipped row and a later import of the same step into one card', () => {
+		const restored = restoreStats([
+			{ n: '0', label: 'Members Added', note: 'Skipped for now' },
+			{ n: '10', label: 'Members Invited' }
+		]);
+		expect(restored).toHaveLength(1);
+		expect(restored[0].key).toBe('members');
+		expect(restored[0].label).toBe('Members Added');
+		expect(restored[0].display).toBe(10);
+		expect(restored[0].note).toBeUndefined();
+	});
+
+	it('keeps a zero count visible rather than dropping the card', () => {
+		const restored = restoreStats([{ key: 'products', n: '0', label: 'Products Added' }]);
+		expect(restored).toHaveLength(1);
+		expect(restored[0].display).toBe(0);
+	});
+
+	it('handles an empty or missing list', () => {
+		expect(restoreStats([])).toEqual([]);
+		expect(restoreStats(null)).toEqual([]);
+	});
+});
+
+describe('matchOrgType', () => {
+	it('matches the three card labels as typed', () => {
+		expect(matchOrgType('Brand')).toBe('brand');
+		expect(matchOrgType('Independent Sales Rep')).toBe('rep');
+		expect(matchOrgType('Retailer')).toBe('retailer');
+	});
+
+	it('ignores case, punctuation and filler words', () => {
+		expect(matchOrgType('  brand. ')).toBe('brand');
+		expect(matchOrgType("I'm a brand")).toBe('brand');
+		expect(matchOrgType('We are a retailer')).toBe('retailer');
+	});
+
+	it('accepts common industry wordings', () => {
+		expect(matchOrgType('sales rep')).toBe('rep');
+		expect(matchOrgType('ISR')).toBe('rep');
+		expect(matchOrgType('showroom')).toBe('rep');
+		expect(matchOrgType('boutique')).toBe('retailer');
+		expect(matchOrgType('retail')).toBe('retailer');
+	});
+
+	it('prefers the longest alias inside a sentence', () => {
+		// "rep" alone must not win over "independent sales rep".
+		expect(matchOrgType('independent sales rep for six brands')).toBe('rep');
+	});
+
+	it('returns null for anything unrecognisable', () => {
+		expect(matchOrgType('')).toBe(null);
+		expect(matchOrgType(null)).toBe(null);
+		expect(matchOrgType('not sure yet')).toBe(null);
+		expect(matchOrgType('12345')).toBe(null);
 	});
 });

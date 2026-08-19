@@ -11,24 +11,45 @@
 	//   ~1080ms conversation panel opens → first question types → flow begins
 	import { untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { fade, fly, scale } from 'svelte/transition';
 	import { cubicOut, backOut } from 'svelte/easing';
 	import {
+		statLabel,
+		restoreStats,
 		resumePhaseIndex,
 		nextCursor,
 		phaseStatus,
 		canGoPrev,
 		canGoNext,
-		isSkippable
+		isSkippable,
+		matchOrgType
 	} from '$lib/components/onboarding/machine';
 	import { parseCSV } from '$lib/utils/csv-parse';
-	import { buildAccountPreviewFromCsv } from '$lib/components/accounts/account-import-helpers';
-	import { suggestColumnMapping } from '$lib/utils/csv-column-suggest';
+	import {
+		buildAccountPreviewFromCsv,
+		downloadAccountCsvTemplate
+	} from '$lib/components/accounts/account-import-helpers';
+	import { downloadCsvTemplate } from '$lib/components/products/product-import-helpers';
+	import { downloadOrderCsvTemplate } from '$lib/components/orders/order-import-helpers';
+	import { downloadMemberCsvTemplate } from '$lib/components/onboarding/member-template';
+	import {
+		parseMembers,
+		parseProducts,
+		parseOrders,
+		capRows,
+		importedCount,
+		type MemberDraft,
+		type ProductDraft,
+		type OrderRowDraft
+	} from '$lib/components/onboarding/parse';
 	import { startVoiceCapture, type VoiceCaptureHandle } from '$lib/utils/voice-capture';
+	import IntegrationLogo from '$lib/components/integrations/IntegrationLogo.svelte';
+	import MailProviderLogo from '$lib/components/settings/MailProviderLogo.svelte';
 
 	let { data } = $props();
 
-	type SubKind = 'text' | 'upload' | 'choice' | 'multi' | 'address' | 'connect';
+	type SubKind = 'text' | 'upload' | 'choice' | 'multi' | 'address' | 'connect' | 'inbox';
 	interface ChoiceOption {
 		value: string;
 		label: string;
@@ -187,9 +208,18 @@
 		},
 		{
 			id: 'integrations',
-			title: 'Integrations',
-			subtitle: 'Connect external resources for your organization.',
+			title: 'Connections',
+			subtitle: 'Connect your inbox and the tools you already use.',
 			subs: [
+				{
+					// The mailbox is personal (email_connections is keyed on profile_id),
+					// unlike every other step here, and it's where the work actually
+					// arrives — so it comes before the org-level tools.
+					id: 'inbox',
+					question: 'Want to connect your email?',
+					placeholder: 'You can connect this later',
+					kind: 'inbox'
+				},
 				{
 					id: 'connect',
 					// Only providers with a live connect flow are listed here — see
@@ -203,25 +233,29 @@
 							value: 'slack',
 							label: 'Slack',
 							description: 'Notifications for new orders and status changes.',
-							url: '/api/integrations/slack/connect'
+							url: '/api/integrations/slack/connect',
+							icon: 'slack'
 						},
 						{
 							value: 'microsoft',
 							label: 'Microsoft 365',
 							description: 'Outlook email, Teams notifications, and Excel exports.',
-							url: '/api/integrations/microsoft/connect'
+							url: '/api/integrations/microsoft/connect',
+							icon: 'microsoft'
 						},
 						{
 							value: 'google_sheets',
 							label: 'Google Sheets',
 							description: 'Export orders, accounts, and reports to spreadsheets.',
-							url: '/api/integrations/google-sheets/connect'
+							url: '/api/integrations/google-sheets/connect',
+							icon: 'sheets'
 						},
 						{
 							value: 'notion',
 							label: 'Notion',
 							description: 'Two-way sync for orders, brands, lookbooks, and docs.',
-							url: '/api/integrations/notion/connect'
+							url: '/api/integrations/notion/connect',
+							icon: 'notion'
 						}
 					]
 				}
@@ -236,6 +270,26 @@
 	// Resume: the org row only exists once General Information is done, and its
 	// onboarding_step (1-based phase) tells us which phase to resume at. Reading
 	// `data` once at init is intentional (SSR provides the current value).
+	// Pre-org answers live on the profile, since the org row doesn't exist during
+	// General Information (see profiles.onboarding_draft).
+	// svelte-ignore state_referenced_locally
+	const draftSaved = (data.user?.onboarding_draft ?? null) as {
+		name?: string;
+		orgType?: 'brand' | 'rep' | 'retailer';
+	} | null;
+
+	// Which General Information question to resume at: the first one still
+	// unanswered. Only meaningful before the org exists.
+	//
+	// Only the draft counts as an answer. display_name can't be used as a signal:
+	// the signup trigger defaults it to the user's email, so it's never empty and
+	// would skip the name question on a first visit.
+	function resumeGeneralSub(): number {
+		if (draftSaved?.orgType) return 2; // name + type done → org name
+		if (draftSaved?.name) return 1; // name done → org type
+		return 0;
+	}
+
 	// Resume. onboarding_state (JSONB) carries the exact cursor, which sub-steps
 	// are done/skipped, and the import counts, so a refresh doesn't drop you back
 	// to the top of a phase and re-run work you already finished. Falls back to
@@ -245,7 +299,7 @@
 		phase?: number;
 		sub?: number;
 		subStates?: Record<string, 'done' | 'skipped'>;
-		stats?: { n: string; label: string }[];
+		stats?: { key?: string; n: string; label: string; note?: string }[];
 	} | null;
 
 	// svelte-ignore state_referenced_locally
@@ -258,29 +312,47 @@
 	let subIndex = $state(
 		typeof saved?.sub === 'number'
 			? Math.min(Math.max(saved.sub, 0), (phases[phaseIndex]?.subs.length ?? 1) - 1)
-			: 0
+			: data.organization
+				? 0
+				: resumeGeneralSub()
 	);
 	let draft = $state('');
 	let completed = $state(false);
-	// svelte-ignore state_referenced_locally
 	let subStates = $state<Record<string, 'done' | 'skipped'>>({ ...(saved?.subStates ?? {}) });
-	// svelte-ignore state_referenced_locally
-	let stats = $state<{ n: string; label: string; display: number }[]>(
-		(saved?.stats ?? []).map((s) => ({ ...s, display: Number(s.n) || 0 }))
+	let stats = $state<{ key: string; n: string; label: string; note?: string; display: number }[]>(
+		restoreStats(saved?.stats ?? [])
 	);
 
-	// General Information answers — held in memory until create-org. Not resumable
-	// pre-org by design (plan §0 decision 2).
+	// General Information answers, restored from the profile draft above.
+	// svelte-ignore state_referenced_locally
 	let values = $state<{
 		name: string;
 		orgType: 'brand' | 'rep' | 'retailer' | null;
 		orgName: string;
-	}>({ name: '', orgType: null, orgName: '' });
+	}>({
+		// Same caveat as resumeGeneralSub: display_name defaults to the email, so
+		// only prefill from it when it's an actual name.
+		name:
+			draftSaved?.name ??
+			(data.user?.display_name?.includes('@') ? '' : data.user?.display_name) ??
+			'',
+		orgType: draftSaved?.orgType ?? null,
+		orgName: ''
+	});
+
+	// Persist a pre-org answer. Fire-and-forget: a failed save costs a retype,
+	// never the flow.
+	async function saveDraft(patch: { name?: string; orgType?: string }) {
+		await fetch('/api/onboarding/draft', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(patch)
+		}).catch(() => {});
+	}
 	let loading = $state(false);
 	let errorMsg = $state('');
 
 	// Completion
-	let finishing = $state(false);
 	let landingPath = $state('/insight');
 	let redirectTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -333,7 +405,17 @@
 			address.zip.trim() !== ''
 	);
 
-	// Entrance orchestration state
+	// Entrance orchestration state.
+	// `resuming` is decided once, at init: the org already exists, or a pre-org
+	// answer was saved, or we've just come back from an OAuth round-trip.
+	// Reading `data` once is the point — completing a step mid-session must not
+	// retroactively flip this on and kill the typewriter.
+	// svelte-ignore state_referenced_locally
+	const resuming =
+		Boolean(data.organization) ||
+		Boolean(draftSaved?.name) ||
+		(typeof window !== 'undefined' &&
+			/[?&](email|outlook)_connected=true/.test(window.location.search));
 	let prefersReduced = $state(false);
 	let welcomeTyped = $state('');
 	let welcomeTyping = $state(false);
@@ -357,15 +439,28 @@
 	const revealMs = $derived(prefersReduced ? 0 : 320);
 
 	const cursorKey = (p: number, s: number) => `${p}.${s}`;
-	const currentSubState = $derived(subStates[cursorKey(phaseIndex, subIndex)]);
 
 	const phaseState = (i: number) => phaseStatus(i, { phaseIndex, subIndex }, completed);
 
 	// Stat cards are driven by real import counts only — never placeholder numbers.
-	function addStat(demo: { n: string; label: string }) {
-		const idx = stats.length;
+	// A skipped step still gets a card, at 0, with a note saying so.
+	//
+	// Keyed by step: skipping members then coming back and inviting 10 must leave
+	// one card, not a "0 Skipped" sitting next to a "10 Invited" for the same step.
+	function addStat(demo: { key: string; n: string; note?: string }) {
 		const target = Number(demo.n);
-		stats = [...stats, { n: demo.n, label: demo.label, display: prefersReduced ? target : 0 }];
+		const rest = stats.filter((s) => s.key !== demo.key);
+		const idx = rest.length;
+		stats = [
+			...rest,
+			{
+				key: demo.key,
+				n: demo.n,
+				label: statLabel(demo.key, target),
+				note: demo.note,
+				display: prefersReduced ? target : 0
+			}
+		];
 		if (prefersReduced) return;
 		// Count-up micro-interaction.
 		const start = performance.now();
@@ -401,7 +496,6 @@
 	// to the app. The button is always there so a slow/failed write never traps
 	// anyone on this screen.
 	async function finishOnboarding() {
-		finishing = true;
 		try {
 			const res = await fetch('/api/onboarding/progress', {
 				method: 'POST',
@@ -413,10 +507,156 @@
 		} catch {
 			// Fall through — the manual button still works.
 		}
-		finishing = false;
-		if (!prefersReduced) {
-			redirectTimer = setTimeout(() => goToApp(), 2600);
+		void runVerification();
+	}
+
+	// ── Verification sequence ─────────────────────────────────────────────
+	// The closing beat: Stitch reads back what it actually did, one line at a
+	// time, like tool calls resolving. Built from real state — a step that was
+	// skipped gets a dash and says so, never a checkmark on nothing.
+	type VerifyLine = { text: string; ok: boolean };
+
+	const orgDisplayName = $derived(data.organization?.name ?? values.orgName ?? 'your');
+
+	function statCount(key: string): number {
+		const row = stats.find((s) => s.key === key);
+		return row ? Number(row.n) || 0 : 0;
+	}
+
+	// Walks the real phase list rather than a hand-written set, so a step can't
+	// be left out of the read-back (Settings originally was). General Information
+	// is excluded — creating the org is the premise, not an outcome.
+	const verifyLines = $derived.by((): VerifyLine[] => {
+		const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+		const lines: VerifyLine[] = [];
+
+		phases.forEach((p, pi) => {
+			if (p.id === 'general') return;
+			p.subs.forEach((sb, si) => {
+				const state = subStates[cursorKey(pi, si)];
+				const skipped = state !== 'done';
+
+				switch (sb.id) {
+					case 'members': {
+						const n = statCount('members');
+						lines.push(
+							n > 0
+								? { text: `Invited ${n} ${plural(n, 'person', 'people')} to your team`, ok: true }
+								: { text: 'No team invited — skipped for now', ok: false }
+						);
+						break;
+					}
+					case 'accounts': {
+						const n = statCount('accounts');
+						lines.push(
+							n > 0
+								? { text: `Imported ${n} ${plural(n, 'account', 'accounts')}`, ok: true }
+								: { text: 'No accounts imported — skipped for now', ok: false }
+						);
+						break;
+					}
+					case 'products': {
+						const n = statCount('products');
+						lines.push(
+							n > 0
+								? { text: `${n} ${plural(n, 'product', 'products')} added`, ok: true }
+								: { text: 'No products added — skipped for now', ok: false }
+						);
+						break;
+					}
+					case 'orders': {
+						const n = statCount('orders');
+						lines.push(
+							n > 0
+								? { text: `Imported ${n} ${plural(n, 'order', 'orders')}`, ok: true }
+								: { text: 'No orders imported — skipped for now', ok: false }
+						);
+						break;
+					}
+					case 'address':
+						lines.push(
+							skipped
+								? { text: 'Business address — skipped for now', ok: false }
+								: { text: 'Business address saved', ok: true }
+						);
+						break;
+					case 'payment-terms':
+						lines.push(
+							skipped
+								? { text: 'Payment terms — skipped for now', ok: false }
+								: { text: 'Payment terms set', ok: true }
+						);
+						break;
+					case 'payment-methods':
+						lines.push(
+							skipped
+								? { text: 'Payment methods — skipped for now', ok: false }
+								: { text: 'Payment methods set', ok: true }
+						);
+						break;
+					case 'inbox':
+						lines.push(
+							data.mailbox
+								? {
+										text: `${data.mailbox.provider === 'outlook' ? 'Outlook' : 'Gmail'} connected`,
+										ok: true
+									}
+								: { text: 'Email — skipped for now', ok: false }
+						);
+						break;
+					case 'connect':
+						lines.push(
+							startedConnections.length > 0
+								? { text: `Integrations — ${startedConnections.length} connected`, ok: true }
+								: { text: 'Integrations — skipped for now', ok: false }
+						);
+						break;
+					default:
+						lines.push(
+							skipped
+								? { text: `${sb.id} — skipped for now`, ok: false }
+								: { text: `${sb.id} saved`, ok: true }
+						);
+				}
+			});
+		});
+
+		lines.push({ text: 'Done', ok: true });
+		return lines;
+	});
+
+	// Resolved once so the markup binds a plain value — the navigation lint rule
+	// wants resolve() at the definition, not wrapped in a template literal.
+	const MAILBOX_OPTIONS = [
+		{
+			provider: 'gmail' as const,
+			label: 'Gmail',
+			href: `${resolve('/api/email/connect')}?return=%2Fonboarding`
+		},
+		{
+			provider: 'outlook' as const,
+			label: 'Outlook',
+			href: `${resolve('/api/email-outlook/connect')}?return=%2Fonboarding`
 		}
+	];
+
+	let revealedLines = $state(0);
+	let settledLines = $state(0);
+
+	const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+	// Reveal each line, let it spin briefly, resolve it, then move on — the
+	// cadence is what sells it as work rather than a summary.
+	async function runVerification() {
+		const total = verifyLines.length;
+		for (let i = 0; i < total; i++) {
+			revealedLines = i + 1;
+			await wait(prefersReduced ? 0 : 420);
+			settledLines = i + 1;
+			await wait(prefersReduced ? 0 : 160);
+		}
+		await wait(prefersReduced ? 0 : 700);
+		goToApp();
 	}
 
 	function goToApp() {
@@ -430,7 +670,18 @@
 		advanceGlobal();
 	}
 
-	const skip = () => complete('skipped');
+	// Skipping still leaves a trace: a 0 card noting it was skipped, so the rail
+	// reflects every import step rather than silently omitting the ones passed on.
+	// Steps whose schema has an explicit 'skip' value. Recording the skip is what
+	// stops the app asking the same question again after preflight; a purely
+	// local skip left `payments` unresolved forever.
+	const SKIP_SAVES_STEP = new Set(['payment-terms', 'payment-methods']);
+
+	const skip = () => {
+		if (statLabel(sub.id, 0)) addStat({ key: sub.id, n: '0', note: 'Skipped for now' });
+		if (SKIP_SAVES_STEP.has(sub.id)) void saveSetupStep(sub.id, 'skip');
+		complete('skipped');
+	};
 	const prevSub = () => canPrev && subIndex--;
 	const nextSub = () => canNext && subIndex++;
 
@@ -448,7 +699,7 @@
 					phase: phaseIndex,
 					sub: subIndex,
 					subStates: { ...subStates },
-					stats: stats.map((s) => ({ n: s.n, label: s.label }))
+					stats: stats.map((s) => ({ key: s.key, n: s.n, label: s.label, note: s.note }))
 				}
 			})
 		}).catch(() => {});
@@ -457,6 +708,7 @@
 	function chooseOrgType(value: 'brand' | 'rep' | 'retailer') {
 		values.orgType = value;
 		errorMsg = '';
+		void saveDraft({ orgType: value });
 		advanceGlobal();
 	}
 
@@ -575,8 +827,19 @@
 			if (sub.id === 'name') {
 				if (!draft.trim()) return;
 				values.name = draft.trim();
+				void saveDraft({ name: values.name });
 				draft = '';
 				advanceGlobal();
+			} else if (sub.id === 'orgType') {
+				// The cards are one way to answer; typing it is the other. The prompt
+				// is always on screen, so it has to work.
+				const matched = matchOrgType(draft);
+				if (!matched) {
+					errorMsg = 'Tell me brand, sales rep, or retailer — or pick one above.';
+					return;
+				}
+				draft = '';
+				chooseOrgType(matched);
 			} else if (sub.id === 'orgName') {
 				if (!draft.trim()) return;
 				values.orgName = draft.trim();
@@ -615,7 +878,7 @@
 				errorMsg = body.error || "That invite couldn't be sent.";
 				return;
 			}
-			addStat({ n: '1', label: 'Member Invited' });
+			addStat({ key: 'members', n: '1' });
 			draft = '';
 			advanceGlobal();
 		} catch {
@@ -644,7 +907,11 @@
 		dragActive = true;
 	}
 
-	function onDragLeave() {
+	// Dragging across a child fires dragleave on the panel; ignore those or the
+	// highlight flickers the whole time the cursor is inside.
+	function onDragLeave(e: DragEvent) {
+		const to = e.relatedTarget as Node | null;
+		if (to && (e.currentTarget as HTMLElement).contains(to)) return;
 		dragActive = false;
 	}
 
@@ -659,27 +926,24 @@
 	// ── Ingestion: drop → read → preview → confirm → commit ────────────────
 	// Nothing is written until the user confirms. Invites in particular send
 	// real email, so friction is matched to the blast radius.
-	type IngestRow = { primary: string; secondary: string };
-	type MemberDraft = { email: string; role: string; commissionRate: number | null; name: string };
+	// primary/secondary is the shared shape (accounts, products, orders). Members
+	// use the richer layout: name + role on one line, email beneath, and a
+	// centered stat on the right.
+	type IngestRow = {
+		primary: string;
+		secondary: string;
+		detail?: string;
+		inline?: string;
+		metaValue?: string;
+		metaLabel?: string;
+	};
 
 	let ingestState = $state<'idle' | 'reading' | 'preview' | 'committing'>('idle');
 	let ingestFileName = $state('');
 	let ingestRows = $state<IngestRow[]>([]);
 	let ingestNoun = $state('');
-	type ProductDraft = {
-		style_number: string;
-		name: string;
-		wholesale_price: number;
-		season_id: string | null;
-	};
-	type OrderRowDraft = {
-		account: string;
-		style_number: string;
-		qty: number;
-		unit_price: number | null;
-		color: string | null;
-		size: string | null;
-	};
+	// Rows beyond MAX_IMPORT_ROWS, surfaced in the preview instead of vanishing.
+	let droppedRows = $state(0);
 
 	let memberDrafts: MemberDraft[] = [];
 	let accountDrafts: Record<string, unknown>[] = [];
@@ -688,6 +952,7 @@
 
 	function resetIngest() {
 		ingestState = 'idle';
+		droppedRows = 0;
 		ingestFileName = '';
 		ingestRows = [];
 		memberDrafts = [];
@@ -696,107 +961,20 @@
 		orderDrafts = [];
 	}
 
-	function pickHeader(headers: string[], candidates: string[]): string | null {
-		const lowered = headers.map((h) => h.trim().toLowerCase());
-		for (const c of candidates) {
-			const i = lowered.indexOf(c);
-			if (i !== -1) return lowered[i];
-		}
-		return null;
+	// Hand the user a correctly-shaped CSV for whichever import they're on.
+	// Accounts/products/orders reuse the same templates their real import flows
+	// ship; members has no flow outside preflight, so it has its own.
+	function downloadTemplate(subId: string) {
+		if (subId === 'members') return downloadMemberCsvTemplate();
+		if (subId === 'accounts') return downloadAccountCsvTemplate();
+		if (subId === 'products') return downloadCsvTemplate();
+		if (subId === 'orders') return downloadOrderCsvTemplate();
 	}
 
-	function normalizeRole(raw: string): string {
-		const v = raw.trim().toLowerCase();
-		if (v.includes('admin')) return 'admin';
-		if (v.includes('sales')) return 'sales';
-		if (v.includes('guest')) return 'guest';
-		return 'member';
-	}
-
-	function parseMembers(headers: string[], rows: Record<string, string>[]): MemberDraft[] {
-		const emailH = pickHeader(headers, ['email', 'email address', 'email_address']);
-		if (!emailH) return [];
-		const firstH = pickHeader(headers, ['first name', 'first_name', 'firstname']);
-		const lastH = pickHeader(headers, ['last name', 'last_name', 'lastname']);
-		const roleH = pickHeader(headers, ['role', 'member role']);
-		const commH = pickHeader(headers, ['commission', 'commission rate', 'commission_rate']);
-
-		const out: MemberDraft[] = [];
-		for (const row of rows) {
-			const email = (row[emailH] ?? '').trim();
-			if (!email || !email.includes('@')) continue;
-			const role = roleH ? normalizeRole(row[roleH] ?? '') : 'member';
-			let commissionRate: number | null = null;
-			if (role === 'sales' && commH) {
-				const n = Number((row[commH] ?? '').replace('%', '').trim());
-				if (Number.isFinite(n) && n > 0) commissionRate = n;
-			}
-			const name = [firstH ? row[firstH] : '', lastH ? row[lastH] : '']
-				.map((s) => (s ?? '').trim())
-				.filter(Boolean)
-				.join(' ');
-			out.push({ email, role, commissionRate, name });
-		}
-		return out;
-	}
+	// TODO: behavior not decided yet — the button is intentionally inert for now.
+	function startManualEntry() {}
 
 	const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
-
-	const toNumber = (raw: string): number | null => {
-		const n = Number((raw ?? '').replace(/[$,]/g, '').trim());
-		return Number.isFinite(n) ? n : null;
-	};
-
-	// Products use the app's shared column-suggestion mapper so onboarding
-	// accepts the same headers as the /products import.
-	function parseProducts(headers: string[], rows: Record<string, string>[]): ProductDraft[] {
-		const headerByField = new Map<string, string>();
-		for (const h of headers) {
-			const field = suggestColumnMapping(h);
-			if (field && !headerByField.has(field)) headerByField.set(field, h.trim().toLowerCase());
-		}
-		const styleH = headerByField.get('style_number');
-		const nameH = headerByField.get('name');
-		const priceH = headerByField.get('wholesale_price');
-		if (!styleH || !nameH || !priceH) return [];
-
-		const out: ProductDraft[] = [];
-		for (const row of rows) {
-			const style_number = (row[styleH] ?? '').trim();
-			const name = (row[nameH] ?? '').trim();
-			const price = toNumber(row[priceH] ?? '');
-			if (!style_number || !name || price === null) continue;
-			out.push({ style_number, name, wholesale_price: price, season_id: null });
-		}
-		return out;
-	}
-
-	function parseOrders(headers: string[], rows: Record<string, string>[]): OrderRowDraft[] {
-		const accountH = pickHeader(headers, ['account', 'business name', 'business_name', 'customer']);
-		const styleH = pickHeader(headers, ['style number', 'style_number', 'style', 'sku']);
-		const qtyH = pickHeader(headers, ['qty', 'quantity', 'units']);
-		if (!accountH || !styleH || !qtyH) return [];
-		const priceH = pickHeader(headers, ['unit price', 'unit_price', 'price', 'wholesale price']);
-		const colorH = pickHeader(headers, ['color', 'colour']);
-		const sizeH = pickHeader(headers, ['size']);
-
-		const out: OrderRowDraft[] = [];
-		for (const row of rows) {
-			const account = (row[accountH] ?? '').trim();
-			const style_number = (row[styleH] ?? '').trim();
-			const qty = toNumber(row[qtyH] ?? '');
-			if (!account || !style_number || qty === null || qty <= 0) continue;
-			out.push({
-				account,
-				style_number,
-				qty: Math.trunc(qty),
-				unit_price: priceH ? toNumber(row[priceH] ?? '') : null,
-				color: colorH ? (row[colorH] ?? '').trim() || null : null,
-				size: sizeH ? (row[sizeH] ?? '').trim() || null : null
-			});
-		}
-		return out;
-	}
 
 	const money = (n: number) =>
 		n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -865,14 +1043,35 @@
 			return;
 		}
 
+		// Spreadsheet formats are archives, not text. Reading one yields binary
+		// noise that parses to zero rows, so without this the user gets "I
+		// couldn't find any email addresses" for a file full of email addresses.
+		const lowerName = file.name.toLowerCase();
+		const binaryExt = ['.numbers', '.xlsx', '.xls', '.ods', '.pages', '.key', '.docx', '.doc'];
+		const badExt = binaryExt.find((ext) => lowerName.endsWith(ext));
+		if (badExt) {
+			resetIngest();
+			errorMsg = `I can't read ${badExt} files. Export it as CSV and drop it again.`;
+			return;
+		}
+
 		// A short scanning beat so the read is legible rather than a flash.
 		const readAt = performance.now();
-		let text = '';
+		let text: string;
 		try {
 			text = await file.text();
 		} catch {
 			resetIngest();
 			errorMsg = "I couldn't read that file.";
+			return;
+		}
+
+		// Catch the same problem from an unfamiliar extension: NUL bytes and
+		// replacement chars mean it wasn't text to begin with.
+		const head = text.slice(0, 4096);
+		if (head.includes('\u0000') || head.includes('\uFFFD')) {
+			resetIngest();
+			errorMsg = "That file isn't plain text. Export it as CSV and drop it again.";
 			return;
 		}
 		const elapsed = performance.now() - readAt;
@@ -883,7 +1082,11 @@
 		const { headers, rows } = parseCSV(text);
 
 		if (sub.id === 'members') {
-			memberDrafts = parseMembers(headers, rows);
+			// Capped: this step sends real email, so an oversized CSV is a mailing
+			// accident. Say what was dropped rather than truncating silently.
+			const capped = capRows(parseMembers(headers, rows));
+			memberDrafts = capped.rows;
+			droppedRows = capped.dropped;
 			if (memberDrafts.length === 0) {
 				resetIngest();
 				errorMsg =
@@ -893,13 +1096,13 @@
 			ingestNoun = memberDrafts.length === 1 ? 'person' : 'people';
 			ingestRows = memberDrafts.map((m) => ({
 				primary: m.name || m.email,
-				secondary: [
-					m.name ? m.email : '',
-					roleLabel(m.role),
-					m.commissionRate ? `${m.commissionRate}%` : ''
-				]
-					.filter(Boolean)
-					.join(' · ')
+				// Role sits beside the name, email beneath it. When there's no name the
+				// email is already the primary line, so it isn't repeated.
+				inline: roleLabel(m.role),
+				detail: m.name ? m.email : '',
+				metaValue: m.commissionRate ? `${m.commissionRate}%` : '',
+				metaLabel: m.commissionRate ? 'Commission' : '',
+				secondary: ''
 			}));
 			ingestState = 'preview';
 			return;
@@ -907,9 +1110,14 @@
 
 		if (sub.id === 'accounts') {
 			const { previewRows } = buildAccountPreviewFromCsv(headers, rows);
-			accountDrafts = previewRows.filter(
-				(r) => typeof r.business_name === 'string' && (r.business_name as string).trim().length > 0
+			const cappedAccounts = capRows(
+				previewRows.filter(
+					(r) =>
+						typeof r.business_name === 'string' && (r.business_name as string).trim().length > 0
+				)
 			);
+			accountDrafts = cappedAccounts.rows;
+			droppedRows = cappedAccounts.dropped;
 			if (accountDrafts.length === 0) {
 				resetIngest();
 				errorMsg =
@@ -935,7 +1143,9 @@
 					"Product imports need a brand catalog — that's only set up for brand organizations right now.";
 				return;
 			}
-			productDrafts = parseProducts(headers, rows);
+			const cappedproductDrafts = capRows(parseProducts(headers, rows));
+			productDrafts = cappedproductDrafts.rows;
+			droppedRows = cappedproductDrafts.dropped;
 			if (productDrafts.length === 0) {
 				resetIngest();
 				errorMsg =
@@ -952,7 +1162,9 @@
 		}
 
 		if (sub.id === 'orders') {
-			orderDrafts = parseOrders(headers, rows);
+			const cappedorderDrafts = capRows(parseOrders(headers, rows));
+			orderDrafts = cappedorderDrafts.rows;
+			droppedRows = cappedorderDrafts.dropped;
 			if (orderDrafts.length === 0) {
 				resetIngest();
 				errorMsg =
@@ -994,7 +1206,7 @@
 					errorMsg = 'None of those invites could be sent — they may already be members.';
 					return;
 				}
-				addStat({ n: String(sent), label: sent === 1 ? 'Member Invited' : 'Members Invited' });
+				addStat({ key: 'members', n: String(sent) });
 				resetIngest();
 				advanceGlobal();
 				return;
@@ -1012,13 +1224,8 @@
 					errorMsg = result.error || 'That import failed. Please try again.';
 					return;
 				}
-				const created = Number(result.created ?? 0);
-				if (created > 0) {
-					addStat({
-						n: String(created),
-						label: created === 1 ? 'Account Added' : 'Accounts Added'
-					});
-				}
+				const created = importedCount('accounts', result);
+				addStat({ key: 'accounts', n: String(created) });
 				resetIngest();
 				advanceGlobal();
 				return;
@@ -1040,13 +1247,8 @@
 					errorMsg = result.error || 'That import failed. Please try again.';
 					return;
 				}
-				const created = Number(result.created ?? 0);
-				if (created > 0) {
-					addStat({
-						n: String(created),
-						label: created === 1 ? 'Product Added' : 'Products Added'
-					});
-				}
+				const created = importedCount('products', result);
+				addStat({ key: 'products', n: String(created) });
 				resetIngest();
 				advanceGlobal();
 				return;
@@ -1064,14 +1266,14 @@
 					errorMsg = result.error || 'That import failed. Please try again.';
 					return;
 				}
-				const created = Number(result.created ?? 0);
+				const created = importedCount('orders', result);
 				if (created === 0) {
 					ingestState = 'preview';
 					errorMsg =
 						'None of those rows matched an account and product — bring those in first, then try again.';
 					return;
 				}
-				addStat({ n: String(created), label: created === 1 ? 'Order Added' : 'Orders Added' });
+				addStat({ key: 'orders', n: String(created) });
 				resetIngest();
 				advanceGlobal();
 				return;
@@ -1132,7 +1334,11 @@
 		didEnter = true;
 		prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-		if (prefersReduced) {
+		// The entrance is a first-impression, not a page load animation. Anyone
+		// coming back — a refresh, or the full-page round-trip out to Google or
+		// Microsoft to connect a mailbox — should land where they left off rather
+		// than watch the greeting type itself out again.
+		if (prefersReduced || resuming) {
 			welcomeTyped = WELCOME;
 			subtitleTyped = SUBTITLE;
 			showPrompt = true;
@@ -1187,6 +1393,8 @@
 		});
 	});
 
+	let skipNextTypewriter = resuming;
+
 	// Question typewriter — only after the conversation panel opens; retype on
 	// every question change.
 	$effect(() => {
@@ -1199,7 +1407,9 @@
 		}
 		inputRevealed = false;
 		const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-		if (reduced) {
+		// First question after a resume lands already typed; the rest still type.
+		if (reduced || skipNextTypewriter) {
+			skipNextTypewriter = false;
 			typed = full;
 			typing = false;
 			inputRevealed = true;
@@ -1220,6 +1430,13 @@
 		return () => clearInterval(id);
 	});
 </script>
+
+<!--
+	The links below point at OAuth start endpoints (/api/email/connect,
+	/api/integrations/*), not app routes. They carry query strings or come from
+	step data, so resolve() can't wrap them at the call site.
+-->
+<!-- eslint-disable svelte/no-navigation-without-resolve -->
 
 <svelte:head>
 	<title>Welcome to Threadline</title>
@@ -1242,7 +1459,7 @@
 >
 	<!-- Scrolling content: same max-w-2xl column as the dock, with px-6 so the text
 	     is inset 24px on both sides. -->
-	<div class="mx-auto max-w-2xl px-6 pt-20 pb-[380px] lg:pt-24">
+	<div class="mx-auto max-w-2xl px-6 pt-20 pb-8 lg:pt-24">
 		<!-- Brand mark (static) -->
 		<div class="flex justify-center">
 			<div class="flex h-12 w-12 items-center justify-center bg-foreground text-background">
@@ -1274,7 +1491,7 @@
 			>
 				<p class="text-sm text-muted-foreground">Step {phaseIndex + 1} of {phases.length}</p>
 				<div class="mt-3 flex gap-2">
-					{#each phases as _, i (i)}
+					{#each phases as phaseBar, i (phaseBar.id)}
 						<span class="relative h-1.5 w-20 overflow-hidden rounded-full bg-muted">
 							<span
 								class="absolute inset-0 origin-left rounded-full bg-foreground transition-transform duration-500 ease-out {i <=
@@ -1356,99 +1573,90 @@
 		<div class="relative w-full max-w-2xl">
 			<!-- Conversation panel: opens last, onto the prompt -->
 			{#if completed}
+				<!-- Verification: Stitch works the list, one line at a time, then hands
+				     over on its own. No button — the flow shouldn't end on a form action. -->
 				<div
 					class="mb-4 rounded-2xl bg-zinc-900 p-6 text-zinc-100 shadow-2xl ring-1 ring-white/10"
 					in:fade={{ duration: revealMs }}
 				>
-					{#if finishing}
-						<div class="flex items-center gap-3">
-							<div
-								class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200"
-							></div>
-							<p class="text-base text-zinc-100">Getting your workspace ready…</p>
-						</div>
-					{:else}
-						<p class="text-base font-medium text-zinc-50">
-							You're all set{values.name ? `, ${values.name.split(' ')[0]}` : ''}.
-						</p>
-						{#if stats.length}
-							<ul class="mt-3 space-y-1">
-								{#each stats as s (s.label)}
-									<li class="flex items-center gap-2 text-sm text-zinc-300">
-										<svg
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2"
-											class="h-4 w-4 shrink-0 text-zinc-400"
-											aria-hidden="true"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M4.5 12.75l6 6 9-13.5"
-											/>
-										</svg>
-										{s.n}
-										{s.label.replace(/^\d+\s*/, '')}
-									</li>
-								{/each}
-							</ul>
-						{:else}
-							<p class="mt-1 text-sm text-zinc-400">
-								You can bring in your accounts and catalog any time from the app.
-							</p>
-						{/if}
+					<p class="text-base text-zinc-50">
+						Wait while I verify your <span class="font-medium">{orgDisplayName}</span> organization
+					</p>
 
-						<button
-							onclick={goToApp}
-							class="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
-						>
-							Go to Threadline
-							<svg
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								class="h-4 w-4"
-								aria-hidden="true"
+					<ul class="mt-4 space-y-2">
+						{#each verifyLines.slice(0, revealedLines) as line, i (line.text)}
+							<li
+								class="flex items-center gap-2.5 text-sm text-zinc-300"
+								in:fly={{
+									y: prefersReduced ? 0 : 6,
+									duration: prefersReduced ? 0 : 220,
+									easing: cubicOut
+								}}
 							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									d="M4.5 12h15m0 0l-6-6m6 6l-6 6"
-								/>
-							</svg>
-						</button>
-					{/if}
+								{#if i >= settledLines}
+									<span
+										class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-300"
+									></span>
+								{:else if line.ok}
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										class="h-4 w-4 shrink-0 text-zinc-400"
+										aria-hidden="true"
+										in:scale={{
+											start: prefersReduced ? 1 : 0.6,
+											duration: prefersReduced ? 0 : 200,
+											easing: backOut
+										}}
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M4.5 12.75l6 6 9-13.5"
+										/>
+									</svg>
+								{:else}
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										class="h-4 w-4 shrink-0 text-zinc-600"
+										aria-hidden="true"
+									>
+										<path stroke-linecap="round" d="M5 12h14" />
+									</svg>
+								{/if}
+								<span class={i >= settledLines ? 'text-zinc-500' : ''}>{line.text}</span>
+							</li>
+						{/each}
+					</ul>
 				</div>
 			{:else if showConversation}
 				<!-- Collapsed, the panel shrinks to its header and tucks in behind the
 				     prompt bar, which sits above it (z-10). -->
+				<!-- Collapsed, the whole panel is the hit area to expand again — the
+				     header row alone is too small a target. Guarded on panelCollapsed so
+				     clicks inside the expanded body do nothing. -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					use:openPanel
 					style="opacity: 0"
+					onclick={() => {
+						if (panelCollapsed) panelCollapsed = false;
+					}}
 					class="rounded-2xl bg-zinc-900 text-zinc-100 shadow-2xl ring-1 ring-white/10 transition-all duration-300 ease-out {panelCollapsed
-						? 'mx-5 -mb-7 px-5 pt-4 pb-8'
-						: 'mb-4 p-5'}"
+						? 'mx-5 -mb-7 cursor-pointer px-5 pt-4 pb-8'
+						: 'mb-2 p-5'}"
 				>
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div
-						class="flex items-center justify-between {panelCollapsed ? 'cursor-pointer' : ''}"
-						onclick={() => {
-							if (panelCollapsed) panelCollapsed = false;
-						}}
-					>
-						<span class="flex items-center gap-2 font-mono text-sm text-zinc-500">
+					<div class="flex items-center justify-between">
+						<span class="flex items-center gap-2 font-mono text-xs text-zinc-500">
 							{phase.title}
-							{#if currentSubState}
-								<span class="rounded bg-zinc-800 px-1.5 py-0.5 font-sans text-sm text-zinc-400">
-									{currentSubState === 'done' ? 'Done' : 'Skipped'}
-								</span>
-							{/if}
 						</span>
-						<div class="flex items-center gap-1.5 font-mono text-sm text-zinc-400">
+						<div class="flex items-center gap-1.5 font-mono text-xs text-zinc-400">
 							<button
 								onclick={prevSub}
 								disabled={!canPrev}
@@ -1526,7 +1734,16 @@
 							? 'grid-rows-[0fr] opacity-0'
 							: 'grid-rows-[1fr] opacity-100'}"
 					>
-						<div class="overflow-hidden">
+						<!-- The four import steps all render the same drop zone, so the body
+						     holds a floor height across them. Without it the panel collapses
+						     to the question while the next one types, then springs back —
+						     a bounce on every advance. Not applied when collapsed, which
+						     needs to reach zero height. -->
+						<div
+							class="overflow-hidden {sub.kind === 'upload' && !panelCollapsed
+								? 'min-h-[222px]'
+								: ''}"
+						>
 							<p class="mt-4 min-h-[3rem] text-base leading-relaxed text-zinc-50">
 								{typed}{#if typing}<span
 										class="onb-caret ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] bg-zinc-300"
@@ -1577,36 +1794,80 @@
 								</div>
 							{/if}
 
-							{#if sub.kind === 'connect' && inputRevealed}
-								<div
-									class="space-y-2"
-									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
-								>
-									{#each sub.options ?? [] as opt (opt.value)}
-										<a
-											href={opt.url}
-											target="_blank"
-											rel="noopener noreferrer"
-											onclick={() => (startedConnections = [...startedConnections, opt.value])}
-											class="flex items-center justify-between gap-3 rounded-xl border border-zinc-700 bg-zinc-800/40 p-4 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+							{#if sub.kind === 'inbox' && inputRevealed}
+								<div in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}>
+									{#if data.mailbox}
+										<div
+											class="flex items-center gap-3 rounded-xl border border-zinc-700 bg-zinc-800/40 p-4"
 										>
+											<span class="flex h-8 w-8 shrink-0 items-center justify-center">
+												<MailProviderLogo
+													provider={data.mailbox.provider === 'outlook' ? 'outlook' : 'gmail'}
+													cls="h-6 w-6"
+												/>
+											</span>
 											<span class="min-w-0">
-												<span class="block text-base font-medium text-zinc-100">{opt.label}</span>
-												{#if opt.description}
-													<span class="mt-0.5 block text-sm text-zinc-400">{opt.description}</span>
-												{/if}
+												<span class="block text-base font-medium text-zinc-100">
+													{data.mailbox.provider === 'outlook' ? 'Outlook' : 'Gmail'} connected
+												</span>
+												<span class="block truncate text-sm text-zinc-400"
+													>{data.mailbox.email_address}</span
+												>
 											</span>
-											<span class="shrink-0 text-sm text-zinc-400">
-												{startedConnections.includes(opt.value) ? 'Opened' : 'Connect'}
-											</span>
-										</a>
-									{/each}
-									<button
-										onclick={() => complete('done')}
-										class="mt-1 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
-									>
-										{startedConnections.length ? 'Done connecting' : 'Finish setup'}
-									</button>
+										</div>
+									{:else}
+										<div class="grid gap-2 sm:grid-cols-2">
+											{#each MAILBOX_OPTIONS as opt (opt.provider)}
+												<a
+													href={opt.href}
+													class="flex items-center gap-3 rounded-xl border border-zinc-700 bg-zinc-800/40 p-4 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+												>
+													<span class="flex h-8 w-8 shrink-0 items-center justify-center">
+														<MailProviderLogo
+															provider={opt.provider as 'gmail' | 'outlook'}
+															cls="h-6 w-6"
+														/>
+													</span>
+													<span class="text-base font-medium text-zinc-100">{opt.label}</span>
+												</a>
+											{/each}
+										</div>
+										<p class="mt-2 text-sm text-zinc-500">
+											Read and reply to emails in Threadline.
+										</p>
+									{/if}
+								</div>
+							{/if}
+
+							{#if sub.kind === 'connect' && inputRevealed}
+								<div in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}>
+									<div class="grid gap-2 sm:grid-cols-2">
+										{#each sub.options ?? [] as opt (opt.value)}
+											<a
+												href={opt.url}
+												target="_blank"
+												rel="noopener noreferrer"
+												onclick={() => (startedConnections = [...startedConnections, opt.value])}
+												class="flex items-start gap-3 rounded-xl border border-zinc-700 bg-zinc-800/40 p-4 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+											>
+												<span class="flex h-8 w-8 shrink-0 items-center justify-center">
+													<IntegrationLogo name={opt.icon} cls="h-6 w-6" />
+												</span>
+												<span class="min-w-0">
+													<span class="flex items-baseline gap-2">
+														<span class="text-base font-medium text-zinc-100">{opt.label}</span>
+														<span class="text-sm text-zinc-500">
+															{startedConnections.includes(opt.value) ? 'Opened' : 'Connect'}
+														</span>
+													</span>
+													{#if opt.description}
+														<span class="mt-0.5 block text-sm text-zinc-400">{opt.description}</span
+														>
+													{/if}
+												</span>
+											</a>
+										{/each}
+									</div>
 								</div>
 							{/if}
 
@@ -1626,13 +1887,6 @@
 											</button>
 										{/each}
 									</div>
-									<button
-										onclick={submitMethods}
-										disabled={selectedMethods.length === 0 || loading}
-										class="mt-3 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
-									>
-										{loading ? 'Saving…' : 'Save'}
-									</button>
 								</div>
 							{/if}
 
@@ -1668,13 +1922,6 @@
 											class="w-28 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
 										/>
 									</div>
-									<button
-										onclick={submitAddress}
-										disabled={!addressComplete || loading}
-										class="rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
-									>
-										{loading ? 'Saving…' : 'Save address'}
-									</button>
 								</div>
 							{/if}
 
@@ -1712,13 +1959,33 @@
 											I found <span class="font-medium">{ingestRows.length} {ingestNoun}</span> in
 											<span class="text-zinc-300">{ingestFileName}</span>.
 										</p>
+										{#if droppedRows}
+											<p class="mt-1 text-sm text-zinc-400">
+												That's the first {ingestRows.length} — {droppedRows} more didn't make this round.
+												Split the file to bring in the rest.
+											</p>
+										{/if}
 										<ul
 											class="mt-2 divide-y divide-white/5 overflow-hidden rounded-xl bg-zinc-800/50"
 										>
 											{#each ingestRows.slice(0, 4) as row, i (row.primary + i)}
-												<li class="flex items-baseline justify-between gap-3 px-4 py-2.5">
-													<span class="text-sm font-medium text-zinc-100">{row.primary}</span>
-													{#if row.secondary}
+												<li class="flex items-center gap-3 px-4 py-2.5">
+													<span class="min-w-0 flex-1">
+														<span class="block truncate text-sm font-medium text-zinc-100">
+															{row.primary}{#if row.inline}<span class="font-normal text-zinc-400"
+																	>&nbsp;- {row.inline}</span
+																>{/if}
+														</span>
+														{#if row.detail}
+															<span class="block truncate text-sm text-zinc-400">{row.detail}</span>
+														{/if}
+													</span>
+													{#if row.metaValue}
+														<span class="shrink-0 text-right">
+															<span class="block text-xs text-zinc-100">{row.metaValue}</span>
+															<span class="block text-xs text-zinc-400">{row.metaLabel}</span>
+														</span>
+													{:else if row.secondary}
 														<span class="shrink-0 text-sm text-zinc-400">{row.secondary}</span>
 													{/if}
 												</li>
@@ -1748,7 +2015,7 @@
 											<button
 												onclick={resetIngest}
 												disabled={ingestState === 'committing'}
-												class="rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100 disabled:opacity-60"
+												class="rounded-lg px-3 py-2 text-xs text-zinc-400 transition-colors hover:text-zinc-100 disabled:opacity-60"
 											>
 												Use a different file
 											</button>
@@ -1763,14 +2030,77 @@
 
 							{#if isSkippable(sub) && inputRevealed && ingestState === 'idle'}
 								<div
-									class="mt-4 flex justify-end"
+									class="mt-4 flex items-center justify-between gap-3"
 									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
 								>
+									<div class="flex items-center gap-3">
+										<!-- Primary action on the left, Skip on the right — same as the
+										     import steps' "Send invites" / "Import them". -->
+										{#if sub.kind === 'multi'}
+											<button
+												onclick={submitMethods}
+												disabled={selectedMethods.length === 0 || loading}
+												class="rounded-lg bg-white px-3.5 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+											>
+												{loading ? 'Saving…' : 'Save'}
+											</button>
+										{:else if sub.kind === 'inbox' && data.mailbox}
+											<button
+												onclick={() => complete('done')}
+												class="rounded-lg bg-white px-3.5 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
+											>
+												Continue
+											</button>
+										{:else if sub.kind === 'connect'}
+											<button
+												onclick={() => complete('done')}
+												class="rounded-lg bg-white px-3.5 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
+											>
+												{startedConnections.length ? 'Done connecting' : 'Finish setup'}
+											</button>
+										{:else if sub.kind === 'address'}
+											<button
+												onclick={submitAddress}
+												disabled={!addressComplete || loading}
+												class="rounded-lg bg-white px-3.5 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+											>
+												{loading ? 'Saving…' : 'Save'}
+											</button>
+										{/if}
+										{#if sub.id === 'members' || sub.id === 'accounts' || sub.id === 'products'}
+											<button
+												onclick={startManualEntry}
+												class="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
+											>
+												Manual Entry
+											</button>
+											<button
+												onclick={() => downloadTemplate(sub.id)}
+												class="group inline-flex items-center gap-1.5 text-xs text-zinc-400 transition-colors duration-200 ease-out hover:text-zinc-200"
+											>
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													viewBox="0 0 24 24"
+													fill="currentColor"
+													class="h-3.5 w-3.5"
+													aria-hidden="true"
+												>
+													<path
+														d="M3 19H21V21H3V19ZM13 13.1716L19.0711 7.1005L20.4853 8.51472L12 17L3.51472 8.51472L4.92893 7.1005L11 13.1716V2H13V13.1716Z"
+													/>
+												</svg>
+												<span
+													class="underline decoration-transparent decoration-dotted underline-offset-4 transition-[text-decoration-color] duration-200 ease-out group-hover:decoration-current"
+													>Download Template</span
+												>
+											</button>
+										{/if}
+									</div>
 									<button
 										onclick={skip}
-										class="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
+										class="shrink-0 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
 									>
-										Skip
+										Skip for now
 									</button>
 								</div>
 							{/if}
@@ -1780,7 +2110,7 @@
 			{/if}
 
 			<!-- AI prompt (input bar): springs up first, persists as the anchor -->
-			{#if showPrompt && !completed}
+			{#if showPrompt}
 				<div
 					use:springUp={56}
 					style="opacity: 0"
@@ -1897,17 +2227,22 @@
 				>
 					{#if stats.length}
 						<div class="mb-6 space-y-2">
-							{#each stats as s (s.label)}
+							{#each stats as s (s.key)}
 								<div
-									class="flex items-baseline gap-2 rounded-xl bg-muted px-4 py-3"
+									class="flex items-center gap-3 rounded-xl bg-muted px-4 py-3"
 									in:fly={{
 										y: prefersReduced ? 0 : 12,
 										duration: prefersReduced ? 0 : 420,
 										easing: cubicOut
 									}}
 								>
-									<span class="text-xl font-semibold tabular-nums">{s.display}</span>
-									<span class="text-sm text-foreground">{s.label}</span>
+									<span class="w-7 shrink-0 text-xl font-semibold tabular-nums">{s.display}</span>
+									<div class="min-w-0">
+										<p class="text-sm text-foreground">{s.label}</p>
+										{#if s.note}
+											<p class="text-xs text-muted-foreground">{s.note}</p>
+										{/if}
+									</div>
 								</div>
 							{/each}
 						</div>
@@ -1922,7 +2257,7 @@
 							href="https://calendar.app.google/c8NotsgGCKcKgajD6"
 							target="_blank"
 							rel="noopener noreferrer"
-							class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
+							class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition-[text-decoration-color] duration-200 ease-out hover:decoration-current"
 						>
 							<svg
 								viewBox="0 0 24 24"

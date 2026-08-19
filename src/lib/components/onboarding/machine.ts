@@ -76,3 +76,113 @@ export function canGoNext(cursor: Cursor, phases: MachinePhase[]): boolean {
 export function isSkippable(sub: MachineSub | undefined): boolean {
 	return !!sub && !sub.required;
 }
+
+// ── Stat cards ────────────────────────────────────────────────────────────
+// One card per import step. The label is derived here and nowhere else: when
+// the skip path and the import path each chose their own wording, a single
+// step could show two contradictory cards ("0 Members Added" next to
+// "10 Members Invited").
+
+export interface SavedStat {
+	key?: string;
+	n: string;
+	label: string;
+	note?: string;
+}
+
+export interface Stat {
+	key: string;
+	n: string;
+	label: string;
+	note?: string;
+	display: number;
+}
+
+export function statLabel(key: string, n: number): string {
+	const one = n === 1;
+	if (key === 'members') return one ? 'Member Added' : 'Members Added';
+	if (key === 'accounts') return one ? 'Account Added' : 'Accounts Added';
+	if (key === 'products') return one ? 'Product Added' : 'Products Added';
+	if (key === 'orders') return one ? 'Order Added' : 'Orders Added';
+	return '';
+}
+
+/** Rows saved before stats were keyed carry only a label; map them back. */
+export function statKeyFromLabel(label: string): string {
+	const l = label.toLowerCase();
+	if (l.startsWith('member')) return 'members';
+	if (l.startsWith('account')) return 'accounts';
+	if (l.startsWith('product')) return 'products';
+	if (l.startsWith('order')) return 'orders';
+	return label;
+}
+
+/**
+ * Collapse saved stats to one row per step, keeping the most recent, and
+ * relabel through `statLabel` so old wording can't survive alongside current
+ * wording for the same step. Order of first appearance is preserved.
+ */
+export function restoreStats(rows: SavedStat[] | null | undefined): Stat[] {
+	const byKey = new Map<string, { key: string; n: string; note?: string }>();
+	for (const r of rows ?? []) {
+		const key = r.key ?? statKeyFromLabel(r.label);
+		byKey.set(key, { key, n: r.n, note: r.note });
+	}
+	return [...byKey.values()].map((r) => ({
+		...r,
+		label: statLabel(r.key, Number(r.n) || 0),
+		display: Number(r.n) || 0
+	}));
+}
+
+// ── Org type from free text ───────────────────────────────────────────────
+// The org-type question offers cards, but the prompt bar is always there, so
+// typing the answer has to work too. Matching lives here so the accepted
+// wordings are tested rather than discovered by a user typing "sales rep".
+
+export type OrgTypeValue = 'brand' | 'rep' | 'retailer';
+
+const ORG_TYPE_ALIASES: Record<OrgTypeValue, string[]> = {
+	brand: ['brand', 'brands', 'label', 'manufacturer', 'vendor'],
+	rep: [
+		'rep',
+		'reps',
+		'sales rep',
+		'sales representative',
+		'independent sales rep',
+		'independent sales representative',
+		'independent rep',
+		'isr',
+		'showroom',
+		'agency'
+	],
+	retailer: ['retailer', 'retail', 'retailers', 'store', 'boutique', 'shop', 'buyer']
+};
+
+/**
+ * Resolve typed input to an org type, or null when it isn't recognisable.
+ * Punctuation and casing are ignored; "a brand" and "I'm a Brand." both match.
+ */
+export function matchOrgType(input: string | null | undefined): OrgTypeValue | null {
+	if (!input) return null;
+	const cleaned = input
+		.toLowerCase()
+		.replace(/[^a-z\s]/g, ' ')
+		.replace(/\b(i'?m|i am|we'?re|we are|a|an|the)\b/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+	if (!cleaned) return null;
+
+	for (const [value, aliases] of Object.entries(ORG_TYPE_ALIASES) as [OrgTypeValue, string[]][]) {
+		if (aliases.includes(cleaned)) return value;
+	}
+	// Fall back to a contained alias so "independent sales rep for 6 brands"
+	// still resolves. Longest alias first, or "rep" would beat "sales rep".
+	const byLength = (Object.entries(ORG_TYPE_ALIASES) as [OrgTypeValue, string[]][])
+		.flatMap(([value, aliases]) => aliases.map((a) => ({ value, alias: a })))
+		.sort((a, b) => b.alias.length - a.alias.length);
+	for (const { value, alias } of byLength) {
+		if (new RegExp(`\\b${alias}\\b`).test(cleaned)) return value;
+	}
+	return null;
+}

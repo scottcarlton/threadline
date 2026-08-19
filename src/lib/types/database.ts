@@ -33,6 +33,8 @@ export interface Profile {
 	id: string;
 	display_name: string;
 	avatar_url: string | null;
+	/** Pre-org onboarding answers; superseded by organizations.onboarding_state. */
+	onboarding_draft: { name?: string; orgType?: 'brand' | 'rep' | 'retailer' } | null;
 	created_at: string;
 	updated_at: string;
 }
