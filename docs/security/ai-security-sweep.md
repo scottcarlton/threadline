@@ -133,12 +133,18 @@ Split of responsibility:
 - **`ai_usage_logs` stays as the token ledger.** Cheap, high-volume, no content. No change needed beyond also writing on failure (see below).
 - **Prompt and response content has no home yet.** It does not belong in `audit_log.metadata`, which is documented as allow-listed fields rather than payload dumps, and `audit_log` retention is whole-partition drop, so content could not be expired earlier than the accountability rows. Content is the PII-heavy part and wants its own retention clock.
 
+Contract for the AI emit sites, settled with the `feat/system-audit` session:
+
+- **Actor.** `audit_log` has an `actor_service` text column and a check constraint requiring `actor_id`, or `actor_kind = 'service'` with `actor_service` set, or `anonymous`. A machine-originated row cannot be actor-less. Use the exported `serviceActor(name)` with three stable names: `agent-executor`, `cron-agent-triggers`, `integration-events`. Those strings are the only thing tying a row to a runner and carry no constraint, so renaming one later silently splits that runner's history in two.
+- **Correlation.** `locals.audit` buffers and the request hook flushes once, so every event in a request shares a `correlation_id`. Do not construct a recorder inside a request. The cron and event paths have no `locals`, so they build an `AuditRecorder` directly and flush explicitly.
+- **`tool_input` is allow-listed, not filtered.** `redact.ts` masks PII-shaped keys at any depth (emails partially masked, phones to last four, addresses and tax ids replaced) and secret rules win over PII rules. That is a safety net, not the policy. Tool inputs go through the exported `pick(input, [...])`, because a heuristic catches a key named `contact_email` but not a free-text `notes` field containing an address.
+- **Delivery.** The recorder defers via `waitUntil` and reports insert failures to Sentry rather than swallowing them, which is a completion guarantee off the critical path rather than lossy fire-and-forget. Emit sites should not await.
+
 Open questions this sweep cannot answer alone:
 
-1. **Do we store prompt/response content at all before beta?** If yes, it needs a small dedicated table with a short retention job (90 days suggested) and a truncation ceiling. If no, we accept that we can reconstruct _that_ a tool ran and what it changed, but not the text that caused it.
-2. **F-6 blocks the audit_log work too.** Agents currently run with `userId: ''` (`agent-executor.ts:104`), so their events would land with a null actor. A service principal user id fixes both.
-3. **Blocking vs fire-and-forget.** `logUsage` swallows insert failures by design (`ai-usage.ts:33`). An audit emit that can silently drop cannot serve as an accountability record; the emit should be awaited on write-capable calls.
-4. **Failure coverage.** Nothing today writes a row on error, refusal, or timeout. Both tables need that.
+1. **Do we store prompt/response content at all before beta?** If yes, it needs a small dedicated table with a short retention job (90 days suggested), a truncation ceiling, and a `correlation_id` join back to `audit_log`. If no, we accept that we can reconstruct _that_ a tool ran and what it changed, but not the text that caused it.
+2. **F-6 gates this work.** Agents currently run with `userId: ''` (`agent-executor.ts:104`). The service principal above is the fix, and it also resolves F-9.
+3. **Failure coverage.** Nothing today writes a row on error, refusal, or timeout. Both tables need that.
 
 ## 6. Status
 
