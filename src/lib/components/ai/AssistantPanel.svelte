@@ -532,7 +532,7 @@
 					bind:this={fileInput}
 					type="file"
 					multiple
-					accept="image/*,.pdf,.csv,.txt,.json,.xlsx,.xls,.doc,.docx"
+					accept="image/jpeg,image/png,image/gif,image/webp,.csv,.txt,.md,.json"
 					onchange={handleFileSelect}
 					class="hidden"
 				/>
