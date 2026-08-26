@@ -4,6 +4,7 @@ import { executeToolCall } from './ai-tools.js';
 import { supabaseAdmin } from './supabase.js';
 import { agentBasePrompt } from './ai-prompts.js';
 import { logUsage } from './ai-usage.js';
+import { resolveAgentActor } from './agent-actor.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -51,6 +52,20 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 			.select('name, org_type')
 			.eq('id', params.orgId)
 			.single();
+
+		// Resolve who this agent writes as. See agent-actor.ts for why this is
+		// the configuring admin rather than a synthetic system user.
+		const { data: agentRow } = await supabaseAdmin
+			.from('org_agents')
+			.select('created_by')
+			.eq('id', params.agentId)
+			.single();
+
+		const actor = resolveAgentActor(
+			agentRow as { created_by?: string | null } | null,
+			params.agentId
+		);
+		if (!actor.ok) throw new Error(actor.error);
 
 		const eventInfo = params.eventContext ? JSON.stringify(params.eventContext) : undefined;
 		const systemBlocks: Anthropic.TextBlockParam[] = [
@@ -102,7 +117,7 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 				const result = await executeToolCall(block.name, toolInput, {
 					supabase: supabaseAdmin,
 					organizationId: params.orgId,
-					userId: '', // Agent runs as system
+					userId: actor.userId, // the admin who configured this agent
 					brandScope: null, // Full access
 					orgType: (org?.org_type as 'rep' | 'brand') ?? 'rep',
 					origin: ''
