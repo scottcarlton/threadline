@@ -2,7 +2,7 @@
 // so the header-matching and row-filtering rules can be tested directly — they
 // previously lived inside +page.svelte and were untestable by construction.
 
-import { suggestColumnMapping } from '$lib/utils/csv-column-suggest';
+import { mapProductHeaders } from '$lib/utils/csv-column-suggest';
 
 export type MemberDraft = {
 	email: string;
@@ -16,6 +16,21 @@ export type ProductDraft = {
 	name: string;
 	wholesale_price: number;
 	season_id: string | null;
+	retail_price: number | null;
+	category: string | null;
+	subcategory: string | null;
+	description: string | null;
+	image_url: string | null;
+	/** Size run for the style. Empty means the import had no size column —
+	 * the product lands with zero product_variants rows, which leaves it
+	 * unpickable in the catalog picker and unexpandable in order edit mode. */
+	sizes: string[];
+	colors: string[];
+	/** Raw season name off the import ("Fall", "Fall 2026"). Resolved to a
+	 * real seasons.id at post time via matchSeasonId — parsing is pure and
+	 * has no access to the org's season list. */
+	season_name: string | null;
+	product_year: number | null;
 };
 
 export type OrderRowDraft = {
@@ -90,30 +105,123 @@ export function parseMembers(headers: string[], rows: Record<string, string>[]):
 	return out;
 }
 
+function toYear(cell: string): number | null {
+	const n = toNumber(cell);
+	if (n === null) return null;
+	const y = Math.trunc(n);
+	return y >= 1900 && y <= 2200 ? y : null;
+}
+
 /**
- * Products, via the app's shared column-suggestion mapper so preflight accepts
- * the same headers as the /products import.
+ * Split a delimited cell ("S, M, L" / "Black;Navy") into unique trimmed
+ * values. Mirrors the delimiters accepted by `flexibleStringArray` in
+ * src/lib/schemas/product-import.ts so the preview and the server agree.
+ */
+function splitList(cell: string | undefined): string[] {
+	if (!cell) return [];
+	return Array.from(
+		new Set(
+			cell
+				.split(/[,;|]/)
+				.map((s) => s.trim())
+				.filter((s) => s.length > 0)
+		)
+	);
+}
+
+/**
+ * Products, via the app's shared column mapper.
+ *
+ * Two things this has to survive beyond a hand-made CSV:
+ *
+ * 1. WIDE EXPORTS. A JOOR line sheet is 92 columns. Per-header greedy matching
+ *    hands `style_number` to "Collection Styles Comment" and `wholesale_price`
+ *    to "Wholesale Currency_1", so every row fails to parse and the import
+ *    reports "I couldn't read that catalog". `mapProductHeaders` scores all
+ *    pairs and assigns globally, and checks values, so the right columns win.
+ *
+ * 2. EXPLODED ROWS. Those exports carry one row per style x size x color, so
+ *    641 rows describe 87 products. Rows are grouped by style number; scalars
+ *    take the first non-empty value and sizes/colors union across the group.
+ *    A flat one-row-per-product CSV is just the degenerate case of a group of
+ *    one, so both shapes go through the same path.
+ *
+ * Every field `productDraftSchema` accepts is read. Only style_number, name
+ * and wholesale_price are required.
  */
 export function parseProducts(headers: string[], rows: Record<string, string>[]): ProductDraft[] {
-	const headerByField = new Map<string, string>();
-	for (const h of headers) {
-		const field = suggestColumnMapping(h);
-		if (field && !headerByField.has(field)) headerByField.set(field, h.trim().toLowerCase());
-	}
+	const headerByField = mapProductHeaders(headers, rows);
+
 	const styleH = headerByField.get('style_number');
 	const nameH = headerByField.get('name');
 	const priceH = headerByField.get('wholesale_price');
 	if (!styleH || !nameH || !priceH) return [];
 
-	const out: ProductDraft[] = [];
+	const retailH = headerByField.get('retail_price');
+	const categoryH = headerByField.get('category');
+	const subcategoryH = headerByField.get('subcategory');
+	const descriptionH = headerByField.get('description');
+	const imageH = headerByField.get('image_url');
+	const sizesH = headerByField.get('sizes');
+	const colorsH = headerByField.get('colors');
+	const seasonH = headerByField.get('season');
+	const yearH = headerByField.get('product_year');
+
+	const cell = (row: Record<string, string>, h: string | undefined): string =>
+		h ? (row[h] ?? '').trim() : '';
+
+	const byStyle = new Map<string, ProductDraft>();
+	const sizesByStyle = new Map<string, Set<string>>();
+	const colorsByStyle = new Map<string, Set<string>>();
+
 	for (const row of rows) {
-		const style_number = (row[styleH] ?? '').trim();
-		const name = (row[nameH] ?? '').trim();
-		const price = toNumber(row[priceH] ?? '');
+		const style_number = cell(row, styleH);
+		const name = cell(row, nameH);
+		const price = toNumber(cell(row, priceH));
 		if (!style_number || !name || price === null) continue;
-		out.push({ style_number, name, wholesale_price: price, season_id: null });
+
+		let draft = byStyle.get(style_number);
+		if (!draft) {
+			draft = {
+				style_number,
+				name,
+				wholesale_price: price,
+				season_id: null,
+				retail_price: retailH ? toNumber(cell(row, retailH)) : null,
+				category: cell(row, categoryH) || null,
+				subcategory: cell(row, subcategoryH) || null,
+				description: cell(row, descriptionH) || null,
+				image_url: cell(row, imageH) || null,
+				sizes: [],
+				colors: [],
+				season_name: cell(row, seasonH) || null,
+				product_year: yearH ? toYear(cell(row, yearH)) : null
+			};
+			byStyle.set(style_number, draft);
+			sizesByStyle.set(style_number, new Set());
+			colorsByStyle.set(style_number, new Set());
+		} else {
+			// Later rows of the same style backfill anything the first row left
+			// blank — exports often carry the description or image on one row only.
+			draft.retail_price ??= retailH ? toNumber(cell(row, retailH)) : null;
+			draft.category ??= cell(row, categoryH) || null;
+			draft.subcategory ??= cell(row, subcategoryH) || null;
+			draft.description ??= cell(row, descriptionH) || null;
+			draft.image_url ??= cell(row, imageH) || null;
+			draft.season_name ??= cell(row, seasonH) || null;
+			draft.product_year ??= yearH ? toYear(cell(row, yearH)) : null;
+		}
+
+		// A cell may hold a single value ("M") or a delimited run ("S, M, L").
+		for (const sz of splitList(cell(row, sizesH))) sizesByStyle.get(style_number)!.add(sz);
+		for (const c of splitList(cell(row, colorsH))) colorsByStyle.get(style_number)!.add(c);
 	}
-	return out;
+
+	for (const [style_number, draft] of byStyle) {
+		draft.sizes = [...sizesByStyle.get(style_number)!];
+		draft.colors = [...colorsByStyle.get(style_number)!];
+	}
+	return [...byStyle.values()];
 }
 
 export function parseOrders(headers: string[], rows: Record<string, string>[]): OrderRowDraft[] {

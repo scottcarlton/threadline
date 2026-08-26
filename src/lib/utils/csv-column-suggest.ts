@@ -24,7 +24,10 @@ export type ProductFieldKey =
 	| 'image_url';
 
 const SUGGESTIONS: Record<ProductFieldKey, string[]> = {
-	name: ['name', 'productname', 'producttitle', 'item', 'itemname', 'title'],
+	// "stylename" is listed so it beats a bare "name" match elsewhere in the
+	// file: a JOOR export carries both "Linesheet Name" (the collection) and
+	// "Style Name" (the product), and the product is the one we want.
+	name: ['name', 'stylename', 'productname', 'producttitle', 'item', 'itemname', 'title'],
 	style_number: ['stylenumber', 'style', 'styleno', 'sku', 'itemnumber', 'itemno', 'styleid'],
 	wholesale_price: ['wholesale', 'wholesaleprice', 'wsprice', 'cost', 'pricewholesale'],
 	retail_price: ['retail', 'retailprice', 'msrp', 'srp', 'priceretail'],
@@ -105,3 +108,175 @@ export const PRODUCT_FIELD_LABELS: Record<ProductFieldKey, string> = {
 	product_year: 'Product year',
 	image_url: 'Image URL'
 };
+
+// ─── Whole-file header mapping ────────────────────────────────────────────
+//
+// `suggestColumnMapping` above answers "what could THIS header be?" one header
+// at a time. That is right for the mapping UI, where the user sees every guess
+// and can override it. It is NOT enough for an automatic import: it is greedy
+// per-header, so on a wide export the first header that loosely matches claims
+// a field and the correct column further right never gets a turn.
+//
+// A real JOOR line sheet (92 columns) broke every field that way:
+//   style_number -> "Collection Styles Comment"  (substring "style")
+//   name         -> "Linesheet Name"             (substring "name")
+//   price        -> "Wholesale Currency_1"       (substring "wholesale")
+//
+// `mapProductHeaders` fixes this by scoring EVERY (header, field) pair and
+// assigning globally best-first, so "Style Number" takes style_number before
+// "Collection Styles Comment" can, and "Style Name" then falls to name.
+//
+// Scoring is token-based rather than substring-based: "Fabrication ID" no
+// longer matches category just because "fabri(cat)ion" contains "cat".
+//
+// Header text alone still can't separate "Wholesale Price_1" (154.00) from
+// "Wholesale Currency_1" (USD), or "Size Name" (M) from "Sizes Run" (always
+// "1"). So candidates are also validated against sample rows.
+
+/** Tokens that appear in export column names but carry no field meaning. */
+const NOISE_TOKENS = new Set([
+	'id',
+	'code',
+	'order',
+	'active',
+	'comment',
+	'currency',
+	'type',
+	'label',
+	'filename',
+	'minimum',
+	'min'
+]);
+
+function tokenize(header: string): string[] {
+	return header
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // camelCase -> camel Case
+		.replace(/([a-zA-Z])(\d)/g, '$1 $2') // "Category1" -> "Category 1"
+		.toLowerCase()
+		.split(/[^a-z0-9]+/)
+		.filter((t) => t.length > 0 && !/^\d+$/.test(t));
+}
+
+function singular(token: string): string {
+	return token.length > 3 && token.endsWith('s') ? token.slice(0, -1) : token;
+}
+
+/**
+ * How well `header` names `field`, as a 0–1 share of the header's meaningful
+ * tokens that the best-matching synonym accounts for. 0 means no match.
+ *
+ * "Wholesale Price_1" -> [wholesale, price], synonym "wholesaleprice" covers
+ * both -> 1.0. "Wholesale Currency_1" -> [wholesale, currency], synonym
+ * "wholesale" covers one of two -> 0.5. The price column wins.
+ */
+export function scoreHeaderForField(header: string, field: ProductFieldKey): number {
+	const tokens = tokenize(header);
+	if (tokens.length === 0) return 0;
+	const stems = tokens.map(singular);
+
+	let best = 0;
+	for (const synonym of SUGGESTIONS[field]) {
+		const synStem = singular(synonym);
+		// Match the synonym against every contiguous run of tokens, so a
+		// multi-word synonym ("wholesaleprice") can span two columns' worth
+		// of tokens without matching across unrelated ones.
+		for (let i = 0; i < tokens.length; i++) {
+			for (let j = i + 1; j <= tokens.length; j++) {
+				const raw = tokens.slice(i, j).join('');
+				const stemmed = stems.slice(i, j).join('');
+				if (raw === synonym || stemmed === synStem) {
+					best = Math.max(best, (j - i) / tokens.length);
+				}
+			}
+		}
+	}
+	if (best === 0) return 0;
+
+	const noise = tokens.filter((t) => NOISE_TOKENS.has(t)).length;
+	return Math.max(0.01, best - noise * 0.2);
+}
+
+const isNumeric = (v: string) => Number.isFinite(Number(v.replace(/[$,\s]/g, '')));
+
+/**
+ * Reject a header whose VALUES contradict the field its name suggests. Header
+ * text cannot distinguish a price column from its currency column.
+ */
+function valuesFitField(field: ProductFieldKey, values: string[]): boolean {
+	const filled = values.map((v) => (v ?? '').trim()).filter((v) => v.length > 0);
+	if (filled.length === 0) return true; // nothing to judge on; let the name decide
+
+	switch (field) {
+		case 'wholesale_price':
+		case 'retail_price':
+			// "USD" is not a price.
+			return filled.filter(isNumeric).length / filled.length >= 0.5;
+		case 'product_year': {
+			const years = filled.filter((v) => {
+				const n = Number(v);
+				return Number.isInteger(n) && n >= 1900 && n <= 2200;
+			});
+			// Kills "Season Year ID" (307824) while keeping "Season Year" (2026).
+			return years.length / filled.length >= 0.5;
+		}
+		case 'image_url':
+			// Kills "Style Image Filename_1" in favour of "Style Image URL_1".
+			return filled.filter((v) => /^https?:\/\//i.test(v)).length / filled.length >= 0.5;
+		case 'sizes':
+		case 'colors':
+			// A column whose every value is identical carries no per-row
+			// information. Kills JOOR's "Sizes Run", which is always "1",
+			// in favour of "Size Name".
+			//
+			// Tradeoff: a two-product CSV where both happen to be size "M"
+			// looks constant too and its size column is rejected. That costs
+			// those two products their variants; picking a junk column
+			// instead would mis-size the whole catalogue. One sample value
+			// is not enough to judge either way, so it passes.
+			return filled.length < 2 || new Set(filled).size > 1;
+		default:
+			return true;
+	}
+}
+
+/**
+ * Assign at most one header to each product field, best match first.
+ *
+ * `sampleRows` are keyed by lowercased header (the shape `parseCSV` produces).
+ * Pass them whenever available — without them only header text is considered
+ * and currency/price style collisions cannot be resolved.
+ */
+export function mapProductHeaders(
+	headers: string[],
+	sampleRows: Record<string, string>[] = []
+): Map<ProductFieldKey, string> {
+	type Candidate = { header: string; field: ProductFieldKey; score: number; index: number };
+	const candidates: Candidate[] = [];
+
+	headers.forEach((header, index) => {
+		const key = header.trim().toLowerCase();
+		const values = sampleRows.map((r) => r[key] ?? '');
+		for (const field of FIELD_ORDER) {
+			const score = scoreHeaderForField(header, field);
+			if (score > 0 && valuesFitField(field, values)) {
+				candidates.push({ header, field, score, index });
+			}
+		}
+	});
+
+	candidates.sort(
+		(a, b) =>
+			b.score - a.score ||
+			FIELD_ORDER.indexOf(a.field) - FIELD_ORDER.indexOf(b.field) ||
+			a.index - b.index
+	);
+
+	const byField = new Map<ProductFieldKey, string>();
+	const takenHeaders = new Set<string>();
+	for (const c of candidates) {
+		if (byField.has(c.field) || takenHeaders.has(c.header)) continue;
+		byField.set(c.field, c.header.trim().toLowerCase());
+		takenHeaders.add(c.header);
+	}
+	return byField;
+}

@@ -79,3 +79,41 @@ Crew Tee,CT-01`;
 		expect(result.rows[0]).toEqual({ name: 'Crew Tee', sku: 'CT-01', price: '' });
 	});
 });
+
+describe('parseCSV — multi-line quoted fields', () => {
+	it('keeps a newline inside a quoted field in one record', () => {
+		const text = 'style,description,price\nST-1,"line one\nline two",120\nST-2,plain,90';
+		const { rows } = parseCSV(text);
+		expect(rows).toHaveLength(2);
+		expect(rows[0].description).toBe('line one\nline two');
+		expect(rows[0].price).toBe('120');
+		expect(rows[1].style).toBe('ST-2');
+	});
+
+	it('does not let an embedded newline shift later columns', () => {
+		// The old line-based splitter produced a phantom record here and every
+		// column after the description came back misaligned.
+		const text = 'style,description,price\nST-1,"a\n\nb\nc",120';
+		const { rows } = parseCSV(text);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].price).toBe('120');
+	});
+
+	it('handles CRLF and a missing trailing newline', () => {
+		const { rows } = parseCSV('a,b\r\n1,2\r\n3,4');
+		expect(rows).toEqual([
+			{ a: '1', b: '2' },
+			{ a: '3', b: '4' }
+		]);
+	});
+
+	it('unescapes doubled quotes inside a quoted field', () => {
+		const { rows } = parseCSV('a,b\n"say ""hi""",2');
+		expect(rows[0].a).toBe('say "hi"');
+	});
+
+	it('ignores a trailing newline instead of emitting a blank row', () => {
+		const { rows } = parseCSV('a,b\n1,2\n');
+		expect(rows).toHaveLength(1);
+	});
+});

@@ -445,7 +445,11 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	}
 
 	// --- Resolve each line to a product (for season + default unit_price) ---
-	type ResolvedLine = OrderLineInput & { seasonId: string | null; resolvedPrice: number };
+	type ResolvedLine = OrderLineInput & {
+		productId: string | null;
+		seasonId: string | null;
+		resolvedPrice: number;
+	};
 	const resolved: ResolvedLine[] = [];
 	for (const line of rawLines) {
 		if (!line.qty || line.qty < 1) {
@@ -495,7 +499,7 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 			};
 		}
 
-		resolved.push({ ...line, seasonId, resolvedPrice: price });
+		resolved.push({ ...line, productId: product?.id ?? null, seasonId, resolvedPrice: price });
 	}
 
 	// All lines must share a single season (null is fine). Multi-season carts
@@ -550,6 +554,7 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	// --- Insert lines (line_total is GENERATED ALWAYS; do NOT include) ---
 	const lineRows = resolved.map((line, idx) => ({
 		order_id: orderRow.id,
+		product_id: line.productId,
 		style_number: line.style_number ?? null,
 		description: line.description ?? null,
 		color: line.color ?? null,
