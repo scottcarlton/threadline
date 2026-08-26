@@ -1428,6 +1428,19 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			});
 		}
 
+		// The prompt is the useful part when troubleshooting a Stitch complaint.
+		// It passes through the audit redactor, which caps length and masks
+		// PII-shaped values, so it is safe to keep.
+		locals.audit.record('assistant.queried', {
+			subjectId: resolvedAgentId ?? undefined,
+			metadata: {
+				prompt: cleanMessage,
+				tools_used: actions.map((a) => a.tool),
+				agent_id: resolvedAgentId ?? null,
+				duration_ms: Date.now() - requestStartTime
+			}
+		});
+
 		return json({
 			response: responseText,
 			actions: actions.length > 0 ? actions : undefined,
@@ -1436,6 +1449,11 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 	} catch (err) {
 		console.error('AI API error:', err);
 		const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+		locals.audit.record('assistant.queried', {
+			status: 'failure',
+			errorMessage,
+			metadata: { prompt: cleanMessage, duration_ms: Date.now() - requestStartTime }
+		});
 		return json({ error: errorMessage }, { status: 500 });
 	}
 };
