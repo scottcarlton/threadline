@@ -89,7 +89,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'create_order',
 		description:
-			'Create a wholesale order OR a note in one call: account, brand, ship window, and line items. order_type defaults to "order"; pass order_type="note" when the user says anything like "create note", "create a note", "notes out", "write up notes", "note for <account>", etc. — those phrases mean the record should be stored as a note, not a standard order. The server auto-resolves each line against the brand\'s product catalog by style_number OR by product name (passed as `description`) — that lookup supplies season_id and wholesale_price for you. DO NOT ask the user for a wholesale price; the product catalog has it. Only fall back to asking if the user explicitly says the item is not in the catalog. Season is derived from the products; do not pass season separately. If the ship window is missing, ask the user for start_ship_date and complete_ship_date — do not guess. Sales rep defaults to the authenticated user unless rep_name is supplied. line_total and orders.total_amount are computed by the database; never pass them. Status defaults to "submitted" — pass status="draft" ONLY when the user explicitly asks to save a draft (e.g. "hold it", "save as draft"). Returns the order with joined brand, account, and season names.',
+			'Create a wholesale order OR a note in one call: account, brand, ship window, and line items. order_type defaults to "order"; pass order_type="note" when the user says anything like "create note", "create a note", "notes out", "write up notes", "note for <account>", etc. — those phrases mean the record should be stored as a note, not a standard order. The server auto-resolves each line against the brand\'s product catalog by style_number OR by product name (passed as `description`) — that lookup supplies season_id and wholesale_price for you. DO NOT ask the user for a wholesale price; the product catalog has it. Only fall back to asking if the user explicitly says the item is not in the catalog. Season is derived from the products; do not pass season separately. Brand orgs should omit brand_name entirely. The server resolves the org\'s own brand, so never ask a brand user which brand their order is for. If the ship window is missing, ask the user for start_ship_date and complete_ship_date — do not guess. Sales rep defaults to the authenticated user unless rep_name is supplied. line_total and orders.total_amount are computed by the database; never pass them. Status defaults to "submitted" — pass status="draft" ONLY when the user explicitly asks to save a draft (e.g. "hold it", "save as draft"). Returns the order with joined brand, account, and season names.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -99,7 +99,8 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 				},
 				brand_name: {
 					type: 'string',
-					description: 'Brand name to fuzzy match (required)'
+					description:
+						"Brand name to fuzzy match. Required for rep orgs, which represent many brands. OMIT this for brand orgs. The server fills in the org's own brand automatically. Only pass it for a brand org when the user explicitly names one of their other labels."
 				},
 				start_ship_date: {
 					type: 'string',
@@ -152,7 +153,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 				},
 				notes: { type: 'string', description: 'Order notes (optional)' }
 			},
-			required: ['account_name', 'brand_name', 'start_ship_date', 'complete_ship_date', 'lines']
+			required: ['account_name', 'start_ship_date', 'complete_ship_date', 'lines']
 		}
 	},
 	{
@@ -1161,7 +1162,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 - Brand access: ${brandScopeInfo}
 - Current date/time: ${dateStr} at ${timeStr}
 - Currently viewing: ${pageContext}${entityInfo}
-${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_sales_analytics, get_commission_report, and get_style_velocity.' : ''}`;
+${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment. Orders they create are for their own brand. Omit brand_name when calling create_order and never ask them which brand an order is for.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_sales_analytics, get_commission_report, and get_style_velocity.' : ''}`;
 
 	// Use structured system blocks for prompt caching
 	const systemBlocks: Anthropic.TextBlockParam[] = [
