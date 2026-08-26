@@ -145,7 +145,12 @@ const NOISE_TOKENS = new Set([
 	'label',
 	'filename',
 	'minimum',
-	'min'
+	'min',
+	// Cost-adjacent columns that are not the product's own price.
+	'shipping',
+	'freight',
+	'tax',
+	'discount'
 ]);
 
 function tokenize(header: string): string[] {
@@ -193,8 +198,37 @@ export function scoreHeaderForField(header: string, field: ProductFieldKey): num
 	if (best === 0) return 0;
 
 	const noise = tokens.filter((t) => NOISE_TOKENS.has(t)).length;
-	return Math.max(0.01, best - noise * 0.2);
+	return best - noise * 0.2;
 }
+
+/**
+ * Below this, a match is too weak to auto-assign. Without a floor, any partial
+ * synonym hit becomes a candidate: a sheet with no recognizable price column
+ * but a "Shipping Cost" column would silently import shipping as wholesale.
+ * Failing to map is recoverable — the import reports it. A wrong mapping is
+ * not: it writes plausible garbage.
+ *
+ * Calibrated to keep the real two-token headers ("Size Name", "Color Name",
+ * "Season Name" all score 0.5) while rejecting noise-penalised ones.
+ */
+const MIN_ASSIGN_SCORE = 0.4;
+
+/**
+ * True when the whole header IS the field's canonical name ("sizes", "color"),
+ * as opposed to merely containing a synonym.
+ *
+ * Only these skip the value checks. A full-coverage score is not enough on its
+ * own: JOOR's "Sizes Run" scores 1.0 against the `sizerun` synonym, and it is
+ * exactly the column the constant-value check exists to reject. The first entry
+ * in each SUGGESTIONS list is the canonical name.
+ */
+function isCanonicalHeader(header: string, field: ProductFieldKey): boolean {
+	const joined = tokenize(header).map(singular).join('');
+	return joined.length > 0 && joined === singular(SUGGESTIONS[field][0]);
+}
+
+/** Rows scanned when validating a candidate column against its values. */
+const VALUE_SAMPLE_SIZE = 100;
 
 const isNumeric = (v: string) => Number.isFinite(Number(v.replace(/[$,\s]/g, '')));
 
@@ -228,11 +262,11 @@ function valuesFitField(field: ProductFieldKey, values: string[]): boolean {
 			// information. Kills JOOR's "Sizes Run", which is always "1",
 			// in favour of "Size Name".
 			//
-			// Tradeoff: a two-product CSV where both happen to be size "M"
-			// looks constant too and its size column is rejected. That costs
-			// those two products their variants; picking a junk column
-			// instead would mis-size the whole catalogue. One sample value
-			// is not enough to judge either way, so it passes.
+			// This is a TIE-BREAKER for ambiguous headers only. A header that
+			// IS the canonical field name skips it (see `isCanonicalHeader` at
+			// the call site): our own CSV template ships a constant
+			// "XS, S, M, L, XL" size column, and a brand with one size run
+			// across its catalogue is ordinary, not suspicious.
 			return filled.length < 2 || new Set(filled).size > 1;
 		default:
 			return true;
@@ -253,14 +287,21 @@ export function mapProductHeaders(
 	type Candidate = { header: string; field: ProductFieldKey; score: number; index: number };
 	const candidates: Candidate[] = [];
 
+	// Cap the scan: a 50k-row export would otherwise allocate one full-length
+	// array per header per field on the main thread. A hundred rows is plenty
+	// to tell a price column from a currency column.
+	const sample = sampleRows.slice(0, VALUE_SAMPLE_SIZE);
+
 	headers.forEach((header, index) => {
 		const key = header.trim().toLowerCase();
-		const values = sampleRows.map((r) => r[key] ?? '');
+		const values = sample.map((r) => r[key] ?? '');
 		for (const field of FIELD_ORDER) {
 			const score = scoreHeaderForField(header, field);
-			if (score > 0 && valuesFitField(field, values)) {
-				candidates.push({ header, field, score, index });
-			}
+			if (score < MIN_ASSIGN_SCORE) continue;
+			// Value checks disambiguate competing headers; they must not
+			// overrule a header that already names the field outright.
+			if (!isCanonicalHeader(header, field) && !valuesFitField(field, values)) continue;
+			candidates.push({ header, field, score, index });
 		}
 	});
 
@@ -274,9 +315,13 @@ export function mapProductHeaders(
 	const byField = new Map<ProductFieldKey, string>();
 	const takenHeaders = new Set<string>();
 	for (const c of candidates) {
-		if (byField.has(c.field) || takenHeaders.has(c.header)) continue;
-		byField.set(c.field, c.header.trim().toLowerCase());
-		takenHeaders.add(c.header);
+		// Key on the normalized name, which is what rows are actually keyed by.
+		// "Size" and "size " are one column at read time, so two fields must
+		// not each claim one of them and then read identical values.
+		const key = c.header.trim().toLowerCase();
+		if (byField.has(c.field) || takenHeaders.has(key)) continue;
+		byField.set(c.field, key);
+		takenHeaders.add(key);
 	}
 	return byField;
 }

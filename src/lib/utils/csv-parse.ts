@@ -66,7 +66,11 @@ export function parseCSVRecords(text: string): string[][] {
 			continue;
 		}
 
-		if (ch === '"') {
+		if (ch === '"' && field === '') {
+			// A quote only OPENS a quoted field at the start of a field. Anywhere
+			// else it is literal — exports write inch marks unquoted (`5" heel`),
+			// and treating one as an opening quote would swallow the rest of the
+			// document now that quote state is carried across line breaks.
 			inQuotes = true;
 		} else if (ch === ',') {
 			record.push(field);

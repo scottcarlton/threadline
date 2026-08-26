@@ -174,15 +174,35 @@ export function parseProducts(headers: string[], rows: Record<string, string>[])
 	const sizesByStyle = new Map<string, Set<string>>();
 	const colorsByStyle = new Map<string, Set<string>>();
 
+	const collect = (into: Map<string, Set<string>>, key: string, values: string[]) => {
+		if (values.length === 0) return;
+		let set = into.get(key);
+		if (!set) {
+			set = new Set<string>();
+			into.set(key, set);
+		}
+		for (const v of values) set.add(v);
+	};
+
 	for (const row of rows) {
 		const style_number = cell(row, styleH);
-		const name = cell(row, nameH);
-		const price = toNumber(cell(row, priceH));
-		if (!style_number || !name || price === null) continue;
+		if (!style_number) continue;
 
-		let draft = byStyle.get(style_number);
+		// Sizes and colors accumulate from EVERY row carrying the style number,
+		// including continuation rows that leave name and price blank. Exports
+		// built from merged cells repeat only the style and its size per row,
+		// so requiring name+price here would drop those sizes from the run.
+		// A cell may hold one value ("M") or a delimited run ("S, M, L").
+		collect(sizesByStyle, style_number, splitList(cell(row, sizesH)));
+		collect(colorsByStyle, style_number, splitList(cell(row, colorsH)));
+
+		const draft = byStyle.get(style_number);
 		if (!draft) {
-			draft = {
+			const name = cell(row, nameH);
+			const price = toNumber(cell(row, priceH));
+			// A style only becomes a product once some row supplies name+price.
+			if (!name || price === null) continue;
+			byStyle.set(style_number, {
 				style_number,
 				name,
 				wholesale_price: price,
@@ -196,10 +216,7 @@ export function parseProducts(headers: string[], rows: Record<string, string>[])
 				colors: [],
 				season_name: cell(row, seasonH) || null,
 				product_year: yearH ? toYear(cell(row, yearH)) : null
-			};
-			byStyle.set(style_number, draft);
-			sizesByStyle.set(style_number, new Set());
-			colorsByStyle.set(style_number, new Set());
+			});
 		} else {
 			// Later rows of the same style backfill anything the first row left
 			// blank — exports often carry the description or image on one row only.
@@ -211,15 +228,11 @@ export function parseProducts(headers: string[], rows: Record<string, string>[])
 			draft.season_name ??= cell(row, seasonH) || null;
 			draft.product_year ??= yearH ? toYear(cell(row, yearH)) : null;
 		}
-
-		// A cell may hold a single value ("M") or a delimited run ("S, M, L").
-		for (const sz of splitList(cell(row, sizesH))) sizesByStyle.get(style_number)!.add(sz);
-		for (const c of splitList(cell(row, colorsH))) colorsByStyle.get(style_number)!.add(c);
 	}
 
 	for (const [style_number, draft] of byStyle) {
-		draft.sizes = [...sizesByStyle.get(style_number)!];
-		draft.colors = [...colorsByStyle.get(style_number)!];
+		draft.sizes = [...(sizesByStyle.get(style_number) ?? [])];
+		draft.colors = [...(colorsByStyle.get(style_number) ?? [])];
 	}
 	return [...byStyle.values()];
 }

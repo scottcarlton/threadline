@@ -117,3 +117,28 @@ describe('parseCSV — multi-line quoted fields', () => {
 		expect(rows).toHaveLength(1);
 	});
 });
+
+describe('parseCSV — unquoted quote characters', () => {
+	it('treats an inch mark mid-field as literal, not as an opening quote', () => {
+		// Regression: once quote state carried across line breaks, a stray `"`
+		// mid-field swallowed the entire rest of the document.
+		const text = 'style,name,wholesale\nA1,5" heel boot,100\nA2,Tee,10\nA3,Hat,12';
+		const { rows } = parseCSV(text);
+		expect(rows).toHaveLength(3);
+		expect(rows[0].name).toBe('5" heel boot');
+		expect(rows[0].wholesale).toBe('100');
+		expect(rows[2].style).toBe('A3');
+	});
+
+	it('keeps a quote that follows a closing quote in the same field', () => {
+		const { rows } = parseCSV('a,b\n"quoted"extra,2');
+		expect(rows[0].a).toBe('quotedextra');
+		expect(rows[0].b).toBe('2');
+	});
+
+	it('still honours a genuine quoted field containing a comma', () => {
+		const { rows } = parseCSV('a,b\n"one, two",3');
+		expect(rows[0].a).toBe('one, two');
+		expect(rows[0].b).toBe('3');
+	});
+});

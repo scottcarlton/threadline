@@ -369,3 +369,50 @@ describe('parseProducts — exploded exports', () => {
 		expect(out[0].wholesale_price).toBe(154);
 	});
 });
+
+describe('parseProducts — sparse continuation rows', () => {
+	it('keeps sizes from rows that repeat only the style number', () => {
+		// Merged-cell exports carry name and price on the first row of a style
+		// and leave them blank on the rest. Those rows still carry a size.
+		const out = parseProducts(
+			['Style Number', 'Style Name', 'Wholesale Price', 'Size Name'],
+			rowsOf(
+				{
+					'style number': 'ST-1',
+					'style name': 'Sophie',
+					'wholesale price': '154',
+					'size name': 'S'
+				},
+				{ 'style number': 'ST-1', 'style name': '', 'wholesale price': '', 'size name': 'M' },
+				{ 'style number': 'ST-1', 'style name': '', 'wholesale price': '', 'size name': 'L' }
+			)
+		);
+		expect(out).toHaveLength(1);
+		expect(out[0].sizes).toEqual(['S', 'M', 'L']);
+	});
+
+	it('picks up sizes that appeared before the row supplying name and price', () => {
+		const out = parseProducts(
+			['Style Number', 'Style Name', 'Wholesale Price', 'Size Name'],
+			rowsOf(
+				{ 'style number': 'ST-1', 'style name': '', 'wholesale price': '', 'size name': 'S' },
+				{
+					'style number': 'ST-1',
+					'style name': 'Sophie',
+					'wholesale price': '154',
+					'size name': 'M'
+				}
+			)
+		);
+		expect(out).toHaveLength(1);
+		expect(out[0].sizes).toEqual(['S', 'M']);
+	});
+
+	it('does not emit a product for a style no row ever named or priced', () => {
+		const out = parseProducts(
+			['Style Number', 'Style Name', 'Wholesale Price', 'Size Name'],
+			rowsOf({ 'style number': 'ST-9', 'style name': '', 'wholesale price': '', 'size name': 'M' })
+		);
+		expect(out).toEqual([]);
+	});
+});

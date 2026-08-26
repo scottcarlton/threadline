@@ -197,3 +197,62 @@ describe('mapProductHeaders — wide exports', () => {
 		expect(m.get('wholesale_price')).toBe('wholesale price');
 	});
 });
+
+describe('mapProductHeaders — value checks must not overrule a clear header', () => {
+	it('maps a constant sizes column when the header names the field outright', () => {
+		// Our own CSV template ships "XS, S, M, L, XL" on every row, and a brand
+		// with one size run across the catalogue is ordinary. The constant-column
+		// check is a tie-breaker for ambiguous headers, not a veto.
+		const m = mapProductHeaders(
+			['style_number', 'name', 'wholesale_price', 'sizes', 'colors'],
+			[
+				{ sizes: 'XS, S, M, L, XL', colors: 'Black, White' },
+				{ sizes: 'XS, S, M, L, XL', colors: 'Black, White' },
+				{ sizes: 'XS, S, M, L, XL', colors: 'Black, White' }
+			]
+		);
+		expect(m.get('sizes')).toBe('sizes');
+		expect(m.get('colors')).toBe('colors');
+	});
+
+	it('still drops a constant column when the header is ambiguous', () => {
+		const m = mapProductHeaders(
+			['Style Number', 'Style Name', 'Wholesale Price', 'Sizes Run', 'Size Name'],
+			[
+				{ 'sizes run': '1', 'size name': 'M' },
+				{ 'sizes run': '1', 'size name': 'L' }
+			]
+		);
+		expect(m.get('sizes')).toBe('size name');
+	});
+});
+
+describe('mapProductHeaders — weak matches are not assigned', () => {
+	it('does not import a shipping cost column as the wholesale price', () => {
+		const m = mapProductHeaders(
+			['Style Number', 'Style Name', 'WSP', 'Shipping Cost'],
+			[{ 'style number': 'A1', 'style name': 'Alpha', wsp: '10', 'shipping cost': '4.50' }]
+		);
+		expect(m.get('wholesale_price')).toBeUndefined();
+	});
+
+	it('keeps legitimate two-token headers that score at the floor', () => {
+		const m = mapProductHeaders(
+			['Style Number', 'Style Name', 'Wholesale Price', 'Size Name', 'Color Name'],
+			[]
+		);
+		expect(m.get('sizes')).toBe('size name');
+		expect(m.get('colors')).toBe('color name');
+	});
+});
+
+describe('mapProductHeaders — header normalization', () => {
+	it('does not let two fields claim the same column via case or whitespace', () => {
+		const m = mapProductHeaders(
+			['Style Number', 'Style Name', 'Wholesale Price', 'Size', 'size '],
+			[]
+		);
+		const used = [...m.values()];
+		expect(new Set(used).size).toBe(used.length);
+	});
+});
