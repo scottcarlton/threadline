@@ -29,6 +29,8 @@ declare global {
 			buyerBrandIds: string[] | null;
 			isSystemAdmin: boolean;
 			queryScope: QueryScope | null;
+			/** Per-request audit recorder. Always present; writes only what handlers name. */
+			audit: import('$lib/server/audit').AuditRecorder;
 		}
 		interface PageData {
 			session: Session | null;

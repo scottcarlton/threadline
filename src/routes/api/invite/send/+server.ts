@@ -155,6 +155,12 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			}
 		}
 
+		locals.audit.record('member.added', {
+			subjectId: matchingUser.id,
+			subjectLabel: email,
+			metadata: { email, role, auto_added: true }
+		});
+
 		return json({ success: true, autoAdded: true });
 	}
 
@@ -220,6 +226,16 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		relatedId: inserted?.id,
 		profileId: membership.profile_id,
 		organizationId: organization.id
+	});
+
+	// An invite that saved but whose email bounced is a top support case, so the
+	// row records delivery rather than just creation.
+	locals.audit.record('member.invited', {
+		subjectId: inserted?.id ?? undefined,
+		subjectLabel: email,
+		status: emailResult.ok ? 'success' : 'failure',
+		errorCode: emailResult.ok ? undefined : 'invite_email_failed',
+		metadata: { email, role, email_sent: emailResult.ok }
 	});
 
 	return json({
