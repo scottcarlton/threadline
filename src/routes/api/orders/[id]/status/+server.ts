@@ -54,6 +54,16 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 
 	const allowed = ALLOWED_TRANSITIONS[order.status] ?? [];
 	if (!allowed.includes(newStatus)) {
+		// A rejected transition is exactly the "I clicked it and nothing happened"
+		// report support receives, so it is worth a row of its own.
+		locals.audit.record('order.status_changed', {
+			subjectId: order.id,
+			subjectLabel: order.order_number,
+			status: 'failure',
+			errorCode: 'invalid_transition',
+			errorMessage: `Cannot transition from ${order.status} to ${newStatus}`,
+			changes: { status: { before: order.status, after: newStatus } }
+		});
 		return json(
 			{ error: `Cannot transition from ${order.status} to ${newStatus}` },
 			{ status: 400 }
@@ -81,8 +91,21 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 	const { error: updateErr } = await supabase.from('orders').update(updateData).eq('id', order.id);
 
 	if (updateErr) {
+		locals.audit.record('order.status_changed', {
+			subjectId: order.id,
+			subjectLabel: order.order_number,
+			status: 'failure',
+			errorMessage: updateErr.message,
+			changes: { status: { before: order.status, after: newStatus } }
+		});
 		return json({ error: updateErr.message }, { status: 500 });
 	}
+
+	locals.audit.record(newStatus === 'cancelled' ? 'order.cancelled' : 'order.status_changed', {
+		subjectId: order.id,
+		subjectLabel: order.order_number,
+		changes: { status: { before: order.status, after: newStatus } }
+	});
 
 	const emailEvent = EMAIL_EVENTS[newStatus];
 	if (emailEvent) {
