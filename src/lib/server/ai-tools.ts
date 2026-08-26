@@ -298,12 +298,23 @@ async function createAccount(
 	// Auto-invite contact to buyer portal if email provided
 	const contactEmail = input.contact_email as string | undefined;
 	if (contactEmail && data?.id) {
-		await supabaseAdmin.from('buyer_invitations').insert({
+		// Result was previously discarded, so a rejected insert (invited_by is
+		// uuid not null) looked like a sent invitation. Surface it instead: the
+		// account is still created, the caller just needs to know the invite
+		// did not go out.
+		const { error: inviteError } = await supabaseAdmin.from('buyer_invitations').insert({
 			account_id: data.id,
 			organization_id: ctx.organizationId,
 			email: contactEmail,
 			invited_by: ctx.userId
 		});
+		if (inviteError) {
+			console.error('[ai-tools] buyer invitation insert failed:', inviteError.message);
+			return {
+				success: true,
+				data: { ...data, buyer_invitation_sent: false, buyer_invitation_error: inviteError.message }
+			};
+		}
 	}
 
 	if (data?.id) {

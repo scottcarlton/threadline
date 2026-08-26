@@ -5,6 +5,7 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
 import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
+import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -1062,32 +1063,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	// Build multimodal user content if files are attached
-	type FilePayload = { name: string; type: string; data: string };
-	let userContent: string | Anthropic.ContentBlockParam[];
-	if (files && Array.isArray(files) && files.length > 0) {
-		const contentBlocks: Anthropic.ContentBlockParam[] = [];
-		for (const file of files as FilePayload[]) {
-			if (file.type.startsWith('image/')) {
-				const mediaType = file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-				contentBlocks.push({
-					type: 'image',
-					source: { type: 'base64', media_type: mediaType, data: file.data }
-				});
-			} else {
-				// For non-image files, decode base64 and include as text context
-				const decoded = Buffer.from(file.data, 'base64').toString('utf-8');
-				contentBlocks.push({
-					type: 'text',
-					text: `[Attached file: ${file.name}]\n${decoded}`
-				});
-			}
-		}
-		contentBlocks.push({ type: 'text', text: cleanMessage });
-		userContent = contentBlocks;
-	} else {
-		userContent = cleanMessage;
+	// Build multimodal user content if files are attached. Size, count, and type
+	// are validated before anything reaches the prompt.
+	const attachments = buildAttachmentBlocks(files);
+	if (!attachments.ok) {
+		return json({ error: attachments.error }, { status: 400 });
 	}
+
+	const userContent: string | Anthropic.ContentBlockParam[] = attachments.blocks.length
+		? [...attachments.blocks, { type: 'text', text: cleanMessage }]
+		: cleanMessage;
 
 	const role = locals.membership?.role ?? 'guest';
 	const brandScopeInfo = locals.brandScope
@@ -1428,6 +1413,19 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			});
 		}
 
+		// The prompt is the useful part when troubleshooting a Stitch complaint.
+		// It passes through the audit redactor, which caps length and masks
+		// PII-shaped values, so it is safe to keep.
+		locals.audit.record('assistant.queried', {
+			subjectId: resolvedAgentId ?? undefined,
+			metadata: {
+				prompt: cleanMessage,
+				tools_used: actions.map((a) => a.tool),
+				agent_id: resolvedAgentId ?? null,
+				duration_ms: Date.now() - requestStartTime
+			}
+		});
+
 		return json({
 			response: responseText,
 			actions: actions.length > 0 ? actions : undefined,
@@ -1436,6 +1434,11 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 	} catch (err) {
 		console.error('AI API error:', err);
 		const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+		locals.audit.record('assistant.queried', {
+			status: 'failure',
+			errorMessage,
+			metadata: { prompt: cleanMessage, duration_ms: Date.now() - requestStartTime }
+		});
 		return json({ error: errorMessage }, { status: 500 });
 	}
 };

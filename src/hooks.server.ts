@@ -12,6 +12,7 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
 import { loadUserContext, applyUserContext } from '$lib/server/auth.js';
+import { auditHandle } from '$lib/server/audit/hook.js';
 import { landingPathForOrgType } from '$lib/server/landing.js';
 import type { OrgType } from '$lib/types/database.js';
 
@@ -157,6 +158,17 @@ const authHandle: Handle = async ({ event, resolve }) => {
 		);
 		applyUserContext(event.locals, context);
 
+		// Attribute everything this request records. Email and display name are
+		// snapshotted into each row so history stays readable after deletion.
+		event.locals.audit.setActor({
+			id: user.id,
+			email: user.email ?? null,
+			label: event.locals.user?.display_name ?? null,
+			kind: context.kind === 'system_admin' ? 'system_admin' : 'user'
+		});
+		const auditOrg = context.kind === 'org_member' ? context.organization : null;
+		event.locals.audit.setOrganization(auditOrg?.id ?? null, auditOrg?.name ?? null);
+
 		switch (context.kind) {
 			case 'system_admin': {
 				// Confine the system super-admin session to /system/** and its
@@ -195,5 +207,5 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	});
 };
 
-export const handle = sequence(Sentry.sentryHandle(), authHandle);
+export const handle = sequence(Sentry.sentryHandle(), auditHandle, authHandle);
 export const handleError = Sentry.handleErrorWithSentry();

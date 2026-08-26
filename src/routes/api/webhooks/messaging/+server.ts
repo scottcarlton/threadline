@@ -18,8 +18,7 @@ import {
 import { runAgent } from '$lib/server/messaging/agent.js';
 import { sendReply } from '$lib/server/messaging/send.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-
-const RATE_LIMIT_PER_HOUR = 120;
+import { checkInboundRateLimit } from '$lib/server/messaging/rate-limit.js';
 
 export const POST: RequestHandler = async ({ request, url }) => {
 	const body = await request.text();
@@ -39,17 +38,13 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
 	const message = parseTwilioWebhook(params);
 
-	const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-	const { count } = await supabaseAdmin
-		.from('messaging_messages')
-		.select('id', { count: 'exact', head: true })
-		.gte('created_at', oneHourAgo);
-
-	if ((count ?? 0) >= RATE_LIMIT_PER_HOUR) {
-		await sendReply(
-			message.from,
-			"You've sent a lot of messages recently. Please wait a bit before trying again.",
-			message.channel
+	const verdict = await checkInboundRateLimit(message.from);
+	if (!verdict.allowed) {
+		// Drop silently rather than replying. A message over the ceiling is either
+		// abuse or a runaway loop, and answering each one turns our own rate limit
+		// into an outbound-SMS amplifier billed to us.
+		console.warn(
+			`[messaging] rate limited (${verdict.scope}) at ${verdict.count} inbound messages in the last hour`
 		);
 		return twimlResponse();
 	}
