@@ -17,6 +17,7 @@
 		"reset": "bunx supabase db reset",
 		"migrate": "bunx supabase migration up",
 		"seed": "bun run scripts/seed-demo.ts",
+		"admin:create": "bun run scripts/create-system-admin.ts",
 		"seed:reset": "bun run reset && bun run seed",
 		"dev:fresh": "bun run seed:reset && bun run dev"
 	},
@@ -59,6 +60,7 @@
 		"@sentry/sveltekit": "^10.48.0",
 		"@supabase/ssr": "^0.10.0",
 		"@supabase/supabase-js": "^2.101.1",
+		"@vercel/functions": "^3.9.5",
 		"bits-ui": "^2.17.2",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
