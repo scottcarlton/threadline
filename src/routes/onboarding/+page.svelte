@@ -30,7 +30,10 @@
 		buildAccountPreviewFromCsv,
 		downloadAccountCsvTemplate
 	} from '$lib/components/accounts/account-import-helpers';
-	import { downloadCsvTemplate } from '$lib/components/products/product-import-helpers';
+	import {
+		downloadCsvTemplate,
+		matchSeasonId
+	} from '$lib/components/products/product-import-helpers';
 	import { downloadOrderCsvTemplate } from '$lib/components/orders/order-import-helpers';
 	import { downloadMemberCsvTemplate } from '$lib/components/onboarding/member-template';
 	import {
@@ -277,6 +280,11 @@
 		name?: string;
 		orgType?: 'brand' | 'rep' | 'retailer';
 	} | null;
+
+	/** Trim an unknown JSON value to a non-empty string, else null. */
+	function str(v: unknown): string | null {
+		return typeof v === 'string' && v.trim() ? v.trim() : null;
+	}
 
 	// Which General Information question to resume at: the first one still
 	// unanswered. Only meaningful before the org exists.
@@ -1020,7 +1028,20 @@
 						style_number: String(p.style_number).trim(),
 						name: String(p.name).trim(),
 						wholesale_price: Number(p.wholesale_price ?? 0),
-						season_id: null
+						season_id: null,
+						retail_price: Number(p.retail_price) || null,
+						category: str(p.category),
+						subcategory: str(p.subcategory),
+						description: str(p.description),
+						image_url: str(p.image_url),
+						// Dropping these imports the style with zero variants,
+						// which leaves it unpickable in the catalog picker.
+						sizes: Array.isArray(p.sizes) ? p.sizes.map(String) : [],
+						colors: Array.isArray(p.colors) ? p.colors.map(String) : [],
+						// Per-product season/year when the sheet states it, else
+						// the document-level hint the parser returned.
+						season_name: str(p.season) ?? str(body.season),
+						product_year: Number(p.product_year) || Number(body.year) || null
 					}))
 					.filter((p: ProductDraft) => p.style_number && p.name);
 				if (productDrafts.length === 0) {
@@ -1232,13 +1253,20 @@
 			}
 
 			if (sub.id === 'products') {
+				// Resolve the parsed season name against the org's seasons here —
+				// the import endpoint takes a seasons.id, and the parsers are pure
+				// so they can only carry the raw name through.
+				const products = productDrafts.map(({ season_name, ...rest }) => ({
+					...rest,
+					season_id: rest.season_id ?? matchSeasonId(season_name, data.seasons)
+				}));
 				const res = await fetch('/api/products/import', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
 						brandId: data.selfBrandId,
 						onConflict: 'skip',
-						products: productDrafts
+						products
 					})
 				});
 				const result = await res.json();
