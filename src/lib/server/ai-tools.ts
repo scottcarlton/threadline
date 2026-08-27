@@ -298,12 +298,23 @@ async function createAccount(
 	// Auto-invite contact to buyer portal if email provided
 	const contactEmail = input.contact_email as string | undefined;
 	if (contactEmail && data?.id) {
-		await supabaseAdmin.from('buyer_invitations').insert({
+		// Result was previously discarded, so a rejected insert (invited_by is
+		// uuid not null) looked like a sent invitation. Surface it instead: the
+		// account is still created, the caller just needs to know the invite
+		// did not go out.
+		const { error: inviteError } = await supabaseAdmin.from('buyer_invitations').insert({
 			account_id: data.id,
 			organization_id: ctx.organizationId,
 			email: contactEmail,
 			invited_by: ctx.userId
 		});
+		if (inviteError) {
+			console.error('[ai-tools] buyer invitation insert failed:', inviteError.message);
+			return {
+				success: true,
+				data: { ...data, buyer_invitation_sent: false, buyer_invitation_error: inviteError.message }
+			};
+		}
 	}
 
 	if (data?.id) {
@@ -372,6 +383,18 @@ type OrderLineInput = {
 	unit_price?: number;
 };
 
+// Pick the brand a brand org is selling when the user didn't name one. Brand
+// orgs get an is_self_brand row created alongside the organization, so that's
+// the default. A user scoped to a single brand is unambiguous too. Anything
+// else is a real choice the user has to make.
+export function pickOwnBrand<T extends { id: string; name: string; is_self_brand: boolean }>(
+	rows: T[]
+): T | null {
+	const self = rows.find((b) => b.is_self_brand);
+	if (self) return self;
+	return rows.length === 1 ? rows[0] : null;
+}
+
 async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
 	// Mirror the manual /orders/new flow (src/lib/server/orders/cart.ts):
 	//   - one order per (brand, season)
@@ -387,7 +410,6 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	const rawLines = input.lines as OrderLineInput[] | undefined;
 
 	if (!accountName) return { success: false, error: 'account_name is required' };
-	if (!brandName) return { success: false, error: 'brand_name is required' };
 	if (!startShip || !completeShip) {
 		return {
 			success: false,
@@ -408,16 +430,50 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	if (!account) return { success: false, error: `Account not found matching "${accountName}"` };
 
 	// --- Brand (federation-aware via RLS; honors Sales brandScope) ---
-	const brand = await findByName<{ id: string; name: string }>(
-		() => {
-			let q = ctx.supabase.from('brands').select('id, name').eq('is_active', true);
-			if (ctx.brandScope) q = q.in('id', ctx.brandScope);
-			return q;
-		},
-		'name',
-		brandName
-	);
-	if (!brand) return { success: false, error: `Brand not found matching "${brandName}"` };
+	// brand_name is optional for brand orgs: they sell their own label, so we
+	// default to the org's self-brand the same way the manual /orders/new flow
+	// does (see load-order-prereqs.ts). Reps must always name a brand because
+	// they represent many.
+	let brand: { id: string; name: string } | null;
+	if (brandName) {
+		brand = await findByName<{ id: string; name: string }>(
+			() => {
+				let q = ctx.supabase.from('brands').select('id, name').eq('is_active', true);
+				if (ctx.brandScope) q = q.in('id', ctx.brandScope);
+				return q;
+			},
+			'name',
+			brandName
+		);
+		if (!brand) return { success: false, error: `Brand not found matching "${brandName}"` };
+	} else if (ctx.orgType !== 'brand') {
+		return {
+			success: false,
+			error: 'brand_name is required. Ask the user which brand this order is for.'
+		};
+	} else {
+		let ownQuery = ctx.supabase
+			.from('brands')
+			.select('id, name, is_self_brand')
+			.eq('organization_id', ctx.organizationId)
+			.eq('is_active', true);
+		if (ctx.brandScope) ownQuery = ownQuery.in('id', ctx.brandScope);
+		const { data: ownRows } = await ownQuery;
+		const rows = (ownRows ?? []) as Array<{ id: string; name: string; is_self_brand: boolean }>;
+		brand = pickOwnBrand(rows);
+		if (!brand) {
+			return {
+				success: false,
+				error: rows.length
+					? `This organization has more than one brand (${rows
+							.map((b) => b.name)
+							.join(
+								', '
+							)}) and none is marked as the primary. Ask the user which brand this order is for and pass brand_name.`
+					: 'No active brand found for this organization. Ask the user to add a brand before creating orders.'
+			};
+		}
+	}
 
 	// --- Sales rep → created_by (defaults to the authenticated user) ---
 	let createdBy = ctx.userId;
@@ -445,7 +501,11 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	}
 
 	// --- Resolve each line to a product (for season + default unit_price) ---
-	type ResolvedLine = OrderLineInput & { seasonId: string | null; resolvedPrice: number };
+	type ResolvedLine = OrderLineInput & {
+		productId: string | null;
+		seasonId: string | null;
+		resolvedPrice: number;
+	};
 	const resolved: ResolvedLine[] = [];
 	for (const line of rawLines) {
 		if (!line.qty || line.qty < 1) {
@@ -495,7 +555,7 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 			};
 		}
 
-		resolved.push({ ...line, seasonId, resolvedPrice: price });
+		resolved.push({ ...line, productId: product?.id ?? null, seasonId, resolvedPrice: price });
 	}
 
 	// All lines must share a single season (null is fine). Multi-season carts
@@ -550,6 +610,7 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	// --- Insert lines (line_total is GENERATED ALWAYS; do NOT include) ---
 	const lineRows = resolved.map((line, idx) => ({
 		order_id: orderRow.id,
+		product_id: line.productId,
 		style_number: line.style_number ?? null,
 		description: line.description ?? null,
 		color: line.color ?? null,

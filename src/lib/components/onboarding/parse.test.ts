@@ -118,14 +118,106 @@ describe('parseProducts', () => {
 		expect(parseProducts(['style number', 'name'], rowsOf({}))).toEqual([]);
 	});
 
-	it('parses a well-formed row and leaves the season unset', () => {
+	it('parses a well-formed row and leaves optional fields unset', () => {
 		const out = parseProducts(
 			['style number', 'name', 'wholesale price'],
 			rowsOf({ 'style number': 'ST-1', name: 'Silk Blouse', 'wholesale price': '$120' })
 		);
 		expect(out).toEqual([
-			{ style_number: 'ST-1', name: 'Silk Blouse', wholesale_price: 120, season_id: null }
+			{
+				style_number: 'ST-1',
+				name: 'Silk Blouse',
+				wholesale_price: 120,
+				season_id: null,
+				retail_price: null,
+				category: null,
+				subcategory: null,
+				description: null,
+				image_url: null,
+				sizes: [],
+				colors: [],
+				season_name: null,
+				product_year: null
+			}
 		]);
+	});
+
+	it('carries every column the import endpoint accepts', () => {
+		const out = parseProducts(
+			[
+				'style_number',
+				'name',
+				'wholesale_price',
+				'retail_price',
+				'category',
+				'subcategory',
+				'sizes',
+				'colors',
+				'description',
+				'season',
+				'product_year',
+				'image'
+			],
+			rowsOf({
+				style_number: 'FA26-301',
+				name: 'The Vivienne Silk Blouse',
+				wholesale_price: '162',
+				retail_price: '405',
+				category: 'Tops',
+				subcategory: 'Blouse',
+				sizes: 'XS, S, M, L, XL',
+				colors: '',
+				description: 'Burgundy silk crepe with tie neck.',
+				season: 'Fall',
+				product_year: '2026',
+				image: 'https://example.com/a.png'
+			})
+		);
+		expect(out).toEqual([
+			{
+				style_number: 'FA26-301',
+				name: 'The Vivienne Silk Blouse',
+				wholesale_price: 162,
+				season_id: null,
+				retail_price: 405,
+				category: 'Tops',
+				subcategory: 'Blouse',
+				description: 'Burgundy silk crepe with tie neck.',
+				image_url: 'https://example.com/a.png',
+				sizes: ['XS', 'S', 'M', 'L', 'XL'],
+				colors: [],
+				season_name: 'Fall',
+				product_year: 2026
+			}
+		]);
+	});
+
+	it('splits delimited size and color columns into arrays', () => {
+		const out = parseProducts(
+			['style number', 'name', 'wholesale price', 'sizes', 'colors'],
+			rowsOf({
+				'style number': 'ST-1',
+				name: 'Silk Blouse',
+				'wholesale price': '120',
+				sizes: 'XS, S, M ,L',
+				colors: 'Black;Navy|Black'
+			})
+		);
+		expect(out[0].sizes).toEqual(['XS', 'S', 'M', 'L']);
+		expect(out[0].colors).toEqual(['Black', 'Navy']);
+	});
+
+	it('ignores an out-of-range product year', () => {
+		const out = parseProducts(
+			['style number', 'name', 'wholesale price', 'product year'],
+			rowsOf({
+				'style number': 'ST-1',
+				name: 'Silk Blouse',
+				'wholesale price': '120',
+				'product year': '26'
+			})
+		);
+		expect(out[0].product_year).toBeNull();
 	});
 
 	it('drops rows missing any required value', () => {
@@ -208,5 +300,119 @@ describe('importedCount', () => {
 		expect(importedCount('accounts', null)).toBe(0);
 		expect(importedCount('accounts', {})).toBe(0);
 		expect(importedCount('products', { inserted: 'x' })).toBe(0);
+	});
+});
+
+describe('parseProducts — exploded exports', () => {
+	// One row per style x size, the shape JOOR and NuOrder export.
+	const headers = ['Style Number', 'Style Name', 'Wholesale Price', 'Size Name', 'Color Name'];
+	const row = (style: string, name: string, price: string, size: string, color: string) => ({
+		'style number': style,
+		'style name': name,
+		'wholesale price': price,
+		'size name': size,
+		'color name': color
+	});
+
+	it('collapses rows to one product per style and unions the sizes', () => {
+		const out = parseProducts(
+			headers,
+			rowsOf(
+				row('ST-1', 'Sophie Blouse', '154', 'S', 'Black'),
+				row('ST-1', 'Sophie Blouse', '154', 'M', 'Black'),
+				row('ST-1', 'Sophie Blouse', '154', 'L', 'Ivory'),
+				row('ST-2', 'Margot Coat', '410', 'M', 'Camel')
+			)
+		);
+		expect(out).toHaveLength(2);
+		expect(out[0].style_number).toBe('ST-1');
+		expect(out[0].sizes).toEqual(['S', 'M', 'L']);
+		expect(out[0].colors).toEqual(['Black', 'Ivory']);
+		expect(out[1].sizes).toEqual(['M']);
+	});
+
+	it('backfills a scalar the first row of a style left blank', () => {
+		const out = parseProducts(
+			[...headers, 'Description'],
+			rowsOf(
+				{ ...row('ST-1', 'Sophie', '154', 'S', 'Black'), description: '' },
+				{ ...row('ST-1', 'Sophie', '154', 'M', 'Black'), description: 'Silk blouse.' }
+			)
+		);
+		expect(out).toHaveLength(1);
+		expect(out[0].description).toBe('Silk blouse.');
+	});
+
+	it('treats a flat one-row-per-product CSV as groups of one', () => {
+		const out = parseProducts(
+			['style_number', 'name', 'wholesale_price', 'sizes'],
+			rowsOf(
+				{ style_number: 'A', name: 'Alpha', wholesale_price: '10', sizes: 'S, M' },
+				{ style_number: 'B', name: 'Beta', wholesale_price: '20', sizes: 'L' }
+			)
+		);
+		expect(out).toHaveLength(2);
+		expect(out[0].sizes).toEqual(['S', 'M']);
+	});
+
+	it('picks the price column over the currency column', () => {
+		const out = parseProducts(
+			['Style Number', 'Style Name', 'Wholesale Currency', 'Wholesale Price'],
+			rowsOf({
+				'style number': 'ST-1',
+				'style name': 'Sophie',
+				'wholesale currency': 'USD',
+				'wholesale price': '154.00'
+			})
+		);
+		expect(out).toHaveLength(1);
+		expect(out[0].wholesale_price).toBe(154);
+	});
+});
+
+describe('parseProducts — sparse continuation rows', () => {
+	it('keeps sizes from rows that repeat only the style number', () => {
+		// Merged-cell exports carry name and price on the first row of a style
+		// and leave them blank on the rest. Those rows still carry a size.
+		const out = parseProducts(
+			['Style Number', 'Style Name', 'Wholesale Price', 'Size Name'],
+			rowsOf(
+				{
+					'style number': 'ST-1',
+					'style name': 'Sophie',
+					'wholesale price': '154',
+					'size name': 'S'
+				},
+				{ 'style number': 'ST-1', 'style name': '', 'wholesale price': '', 'size name': 'M' },
+				{ 'style number': 'ST-1', 'style name': '', 'wholesale price': '', 'size name': 'L' }
+			)
+		);
+		expect(out).toHaveLength(1);
+		expect(out[0].sizes).toEqual(['S', 'M', 'L']);
+	});
+
+	it('picks up sizes that appeared before the row supplying name and price', () => {
+		const out = parseProducts(
+			['Style Number', 'Style Name', 'Wholesale Price', 'Size Name'],
+			rowsOf(
+				{ 'style number': 'ST-1', 'style name': '', 'wholesale price': '', 'size name': 'S' },
+				{
+					'style number': 'ST-1',
+					'style name': 'Sophie',
+					'wholesale price': '154',
+					'size name': 'M'
+				}
+			)
+		);
+		expect(out).toHaveLength(1);
+		expect(out[0].sizes).toEqual(['S', 'M']);
+	});
+
+	it('does not emit a product for a style no row ever named or priced', () => {
+		const out = parseProducts(
+			['Style Number', 'Style Name', 'Wholesale Price', 'Size Name'],
+			rowsOf({ 'style number': 'ST-9', 'style name': '', 'wholesale price': '', 'size name': 'M' })
+		);
+		expect(out).toEqual([]);
 	});
 });

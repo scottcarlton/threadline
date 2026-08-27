@@ -5,6 +5,7 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
 import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
+import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -89,7 +90,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'create_order',
 		description:
-			'Create a wholesale order OR a note in one call: account, brand, ship window, and line items. order_type defaults to "order"; pass order_type="note" when the user says anything like "create note", "create a note", "notes out", "write up notes", "note for <account>", etc. — those phrases mean the record should be stored as a note, not a standard order. The server auto-resolves each line against the brand\'s product catalog by style_number OR by product name (passed as `description`) — that lookup supplies season_id and wholesale_price for you. DO NOT ask the user for a wholesale price; the product catalog has it. Only fall back to asking if the user explicitly says the item is not in the catalog. Season is derived from the products; do not pass season separately. If the ship window is missing, ask the user for start_ship_date and complete_ship_date — do not guess. Sales rep defaults to the authenticated user unless rep_name is supplied. line_total and orders.total_amount are computed by the database; never pass them. Status defaults to "submitted" — pass status="draft" ONLY when the user explicitly asks to save a draft (e.g. "hold it", "save as draft"). Returns the order with joined brand, account, and season names.',
+			'Create a wholesale order OR a note in one call: account, brand, ship window, and line items. order_type defaults to "order"; pass order_type="note" when the user says anything like "create note", "create a note", "notes out", "write up notes", "note for <account>", etc. — those phrases mean the record should be stored as a note, not a standard order. The server auto-resolves each line against the brand\'s product catalog by style_number OR by product name (passed as `description`) — that lookup supplies season_id and wholesale_price for you. DO NOT ask the user for a wholesale price; the product catalog has it. Only fall back to asking if the user explicitly says the item is not in the catalog. Season is derived from the products; do not pass season separately. Brand orgs should omit brand_name entirely. The server resolves the org\'s own brand, so never ask a brand user which brand their order is for. If the ship window is missing, ask the user for start_ship_date and complete_ship_date — do not guess. Sales rep defaults to the authenticated user unless rep_name is supplied. line_total and orders.total_amount are computed by the database; never pass them. Status defaults to "submitted" — pass status="draft" ONLY when the user explicitly asks to save a draft (e.g. "hold it", "save as draft"). Returns the order with joined brand, account, and season names.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -99,7 +100,8 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 				},
 				brand_name: {
 					type: 'string',
-					description: 'Brand name to fuzzy match (required)'
+					description:
+						"Brand name to fuzzy match. Required for rep orgs, which represent many brands. OMIT this for brand orgs. The server fills in the org's own brand automatically. Only pass it for a brand org when the user explicitly names one of their other labels."
 				},
 				start_ship_date: {
 					type: 'string',
@@ -152,7 +154,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 				},
 				notes: { type: 'string', description: 'Order notes (optional)' }
 			},
-			required: ['account_name', 'brand_name', 'start_ship_date', 'complete_ship_date', 'lines']
+			required: ['account_name', 'start_ship_date', 'complete_ship_date', 'lines']
 		}
 	},
 	{
@@ -1062,32 +1064,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	// Build multimodal user content if files are attached
-	type FilePayload = { name: string; type: string; data: string };
-	let userContent: string | Anthropic.ContentBlockParam[];
-	if (files && Array.isArray(files) && files.length > 0) {
-		const contentBlocks: Anthropic.ContentBlockParam[] = [];
-		for (const file of files as FilePayload[]) {
-			if (file.type.startsWith('image/')) {
-				const mediaType = file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-				contentBlocks.push({
-					type: 'image',
-					source: { type: 'base64', media_type: mediaType, data: file.data }
-				});
-			} else {
-				// For non-image files, decode base64 and include as text context
-				const decoded = Buffer.from(file.data, 'base64').toString('utf-8');
-				contentBlocks.push({
-					type: 'text',
-					text: `[Attached file: ${file.name}]\n${decoded}`
-				});
-			}
-		}
-		contentBlocks.push({ type: 'text', text: cleanMessage });
-		userContent = contentBlocks;
-	} else {
-		userContent = cleanMessage;
+	// Build multimodal user content if files are attached. Size, count, and type
+	// are validated before anything reaches the prompt.
+	const attachments = buildAttachmentBlocks(files);
+	if (!attachments.ok) {
+		return json({ error: attachments.error }, { status: 400 });
 	}
+
+	const userContent: string | Anthropic.ContentBlockParam[] = attachments.blocks.length
+		? [...attachments.blocks, { type: 'text', text: cleanMessage }]
+		: cleanMessage;
 
 	const role = locals.membership?.role ?? 'guest';
 	const brandScopeInfo = locals.brandScope
@@ -1161,7 +1147,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 - Brand access: ${brandScopeInfo}
 - Current date/time: ${dateStr} at ${timeStr}
 - Currently viewing: ${pageContext}${entityInfo}
-${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_sales_analytics, get_commission_report, and get_style_velocity.' : ''}`;
+${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment. Orders they create are for their own brand. Omit brand_name when calling create_order and never ask them which brand an order is for.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_sales_analytics, get_commission_report, and get_style_velocity.' : ''}`;
 
 	// Use structured system blocks for prompt caching
 	const systemBlocks: Anthropic.TextBlockParam[] = [
@@ -1428,6 +1414,19 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			});
 		}
 
+		// The prompt is the useful part when troubleshooting a Stitch complaint.
+		// It passes through the audit redactor, which caps length and masks
+		// PII-shaped values, so it is safe to keep.
+		locals.audit.record('assistant.queried', {
+			subjectId: resolvedAgentId ?? undefined,
+			metadata: {
+				prompt: cleanMessage,
+				tools_used: actions.map((a) => a.tool),
+				agent_id: resolvedAgentId ?? null,
+				duration_ms: Date.now() - requestStartTime
+			}
+		});
+
 		return json({
 			response: responseText,
 			actions: actions.length > 0 ? actions : undefined,
@@ -1436,6 +1435,11 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 	} catch (err) {
 		console.error('AI API error:', err);
 		const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+		locals.audit.record('assistant.queried', {
+			status: 'failure',
+			errorMessage,
+			metadata: { prompt: cleanMessage, duration_ms: Date.now() - requestStartTime }
+		});
 		return json({ error: errorMessage }, { status: 500 });
 	}
 };

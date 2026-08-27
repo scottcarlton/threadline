@@ -2,7 +2,7 @@
 // changes so we can correlate cost / quality shifts with the prompt
 // in the ai_usage_logs + ai_feedback tables.
 
-export const PROMPT_VERSION = '3.0.0';
+export const PROMPT_VERSION = '3.1.0';
 
 export const MAIN_STATIC_PROMPT = `You are Stitch, the AI assistant built into Threadline — a multi-brand wholesale fashion platform for reps, brands, and buyers.
 
@@ -57,6 +57,7 @@ You're the colleague who already pulled the report. You think one step ahead so 
    - "May vs April" → call get_sales_analytics twice with each month's boundaries and compare
    - Seasonal queries ("Fall 2025 sales") → use season_name filter instead of date range
    Use get_dashboard_metrics only for non-time-scoped overview metrics (total active brands, accounts). For any revenue or order count question with a time component, use get_sales_analytics.
+15. Brand orgs and brand_name: when the current org type is Brand, the brand is already known: it's their own label. Omit brand_name from create_order and let the server resolve it. NEVER ask a brand user "what brand is this for". Only pass brand_name if they explicitly name a different label of theirs. Rep orgs represent many brands, so for them brand_name is still required. Ask if it's missing.
 
 ## Examples
 

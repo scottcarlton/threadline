@@ -79,3 +79,66 @@ Crew Tee,CT-01`;
 		expect(result.rows[0]).toEqual({ name: 'Crew Tee', sku: 'CT-01', price: '' });
 	});
 });
+
+describe('parseCSV — multi-line quoted fields', () => {
+	it('keeps a newline inside a quoted field in one record', () => {
+		const text = 'style,description,price\nST-1,"line one\nline two",120\nST-2,plain,90';
+		const { rows } = parseCSV(text);
+		expect(rows).toHaveLength(2);
+		expect(rows[0].description).toBe('line one\nline two');
+		expect(rows[0].price).toBe('120');
+		expect(rows[1].style).toBe('ST-2');
+	});
+
+	it('does not let an embedded newline shift later columns', () => {
+		// The old line-based splitter produced a phantom record here and every
+		// column after the description came back misaligned.
+		const text = 'style,description,price\nST-1,"a\n\nb\nc",120';
+		const { rows } = parseCSV(text);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].price).toBe('120');
+	});
+
+	it('handles CRLF and a missing trailing newline', () => {
+		const { rows } = parseCSV('a,b\r\n1,2\r\n3,4');
+		expect(rows).toEqual([
+			{ a: '1', b: '2' },
+			{ a: '3', b: '4' }
+		]);
+	});
+
+	it('unescapes doubled quotes inside a quoted field', () => {
+		const { rows } = parseCSV('a,b\n"say ""hi""",2');
+		expect(rows[0].a).toBe('say "hi"');
+	});
+
+	it('ignores a trailing newline instead of emitting a blank row', () => {
+		const { rows } = parseCSV('a,b\n1,2\n');
+		expect(rows).toHaveLength(1);
+	});
+});
+
+describe('parseCSV — unquoted quote characters', () => {
+	it('treats an inch mark mid-field as literal, not as an opening quote', () => {
+		// Regression: once quote state carried across line breaks, a stray `"`
+		// mid-field swallowed the entire rest of the document.
+		const text = 'style,name,wholesale\nA1,5" heel boot,100\nA2,Tee,10\nA3,Hat,12';
+		const { rows } = parseCSV(text);
+		expect(rows).toHaveLength(3);
+		expect(rows[0].name).toBe('5" heel boot');
+		expect(rows[0].wholesale).toBe('100');
+		expect(rows[2].style).toBe('A3');
+	});
+
+	it('keeps a quote that follows a closing quote in the same field', () => {
+		const { rows } = parseCSV('a,b\n"quoted"extra,2');
+		expect(rows[0].a).toBe('quotedextra');
+		expect(rows[0].b).toBe('2');
+	});
+
+	it('still honours a genuine quoted field containing a comma', () => {
+		const { rows } = parseCSV('a,b\n"one, two",3');
+		expect(rows[0].a).toBe('one, two');
+		expect(rows[0].b).toBe('3');
+	});
+});
