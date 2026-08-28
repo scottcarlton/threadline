@@ -150,6 +150,7 @@ export const AUDIT_EVENTS = {
 	// ── Assistant (Stitch) ──────────────────────────────────────────────────
 	'assistant.queried': { category: 'assistant', label: 'asked Stitch a question' },
 	'assistant.action_executed': { category: 'assistant', label: 'ran a Stitch action' },
+	'assistant.rate_limited': { category: 'assistant', label: 'was rate limited by Stitch' },
 
 	// ── Messaging ───────────────────────────────────────────────────────────
 	'email.sent': { category: 'messaging', label: 'sent an email' },
