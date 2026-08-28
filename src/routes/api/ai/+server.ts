@@ -6,6 +6,7 @@ import { executeToolCall } from '$lib/server/ai-tools.js';
 import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
 import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
+import { checkAiLimits } from '$lib/server/ai-limits.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -1021,6 +1022,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	if (!message || typeof message !== 'string') {
 		return json({ error: 'Message is required' }, { status: 400 });
+	}
+
+	const limit = await checkAiLimits(locals.organization.id, locals.user.id, 'chat');
+	if (!limit.allowed) {
+		locals.audit.record('assistant.rate_limited', {
+			status: 'failure',
+			errorMessage: limit.scope,
+			metadata: { endpoint: 'chat', scope: limit.scope }
+		});
+		return json(
+			{ error: limit.message },
+			{ status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
+		);
 	}
 
 	// Resolve agent — by explicit agentId or @slug mention
