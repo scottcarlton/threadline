@@ -52,7 +52,49 @@ type ToolContext = {
 	brandScope: string[] | null;
 	orgType: 'rep' | 'brand';
 	origin: string;
+	/**
+	 * Who is driving this tool call.
+	 *
+	 * `interactive` means a signed-in human is typing and reading the result, so
+	 * the model's output is checked by the person who asked for it.
+	 *
+	 * `automated` means a scheduled or event-triggered agent, where the prompt
+	 * can carry content we did not author (an inbound email body, a webhook
+	 * payload). Instructions hidden in that content reach the model, so those
+	 * runs are held to a narrower set of writes. See ADVANCING_STATUSES.
+	 *
+	 * Defaults to `automated` when unset: a caller that forgot to say gets the
+	 * cautious treatment, not the permissive one.
+	 */
+	trust?: 'interactive' | 'automated';
 };
+
+/**
+ * Statuses an automated run may not set.
+ *
+ * An order arriving through AI should be submitted, not confirmed. Submitting
+ * puts it in front of a human; confirming is the human's answer, and a model
+ * acting on text it was handed must not be able to give that answer on their
+ * behalf. Shipped and delivered are the same act further along, and cancelling
+ * is destructive.
+ *
+ * Interactive chat is unaffected: the person typing "confirm order 1042" is the
+ * accountable human, and taking that away would remove working behaviour.
+ */
+export const ADVANCING_STATUSES = new Set(['confirmed', 'shipped', 'delivered', 'cancelled']);
+
+/** Whether this context may move an order into `status`. */
+export function maySetOrderStatus(
+	trust: ToolContext['trust'],
+	status: string
+): { allowed: true } | { allowed: false; error: string } {
+	if (trust === 'interactive') return { allowed: true };
+	if (!ADVANCING_STATUSES.has(status)) return { allowed: true };
+	return {
+		allowed: false,
+		error: `An automated run cannot set an order to "${status}". Orders can be created and submitted this way, but confirming, shipping, or cancelling one is a person's decision. Leave it submitted and tell the user it is waiting on them.`
+	};
+}
 
 type ToolResult = {
 	success: boolean;
@@ -793,6 +835,10 @@ async function updateOrderStatus(
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	const status = input.status as string;
+
+	const permitted = maySetOrderStatus(ctx.trust, status);
+	if (!permitted.allowed) return { success: false, error: permitted.error };
+
 	const timestampField: Record<string, string> = {
 		submitted: 'submitted_at',
 		confirmed: 'confirmed_at',

@@ -119,6 +119,9 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 					organizationId: params.orgId,
 					userId: actor.userId, // the admin who configured this agent
 					brandScope: null, // Full access
+					// Scheduled and event-triggered runs can carry content we did
+					// not author, so they cannot confirm, ship, or cancel an order.
+					trust: 'automated',
 					orgType: (org?.org_type as 'rep' | 'brand') ?? 'rep',
 					origin: ''
 				});
