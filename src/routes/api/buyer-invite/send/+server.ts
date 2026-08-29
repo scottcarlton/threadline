@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { findUserIdByEmail } from '$lib/server/user-lookup.js';
 import { getNxBlsrBrandOrgIds } from '$lib/server/nx-blsr';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -90,15 +91,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'An invitation is already pending for this email' }, { status: 409 });
 	}
 
-	// Check if user already exists in the system
-	const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers();
-	const matchingUser = existingUser?.users?.find((u) => u.email === email);
-	if (matchingUser) {
+	// Indexed lookup. The previous scan read only the first page of
+	// listUsers() and compared case-sensitively, so an existing buyer could be
+	// missed and re-invited.
+	const matchingUserId = await findUserIdByEmail(email);
+	if (matchingUserId) {
 		const { data: existingBuyer } = await supabaseAdmin
 			.from('account_users')
 			.select('id')
 			.eq('account_id', accountId)
-			.eq('profile_id', matchingUser.id)
+			.eq('profile_id', matchingUserId)
 			.single();
 
 		if (existingBuyer) {
@@ -108,7 +110,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// User exists but isn't a buyer for this account — auto-add them
 		await supabaseAdmin.from('account_users').insert({
 			account_id: accountId,
-			profile_id: matchingUser.id,
+			profile_id: matchingUserId,
 			role: assignedRole,
 			invited_by: membership.profile_id,
 			accepted_at: new Date().toISOString()
