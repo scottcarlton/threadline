@@ -42,6 +42,14 @@ export const POST: RequestHandler = async ({ request }) => {
 	const { error: pruneError } = await supabaseAdmin.rpc('prune_ai_requests');
 	if (pruneError) console.error('[cron] prune_ai_requests failed:', pruneError.message);
 
+	// Same reasoning for the verification attempt counters, on a longer horizon:
+	// they are the only durable trace of a stranger texting our number, so they
+	// are worth keeping for a while before they become clutter.
+	const { error: attemptPruneError } = await supabaseAdmin.rpc('prune_verification_attempts');
+	if (attemptPruneError) {
+		console.error('[cron] prune_verification_attempts failed:', attemptPruneError.message);
+	}
+
 	const { data: triggers } = await supabaseAdmin
 		.from('org_agent_triggers')
 		.select(
