@@ -1,4 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
+import { wrapUntrusted } from './ai-untrusted.js';
 
 export type FilePayload = { name: string; type: string; data: string };
 
@@ -119,9 +120,11 @@ export function buildAttachmentBlocks(files: unknown): AttachmentResult {
 			return { ok: false, error: `"${name}" has too much text to read at once. Maximum is 512KB.` };
 		}
 
+		// A file's contents are authored by whoever made the file, not by the
+		// person asking the question, so they are fenced rather than inlined.
 		blocks.push({
 			type: 'text',
-			text: `[Attached file: ${name}]\n${Buffer.from(file.data, 'base64').toString('utf-8')}`
+			text: wrapUntrusted('uploaded file', Buffer.from(file.data, 'base64').toString('utf-8'), name)
 		});
 	}
 

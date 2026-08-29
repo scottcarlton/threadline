@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { env } from '$env/dynamic/private';
+import type { EmailHeaders } from './authentication.js';
 
 /**
  * Verify a Brevo inbound parse webhook using bearer token auth.
@@ -90,7 +91,10 @@ export type BrevoInboundItem = {
 	RawHtmlBody?: string;
 	RawTextBody?: string;
 	ExtractedMarkdownMessage?: string;
-	Headers?: Record<string, string>;
+	// Brevo sends a header once as a string, and repeated headers as an array.
+	// Authentication-Results is commonly repeated, and which copy you read is a
+	// security decision — see authentication.ts.
+	Headers?: EmailHeaders;
 	Attachments?: Array<{
 		Name: string;
 		ContentType: string;
@@ -106,7 +110,7 @@ export type ReceivedEmail = {
 	subject: string;
 	text: string | null;
 	html: string | null;
-	headers: Record<string, string> | null;
+	headers: EmailHeaders | null;
 	messageId: string;
 	cc: string[] | null;
 	bcc: string[] | null;
