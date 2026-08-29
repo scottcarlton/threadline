@@ -7,6 +7,7 @@ import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server
 import { logUsage } from '$lib/server/ai-usage.js';
 import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
+import { sanitizeConversationHistory } from '$lib/server/ai-history.js';
 import { isSafePath, sanitizeEntityContext } from '$lib/server/ai-context.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
@@ -1199,11 +1200,16 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 	);
 
 	try {
-		// Cap prior turns to keep request size bounded; older turns are dropped.
-		const HISTORY_LIMIT = 20;
-		const trimmedHistory = (conversationHistory ?? []).slice(-HISTORY_LIMIT);
+		// History comes from the client, so it is validated before it can shape
+		// what the model believes about its own past. See ai-history.ts.
+		const history = sanitizeConversationHistory(conversationHistory);
+		if (history.rejected > 0) {
+			console.warn(
+				`[ai] discarded ${history.rejected} malformed history turn(s) from user ${locals.user!.id}`
+			);
+		}
 		const messages: Anthropic.MessageParam[] = [
-			...trimmedHistory,
+			...history.messages,
 			{ role: 'user' as const, content: userContent }
 		];
 
@@ -1215,11 +1221,10 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		if (needsClassification) {
 			// Include the last 2 messages of history so follow-ups like "what about
 			// the other ones?" classify correctly against prior tool context.
-			const classifyMessages: Anthropic.MessageParam[] = [];
-			for (const msg of (conversationHistory ?? []).slice(-2)) {
-				classifyMessages.push({ role: msg.role, content: msg.content });
-			}
-			classifyMessages.push({ role: 'user', content: userContent });
+			const classifyMessages: Anthropic.MessageParam[] = [
+				...history.messages.slice(-2),
+				{ role: 'user', content: userContent }
+			];
 
 			const classifyResponse = await anthropic.messages.create({
 				model: 'claude-haiku-4-5',
