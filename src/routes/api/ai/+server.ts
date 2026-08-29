@@ -7,6 +7,7 @@ import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server
 import { logUsage } from '$lib/server/ai-usage.js';
 import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
+import { isSafePath, sanitizeEntityContext } from '$lib/server/ai-context.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -998,7 +999,9 @@ function describeCurrentPage(path: string): string {
 	if (path === '/appointments') return 'Appointments calendar';
 	if (path.match(/^\/settings/)) return 'Settings';
 	if (path.match(/^\/organization/)) return 'Organization settings';
-	return path;
+	// Unrecognised but well-formed routes are echoed; anything else is the
+	// caller putting their own text into the system prompt. See ai-context.ts.
+	return isSafePath(path) ? path : 'Unknown page';
 }
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -1102,8 +1105,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const staticSystem = MAIN_STATIC_PROMPT;
 
 	// Dynamic per-request context
-	const entityInfo = entityCtx?.summary
-		? `\n- Entity in view: ${entityCtx.summary}. The user is currently looking at this ${entityCtx.type} — use this context to answer questions without requiring them to re-specify which ${entityCtx.type} they mean.`
+	const entity = sanitizeEntityContext(entityCtx);
+	const entityInfo = entity?.summary
+		? `\n- Entity in view: ${entity.summary}. The user is currently looking at this ${entity.type} — use this context to answer questions without requiring them to re-specify which ${entity.type} they mean.`
 		: '';
 
 	const orgTypeLabel = locals.orgType === 'brand' ? 'Brand (manufacturer)' : 'Rep (sales agency)';
