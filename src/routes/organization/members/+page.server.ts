@@ -1,5 +1,4 @@
 import type { PageServerLoad } from './$types';
-import { supabaseAdmin } from '$lib/server/supabase.js';
 import { findEmailsByUserIds } from '$lib/server/user-lookup.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
