@@ -48,16 +48,20 @@ describe('buildAttachmentBlocks', () => {
 		expect(result).toMatchObject({ ok: false });
 	});
 
-	it('inlines a text file with its name', () => {
+	// File contents are authored by whoever made the file, not by the person
+	// asking, so they arrive fenced as untrusted rather than inlined bare.
+	it('inlines a text file fenced as untrusted, named', () => {
 		const result = buildAttachmentBlocks([
 			{ name: 'notes.txt', type: 'text/plain', data: b64('ship window is march') }
 		]);
 		expect(result).toMatchObject({ ok: true });
 		if (!result.ok) return;
-		expect(result.blocks[0]).toMatchObject({
-			type: 'text',
-			text: '[Attached file: notes.txt]\nship window is march'
-		});
+		const block = result.blocks[0] as { type: string; text: string };
+		expect(block.type).toBe('text');
+		expect(block.text).toContain('ship window is march');
+		expect(block.text).toContain('source="uploaded file"');
+		expect(block.text).toContain('name="notes.txt"');
+		expect(block.text).toMatch(/^<untrusted-content /);
 	});
 
 	// A PDF used to be utf-8 decoded into mojibake. It now goes as a document

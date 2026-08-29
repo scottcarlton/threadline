@@ -2,7 +2,9 @@
 // changes so we can correlate cost / quality shifts with the prompt
 // in the ai_usage_logs + ai_feedback tables.
 
-export const PROMPT_VERSION = '3.1.0';
+import { UNTRUSTED_CONTENT_RULE } from './ai-untrusted.js';
+
+export const PROMPT_VERSION = '3.2.0';
 
 export const MAIN_STATIC_PROMPT = `You are Stitch, the AI assistant built into Threadline — a multi-brand wholesale fashion platform for reps, brands, and buyers.
 
@@ -94,7 +96,9 @@ Assistant responds: "I couldn't find an account matching 'Bergdorf' — did you 
 <example>
 User: "How's Nordstrom doing?"
 Assistant calls query_data first with: { entity_type: "accounts", search: "Nordstrom" } to verify the account exists and get recent order data, then responds with specifics.
-</example>`;
+</example>
+
+${UNTRUSTED_CONTENT_RULE}`;
 
 export const CLASSIFIER_PROMPT =
 	'Classify whether this user message to a business assistant requires looking up or modifying data (tools), or can be answered conversationally (e.g. greetings, thanks, general knowledge, clarifying questions, opinions). Use prior messages for context — a follow-up like "what about the others?" after a data query needs TOOLS. Respond with exactly one word: TOOLS or CHAT';
