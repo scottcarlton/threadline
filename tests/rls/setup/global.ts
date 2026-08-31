@@ -1,7 +1,11 @@
+import { seedRlsFixture, teardownRlsFixture } from './fixture.js';
+
 export async function setup(): Promise<void> {
-	// Replaced in Task 2.3 with fixture seeding.
+	// Idempotent: clear anything a crashed previous run left behind, then seed.
+	await teardownRlsFixture();
+	await seedRlsFixture();
 }
 
 export async function teardown(): Promise<void> {
-	// Replaced in Task 2.3 with fixture teardown.
+	await teardownRlsFixture();
 }

@@ -72,10 +72,37 @@ async function seedOrgs(admin: SupabaseClient): Promise<void> {
 		'organizations insert',
 		(
 			await admin.from('organizations').insert([
-				{ id: RLS_IDS.orgBrandA, name: 'RLS Brand A', slug: 'rls-brand-a', org_type: 'brand' },
-				{ id: RLS_IDS.orgBrandB, name: 'RLS Brand B', slug: 'rls-brand-b', org_type: 'brand' },
-				{ id: RLS_IDS.orgRepA, name: 'RLS Rep A', slug: 'rls-rep-a', org_type: 'rep' },
-				{ id: RLS_IDS.orgRepB, name: 'RLS Rep B', slug: 'rls-rep-b', org_type: 'rep' }
+				{
+					id: RLS_IDS.orgBrandA,
+					name: 'RLS Brand A',
+					slug: 'rls-brand-a',
+					org_type: 'brand',
+					// order_number is globally unique across the whole table, but the
+					// counter that feeds it resets to 1 per org. Distinct prefixes
+					// keep fresh orgs from generating colliding order numbers.
+					order_number_prefix: 'RLSA-'
+				},
+				{
+					id: RLS_IDS.orgBrandB,
+					name: 'RLS Brand B',
+					slug: 'rls-brand-b',
+					org_type: 'brand',
+					order_number_prefix: 'RLSB-'
+				},
+				{
+					id: RLS_IDS.orgRepA,
+					name: 'RLS Rep A',
+					slug: 'rls-rep-a',
+					org_type: 'rep',
+					order_number_prefix: 'RLSRA-'
+				},
+				{
+					id: RLS_IDS.orgRepB,
+					name: 'RLS Rep B',
+					slug: 'rls-rep-b',
+					org_type: 'rep',
+					order_number_prefix: 'RLSRB-'
+				}
 			])
 		).error
 	);
@@ -263,7 +290,7 @@ async function seedAccounts(admin: SupabaseClient): Promise<void> {
 			await admin.from('account_users').insert({
 				account_id: RLS_IDS.accountBrandA,
 				profile_id: PERSONA_IDS.buyer!,
-				role: 'admin',
+				role: 'buyer_admin',
 				accepted_at: new Date().toISOString()
 			})
 		).error
@@ -324,6 +351,7 @@ async function seedOrders(admin: SupabaseClient): Promise<void> {
 					id: RLS_IDS.orderRepBOnBrandB,
 					organization_id: RLS_IDS.orgRepB,
 					brand_id: RLS_IDS.brandB1,
+					freeform_name: 'RLS Rep B Freeform Buyer',
 					created_by: PERSONA_IDS.repBAdmin!,
 					status: 'draft'
 				}
@@ -412,6 +440,22 @@ export async function teardownRlsFixture(): Promise<void> {
 	resetClientCache();
 
 	const orgList = RLS_ORG_IDS.join(',');
+
+	// order_lines_audit (AFTER DELETE on order_lines) inserts into
+	// order_audits referencing order_id. If order_lines cascade-deletes as
+	// part of deleting orders (itself cascading from organizations), that
+	// insert races the parent order's own deletion within the same cascade
+	// and fails FK order_audits_order_id_fkey. Deleting order_lines here,
+	// while the parent orders still exist, lets the trigger's insert see a
+	// live order row.
+	await admin
+		.from('order_lines')
+		.delete()
+		.in('order_id', [
+			RLS_IDS.orderRepAOnBrandA,
+			RLS_IDS.orderBrandAInternal,
+			RLS_IDS.orderRepBOnBrandB
+		]);
 
 	// These FKs to organizations are NO ACTION, so they must go before the
 	// orgs. Everything else cascades from organizations.
