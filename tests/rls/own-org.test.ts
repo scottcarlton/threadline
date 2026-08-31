@@ -60,6 +60,16 @@ import { expectHidden, expectVisible } from './setup/assert.js';
  *     this probe. Own-org isolation is already proven indirectly in the
  *     "organizations, members, and profiles respect org boundaries" block
  *     (Rep A's own organization_members query never returns Rep B's org).
+ *   email_connections, notification_preferences, notifications -- these
+ *     gate SELECT purely on profile_id/user_id = auth.uid(), with no
+ *     org-membership disjunct at all. The generic loop's negative persona
+ *     (repBAdmin) differs from the owner on both the org axis and the
+ *     user axis at once, which can't isolate which axis is doing the
+ *     hiding. Tested instead in the "user-scoped tables (no org disjunct)
+ *     are hidden from a same-org non-owner" block, alongside cart_items,
+ *     against repASales: a member of the SAME org as the owner but a
+ *     different user, so a hidden row can only be explained by
+ *     auth.uid() scoping.
  *
  * Own-org tables (§A.3) that have no `id` column, so the shared
  * insertProbe/visibleIds helpers (which SELECT 'id') cannot address a row
@@ -357,28 +367,6 @@ beforeAll(async () => {
 			row: () => ({ member_id: MEMBER_ROW_IDS.repAAdmin, brand_id: RLS_IDS.brandRepAOwn })
 		},
 		{
-			table: 'email_connections',
-			row: () => ({
-				profile_id: PERSONA_IDS.repAAdmin,
-				email_address: 'rls-probe@rls-test.threadline.local',
-				access_token: 'rls-probe-access',
-				refresh_token: 'rls-probe-refresh'
-			})
-		},
-		{
-			table: 'notification_preferences',
-			row: () => ({ user_id: PERSONA_IDS.repAAdmin, organization_id: RLS_IDS.orgRepA })
-		},
-		{
-			table: 'notifications',
-			row: () => ({
-				organization_id: RLS_IDS.orgRepA,
-				user_id: PERSONA_IDS.repAAdmin,
-				type: 'rls_probe',
-				title: 'RLS Probe Notification'
-			})
-		},
-		{
 			table: 'integration_sync_log',
 			row: () => ({
 				organization_id: RLS_IDS.orgRepA,
@@ -562,6 +550,75 @@ describe('own-org isolation', () => {
 			await expectHidden(repB, 'cart_items', cartId);
 		} finally {
 			await adminClient().from('cart_items').delete().eq('id', cartId);
+		}
+	});
+
+	/**
+	 * email_connections, notification_preferences, and notifications gate
+	 * SELECT purely on `profile_id = auth.uid()` / `user_id = auth.uid()`,
+	 * with no org-membership disjunct at all. Proving that with an outsider
+	 * from a different org (like the generic own-org loop does) is
+	 * ambiguous: repBAdmin differs from the owner on both the org axis and
+	 * the user axis at once, so a hidden row could be explained by either.
+	 * The negative persona here is repASales instead: a member of the SAME
+	 * org as the owner, but a different user. Since org membership is
+	 * identical for both personas, a hidden row can only be explained by
+	 * auth.uid() scoping, which is what these policies actually promise.
+	 */
+	it('user-scoped tables (no org disjunct) are hidden from a same-org non-owner', async () => {
+		const owner = await personaClient('repAAdmin');
+		const sameOrgNonOwner = await personaClient('repASales');
+
+		const { data: connection, error: connectionErr } = await adminClient()
+			.from('email_connections')
+			.insert({
+				profile_id: PERSONA_IDS.repAAdmin!,
+				email_address: 'rls-probe@rls-test.threadline.local',
+				access_token: 'rls-probe-access',
+				refresh_token: 'rls-probe-refresh'
+			})
+			.select('id')
+			.single();
+		expect(connectionErr).toBeNull();
+		const connectionId = (connection as { id: string }).id;
+		try {
+			await expectVisible(owner, 'email_connections', connectionId);
+			await expectHidden(sameOrgNonOwner, 'email_connections', connectionId);
+		} finally {
+			await adminClient().from('email_connections').delete().eq('id', connectionId);
+		}
+
+		const { data: prefs, error: prefsErr } = await adminClient()
+			.from('notification_preferences')
+			.insert({ user_id: PERSONA_IDS.repAAdmin!, organization_id: RLS_IDS.orgRepA })
+			.select('id')
+			.single();
+		expect(prefsErr).toBeNull();
+		const prefsId = (prefs as { id: string }).id;
+		try {
+			await expectVisible(owner, 'notification_preferences', prefsId);
+			await expectHidden(sameOrgNonOwner, 'notification_preferences', prefsId);
+		} finally {
+			await adminClient().from('notification_preferences').delete().eq('id', prefsId);
+		}
+
+		const { data: notification, error: notificationErr } = await adminClient()
+			.from('notifications')
+			.insert({
+				organization_id: RLS_IDS.orgRepA,
+				user_id: PERSONA_IDS.repAAdmin!,
+				type: 'rls_probe',
+				title: 'RLS Probe Notification'
+			})
+			.select('id')
+			.single();
+		expect(notificationErr).toBeNull();
+		const notificationId = (notification as { id: string }).id;
+		try {
+			await expectVisible(owner, 'notifications', notificationId);
+			await expectHidden(sameOrgNonOwner, 'notifications', notificationId);
+		} finally {
+			await adminClient().from('notifications').delete().eq('id', notificationId);
 		}
 	});
 });
