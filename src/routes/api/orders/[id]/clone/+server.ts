@@ -2,29 +2,47 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { notifyOrgMembers } from '$lib/server/notifications';
+import { loadOwnOrgOrder, type OrderRow } from '$lib/server/orders/authorize-order';
+
+type SourceOrder = OrderRow & {
+	order_number: string | null;
+	account_id: string | null;
+	brand_id: string | null;
+	season_id: string | null;
+	order_year: number | null;
+	show_id: string | null;
+	show_date_id: string | null;
+	channel: string | null;
+	source_type_id: string | null;
+	delivery_id: string | null;
+	expected_ship_date: string | null;
+	notes: string | null;
+	connection_id: string | null;
+};
 
 export const POST: RequestHandler = async ({ locals, params }) => {
-	if (!locals.session || !locals.user) {
+	if (!locals.session || !locals.user || !locals.organization) {
 		return error(401, 'Unauthorized');
 	}
 
 	const orderId = params.id;
 
-	const [orderResult, linesResult] = await Promise.all([
-		supabaseAdmin.from('orders').select('*').eq('id', orderId).single(),
-		supabaseAdmin
-			.from('order_lines')
-			.select('*')
-			.eq('order_id', orderId)
-			.is('removed_at', null)
-			.order('sort_order')
-	]);
+	// Own-org only, deliberately narrower than the read path: the clone inserts a
+	// new order into `source.organization_id`, and per §A.6 a brand org cannot
+	// create orders in a rep org. Following the federation link here would let a
+	// connected brand write into the rep's workspace.
+	const source = await loadOwnOrgOrder<SourceOrder>(orderId, locals.organization.id, '*');
 
-	if (orderResult.error || !orderResult.data) {
+	if (!source) {
 		return error(404, 'Order not found');
 	}
 
-	const source = orderResult.data;
+	const { data: linesData } = await supabaseAdmin
+		.from('order_lines')
+		.select('*')
+		.eq('order_id', orderId)
+		.is('removed_at', null)
+		.order('sort_order');
 
 	const { data: newOrder, error: insertErr } = await supabaseAdmin
 		.from('orders')
@@ -52,7 +70,7 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 		return error(500, insertErr?.message ?? 'Failed to clone order');
 	}
 
-	const lines = linesResult.data ?? [];
+	const lines = linesData ?? [];
 	if (lines.length > 0) {
 		type OrderLine = {
 			product_id: string | null;

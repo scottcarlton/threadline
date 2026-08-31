@@ -1,5 +1,4 @@
 import type { PageServerLoad } from './$types';
-import { supabaseAdmin } from '$lib/server/supabase.js';
 import { listAllVisibleExpenses, computeExpenseMetrics } from '$lib/server/queries/expenses.js';
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
@@ -28,7 +27,10 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 
 	const expenses = await listAllVisibleExpenses(scope, { status, brandId, category });
 
-	const { data: brands } = await supabaseAdmin
+	// RLS-scoped: the brands SELECT policy returns own brands plus connected orgs'
+	// brands, which is the intended filter set (§A.4 /expenses/new). The previous
+	// supabaseAdmin read populated this dropdown with every brand on the platform.
+	const { data: brands } = await locals.supabase
 		.from('brands')
 		.select('id, name')
 		.eq('is_active', true)
