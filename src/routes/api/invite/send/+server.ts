@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { findUserIdByEmail } from '$lib/server/user-lookup.js';
 import { sendEmail } from '$lib/server/email.js';
 import { inviteParams } from '$lib/server/email-templates.js';
 import templateIds from '../../../../../emails/template-ids.json';
@@ -74,16 +75,17 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		manager_id = null;
 	}
 
-	// Look up any existing auth user for this email
-	const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
-	const matchingUser = usersList?.users?.find((u) => u.email === email) ?? null;
+	// Indexed lookup. The previous scan read only the first page of
+	// listUsers() and compared case-sensitively, so an existing user could be
+	// missed and sent a duplicate invitation.
+	const matchingUserId = await findUserIdByEmail(email);
 
-	if (matchingUser) {
+	if (matchingUserId) {
 		const { data: existingMember } = await supabaseAdmin
 			.from('organization_members')
 			.select('id')
 			.eq('organization_id', organization.id)
-			.eq('profile_id', matchingUser.id)
+			.eq('profile_id', matchingUserId)
 			.maybeSingle();
 
 		if (existingMember) {
@@ -95,7 +97,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			.from('organization_members')
 			.insert({
 				organization_id: organization.id,
-				profile_id: matchingUser.id,
+				profile_id: matchingUserId,
 				role,
 				commission_rate: commission,
 				manages_others,
@@ -156,7 +158,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		}
 
 		locals.audit.record('member.added', {
-			subjectId: matchingUser.id,
+			subjectId: matchingUserId,
 			subjectLabel: email,
 			metadata: { email, role, auto_added: true }
 		});
