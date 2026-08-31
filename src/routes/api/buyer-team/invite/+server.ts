@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { findUserIdByEmail } from '$lib/server/user-lookup.js';
 import { sendEmail } from '$lib/server/email.js';
 import { inviteParams } from '$lib/server/email-templates.js';
 import templateIds from '../../../../../emails/template-ids.json';
@@ -44,14 +45,14 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 
 	// If the user already exists in the system AND already has a row on every
 	// admin account, there's nothing to do.
-	const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers();
-	const matchingUser = existingUser?.users?.find((u) => u.email?.toLowerCase() === trimmed);
+	// Indexed lookup. The previous scan read only the first page of listUsers().
+	const matchingUserId = await findUserIdByEmail(trimmed);
 
-	if (matchingUser) {
+	if (matchingUserId) {
 		const { data: existingMemberships } = await supabaseAdmin
 			.from('account_users')
 			.select('account_id')
-			.eq('profile_id', matchingUser.id)
+			.eq('profile_id', matchingUserId)
 			.in(
 				'account_id',
 				accounts.map((a) => a.id)
@@ -69,7 +70,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		await supabaseAdmin.from('account_users').insert(
 			missing.map((a) => ({
 				account_id: a.id,
-				profile_id: matchingUser.id,
+				profile_id: matchingUserId,
 				role: 'buyer',
 				invited_by: locals.user!.id,
 				accepted_at: new Date().toISOString()
