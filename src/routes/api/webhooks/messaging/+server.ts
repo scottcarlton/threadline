@@ -19,6 +19,11 @@ import { runAgent } from '$lib/server/messaging/agent.js';
 import { sendReply } from '$lib/server/messaging/send.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { checkInboundRateLimit } from '$lib/server/messaging/rate-limit.js';
+import {
+	getVerificationAttempts,
+	recordVerificationAttempt,
+	clearVerificationAttempts
+} from '$lib/server/messaging/verification-attempts.js';
 
 export const POST: RequestHandler = async ({ request, url }) => {
 	const body = await request.text();
@@ -142,14 +147,14 @@ export const POST: RequestHandler = async ({ request, url }) => {
 	return twimlResponse();
 };
 
-const verificationAttempts = new Map<string, number>();
-
 async function handleVerification(
 	phone: string,
 	body: string | null,
 	channel: 'whatsapp' | 'sms'
 ): Promise<void> {
-	const attempts = verificationAttempts.get(phone) ?? 0;
+	// Persisted rather than held in memory: the old Map was per instance, so the
+	// cap reset whenever a request landed on a fresh one.
+	const attempts = await getVerificationAttempts(phone);
 
 	if (attempts >= MAX_ATTEMPTS) {
 		await sendReply(phone, getMaxAttemptsMessage(), channel);
@@ -163,7 +168,7 @@ async function handleVerification(
 
 	const email = parseVerificationReply(body);
 	if (!email) {
-		verificationAttempts.set(phone, attempts + 1);
+		await recordVerificationAttempt(phone);
 		await sendReply(
 			phone,
 			"I didn't catch an email address. Please reply with the email you use to sign in to Threadline.",
@@ -174,12 +179,12 @@ async function handleVerification(
 
 	const result = await bindPhoneToUser(phone, email);
 	if (!result.success) {
-		verificationAttempts.set(phone, attempts + 1);
+		await recordVerificationAttempt(phone);
 		await sendReply(phone, result.message, channel);
 		return;
 	}
 
-	verificationAttempts.delete(phone);
+	await clearVerificationAttempts(phone);
 	await sendReply(
 		phone,
 		"You're verified. You can now place orders, check inventory, and more — just text naturally.",
