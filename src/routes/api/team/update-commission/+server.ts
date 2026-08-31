@@ -24,19 +24,47 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Invalid rate' }, { status: 400 });
 	}
 
+	// Verify the member belongs to the caller's org before touching commissions.
+	// Every sibling /api/team/* endpoint does this; this one did not, which let an
+	// admin rewrite another org's commission rate given a member+brand UUID.
+	const { data: targetMember } = await supabaseAdmin
+		.from('organization_members')
+		.select('id')
+		.eq('id', memberId)
+		.eq('organization_id', organization.id)
+		.maybeSingle();
+
+	if (!targetMember) {
+		return json({ error: 'Member not found' }, { status: 404 });
+	}
+
+	// `member_brand_commissions` is own-org only (§A.3), so the brand must be ours too.
+	const { data: targetBrand } = await supabaseAdmin
+		.from('brands')
+		.select('id')
+		.eq('id', brandId)
+		.eq('organization_id', organization.id)
+		.maybeSingle();
+
+	if (!targetBrand) {
+		return json({ error: 'Brand not found' }, { status: 404 });
+	}
+
 	// Upsert the commission rate
 	const { data: existing } = await supabaseAdmin
 		.from('member_brand_commissions')
 		.select('id')
 		.eq('member_id', memberId)
 		.eq('brand_id', brandId)
-		.single();
+		.eq('organization_id', organization.id)
+		.maybeSingle();
 
 	if (existing) {
 		await supabaseAdmin
 			.from('member_brand_commissions')
 			.update({ rate: numRate })
-			.eq('id', existing.id);
+			.eq('id', existing.id)
+			.eq('organization_id', organization.id);
 	} else {
 		await supabaseAdmin.from('member_brand_commissions').insert({
 			organization_id: organization.id,
