@@ -51,6 +51,30 @@ function check(label: string, error: { message: string } | null): void {
 	if (error) throw new Error(`RLS fixture: ${label} failed: ${error.message}`);
 }
 
+/**
+ * Pages through every auth user via the admin API and calls `visit` on
+ * each one. Shared by loadPersonaIds (which reads users) and
+ * teardownRlsFixture (which deletes them by email domain).
+ */
+async function forEachAuthUser(
+	admin: SupabaseClient,
+	label: string,
+	visit: (user: { id: string; email?: string }) => Promise<void> | void
+): Promise<void> {
+	let page = 1;
+	for (;;) {
+		const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+		if (error) throw new Error(`${label}: listUsers failed: ${error.message}`);
+		const users = data?.users ?? [];
+		if (users.length === 0) break;
+		for (const user of users) {
+			await visit(user);
+		}
+		if (users.length < 200) break;
+		page += 1;
+	}
+}
+
 async function seedUsers(admin: SupabaseClient): Promise<void> {
 	for (const persona of Object.keys(PERSONA_EMAILS) as RlsPersona[]) {
 		const email = PERSONA_EMAILS[persona];
@@ -398,19 +422,10 @@ export async function seedRlsFixture(): Promise<void> {
 export async function loadPersonaIds(): Promise<void> {
 	const admin = adminClient();
 
-	let page = 1;
-	for (;;) {
-		const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-		if (error) throw new Error(`RLS fixture: listUsers failed: ${error.message}`);
-		const users = data?.users ?? [];
-		if (users.length === 0) break;
-		for (const user of users) {
-			const persona = user.email ? PERSONA_BY_EMAIL.get(user.email) : undefined;
-			if (persona) PERSONA_IDS[persona] = user.id;
-		}
-		if (users.length < 200) break;
-		page += 1;
-	}
+	await forEachAuthUser(admin, 'RLS fixture', (user) => {
+		const persona = user.email ? PERSONA_BY_EMAIL.get(user.email) : undefined;
+		if (persona) PERSONA_IDS[persona] = user.id;
+	});
 
 	const missing = (Object.keys(PERSONA_EMAILS) as RlsPersona[]).filter((p) => !PERSONA_IDS[p]);
 	if (missing.length > 0) {
@@ -473,20 +488,11 @@ export async function teardownRlsFixture(): Promise<void> {
 	await admin.from('organizations').delete().in('id', RLS_ORG_IDS);
 
 	// Auth users are found by email domain, not by id: GoTrue assigns ids.
-	let page = 1;
-	for (;;) {
-		const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-		if (error) throw new Error(`RLS teardown: listUsers failed: ${error.message}`);
-		const users = data?.users ?? [];
-		if (users.length === 0) break;
-		for (const user of users) {
-			if (user.email?.endsWith(`@${FIXTURE_EMAIL_DOMAIN}`)) {
-				await admin.auth.admin.deleteUser(user.id);
-			}
+	await forEachAuthUser(admin, 'RLS teardown', async (user) => {
+		if (user.email?.endsWith(`@${FIXTURE_EMAIL_DOMAIN}`)) {
+			await admin.auth.admin.deleteUser(user.id);
 		}
-		if (users.length < 200) break;
-		page += 1;
-	}
+	});
 
 	for (const persona of Object.keys(PERSONA_EMAILS) as RlsPersona[]) {
 		delete PERSONA_IDS[persona];
