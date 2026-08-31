@@ -6,9 +6,18 @@ import { loadOrderForOrg, type OrderRow } from '$lib/server/orders/authorize-ord
 
 type OrderForPdf = OrderRow & OrderData;
 
+// docs/brd/roles-permissions.md §4.4: "Generate order PDF" is Yes/Yes/Scoped/
+// Scoped/No — guest is excluded. Brand scoping for member/sales is enforced by
+// RLS on the underlying order.
+const PDF_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
+
 export const GET: RequestHandler = async ({ locals, params }) => {
 	if (!locals.session || !locals.user || !locals.organization) {
 		return error(401, 'Unauthorized');
+	}
+
+	if (!PDF_ROLES.has(locals.membership?.role ?? '')) {
+		return error(403, 'Insufficient permissions to generate an order PDF.');
 	}
 
 	const orderId = params.id;

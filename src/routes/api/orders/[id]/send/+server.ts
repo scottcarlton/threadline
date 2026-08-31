@@ -8,9 +8,16 @@ import { loadOrderForOrg, type OrderRow } from '$lib/server/orders/authorize-ord
 
 type OrderForSend = OrderRow & OrderData;
 
+// docs/brd/roles-permissions.md §4.4: "Email orders" excludes guest.
+const SEND_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
+
 export const POST: RequestHandler = async ({ request, locals, params }) => {
 	if (!locals.session || !locals.user || !locals.organization) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	if (!SEND_ROLES.has(locals.membership?.role ?? '')) {
+		return json({ error: 'Insufficient permissions to email an order.' }, { status: 403 });
 	}
 
 	const orderId = params.id;

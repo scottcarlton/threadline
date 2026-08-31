@@ -20,9 +20,17 @@ type SourceOrder = OrderRow & {
 	connection_id: string | null;
 };
 
+// A clone is an order creation. docs/brd/roles-permissions.md §4.4 "Create
+// orders" excludes guest.
+const CLONE_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
+
 export const POST: RequestHandler = async ({ locals, params }) => {
 	if (!locals.session || !locals.user || !locals.organization) {
 		return error(401, 'Unauthorized');
+	}
+
+	if (!CLONE_ROLES.has(locals.membership?.role ?? '')) {
+		return error(403, 'Insufficient permissions to clone an order.');
 	}
 
 	const orderId = params.id;
