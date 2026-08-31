@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getGmailClient, parseMessage, buildRawEmail } from './gmail.js';
 import { supabaseAdmin } from './supabase.js';
+import { checkFilterColumns, omitForEntity } from './ai-query-columns.js';
 import { computeAccountHealth } from './account-health.js';
 import { getSetupStatus } from './setup-status.js';
 import { sendSlackMessage } from './integrations/slack.js';
@@ -119,8 +120,6 @@ function formatToolResult(
 	for (const key of opts.omit ?? []) delete result[key];
 	return result;
 }
-
-const QUERY_OMIT_FIELDS = ['organization_id', 'updated_at'];
 
 export async function executeToolCall(
 	toolName: string,
@@ -975,6 +974,11 @@ async function queryData(input: Record<string, unknown>, ctx: ToolContext): Prom
 	const table = tableMap[entity];
 	if (!table) return { success: false, error: `Unknown entity: ${entity}` };
 
+	// A filter is a read. Restricting which columns can be filtered keeps the
+	// readable set from being wider than the visible one. See ai-query-columns.ts.
+	const filterCheck = checkFilterColumns(entity, filters);
+	if (!filterCheck.ok) return { success: false, error: filterCheck.error };
+
 	let selectStr = '*';
 	if (entity === 'orders') {
 		selectStr = '*, brands(name), accounts(business_name), seasons(name)';
@@ -1029,7 +1033,7 @@ async function queryData(input: Record<string, unknown>, ctx: ToolContext): Prom
 
 	if (error) return { success: false, error: error.message };
 	const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
-	const stripped = rows.map((row) => formatToolResult(row, { omit: QUERY_OMIT_FIELDS }));
+	const stripped = rows.map((row) => formatToolResult(row, { omit: omitForEntity(entity) }));
 	return { success: true, data: stripped };
 }
 
