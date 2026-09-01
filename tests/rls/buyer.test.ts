@@ -7,6 +7,7 @@ import {
 	expectInsertAllowed,
 	expectInsertDenied,
 	expectUpdateAllowed,
+	expectUpdateDenied,
 	expectVisible
 } from './setup/assert.js';
 
@@ -146,14 +147,16 @@ describe('buyer write surface', () => {
 	// persona, regardless of which policy would otherwise apply. Fixed in
 	// supabase/migrations/20260901000001_fix_orders_update_recursion.sql.
 	//
-	// "Buyers can update own draft orders" (supabase/migrations/20260407000001_buyer_portal.sql)
-	// has no WITH CHECK and its USING clause checks only account_id and
-	// created_by, neither of which changes here, so it does not restrict
-	// which status a buyer may set. This update is genuinely allowed by
-	// the current policy set. Whether buyers should be scoped away from
-	// setting status directly is a separate product question, out of
-	// scope for this recursion fix.
-	it('can update their own draft order, including its status', async () => {
+	// That same migration also tightened "Buyers can update own draft
+	// orders" (supabase/migrations/20260407000001_buyer_portal.sql), which
+	// was named for draft orders but never checked status in either
+	// direction: while the recursion above blocked every orders UPDATE,
+	// this gap was unreachable, and fixing the recursion alone would have
+	// reopened it. The policy now requires status = 'draft' to touch the
+	// row at all, and its WITH CHECK only allows the new status to be
+	// 'draft' or 'submitted' -- the only buyer-side transition. Everything
+	// from 'confirmed' onward is brand or rep side.
+	it('can update their own draft order while it stays a draft', async () => {
 		const buyer = await personaClient('buyer');
 		const orderId = await expectInsertAllowed(buyer, 'orders', {
 			organization_id: RLS_IDS.orgBrandA,
@@ -163,7 +166,57 @@ describe('buyer write surface', () => {
 			status: 'draft'
 		});
 		try {
-			await expectUpdateAllowed(buyer, 'orders', orderId, { status: 'confirmed' });
+			await expectUpdateAllowed(buyer, 'orders', orderId, { notes: 'updated by buyer' });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('can move their own draft order to submitted', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateAllowed(buyer, 'orders', orderId, { status: 'submitted' });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('cannot flip their own draft order to confirmed', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateDenied(buyer, 'orders', orderId, { status: 'confirmed' });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('cannot update an order that is already past draft', async () => {
+		const orderId = await expectInsertAllowed(adminClient(), 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'submitted'
+		});
+		try {
+			const buyer = await personaClient('buyer');
+			await expectUpdateDenied(buyer, 'orders', orderId, {
+				notes: 'buyer trying to edit after submit'
+			});
 		} finally {
 			await adminClient().from('orders').delete().eq('id', orderId);
 		}
