@@ -83,6 +83,49 @@
 			created_at: string;
 		}>
 	);
+	// One list. A person who hasn't accepted yet is a member in the pending state,
+	// not a separate table: two lists made the roster read as empty when everyone
+	// had been invited but nobody had accepted.
+	type TeamRow = {
+		key: string;
+		pending: boolean;
+		name: string;
+		email: string;
+		role: UserRole;
+		memberId?: string;
+		profileId?: string;
+		inviteId?: string;
+		token?: string;
+	};
+
+	const teamRows = $derived<TeamRow[]>([
+		...members.map((m) => ({
+			key: `m-${m.id}`,
+			pending: false,
+			name: m.profiles?.display_name ?? 'Unknown',
+			email: memberEmails[m.profile_id] ?? '',
+			role: m.role,
+			memberId: m.id,
+			profileId: m.profile_id
+		})),
+		...invitations.map((i) => ({
+			key: `i-${i.id}`,
+			pending: true,
+			name: i.email,
+			email: i.email,
+			role: i.role,
+			inviteId: i.id,
+			token: i.token
+		}))
+	]);
+
+	const roleOptions = [
+		{ value: 'admin', label: 'Admin' },
+		{ value: 'member', label: 'Member' },
+		{ value: 'sales', label: 'Sales' },
+		{ value: 'guest', label: 'Guest' }
+	];
+
 	const brands = $derived(data.brands as { id: string; name: string }[]);
 	const territories = $derived(
 		(data.territories ?? []) as Array<{
@@ -476,37 +519,7 @@
 
 	<div>
 		<div class="min-w-0 space-y-4">
-			<!-- Pending invitations (compact) -->
-			{#if invitations.length > 0}
-				<div class="space-y-2">
-					<p class="text-sm font-medium text-muted-foreground">Pending Invitations</p>
-					{#each invitations as invitation (invitation.id)}
-						<div class="flex items-center justify-between rounded-lg border px-4 py-2.5">
-							<div class="flex items-center gap-3">
-								<span class="font-mono text-sm">{invitation.email}</span>
-								<Badge variant={roleBadgeVariant(invitation.role)}>{invitation.role}</Badge>
-							</div>
-							<div class="flex items-center gap-1">
-								<button
-									class="text-sm text-muted-foreground transition-colors hover:text-foreground"
-									onclick={() => copyInviteLink(invitation.token, invitation.id)}
-								>
-									{copiedId === invitation.id ? 'Copied!' : 'Copy Link'}
-								</button>
-								<button
-									class="text-sm text-muted-foreground transition-colors hover:text-destructive"
-									disabled={updatingId === invitation.id}
-									onclick={() => revokeInvite(invitation.id)}
-								>
-									Revoke
-								</button>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{/if}
-
-			{#if members.length === 0}
+			{#if teamRows.length === 0}
 				<div class="rounded-lg border border-dashed p-8 text-center">
 					<p class="text-muted-foreground">No team members found.</p>
 				</div>
@@ -521,64 +534,85 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each members as member (member.id)}
-								{@const isCurrentUser = member.profile_id === currentUserId}
-								{@const isOwner = member.role === 'owner'}
+							{#each teamRows as row (row.key)}
+								{@const isCurrentUser = row.profileId === currentUserId}
+								{@const isOwner = row.role === 'owner'}
 								<tr
-									class="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/50 {drawerMemberId ===
-									member.id
+									class="border-b transition-colors last:border-0 {row.pending
+										? ''
+										: 'cursor-pointer hover:bg-muted/50'} {!row.pending &&
+									drawerMemberId === row.memberId
 										? 'bg-muted/50'
 										: ''}"
-									onclick={() => openDrawer(member.id)}
+									onclick={() => (row.pending ? undefined : openDrawer(row.memberId!))}
 								>
 									<td class="px-4 py-3">
 										<div class="flex items-center gap-3">
 											<div
-												class="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium"
+												class="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium {row.pending
+													? 'border border-dashed text-muted-foreground'
+													: 'bg-muted'}"
 											>
-												{member.profiles?.display_name?.charAt(0)?.toUpperCase() ?? '?'}
+												{row.name.charAt(0).toUpperCase()}
 											</div>
 											<div>
-												<span class="text-base font-medium"
-													>{member.profiles?.display_name ?? 'Unknown'}
+												<span class="text-base font-medium">
+													{row.name}
 													{#if isCurrentUser}<span
-															class="ml-1 text-xs font-normal text-muted-foreground">(You)</span
-														>{/if}</span
-												>
-												<p class="font-mono text-xs text-muted-foreground">
-													{memberEmails[member.profile_id] ?? ''}
-												</p>
+															class="ml-1 text-sm font-normal text-muted-foreground">(You)</span
+														>{/if}
+													{#if row.pending}<span
+															class="ml-2 text-sm font-normal text-muted-foreground">Pending</span
+														>{/if}
+												</span>
+												{#if !row.pending}
+													<p class="font-mono text-sm text-muted-foreground">{row.email}</p>
+												{/if}
 											</div>
 										</div>
 									</td>
 									<td class="px-4 py-3">
-										{#if isOwner || isCurrentUser}
-											<Badge variant={roleBadgeVariant(member.role)}>
-												{member.role}
-											</Badge>
+										{#if row.pending || isOwner || isCurrentUser}
+											<Badge variant={roleBadgeVariant(row.role)}>{row.role}</Badge>
 										{:else}
 											<!-- svelte-ignore a11y_click_events_have_key_events -->
 											<!-- svelte-ignore a11y_no_static_element_interactions -->
 											<div onclick={(e) => e.stopPropagation()}>
-												<select
-													value={member.role}
-													disabled={updatingId === member.id}
-													onchange={(e) =>
-														handleRoleChange(
-															member.id,
-															(e.target as HTMLSelectElement).value as UserRole
-														)}
-													class="h-8 rounded-md border border-input bg-background px-2 text-sm"
-												>
-													<option value="admin">Admin</option>
-													<option value="member">Member</option>
-													<option value="sales">Sales</option>
-													<option value="guest">Guest</option>
-												</select>
+												<SelectField
+													items={roleOptions}
+													value={row.role}
+													onValueChange={(v) => handleRoleChange(row.memberId!, v as UserRole)}
+													class={updatingId === row.memberId
+														? 'pointer-events-none opacity-60'
+														: ''}
+												/>
 											</div>
 										{/if}
 									</td>
-									<td class="px-4 py-3 text-right"></td>
+									<td class="px-4 py-3 text-right">
+										{#if row.pending}
+											<!-- svelte-ignore a11y_click_events_have_key_events -->
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<div
+												class="flex items-center justify-end gap-3"
+												onclick={(e) => e.stopPropagation()}
+											>
+												<button
+													class="text-sm text-muted-foreground transition-colors hover:text-foreground"
+													onclick={() => copyInviteLink(row.token!, row.inviteId!)}
+												>
+													{copiedId === row.inviteId ? 'Copied!' : 'Copy Link'}
+												</button>
+												<button
+													class="text-sm text-muted-foreground transition-colors hover:text-destructive"
+													disabled={updatingId === row.inviteId}
+													onclick={() => revokeInvite(row.inviteId!)}
+												>
+													Revoke
+												</button>
+											</div>
+										{/if}
+									</td>
 								</tr>
 							{/each}
 						</tbody>
