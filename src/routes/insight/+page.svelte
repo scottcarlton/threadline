@@ -19,7 +19,6 @@
 	import { page } from '$app/stores';
 	import ActionFeed from '$lib/components/insights/ActionFeed.svelte';
 	import Scoreboard from '$lib/components/insights/Scoreboard.svelte';
-	import { setupWizard, type SetupStep } from '$lib/stores/setup-wizard.js';
 
 	let { data } = $props();
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
@@ -494,179 +493,6 @@
 
 	// Setup checklist
 	const firstName = $derived(data.user?.display_name?.split(' ')[0] ?? 'there');
-
-	function handleSetupWithStitch() {
-		const ss = data.setupStatus;
-		const methods = data.shippingMethods ?? [];
-		const steps: SetupStep[] = [];
-
-		if (!ss?.address) {
-			steps.push({
-				id: 'address',
-				question: "What's your business address?",
-				type: 'address'
-			});
-		}
-		if (!ss?.shipping) {
-			steps.push({
-				id: 'ship-from',
-				question: 'Is the shipping address the same as the business address?',
-				type: 'yesno'
-			});
-			if (methods.length > 0) {
-				steps.push({
-					id: 'shipping-default',
-					question: 'Select a default shipping method',
-					type: 'single',
-					options: methods.map((m) => ({
-						label: m.delivery_window ? `${m.name} — ${m.delivery_window}` : m.name,
-						value: m.id
-					}))
-				});
-			}
-		}
-		if (!ss?.payments) {
-			steps.push({
-				id: 'payment-methods',
-				question: 'Which payment methods do you accept?',
-				type: 'multi',
-				options: [
-					{ label: 'Credit Card', value: 'credit_card' },
-					{ label: 'ACH / Bank Transfer', value: 'ach' },
-					{ label: 'Check', value: 'check' },
-					{ label: 'Wire Transfer', value: 'wire' },
-					{ label: 'Other', value: 'other' }
-				]
-			});
-			steps.push({
-				id: 'payment-terms',
-				question: 'What are your default payment terms?',
-				type: 'single',
-				options: [
-					{ label: 'Net 15', value: 'net_15' },
-					{ label: 'Net 30', value: 'net_30' },
-					{ label: 'Net 60', value: 'net_60' },
-					{ label: 'Net 90', value: 'net_90' },
-					{ label: 'COD', value: 'cod' },
-					{ label: 'Prepaid', value: 'prepaid' }
-				]
-			});
-		}
-		if (!ss?.orders) {
-			steps.push({
-				id: 'orders',
-				question: 'Want to customize your order settings?',
-				type: 'yesno',
-				skipLabel: 'Use defaults'
-			});
-		}
-		if (!ss?.taxes) {
-			steps.push({
-				id: 'taxes',
-				question: 'Do you have any tax requirements?',
-				type: 'yesno',
-				skipLabel: 'No tax requirements'
-			});
-		}
-		if (!ss?.returns) {
-			steps.push({
-				id: 'returns',
-				question: 'Do you want to set up a return policy?',
-				type: 'yesno',
-				skipLabel: 'Skip for now'
-			});
-		}
-
-		if (!ss?.products) {
-			steps.push({
-				id: 'products',
-				question: "Let's get some products set up.",
-				type: 'navigate',
-				description: 'Upload your linesheet, product files or add products manually.',
-				options: [
-					{ label: 'Upload file (PDF, CSV — max 20MB)', value: 'upload' },
-					{ label: 'Add manually', value: 'manual' }
-				]
-			});
-		}
-
-		if (!ss?.accounts) {
-			steps.push({
-				id: 'accounts',
-				question: "Now let's add some accounts.",
-				type: 'navigate',
-				description: 'Upload your account list or add accounts manually.',
-				options: [
-					{ label: 'Upload file (CSV — max 5MB)', value: 'upload' },
-					{ label: 'Add manually', value: 'manual' }
-				]
-			});
-		}
-
-		if (!ss?.members) {
-			steps.push({
-				id: 'team',
-				question: 'Time to build your team.',
-				type: 'navigate',
-				description: 'Upload your contact list or add team members and partners individually.',
-				options: [
-					{ label: 'Upload file (CSV — max 5MB)', value: 'upload' },
-					{ label: 'Add manually', value: 'manual' }
-				]
-			});
-		}
-
-		if (steps.length === 0) return;
-		setupWizard.start(steps);
-	}
-
-	function handleRepSetupWithStitch() {
-		const cl = data.setupChecklist;
-		if (!cl) return;
-		const steps: SetupStep[] = [];
-
-		if (!cl.hasBrands) {
-			steps.push({
-				id: 'brands',
-				question: "Let's add your first brand.",
-				type: 'navigate',
-				description: 'The fashion labels you represent.',
-				options: [
-					{ label: 'Upload file', value: 'upload' },
-					{ label: 'Add manually', value: 'manual' }
-				]
-			});
-		}
-
-		if (!cl.hasProducts) {
-			steps.push({
-				id: 'products',
-				question: 'Time to add some products.',
-				type: 'navigate',
-				description: 'Upload your linesheet, product files or add products manually.',
-				options: [
-					{ label: 'Upload file (PDF, CSV — max 20MB)', value: 'upload' },
-					{ label: 'Add manually', value: 'manual' }
-				]
-			});
-		}
-
-		if (!cl.hasAccounts) {
-			steps.push({
-				id: 'accounts',
-				question: "Now let's add some accounts.",
-				type: 'navigate',
-				description: 'The buyers and retailers you sell to.',
-				options: [
-					{ label: 'Upload file', value: 'upload' },
-					{ label: 'Add manually', value: 'manual' }
-				]
-			});
-		}
-
-		if (steps.length === 0) return;
-		setupWizard.start(steps);
-	}
 </script>
 
 {#if data.isBrandOrg}
@@ -679,16 +505,6 @@
 	})}
 	<div class="space-y-8">
 		{#if cl && !cl.complete}
-			{@const ss = data.setupStatus}
-			{@const settingsDone = [
-				ss?.address,
-				ss?.shipping,
-				ss?.returns,
-				ss?.payments,
-				ss?.taxes
-			].filter(Boolean).length}
-			{@const systemDone = [ss?.products, ss?.accounts, ss?.members].filter(Boolean).length}
-
 			<div class="mb-6">
 				<h1 class="text-3xl font-bold">{firstName}, let's finish setting you up.</h1>
 				<p class="mt-1 text-muted-foreground">
@@ -696,115 +512,34 @@
 				</p>
 			</div>
 
-			<div class="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
-				<div>
-					<Card class="mb-8">
-						<CardContent class="p-6">
-							<h2 class="text-lg font-semibold">Finish setup</h2>
-							<p class="mt-1 text-sm text-muted-foreground">
-								Our system is designed to help you get setup as quick as possible. Use Stitch below
-								to help you finish setup step by step, contact us or even setup the old fashion way,
-								manually, below.
-							</p>
-							<div class="mt-4">
-								<Button variant="outline" onclick={handleSetupWithStitch}>Use Stitch</Button>
-							</div>
-						</CardContent>
-					</Card>
-
-					<div id="setup-checklist" class="grid grid-cols-1 gap-12 lg:grid-cols-2">
-						<!-- Settings column -->
-						<div>
-							<div class="mb-4 flex items-center justify-between">
-								<h2 class="text-lg font-semibold">Settings</h2>
-								<span class="text-sm text-muted-foreground">{settingsDone} of 5</span>
-							</div>
-							<ul class="space-y-3">
-								{#each [{ label: 'Orders', done: ss?.orders, href: '/organization/orders' }, { label: 'Shipping', done: ss?.shipping, href: '/organization/shipping' }, { label: 'Returns', done: ss?.returns, href: '/organization/returns' }, { label: 'Payments', done: ss?.payments, href: '/organization/payments' }, { label: 'Taxes', done: ss?.taxes, href: '/organization/taxes' }] as item (item.label)}
-									<li class="flex items-center justify-between">
-										<div class="flex items-center gap-3">
-											<span class="text-sm">{item.done ? '●' : '○'}</span>
-											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-												>{item.label}</a
-											>
-										</div>
-										{#if !item.done}
-											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-												>Setup</a
-											>
-										{/if}
-									</li>
-								{/each}
-							</ul>
-						</div>
-
-						<!-- System column -->
-						<div>
-							<div class="mb-4 flex items-center justify-between">
-								<h2 class="text-lg font-semibold">System</h2>
-								<span class="text-sm text-muted-foreground">{systemDone} of 3</span>
-							</div>
-							<ul class="space-y-3">
-								{#each [{ label: 'Products', done: ss?.products, href: '/products' }, { label: 'Accounts', done: ss?.accounts, href: '/accounts' }, { label: 'Members', done: ss?.members, href: '/organization/members' }] as item (item.label)}
-									<li class="flex items-center justify-between">
-										<div class="flex items-center gap-3">
-											<span class="text-sm">{item.done ? '●' : '○'}</span>
-											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-												>{item.label}</a
-											>
-										</div>
-										{#if !item.done}
-											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-											<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-												>Setup</a
-											>
-										{/if}
-									</li>
-								{/each}
-							</ul>
-						</div>
-					</div>
-
-					<!-- Profile -->
-					<div class="mt-8">
-						<div class="flex items-center justify-between">
-							<div class="flex items-center gap-3">
-								<span class="text-sm">{ss?.profile ? '●' : '○'}</span>
-								<a
-									href={resolve('/organization')}
-									class="text-sm font-medium text-primary hover:underline">Profile</a
-								>
-							</div>
-							{#if !ss?.profile}
-								<a
-									href={resolve('/organization')}
-									class="text-sm font-medium text-primary hover:underline">Setup</a
-								>
-							{/if}
-						</div>
-					</div>
-				</div>
-
-				<!-- Help sidebar -->
-				<div class="sticky top-6 self-start">
-					<div class="rounded-lg border p-5">
-						<h3 class="text-sm font-semibold">Prefer a human?</h3>
-						<p class="mt-1 text-sm text-muted-foreground">
-							Not comfortable setting up your organization or need help using Threadline.
-						</p>
-						<a
-							href="https://calendar.app.google/8Pd2BN6tqToQd1Kt6"
-							target="_blank"
-							rel="noopener noreferrer"
-							class="mt-4 flex w-full items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
-							>Schedule a meeting</a
-						>
-					</div>
-				</div>
-			</div>
+			<aside class="fixed right-10 bottom-6 hidden w-56 xl:block">
+				<p class="font-semibold">Prefer a human?</p>
+				<p class="mt-1 text-sm text-muted-foreground">
+					Not comfortable setting up your organization, or need help using Threadline.
+				</p>
+				<a
+					href="https://calendar.app.google/c8NotsgGCKcKgajD6"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition-[text-decoration-color] duration-200 ease-out hover:decoration-current"
+				>
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						class="h-4 w-4"
+						aria-hidden="true"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+						/>
+					</svg>
+					Schedule a Meeting
+				</a>
+			</aside>
 		{:else}
 			<header>
 				<h1 class="text-3xl">Insight</h1>
@@ -956,8 +691,6 @@
 		{/if}
 	</div>
 {:else if data.setupComplete === false && data.setupChecklist}
-	{@const cl = data.setupChecklist}
-	{@const done = [cl.hasBrands, cl.hasProducts, cl.hasAccounts].filter(Boolean).length}
 	<div class="space-y-8">
 		<div class="mb-6">
 			<h1 class="text-3xl font-bold">{firstName}, let's finish setting you up.</h1>
@@ -966,79 +699,34 @@
 			</p>
 		</div>
 
-		<div class="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
-			<div>
-				<Card class="mb-8">
-					<CardContent class="p-6">
-						<h2 class="text-lg font-semibold">Finish setup</h2>
-						<p class="mt-1 text-sm text-muted-foreground">
-							Use Stitch below to help you finish setup step by step.
-						</p>
-						<div class="mt-4">
-							<Button variant="outline" onclick={handleRepSetupWithStitch}>Use Stitch</Button>
-						</div>
-					</CardContent>
-				</Card>
-
-				<div id="setup-checklist">
-					<div class="mb-4 flex items-center justify-between">
-						<h2 class="text-lg font-semibold">Get started</h2>
-						<span class="text-sm text-muted-foreground">{done} of 3</span>
-					</div>
-					<div class="mb-4 h-1.5 w-full rounded-full bg-muted">
-						<div
-							class="h-1.5 rounded-full bg-foreground transition-all duration-500"
-							style="width: {(done / 3) * 100}%"
-						></div>
-					</div>
-
-					<ul class="space-y-3">
-						{#each [{ label: 'Add a brand', desc: 'The fashion labels you represent.', done: cl.hasBrands, href: '/brands/new', blocked: false }, { label: 'Add products', desc: 'Build your product catalog.', done: cl.hasProducts, href: cl.firstBrandId ? `/brands/${cl.firstBrandId}/products/new` : null, blocked: !cl.hasBrands }, { label: 'Create an account', desc: 'The buyers and retailers you sell to.', done: cl.hasAccounts, href: '/accounts/new', blocked: false }] as item (item.label)}
-							<li class="flex items-center justify-between">
-								<div class="flex items-center gap-3">
-									<span class="text-sm">{item.done ? '●' : '○'}</span>
-									{#if item.href && !item.done && !item.blocked}
-										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-											>{item.label}</a
-										>
-									{:else}
-										<span class="text-sm font-medium">{item.label}</span>
-									{/if}
-								</div>
-								{#if !item.done}
-									{#if item.blocked}
-										<span class="text-sm text-muted-foreground">Brand first</span>
-									{:else if item.href}
-										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-										<a href={item.href} class="text-sm font-medium text-primary hover:underline"
-											>Setup</a
-										>
-									{/if}
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				</div>
-			</div>
-
-			<!-- Help sidebar -->
-			<div class="sticky top-6 self-start">
-				<div class="rounded-lg border p-5">
-					<h3 class="text-sm font-semibold">Prefer a human?</h3>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Not comfortable setting up your organization or need help using Threadline.
-					</p>
-					<a
-						href="https://calendar.app.google/8Pd2BN6tqToQd1Kt6"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="mt-4 flex w-full items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
-						>Schedule a meeting</a
-					>
-				</div>
-			</div>
-		</div>
+		<aside class="fixed right-10 bottom-6 hidden w-56 xl:block">
+			<p class="font-semibold">Prefer a human?</p>
+			<p class="mt-1 text-sm text-muted-foreground">
+				Not comfortable setting up your organization, or need help using Threadline.
+			</p>
+			<a
+				href="https://calendar.app.google/c8NotsgGCKcKgajD6"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition-[text-decoration-color] duration-200 ease-out hover:decoration-current"
+			>
+				<svg
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.5"
+					class="h-4 w-4"
+					aria-hidden="true"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+					/>
+				</svg>
+				Schedule a Meeting
+			</a>
+		</aside>
 	</div>
 {:else}
 	<div class="space-y-6">

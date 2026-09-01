@@ -10,6 +10,19 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 	const expenseId = params.id;
 	const orgId = locals.organization.id;
 
+	// The row is stamped with our own orgId, so an unverified parent doesn't leak
+	// data — but it does let a caller attach receipts to another org's expense.
+	const { data: parentExpense } = await supabaseAdmin
+		.from('brand_expenses')
+		.select('id')
+		.eq('id', expenseId)
+		.eq('organization_id', orgId)
+		.maybeSingle();
+
+	if (!parentExpense) {
+		return json({ error: 'Expense not found' }, { status: 404 });
+	}
+
 	const formData = await request.formData();
 	const file = formData.get('file') as File | null;
 

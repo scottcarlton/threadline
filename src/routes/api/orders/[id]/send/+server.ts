@@ -2,12 +2,22 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { getGmailClient, buildRawEmail } from '$lib/server/gmail';
-import { generateOrderPdf } from '$lib/server/pdf';
+import { generateOrderPdf, type OrderData } from '$lib/server/pdf';
 import { sendEmail } from '$lib/server/email';
+import { loadOrderForOrg, type OrderRow } from '$lib/server/orders/authorize-order';
+
+type OrderForSend = OrderRow & OrderData;
+
+// docs/brd/roles-permissions.md §4.4: "Email orders" excludes guest.
+const SEND_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
 
 export const POST: RequestHandler = async ({ request, locals, params }) => {
 	if (!locals.session || !locals.user || !locals.organization) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	if (!SEND_ROLES.has(locals.membership?.role ?? '')) {
+		return json({ error: 'Insufficient permissions to email an order.' }, { status: 403 });
 	}
 
 	const orderId = params.id;
@@ -18,23 +28,25 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 		assetIds?: string[];
 	};
 
-	const [orderResult, linesResult] = await Promise.all([
-		supabaseAdmin
-			.from('orders')
-			.select(
-				'*, brands(name, contact_first_name, contact_last_name, contact_email, contact_phone), accounts(business_name, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country), seasons(name), shows(name)'
-			)
-			.eq('id', orderId)
-			.single(),
-		supabaseAdmin.from('order_lines').select('*').eq('order_id', orderId).order('sort_order')
-	]);
+	// This endpoint mails the rendered order PDF to a caller-supplied address, so
+	// an unscoped read here is an exfiltration primitive, not just a leak.
+	const order = await loadOrderForOrg<OrderForSend>(
+		orderId,
+		locals.organization.id,
+		'*, brands(name, contact_first_name, contact_last_name, contact_email, contact_phone), accounts(business_name, contact_first_name, contact_last_name, contact_email, phone, address_line1, address_line2, city, state, zip, country), seasons(name), shows(name)'
+	);
 
-	if (orderResult.error || !orderResult.data) {
+	if (!order) {
 		return json({ error: 'Order not found' }, { status: 404 });
 	}
 
-	const order = orderResult.data;
-	const lines = linesResult.data ?? [];
+	const { data: linesData } = await supabaseAdmin
+		.from('order_lines')
+		.select('*')
+		.eq('order_id', orderId)
+		.order('sort_order');
+
+	const lines = linesData ?? [];
 	const account = order.accounts as {
 		business_name: string;
 		contact_first_name: string | null;

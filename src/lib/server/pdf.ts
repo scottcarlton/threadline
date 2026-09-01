@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
-interface OrderData {
+export interface OrderData {
 	order_number: string;
 	total_amount: number;
 	notes: string | null;
