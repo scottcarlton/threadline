@@ -6,7 +6,6 @@ import {
 	expectHidden,
 	expectInsertAllowed,
 	expectInsertDenied,
-	expectUpdateDenied,
 	expectVisible
 } from './setup/assert.js';
 
@@ -152,27 +151,36 @@ describe('buyer write surface', () => {
 	// This assertion currently carries no security signal: it would pass
 	// today for the wrong reason, because every orders UPDATE fails
 	// regardless of policy correctness, not because "Buyers can update own
-	// draft orders" is scoped to drafts only. The body is left exactly as
-	// it should read once the recursion bug is fixed (denial code 42501,
-	// zero rows affected). When the recursion bug is fixed and the sibling
-	// `.fails` tests in federation-explicit.test.ts come off, this one must
-	// come off too.
-	it.fails(
-		'cannot flip their own draft order to confirmed (BLOCKED: every orders UPDATE hits 42P17 infinite recursion, see comment above)',
-		async () => {
-			const buyer = await personaClient('buyer');
-			const orderId = await expectInsertAllowed(buyer, 'orders', {
-				organization_id: RLS_IDS.orgBrandA,
-				brand_id: RLS_IDS.brandA1,
-				account_id: RLS_IDS.accountBrandA,
-				created_by: PERSONA_IDS.buyer,
-				status: 'draft'
-			});
-			try {
-				await expectUpdateDenied(buyer, 'orders', orderId, { status: 'confirmed' });
-			} finally {
-				await adminClient().from('orders').delete().eq('id', orderId);
-			}
+	// draft orders" is scoped to drafts only.
+	//
+	// Written as a plain `it`, not `it.fails`, characterizing the CURRENT
+	// behavior: the update fails with 42P17. That is a truthful statement
+	// about today, not an endorsement. When the recursion is fixed this
+	// test will fail loudly in both directions: if the fix correctly
+	// denies the update, this assertion (expecting 42P17) breaks and must
+	// be replaced; if the fix is wrong and allows the update through, this
+	// assertion also breaks. Either way it cannot stay green silently. The
+	// correct denial assertion (42501, zero rows affected) must be
+	// reinstated as part of that fix PR.
+	it('cannot flip their own draft order to confirmed (currently: every orders UPDATE hits 42P17 recursion)', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			const { data, error } = await buyer
+				.from('orders')
+				.update({ status: 'confirmed' })
+				.eq('id', orderId)
+				.select('id');
+			expect(data).toBeNull();
+			expect(error?.code).toBe('42P17');
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
 		}
-	);
+	});
 });

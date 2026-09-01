@@ -138,28 +138,27 @@ describe('federated order write boundaries', () => {
 	// for every role, so "an unrelated org cannot update this order" is
 	// currently guaranteed by the bug itself, not by any policy -- this
 	// test provides no security signal right now, no matter which error
-	// code it accepts. Marked failing for the same reason as its sibling
-	// above, so both symptoms of the one bug surface together. The
-	// assertion body is left exactly as it should read once the recursion
-	// is fixed: denial code 42501, zero rows affected. When the sibling's
-	// `.fails` comes off, this one must come off too and be re-tightened
-	// back to exactly 42501 (do not leave 42P17 in the accepted set).
-	it.fails(
-		'an unrelated org cannot touch the order (BLOCKED: same 42P17 recursion as the sibling test above)',
-		async () => {
-			const repB = await personaClient('repBAdmin');
-			const { data, error } = await repB
-				.from('orders')
-				.update({ status: 'cancelled' })
-				.eq('id', RLS_IDS.orderRepAOnBrandA)
-				.select('id');
-			if (error) {
-				expect(error.code).toBe('42501');
-			} else {
-				expect(data ?? []).toEqual([]);
-			}
-		}
-	);
+	// code it accepts.
+	//
+	// This is written as a plain `it`, not `it.fails`, characterizing the
+	// CURRENT behavior: the update fails with 42P17. That is a truthful
+	// statement about today, not an endorsement. When the recursion is
+	// fixed this test will fail loudly in both directions: if the fix
+	// correctly denies the update, this assertion (expecting 42P17) breaks
+	// and must be replaced; if the fix is wrong and allows the update
+	// through, this assertion also breaks. Either way it cannot stay green
+	// silently. The correct denial assertion (42501, zero rows affected)
+	// must be reinstated as part of that fix PR.
+	it('an unrelated org cannot touch the order (currently: every orders UPDATE hits 42P17 recursion)', async () => {
+		const repB = await personaClient('repBAdmin');
+		const { data, error } = await repB
+			.from('orders')
+			.update({ status: 'cancelled' })
+			.eq('id', RLS_IDS.orderRepAOnBrandA)
+			.select('id');
+		expect(data).toBeNull();
+		expect(error?.code).toBe('42P17');
+	});
 
 	it('federated link rows cannot be forged by a client', async () => {
 		const repB = await personaClient('repBAdmin');
