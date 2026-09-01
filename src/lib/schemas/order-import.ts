@@ -49,6 +49,7 @@ export type OrderImportInput = z.infer<typeof orderImportSchema>;
 
 export type OrderImportResult = {
 	created: number;
+	linesCreated: number;
 	skipped: { row: number; reason: string }[];
 	errors: { row: number; reason: string }[];
 };
