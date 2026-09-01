@@ -213,7 +213,7 @@
 			: isBrandScoped && !isSales
 				? isBrandOrg
 					? ['Invoices', 'Returns', 'Reports', 'Documents']
-					: ['Returns', 'Reports']
+					: ['Returns', 'Reports', 'Documents']
 				: isBrandOrg
 					? [
 							'Invoices',
@@ -225,7 +225,15 @@
 							'Documents',
 							'Organization'
 						]
-					: ['Returns', 'Reports', 'Inbox', 'Appointments', 'Workspace', 'Organization']
+					: [
+							'Returns',
+							'Reports',
+							'Inbox',
+							'Appointments',
+							'Workspace',
+							'Documents',
+							'Organization'
+						]
 	);
 
 	const moreListItems = $derived(
