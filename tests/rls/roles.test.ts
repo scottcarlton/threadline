@@ -2,7 +2,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { adminClient } from './setup/clients.js';
 import { RLS_IDS } from './setup/ids.js';
 import { MEMBER_ROW_IDS, PERSONA_IDS, loadPersonaIds, personaClient } from './setup/fixture.js';
-import { expectHidden, expectInsertDenied, expectVisible } from './setup/assert.js';
+import {
+	expectHidden,
+	expectInsertDenied,
+	expectUpdateDenied,
+	expectVisible
+} from './setup/assert.js';
 
 beforeAll(loadPersonaIds);
 
@@ -110,5 +115,50 @@ describe('member_brand_access scoping', () => {
 			brand_id: RLS_IDS.brandA2,
 			granted_by: PERSONA_IDS.brandAMember
 		});
+	});
+});
+
+describe('manager rollup', () => {
+	it('a manager sees the organization_members row for their report', async () => {
+		const repAAdmin = await personaClient('repAAdmin');
+		await expectVisible(repAAdmin, 'organization_members', MEMBER_ROW_IDS.repASales!);
+	});
+
+	it('a report cannot update their manager role', async () => {
+		const repASales = await personaClient('repASales');
+		await expectUpdateDenied(repASales, 'organization_members', MEMBER_ROW_IDS.repAAdmin!, {
+			role: 'admin'
+		});
+	});
+
+	it('an order created by a report is visible to their manager, hidden from an outsider', async () => {
+		const admin = adminClient();
+		const { data, error } = await admin
+			.from('orders')
+			.insert({
+				organization_id: RLS_IDS.orgRepA,
+				brand_id: RLS_IDS.brandRepAOwn,
+				freeform_name: 'RLS manager rollup probe buyer',
+				created_by: PERSONA_IDS.repASales,
+				status: 'draft'
+			})
+			.select('id')
+			.single();
+		expect(error).toBeNull();
+		const orderId = (data as { id: string }).id;
+
+		try {
+			const repAAdmin = await personaClient('repAAdmin');
+			const repBAdmin = await personaClient('repBAdmin');
+			await expectVisible(repAAdmin, 'orders', orderId);
+			await expectHidden(repBAdmin, 'orders', orderId);
+		} finally {
+			await admin.from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('an outsider does not see the report member row either', async () => {
+		const repBAdmin = await personaClient('repBAdmin');
+		await expectHidden(repBAdmin, 'organization_members', MEMBER_ROW_IDS.repASales!);
 	});
 });
