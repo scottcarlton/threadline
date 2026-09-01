@@ -5,8 +5,10 @@ import { isEmailWhitelisted, isBetaWhitelistEnabled } from '$lib/server/beta-whi
 import { landingPathForOrgType } from '$lib/server/landing';
 import type { OrgType } from '$lib/types/database';
 import { isSsoSession } from '$lib/server/auth';
+import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 
-export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
+	const { supabase } = locals;
 	const code = url.searchParams.get('code');
 	const next = url.searchParams.get('next');
 
@@ -21,20 +23,56 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 				if (whitelistUser?.email) {
 					const allowed = await isEmailWhitelisted(whitelistUser.email);
 					if (!allowed) {
+						// The credentials were good; the gate turned them away. Recorded
+						// as a failed sign-in because that is what the person
+						// experienced, and it is the row support needs when someone
+						// says they cannot get in.
+						locals.audit.setActor({
+							id: whitelistUser.id,
+							email: whitelistUser.email,
+							label: null,
+							kind: 'user'
+						});
+						locals.audit.record('auth.sign_in_failed', {
+							subjectId: whitelistUser.id,
+							subjectLabel: whitelistUser.email,
+							status: 'failure',
+							errorCode: 'beta_not_whitelisted'
+						});
 						await supabase.auth.signOut();
 						throw redirect(303, '/login?error=beta_not_whitelisted');
 					}
 				}
 			}
 
-			if (next && next.startsWith('/') && !next.startsWith('//')) {
-				throw redirect(303, next);
-			}
-
-			// Check if user has an org membership or buyer access
+			// Resolved before the `next` short-circuit so a deep-linked sign-in is
+			// recorded too. This route is public, so the auth hook never set an
+			// actor on the recorder, and the exchange above only just happened:
+			// the actor has to be named here or the row lands anonymous.
 			const {
 				data: { user }
 			} = await supabase.auth.getUser();
+
+			if (user) {
+				locals.audit.setActor({
+					id: user.id,
+					email: user.email ?? null,
+					label: null,
+					kind: isSystemAdminEmail(user.email) ? 'system_admin' : 'user'
+				});
+				locals.audit.record('auth.signed_in', {
+					subjectId: user.id,
+					subjectLabel: user.email ?? user.id,
+					metadata: {
+						provider: user.app_metadata?.provider ?? null,
+						sso: isSsoSession(user)
+					}
+				});
+			}
+
+			if (next && next.startsWith('/') && !next.startsWith('//')) {
+				throw redirect(303, next);
+			}
 
 			if (user) {
 				const { data: membership } = await supabase
@@ -96,6 +134,14 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 			throw redirect(303, '/onboarding');
 		}
 	}
+
+	// No code, or the exchange failed. There is no identity to attribute this to,
+	// so it stays on the anonymous actor and renders as "An unauthenticated
+	// visitor failed to sign in".
+	locals.audit.record('auth.sign_in_failed', {
+		status: 'failure',
+		errorCode: code ? 'code_exchange_failed' : 'missing_code'
+	});
 
 	throw redirect(303, '/login?error=auth_failed');
 };

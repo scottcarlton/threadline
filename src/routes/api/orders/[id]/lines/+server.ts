@@ -75,5 +75,15 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 		throw error(500, result.error);
 	}
 
+	// A no-op save (the client re-submitting an unchanged grid) is not a change
+	// and should not appear on the timeline as one.
+	if (result.applied > 0) {
+		locals.audit.record('order.lines_changed', {
+			organizationId: order.organization_id,
+			subjectId: order.id,
+			metadata: { applied: result.applied, failed: result.failed }
+		});
+	}
+
 	return json(result);
 };
