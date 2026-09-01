@@ -149,5 +149,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		link: '/organization/partners'
 	});
 
+	// An auto-approve invite lands the connection active in one step, so it is
+	// an acceptance, not a request. Recording it as "requested" would leave the
+	// brand's timeline showing a request that nobody ever approved.
+	locals.audit.record(autoApprove ? 'connection.accepted' : 'connection.requested', {
+		subjectId: connection.id,
+		subjectLabel: brandOrg?.name ?? null,
+		metadata: {
+			brandOrgId: invite.brand_org_id,
+			repOrgId: organization.id,
+			autoApproved: autoApprove
+		}
+	});
+
 	return json({ connection, brandName: brandOrg?.name, autoApproved: autoApprove });
 };

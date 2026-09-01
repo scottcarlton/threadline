@@ -30,5 +30,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (error || !connection)
 		return json({ error: 'Connection not found or already processed' }, { status: 404 });
 
+	locals.audit.record('connection.accepted', {
+		subjectId: connection.id
+	});
+
 	return json({ connection });
 };
