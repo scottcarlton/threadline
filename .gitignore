@@ -27,3 +27,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 .worktrees/
+
+# Subagent-driven development scratch
+.superpowers/
