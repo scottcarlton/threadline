@@ -51,6 +51,35 @@ export const load: PageServerLoad = async ({ locals }) => {
 				).data?.id ?? null)
 			: null;
 
+	// Brands the rep already has, so the brands step still shows its list (and
+	// the connect action on each) after a refresh. Rep orgs only: a brand org's
+	// only brand row is its own self-brand. `status` comes from the connection
+	// the brand row is attached to via org_connections.rep_brand_id.
+	let repBrands: { id: string; name: string; status: string | null }[] = [];
+	if (organization?.org_type === 'rep') {
+		const { data: brandRows } = await supabase
+			.from('brands')
+			.select('id, name')
+			.eq('organization_id', organization.id)
+			.eq('is_active', true)
+			.eq('is_self_brand', false)
+			.order('created_at', { ascending: true })
+			.limit(100);
+		const rows = (brandRows ?? []) as { id: string; name: string }[];
+		if (rows.length > 0) {
+			const { data: connectionRows } = await supabase
+				.from('org_connections')
+				.select('rep_brand_id, status')
+				.eq('rep_org_id', organization.id);
+			const statusByBrand = new Map(
+				((connectionRows ?? []) as { rep_brand_id: string | null; status: string }[])
+					.filter((c) => c.rep_brand_id)
+					.map((c) => [c.rep_brand_id as string, c.status])
+			);
+			repBrands = rows.map((b) => ({ ...b, status: statusByBrand.get(b.id) ?? null }));
+		}
+	}
+
 	// The user's own mailbox (Gmail/Outlook), not an org resource — the
 	// Connections step shows which one is attached, or offers both.
 	const { data: mailbox } = await supabase
@@ -65,6 +94,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		organization: organization ?? null,
 		mailbox: (mailbox ?? null) as { provider: string; email_address: string } | null,
 		seasons: seasons as { id: string; name: string }[],
+		repBrands,
 		selfBrandId: selfBrandId as string | null,
 		user
 	};
