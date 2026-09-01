@@ -4,6 +4,7 @@ import { RLS_IDS } from './setup/ids.js';
 import { MEMBER_ROW_IDS, PERSONA_IDS, loadPersonaIds, personaClient } from './setup/fixture.js';
 import {
 	expectHidden,
+	expectInsertAllowed,
 	expectInsertDenied,
 	expectUpdateAllowed,
 	expectUpdateDenied,
@@ -130,6 +131,29 @@ describe('member_brand_access scoping', () => {
 		const brandAAdmin = await personaClient('brandAAdmin');
 		await expectVisible(brandAAdmin, 'brands', RLS_IDS.brandA1);
 		await expectVisible(brandAAdmin, 'brands', RLS_IDS.brandA2);
+	});
+
+	it('positive control: an admin can grant a member access to another brand', async () => {
+		// Without this, the denial test below would pass identically in a
+		// broken world where NO real (non-service-role) user can insert into
+		// member_brand_access at all -- the only other inserts into this
+		// table go through the service role in fixture setup, which bypasses
+		// RLS entirely. This proves the door is open for the role the policy
+		// says should have it (an admin granting access), so the denial
+		// below means something. Restoration in `finally` is unconditional.
+		const brandAAdmin = await personaClient('brandAAdmin');
+		let grantId: string | undefined;
+		try {
+			grantId = await expectInsertAllowed(brandAAdmin, 'member_brand_access', {
+				member_id: MEMBER_ROW_IDS.brandAMember,
+				brand_id: RLS_IDS.brandA2,
+				granted_by: PERSONA_IDS.brandAAdmin
+			});
+		} finally {
+			if (grantId) {
+				await adminClient().from('member_brand_access').delete().eq('id', grantId);
+			}
+		}
 	});
 
 	it('a scoped member cannot grant themselves more brands', async () => {
