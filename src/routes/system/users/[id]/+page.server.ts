@@ -64,6 +64,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 			lastSignInAt: user.last_sign_in_at ?? null
 		},
 		memberships,
+		isSystemAdmin: viewingSystemAdmin,
 		activity: activity.rows.map((row) => ({ ...row, description: describeAuditRow(row) })),
 		hasMore: activity.hasMore,
 		statusFilter: statusFilter ?? null
