@@ -71,3 +71,33 @@ jobs:
         run: cp .env.ci .env
       - name: Build
         run: bun run build
+
+  rls:
+    name: RLS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Start Supabase
+        run: supabase start
+      - name: Write .env from the local stack
+        run: supabase status -o env > .env
+      - name: Map env names
+        run: |
+          {
+            echo "PUBLIC_SUPABASE_URL=$(grep '^API_URL=' .env | cut -d= -f2- | tr -d '\"')"
+            echo "PUBLIC_SUPABASE_ANON_KEY=$(grep '^ANON_KEY=' .env | cut -d= -f2- | tr -d '\"')"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$(grep '^SERVICE_ROLE_KEY=' .env | cut -d= -f2- | tr -d '\"')"
+          } >> .env
+      - name: Run RLS tests
+        run: bun run test:rls
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop
