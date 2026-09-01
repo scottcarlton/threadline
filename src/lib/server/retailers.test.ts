@@ -113,7 +113,7 @@ describe('createRetailer', () => {
 			displayName: 'Ada Buyer'
 		});
 
-		expect(result).toEqual({ organization: insertedOrg });
+		expect(result).toEqual({ organization: insertedOrg, created: true });
 
 		const inserts = captured.filter((c) => c.op === 'insert');
 		expect(inserts.map((c) => c.table)).toEqual(['organizations', 'organization_members']);
@@ -168,7 +168,9 @@ describe('createRetailer', () => {
 			businessName: 'Acme Apparel'
 		});
 
-		expect(result).toEqual({ organization: existingOrg });
+		// created:false is what stops the caller recording a second
+		// organization.created for a refresh or a re-submit.
+		expect(result).toEqual({ organization: existingOrg, created: false });
 		expect(captured.filter((c) => c.op === 'insert')).toHaveLength(0);
 		expect(captured.filter((c) => c.op === 'update')).toHaveLength(0);
 		expect(captured.filter((c) => c.op === 'delete')).toHaveLength(0);
@@ -210,7 +212,7 @@ describe('createRetailer', () => {
 			businessName: 'Acme Apparel'
 		});
 
-		expect(result).toEqual({ organization: insertedOrg });
+		expect(result).toEqual({ organization: insertedOrg, created: true });
 		expect(captured.filter((c) => c.op === 'insert').map((c) => c.table)).toEqual([
 			'organizations',
 			'organization_members'

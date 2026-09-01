@@ -32,7 +32,11 @@
 
 	<section class="mb-10">
 		<h2 class="text-lg font-semibold">Organizations</h2>
-		{#if data.memberships.length === 0}
+		{#if data.isSystemAdmin}
+			<p class="mt-2 text-sm text-muted-foreground">
+				A system user operates above the org line, so it holds no membership.
+			</p>
+		{:else if data.memberships.length === 0}
 			<p class="mt-2 text-sm text-muted-foreground">
 				This account does not belong to an organization. If they are stuck, onboarding is the likely
 				place to look.

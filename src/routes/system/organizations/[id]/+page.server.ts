@@ -23,7 +23,12 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 			)
 			.eq('organization_id', org.id)
 			.order('created_at'),
-		fetchActivity({ organizationId: org.id, status: statusFilter, limit: 100 })
+		fetchActivity({
+			organizationId: org.id,
+			status: statusFilter,
+			limit: 100,
+			excludeSystemActors: true
+		})
 	]);
 
 	type MemberRow = {

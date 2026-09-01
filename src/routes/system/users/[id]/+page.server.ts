@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { fetchActivity, describeAuditRow } from '$lib/server/audit/query.js';
+import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(
@@ -12,13 +13,22 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 
 	const statusFilter = url.searchParams.get('status') === 'failure' ? 'failure' : undefined;
 
+	// The one place system-admin rows stay visible. Everywhere else in the
+	// console they are noise; on a system admin's own record they are the point.
+	const viewingSystemAdmin = isSystemAdminEmail(user.email);
+
 	const [profileResult, membershipsResult, activity] = await Promise.all([
 		supabaseAdmin.from('profiles').select('display_name, phone').eq('id', user.id).maybeSingle(),
 		supabaseAdmin
 			.from('organization_members')
 			.select('id, role, created_at, organization_id, organizations(name)')
 			.eq('profile_id', user.id),
-		fetchActivity({ actorId: user.id, status: statusFilter, limit: 100 })
+		fetchActivity({
+			actorId: user.id,
+			status: statusFilter,
+			limit: 100,
+			excludeSystemActors: !viewingSystemAdmin
+		})
 	]);
 
 	type MembershipRow = {
@@ -54,6 +64,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 			lastSignInAt: user.last_sign_in_at ?? null
 		},
 		memberships,
+		isSystemAdmin: viewingSystemAdmin,
 		activity: activity.rows.map((row) => ({ ...row, description: describeAuditRow(row) })),
 		hasMore: activity.hasMore,
 		statusFilter: statusFilter ?? null

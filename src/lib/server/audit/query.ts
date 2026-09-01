@@ -45,6 +45,19 @@ export type ActivityFilter = {
 	eventNames?: string[];
 	/** 'failure' narrows to problems, which is the usual incident entry point. */
 	status?: 'success' | 'failure';
+	/**
+	 * Drop rows whose actor is a system admin.
+	 *
+	 * Console reads are themselves audited, so an admin browsing /system fills
+	 * the feed with their own `system.*` rows and buries the org activity the
+	 * feed exists to surface. The rows stay written; this only hides them from
+	 * the views that are asking "what are orgs and their users doing".
+	 *
+	 * Deliberately NOT applied on a system admin's own user detail page: that
+	 * page is the audit-the-auditor view, and hiding them there would make the
+	 * rows unreadable anywhere.
+	 */
+	excludeSystemActors?: boolean;
 	/** Keyset pagination: return rows strictly older than this timestamp. */
 	before?: string;
 	limit?: number;
@@ -70,6 +83,10 @@ export async function fetchActivity(
 	if (filter.subjectType) query = query.eq('subject_type', filter.subjectType);
 	if (filter.subjectId) query = query.eq('subject_id', filter.subjectId);
 	if (filter.status) query = query.eq('status', filter.status);
+	// `actor_kind` is NOT NULL and stamped by the auth hook, so a plain `neq`
+	// is exact and cannot silently drop service or anonymous rows the way a
+	// NOT IN over the nullable `actor_email` would.
+	if (filter.excludeSystemActors) query = query.neq('actor_kind', 'system_admin');
 	if (filter.eventNames?.length) query = query.in('event_name', filter.eventNames);
 	if (filter.before) query = query.lt('created_at', filter.before);
 

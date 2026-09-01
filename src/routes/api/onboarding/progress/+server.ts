@@ -72,5 +72,15 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 	const org = membership.organizations as { org_type?: string } | { org_type?: string }[] | null;
 	const orgType = Array.isArray(org) ? org[0]?.org_type : org?.org_type;
 
+	// Only the terminal write is worth a row. The step cursor is written on every
+	// sub-step of the wizard and would drown the org's timeline in noise.
+	if (finishing) {
+		locals.audit.record('organization.onboarding_completed', {
+			organizationId: membership.organization_id,
+			subjectId: membership.organization_id,
+			metadata: { orgType: orgType ?? null }
+		});
+	}
+
 	return json({ ok: true, landing: orgType === 'retailer' ? '/dashboard' : '/insight' });
 };
