@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 
 /**
  * Every account on the platform.
@@ -59,6 +60,9 @@ export const load: PageServerLoad = async ({ url }) => {
 			email: u.email ?? null,
 			displayName: nameById.get(u.id) ?? null,
 			organizations: orgsById.get(u.id) ?? [],
+			// A system admin has no membership by design, so the org slot would
+			// otherwise read "No organization" as though something were missing.
+			isSystemAdmin: isSystemAdminEmail(u.email),
 			createdAt: u.created_at,
 			lastSignInAt: u.last_sign_in_at ?? null
 		}))

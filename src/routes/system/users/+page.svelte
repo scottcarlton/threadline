@@ -90,9 +90,11 @@
 						</div>
 						<div class="shrink-0 text-right">
 							<p class="text-sm">
-								{user.organizations.length === 0
-									? 'No organization'
-									: user.organizations.join(', ')}
+								{user.isSystemAdmin
+									? 'System User'
+									: user.organizations.length === 0
+										? 'No organization'
+										: user.organizations.join(', ')}
 							</p>
 							<p class="mt-0.5 text-sm text-muted-foreground">{lastSeen(user.lastSignInAt)}</p>
 						</div>
