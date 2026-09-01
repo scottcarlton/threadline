@@ -285,30 +285,47 @@
 
 	// Steps a rep doesn't get asked. The business address is a shipping and
 	// invoicing fact the brand owns: a rep sells on the brand's terms and
-	// nothing in the rep app ships from their address. The org-level tools step
-	// goes too; the mailbox above it stays, since that's where a rep's orders
-	// arrive. Both are still available later at /organization/integrations.
-	const REP_SKIPPED_SUBS = new Set(['address', 'connect']);
+	// nothing in the rep app ships from their address. Payment terms and payment
+	// methods are the same story from the other end: the brand sets the terms
+	// and collects the money, so asking a rep is asking the wrong party. The
+	// org-level tools step goes too; the mailbox above it stays, since that's
+	// where a rep's orders arrive. The tools are still available later at
+	// /organization/integrations.
+	const REP_SKIPPED_SUBS = new Set(['address', 'payment-terms', 'payment-methods', 'connect']);
+
+	// A retailer is on the paying end of the same two questions, so they're the
+	// wrong party there too. Everything else in Settings still applies: the
+	// address is where their orders ship.
+	const RETAILER_SKIPPED_SUBS = new Set(['payment-terms', 'payment-methods']);
 
 	function buildPhases(orgType: 'brand' | 'rep' | 'retailer' | null): Phase[] {
-		if (orgType !== 'rep') return basePhases;
-		return basePhases.map((p) => {
-			if (p.id === 'import') {
-				return {
-					...p,
-					subtitle: 'Upload brands, members, accounts, products, and orders',
-					subs: [brandsSub, ...p.subs]
-				};
-			}
-			const subs = p.subs.filter((sub) => !REP_SKIPPED_SUBS.has(sub.id));
-			if (subs.length === p.subs.length) return p;
-			// The roadmap subtitle names what the phase asks for, so it can't keep
-			// promising a step the rep no longer sees.
-			if (p.id === 'integrations') {
-				return { ...p, subtitle: 'Connect the inbox your orders arrive in.', subs };
-			}
-			return { ...p, subs };
-		});
+		if (orgType !== 'rep' && orgType !== 'retailer') return basePhases;
+		const skipped = orgType === 'rep' ? REP_SKIPPED_SUBS : RETAILER_SKIPPED_SUBS;
+		return (
+			basePhases
+				.map((p) => {
+					if (p.id === 'import' && orgType === 'rep') {
+						return {
+							...p,
+							subtitle: 'Upload brands, members, accounts, products, and orders',
+							subs: [brandsSub, ...p.subs]
+						};
+					}
+					const subs = p.subs.filter((sub) => !skipped.has(sub.id));
+					if (subs.length === p.subs.length) return p;
+					// The roadmap subtitle names what the phase asks for, so it can't keep
+					// promising a step the rep no longer sees.
+					if (p.id === 'integrations') {
+						return { ...p, subtitle: 'Connect the inbox your orders arrive in.', subs };
+					}
+					return { ...p, subs };
+				})
+				// Every question in Settings belongs to the brand, so the phase itself
+				// is empty for a rep. It has to go: the cursor lands on sub 0 of the
+				// phase it enters, and there is no sub 0 to render. (A retailer keeps
+				// the address, so their Settings phase survives.)
+				.filter((p) => p.subs.length > 0)
+		);
 	}
 
 	// Org type at first render: the org row when it exists (resume), else the
