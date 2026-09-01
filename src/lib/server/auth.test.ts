@@ -275,6 +275,47 @@ describe('applyUserContext', () => {
 		expect(locals.isSystemAdmin).toBe(true);
 	});
 
+	it('names a system admin generically rather than by their seeded email', () => {
+		const locals = blankLocals();
+		applyUserContext(locals, {
+			kind: 'system_admin',
+			profile: { id: 'sa', display_name: 'scott@threadline.systems' }
+		} as UserContextResult);
+		expect(locals.user?.display_name).toBe('System User');
+	});
+
+	it('leaves the rest of a system admin profile untouched', () => {
+		const locals = blankLocals();
+		applyUserContext(locals, {
+			kind: 'system_admin',
+			profile: { id: 'sa', display_name: 'x', phone: '555' }
+		} as unknown as UserContextResult);
+		expect(locals.user?.id).toBe('sa');
+		expect((locals.user as unknown as { phone: string }).phone).toBe('555');
+	});
+
+	it('tolerates a system admin with no profile row', () => {
+		const locals = blankLocals();
+		applyUserContext(locals, { kind: 'system_admin', profile: null } as UserContextResult);
+		expect(locals.user).toBeNull();
+		expect(locals.isSystemAdmin).toBe(true);
+	});
+
+	it('does not rename a normal org member', () => {
+		const locals = blankLocals();
+		applyUserContext(locals, {
+			kind: 'org_member',
+			profile: { id: 'u', display_name: 'Ada Rep' },
+			allMemberships: [],
+			membership: null,
+			organization: null,
+			orgType: 'rep',
+			brandScope: null,
+			scopedBrandNames: null
+		} as unknown as UserContextResult);
+		expect(locals.user?.display_name).toBe('Ada Rep');
+	});
+
 	it('sets buyer flags for the buyer branch', () => {
 		const locals = blankLocals();
 		applyUserContext(locals, {
