@@ -444,6 +444,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+	// If beforeAll threw before assigning helperIds (e.g. one of the helper
+	// inserts failed), there is nothing to clean up here and dereferencing
+	// helperIds would raise a TypeError that buries the real beforeAll
+	// error under a confusing follow-on failure.
+	if (!helperIds) return;
+
 	const admin = adminClient();
 	// Deleting the show cascades its show_dates, which cascades
 	// show_date_documents and show_visits.
