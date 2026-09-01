@@ -63,11 +63,16 @@ begin
 	end if;
 	return new;
 end;
-$$ language plpgsql;
+$$ language plpgsql
+set search_path = public;
+
+comment on function public.reject_orders_organization_id_change() is
+	'Rejects any change to orders.organization_id. Fires before RLS WITH CHECK, so it also covers service-role writes, which bypass RLS entirely.';
 
 -- Scoped to the organization_id column so ordinary updates (status,
 -- tracking_number, carrier, shipping_cost, notes, and so on) skip this
 -- check entirely.
+drop trigger if exists orders_no_organization_id_change on public.orders;
 create trigger orders_no_organization_id_change
 	before update of organization_id on public.orders
 	for each row execute function public.reject_orders_organization_id_change();
@@ -86,9 +91,18 @@ create trigger orders_no_organization_id_change
 -- that belong to the brand/rep side of the lifecycle.
 --
 -- The sibling INSERT policy "Buyers can create draft orders" already
--- restricts creation to status = 'draft'. The only buyer-side transition is
--- draft -> submitted; everything from confirmed onward is brand or rep
--- side, and there is no buyer cancel flow today.
+-- restricts creation to status = 'draft' and brand_id IN get_buyer_brand_ids().
+-- The new WITH CHECK below mirrors that brand_id bound: without it, the
+-- organization_id trigger pins the owning org but nothing pinned brand_id,
+-- so a buyer could UPDATE brand_id to any FK-valid brand plus
+-- status = 'submitted'. The own-org SELECT policy is
+-- brand_id IN get_user_brand_ids(organization_id), so the row would vanish
+-- from the owning brand org's order list while remaining a submitted order
+-- visible to the buyer. get_buyer_brand_ids() is a plain set-returning
+-- helper, not a subquery on orders, so it does not risk recursion. The only
+-- buyer-side status transition is draft -> submitted; everything from
+-- confirmed onward is brand or rep side, and there is no buyer cancel flow
+-- today.
 DROP POLICY IF EXISTS "Buyers can update own draft orders" ON orders;
 
 CREATE POLICY "Buyers can update own draft orders"
@@ -101,5 +115,6 @@ CREATE POLICY "Buyers can update own draft orders"
   WITH CHECK (
     account_id IN (SELECT get_buyer_account_ids())
     AND created_by = auth.uid()
+    AND brand_id IN (SELECT get_buyer_brand_ids())
     AND status IN ('draft', 'submitted')
   );
