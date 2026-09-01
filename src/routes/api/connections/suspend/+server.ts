@@ -22,5 +22,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.single();
 
 	if (error || !data) return json({ error: 'Not found or not suspendable' }, { status: 404 });
+	locals.audit.record('connection.suspended', {
+		subjectId: data.id
+	});
+
 	return json({ connection: data });
 };

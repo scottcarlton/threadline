@@ -97,6 +97,19 @@ export const AUDIT_EVENTS = {
 		label: 'revoked a connection',
 		subjectType: 'org_connections'
 	},
+	// Suspend and reconnect are their own states, not shades of revoke/accept.
+	// Folding them into those would make a paused partner indistinguishable
+	// from a severed one on the timeline.
+	'connection.suspended': {
+		category: 'connection',
+		label: 'suspended a connection',
+		subjectType: 'org_connections'
+	},
+	'connection.reconnected': {
+		category: 'connection',
+		label: 'reconnected a partner',
+		subjectType: 'org_connections'
+	},
 
 	// ── Commerce ────────────────────────────────────────────────────────────
 	'order.created': { category: 'commerce', label: 'created an order', subjectType: 'orders' },

@@ -360,7 +360,31 @@ export async function submitOrder(
 			}
 		}
 
+		// orderOrgId, not organization.id: a brand-org writer creates the order in
+		// the brand's org, and the row must land on that org's timeline.
+		locals.audit.record('order.created', {
+			organizationId: orderOrgId,
+			subjectId: orderRow.id,
+			subjectLabel: orderRow.order_number,
+			metadata: {
+				status: o.status,
+				orderType: o.order_type,
+				brandId: o.brand_id,
+				lineCount: o.lines.length,
+				totalAmount: o.total_amount
+			}
+		});
+
 		if (o.status === 'submitted' || o.status === 'confirmed') {
+			// A separate event from order.created: "someone drafted an order" and
+			// "an order went to the brand" are different questions.
+			locals.audit.record('order.submitted', {
+				organizationId: orderOrgId,
+				subjectId: orderRow.id,
+				subjectLabel: orderRow.order_number,
+				metadata: { status: o.status, brandId: o.brand_id, totalAmount: o.total_amount }
+			});
+
 			const origin = request.headers.get('origin') ?? '';
 			sendOrderEmail(
 				o.status,
