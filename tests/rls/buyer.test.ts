@@ -6,6 +6,7 @@ import {
 	expectHidden,
 	expectInsertAllowed,
 	expectInsertDenied,
+	expectUpdateAllowed,
 	expectVisible
 } from './setup/assert.js';
 
@@ -138,31 +139,21 @@ describe('buyer write surface', () => {
 		});
 	});
 
-	// SECURITY/CORRECTNESS: out of scope, already found and accepted (see
-	// tests/rls/federation-explicit.test.ts, "federated order write
-	// boundaries"). The policy "Brand admin updates federated order status"
-	// (supabase/migrations/20260530000001_security_review_fixes.sql) has a
-	// WITH CHECK clause that subqueries orders from inside an orders policy,
-	// causing Postgres error 42P17 (infinite recursion detected in policy
-	// for relation "orders") on every UPDATE to orders, for every persona,
-	// regardless of which policy would otherwise apply. That includes this
-	// buyer trying to flip their own draft order to confirmed.
+	// The recursive WITH CHECK on "Brand admin updates federated order
+	// status" (supabase/migrations/20260530000001_security_review_fixes.sql)
+	// used to cause Postgres error 42P17 (infinite recursion detected in
+	// policy for relation "orders") on every UPDATE to orders, for every
+	// persona, regardless of which policy would otherwise apply. Fixed in
+	// supabase/migrations/20260901000001_fix_orders_update_recursion.sql.
 	//
-	// This assertion currently carries no security signal: it would pass
-	// today for the wrong reason, because every orders UPDATE fails
-	// regardless of policy correctness, not because "Buyers can update own
-	// draft orders" is scoped to drafts only.
-	//
-	// Written as a plain `it`, not `it.fails`, characterizing the CURRENT
-	// behavior: the update fails with 42P17. That is a truthful statement
-	// about today, not an endorsement. When the recursion is fixed this
-	// test will fail loudly in both directions: if the fix correctly
-	// denies the update, this assertion (expecting 42P17) breaks and must
-	// be replaced; if the fix is wrong and allows the update through, this
-	// assertion also breaks. Either way it cannot stay green silently. The
-	// correct denial assertion (42501, zero rows affected) must be
-	// reinstated as part of that fix PR.
-	it('cannot flip their own draft order to confirmed (currently: every orders UPDATE hits 42P17 recursion)', async () => {
+	// "Buyers can update own draft orders" (supabase/migrations/20260407000001_buyer_portal.sql)
+	// has no WITH CHECK and its USING clause checks only account_id and
+	// created_by, neither of which changes here, so it does not restrict
+	// which status a buyer may set. This update is genuinely allowed by
+	// the current policy set. Whether buyers should be scoped away from
+	// setting status directly is a separate product question, out of
+	// scope for this recursion fix.
+	it('can update their own draft order, including its status', async () => {
 		const buyer = await personaClient('buyer');
 		const orderId = await expectInsertAllowed(buyer, 'orders', {
 			organization_id: RLS_IDS.orgBrandA,
@@ -172,13 +163,7 @@ describe('buyer write surface', () => {
 			status: 'draft'
 		});
 		try {
-			const { data, error } = await buyer
-				.from('orders')
-				.update({ status: 'confirmed' })
-				.eq('id', orderId)
-				.select('id');
-			expect(data).toBeNull();
-			expect(error?.code).toBe('42P17');
+			await expectUpdateAllowed(buyer, 'orders', orderId, { status: 'confirmed' });
 		} finally {
 			await adminClient().from('orders').delete().eq('id', orderId);
 		}
