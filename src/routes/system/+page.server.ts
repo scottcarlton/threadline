@@ -8,11 +8,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [orgCount, memberCount, recent, failures] = await Promise.all([
 		supabaseAdmin.from('organizations').select('id', { count: 'exact', head: true }),
 		supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }),
-		fetchActivity({ limit: 20 }),
+		fetchActivity({ limit: 20, excludeSystemActors: true }),
 		supabaseAdmin
 			.from('audit_log')
 			.select('id', { count: 'exact', head: true })
 			.eq('status', 'failure')
+			// Matches the timeline below: an admin's own failed console reads are
+			// not what this counter is asking about.
+			.neq('actor_kind', 'system_admin')
 			.gte('created_at', dayAgo)
 	]);
 
