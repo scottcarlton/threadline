@@ -33,6 +33,58 @@ describe('public-by-token tables', () => {
 		expect((data ?? []).length).toBeGreaterThan(0);
 	});
 
+	it('anon can resolve a buyer invitation (documented exposure)', async () => {
+		const admin = adminClient();
+		const { data, error } = await admin
+			.from('buyer_invitations')
+			.insert({
+				account_id: RLS_IDS.accountBrandA,
+				organization_id: RLS_IDS.orgBrandA,
+				email: 'buyer-invitee@rls-test.threadline.local',
+				invited_by: PERSONA_IDS.brandAAdmin
+			})
+			.select('id')
+			.single();
+		expect(error).toBeNull();
+		const inviteId = (data as { id: string }).id;
+
+		try {
+			const { data: anonRows, error: anonError } = await anonClient()
+				.from('buyer_invitations')
+				.select('id, email')
+				.eq('id', inviteId);
+			expect(anonError).toBeNull();
+			expect((anonRows ?? []).length).toBe(1);
+		} finally {
+			await admin.from('buyer_invitations').delete().eq('id', inviteId);
+		}
+	});
+
+	it('anon can resolve a connection member invite (documented exposure)', async () => {
+		const admin = adminClient();
+		const { data, error } = await admin
+			.from('connection_member_invites')
+			.insert({
+				org_connection_id: RLS_IDS.connActive,
+				target_email: 'member-invitee@rls-test.threadline.local'
+			})
+			.select('id')
+			.single();
+		expect(error).toBeNull();
+		const inviteId = (data as { id: string }).id;
+
+		try {
+			const { data: anonRows, error: anonError } = await anonClient()
+				.from('connection_member_invites')
+				.select('id, target_email')
+				.eq('id', inviteId);
+			expect(anonError).toBeNull();
+			expect((anonRows ?? []).length).toBe(1);
+		} finally {
+			await admin.from('connection_member_invites').delete().eq('id', inviteId);
+		}
+	});
+
 	it('anon reading invitations is pinned to the current exposure', async () => {
 		const admin = adminClient();
 		const { data, error } = await admin
