@@ -84,3 +84,86 @@ describe('orders and order_lines RLS', () => {
 		}
 	});
 });
+
+describe('federated order write boundaries', () => {
+	// SECURITY/CORRECTNESS FINDING: the live policy "Brand admin updates
+	// federated order status" (supabase/migrations/20260530000001_security_review_fixes.sql)
+	// has:
+	//   WITH CHECK (
+	//     organization_id = (SELECT organization_id FROM orders o2 WHERE o2.id = orders.id)
+	//   )
+	// That WITH CHECK subquery selects from `orders` itself, which is
+	// RLS-enabled. Postgres must re-apply orders' own RLS policies to plan
+	// that subquery, which requires re-evaluating this same UPDATE policy's
+	// WITH CHECK, which selects from orders again -- infinite recursion.
+	// Postgres detects the cycle and raises 42P17 ("infinite recursion
+	// detected in policy for relation \"orders\"") instead of looping
+	// forever.
+	//
+	// This is not scoped to federated brand updates: it breaks EVERY
+	// UPDATE to the orders table, for every persona, including a rep
+	// updating their own order. Confirmed independently outside this test
+	// file with a raw SQL session (`set local role authenticated; update
+	// orders set notes = '...' where id = ...`) using no persona at all --
+	// same 42P17. So the bug is structural, not row- or actor-specific.
+	//
+	// Net effect: today, no order in this schema can ever have its status
+	// (or anything else) updated once RLS is in force. The brand cannot do
+	// what §A.3 says it should be able to do (advance a federated order's
+	// status), and no client, own-org or federated, can update orders at
+	// all. This is a functional break, not a narrower-than-expected grant,
+	// so it is marked failing rather than the expectation being weakened.
+	it.fails(
+		'the target brand can advance the order status (BLOCKED: every orders UPDATE hits 42P17 infinite recursion, see comment above)',
+		async () => {
+			const brandA = await personaClient('brandAAdmin');
+			try {
+				const { data, error } = await brandA
+					.from('orders')
+					.update({ status: 'confirmed' })
+					.eq('id', RLS_IDS.orderRepAOnBrandA)
+					.select('id');
+				expect(error).toBeNull();
+				expect(data ?? []).toEqual([{ id: RLS_IDS.orderRepAOnBrandA }]);
+			} finally {
+				await adminClient()
+					.from('orders')
+					.update({ status: 'submitted' })
+					.eq('id', RLS_IDS.orderRepAOnBrandA);
+			}
+		}
+	);
+
+	it('an unrelated org cannot touch the order', async () => {
+		// The write is still correctly denied here, but for the wrong
+		// reason: the 42P17 recursion above fires on this UPDATE before
+		// repB's lack of authorization is ever reached, so the denial code
+		// is 42P17 rather than the clean RLS-denial 42501. Zero rows change
+		// either way, so the security boundary (repB cannot write this
+		// order) holds; only the failure mode is a symptom of the bug
+		// documented above rather than a clean policy rejection.
+		const repB = await personaClient('repBAdmin');
+		const { data, error } = await repB
+			.from('orders')
+			.update({ status: 'cancelled' })
+			.eq('id', RLS_IDS.orderRepAOnBrandA)
+			.select('id');
+		if (error) {
+			expect(['42501', '42P17']).toContain(error.code);
+		} else {
+			expect(data ?? []).toEqual([]);
+		}
+	});
+
+	it('federated link rows cannot be forged by a client', async () => {
+		const repB = await personaClient('repBAdmin');
+		const { error } = await repB.from('federated_order_links').insert({
+			order_id: RLS_IDS.orderBrandAInternal,
+			connection_id: RLS_IDS.connPending,
+			source_org_id: RLS_IDS.orgBrandA,
+			target_org_id: RLS_IDS.orgRepB,
+			status: 'active'
+		});
+		expect(error?.code, 'link forgery must be denied').toBe('42501');
+	});
+});
