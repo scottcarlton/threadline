@@ -5,6 +5,7 @@ import { MEMBER_ROW_IDS, PERSONA_IDS, loadPersonaIds, personaClient } from './se
 import {
 	expectHidden,
 	expectInsertDenied,
+	expectUpdateAllowed,
 	expectUpdateDenied,
 	expectVisible
 } from './setup/assert.js';
@@ -71,6 +72,29 @@ describe('role gradient on admin-only tables', () => {
 });
 
 describe('privilege escalation is denied', () => {
+	it("positive control: an admin can update a report's organization_members row", async () => {
+		// Without this, every denial test below would pass identically in a
+		// broken world where NO real (non-service-role) user can write to
+		// organization_members at all -- a missing GRANT to authenticated, a
+		// stale PostgREST schema cache, or trg_validate_org_member_manager
+		// rejecting more than intended. This proves the door is open for the
+		// role the policy says should have it, so the denials below mean
+		// something. Restoration in `finally` is unconditional: leaving
+		// brandASales promoted would corrupt every later run of this suite
+		// and silently weaken the escalation tests that follow.
+		const brandAAdmin = await personaClient('brandAAdmin');
+		try {
+			await expectUpdateAllowed(brandAAdmin, 'organization_members', MEMBER_ROW_IDS.brandASales!, {
+				role: 'member'
+			});
+		} finally {
+			await adminClient()
+				.from('organization_members')
+				.update({ role: 'sales' })
+				.eq('id', MEMBER_ROW_IDS.brandASales!);
+		}
+	});
+
 	it('a non-admin cannot promote themselves', async () => {
 		const brandASales = await personaClient('brandASales');
 		const { data, error } = await brandASales
@@ -118,7 +142,17 @@ describe('member_brand_access scoping', () => {
 	});
 });
 
-describe('manager rollup', () => {
+describe('organization-wide visibility across a manager and report relationship', () => {
+	// These assertions characterize plain org-wide RLS, not the manager-rollup
+	// helpers. The organization_members SELECT policy is
+	// `organization_id IN (SELECT get_user_org_ids())` and the orders SELECT
+	// policy is org/brand scoped -- neither is manager-subtree scoped, so any
+	// org member sees a report's member row and orders under the same
+	// policies, manager or not. get_managed_member_ids() and
+	// get_managed_profile_ids() are used in application-layer query filters
+	// (sales rollup `created_by IN (...)` filters), not in any RLS policy, so
+	// they are out of scope for this RLS suite and need their own unit tests
+	// elsewhere.
 	it('a manager sees the organization_members row for their report', async () => {
 		const repAAdmin = await personaClient('repAAdmin');
 		await expectVisible(repAAdmin, 'organization_members', MEMBER_ROW_IDS.repASales!);
