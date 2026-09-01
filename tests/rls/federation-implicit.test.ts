@@ -32,12 +32,60 @@ describe('implicit federation via get_connected_org_ids', () => {
 		await expectHidden(repB, 'products', RLS_IDS.productA1);
 	});
 
-	it('federation is not transitive', async () => {
-		// Brand B has no connection to Rep A, so nothing of Rep A reaches it
-		// through Brand A.
+	it('an org with no connections sees nothing', async () => {
+		// Brand B has zero connection rows in the fixture, so
+		// get_connected_org_ids() for brandBAdmin returns empty regardless of
+		// what Rep A or Brand A can see. This does not exercise transitivity
+		// (see the dedicated transitivity test below); it only proves an org
+		// with no connections at all sees nothing through federation.
 		const brandB = await personaClient('brandBAdmin');
 		await expectHidden(brandB, 'brands', RLS_IDS.brandRepAOwn);
 		await expectHidden(brandB, 'accounts', RLS_IDS.accountRepA);
+	});
+
+	it('federation does not chain through a rep shared by two brand orgs', async () => {
+		// The only transitive path this schema could leak through: Rep A is
+		// actively connected to Brand A. If Rep A ALSO connects to Brand B
+		// (a showroom repping two competing brands), Brand A and Brand B must
+		// not gain visibility into each other's brands/products through their
+		// shared rep. org_connections only ever links a rep org to a brand
+		// org directly -- there is no brand-to-brand edge -- so this must
+		// resolve to nothing in both directions.
+		const admin = adminClient();
+		const tempConnId = '0f500000-0000-4000-8000-000000009901';
+		const { error: connErr } = await admin.from('org_connections').insert({
+			id: tempConnId,
+			rep_org_id: RLS_IDS.orgRepA,
+			brand_org_id: RLS_IDS.orgBrandB,
+			status: 'active',
+			commission_rate: 12,
+			connected_at: new Date().toISOString(),
+			requested_by: PERSONA_IDS.repAAdmin!,
+			approved_by: PERSONA_IDS.brandBAdmin!
+		});
+		expect(connErr).toBeNull();
+
+		try {
+			const repA = await personaClient('repAAdmin');
+
+			// Positive control: prove the new connection actually took effect.
+			// personaClient caches sessions, but RLS is evaluated per query, not
+			// per session, so the already-cached repA client picks up the new
+			// connection without re-authenticating.
+			await expectVisible(repA, 'brands', RLS_IDS.brandB1);
+			await expectVisible(repA, 'products', RLS_IDS.productB1);
+
+			// The actual transitivity assertion: Brand A and Brand B must not
+			// see each other through the rep they now both connect to.
+			const brandA = await personaClient('brandAAdmin');
+			const brandB = await personaClient('brandBAdmin');
+			await expectHidden(brandA, 'brands', RLS_IDS.brandB1);
+			await expectHidden(brandA, 'products', RLS_IDS.productB1);
+			await expectHidden(brandB, 'brands', RLS_IDS.brandA1);
+			await expectHidden(brandB, 'products', RLS_IDS.productA1);
+		} finally {
+			await admin.from('org_connections').delete().eq('id', tempConnId);
+		}
 	});
 
 	it('a connected rep cannot write the brand org products', async () => {
