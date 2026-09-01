@@ -282,7 +282,9 @@
 	const kbdClass = 'rounded border bg-muted px-1.5 py-0.5 text-xs font-mono';
 
 	function isActive(href: string): boolean {
-		if (href === '/dashboard') return $page.url.pathname === '/dashboard';
+		// '/system' is the console overview, not a prefix for the console: exact
+		// match only, or every /system/* page lights up Overview as well.
+		if (href === '/dashboard' || href === '/system') return $page.url.pathname === href;
 		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
 	}
 </script>

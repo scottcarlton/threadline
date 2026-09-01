@@ -29,6 +29,7 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/lib/server/ai-usage.ts',
 	'src/lib/server/audit/hook.test.ts',
 	'src/lib/server/audit/hook.ts',
+	'src/lib/server/audit/query.test.ts',
 	'src/lib/server/audit/query.ts',
 	'src/lib/server/beta-whitelist.test.ts',
 	'src/lib/server/beta-whitelist.ts',

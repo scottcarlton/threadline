@@ -9,6 +9,12 @@ type CreateRetailerInput = {
 
 type CreateRetailerResult = {
 	organization?: Organization;
+	/**
+	 * True only when this call inserted the org. The idempotent path returns an
+	 * existing org just as successfully, and the caller must be able to tell the
+	 * two apart so a refresh does not record a second organization.created.
+	 */
+	created?: boolean;
 	error?: string;
 	status?: number;
 };
@@ -52,7 +58,7 @@ export async function createRetailer(
 
 	const existingOrg = (existing as { organizations?: Organization | null } | null)?.organizations;
 	if (existingOrg) {
-		return { organization: existingOrg };
+		return { organization: existingOrg, created: false };
 	}
 
 	// Retailers are orgs now, so they get a slug like every other org. Reject on
@@ -114,5 +120,5 @@ export async function createRetailer(
 		await client.from('profiles').update({ display_name: displayName }).eq('id', userId);
 	}
 
-	return { organization: createdOrg };
+	return { organization: createdOrg, created: true };
 }
