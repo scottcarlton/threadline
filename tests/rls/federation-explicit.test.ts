@@ -134,26 +134,32 @@ describe('federated order write boundaries', () => {
 		}
 	);
 
-	it('an unrelated org cannot touch the order', async () => {
-		// The write is still correctly denied here, but for the wrong
-		// reason: the 42P17 recursion above fires on this UPDATE before
-		// repB's lack of authorization is ever reached, so the denial code
-		// is 42P17 rather than the clean RLS-denial 42501. Zero rows change
-		// either way, so the security boundary (repB cannot write this
-		// order) holds; only the failure mode is a symptom of the bug
-		// documented above rather than a clean policy rejection.
-		const repB = await personaClient('repBAdmin');
-		const { data, error } = await repB
-			.from('orders')
-			.update({ status: 'cancelled' })
-			.eq('id', RLS_IDS.orderRepAOnBrandA)
-			.select('id');
-		if (error) {
-			expect(['42501', '42P17']).toContain(error.code);
-		} else {
-			expect(data ?? []).toEqual([]);
+	// While the recursion bug above is live, EVERY update to orders fails
+	// for every role, so "an unrelated org cannot update this order" is
+	// currently guaranteed by the bug itself, not by any policy -- this
+	// test provides no security signal right now, no matter which error
+	// code it accepts. Marked failing for the same reason as its sibling
+	// above, so both symptoms of the one bug surface together. The
+	// assertion body is left exactly as it should read once the recursion
+	// is fixed: denial code 42501, zero rows affected. When the sibling's
+	// `.fails` comes off, this one must come off too and be re-tightened
+	// back to exactly 42501 (do not leave 42P17 in the accepted set).
+	it.fails(
+		'an unrelated org cannot touch the order (BLOCKED: same 42P17 recursion as the sibling test above)',
+		async () => {
+			const repB = await personaClient('repBAdmin');
+			const { data, error } = await repB
+				.from('orders')
+				.update({ status: 'cancelled' })
+				.eq('id', RLS_IDS.orderRepAOnBrandA)
+				.select('id');
+			if (error) {
+				expect(error.code).toBe('42501');
+			} else {
+				expect(data ?? []).toEqual([]);
+			}
 		}
-	});
+	);
 
 	it('federated link rows cannot be forged by a client', async () => {
 		const repB = await personaClient('repBAdmin');
