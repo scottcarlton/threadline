@@ -36,13 +36,16 @@
 	} from '$lib/components/products/product-import-helpers';
 	import { downloadOrderCsvTemplate } from '$lib/components/orders/order-import-helpers';
 	import { downloadMemberCsvTemplate } from '$lib/components/onboarding/member-template';
+	import { downloadBrandCsvTemplate } from '$lib/components/onboarding/brand-template';
 	import {
 		parseMembers,
+		parseBrands,
 		parseProducts,
 		parseOrders,
 		capRows,
 		importedCount,
 		type MemberDraft,
+		type BrandDraft,
 		type ProductDraft,
 		type OrderRowDraft
 	} from '$lib/components/onboarding/parse';
@@ -80,8 +83,9 @@
 	}
 
 	// Brand-flavored set for the P0 mock. The org-type-aware matrix (rep/brand)
-	// is P2 — this is representative, not final.
-	const phases: Phase[] = [
+	// is P2, so this is representative, not final. `buildPhases` below layers the
+	// rep-only differences on top of this base.
+	const basePhases: Phase[] = [
 		{
 			id: 'general',
 			title: 'General Information',
@@ -266,6 +270,57 @@
 		}
 	];
 
+	// The brands a rep carries is the object their whole app hangs off: orders,
+	// commission and catalog visibility all resolve through it, so it comes
+	// first in the Import phase. Brand orgs never see this step: their own brand
+	// row is created for them by the auto_create_self_brand trigger.
+	const brandsSub: SubStep = {
+		id: 'brands',
+		question: "Which brands do you carry? Drop your list and I'll bring them in.",
+		placeholder: 'You can paste your data here too…',
+		kind: 'upload',
+		dropTitle: 'Drop your brand list',
+		dropHint: "Add a CSV and I'll get to work on it."
+	};
+
+	// Steps a rep doesn't get asked. The business address is a shipping and
+	// invoicing fact the brand owns: a rep sells on the brand's terms and
+	// nothing in the rep app ships from their address. The org-level tools step
+	// goes too; the mailbox above it stays, since that's where a rep's orders
+	// arrive. Both are still available later at /organization/integrations.
+	const REP_SKIPPED_SUBS = new Set(['address', 'connect']);
+
+	function buildPhases(orgType: 'brand' | 'rep' | 'retailer' | null): Phase[] {
+		if (orgType !== 'rep') return basePhases;
+		return basePhases.map((p) => {
+			if (p.id === 'import') {
+				return {
+					...p,
+					subtitle: 'Upload brands, members, accounts, products, and orders',
+					subs: [brandsSub, ...p.subs]
+				};
+			}
+			const subs = p.subs.filter((sub) => !REP_SKIPPED_SUBS.has(sub.id));
+			if (subs.length === p.subs.length) return p;
+			// The roadmap subtitle names what the phase asks for, so it can't keep
+			// promising a step the rep no longer sees.
+			if (p.id === 'integrations') {
+				return { ...p, subtitle: 'Connect the inbox your orders arrive in.', subs };
+			}
+			return { ...p, subs };
+		});
+	}
+
+	// Org type at first render: the org row when it exists (resume), else the
+	// pre-org draft. Kept separate from the reactive `phases` below, which has
+	// to see the answer the moment it's given mid-flow.
+	// svelte-ignore state_referenced_locally
+	const initialOrgType = (data.organization?.org_type ?? null) as
+		| 'brand'
+		| 'rep'
+		| 'retailer'
+		| null;
+
 	const WELCOME = 'Welcome to Threadline';
 	const SUBTITLE =
 		"Let's set up your organization — a few quick questions and we'll build out your catalog and accounts.";
@@ -310,16 +365,18 @@
 		stats?: { key?: string; n: string; label: string; note?: string }[];
 	} | null;
 
+	const initialPhases = buildPhases(initialOrgType ?? draftSaved?.orgType ?? null);
+
 	// svelte-ignore state_referenced_locally
 	let phaseIndex = $state(
 		typeof saved?.phase === 'number'
-			? Math.min(Math.max(saved.phase, 0), phases.length - 1)
-			: resumePhaseIndex(data.organization?.onboarding_step, phases.length)
+			? Math.min(Math.max(saved.phase, 0), initialPhases.length - 1)
+			: resumePhaseIndex(data.organization?.onboarding_step, initialPhases.length)
 	);
 	// svelte-ignore state_referenced_locally
 	let subIndex = $state(
 		typeof saved?.sub === 'number'
-			? Math.min(Math.max(saved.sub, 0), (phases[phaseIndex]?.subs.length ?? 1) - 1)
+			? Math.min(Math.max(saved.sub, 0), (initialPhases[phaseIndex]?.subs.length ?? 1) - 1)
 			: data.organization
 				? 0
 				: resumeGeneralSub()
@@ -347,6 +404,11 @@
 		orgType: draftSaved?.orgType ?? null,
 		orgName: ''
 	});
+
+	// The rep's brands step has to appear the moment they answer the org-type
+	// question, so the phase set follows `values.orgType` rather than the value
+	// read at init. Falls back to the org row on resume.
+	const phases = $derived(buildPhases(values.orgType ?? initialOrgType));
 
 	// Persist a pre-org answer. Fire-and-forget: a failed save costs a retype,
 	// never the flow.
@@ -545,6 +607,15 @@
 				const skipped = state !== 'done';
 
 				switch (sb.id) {
+					case 'brands': {
+						const n = statCount('brands');
+						lines.push(
+							n > 0
+								? { text: `Added ${n} ${plural(n, 'brand', 'brands')} you carry`, ok: true }
+								: { text: 'No brands added yet', ok: false }
+						);
+						break;
+					}
 					case 'members': {
 						const n = statCount('members');
 						lines.push(
@@ -686,7 +757,11 @@
 	const SKIP_SAVES_STEP = new Set(['payment-terms', 'payment-methods']);
 
 	const skip = () => {
-		if (statLabel(sub.id, 0)) addStat({ key: sub.id, n: '0', note: 'Skipped for now' });
+		// A step can be answered and then skipped. Brands and members both accept
+		// one entry at a time from the prompt bar. Recording a 0 card over a real
+		// count would report work that did happen as work that didn't.
+		const counted = stats.find((s) => s.key === sub.id && Number(s.n) > 0);
+		if (statLabel(sub.id, 0) && !counted) addStat({ key: sub.id, n: '0', note: 'Skipped for now' });
 		if (SKIP_SAVES_STEP.has(sub.id)) void saveSetupStep(sub.id, 'skip');
 		complete('skipped');
 	};
@@ -855,6 +930,13 @@
 			}
 			return;
 		}
+		// The brands step also accepts a brand name typed into the bar. It doesn't
+		// advance: a rep carries several, and the list below is where they connect
+		// them, so Continue is the way out.
+		if (sub.id === 'brands') {
+			void addBrandByName(draft.trim());
+			return;
+		}
 		// The members step also accepts a single email typed into the bar.
 		if (sub.id === 'members') {
 			void inviteOne(draft.trim());
@@ -893,6 +975,195 @@
 			errorMsg = "That invite couldn't be sent.";
 		} finally {
 			loading = false;
+		}
+	}
+
+	// Single brand typed into the prompt bar: the name-only path. Everything
+	// else about the brand can be filled in later on its own page.
+	async function addBrandByName(name: string) {
+		if (!name) return;
+		errorMsg = '';
+		loading = true;
+		try {
+			const res = await fetch('/api/setup/save', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ step: 'brand-manual', value: { name } })
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok || !body.brandId) {
+				errorMsg = body.error || "That brand couldn't be saved.";
+				return;
+			}
+			addCreatedBrands([{ id: body.brandId, name: body.brandName ?? name }]);
+			addStat({ key: 'brands', n: String(createdBrands.length) });
+			draft = '';
+		} catch {
+			errorMsg = "That brand couldn't be saved.";
+		} finally {
+			loading = false;
+		}
+	}
+
+	// ── Brands (rep orgs) ──────────────────────────────────────────────────
+	// Imported and hand-added brands both land here so the step can offer the
+	// same follow-up on each: attach the brand's connect link. Connect invites
+	// are minted by the BRAND org (connection_invites.brand_org_id) and redeemed
+	// by the rep, so preflight can't generate one. It can only take the link a
+	// brand already sent. /api/connections/request carries `repBrandId`, which is
+	// what ties the connection to the local brands row created here.
+	type CreatedBrand = {
+		id: string;
+		name: string;
+		connect: 'idle' | 'open' | 'sending' | 'active' | 'pending';
+		code: string;
+		error: string;
+	};
+
+	// Seeded from the org's existing brands so a refresh mid-step doesn't hide
+	// the list (and its connect action) behind an empty state.
+	// svelte-ignore state_referenced_locally
+	let createdBrands = $state<CreatedBrand[]>(
+		(data.repBrands ?? []).map((b) => ({
+			id: b.id,
+			name: b.name,
+			connect: b.status === 'active' ? 'active' : b.status === 'pending' ? 'pending' : 'idle',
+			code: '',
+			error: ''
+		}))
+	);
+	let manualOpen = $state(false);
+	let manualSaving = $state(false);
+	let manualBrand = $state({
+		name: '',
+		contactFirstName: '',
+		contactLastName: '',
+		contactEmail: '',
+		contactPhone: '',
+		website: '',
+		commissionRate: '',
+		notes: ''
+	});
+
+	function addCreatedBrands(rows: { id: string; name: string }[]) {
+		const known = new Set(createdBrands.map((b) => b.id));
+		createdBrands = [
+			...createdBrands,
+			...rows
+				.filter((r) => !known.has(r.id))
+				.map((r) => ({ id: r.id, name: r.name, connect: 'idle' as const, code: '', error: '' }))
+		];
+	}
+
+	function resetManualBrand() {
+		manualBrand = {
+			name: '',
+			contactFirstName: '',
+			contactLastName: '',
+			contactEmail: '',
+			contactPhone: '',
+			website: '',
+			commissionRate: '',
+			notes: ''
+		};
+	}
+
+	async function submitManualBrand() {
+		if (!manualBrand.name.trim() || manualSaving) return;
+		errorMsg = '';
+		manualSaving = true;
+		try {
+			const rate = Number(manualBrand.commissionRate.replace('%', '').trim());
+			const res = await fetch('/api/setup/save', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					step: 'brand-manual',
+					value: {
+						name: manualBrand.name.trim(),
+						contactFirstName: manualBrand.contactFirstName.trim(),
+						contactLastName: manualBrand.contactLastName.trim(),
+						contactEmail: manualBrand.contactEmail.trim(),
+						contactPhone: manualBrand.contactPhone.trim(),
+						website: manualBrand.website.trim(),
+						commissionRate: Number.isFinite(rate) && rate > 0 ? rate : 0,
+						notes: manualBrand.notes.trim()
+					}
+				})
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok || !body.brandId) {
+				errorMsg = body.error || "That brand couldn't be saved.";
+				return;
+			}
+			addCreatedBrands([{ id: body.brandId, name: body.brandName ?? manualBrand.name.trim() }]);
+			addStat({ key: 'brands', n: String(createdBrands.length) });
+			resetManualBrand();
+		} catch {
+			errorMsg = "That brand couldn't be saved.";
+		} finally {
+			manualSaving = false;
+		}
+	}
+
+	// Typists shouldn't have to reach for the mouse to save a row: Enter commits
+	// the manual form and the connect field, the way the prompt bar does.
+	function onManualKeydown(e: KeyboardEvent) {
+		if (e.key !== 'Enter' || e.shiftKey) return;
+		e.preventDefault();
+		void submitManualBrand();
+	}
+
+	function onConnectKeydown(e: KeyboardEvent, brand: CreatedBrand) {
+		if (e.key !== 'Enter' || e.shiftKey) return;
+		e.preventDefault();
+		void submitConnect(brand);
+	}
+
+	function toggleConnect(id: string) {
+		createdBrands = createdBrands.map((b) =>
+			b.id === id ? { ...b, connect: b.connect === 'open' ? 'idle' : 'open', error: '' } : b
+		);
+	}
+
+	function setBrand(id: string, patch: Partial<CreatedBrand>) {
+		createdBrands = createdBrands.map((b) => (b.id === id ? { ...b, ...patch } : b));
+	}
+
+	/** Reps paste whatever the brand sent them: a full link or the bare code. */
+	function connectCodeFrom(input: string): string {
+		const trimmed = input.trim();
+		if (!trimmed) return '';
+		const withoutQuery = trimmed.split(/[?#]/)[0];
+		const last = withoutQuery.replace(/\/+$/, '').split('/').pop() ?? '';
+		return last.trim();
+	}
+
+	async function submitConnect(brand: CreatedBrand) {
+		const code = connectCodeFrom(brand.code);
+		if (!code) {
+			setBrand(brand.id, { error: 'Paste the link or code the brand sent you.' });
+			return;
+		}
+		setBrand(brand.id, { connect: 'sending', error: '' });
+		try {
+			const res = await fetch('/api/connections/request', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ code, repBrandId: brand.id })
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				setBrand(brand.id, { connect: 'open', error: body.error || "That link didn't work." });
+				return;
+			}
+			setBrand(brand.id, {
+				connect: body.autoApproved ? 'active' : 'pending',
+				code: '',
+				error: ''
+			});
+		} catch {
+			setBrand(brand.id, { connect: 'open', error: "That link didn't work." });
 		}
 	}
 
@@ -954,6 +1225,7 @@
 	let droppedRows = $state(0);
 
 	let memberDrafts: MemberDraft[] = [];
+	let brandDrafts: BrandDraft[] = [];
 	let accountDrafts: Record<string, unknown>[] = [];
 	let productDrafts: ProductDraft[] = [];
 	let orderDrafts: OrderRowDraft[] = [];
@@ -964,6 +1236,7 @@
 		ingestFileName = '';
 		ingestRows = [];
 		memberDrafts = [];
+		brandDrafts = [];
 		accountDrafts = [];
 		productDrafts = [];
 		orderDrafts = [];
@@ -974,13 +1247,20 @@
 	// ship; members has no flow outside preflight, so it has its own.
 	function downloadTemplate(subId: string) {
 		if (subId === 'members') return downloadMemberCsvTemplate();
+		if (subId === 'brands') return downloadBrandCsvTemplate();
 		if (subId === 'accounts') return downloadAccountCsvTemplate();
 		if (subId === 'products') return downloadCsvTemplate();
 		if (subId === 'orders') return downloadOrderCsvTemplate();
 	}
 
-	// TODO: behavior not decided yet — the button is intentionally inert for now.
-	function startManualEntry() {}
+	// Brands is the one step with a manual path today: a rep who carries four
+	// brands shouldn't have to build a CSV. Everywhere else the button is still
+	// intentionally inert, since behavior isn't decided yet.
+	function startManualEntry() {
+		if (sub.id !== 'brands') return;
+		errorMsg = '';
+		manualOpen = true;
+	}
 
 	const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 
@@ -1129,6 +1409,28 @@
 			return;
 		}
 
+		if (sub.id === 'brands') {
+			const cappedBrands = capRows(parseBrands(headers, rows));
+			brandDrafts = cappedBrands.rows;
+			droppedRows = cappedBrands.dropped;
+			if (brandDrafts.length === 0) {
+				resetIngest();
+				errorMsg =
+					"I couldn't find any brands in that file. A CSV with a brand name column works best.";
+				return;
+			}
+			ingestNoun = brandDrafts.length === 1 ? 'brand' : 'brands';
+			ingestRows = brandDrafts.map((b) => ({
+				primary: b.name,
+				detail: b.contact_email ?? b.website ?? '',
+				metaValue: b.commission_rate ? `${b.commission_rate}%` : '',
+				metaLabel: b.commission_rate ? 'Commission' : '',
+				secondary: ''
+			}));
+			ingestState = 'preview';
+			return;
+		}
+
 		if (sub.id === 'accounts') {
 			const { previewRows } = buildAccountPreviewFromCsv(headers, rows);
 			const cappedAccounts = capRows(
@@ -1230,6 +1532,33 @@
 				addStat({ key: 'members', n: String(sent) });
 				resetIngest();
 				advanceGlobal();
+				return;
+			}
+
+			if (sub.id === 'brands') {
+				const res = await fetch('/api/brands/import', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ brands: brandDrafts })
+				});
+				const result = await res.json();
+				if (!res.ok) {
+					ingestState = 'preview';
+					errorMsg = result.error || 'That import failed. Please try again.';
+					return;
+				}
+				const imported = (result.brands ?? []) as { id: string; name: string }[];
+				if (imported.length === 0) {
+					ingestState = 'preview';
+					errorMsg = 'Those brands are already on your list.';
+					return;
+				}
+				addCreatedBrands(imported);
+				addStat({ key: 'brands', n: String(createdBrands.length) });
+				resetIngest();
+				// Unlike the other imports, this one doesn't advance: the rep can
+				// now connect any of these brands, and the list is where that
+				// happens. Continue moves them on.
 				return;
 			}
 
@@ -2052,6 +2381,146 @@
 								{/if}
 							{/if}
 
+							{#if sub.id === 'brands' && manualOpen && inputRevealed}
+								<div
+									class="mt-3 space-y-2 rounded-xl bg-zinc-800/40 p-4"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									<input
+										bind:value={manualBrand.name}
+										onkeydown={onManualKeydown}
+										placeholder="Brand name"
+										class="w-full rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+									/>
+									<div class="flex gap-2">
+										<input
+											bind:value={manualBrand.contactFirstName}
+											onkeydown={onManualKeydown}
+											placeholder="Contact first name"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={manualBrand.contactLastName}
+											onkeydown={onManualKeydown}
+											placeholder="Contact last name"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+									</div>
+									<div class="flex gap-2">
+										<input
+											bind:value={manualBrand.contactEmail}
+											onkeydown={onManualKeydown}
+											type="email"
+											placeholder="Contact email"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={manualBrand.contactPhone}
+											onkeydown={onManualKeydown}
+											placeholder="Phone"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+									</div>
+									<div class="flex gap-2">
+										<input
+											bind:value={manualBrand.website}
+											onkeydown={onManualKeydown}
+											placeholder="Website"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={manualBrand.commissionRate}
+											onkeydown={onManualKeydown}
+											inputmode="decimal"
+											placeholder="Commission %"
+											class="w-36 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+									</div>
+									<input
+										bind:value={manualBrand.notes}
+										onkeydown={onManualKeydown}
+										placeholder="Notes (optional)"
+										class="w-full rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+									/>
+									<div class="flex items-center gap-2 pt-1">
+										<button
+											onclick={submitManualBrand}
+											disabled={!manualBrand.name.trim() || manualSaving}
+											class="rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+										>
+											{manualSaving ? 'Adding…' : 'Add brand'}
+										</button>
+										<button
+											onclick={() => {
+												manualOpen = false;
+												resetManualBrand();
+											}}
+											class="rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100"
+										>
+											Done adding
+										</button>
+									</div>
+								</div>
+							{/if}
+
+							{#if sub.id === 'brands' && createdBrands.length > 0 && inputRevealed}
+								<div
+									class="mt-3"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									<p class="text-sm text-zinc-400">
+										On your list. If a brand runs on Threadline, paste the connect link they sent
+										you and I'll attach it to their record.
+									</p>
+									<ul
+										class="mt-2 divide-y divide-white/5 overflow-hidden rounded-xl bg-zinc-800/50"
+									>
+										{#each createdBrands as brand (brand.id)}
+											<li class="px-4 py-2.5">
+												<div class="flex items-center gap-3">
+													<span class="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">
+														{brand.name}
+													</span>
+													{#if brand.connect === 'active'}
+														<span class="shrink-0 text-sm text-zinc-300">Connected</span>
+													{:else if brand.connect === 'pending'}
+														<span class="shrink-0 text-sm text-zinc-400">Request sent</span>
+													{:else}
+														<button
+															onclick={() => toggleConnect(brand.id)}
+															class="shrink-0 rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
+														>
+															{brand.connect === 'open' ? 'Cancel' : 'Connect'}
+														</button>
+													{/if}
+												</div>
+												{#if brand.connect === 'open' || brand.connect === 'sending'}
+													<div class="mt-2 flex items-center gap-2">
+														<input
+															value={brand.code}
+															oninput={(e) => setBrand(brand.id, { code: e.currentTarget.value })}
+															onkeydown={(e) => onConnectKeydown(e, brand)}
+															placeholder="Paste their connect link or code"
+															class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+														/>
+														<button
+															onclick={() => submitConnect(brand)}
+															disabled={brand.connect === 'sending'}
+															class="shrink-0 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+														>
+															{brand.connect === 'sending' ? 'Connecting…' : 'Connect'}
+														</button>
+													</div>
+												{/if}
+												{#if brand.error}
+													<p class="mt-1.5 text-sm text-red-400">{brand.error}</p>
+												{/if}
+											</li>
+										{/each}
+									</ul>
+								</div>
+							{/if}
+
 							{#if errorMsg}
 								<p class="mt-3 text-sm text-red-400">{errorMsg}</p>
 							{/if}
@@ -2086,6 +2555,13 @@
 											>
 												{startedConnections.length ? 'Done connecting' : 'Finish setup'}
 											</button>
+										{:else if sub.id === 'brands' && createdBrands.length > 0}
+											<button
+												onclick={() => complete('done')}
+												class="rounded-lg bg-white px-3.5 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
+											>
+												Continue
+											</button>
 										{:else if sub.kind === 'address'}
 											<button
 												onclick={submitAddress}
@@ -2095,7 +2571,7 @@
 												{loading ? 'Saving…' : 'Save'}
 											</button>
 										{/if}
-										{#if sub.id === 'members' || sub.id === 'accounts' || sub.id === 'products'}
+										{#if sub.id === 'brands' || sub.id === 'members' || sub.id === 'accounts' || sub.id === 'products'}
 											<button
 												onclick={startManualEntry}
 												class="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"

@@ -3,6 +3,9 @@ import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { saveLineEdits, type SupabaseForLineEdits } from '$lib/server/orders/save-line-edits';
+import { loadOrderForOrg, type OrderRow } from '$lib/server/orders/authorize-order';
+
+type OrderForLineEdits = OrderRow & { status: string; order_type: string | null };
 
 const rowSchema = z.object({
 	product_id: z.string().min(1),
@@ -42,30 +45,16 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 		throw error(400, parsed.error.issues[0]?.message ?? 'Invalid request body');
 	}
 
-	// Load the order so we can verify ownership (same-org OR active federation
-	// link to the caller's org) and then apply the status gate.
-	const { data: order, error: orderErr } = await supabaseAdmin
-		.from('orders')
-		.select('id, organization_id, status, order_type')
-		.eq('id', params.id)
-		.single();
+	// Same-org OR active federation link to the caller's org. BOA can act on a
+	// rep-owned federated order (confirm/ship/etc.), so line edits follow. The
+	// rule now lives in loadOrderForOrg, shared with the pdf/send read paths.
+	const order = await loadOrderForOrg<OrderForLineEdits>(
+		params.id,
+		organization.id,
+		'id, organization_id, status, order_type'
+	);
 
-	if (orderErr || !order) throw error(404, 'Order not found');
-
-	if (order.organization_id !== organization.id) {
-		// Cross-org: allow only when there's an active federated_order_links row
-		// pointing at the caller's org. This mirrors the read side at
-		// src/routes/orders/[id]/+page.server.ts — BOA can act on a rep-owned
-		// federated order (confirm/ship/etc.), so line edits must follow.
-		const { data: link } = await supabaseAdmin
-			.from('federated_order_links')
-			.select('id')
-			.eq('order_id', order.id)
-			.eq('target_org_id', organization.id)
-			.eq('status', 'active')
-			.maybeSingle();
-		if (!link) throw error(403, 'Not your order');
-	}
+	if (!order) throw error(404, 'Order not found');
 
 	const isNote = order.order_type === 'note';
 	const isAdmin = ADMIN_ROLES.has(role);

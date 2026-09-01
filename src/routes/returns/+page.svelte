@@ -10,17 +10,13 @@
 		<path
 			stroke-linecap="round"
 			stroke-linejoin="round"
-			d="M3.75 4.5h16.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H3.75a.75.75 0 01-.75-.75V5.25a.75.75 0 01.75-.75z"
-		/>
-		<path
-			stroke-linecap="round"
-			stroke-linejoin="round"
-			d="M3 9.75h18M3 15h18M9 4.5v15M15 4.5v15"
+			d="M8.25 9.75h4.875a2.625 2.625 0 0 1 0 5.25H12M8.25 9.75 10.5 7.5M8.25 9.75 10.5 12m9-7.243V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185Z"
 		/>
 	</svg>
 	<p class="mt-4 font-mono text-sm text-muted-foreground">[Coming Soon]</p>
-	<h1 class="mt-2 text-lg font-semibold">Sheets</h1>
+	<h1 class="mt-2 text-lg font-semibold">Returns</h1>
 	<p class="mt-2 max-w-md text-sm text-muted-foreground">
-		Query, pivot, and edit your data in a spreadsheet with AI formulas built in.
+		Log returns against the original order lines and see what came back, from which accounts, and
+		why.
 	</p>
 </div>

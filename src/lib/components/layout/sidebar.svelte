@@ -67,6 +67,12 @@
 			icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
 		},
 		{
+			label: 'Returns',
+			href: '/returns',
+			icon: 'M12.0049 2C17.5277 2 22.0049 6.47715 22.0049 12C22.0049 17.5228 17.5277 22 12.0049 22C9.57847 22 7.3539 21.1358 5.62216 19.6985L5.37815 19.4892L6.27949 17.5875C7.73229 19.0759 9.76067 20 12.0049 20C16.4232 20 20.0049 16.4183 20.0049 12C20.0049 7.58172 16.4232 4 12.0049 4C7.66997 4 4.14034 7.44784 4.00869 11.7508L4.00488 12H6.50488L3.79854 17.7161C2.66796 16.096 2.00488 14.1254 2.00488 12C2.00488 6.47715 6.48204 2 12.0049 2ZM13.0049 6V8H15.5049V10H10.0049C9.72874 10 9.50488 10.2239 9.50488 10.5C9.50488 10.7455 9.68176 10.9496 9.91501 10.9919L10.0049 11H14.0049C15.3856 11 16.5049 12.1193 16.5049 13.5C16.5049 14.8807 15.3856 16 14.0049 16H13.0049V18H11.0049V16H8.50488V14H14.0049C14.281 14 14.5049 13.7761 14.5049 13.5C14.5049 13.2545 14.328 13.0504 14.0948 13.0081L14.0049 13H10.0049C8.62417 13 7.50488 11.8807 7.50488 10.5C7.50488 9.11929 8.62417 8 10.0049 8H11.0049V6H13.0049Z',
+			fillIcon: true
+		},
+		{
 			label: 'Products',
 			href: '/products',
 			icon: 'M12.998 20H18.998V16H14.998V14H18.998V6H16.998V11L12.998 9.4V20ZM10.998 20V9.4L6.99805 11V6H4.99805V20H10.998ZM6.99805 4V3H16.998V4H19.998C20.5503 4 20.998 4.44772 20.998 5V21C20.998 21.5523 20.5503 22 19.998 22H3.99805C3.44576 22 2.99805 21.5523 2.99805 21V5C2.99805 4.44772 3.44576 4 3.99805 4H6.99805ZM11.998 8L15.498 5H8.49805L11.998 8Z',
@@ -110,6 +116,18 @@
 			icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
 		},
 		{
+			label: 'Invoices',
+			href: '/invoices',
+			icon: 'M20 22H4C3.44772 22 3 21.5523 3 21V3C3 2.44772 3.44772 2 4 2H20C20.5523 2 21 2.44772 21 3V21C21 21.5523 20.5523 22 20 22ZM8 9V11H16V9H8ZM8 13V15H16V13H8Z',
+			fillIcon: true
+		},
+		{
+			label: 'Returns',
+			href: '/returns',
+			icon: 'M12.0049 2C17.5277 2 22.0049 6.47715 22.0049 12C22.0049 17.5228 17.5277 22 12.0049 22C9.57847 22 7.3539 21.1358 5.62216 19.6985L5.37815 19.4892L6.27949 17.5875C7.73229 19.0759 9.76067 20 12.0049 20C16.4232 20 20.0049 16.4183 20.0049 12C20.0049 7.58172 16.4232 4 12.0049 4C7.66997 4 4.14034 7.44784 4.00869 11.7508L4.00488 12H6.50488L3.79854 17.7161C2.66796 16.096 2.00488 14.1254 2.00488 12C2.00488 6.47715 6.48204 2 12.0049 2ZM13.0049 6V8H15.5049V10H10.0049C9.72874 10 9.50488 10.2239 9.50488 10.5C9.50488 10.7455 9.68176 10.9496 9.91501 10.9919L10.0049 11H14.0049C15.3856 11 16.5049 12.1193 16.5049 13.5C16.5049 14.8807 15.3856 16 14.0049 16H13.0049V18H11.0049V16H8.50488V14H14.0049C14.281 14 14.5049 13.7761 14.5049 13.5C14.5049 13.2545 14.328 13.0504 14.0948 13.0081L14.0049 13H10.0049C8.62417 13 7.50488 11.8807 7.50488 10.5C7.50488 9.11929 8.62417 8 10.0049 8H11.0049V6H13.0049Z',
+			fillIcon: true
+		},
+		{
 			label: 'Products',
 			href: '/products',
 			icon: 'M12.998 20H18.998V16H14.998V14H18.998V6H16.998V11L12.998 9.4V20ZM10.998 20V9.4L6.99805 11V6H4.99805V20H10.998ZM6.99805 4V3H16.998V4H19.998C20.5503 4 20.998 4.44772 20.998 5V21C20.998 21.5523 20.5503 22 19.998 22H3.99805C3.44576 22 2.99805 21.5523 2.99805 21V5C2.99805 4.44772 3.44576 4 3.99805 4H6.99805ZM11.998 8L15.498 5H8.49805L11.998 8Z',
@@ -136,11 +154,23 @@
 	// Nx-BLSR portal: rep-style nav with Products folded in. Acts across all the
 	// user's brand-org memberships as a single unified context.
 	const nxBlsrNav: NavItem[] = (() => {
-		const productsItem = brandNav.find((it) => it.label === 'Products')!;
-		const order = ['Insight', 'Orders', 'Products', 'Accounts', 'Brands', 'Expenses', 'Reports'];
+		// Nx-BLSR is a brand-org sales user, so Products, Invoices, and Returns come
+		// from the brand nav; everything else mirrors the rep nav.
+		const fromBrand = ['Products', 'Invoices', 'Returns'];
+		const order = [
+			'Insight',
+			'Orders',
+			'Invoices',
+			'Returns',
+			'Products',
+			'Accounts',
+			'Brands',
+			'Expenses',
+			'Reports'
+		];
 		return order
 			.map((label) => {
-				if (label === 'Products') return productsItem;
+				if (fromBrand.includes(label)) return brandNav.find((it) => it.label === label)!;
 				return repNav.find((it) => it.label === label)!;
 			})
 			.filter(Boolean);
@@ -182,11 +212,28 @@
 	);
 
 	// Items a brand-scoped member (not sales) sees
-	const brandScopedNav = ['Insight', 'Orders', 'Accounts', 'Expenses', 'Reports'];
+	const brandScopedNav = [
+		'Insight',
+		'Orders',
+		'Invoices',
+		'Returns',
+		'Accounts',
+		'Expenses',
+		'Reports'
+	];
 	// Brand-org sales reps: everything except Reps
-	const salesBrandNav = ['Insight', 'Orders', 'Products', 'Accounts', 'Expenses', 'Reports'];
+	const salesBrandNav = [
+		'Insight',
+		'Orders',
+		'Invoices',
+		'Returns',
+		'Products',
+		'Accounts',
+		'Expenses',
+		'Reports'
+	];
 	// Rep-org sales members: existing reduced set
-	const salesRepNav = ['Insight', 'Orders', 'Accounts', 'Expenses', 'Reports'];
+	const salesRepNav = ['Insight', 'Orders', 'Returns', 'Accounts', 'Expenses', 'Reports'];
 	const shopNav: NavItem = {
 		label: 'Shop',
 		href: '/shop',
@@ -369,52 +416,6 @@
 					</svg>
 					<span class="flex-1">Workspace</span>
 				</a>
-				<a
-					href={resolve('/sheets')}
-					class={cn(
-						'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
-						isActive('/sheets')
-							? 'bg-ghost font-medium text-foreground'
-							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
-					)}
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-[18px] w-[18px] shrink-0"
-						fill="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							d="M3 3C2.44772 3 2 3.44772 2 4V20C2 20.5523 2.44772 21 3 21H21C21.5523 21 22 20.5523 22 20V4C22 3.44772 21.5523 3 21 3H3ZM11 5V8H4V5H11ZM4 14V10H11V14H4ZM4 16H11V19H4V16ZM13 16H20V19H13V16ZM20 14H13V10H20V14ZM20 5V8H13V5H20Z"
-						/>
-					</svg>
-					<span class="flex-1">Sheets</span>
-				</a>
-				<a
-					href={resolve('/plan')}
-					class={cn(
-						'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
-						isActive('/plan')
-							? 'bg-ghost font-medium text-foreground'
-							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
-					)}
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-[18px] w-[18px] shrink-0"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2.25"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"
-						/>
-					</svg>
-					<span class="flex-1">Plan</span>
-				</a>
 			</div>
 		{/if}
 	</nav>
@@ -468,6 +469,30 @@
 					<path stroke-linecap="round" stroke-linejoin="round" d={orgNav.icon} />
 				</svg>
 				<span>{orgNav.label}</span>
+			</a>
+		{/if}
+
+		{#if !isSystemAdmin}
+			<a
+				href={resolve('/documents')}
+				class={cn(
+					'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
+					isActive('/documents')
+						? 'bg-ghost font-medium text-foreground'
+						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
+				)}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-[18px] w-[18px] shrink-0"
+					fill="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						d="M9 2.00318V2H19.9978C20.5513 2 21 2.45531 21 2.9918V21.0082C21 21.556 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5501 3 20.9932V8L9 2.00318ZM5.82918 8H9V4.83086L5.82918 8ZM11 4V9C11 9.55228 10.5523 10 10 10H5V20H19V4H11Z"
+					/>
+				</svg>
+				<span>Documents</span>
 			</a>
 		{/if}
 
