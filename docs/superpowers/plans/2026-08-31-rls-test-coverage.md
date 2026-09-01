@@ -1413,10 +1413,12 @@ git commit -m "test: cover own-org RLS isolation across own-org tables"
 
 ```bash
 grep -rhio "alter table [a-z_.\"]* enable row level security" supabase/migrations \
-  | sed 's/.*table //i' | tr -d '"' | tr 'A-Z' 'a-z' | sort -u > /tmp/rls-tables.txt
+  | sed -E 's/^alter table //i; s/ enable row level security$//i' | tr -d '"' | tr 'A-Z' 'a-z' | sed 's/^public\.//' | sort -u > /tmp/rls-tables.txt
 grep -rho "table: '[a-z_]*'" tests/rls | sed "s/table: '//;s/'//" | sort -u > /tmp/covered.txt
 comm -23 /tmp/rls-tables.txt /tmp/covered.txt
 ```
+
+(The original version of this command only stripped the `alter table ` prefix via `sed 's/.*table //i'`, leaving the ` enable row level security` suffix on every line. Since neither file's table names have that suffix, the two lists could never intersect and `comm -23` returned every table unchanged, including ones already covered. The version above strips the suffix too and normalizes a leading `public.` schema qualifier, which is what actually worked during execution.)
 
 - [ ] **Step 2: Assign each uncovered table to a phase**
 
@@ -1617,7 +1619,7 @@ git commit -m "test: cover accounts federation asymmetry between rep and brand o
 Using the same seed-assert-delete shape as Task 4.2, assert:
 
 - A `brand_expenses` row on `RLS_IDS.brandRepAOwn` is visible to `repAAdmin`, hidden from `repBAdmin`, hidden from `brandBAdmin`.
-- A `brand_expenses` row on `RLS_IDS.brandA1` is visible to `brandAAdmin`, visible to `repAAdmin` (connected), hidden from `repBAdmin`.
+- A `brand_expenses` row submitted by the connected rep org (`organization_id` = repA's org) against the connected brand's `brand_id` (`RLS_IDS.brandA1`) is visible to `brandAAdmin` (the brand owns `brandA1`), hidden from `repBAdmin`. The policy ("Expenses visible via federation" in `supabase/migrations/20260417000001_federation_rls.sql`) keys on `get_user_org_ids()`, not `get_connected_org_ids()`: it grants the brand org visibility into rows tagged to its own `brand_id` that were submitted by another org. It does not grant a connected rep visibility into the brand org's own-submitted expenses on brands the rep does not own.
 - An `expense_receipts` row inherits the visibility of its parent expense: same visible set, same hidden set.
 - `brandAMember`, scoped to `brandA1`, sees the `brandA1` expense and not a `brandA2` expense.
 
@@ -2027,9 +2029,17 @@ describe('buyer read surface', () => {
 		await expectHidden(buyer, 'products', RLS_IDS.productB1);
 	});
 
-	it('does not see orders they did not place', async () => {
+	it('sees every order on their own account, regardless of who created it', async () => {
+		// The live policy "Buyers see own account orders"
+		// (supabase/migrations/20260407000001_buyer_portal.sql) is
+		//   USING (account_id IN (SELECT get_buyer_account_ids()))
+		// which is account-scoped, not creator-scoped. orderBrandAInternal
+		// belongs to accountBrandA, the buyer's own account, even though a
+		// brand staff member created it on the account's behalf; per the
+		// policy that is visible to the buyer by design. orderRepAOnBrandA
+		// belongs to a different account, so it stays hidden.
 		const buyer = await personaClient('buyer');
-		await expectHidden(buyer, 'orders', RLS_IDS.orderBrandAInternal);
+		await expectVisible(buyer, 'orders', RLS_IDS.orderBrandAInternal);
 		await expectHidden(buyer, 'orders', RLS_IDS.orderRepAOnBrandA);
 	});
 
@@ -2513,7 +2523,6 @@ Use `.claude/skills/git-pre` for the pre-PR gate. Target `dev`. Title: `test: ad
 | §A.2 `get_buyer_account_ids`, `get_buyer_brand_ids`, `is_buyer_user`               | 7                        |
 | §A.2 `get_connected_org_ids`                                                       | 4                        |
 | §A.2 `get_federated_order_ids`, `get_federated_account_ids`, `auto_federate_order` | 5                        |
-| §A.2 `get_managed_member_ids`, `get_managed_profile_ids`                           | 6.2                      |
 | §A.6 Federation direction cheat-sheet, both directions                             | 4, 5                     |
 
 **Out of scope, deliberately:**
@@ -2522,6 +2531,7 @@ Use `.claude/skills/git-pre` for the pre-PR gate. Target `dev`. Title: `test: ad
 - `validate_org_member_manager`, `detach_reports_on_manager_demote`, `validate_territory_brand_org`. Data-integrity triggers, not access control. Worth unit tests, separate work.
 - Correctness of the ownership checks guarding `supabaseAdmin` call sites. Phase 11 inventories them only.
 - §A.2a "Helper Gap: Sales on Federated Brands". A known gap in `get_user_brand_ids`, not a test target until the gap is closed.
+- §A.2 `get_managed_member_ids`, `get_managed_profile_ids`. Task 6.2 tests own-org visibility of `organization_members` and `orders` rows, which those helpers do not gate; the helpers feed application-layer query filters, not RLS policies, so they are out of scope for an RLS suite.
 
 **Known risks carried into execution:**
 
