@@ -6,6 +6,8 @@ import {
 	expectHidden,
 	expectInsertAllowed,
 	expectInsertDenied,
+	expectUpdateAllowed,
+	expectUpdateDenied,
 	expectVisible
 } from './setup/assert.js';
 
@@ -138,31 +140,23 @@ describe('buyer write surface', () => {
 		});
 	});
 
-	// SECURITY/CORRECTNESS: out of scope, already found and accepted (see
-	// tests/rls/federation-explicit.test.ts, "federated order write
-	// boundaries"). The policy "Brand admin updates federated order status"
-	// (supabase/migrations/20260530000001_security_review_fixes.sql) has a
-	// WITH CHECK clause that subqueries orders from inside an orders policy,
-	// causing Postgres error 42P17 (infinite recursion detected in policy
-	// for relation "orders") on every UPDATE to orders, for every persona,
-	// regardless of which policy would otherwise apply. That includes this
-	// buyer trying to flip their own draft order to confirmed.
+	// The recursive WITH CHECK on "Brand admin updates federated order
+	// status" (supabase/migrations/20260530000001_security_review_fixes.sql)
+	// used to cause Postgres error 42P17 (infinite recursion detected in
+	// policy for relation "orders") on every UPDATE to orders, for every
+	// persona, regardless of which policy would otherwise apply. Fixed in
+	// supabase/migrations/20260901000001_fix_orders_update_recursion.sql.
 	//
-	// This assertion currently carries no security signal: it would pass
-	// today for the wrong reason, because every orders UPDATE fails
-	// regardless of policy correctness, not because "Buyers can update own
-	// draft orders" is scoped to drafts only.
-	//
-	// Written as a plain `it`, not `it.fails`, characterizing the CURRENT
-	// behavior: the update fails with 42P17. That is a truthful statement
-	// about today, not an endorsement. When the recursion is fixed this
-	// test will fail loudly in both directions: if the fix correctly
-	// denies the update, this assertion (expecting 42P17) breaks and must
-	// be replaced; if the fix is wrong and allows the update through, this
-	// assertion also breaks. Either way it cannot stay green silently. The
-	// correct denial assertion (42501, zero rows affected) must be
-	// reinstated as part of that fix PR.
-	it('cannot flip their own draft order to confirmed (currently: every orders UPDATE hits 42P17 recursion)', async () => {
+	// That same migration also tightened "Buyers can update own draft
+	// orders" (supabase/migrations/20260407000001_buyer_portal.sql), which
+	// was named for draft orders but never checked status in either
+	// direction: while the recursion above blocked every orders UPDATE,
+	// this gap was unreachable, and fixing the recursion alone would have
+	// reopened it. The policy now requires status = 'draft' to touch the
+	// row at all, and its WITH CHECK only allows the new status to be
+	// 'draft' or 'submitted' -- the only buyer-side transition. Everything
+	// from 'confirmed' onward is brand or rep side.
+	it('can update their own draft order while it stays a draft', async () => {
 		const buyer = await personaClient('buyer');
 		const orderId = await expectInsertAllowed(buyer, 'orders', {
 			organization_id: RLS_IDS.orgBrandA,
@@ -172,13 +166,87 @@ describe('buyer write surface', () => {
 			status: 'draft'
 		});
 		try {
-			const { data, error } = await buyer
-				.from('orders')
-				.update({ status: 'confirmed' })
-				.eq('id', orderId)
-				.select('id');
-			expect(data).toBeNull();
-			expect(error?.code).toBe('42P17');
+			await expectUpdateAllowed(buyer, 'orders', orderId, { notes: 'updated by buyer' });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('can move their own draft order to submitted', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateAllowed(buyer, 'orders', orderId, { status: 'submitted' });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('cannot flip their own draft order to confirmed', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateDenied(buyer, 'orders', orderId, { status: 'confirmed' });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('cannot update an order that is already past draft', async () => {
+		const orderId = await expectInsertAllowed(adminClient(), 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'submitted'
+		});
+		try {
+			const buyer = await personaClient('buyer');
+			await expectUpdateDenied(buyer, 'orders', orderId, {
+				notes: 'buyer trying to edit after submit'
+			});
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	// The status/notes cases above only vary values inside the granted
+	// scope. The security-load-bearing half of the new WITH CHECK is the
+	// scope bounding itself (account_id, created_by, and, as of this
+	// migration, brand_id): a buyer must not be able to reassign a draft
+	// order they own onto someone else's identity, someone else's account,
+	// or a brand they were never granted access to. All three escapes are
+	// asserted against one shared order (rather than a fresh insert per
+	// case) because orders.order_number is generated from a per-org
+	// counter with no reuse of deleted numbers -- keeping the insert count
+	// down here avoids an unrelated, pre-existing collision in that
+	// counter once it crosses into double digits within a single test
+	// file, which is not something this migration touches.
+	it('cannot reassign scope-bounding columns', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateDenied(buyer, 'orders', orderId, { created_by: PERSONA_IDS.repAAdmin });
+			await expectUpdateDenied(buyer, 'orders', orderId, { account_id: RLS_IDS.accountRepA });
+			await expectUpdateDenied(buyer, 'orders', orderId, { brand_id: RLS_IDS.brandA2 });
 		} finally {
 			await adminClient().from('orders').delete().eq('id', orderId);
 		}
