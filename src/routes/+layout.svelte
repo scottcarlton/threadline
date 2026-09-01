@@ -730,6 +730,7 @@
 						brandScope={data.brandScope}
 						isBuyer={data.isBuyer}
 						{isNxBlsr}
+						isSystemAdmin={data.isSystemAdmin}
 						bind:showHelp
 					/>
 				</div>
@@ -1263,6 +1264,7 @@
 			brandScope={data.brandScope}
 			isBuyer={data.isBuyer}
 			{isNxBlsr}
+			isSystemAdmin={data.isSystemAdmin}
 			userInitials={getUserInitials(data.user?.display_name)}
 			onSignOut={handleSignOut}
 			onHelp={() => (showHelp = true)}
