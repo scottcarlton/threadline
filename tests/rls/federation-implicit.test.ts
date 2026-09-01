@@ -257,35 +257,6 @@ describe('brand_expenses and expense_receipts federation', () => {
 	beforeAll(async () => {
 		const admin = adminClient();
 
-		// expense_number is generated as EXP-<first 3 chars of org slug>-<count
-		// of that org's rows + 1>. Both RLS Brand A (slug rls-brand-a) and RLS
-		// Rep A (slug rls-rep-a) truncate to the same "RLS" prefix, so each
-		// org's local row count feeds the same number space. To keep every
-		// generated number unique we pad Brand A's count by 2 with throwaway
-		// rows (inserted and immediately deleted, which frees their numbers
-		// without touching the numbers already assigned to the two real
-		// Brand A rows that follow), landing those two real rows on sequence
-		// 3 and 4. Rep A's two real rows are then inserted fresh, landing on
-		// sequence 1 and 2, disjoint from Brand A's 3 and 4.
-		const paddingIds: string[] = [];
-		for (let i = 0; i < 2; i++) {
-			const { data: padding, error: paddingErr } = await admin
-				.from('brand_expenses')
-				.insert({
-					organization_id: RLS_IDS.orgBrandA,
-					brand_id: RLS_IDS.brandA1,
-					description: `RLS probe padding expense ${i} (expense_number spacer)`,
-					amount: 1,
-					submitted_by: PERSONA_IDS.brandAAdmin!
-				})
-				.select('id')
-				.single();
-			if (paddingErr || !padding) {
-				throw new Error(`brand_expenses (padding ${i}) insert failed: ${paddingErr?.message}`);
-			}
-			paddingIds.push((padding as { id: string }).id);
-		}
-
 		const { data: brandA1OwnExpense, error: brandA1Err } = await admin
 			.from('brand_expenses')
 			.insert({
@@ -317,17 +288,6 @@ describe('brand_expenses and expense_receipts federation', () => {
 			throw new Error(`brand_expenses (brand A2) insert failed: ${brandA2Err?.message}`);
 		}
 		brandA2ExpenseId = (brandA2Expense as { id: string }).id;
-
-		// Free the sequence-1 and sequence-2 numbers so Rep A's rows below
-		// can claim them without colliding with the still-live Brand A rows
-		// above (which hold sequence 3 and 4).
-		const { error: paddingDeleteErr } = await admin
-			.from('brand_expenses')
-			.delete()
-			.in('id', paddingIds);
-		if (paddingDeleteErr) {
-			throw new Error(`brand_expenses (padding) delete failed: ${paddingDeleteErr.message}`);
-		}
 
 		const { data: repOwnExpense, error: repOwnErr } = await admin
 			.from('brand_expenses')
@@ -402,8 +362,6 @@ describe('brand_expenses and expense_receipts federation', () => {
 
 	afterAll(async () => {
 		const admin = adminClient();
-		// Padding rows are already deleted in beforeAll; only the real rows
-		// remain to clean up.
 		await admin
 			.from('brand_expenses')
 			.delete()
@@ -471,5 +429,14 @@ describe('brand_expenses and expense_receipts federation', () => {
 		const brandAMember = await personaClient('brandAMember');
 		await expectVisible(brandAMember, 'brand_expenses', brandA1OwnExpenseId);
 		await expectHidden(brandAMember, 'brand_expenses', brandA2ExpenseId);
+	});
+
+	// Positive control for the test above: an unscoped admin in the same org
+	// sees the A2 expense the scoped member is hidden from, proving the
+	// hidden result above is member_brand_access scoping and not some
+	// unrelated reason the row is invisible to everyone.
+	it('an unscoped admin sees the A2 expense', async () => {
+		const brandA = await personaClient('brandAAdmin');
+		await expectVisible(brandA, 'brand_expenses', brandA2ExpenseId);
 	});
 });

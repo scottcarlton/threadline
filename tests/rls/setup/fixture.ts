@@ -99,7 +99,15 @@ async function seedOrgs(admin: SupabaseClient): Promise<void> {
 				{
 					id: RLS_IDS.orgBrandA,
 					name: 'RLS Brand A',
-					slug: 'rls-brand-a',
+					// expense_number is generated as EXP-<first 3 chars of org
+					// slug, uppercased>-<count>, against a table-wide unique
+					// constraint. The four fixture slugs are chosen so their
+					// first three characters are distinct from each other
+					// (bra/brb/rpa/rpb), so no two fixture orgs ever compete
+					// for the same expense_number sequence. Do not rename these
+					// back to a shared "rls-" prefix. Match fixture orgs by
+					// NAME ("RLS %"), not slug, in verification queries.
+					slug: 'bra-rls-fixture',
 					org_type: 'brand',
 					// order_number is globally unique across the whole table, but the
 					// counter that feeds it resets to 1 per org. Distinct prefixes
@@ -109,21 +117,21 @@ async function seedOrgs(admin: SupabaseClient): Promise<void> {
 				{
 					id: RLS_IDS.orgBrandB,
 					name: 'RLS Brand B',
-					slug: 'rls-brand-b',
+					slug: 'brb-rls-fixture',
 					org_type: 'brand',
 					order_number_prefix: 'RLSB-'
 				},
 				{
 					id: RLS_IDS.orgRepA,
 					name: 'RLS Rep A',
-					slug: 'rls-rep-a',
+					slug: 'rpa-rls-fixture',
 					org_type: 'rep',
 					order_number_prefix: 'RLSRA-'
 				},
 				{
 					id: RLS_IDS.orgRepB,
 					name: 'RLS Rep B',
-					slug: 'rls-rep-b',
+					slug: 'rpb-rls-fixture',
 					org_type: 'rep',
 					order_number_prefix: 'RLSRB-'
 				}

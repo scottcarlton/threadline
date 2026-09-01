@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Prove, with automated tests against a live local Postgres, that every RLS-enabled table enforces the access contract documented in the permissions implementation map, for every role and both federation directions.
+**Goal:** Prove, with automated tests against a live local Postgres, that the RLS-enabled tables documented in the permissions implementation map enforce their access contract, for every role and both federation directions. This does not cover every RLS-enabled table in the schema: 12 tables have RLS enabled but no entry in the permissions map (6 of those are deny-all with zero policies and are untested here), and `member_territories` and `order_views` cannot be probed with the id-based visibility helpers this suite uses. See the amended permissions map's "Undocumented RLS-enabled tables" section for the full list.
 
 **Architecture:** A separate vitest project (`bun run test:rls`) that runs against local Supabase. A namespaced fixture creates its own orgs, users, connections, and data alongside whatever is already in the local DB, then tears itself down. Tests sign in as real auth users with the anon key and assert what each persona can read and write. The service-role client is used only to seed, inspect ground truth, and clean up. No mocks anywhere in this suite.
 
@@ -1156,7 +1156,7 @@ Run:
 
 ```bash
 docker exec supabase_db_threadline psql -U postgres -d postgres \
-  -c "select count(*) from organizations where slug like 'rls-%';" \
+  -c "select count(*) from organizations where name like 'RLS %';" \
   -c "select count(*) from auth.users where email like '%@rls-test.threadline.local';"
 ```
 
@@ -1168,7 +1168,7 @@ Run:
 
 ```bash
 docker exec supabase_db_threadline psql -U postgres -d postgres \
-  -c "select count(*) from organizations where slug not like 'rls-%';"
+  -c "select count(*) from organizations where name not like 'RLS %';"
 ```
 
 Expected: the same count as before the test run. The fixture must never disturb demo data.
@@ -2490,7 +2490,7 @@ Expected: 0 type errors, unit suite green, RLS suite green, lint clean.
 
 ```bash
 docker exec supabase_db_threadline psql -U postgres -d postgres \
-  -c "select count(*) from organizations where slug like 'rls-%';" \
+  -c "select count(*) from organizations where name like 'RLS %';" \
   -c "select count(*) from auth.users where email like '%@rls-test.threadline.local';"
 ```
 
@@ -2532,6 +2532,7 @@ Use `.claude/skills/git-pre` for the pre-PR gate. Target `dev`. Title: `test: ad
 - Correctness of the ownership checks guarding `supabaseAdmin` call sites. Phase 11 inventories them only.
 - §A.2a "Helper Gap: Sales on Federated Brands". A known gap in `get_user_brand_ids`, not a test target until the gap is closed.
 - §A.2 `get_managed_member_ids`, `get_managed_profile_ids`. Task 6.2 tests own-org visibility of `organization_members` and `orders` rows, which those helpers do not gate; the helpers feed application-layer query filters, not RLS policies, so they are out of scope for an RLS suite.
+- DELETE policies. No test anywhere in this suite issues a delete through a persona client (`adminClient()`, which bypasses RLS, is used for all cleanup deletes). The DELETE column of the permissions contract is unverified across every table family. This is a real gap, not an oversight, and needs its own follow-up task and its own review rather than being folded into this suite's fix wave.
 
 **Known risks carried into execution:**
 
