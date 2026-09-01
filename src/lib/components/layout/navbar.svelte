@@ -15,6 +15,7 @@
 		role?: UserRole | null;
 		isBuyer?: boolean;
 		isNxBlsr?: boolean;
+		isSystemAdmin?: boolean;
 		notificationsOpen?: boolean;
 		onsidebarToggle: () => void;
 		onNotificationsToggle?: () => void;
@@ -27,6 +28,7 @@
 		role = null,
 		isBuyer = false,
 		isNxBlsr = false,
+		isSystemAdmin = false,
 		notificationsOpen = false,
 		onsidebarToggle,
 		onNotificationsToggle
@@ -84,14 +86,18 @@
 			<div
 				class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground"
 			>
-				{isNxBlsr ? '/' : orgDisplayName.charAt(0).toUpperCase()}
+				{isNxBlsr || isSystemAdmin ? '/' : orgDisplayName.charAt(0).toUpperCase()}
 			</div>
 			<div class="hidden flex-col sm:flex">
 				<span class="text-sm leading-tight font-semibold">{orgDisplayName}</span>
-				<span
-					class="font-mono text-[10px] text-muted-foreground text-zinc-500 dark:text-muted-foreground"
-					>{isNxBlsr ? 'Power your Sale' : 'Powered by Threadline'}</span
-				>
+				<!-- The console is Threadline itself, so a "Powered by Threadline"
+				     tagline under the word Threadline says nothing. -->
+				{#if !isSystemAdmin}
+					<span
+						class="font-mono text-[10px] text-muted-foreground text-zinc-500 dark:text-muted-foreground"
+						>{isNxBlsr ? 'Power your Sale' : 'Powered by Threadline'}</span
+					>
+				{/if}
 			</div>
 		</div>
 	</div>

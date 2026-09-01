@@ -5,14 +5,16 @@
 
 	let { data } = $props();
 
-	const firstName = $derived(data.user?.display_name?.split(' ')[0] ?? 'there');
+	// Not split on the first word: the console account is named "System User",
+	// and "Welcome back, System." reads like a truncation.
+	const greetingName = $derived(data.user?.display_name ?? 'there');
 
 	const numberFormat = new Intl.NumberFormat('en-US');
 </script>
 
 <div class="mx-auto max-w-5xl px-4 py-10">
 	<SystemHeader
-		title="Welcome back, {firstName}."
+		title="Welcome back, {greetingName}."
 		subtitle="Operate Threadline from above the org line."
 	/>
 

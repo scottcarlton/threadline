@@ -23,7 +23,7 @@ import type {
 	OrgType,
 	AccountUser
 } from '$lib/types/database.js';
-import { isSystemAdminEmail } from '$lib/server/system-admin.js';
+import { isSystemAdminEmail, SYSTEM_ADMIN_DISPLAY_NAME } from '$lib/server/system-admin.js';
 import { resolveRetailerBuyerContext } from '$lib/server/buyer-context.js';
 
 export type MembershipWithOrg = OrganizationMember & { organizations: Organization };
@@ -256,7 +256,12 @@ export async function loadUserContext(
 export function applyUserContext(locals: App.Locals, result: UserContextResult): void {
 	switch (result.kind) {
 		case 'system_admin':
-			locals.user = result.profile;
+			// Named generically rather than by the seeded email. Applied here so
+			// every surface reading locals.user agrees: navbar, mobile initials,
+			// and the console greeting.
+			locals.user = result.profile
+				? { ...result.profile, display_name: SYSTEM_ADMIN_DISPLAY_NAME }
+				: null;
 			locals.isSystemAdmin = true;
 			return;
 		case 'org_member':

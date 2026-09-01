@@ -345,7 +345,7 @@
 
 	const orgDisplayName = $derived(
 		data.isSystemAdmin
-			? 'System'
+			? 'Threadline'
 			: data.isBuyer && buyerAccountName
 				? buyerAccountName
 				: isNxBlsr
@@ -703,6 +703,7 @@
 			role={data.membership?.role ?? null}
 			isBuyer={data.isBuyer === true}
 			{isNxBlsr}
+			isSystemAdmin={data.isSystemAdmin}
 			{notificationsOpen}
 			onsidebarToggle={() => (sidebarOpen = !sidebarOpen)}
 			onNotificationsToggle={() => (notificationsOpen = !notificationsOpen)}
