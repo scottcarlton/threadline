@@ -157,6 +157,12 @@ export const actions: Actions = {
 			}
 		}
 
+		locals.audit.record('product.created', {
+			subjectId: product.id,
+			subjectLabel: d.styleNumber,
+			metadata: { name: d.name, variantCount: variantRows.length, ats: d.ats }
+		});
+
 		return message(form, {
 			kind: 'success' as const,
 			productId: product.id,
