@@ -85,6 +85,117 @@ describe('brand_assets federation (symmetric)', () => {
 		const brandA = await personaClient('brandAAdmin');
 		await expectVisible(brandA, 'brand_assets', assetRepAOwnId);
 	});
+
+	describe('write gates: insert/delete restricted to admin/owner/member', () => {
+		// "Admin/owner/member can insert assets" and the matching delete
+		// policy both gate on get_user_role(organization_id) IN (admin, owner,
+		// member). Sales is NOT in that list -- contrast this with
+		// account_tag_assignments below, where the same brandASales persona IS
+		// allowed to write.
+		it('an admin can insert a brand asset', async () => {
+			const brandA = await personaClient('brandAAdmin');
+			let id: string | undefined;
+			try {
+				id = await expectInsertAllowed(brandA, 'brand_assets', {
+					brand_id: RLS_IDS.brandA1,
+					organization_id: RLS_IDS.orgBrandA,
+					name: 'RLS Brand Asset Write Gate Admin',
+					file_path: 'rls-probe/write-gate-admin.pdf'
+				});
+			} finally {
+				if (id) await adminClient().from('brand_assets').delete().eq('id', id);
+			}
+		});
+
+		it('a sales role cannot insert a brand asset', async () => {
+			const brandASales = await personaClient('brandASales');
+			await expectInsertDenied(brandASales, 'brand_assets', {
+				brand_id: RLS_IDS.brandA1,
+				organization_id: RLS_IDS.orgBrandA,
+				name: 'RLS Brand Asset Write Gate Sales',
+				file_path: 'rls-probe/write-gate-sales.pdf'
+			});
+		});
+
+		it('a guest cannot insert a brand asset', async () => {
+			const brandAGuest = await personaClient('brandAGuest');
+			await expectInsertDenied(brandAGuest, 'brand_assets', {
+				brand_id: RLS_IDS.brandA1,
+				organization_id: RLS_IDS.orgBrandA,
+				name: 'RLS Brand Asset Write Gate Guest',
+				file_path: 'rls-probe/write-gate-guest.pdf'
+			});
+		});
+
+		it('an admin can delete a brand asset it owns', async () => {
+			const admin = adminClient();
+			const { data: row, error } = await admin
+				.from('brand_assets')
+				.insert({
+					brand_id: RLS_IDS.brandA1,
+					organization_id: RLS_IDS.orgBrandA,
+					name: 'RLS Brand Asset Delete Gate Admin',
+					file_path: 'rls-probe/delete-gate-admin.pdf'
+				})
+				.select('id')
+				.single();
+			if (error || !row) {
+				throw new Error(`brand_assets (delete gate admin) insert failed: ${error?.message}`);
+			}
+			const id = (row as { id: string }).id;
+			let deletedByPersona = false;
+			try {
+				const brandA = await personaClient('brandAAdmin');
+				const { data: deleted, error: deleteErr } = await brandA
+					.from('brand_assets')
+					.delete()
+					.eq('id', id)
+					.select('id');
+				expect(deleteErr, 'delete should be allowed').toBeNull();
+				expect(deleted ?? [], 'delete should affect one row').toEqual([{ id }]);
+				deletedByPersona = true;
+			} finally {
+				// Only clean up if the row is still there; a successful delete
+				// above already removed it.
+				if (!deletedByPersona) await admin.from('brand_assets').delete().eq('id', id);
+			}
+		});
+
+		it('a non-member org cannot delete a brand asset it does not own', async () => {
+			const admin = adminClient();
+			const { data: row, error } = await admin
+				.from('brand_assets')
+				.insert({
+					brand_id: RLS_IDS.brandA1,
+					organization_id: RLS_IDS.orgBrandA,
+					name: 'RLS Brand Asset Delete Gate Non-Member',
+					file_path: 'rls-probe/delete-gate-non-member.pdf'
+				})
+				.select('id')
+				.single();
+			if (error || !row) {
+				throw new Error(`brand_assets (delete gate non-member) insert failed: ${error?.message}`);
+			}
+			const id = (row as { id: string }).id;
+			try {
+				const brandB = await personaClient('brandBAdmin');
+				const { data: deleted, error: deleteErr } = await brandB
+					.from('brand_assets')
+					.delete()
+					.eq('id', id)
+					.select('id');
+				// A DELETE blocked by RLS returns zero rows affected, not an
+				// error, since there is no WITH CHECK on delete to violate.
+				if (deleteErr) {
+					expect(deleteErr.code, 'delete should be denied by RLS').toBe('42501');
+				} else {
+					expect(deleted ?? [], 'delete should affect no rows').toEqual([]);
+				}
+			} finally {
+				await admin.from('brand_assets').delete().eq('id', id);
+			}
+		});
+	});
 });
 
 describe('product_images federation (rep-side only)', () => {
@@ -180,6 +291,41 @@ describe('product_images federation (rep-side only)', () => {
 	it('the rep org sees its own product image', async () => {
 		const repA = await personaClient('repAAdmin');
 		await expectVisible(repA, 'product_images', imageRepAOwnId);
+	});
+
+	describe('write gate: managing images restricted to admin/owner/member', () => {
+		// "Members can manage product images" is an ALL policy gated via a
+		// products join on get_user_role(p.organization_id) IN (admin, owner,
+		// member). Sales is NOT in that list, matching the brand_assets write
+		// gate above -- same persona, same denial, different table.
+		it('an admin can insert a product image', async () => {
+			const brandA = await personaClient('brandAAdmin');
+			let id: string | undefined;
+			try {
+				id = await expectInsertAllowed(brandA, 'product_images', {
+					product_id: RLS_IDS.productA1,
+					file_path: 'rls-probe/write-gate-admin.jpg'
+				});
+			} finally {
+				if (id) await adminClient().from('product_images').delete().eq('id', id);
+			}
+		});
+
+		it('a sales role cannot insert a product image', async () => {
+			const brandASales = await personaClient('brandASales');
+			await expectInsertDenied(brandASales, 'product_images', {
+				product_id: RLS_IDS.productA1,
+				file_path: 'rls-probe/write-gate-sales.jpg'
+			});
+		});
+
+		it('a guest cannot insert a product image', async () => {
+			const brandAGuest = await personaClient('brandAGuest');
+			await expectInsertDenied(brandAGuest, 'product_images', {
+				product_id: RLS_IDS.productA1,
+				file_path: 'rls-probe/write-gate-guest.jpg'
+			});
+		});
 	});
 });
 
