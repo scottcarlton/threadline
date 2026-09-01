@@ -472,7 +472,7 @@
 			</a>
 		{/if}
 
-		{#if isBrandOrg && !isBuyer && !isSystemAdmin}
+		{#if !isSystemAdmin}
 			<a
 				href={resolve('/documents')}
 				class={cn(
