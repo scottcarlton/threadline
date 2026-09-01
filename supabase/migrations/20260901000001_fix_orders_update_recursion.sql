@@ -71,3 +71,35 @@ $$ language plpgsql;
 create trigger orders_no_organization_id_change
 	before update of organization_id on public.orders
 	for each row execute function public.reject_orders_organization_id_change();
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- Change 3: scope buyer order updates to draft, moving only to draft/submitted
+-- ───────────────────────────────────────────────────────────────────────────
+
+-- "Buyers can update own draft orders" (supabase/migrations/20260407000001_buyer_portal.sql)
+-- is named for draft orders but its USING expression never checks status,
+-- and it has no WITH CHECK. With the recursion above blocking every UPDATE
+-- to orders, this gap was unreachable; fixing the recursion makes it
+-- reachable again, so it is closed in the same migration rather than left
+-- open. Without this, a buyer could update an order in any status and set
+-- status to any value, including confirmed, shipped, or cancelled -- states
+-- that belong to the brand/rep side of the lifecycle.
+--
+-- The sibling INSERT policy "Buyers can create draft orders" already
+-- restricts creation to status = 'draft'. The only buyer-side transition is
+-- draft -> submitted; everything from confirmed onward is brand or rep
+-- side, and there is no buyer cancel flow today.
+DROP POLICY IF EXISTS "Buyers can update own draft orders" ON orders;
+
+CREATE POLICY "Buyers can update own draft orders"
+  ON orders FOR UPDATE
+  USING (
+    account_id IN (SELECT get_buyer_account_ids())
+    AND created_by = auth.uid()
+    AND status = 'draft'
+  )
+  WITH CHECK (
+    account_id IN (SELECT get_buyer_account_ids())
+    AND created_by = auth.uid()
+    AND status IN ('draft', 'submitted')
+  );
