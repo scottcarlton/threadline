@@ -150,20 +150,34 @@ async function handleStructuredStep(
 
 			case 'brand-manual': {
 				const v = data.value;
+				// brands.contact_name was split into contact_first_name /
+				// contact_last_name by 20260407000005_contact_name_split. Callers
+				// sending the legacy single field get it split on the first space.
+				let firstName = v.contactFirstName;
+				let lastName = v.contactLastName;
+				if (!firstName && !lastName && v.contactName) {
+					const spaceAt = v.contactName.indexOf(' ');
+					firstName = spaceAt === -1 ? v.contactName : v.contactName.slice(0, spaceAt);
+					lastName = spaceAt === -1 ? '' : v.contactName.slice(spaceAt + 1).trim();
+				}
 				const { data: brand, error: brandErr } = await supabaseAdmin
 					.from('brands')
 					.insert({
 						organization_id: orgId,
 						name: v.name,
-						contact_name: v.contactName || null,
+						contact_first_name: firstName || null,
+						contact_last_name: lastName || null,
 						contact_email: v.contactEmail || null,
+						contact_phone: v.contactPhone || null,
 						website: v.website || null,
+						notes: v.notes || null,
+						commission_rate: v.commissionRate,
 						is_active: true
 					})
-					.select('id')
+					.select('id, name')
 					.single();
 				if (brandErr || !brand) throw brandErr ?? new Error('Brand insert failed');
-				return json({ success: true, brandId: brand.id });
+				return json({ success: true, brandId: brand.id, brandName: brand.name });
 			}
 
 			case 'product-manual': {

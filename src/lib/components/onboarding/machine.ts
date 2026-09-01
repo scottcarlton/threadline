@@ -100,6 +100,7 @@ export interface Stat {
 
 export function statLabel(key: string, n: number): string {
 	const one = n === 1;
+	if (key === 'brands') return one ? 'Brand Added' : 'Brands Added';
 	if (key === 'members') return one ? 'Member Added' : 'Members Added';
 	if (key === 'accounts') return one ? 'Account Added' : 'Accounts Added';
 	if (key === 'products') return one ? 'Product Added' : 'Products Added';
@@ -110,6 +111,7 @@ export function statLabel(key: string, n: number): string {
 /** Rows saved before stats were keyed carry only a label; map them back. */
 export function statKeyFromLabel(label: string): string {
 	const l = label.toLowerCase();
+	if (l.startsWith('brand')) return 'brands';
 	if (l.startsWith('member')) return 'members';
 	if (l.startsWith('account')) return 'accounts';
 	if (l.startsWith('product')) return 'products';

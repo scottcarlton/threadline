@@ -11,6 +11,17 @@ export type MemberDraft = {
 	name: string;
 };
 
+export type BrandDraft = {
+	name: string;
+	contact_first_name: string | null;
+	contact_last_name: string | null;
+	contact_email: string | null;
+	contact_phone: string | null;
+	website: string | null;
+	notes: string | null;
+	commission_rate: number;
+};
+
 export type ProductDraft = {
 	style_number: string;
 	name: string;
@@ -101,6 +112,85 @@ export function parseMembers(headers: string[], rows: Record<string, string>[]):
 			.filter(Boolean)
 			.join(' ');
 		out.push({ email, role, commissionRate, name });
+	}
+	return out;
+}
+
+/**
+ * Brands, for the rep's "brands you carry" step. Name is the only required
+ * column. Rows are deduped by lowercased name so a repeated brand doesn't
+ * become two local records; the endpoint dedupes against the org as well.
+ *
+ * A single "contact name" column is split on the first space, which is how
+ * the same field is handled everywhere else the app takes one: brands store
+ * contact_first_name / contact_last_name.
+ */
+export function parseBrands(headers: string[], rows: Record<string, string>[]): BrandDraft[] {
+	const nameH = pickHeader(headers, ['brand', 'brand name', 'brand_name', 'name']);
+	if (!nameH) return [];
+	const firstH = pickHeader(headers, [
+		'contact first name',
+		'contact_first_name',
+		'first name',
+		'first_name',
+		'firstname'
+	]);
+	const lastH = pickHeader(headers, [
+		'contact last name',
+		'contact_last_name',
+		'last name',
+		'last_name',
+		'lastname'
+	]);
+	const contactH = pickHeader(headers, ['contact', 'contact name', 'contact_name']);
+	const emailH = pickHeader(headers, ['email', 'contact email', 'contact_email', 'email address']);
+	const phoneH = pickHeader(headers, ['phone', 'contact phone', 'contact_phone', 'phone number']);
+	const websiteH = pickHeader(headers, ['website', 'url', 'site', 'web']);
+	const notesH = pickHeader(headers, ['notes', 'note', 'comments']);
+	const commH = pickHeader(headers, ['commission', 'commission rate', 'commission_rate']);
+
+	const cell = (row: Record<string, string>, h: string | null): string =>
+		h ? (row[h] ?? '').trim() : '';
+
+	const out: BrandDraft[] = [];
+	const seen = new Set<string>();
+	for (const row of rows) {
+		const name = cell(row, nameH);
+		if (!name) continue;
+		const dedupeKey = name.toLowerCase();
+		if (seen.has(dedupeKey)) continue;
+		seen.add(dedupeKey);
+
+		let first = cell(row, firstH);
+		let last = cell(row, lastH);
+		if (!first && !last) {
+			const whole = cell(row, contactH);
+			if (whole) {
+				const spaceAt = whole.indexOf(' ');
+				first = spaceAt === -1 ? whole : whole.slice(0, spaceAt);
+				last = spaceAt === -1 ? '' : whole.slice(spaceAt + 1).trim();
+			}
+		}
+
+		// A percentage cell may arrive as "12%", "12" or "0.12". Only the first
+		// two are meaningful as a rate here, and anything out of 0-100 is
+		// dropped rather than clamped so a mis-mapped column can't set 100%.
+		let commission_rate = 0;
+		if (commH) {
+			const raw = toNumber((row[commH] ?? '').replace('%', ''));
+			if (raw !== null && raw >= 0 && raw <= 100) commission_rate = raw;
+		}
+
+		out.push({
+			name,
+			contact_first_name: first || null,
+			contact_last_name: last || null,
+			contact_email: cell(row, emailH) || null,
+			contact_phone: cell(row, phoneH) || null,
+			website: cell(row, websiteH) || null,
+			notes: cell(row, notesH) || null,
+			commission_rate
+		});
 	}
 	return out;
 }
