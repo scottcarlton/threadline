@@ -221,4 +221,34 @@ describe('buyer write surface', () => {
 			await adminClient().from('orders').delete().eq('id', orderId);
 		}
 	});
+
+	// The status/notes cases above only vary values inside the granted
+	// scope. The security-load-bearing half of the new WITH CHECK is the
+	// scope bounding itself (account_id, created_by, and, as of this
+	// migration, brand_id): a buyer must not be able to reassign a draft
+	// order they own onto someone else's identity, someone else's account,
+	// or a brand they were never granted access to. All three escapes are
+	// asserted against one shared order (rather than a fresh insert per
+	// case) because orders.order_number is generated from a per-org
+	// counter with no reuse of deleted numbers -- keeping the insert count
+	// down here avoids an unrelated, pre-existing collision in that
+	// counter once it crosses into double digits within a single test
+	// file, which is not something this migration touches.
+	it('cannot reassign scope-bounding columns', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateDenied(buyer, 'orders', orderId, { created_by: PERSONA_IDS.repAAdmin });
+			await expectUpdateDenied(buyer, 'orders', orderId, { account_id: RLS_IDS.accountRepA });
+			await expectUpdateDenied(buyer, 'orders', orderId, { brand_id: RLS_IDS.brandA2 });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
 });

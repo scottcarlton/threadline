@@ -2,7 +2,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { adminClient } from './setup/clients.js';
 import { RLS_IDS } from './setup/ids.js';
 import { loadPersonaIds, personaClient } from './setup/fixture.js';
-import { expectHidden, expectUpdateDenied, expectVisible } from './setup/assert.js';
+import {
+	expectHidden,
+	expectUpdateAllowed,
+	expectUpdateDenied,
+	expectVisible
+} from './setup/assert.js';
 
 beforeAll(loadPersonaIds);
 
@@ -95,6 +100,25 @@ describe('federated order write boundaries', () => {
 	// by dropping the recursive WITH CHECK: for an UPDATE policy with none,
 	// Postgres reuses the USING expression, which references only
 	// federated_order_links and organization_members, never orders itself.
+	// Positive control for the own-org UPDATE path
+	// ("Admin/owner/member/sales can update orders"): this is the
+	// highest-traffic policy the recursion broke (bulk status update, order
+	// detail page), but the federated and buyer cases above and below don't
+	// exercise it.
+	it('an own-org admin can update their own order', async () => {
+		const repA = await personaClient('repAAdmin');
+		try {
+			await expectUpdateAllowed(repA, 'orders', RLS_IDS.orderRepAOnBrandA, {
+				notes: 'updated by own-org admin'
+			});
+		} finally {
+			await adminClient()
+				.from('orders')
+				.update({ notes: null })
+				.eq('id', RLS_IDS.orderRepAOnBrandA);
+		}
+	});
+
 	it('the target brand can advance the order status', async () => {
 		const brandA = await personaClient('brandAAdmin');
 		try {
@@ -136,6 +160,24 @@ describe('federated order write boundaries', () => {
 		expect(
 			error,
 			'organization_id reassignment should be rejected by the immutability trigger'
+		).not.toBeNull();
+		expect(error?.message).toMatch(/organization_id is immutable/);
+	});
+
+	// The stated reason for a trigger over a WITH CHECK is that it also
+	// fires for service-role writes, which RLS never covers -- the test
+	// above only proves it fires for an RLS subject. Postgres runs BEFORE
+	// ROW triggers before evaluating RLS WITH CHECK, so the service role,
+	// which bypasses RLS entirely, still hits this trigger.
+	it('organization_id cannot be reassigned even by the service role', async () => {
+		const { error } = await adminClient()
+			.from('orders')
+			.update({ organization_id: RLS_IDS.orgRepB })
+			.eq('id', RLS_IDS.orderBrandAInternal)
+			.select('id');
+		expect(
+			error,
+			'organization_id reassignment should be rejected by the immutability trigger even for the service role'
 		).not.toBeNull();
 		expect(error?.message).toMatch(/organization_id is immutable/);
 	});
