@@ -4,6 +4,7 @@ import {
 	normalizeRole,
 	toNumber,
 	parseMembers,
+	parseBrands,
 	parseProducts,
 	parseOrders,
 	capRows,
@@ -414,5 +415,97 @@ describe('parseProducts — sparse continuation rows', () => {
 			rowsOf({ 'style number': 'ST-9', 'style name': '', 'wholesale price': '', 'size name': 'M' })
 		);
 		expect(out).toEqual([]);
+	});
+});
+
+describe('parseBrands', () => {
+	it('reads the template shape', () => {
+		const rows = parseBrands(
+			[
+				'brand',
+				'contact first name',
+				'contact last name',
+				'email',
+				'phone',
+				'website',
+				'commission',
+				'notes'
+			],
+			rowsOf({
+				brand: 'Marlowe Studio',
+				'contact first name': 'Ana',
+				'contact last name': 'Ruiz',
+				email: 'ana@marlowestudio.com',
+				phone: '212-555-0142',
+				website: 'marlowestudio.com',
+				commission: '12',
+				notes: 'Spring delivery only'
+			})
+		);
+		expect(rows).toEqual([
+			{
+				name: 'Marlowe Studio',
+				contact_first_name: 'Ana',
+				contact_last_name: 'Ruiz',
+				contact_email: 'ana@marlowestudio.com',
+				contact_phone: '212-555-0142',
+				website: 'marlowestudio.com',
+				notes: 'Spring delivery only',
+				commission_rate: 12
+			}
+		]);
+	});
+
+	it('returns nothing without a name column', () => {
+		expect(parseBrands(['email'], rowsOf({ email: 'a@b.com' }))).toEqual([]);
+	});
+
+	it('skips rows with a blank name and dedupes by name, case-insensitively', () => {
+		const rows = parseBrands(
+			['name'],
+			rowsOf({ name: 'Halden' }, { name: '  ' }, { name: 'halden' }, { name: 'Loft' })
+		);
+		expect(rows.map((r) => r.name)).toEqual(['Halden', 'Loft']);
+	});
+
+	it('splits a single contact name column on the first space', () => {
+		const [row] = parseBrands(
+			['brand', 'contact name'],
+			rowsOf({ brand: 'Halden', 'contact name': 'Tom Van Byrne' })
+		);
+		expect(row.contact_first_name).toBe('Tom');
+		expect(row.contact_last_name).toBe('Van Byrne');
+	});
+
+	it('keeps a one-word contact as the first name', () => {
+		const [row] = parseBrands(['brand', 'contact'], rowsOf({ brand: 'Halden', contact: 'Tom' }));
+		expect(row.contact_first_name).toBe('Tom');
+		expect(row.contact_last_name).toBeNull();
+	});
+
+	it('reads commission with or without a percent sign, and drops out-of-range values', () => {
+		const pct = (cell: string) =>
+			parseBrands(['brand', 'commission'], rowsOf({ brand: 'X', commission: cell }))[0]
+				.commission_rate;
+		expect(pct('12%')).toBe(12);
+		expect(pct('12')).toBe(12);
+		expect(pct('')).toBe(0);
+		expect(pct('not a number')).toBe(0);
+		expect(pct('120')).toBe(0);
+		expect(pct('-5')).toBe(0);
+	});
+
+	it('leaves absent optional columns null', () => {
+		const [row] = parseBrands(['brand'], rowsOf({ brand: 'Halden' }));
+		expect(row).toEqual({
+			name: 'Halden',
+			contact_first_name: null,
+			contact_last_name: null,
+			contact_email: null,
+			contact_phone: null,
+			website: null,
+			notes: null,
+			commission_rate: 0
+		});
 	});
 });

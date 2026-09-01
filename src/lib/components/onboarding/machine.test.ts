@@ -127,6 +127,8 @@ describe('isSkippable', () => {
 
 describe('stat cards', () => {
 	it('derives one label per step, singular and plural', () => {
+		expect(statLabel('brands', 1)).toBe('Brand Added');
+		expect(statLabel('brands', 6)).toBe('Brands Added');
 		expect(statLabel('members', 1)).toBe('Member Added');
 		expect(statLabel('members', 10)).toBe('Members Added');
 		expect(statLabel('accounts', 2)).toBe('Accounts Added');
