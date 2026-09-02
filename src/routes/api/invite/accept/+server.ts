@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { notifyOrgMembers } from '$lib/server/notifications.js';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	const { token, userId } = await request.json();
 
 	if (!token || !userId) {
@@ -13,7 +13,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Look up the invitation
 	const { data: invitation, error: invError } = await supabaseAdmin
 		.from('invitations')
-		.select('*')
+		// organizations(name) so the audit row carries the org's name, not just
+		// its id. The console renders organization_name, and the invitee has no
+		// membership yet, so the hook has no default org name to fall back on.
+		.select('*, organizations(name)')
 		.eq('token', token)
 		.is('accepted_at', null)
 		.single();
@@ -90,6 +93,36 @@ export const POST: RequestHandler = async ({ request }) => {
 		title: 'New team member',
 		body: `${profile?.display_name ?? 'A new member'} has joined the team`,
 		link: '/organization/members'
+	});
+
+	// The sibling of invite/[token]/accept, which the OAuth flow uses. This is
+	// the endpoint the OTP flow posts to, so without these the log would record
+	// only half the acceptances and read as though the rest never joined.
+	//
+	// The subject is the body's userId, not the actor: this handler enrolls
+	// whoever the caller names. Recording both means a mismatch is visible
+	// rather than silent.
+	const invOrg = invitation.organizations as { name?: string } | { name?: string }[] | null;
+	const organizationName = (Array.isArray(invOrg) ? invOrg[0]?.name : invOrg?.name) ?? null;
+	const subjectLabel = profile?.display_name ?? invitation.email ?? userId;
+	locals.audit.record('auth.invite_accepted', {
+		organizationId: invitation.organization_id,
+		organizationName,
+		subjectId: userId,
+		subjectLabel,
+		metadata: { role: invitation.role }
+	});
+	locals.audit.record('member.added', {
+		organizationId: invitation.organization_id,
+		organizationName,
+		subjectId: userId,
+		subjectLabel,
+		metadata: {
+			role: invitation.role,
+			viaInvitation: true,
+			brandCount: invitation.brand_ids?.length ?? 0,
+			territoryCount: invitation.territory_ids?.length ?? 0
+		}
 	});
 
 	return json({ success: true });
