@@ -2,6 +2,12 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 
+/** Supabase types a single-row join as object-or-array; normalise both. */
+function memberName(rel: unknown): string | null {
+	const p = rel as { display_name?: string } | { display_name?: string }[] | null;
+	return (Array.isArray(p) ? p[0]?.display_name : p?.display_name) ?? null;
+}
+
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { membership, organization } = locals;
 
@@ -20,7 +26,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const { data: target } = await supabaseAdmin
 		.from('organization_members')
-		.select('id, role')
+		.select('id, role, profile_id, profiles!organization_members_profile_id_fkey(display_name)')
 		.eq('id', memberId)
 		.eq('organization_id', organization.id)
 		.maybeSingle();
@@ -44,6 +50,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (updateError) {
 		return json({ error: updateError.message }, { status: 500 });
 	}
+
+	locals.audit.record('member.reporting_changed', {
+		subjectId: target.profile_id,
+		subjectLabel: memberName(target.profiles),
+		metadata: { memberId },
+		changes: { manages_others: { after: managesOthers } }
+	});
 
 	return json({ success: true });
 };
