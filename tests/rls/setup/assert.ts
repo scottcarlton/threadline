@@ -94,6 +94,12 @@ export async function expectUpdateAllowed(
  * clause hides the row (no error, zero rows affected) or, for a table
  * with no DELETE-capable policy at all, PostgREST/Postgres raises 42501.
  * Both count as denied.
+ *
+ * Same caveat as expectUpdateDenied: a bare pass here cannot by itself
+ * distinguish "denied by RLS" from "the row never existed" -- both look
+ * like zero affected rows. Callers must seed the row with a
+ * privileged/service-role client and confirm the insert succeeded before
+ * calling this, or a typo'd id would pass vacuously.
  */
 export async function expectDeleteDenied(
 	client: SupabaseClient,

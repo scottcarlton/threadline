@@ -33,10 +33,149 @@ type DeleteProbe = {
  * (product_images needs a product, order_lines needs the fixture's own
  * order). Owned by Rep A, created once in beforeAll, deleted once in
  * afterAll.
+ *
+ * crossOrgProbes below is a plain module-level array, not populated
+ * inside beforeAll: it.each needs the list at collection time, before any
+ * hook runs. Only the product_images row's `product_id` needs
+ * helperIds.imageProductId, and that closure isn't invoked until each
+ * individual test body runs, by which point beforeAll has already
+ * populated it.
  */
 let helperIds: { imageProductId: string };
 
-let crossOrgProbes: DeleteProbe[];
+const crossOrgProbes: DeleteProbe[] = [
+	// Own-org family. Row shapes copied from own-org.test.ts's probes
+	// array, which are already correct against this schema.
+	{
+		table: 'seasons',
+		row: () => ({ organization_id: RLS_IDS.orgRepA, name: 'RLS Delete Probe Season' })
+	},
+	{
+		table: 'shows',
+		row: () => ({ organization_id: RLS_IDS.orgRepA, name: 'RLS Delete Probe Show' })
+	},
+	{
+		table: 'source_types',
+		row: () => ({ organization_id: RLS_IDS.orgRepA, name: 'RLS Delete Probe Source' })
+	},
+	{
+		table: 'appointments',
+		row: () => ({
+			organization_id: RLS_IDS.orgRepA,
+			notes: 'RLS Delete Probe Appointment',
+			created_by: PERSONA_IDS.repAAdmin
+		})
+	},
+	{
+		table: 'commission_overrides',
+		row: () => ({
+			organization_id: RLS_IDS.orgRepA,
+			brand_id: RLS_IDS.brandRepAOwn,
+			account_id: RLS_IDS.accountRepA,
+			rate: 5
+		})
+	},
+	{
+		table: 'organization_shipping_methods',
+		row: () => ({
+			organization_id: RLS_IDS.orgRepA,
+			name: 'RLS Delete Probe Shipping',
+			cost_type: 'flat'
+		})
+	},
+
+	// Federation-aware family. New rows owned by Rep A, distinct from
+	// the shared fixture rows so this file never disturbs other specs.
+	{
+		table: 'brands',
+		row: () => ({
+			organization_id: RLS_IDS.orgRepA,
+			name: 'RLS Delete Probe Brand',
+			is_active: true
+		})
+	},
+	{
+		table: 'products',
+		row: () => ({
+			organization_id: RLS_IDS.orgRepA,
+			brand_id: RLS_IDS.brandRepAOwn,
+			name: 'RLS Delete Probe Product',
+			style_number: 'RLS-DEL-PROD'
+		})
+	},
+	{
+		table: 'product_images',
+		row: () => ({
+			product_id: helperIds.imageProductId,
+			file_path: 'rls-probe/delete-probe-image.jpg'
+		})
+	},
+	{
+		table: 'accounts',
+		row: () => ({
+			organization_id: RLS_IDS.orgRepA,
+			business_name: 'RLS Delete Probe Account'
+		})
+	},
+	{
+		table: 'account_locations',
+		row: () => ({
+			account_id: RLS_IDS.accountRepA,
+			organization_id: RLS_IDS.orgRepA,
+			label: 'RLS Delete Probe Location'
+		})
+	},
+	{
+		table: 'brand_assets',
+		row: () => ({
+			brand_id: RLS_IDS.brandRepAOwn,
+			organization_id: RLS_IDS.orgRepA,
+			name: 'RLS Delete Probe Asset',
+			file_path: 'rls-probe/delete-probe-asset.pdf'
+		})
+	},
+	{
+		table: 'account_tags',
+		row: () => ({ organization_id: RLS_IDS.orgRepA, name: 'RLS Delete Probe Tag' })
+	},
+
+	// Explicit federation family.
+	{
+		table: 'order_lines',
+		row: () => ({
+			order_id: RLS_IDS.orderRepAOnBrandA,
+			product_id: RLS_IDS.productA1,
+			variant_id: RLS_IDS.variantA1,
+			style_number: 'RLS-A1',
+			color: 'Black',
+			size: 'M',
+			qty: 1,
+			unit_price: 50
+		})
+	},
+	// order_comments' DELETE grant ("Users can delete their own comments")
+	// is `author_id = auth.uid()` only -- there is no org-membership
+	// clause on it at all, unlike every other table in this sweep. The
+	// denial/allowed pair below still holds (repBAdmin genuinely is not
+	// the author; repAAdmin genuinely is), but it proves author-identity
+	// scoping, not an org boundary, even though it sits in this list
+	// alongside tables where the mechanism is org-role.
+	{
+		table: 'order_comments',
+		row: () => ({
+			order_id: RLS_IDS.orderRepAOnBrandA,
+			author_id: PERSONA_IDS.repAAdmin,
+			body: 'RLS delete probe comment',
+			source_org_id: RLS_IDS.orgRepA
+		})
+	},
+
+	// Connection management family.
+	{
+		table: 'connection_members',
+		row: () => ({ org_connection_id: RLS_IDS.connActive, profile_id: PERSONA_IDS.repASales })
+	}
+];
 
 beforeAll(async () => {
 	const admin = adminClient();
@@ -55,133 +194,6 @@ beforeAll(async () => {
 		throw new Error(`helper product for product_images insert failed: ${imageProductErr.message}`);
 	}
 	helperIds = { imageProductId: (imageProduct as { id: string }).id };
-
-	crossOrgProbes = [
-		// Own-org family. Row shapes copied from own-org.test.ts's probes
-		// array, which are already correct against this schema.
-		{
-			table: 'seasons',
-			row: () => ({ organization_id: RLS_IDS.orgRepA, name: 'RLS Delete Probe Season' })
-		},
-		{
-			table: 'shows',
-			row: () => ({ organization_id: RLS_IDS.orgRepA, name: 'RLS Delete Probe Show' })
-		},
-		{
-			table: 'source_types',
-			row: () => ({ organization_id: RLS_IDS.orgRepA, name: 'RLS Delete Probe Source' })
-		},
-		{
-			table: 'appointments',
-			row: () => ({
-				organization_id: RLS_IDS.orgRepA,
-				notes: 'RLS Delete Probe Appointment',
-				created_by: PERSONA_IDS.repAAdmin
-			})
-		},
-		{
-			table: 'commission_overrides',
-			row: () => ({
-				organization_id: RLS_IDS.orgRepA,
-				brand_id: RLS_IDS.brandRepAOwn,
-				account_id: RLS_IDS.accountRepA,
-				rate: 5
-			})
-		},
-		{
-			table: 'organization_shipping_methods',
-			row: () => ({
-				organization_id: RLS_IDS.orgRepA,
-				name: 'RLS Delete Probe Shipping',
-				cost_type: 'flat'
-			})
-		},
-
-		// Federation-aware family. New rows owned by Rep A, distinct from
-		// the shared fixture rows so this file never disturbs other specs.
-		{
-			table: 'brands',
-			row: () => ({
-				organization_id: RLS_IDS.orgRepA,
-				name: 'RLS Delete Probe Brand',
-				is_active: true
-			})
-		},
-		{
-			table: 'products',
-			row: () => ({
-				organization_id: RLS_IDS.orgRepA,
-				brand_id: RLS_IDS.brandRepAOwn,
-				name: 'RLS Delete Probe Product',
-				style_number: 'RLS-DEL-PROD'
-			})
-		},
-		{
-			table: 'product_images',
-			row: () => ({
-				product_id: helperIds.imageProductId,
-				file_path: 'rls-probe/delete-probe-image.jpg'
-			})
-		},
-		{
-			table: 'accounts',
-			row: () => ({
-				organization_id: RLS_IDS.orgRepA,
-				business_name: 'RLS Delete Probe Account'
-			})
-		},
-		{
-			table: 'account_locations',
-			row: () => ({
-				account_id: RLS_IDS.accountRepA,
-				organization_id: RLS_IDS.orgRepA,
-				label: 'RLS Delete Probe Location'
-			})
-		},
-		{
-			table: 'brand_assets',
-			row: () => ({
-				brand_id: RLS_IDS.brandRepAOwn,
-				organization_id: RLS_IDS.orgRepA,
-				name: 'RLS Delete Probe Asset',
-				file_path: 'rls-probe/delete-probe-asset.pdf'
-			})
-		},
-		{
-			table: 'account_tags',
-			row: () => ({ organization_id: RLS_IDS.orgRepA, name: 'RLS Delete Probe Tag' })
-		},
-
-		// Explicit federation family.
-		{
-			table: 'order_lines',
-			row: () => ({
-				order_id: RLS_IDS.orderRepAOnBrandA,
-				product_id: RLS_IDS.productA1,
-				variant_id: RLS_IDS.variantA1,
-				style_number: 'RLS-A1',
-				color: 'Black',
-				size: 'M',
-				qty: 1,
-				unit_price: 50
-			})
-		},
-		{
-			table: 'order_comments',
-			row: () => ({
-				order_id: RLS_IDS.orderRepAOnBrandA,
-				author_id: PERSONA_IDS.repAAdmin,
-				body: 'RLS delete probe comment',
-				source_org_id: RLS_IDS.orgRepA
-			})
-		},
-
-		// Connection management family.
-		{
-			table: 'connection_members',
-			row: () => ({ org_connection_id: RLS_IDS.connActive, profile_id: PERSONA_IDS.repASales })
-		}
-	];
 });
 
 afterAll(async () => {
@@ -208,29 +220,33 @@ async function insertProbe(probe: DeleteProbe): Promise<string> {
 }
 
 describe('cross-org DELETE denial (with owner positive control)', () => {
-	it('an outsider org cannot delete, but the owning org admin can', async () => {
+	// it.each rather than one it looping every table: a throw on table 3
+	// used to fail the whole run without saying anything about tables 4
+	// through 16, and identifying the failing table needed the stack
+	// trace. Splitting means each table reports pass/fail independently
+	// and by name. The denial-then-owner-positive-control ordering inside
+	// each case is unchanged.
+	it.each(crossOrgProbes)('$table: outsider denied, owning org admin allowed', async (probe) => {
 		const outsider = await personaClient('repBAdmin');
 		const owner = await personaClient('repAAdmin');
 
-		for (const probe of crossOrgProbes) {
-			const id = await insertProbe(probe);
-			let deletedByOwner = false;
-			try {
-				// 1. Outsider org cannot delete the row.
-				await expectDeleteDenied(outsider, probe.table, id);
+		const id = await insertProbe(probe);
+		let deletedByOwner = false;
+		try {
+			// 1. Outsider org cannot delete the row.
+			await expectDeleteDenied(outsider, probe.table, id);
 
-				// 2. The owning org's admin genuinely can. This positive
-				// control is essential: without it, the denial above could
-				// pass simply because nobody at all can delete this table,
-				// which is exactly the false confidence this suite exists to
-				// remove. If this assertion fails, that is a finding to
-				// report, not a reason to drop the table from the list.
-				await expectDeleteAllowed(owner, probe.table, id);
-				deletedByOwner = true;
-			} finally {
-				if (!deletedByOwner) {
-					await adminClient().from(probe.table).delete().eq('id', id);
-				}
+			// 2. The owning org's admin genuinely can. This positive
+			// control is essential: without it, the denial above could
+			// pass simply because nobody at all can delete this table,
+			// which is exactly the false confidence this suite exists to
+			// remove. If this assertion fails, that is a finding to
+			// report, not a reason to drop the table from the list.
+			await expectDeleteAllowed(owner, probe.table, id);
+			deletedByOwner = true;
+		} finally {
+			if (!deletedByOwner) {
+				await adminClient().from(probe.table).delete().eq('id', id);
 			}
 		}
 	});
@@ -302,11 +318,14 @@ describe('tables with no DELETE-capable policy deny deletion even to the owning 
 
 	it('federated_order_links cannot be deleted, even by an involved org admin', async () => {
 		const repA = await personaClient('repAAdmin');
-		const { data } = await adminClient()
+		const { data, error } = await adminClient()
 			.from('federated_order_links')
 			.select('id')
 			.eq('order_id', RLS_IDS.orderRepAOnBrandA)
 			.single();
+		if (error || !data) {
+			throw new Error(`federated_order_links lookup failed: ${error?.message ?? 'no row found'}`);
+		}
 		const linkId = (data as { id: string }).id;
 		await expectDeleteDenied(repA, 'federated_order_links', linkId);
 	});
