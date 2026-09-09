@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	const { token, userId } = await request.json();
 
 	if (!token || !userId) {
@@ -12,7 +12,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Look up the buyer invitation
 	const { data: invitation, error: invError } = await supabaseAdmin
 		.from('buyer_invitations')
-		.select('*')
+		// See the org-invite sibling: the console renders organization_name, and
+		// a buyer never has a membership for the hook to default from.
+		.select('*, organizations(name)')
 		.eq('token', token)
 		.is('accepted_at', null)
 		.single();
@@ -43,6 +45,18 @@ export const POST: RequestHandler = async ({ request }) => {
 		.from('buyer_invitations')
 		.update({ accepted_at: new Date().toISOString() })
 		.eq('id', invitation.id);
+
+	// Only invite_accepted, not member.added: a buyer gets an account_users row,
+	// never an organization_members one, and calling that "added a member" would
+	// put a teammate on the org's roster who is not one.
+	const invOrg = invitation.organizations as { name?: string } | { name?: string }[] | null;
+	locals.audit.record('auth.invite_accepted', {
+		organizationId: invitation.organization_id,
+		organizationName: (Array.isArray(invOrg) ? invOrg[0]?.name : invOrg?.name) ?? null,
+		subjectId: userId,
+		subjectLabel: invitation.email ?? userId,
+		metadata: { role: invitation.role ?? 'buyer', accountId: invitation.account_id, buyer: true }
+	});
 
 	return json({ success: true });
 };

@@ -14,7 +14,9 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	// Look up the invitation
 	const { data: invitation } = await supabaseAdmin
 		.from('invitations')
-		.select('*')
+		// organizations(name) so the audit rows below carry the org's name. The
+		// invitee has no membership yet, so the hook has no default to supply it.
+		.select('*, organizations(name)')
 		.eq('token', token)
 		.is('accepted_at', null)
 		.single();
@@ -97,15 +99,19 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	// Two events, not one: the invitee accepting is the auth story, and the org
 	// gaining a member is the org's. Both name the org explicitly because the
 	// hook stamps no default for a user who had no membership until this request.
+	const invOrg = invitation.organizations as { name?: string } | { name?: string }[] | null;
+	const organizationName = (Array.isArray(invOrg) ? invOrg[0]?.name : invOrg?.name) ?? null;
 	const subjectLabel = session.user.email ?? userId;
 	locals.audit.record('auth.invite_accepted', {
 		organizationId: invitation.organization_id,
+		organizationName,
 		subjectId: userId,
 		subjectLabel,
 		metadata: { role: invitation.role }
 	});
 	locals.audit.record('member.added', {
 		organizationId: invitation.organization_id,
+		organizationName,
 		subjectId: userId,
 		subjectLabel,
 		metadata: {
