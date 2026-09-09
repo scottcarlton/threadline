@@ -75,6 +75,19 @@ export const AUDIT_EVENTS = {
 		label: "changed a member's brand access",
 		subjectType: 'profiles'
 	},
+	// Pay and reporting structure are not role changes. Folding them into
+	// member.role_changed would claim someone's permissions moved when only
+	// their commission or their manager did.
+	'member.commission_changed': {
+		category: 'membership',
+		label: "changed a member's commission",
+		subjectType: 'profiles'
+	},
+	'member.reporting_changed': {
+		category: 'membership',
+		label: "changed a member's reporting line",
+		subjectType: 'profiles'
+	},
 
 	// ── Federation / connections ────────────────────────────────────────────
 	'connection.requested': {
