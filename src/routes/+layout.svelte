@@ -14,6 +14,9 @@
 	import NotificationToasts from '$lib/components/notifications/NotificationToasts.svelte';
 	import NotificationCenter from '$lib/components/notifications/NotificationCenter.svelte';
 	import Markdown from '$lib/components/ai/Markdown.svelte';
+	import SuggestionPanel from '$lib/components/ai/SuggestionPanel.svelte';
+	import { suggestPrompts, type SuggestionMatch } from '$lib/utils/ai-suggest.js';
+	import { entityContext } from '$lib/stores/entityContext.js';
 	import { startUnreadPolling } from '$lib/stores/unread.js';
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
@@ -257,6 +260,11 @@
 	let aiInputEl = $state<HTMLDivElement | null>(null);
 
 	let hasAiInput = $state(false);
+	// Typeahead under the dock input. Best match first; the panel renders it
+	// bottom-up so the best sits nearest the cursor. -1 means nothing is
+	// highlighted, which keeps Enter sending whatever the user actually typed.
+	let aiSuggestions = $state<SuggestionMatch[]>([]);
+	let suggestionIndex = $state(-1);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	const availableAgents = $derived(data.agents ?? []);
 	let showAgentPicker = $state(false);
@@ -282,10 +290,58 @@
 		// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable element managed outside Svelte's reactive graph
 		if (aiInputEl) aiInputEl.innerHTML = '';
 		hasAiInput = false;
+		closeSuggestions();
+	}
+
+	function closeSuggestions() {
+		aiSuggestions = [];
+		suggestionIndex = -1;
+	}
+
+	function refreshSuggestions() {
+		if (data.isBuyer) {
+			closeSuggestions();
+			return;
+		}
+		aiSuggestions = suggestPrompts({
+			query: getAiInput(),
+			path: $page.url.pathname,
+			orgType: data.orgType,
+			role: data.membership?.role ?? 'guest',
+			brandScope: data.brandScope ?? null,
+			entityType: $entityContext.type
+		});
+		suggestionIndex = -1;
+	}
+
+	/** Replace the input with a suggestion, leaving the cursor at the end. */
+	function applySuggestion(text: string) {
+		if (!aiInputEl) return;
+		// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable element managed outside Svelte's reactive graph
+		aiInputEl.innerText = text;
+		hasAiInput = true;
+		closeSuggestions();
+		focusAiInput();
+	}
+
+	function sendSuggestion(text: string) {
+		clearAiInput();
+		sendAiMessage(text);
+	}
+
+	/**
+	 * Move the highlight. The panel renders bottom-up, so a higher index is
+	 * further up the screen: ArrowUp increments.
+	 */
+	function moveSuggestion(delta: number) {
+		const next = suggestionIndex + delta;
+		if (next < -1) return;
+		suggestionIndex = Math.min(next, aiSuggestions.length - 1);
 	}
 
 	function handleAiInput() {
 		hasAiInput = !!getAiInput();
+		refreshSuggestions();
 	}
 
 	function focusAiInput() {
@@ -356,6 +412,39 @@
 	);
 
 	function handleAiKeydown(e: KeyboardEvent) {
+		if (aiSuggestions.length > 0) {
+			if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				moveSuggestion(1);
+				return;
+			}
+			if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				moveSuggestion(-1);
+				return;
+			}
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				// The window handler closes the conversation panel on Escape. While
+				// the typeahead is open it owns the key.
+				e.stopPropagation();
+				closeSuggestions();
+				return;
+			}
+			if (suggestionIndex >= 0) {
+				if (e.key === 'Tab') {
+					e.preventDefault();
+					applySuggestion(aiSuggestions[suggestionIndex].text);
+					return;
+				}
+				if (e.key === 'Enter' && !e.shiftKey) {
+					e.preventDefault();
+					sendSuggestion(aiSuggestions[suggestionIndex].text);
+					return;
+				}
+			}
+		}
+
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			sendAiMessage();
@@ -921,6 +1010,16 @@
 					</div>
 				{/if}
 
+				<!-- Prompt typeahead — sits directly above the input -->
+				{#if aiSuggestions.length > 0}
+					<SuggestionPanel
+						suggestions={aiSuggestions}
+						activeIndex={suggestionIndex}
+						onselect={sendSuggestion}
+						onhover={(i) => (suggestionIndex = i)}
+					/>
+				{/if}
+
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
@@ -1000,6 +1099,7 @@
 								aria-multiline="true"
 								onkeydown={handleAiKeydown}
 								oninput={handleAiInput}
+								onblur={closeSuggestions}
 								class="ai-input max-h-40 min-h-6 flex-1 overflow-y-auto bg-transparent text-base leading-6 break-words text-zinc-100 outline-none"
 								data-placeholder="Ask anything about your business..."
 								style={chatFontStyle}
