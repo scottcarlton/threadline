@@ -152,25 +152,46 @@ These change the build materially. Recommendations given; confirm each.
 
 ## 6. Org-type-aware phase/sub-step matrix (critical)
 
-`org_type` fundamentally changes what "Import Files" means. This mirrors the current wizard (brand has a catalog step; rep has a brand-invite step) and the federation model.
+> **Superseded in part.** This section was written in July 2026 and its Settings
+> column is now wrong: it promised a rep business address, commission defaults
+> and payment terms, all three of which are out. The verified matrix, with
+> file references and current status, lives in `docs/preflight-ux-review.md`
+> (re-verified against `6420444` on 2026-09-01). Read that first; this section
+> keeps the reasoning behind the split.
 
-| Phase                                 | Brand (BOA)                                                                              | Rep (MBISR)                                                     | Retailer                                    |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------- |
-| **1. General Information** (required) | Name → Org type → Org name                                                               | same                                                            | same                                        |
-| **2. Import Files**                   | Accounts, **Products (own catalog)**, Orders                                             | **Brands you carry** (`create_brand`/connect), Accounts, Orders | Accounts/vendors, Orders — no owned catalog |
-| **3. Settings**                       | Address, shipping, payments, terms, taxes, returns (`setup/save` + `skip_setup_section`) | Business address, commission defaults, payment terms            | Ship-to / billing, terms                    |
-| **4. Integrations**                   | Accounting (QuickBooks), Email/Calendar, Slack/Notion/Sheets                             | same                                                            | same                                        |
+`org_type` fundamentally changes what "Import Files" means. This mirrors the federation model: products belong to brands, not to reps.
 
-Key rule (from `CLAUDE.md` and federation model): **products belong to brands, not to reps.** For a rep, the "products" concept is reached via the brands they carry. Retailer onboarding already has a separate creation path (`api/onboarding/create-retailer`, lands `/dashboard`) — treat retailer as a distinct branch, not an afterthought.
+| Phase                                 | Brand (BOA)                                           | Rep (MBISR)                             | Retailer    |
+| ------------------------------------- | ----------------------------------------------------- | --------------------------------------- | ----------- |
+| **1. General Information** (required) | Name, org type, org name                              | same                                    | same        |
+| **2. Import Files**                   | Members, accounts, **products (own catalog)**, orders | **Brands you carry**, members, accounts | Not reached |
+| **3. Settings**                       | Address, payment terms, payment methods               | **No Settings phase**                   | Not reached |
+| **4. Connections**                    | Inbox, tools                                          | Inbox only                              | Not reached |
 
-Reconcile the mock's copy ("Add the products that Acme sells") — that phrasing is brand-correct only.
+Changes from the July version, and why:
+
+- **Rep Settings is gone entirely.** Payment terms and payment methods are the
+  brand's facts: a rep sells on the brand's terms and never collects. The
+  business address is the brand's too, since nothing in the rep app ships from a
+  rep's address. Commission defaults were never built and are explicitly out of
+  scope for now (decision, 2026-09-01). With all of them gone the phase is empty,
+  so it is dropped rather than rendered blank.
+- **Rep products and orders** are shown in the table as removed. That is the
+  intended end state but is not yet settled or built. See Q1 in
+  `docs/preflight-ux-review.md`.
+- **Retailer stays minimal** (decision, 2026-09-01). `create-retailer` redirects
+  to `/dashboard` and no phases 2 to 4 are shown. The open work is to stop the
+  roadmap promising four phases before the org type is known, not to build a
+  retailer flow. A fuller retailer preflight is a later milestone.
+
+Key rule (from `CLAUDE.md` and the federation model): **products belong to brands, not to reps.** For a rep, the "products" concept is reached via the brands they carry.
 
 ---
 
 ## 7. Data & persistence
 
 - Reuse `organizations.onboarding_completed_at` for the terminal state and the existing guard in `onboarding/+page.server.ts` + `hooks.server.ts`.
-- Replace the single integer `onboarding_step` cursor with a richer cursor. Two options:
+- **Locked 2026-09-01: option A.** Replace the single integer `onboarding_step` cursor with a richer cursor. Option A is the decision; B is kept below only to record what was rejected and why. A bare integer phase index cannot mean the same thing to a rep (3 phases) and a brand (4).
   - **A (minimal migration):** add `onboarding_state JSONB` to `organizations` holding `{ phase, sub, subStates, statCounts }`. New migration `supabase/migrations/<ts>_onboarding_state.sql`. Keep `onboarding_step` for backward compat during transition.
   - **B (no migration):** encode `(phase, sub)` into the existing `onboarding_step` integer. Simpler but loses skip/stat detail on resume.
   - Recommend **A**.
@@ -257,6 +278,18 @@ Each phase ends green on `bun run check`, `bun run lint`, `bun run test:run`.
 
 ## Open questions for Scott
 
-1. Confirm the six decisions in §4 (especially: hybrid architecture, members as own step vs folded, org-type matrix, XLSX, sharp-vs-soft visuals).
-2. Integrations (§ phase 4): which connectors are in scope for v1, and do connect flows already exist under `organization/*` to reuse?
-3. Persistence: approve JSONB `onboarding_state` (option A) vs. reusing the integer cursor (option B).
+Answered 2026-09-01:
+
+1. §4 decisions and the org-type matrix: settled, see §6 above and the locked
+   decisions in `docs/preflight-ux-review.md`.
+2. Integrations v1 scope: the flow already ships only providers with a live
+   connect flow (Slack, Microsoft 365, Google Sheets, plus the personal inbox).
+   QuickBooks and Xero stay out until their connect flows exist.
+3. Persistence: **option A**, `onboarding_state` JSONB, with a migration.
+
+Still open:
+
+4. Q1 in `docs/preflight-ux-review.md`: what a rep's products and orders steps
+   become. Everything else in the rep column is final.
+5. XLSX uploads. Users may drop `.xlsx` and it silently fails today. Assumed out
+   of scope for now unless said otherwise.

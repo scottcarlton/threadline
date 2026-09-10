@@ -72,6 +72,37 @@ export function canGoNext(cursor: Cursor, phases: MachinePhase[]): boolean {
 	return !!phase && cursor.subIndex < phase.subs.length - 1;
 }
 
+/** Key a sub-step is recorded under in `subStates`. */
+export function cursorKey(phaseIndex: number, subIndex: number): string {
+	return `${phaseIndex}.${subIndex}`;
+}
+
+/**
+ * Whether the forward chevron may move the cursor.
+ *
+ * Bounds alone are not enough. The chevron moves the cursor without recording
+ * anything, so on bounds alone it walks straight past a required question: past
+ * the org-type cards, into the org name, and the org is then created with no
+ * type at all. Skip exists one row below for leaving a question unanswered, and
+ * it records that intent.
+ *
+ * So the chevron only re-walks ground already covered: both the current
+ * sub-step and the one before it must be resolved, either answered or
+ * explicitly skipped. The previous one is checked too because a user who
+ * chevrons back over an unresolved question must not be able to chevron
+ * forward past it again.
+ */
+export function canGoNextResolved(
+	cursor: Cursor,
+	phases: MachinePhase[],
+	subStates: Record<string, 'done' | 'skipped'>
+): boolean {
+	if (!canGoNext(cursor, phases)) return false;
+	const resolved = (subIndex: number) => !!subStates[cursorKey(cursor.phaseIndex, subIndex)];
+	if (!resolved(cursor.subIndex)) return false;
+	return cursor.subIndex === 0 || resolved(cursor.subIndex - 1);
+}
+
 /** Required sub-steps cannot be skipped. */
 export function isSkippable(sub: MachineSub | undefined): boolean {
 	return !!sub && !sub.required;

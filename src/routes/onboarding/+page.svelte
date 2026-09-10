@@ -21,7 +21,8 @@
 		nextCursor,
 		phaseStatus,
 		canGoPrev,
-		canGoNext,
+		canGoNextResolved,
+		cursorKey,
 		isSkippable,
 		matchOrgType
 	} from '$lib/components/onboarding/machine';
@@ -521,11 +522,12 @@
 	const sub = $derived(phase.subs[subIndex]);
 	const questionCount = $derived(phase.subs.length);
 	const canPrev = $derived(canGoPrev({ phaseIndex, subIndex }));
-	const canNext = $derived(canGoNext({ phaseIndex, subIndex }, phases));
+	// Gated on answers, not just bounds: see canGoNextResolved. This is what
+	// stops a user chevroning past the org-type question and being made an
+	// MBISR by default.
+	const canNext = $derived(canGoNextResolved({ phaseIndex, subIndex }, phases, subStates));
 	const hasDraft = $derived(draft.trim().length > 0);
 	const revealMs = $derived(prefersReduced ? 0 : 320);
-
-	const cursorKey = (p: number, s: number) => `${p}.${s}`;
 
 	const phaseState = (i: number) => phaseStatus(i, { phaseIndex, subIndex }, completed);
 

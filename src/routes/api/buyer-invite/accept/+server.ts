@@ -1,18 +1,21 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { resolveAcceptingProfileId } from '$lib/server/invites/authorize.js';
 
-export const POST: RequestHandler = async ({ request }) => {
-	const { token, userId } = await request.json();
+export const POST: RequestHandler = async ({ request, locals }) => {
+	const { token, userId: bodyUserId } = await request.json();
 
-	if (!token || !userId) {
+	if (!token) {
 		return json({ error: 'Missing required fields' }, { status: 400 });
 	}
 
 	// Look up the buyer invitation
 	const { data: invitation, error: invError } = await supabaseAdmin
 		.from('buyer_invitations')
-		.select('*')
+		// See the org-invite sibling: the console renders organization_name, and
+		// a buyer never has a membership for the hook to default from.
+		.select('*, organizations(name)')
 		.eq('token', token)
 		.is('accepted_at', null)
 		.single();
@@ -24,6 +27,15 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (new Date(invitation.expires_at) < new Date()) {
 		return json({ error: 'Invitation has expired' }, { status: 410 });
 	}
+
+	// Same binding as the org-invite sibling: the token alone must not be
+	// enough to grant buyer access to whatever profile_id the caller names.
+	const { user: sessionUser } = await locals.safeGetSession();
+	const authResult = resolveAcceptingProfileId(sessionUser, bodyUserId, invitation.email);
+	if (!authResult.ok) {
+		return json({ error: authResult.error }, { status: authResult.status });
+	}
+	const userId = authResult.profileId;
 
 	// Create account_users row
 	const { error: memberError } = await supabaseAdmin.from('account_users').insert({
@@ -43,6 +55,18 @@ export const POST: RequestHandler = async ({ request }) => {
 		.from('buyer_invitations')
 		.update({ accepted_at: new Date().toISOString() })
 		.eq('id', invitation.id);
+
+	// Only invite_accepted, not member.added: a buyer gets an account_users row,
+	// never an organization_members one, and calling that "added a member" would
+	// put a teammate on the org's roster who is not one.
+	const invOrg = invitation.organizations as { name?: string } | { name?: string }[] | null;
+	locals.audit.record('auth.invite_accepted', {
+		organizationId: invitation.organization_id,
+		organizationName: (Array.isArray(invOrg) ? invOrg[0]?.name : invOrg?.name) ?? null,
+		subjectId: userId,
+		subjectLabel: invitation.email ?? userId,
+		metadata: { role: invitation.role ?? 'buyer', accountId: invitation.account_id, buyer: true }
+	});
 
 	return json({ success: true });
 };

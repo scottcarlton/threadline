@@ -118,7 +118,7 @@
 		{
 			label: 'Invoices',
 			href: '/invoices',
-			icon: 'M20 22H4C3.44772 22 3 21.5523 3 21V3C3 2.44772 3.44772 2 4 2H20C20.5523 2 21 2.44772 21 3V21C21 21.5523 20.5523 22 20 22ZM8 9V11H16V9H8ZM8 13V15H16V13H8Z',
+			icon: 'M9 4L6 2L3 4V19C3 20.6569 4.34315 22 6 22H20C21.6569 22 23 20.6569 23 19V16H21V4L18 2L15 4L12 2L9 4ZM19 16H7V19C7 19.5523 6.55228 20 6 20C5.44772 20 5 19.5523 5 19V5.07037L6 4.4037L9 6.4037L12 4.4037L15 6.4037L18 4.4037L19 5.07037V16ZM20 20H8.82929C8.93985 19.6872 9 19.3506 9 19V18H21V19C21 19.5523 20.5523 20 20 20Z',
 			fillIcon: true
 		},
 		{
@@ -389,6 +389,30 @@
 						>
 					{/if}
 				</a>
+
+				{#if !isSystemAdmin}
+					<a
+						href={resolve('/documents')}
+						class={cn(
+							'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
+							isActive('/documents')
+								? 'bg-ghost font-medium text-foreground'
+								: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
+						)}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-[18px] w-[18px] shrink-0"
+							fill="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								d="M9 2.00318V2H19.9978C20.5513 2 21 2.45531 21 2.9918V21.0082C21 21.556 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5501 3 20.9932V8L9 2.00318ZM5.82918 8H9V4.83086L5.82918 8ZM11 4V9C11 9.55228 10.5523 10 10 10H5V20H19V4H11Z"
+							/>
+						</svg>
+						<span>Documents</span>
+					</a>
+				{/if}
 			</div>
 
 			<!-- Workspace -->
@@ -471,30 +495,6 @@
 					<path stroke-linecap="round" stroke-linejoin="round" d={orgNav.icon} />
 				</svg>
 				<span>{orgNav.label}</span>
-			</a>
-		{/if}
-
-		{#if !isSystemAdmin}
-			<a
-				href={resolve('/documents')}
-				class={cn(
-					'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
-					isActive('/documents')
-						? 'bg-ghost font-medium text-foreground'
-						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
-				)}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-[18px] w-[18px] shrink-0"
-					fill="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						d="M9 2.00318V2H19.9978C20.5513 2 21 2.45531 21 2.9918V21.0082C21 21.556 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5501 3 20.9932V8L9 2.00318ZM5.82918 8H9V4.83086L5.82918 8ZM11 4V9C11 9.55228 10.5523 10 10 10H5V20H19V4H11Z"
-					/>
-				</svg>
-				<span>Documents</span>
 			</a>
 		{/if}
 

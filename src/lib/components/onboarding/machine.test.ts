@@ -5,6 +5,8 @@ import {
 	phaseStatus,
 	canGoPrev,
 	canGoNext,
+	canGoNextResolved,
+	cursorKey,
 	isSkippable,
 	statLabel,
 	restoreStats,
@@ -202,5 +204,48 @@ describe('matchOrgType', () => {
 		expect(matchOrgType(null)).toBe(null);
 		expect(matchOrgType('not sure yet')).toBe(null);
 		expect(matchOrgType('12345')).toBe(null);
+	});
+});
+
+describe('canGoNextResolved', () => {
+	const answered = (...keys: string[]) => Object.fromEntries(keys.map((k) => [k, 'done' as const]));
+
+	it('refuses to move past an unanswered question', () => {
+		// The M5 bug: on bounds alone the chevron walked from the name question
+		// past the org-type cards, and create-org then coerced the missing type.
+		expect(canGoNextResolved({ phaseIndex: 0, subIndex: 0 }, phases, {})).toBe(false);
+	});
+
+	it('allows re-walking a question already answered', () => {
+		expect(canGoNextResolved({ phaseIndex: 0, subIndex: 0 }, phases, answered('0.0'))).toBe(true);
+	});
+
+	it('counts an explicit skip as resolved', () => {
+		expect(canGoNextResolved({ phaseIndex: 1, subIndex: 0 }, phases, { '1.0': 'skipped' })).toBe(
+			true
+		);
+	});
+
+	it('refuses when the previous question is unresolved', () => {
+		// Chevron back over an unanswered question, then forward again.
+		expect(canGoNextResolved({ phaseIndex: 0, subIndex: 1 }, phases, answered('0.1'))).toBe(false);
+		expect(canGoNextResolved({ phaseIndex: 0, subIndex: 1 }, phases, answered('0.0', '0.1'))).toBe(
+			true
+		);
+	});
+
+	it("does not read another phase's answers", () => {
+		expect(canGoNextResolved({ phaseIndex: 1, subIndex: 0 }, phases, answered('0.0'))).toBe(false);
+	});
+
+	it('still respects the end of the phase', () => {
+		const all = answered('0.0', '0.1', '0.2');
+		expect(canGoNextResolved({ phaseIndex: 0, subIndex: 2 }, phases, all)).toBe(false);
+	});
+});
+
+describe('cursorKey', () => {
+	it('is the key subStates is recorded under', () => {
+		expect(cursorKey(2, 1)).toBe('2.1');
 	});
 });

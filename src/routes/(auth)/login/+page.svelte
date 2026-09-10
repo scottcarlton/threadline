@@ -29,7 +29,18 @@
 	};
 
 	const urlError = get(page).url.searchParams.get('error');
-	const urlErrorMessage = urlError ? (errorMessages[urlError] ?? null) : null;
+	const urlExpectedEmail = get(page).url.searchParams.get('expected');
+	// invite_email_mismatch names the invited address so the retry is
+	// actionable: unlike the other codes, "try again" alone can never
+	// succeed here, since the problem is which account signed in.
+	const urlErrorMessage =
+		urlError === 'invite_email_mismatch'
+			? urlExpectedEmail
+				? `This invitation was sent to ${urlExpectedEmail}. Sign in with that address to accept it.`
+				: 'This invitation was sent to a different email address. Sign in with that address to accept it.'
+			: urlError
+				? (errorMessages[urlError] ?? null)
+				: null;
 
 	if (urlError === 'sso_required') {
 		mode = 'sso-email';
