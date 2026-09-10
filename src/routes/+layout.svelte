@@ -1010,7 +1010,7 @@
 					</div>
 				{/if}
 
-				<!-- Prompt typeahead — sits directly above the input -->
+				<!-- Prompt typeahead: sits directly above the input -->
 				{#if aiSuggestions.length > 0}
 					<SuggestionPanel
 						suggestions={aiSuggestions}
@@ -1097,6 +1097,10 @@
 								tabindex="0"
 								aria-label="Ask anything about your business"
 								aria-multiline="true"
+								aria-controls={aiSuggestions.length > 0 ? 'ai-suggestion-list' : undefined}
+								aria-activedescendant={suggestionIndex >= 0
+									? `ai-suggestion-${suggestionIndex}`
+									: undefined}
 								onkeydown={handleAiKeydown}
 								oninput={handleAiInput}
 								onblur={closeSuggestions}

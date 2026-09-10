@@ -5,7 +5,7 @@
 // org type will refuse, is worse than suggesting nothing: the user spends a
 // round trip to learn they were misled.
 //
-// Copy follows docs/brand/guidelines.md section 1.5 — specific over vague,
+// Copy follows docs/brand/guidelines.md section 1.5: specific over vague,
 // declarative, industry language, no superlatives.
 
 import type { OrgType, UserRole } from '$lib/types/database.js';

@@ -18,12 +18,13 @@
 </script>
 
 <div class="animate-in rounded-2xl bg-zinc-900 py-2 shadow-2xl ring-1 ring-white/10">
-	<ul role="listbox" aria-label="Prompt suggestions">
+	<ul id="ai-suggestion-list" role="listbox" aria-label="Prompt suggestions">
 		{#each rows as { suggestion, index } (suggestion.text)}
 			<li>
 				<button
 					type="button"
 					role="option"
+					id="ai-suggestion-{index}"
 					aria-selected={index === activeIndex}
 					tabindex="-1"
 					onmouseenter={() => onhover(index)}
