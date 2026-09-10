@@ -31,10 +31,16 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	// admin has access to (all sharing the same email). When the invitee
 	// clicks any one of those links, accept every pending invitation that
 	// matches their email so they land with access to the full set in one
-	// step. We keep the security check tight by only matching on the exact
-	// email the user authenticated with.
+	// step. The primary invitation (the token in the URL) and every sibling
+	// are all gated on the same check: the session's authenticated email
+	// must match the invitation's recipient email, so a leaked token alone
+	// is never enough to join an account.
 	const inviteEmailLower = invitation.email.toLowerCase();
 	const acceptableEmail = userEmail === inviteEmailLower;
+
+	if (!acceptableEmail) {
+		throw redirect(303, '/login?error=invite_accept_failed');
+	}
 
 	type Invitation = {
 		id: string;
@@ -47,18 +53,16 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	const targets: Invitation[] = [invitation as Invitation];
 
-	if (acceptableEmail) {
-		const { data: siblings } = await supabaseAdmin
-			.from('buyer_invitations')
-			.select('id, account_id, invited_by, role, email, expires_at')
-			.ilike('email', invitation.email)
-			.is('accepted_at', null)
-			.neq('id', invitation.id);
+	const { data: siblings } = await supabaseAdmin
+		.from('buyer_invitations')
+		.select('id, account_id, invited_by, role, email, expires_at')
+		.ilike('email', invitation.email)
+		.is('accepted_at', null)
+		.neq('id', invitation.id);
 
-		for (const s of (siblings ?? []) as Invitation[]) {
-			if (new Date(s.expires_at) < new Date()) continue;
-			targets.push(s);
-		}
+	for (const s of (siblings ?? []) as Invitation[]) {
+		if (new Date(s.expires_at) < new Date()) continue;
+		targets.push(s);
 	}
 
 	const acceptedAt = new Date().toISOString();
