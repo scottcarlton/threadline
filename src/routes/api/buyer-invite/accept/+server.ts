@@ -1,11 +1,12 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { resolveAcceptingProfileId } from '$lib/server/invites/authorize.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const { token, userId } = await request.json();
+	const { token, userId: bodyUserId } = await request.json();
 
-	if (!token || !userId) {
+	if (!token) {
 		return json({ error: 'Missing required fields' }, { status: 400 });
 	}
 
@@ -26,6 +27,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (new Date(invitation.expires_at) < new Date()) {
 		return json({ error: 'Invitation has expired' }, { status: 410 });
 	}
+
+	// Same binding as the org-invite sibling: the token alone must not be
+	// enough to grant buyer access to whatever profile_id the caller names.
+	const { user: sessionUser } = await locals.safeGetSession();
+	const authResult = resolveAcceptingProfileId(sessionUser, bodyUserId, invitation.email);
+	if (!authResult.ok) {
+		return json({ error: authResult.error }, { status: authResult.status });
+	}
+	const userId = authResult.profileId;
 
 	// Create account_users row
 	const { error: memberError } = await supabaseAdmin.from('account_users').insert({

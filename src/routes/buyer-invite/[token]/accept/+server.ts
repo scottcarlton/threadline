@@ -1,15 +1,15 @@
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { resolveAcceptingProfileId } from '$lib/server/invites/authorize.js';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
-	const { session } = await locals.safeGetSession();
+	const { session, user: sessionUser } = await locals.safeGetSession();
 	if (!session) {
 		throw redirect(303, `/buyer-invite/${params.token}`);
 	}
 
 	const userId = session.user.id;
-	const userEmail = session.user.email?.toLowerCase() ?? null;
 	const token = params.token;
 
 	const { data: invitation } = await supabaseAdmin
@@ -31,10 +31,17 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	// admin has access to (all sharing the same email). When the invitee
 	// clicks any one of those links, accept every pending invitation that
 	// matches their email so they land with access to the full set in one
-	// step. We keep the security check tight by only matching on the exact
-	// email the user authenticated with.
-	const inviteEmailLower = invitation.email.toLowerCase();
-	const acceptableEmail = userEmail === inviteEmailLower;
+	// step. The primary invitation (the token in the URL) and every sibling
+	// are all gated on the same check: the session's authenticated email
+	// must match the invitation's recipient email, so a leaked token alone
+	// is never enough to join an account.
+	const authResult = resolveAcceptingProfileId(sessionUser, undefined, invitation.email);
+	if (!authResult.ok) {
+		throw redirect(
+			303,
+			`/login?error=invite_email_mismatch&expected=${encodeURIComponent(invitation.email)}`
+		);
+	}
 
 	type Invitation = {
 		id: string;
@@ -47,18 +54,16 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	const targets: Invitation[] = [invitation as Invitation];
 
-	if (acceptableEmail) {
-		const { data: siblings } = await supabaseAdmin
-			.from('buyer_invitations')
-			.select('id, account_id, invited_by, role, email, expires_at')
-			.ilike('email', invitation.email)
-			.is('accepted_at', null)
-			.neq('id', invitation.id);
+	const { data: siblings } = await supabaseAdmin
+		.from('buyer_invitations')
+		.select('id, account_id, invited_by, role, email, expires_at')
+		.ilike('email', invitation.email)
+		.is('accepted_at', null)
+		.neq('id', invitation.id);
 
-		for (const s of (siblings ?? []) as Invitation[]) {
-			if (new Date(s.expires_at) < new Date()) continue;
-			targets.push(s);
-		}
+	for (const s of (siblings ?? []) as Invitation[]) {
+		if (new Date(s.expires_at) < new Date()) continue;
+		targets.push(s);
 	}
 
 	const acceptedAt = new Date().toISOString();
