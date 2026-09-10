@@ -39,14 +39,15 @@ async function call(url: string, init: RequestInit, label: string): Promise<unkn
  * a walk that finishes onboarding leaves a completed org, and +page.server.ts
  * redirects a completed org straight back out of /onboarding.
  */
-export type E2EPersona = 'brand' | 'rep' | 'retailer' | 'repDeadEnd' | 'repRoadmap';
+export type E2EPersona = 'brand' | 'rep' | 'retailer' | 'repDeadEnd' | 'repRoadmap' | 'chevronGate';
 
 export const PERSONA_EMAILS: Record<E2EPersona, string> = {
 	brand: fixtureEmail('preflight-brand'),
 	rep: fixtureEmail('preflight-rep'),
 	retailer: fixtureEmail('preflight-retailer'),
 	repDeadEnd: fixtureEmail('preflight-rep-dead-ends'),
-	repRoadmap: fixtureEmail('preflight-rep-roadmap')
+	repRoadmap: fixtureEmail('preflight-rep-roadmap'),
+	chevronGate: fixtureEmail('preflight-chevron-gate')
 };
 
 /**
@@ -59,7 +60,8 @@ export const PERSONA_ORG_NAMES: Record<E2EPersona, string> = {
 	rep: `${E2E_ORG_NAME_PREFIX} Rep`,
 	retailer: `${E2E_ORG_NAME_PREFIX} Retailer`,
 	repDeadEnd: `${E2E_ORG_NAME_PREFIX} Rep Dead Ends`,
-	repRoadmap: `${E2E_ORG_NAME_PREFIX} Rep Roadmap`
+	repRoadmap: `${E2E_ORG_NAME_PREFIX} Rep Roadmap`,
+	chevronGate: `${E2E_ORG_NAME_PREFIX} Chevron Gate`
 };
 
 /** Name typed at the first question. */
@@ -68,7 +70,8 @@ export const PERSONA_DISPLAY_NAMES: Record<E2EPersona, string> = {
 	rep: 'Preflight Rep Tester',
 	retailer: 'Preflight Retailer Tester',
 	repDeadEnd: 'Preflight Rep Dead End Tester',
-	repRoadmap: 'Preflight Rep Roadmap Tester'
+	repRoadmap: 'Preflight Rep Roadmap Tester',
+	chevronGate: 'Preflight Chevron Gate Tester'
 };
 
 type AuthUser = { id: string; email?: string };
