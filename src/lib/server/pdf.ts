@@ -1,8 +1,11 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { orderGrandTotal, orderShippingCost } from '$lib/utils/order-total.js';
 
 export interface OrderData {
 	order_number: string;
+	/** Merchandise only. The printed Order Total adds `shipping_cost` on top. */
 	total_amount: number;
+	shipping_cost?: number | null;
 	notes: string | null;
 	created_at: string;
 	status: string;
@@ -248,8 +251,28 @@ export async function generateOrderPdf(order: OrderData, lines: LineData[]): Pro
 
 	// --- Total ---
 	ensureSpace(40);
-	const totalStr = '$' + Number(order.total_amount).toFixed(2);
+	const totalStr = '$' + orderGrandTotal(order).toFixed(2);
 	const totalLabelX = pageWidth - margin - 150;
+
+	// Break out merchandise and shipping whenever freight is priced. A single
+	// "Order Total" that quietly folds in shipping is not a document a buyer can
+	// reconcile against the line items printed directly above it.
+	const shipping = orderShippingCost(order);
+	if (shipping !== null) {
+		ensureSpace(70);
+		for (const [label, amount] of [
+			['Merchandise:', Number(order.total_amount)],
+			['Shipping:', shipping]
+		] as const) {
+			const str = '$' + amount.toFixed(2);
+			drawText(label, totalLabelX, y, { size: 10, color: gray });
+			const w = helvetica.widthOfTextAtSize(str, 10);
+			drawText(str, pageWidth - margin - w, y, { size: 10, color: gray });
+			y -= 16;
+		}
+		y -= 4;
+	}
+
 	drawText('Order Total:', totalLabelX, y, { font: helveticaBold, size: 12 });
 	const totalValWidth = helveticaBold.widthOfTextAtSize(totalStr, 12);
 	drawText(totalStr, pageWidth - margin - totalValWidth, y, { font: helveticaBold, size: 12 });

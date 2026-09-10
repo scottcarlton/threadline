@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	FULFILLMENT_STATUSES,
 	mayAdvanceOrderStatus,
-	allowedNextStatuses
+	allowedNextStatuses,
+	mayEditShipWindow
 } from './order-status-permissions';
 
 describe('mayAdvanceOrderStatus', () => {
@@ -49,5 +50,30 @@ describe('allowedNextStatuses', () => {
 			'preparing',
 			'cancelled'
 		]);
+	});
+});
+
+describe('mayEditShipWindow', () => {
+	it('lets a rep move the window while the order is still being sold', () => {
+		for (const status of ['draft', 'submitted', 'confirmed']) {
+			expect(mayEditShipWindow('rep', status)).toBe(true);
+		}
+	});
+
+	it('locks the window for a rep once the brand starts fulfilling', () => {
+		for (const status of FULFILLMENT_STATUSES) {
+			expect(mayEditShipWindow('rep', status)).toBe(false);
+		}
+	});
+
+	it('keeps the window editable for the brand at every fulfillment status', () => {
+		for (const status of FULFILLMENT_STATUSES) {
+			expect(mayEditShipWindow('brand', status)).toBe(true);
+		}
+	});
+
+	it('locks the window for a retailer once fulfillment starts', () => {
+		expect(mayEditShipWindow('retailer', 'confirmed')).toBe(true);
+		expect(mayEditShipWindow('retailer', 'preparing')).toBe(false);
 	});
 });
