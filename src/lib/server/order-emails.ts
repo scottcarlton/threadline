@@ -1,6 +1,7 @@
 import { supabaseAdmin } from './supabase.js';
 import { sendEmail } from './email.js';
 import templateIds from '../../../emails/template-ids.json';
+import { orderGrandTotal } from '$lib/utils/order-total.js';
 
 export type OrderEmailEvent =
 	| 'submitted'
@@ -13,7 +14,9 @@ export type OrderEmailEvent =
 type OrderContext = {
 	id: string;
 	order_number: string;
+	/** Merchandise only. TOTAL in the email adds `shipping_cost` on top. */
 	total_amount: number;
+	shipping_cost?: number | null;
 	brand_id: string;
 	account_id: string | null;
 	created_by: string;
@@ -153,7 +156,7 @@ export async function sendOrderEmail(
 	try {
 		const { accountName, brandName } = await resolveOrderContext(order);
 		const orderUrl = `${origin}/orders/${order.id}`;
-		const total = fmt.format(order.total_amount);
+		let total = fmt.format(orderGrandTotal(order));
 
 		const baseParams: Record<string, string | number> = {
 			ORDER_NUMBER: order.order_number,
@@ -167,9 +170,22 @@ export async function sendOrderEmail(
 		if (event === 'shipped') {
 			const { data: freshOrder } = await supabaseAdmin
 				.from('orders')
-				.select('tracking_number, carrier')
+				.select('tracking_number, carrier, shipping_cost')
 				.eq('id', order.id)
 				.single();
+			// The caller hands us the pre-update row, and the shipping cost is
+			// written by the same UPDATE that flipped the status, so the shipped
+			// email has to price itself off the fresh row or it quotes a total
+			// that is missing the freight the buyer is about to be charged for.
+			if (freshOrder) {
+				total = fmt.format(
+					orderGrandTotal({
+						total_amount: order.total_amount,
+						shipping_cost: freshOrder.shipping_cost
+					})
+				);
+				baseParams.TOTAL = total;
+			}
 			if (freshOrder?.tracking_number) {
 				baseParams.TRACKING_NUMBER = freshOrder.tracking_number;
 				const { trackingUrl } = await import('$lib/utils/carriers.js');

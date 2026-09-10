@@ -111,6 +111,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			order_type: o.order_type,
 			status: o.status,
 			total_amount: o.total_amount,
+			shipping_cost: o.shipping_cost,
 			created_at: o.created_at,
 			expected_ship_date: o.expected_ship_date,
 			start_ship_date: o.start_ship_date,

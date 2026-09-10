@@ -54,6 +54,7 @@
 		SPOTLIGHT_LABELS,
 		type SpotlightBucket
 	} from '$lib/utils/order-spotlight.js';
+	import { orderGrandTotal } from '$lib/utils/order-total.js';
 	import { Popover } from 'bits-ui';
 
 	const PAGE_SIZE = 50;
@@ -1310,13 +1311,18 @@
 							<td class="px-4 py-3 text-right font-mono">
 								{#if order.status === 'shipped' || order.status === 'delivered'}
 									<span class="text-sm"
-										>{fmt.format(Number(order.shipped_amount ?? order.total_amount))}</span
+										>{fmt.format(
+											orderGrandTotal({
+												total_amount: order.shipped_amount ?? order.total_amount,
+												shipping_cost: order.shipping_cost
+											})
+										)}</span
 									>
 									<p class="text-xs text-muted-foreground">
 										{fmt.format(Number(order.total_amount))}
 									</p>
 								{:else}
-									<span class="text-sm">{fmt.format(Number(order.total_amount))}</span>
+									<span class="text-sm">{fmt.format(orderGrandTotal(order))}</span>
 									<p class="text-xs text-muted-foreground/50">—</p>
 								{/if}
 							</td>

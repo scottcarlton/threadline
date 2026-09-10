@@ -25,3 +25,20 @@ export function allowedNextStatuses<T extends string>(orgType: OrgType, next: T[
 
 export const FULFILLMENT_STATUS_ERROR =
 	'Only the brand can mark an order preparing, shipped, or delivered.';
+
+/**
+ * Whether an org of this type may still change an order's ship window.
+ *
+ * Once the brand starts fulfilling (`preparing` onward) the window is no
+ * longer a negotiation between rep and buyer, it is a commitment the brand is
+ * actively working against. Moving it from the rep side would rewrite a date
+ * the warehouse is already picking to. The brand keeps the edit because it is
+ * the party that knows when the goods actually leave.
+ */
+export function mayEditShipWindow(orgType: OrgType, status: string): boolean {
+	if (!FULFILLMENT_STATUSES.has(status)) return true;
+	return orgType === 'brand';
+}
+
+export const SHIP_WINDOW_LOCKED_ERROR =
+	'Only the brand can change the ship window once fulfillment has started.';
