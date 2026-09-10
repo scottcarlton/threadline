@@ -805,7 +805,7 @@
 		     flash from the media-query store seeding to false on SSR. -->
 		<div class="flex flex-1 overflow-hidden">
 			<div
-				class="hidden h-full shrink-0 overflow-hidden [view-transition-name:tl-sidebar] lg:block {sidebarMounted
+				class="relative z-40 hidden h-full shrink-0 overflow-hidden [view-transition-name:tl-sidebar] lg:block {sidebarMounted
 					? 'transition-all duration-300 ease-in-out'
 					: 'lg:w-60'}"
 				style={sidebarMounted

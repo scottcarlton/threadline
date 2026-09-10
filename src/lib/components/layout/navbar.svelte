@@ -59,7 +59,7 @@
 </script>
 
 <header
-	class="flex h-14 items-center justify-between bg-background px-2 [view-transition-name:tl-navbar] sm:px-4"
+	class="relative z-40 flex h-14 items-center justify-between bg-background px-2 [view-transition-name:tl-navbar] sm:px-4"
 >
 	<div class="flex items-center gap-3">
 		<button
