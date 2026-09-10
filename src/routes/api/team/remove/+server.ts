@@ -22,7 +22,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	// Prevent removing the owner
 	const { data: targetMember } = await supabaseAdmin
 		.from('organization_members')
-		.select('role')
+		// profile_id and the display name so the audit row names a person rather
+		// than a membership row id nobody can resolve after the row is gone.
+		.select('role, profile_id, profiles!organization_members_profile_id_fkey(display_name)')
 		.eq('id', memberId)
 		.eq('organization_id', organization.id)
 		.single();
@@ -53,6 +55,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (deleteError) {
 		return json({ error: deleteError.message }, { status: 500 });
 	}
+
+	const removedProfile = targetMember.profiles as
+		| { display_name?: string }
+		| { display_name?: string }[]
+		| null;
+	locals.audit.record('member.removed', {
+		subjectId: targetMember.profile_id,
+		subjectLabel:
+			(Array.isArray(removedProfile)
+				? removedProfile[0]?.display_name
+				: removedProfile?.display_name) ?? null,
+		metadata: { role: targetMember.role, memberId }
+	});
 
 	return json({ success: true });
 };
