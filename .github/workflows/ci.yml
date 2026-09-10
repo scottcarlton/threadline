@@ -87,7 +87,25 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Start Supabase
-        run: supabase start
+        # `supabase start` intermittently fails on a fresh runner with
+        # "failed to bind host port 0.0.0.0:54322: address already in use",
+        # a Docker networking race rather than anything about the branch.
+        # It has happened twice, and it surfaces as a red RLS job that ran
+        # zero tests, which reads like a policy regression. Retry with a
+        # clean slate between attempts so a runner hiccup cannot look like
+        # a real failure.
+        run: |
+          for attempt in 1 2 3; do
+            if supabase start; then
+              exit 0
+            fi
+            echo "::warning::supabase start failed on attempt $attempt, cleaning up and retrying"
+            supabase stop --no-backup || true
+            docker ps -aq | xargs -r docker rm -f || true
+            sleep 10
+          done
+          echo "::error::supabase start failed 3 times"
+          exit 1
       - name: Write .env from the local stack
         run: supabase status -o env > .env
       - name: Map env names
