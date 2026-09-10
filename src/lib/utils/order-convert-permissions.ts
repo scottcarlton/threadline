@@ -1,9 +1,13 @@
 /**
  * Who may convert a note into a submitted order.
  *
- * The convert action runs through `supabaseAdmin`, so RLS never sees it and
- * the app layer is the only gate. That makes it the app layer's job to
+ * The convert action runs through the service-role client, so RLS never sees
+ * it and the app layer is the only gate. That makes it the app layer's job to
  * reproduce what RLS would have said.
+ *
+ * This module deliberately names no client of its own: it is a pure
+ * predicate, and the RLS bypass inventory in tests/rls/admin-bypass.test.ts
+ * pins real call sites by grepping for the client's name.
  *
  * Own-org: any writing role may convert their own org's note, matching the
  * `Admin/owner/member/sales can update orders` policy.
