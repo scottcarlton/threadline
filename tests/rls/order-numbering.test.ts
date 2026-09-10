@@ -135,40 +135,66 @@ async function insertOrder(org: ThrowawayOrg, label: string): Promise<string> {
 
 describe('generate_order_number regression: sequence past 9', () => {
 	it('walks the counter past 9 and renders distinct, correct numbers for 10 and 11', async () => {
-		const org = await createThrowawayOrg('regression');
+		// order_number is globally unique across the whole orders table, and
+		// this regression specifically requires the DEFAULT pad width of 0 to
+		// reproduce the original LPAD truncation bug (see file header). A
+		// bare-integer counter with the default empty prefix can collide with
+		// any other organization in the shared local database that also
+		// generates bare integers (e.g. an unrelated org already holding
+		// order_number '1' and '2'). A run-unique prefix keeps the numeric
+		// sequence -- and therefore the truncation path -- identical while
+		// making the rendered order_number collision-proof.
+		const prefix = `rls-ordnum-regression-${crypto.randomUUID().slice(0, 8)}-`;
+		const org = await createThrowawayOrg('regression', { order_number_prefix: prefix });
 
 		// Genuinely walk the sequence rather than asserting on a synthetic
 		// value. With the old GREATEST(_pad, 1) expression, order 10 would
-		// render as '1' and collide with order 1 on orders_order_number_key,
-		// throwing 23505 right here.
+		// render as '<prefix>1' and collide with order 1 on
+		// orders_order_number_key, throwing 23505 right here.
 		for (let seq = 1; seq <= 11; seq++) {
 			const orderNumber = await insertOrder(org, `seq-${seq}`);
-			if (seq === 10) expect(orderNumber).toBe('10');
-			if (seq === 11) expect(orderNumber).toBe('11');
+			if (seq === 10) expect(orderNumber).toBe(`${prefix}10`);
+			if (seq === 11) expect(orderNumber).toBe(`${prefix}11`);
 		}
 	});
 });
 
 describe('generate_order_number: padding and prefix still work', () => {
 	it('pads to the configured width at sequence 10', async () => {
-		const org = await createThrowawayOrg('padding', { order_number_pad_width: 5 });
+		// Same shared-namespace fragility as the regression test above: a bare
+		// zero-padded number ('00010') is just as global-uniqueness-fragile as
+		// a bare integer, so give this org a run-unique prefix too.
+		const prefix = `rls-ordnum-padding-${crypto.randomUUID().slice(0, 8)}-`;
+		const org = await createThrowawayOrg('padding', {
+			order_number_prefix: prefix,
+			order_number_pad_width: 5
+		});
 
 		let orderNumber: string;
 		for (let seq = 1; seq <= 10; seq++) {
 			orderNumber = await insertOrder(org, `seq-${seq}`);
 		}
-		expect(orderNumber!).toBe('00010');
+		expect(orderNumber!).toBe(`${prefix}00010`);
 	});
 
 	it('applies the configured prefix', async () => {
-		const org = await createThrowawayOrg('prefix', { order_number_prefix: 'RLS-' });
+		// The prefix itself is the thing under test here, so it must be
+		// run-unique rather than a fixed literal like 'RLS-' -- a fixed
+		// literal is exactly the shared-namespace hazard this file is being
+		// hardened against.
+		const prefix = `RLS-${crypto.randomUUID().slice(0, 8)}-`;
+		const org = await createThrowawayOrg('prefix', { order_number_prefix: prefix });
 
 		const orderNumber = await insertOrder(org, 'seq-1');
-		expect(orderNumber).toBe('RLS-1');
+		expect(orderNumber).toBe(`${prefix}1`);
 	});
 
 	it('never truncates when the sequence exceeds the pad width', async () => {
-		const org = await createThrowawayOrg('overflow', { order_number_pad_width: 3 });
+		const prefix = `rls-ordnum-overflow-${crypto.randomUUID().slice(0, 8)}-`;
+		const org = await createThrowawayOrg('overflow', {
+			order_number_prefix: prefix,
+			order_number_pad_width: 3
+		});
 
 		// Jump the counter straight to 999 rather than inserting a thousand
 		// rows. This still exercises the real trigger and its real
@@ -185,6 +211,6 @@ describe('generate_order_number: padding and prefix still work', () => {
 		}
 
 		const orderNumber = await insertOrder(org, 'seq-1000');
-		expect(orderNumber).toBe('1000');
+		expect(orderNumber).toBe(`${prefix}1000`);
 	});
 });
