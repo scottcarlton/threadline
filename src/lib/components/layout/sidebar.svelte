@@ -389,6 +389,30 @@
 						>
 					{/if}
 				</a>
+
+				{#if !isSystemAdmin}
+					<a
+						href={resolve('/documents')}
+						class={cn(
+							'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
+							isActive('/documents')
+								? 'bg-ghost font-medium text-foreground'
+								: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
+						)}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-[18px] w-[18px] shrink-0"
+							fill="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								d="M9 2.00318V2H19.9978C20.5513 2 21 2.45531 21 2.9918V21.0082C21 21.556 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5501 3 20.9932V8L9 2.00318ZM5.82918 8H9V4.83086L5.82918 8ZM11 4V9C11 9.55228 10.5523 10 10 10H5V20H19V4H11Z"
+							/>
+						</svg>
+						<span>Documents</span>
+					</a>
+				{/if}
 			</div>
 
 			<!-- Workspace -->
@@ -471,30 +495,6 @@
 					<path stroke-linecap="round" stroke-linejoin="round" d={orgNav.icon} />
 				</svg>
 				<span>{orgNav.label}</span>
-			</a>
-		{/if}
-
-		{#if !isSystemAdmin}
-			<a
-				href={resolve('/documents')}
-				class={cn(
-					'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
-					isActive('/documents')
-						? 'bg-ghost font-medium text-foreground'
-						: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
-				)}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-[18px] w-[18px] shrink-0"
-					fill="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						d="M9 2.00318V2H19.9978C20.5513 2 21 2.45531 21 2.9918V21.0082C21 21.556 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5501 3 20.9932V8L9 2.00318ZM5.82918 8H9V4.83086L5.82918 8ZM11 4V9C11 9.55228 10.5523 10 10 10H5V20H19V4H11Z"
-					/>
-				</svg>
-				<span>Documents</span>
 			</a>
 		{/if}
 
