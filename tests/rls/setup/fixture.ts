@@ -224,7 +224,17 @@ async function seedBrandsAndProducts(admin: SupabaseClient): Promise<void> {
 					id: RLS_IDS.brandRepAOwn,
 					organization_id: RLS_IDS.orgRepA,
 					name: 'RLS Rep A In-House',
-					is_active: true
+					is_active: true,
+					// generate_order_number() resolves org_type through
+					// brands.organization_id -> organizations.org_type. orgRepA is
+					// org_type 'rep', so orders against this brand advance
+					// brands.next_order_number/order_number_prefix, NOT the
+					// organizations-level columns set on orgRepA above. Those only
+					// apply to the BO (org_type != 'rep') path. Without an explicit
+					// prefix here this brand's counter starts at a bare '1', which
+					// collides with any other manual/rep-type brand in the shared
+					// database that also has an empty order_number_prefix.
+					order_number_prefix: 'RLSRAB-'
 				}
 			])
 		).error
