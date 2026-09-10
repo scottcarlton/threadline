@@ -122,6 +122,8 @@ These tables use explicit link records rather than `get_connected_org_ids()`.
 
 **Fulfillment statuses are brand-only.** `preparing`, `shipped`, and `delivered` describe the brand physically fulfilling the order, so a rep org may never set them -- not on a federated order, and not on a "manual brand" its own org owns. Enforced at three layers: the status ladders in `src/routes/orders/[id]/+page.svelte` and `src/routes/orders/+page.svelte`, the `orgType` checks in `/api/orders/[id]/status` and the AI `update_order_status` tool, and the `reject_non_brand_fulfillment_status()` trigger. The shared predicate lives in `src/lib/utils/order-status-permissions.ts`.
 
+**Converting a federated note is admin/owner.** The `convert` action in `src/routes/orders/[id]/+page.server.ts` flips a note to `status = 'submitted'` through `supabaseAdmin`, so RLS never sees it. On a note reached through an active `federated_order_links` row it therefore reproduces `Brand admin updates federated order status` in the app layer: admin/owner only, so a BLSR cannot submit a rep-owned note. Own-org convert stays open to `member`/`sales`, matching the own-org UPDATE policy. The predicate lives in `src/lib/utils/order-convert-permissions.ts` and also gates the Convert to Order button. `PATCH /api/orders/[id]/lines` deliberately stays open to `member`/`sales` on federated orders: editing lines is a content edit, not a status change, and is the documented BOA behavior above.
+
 ### Connection management tables
 
 | Table                       | SELECT                                                                       | INSERT/UPDATE/DELETE            |

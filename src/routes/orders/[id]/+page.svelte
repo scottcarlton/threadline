@@ -20,6 +20,7 @@
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
 	import { diffLineEdits, type DraftRowInput } from '$lib/utils/order-line-diff.js';
 	import { allowedNextStatuses, mayEditShipWindow } from '$lib/utils/order-status-permissions.js';
+	import { mayConvertNote } from '$lib/utils/order-convert-permissions.js';
 	import { classifyOrder, SPOTLIGHT_LABELS } from '$lib/utils/order-spotlight.js';
 	import {
 		orderShippingCost,
@@ -282,6 +283,13 @@
 	// the brand keeps the edit. `data.orgType` is the *viewer's* org type, so a
 	// BOA on a federated rep-owned order reads as 'brand' here and keeps it.
 	const canEditShipWindow = $derived(canEdit && mayEditShipWindow(data.orgType, order.status));
+
+	// Converting a note submits the order. On a federated view that is a
+	// federated status change, which is admin/owner only: the same rule the
+	// convert action enforces server-side. Own-org convert is unchanged.
+	const canConvertNote = $derived(
+		canEdit && (!isFederatedView || mayConvertNote(data.membership?.role ?? '', true))
+	);
 
 	// Brand-side federated view: BOA can advance status at every step AND can
 	// cancel before the order ships. After ship, cancellation is reconciled
@@ -1385,7 +1393,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 								federation?.repDisplayName}{/if}
 					</div>
 				</div>
-				{#if canEdit}
+				{#if canConvertNote}
 					<Button onclick={openConvertModal} loading={convertSubmitting}>Convert to Order</Button>
 				{/if}
 			</div>
