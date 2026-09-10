@@ -88,3 +88,38 @@ export async function expectUpdateAllowed(
 	expect(error, `${table}:${id} update should be allowed`).toBeNull();
 	expect(data ?? [], `${table}:${id} update should affect one row`).toEqual([{ id }]);
 }
+
+/**
+ * A DELETE can be blocked the same two ways an UPDATE can: the USING
+ * clause hides the row (no error, zero rows affected) or, for a table
+ * with no DELETE-capable policy at all, PostgREST/Postgres raises 42501.
+ * Both count as denied.
+ *
+ * Same caveat as expectUpdateDenied: a bare pass here cannot by itself
+ * distinguish "denied by RLS" from "the row never existed" -- both look
+ * like zero affected rows. Callers must seed the row with a
+ * privileged/service-role client and confirm the insert succeeded before
+ * calling this, or a typo'd id would pass vacuously.
+ */
+export async function expectDeleteDenied(
+	client: SupabaseClient,
+	table: string,
+	id: string
+): Promise<void> {
+	const { data, error } = await client.from(table).delete().eq('id', id).select('id');
+	if (error) {
+		expect(error.code, `${table}:${id} delete should be denied by RLS`).toBe('42501');
+		return;
+	}
+	expect(data ?? [], `${table}:${id} delete should affect no rows`).toEqual([]);
+}
+
+export async function expectDeleteAllowed(
+	client: SupabaseClient,
+	table: string,
+	id: string
+): Promise<void> {
+	const { data, error } = await client.from(table).delete().eq('id', id).select('id');
+	expect(error, `${table}:${id} delete should be allowed`).toBeNull();
+	expect(data ?? [], `${table}:${id} delete should affect one row`).toEqual([{ id }]);
+}
