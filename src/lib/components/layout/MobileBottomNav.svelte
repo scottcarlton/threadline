@@ -297,7 +297,7 @@
 
 <!-- Bottom bar wrapper — shared centering for popup + bar -->
 <div
-	class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6"
+	class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6 [view-transition-name:tl-mobile-nav]"
 	transition:fly={{ y: 80, duration: 250 }}
 >
 	<!-- More menu popover -->
