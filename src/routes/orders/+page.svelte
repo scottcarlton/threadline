@@ -12,6 +12,7 @@
 	import FilterBySheet from '$lib/components/shared/FilterBySheet.svelte';
 	import FilterSortSheet from '$lib/components/shared/FilterSortSheet.svelte';
 	import { isLgUp } from '$lib/utils/viewport.js';
+	import { allowedNextStatuses } from '$lib/utils/order-status-permissions.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { DropdownMenu } from 'bits-ui';
 	import {
@@ -344,10 +345,14 @@
 	};
 
 	// Notes aren't part of the order lifecycle — exclude them from bulk status ops.
+	// A rep org also never reports fulfillment, so shipped/delivered drop out of
+	// the bulk menu for them entirely.
 	const bulkNextStatuses = $derived(() => {
 		const selected = filtered.filter((o) => selectedIds.has(o.id));
 		if (selected.length === 0) return [];
-		const sets = selected.map((o) => new Set(statusFlow[o.status] ?? []));
+		const sets = selected.map(
+			(o) => new Set(allowedNextStatuses(data.orgType, statusFlow[o.status] ?? []))
+		);
 		const common = [...sets[0]].filter((s) => sets.every((set) => set.has(s)));
 		return common;
 	});

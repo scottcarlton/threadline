@@ -512,7 +512,7 @@
 				</p>
 			</div>
 
-			<aside class="fixed right-10 bottom-6 hidden w-56 xl:block">
+			<aside class="fixed right-6 bottom-6 hidden w-56 xl:block">
 				<p class="font-semibold">Prefer a human?</p>
 				<p class="mt-1 text-sm text-muted-foreground">
 					Not comfortable setting up your organization, or need help using Threadline.
@@ -699,7 +699,7 @@
 			</p>
 		</div>
 
-		<aside class="fixed right-10 bottom-6 hidden w-56 xl:block">
+		<aside class="fixed right-6 bottom-6 hidden w-56 xl:block">
 			<p class="font-semibold">Prefer a human?</p>
 			<p class="mt-1 text-sm text-muted-foreground">
 				Not comfortable setting up your organization, or need help using Threadline.

@@ -805,7 +805,7 @@
 		     flash from the media-query store seeding to false on SSR. -->
 		<div class="flex flex-1 overflow-hidden">
 			<div
-				class="hidden h-full shrink-0 overflow-hidden lg:block {sidebarMounted
+				class="relative z-40 hidden h-full shrink-0 overflow-hidden [view-transition-name:tl-sidebar] lg:block {sidebarMounted
 					? 'transition-all duration-300 ease-in-out'
 					: 'lg:w-60'}"
 				style={sidebarMounted
@@ -845,7 +845,7 @@
 	{#if !data.isBuyer && (($isLgUp && (!hideAiDock || dockPeeking)) || (!$isLgUp && mobileAiDockOpen))}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 {sidebarMounted
+			class="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center pb-6 [view-transition-name:tl-ai-dock] {sidebarMounted
 				? `transition-[left] duration-300 ease-in-out ${sidebarOpen ? 'lg:left-60' : 'lg:left-0'}`
 				: 'lg:left-60'}"
 			transition:fly={{ y: 100, duration: 300 }}
