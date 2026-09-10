@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { adminClient } from './setup/clients.js';
 import { RLS_IDS } from './setup/ids.js';
 import { MEMBER_ROW_IDS, PERSONA_IDS, loadPersonaIds, personaClient } from './setup/fixture.js';
@@ -864,5 +864,150 @@ describe('order_views: composite PK (order_id, profile_id), profile-scoped only'
 			order_id: RLS_IDS.orderRepAOnBrandA,
 			profile_id: PERSONA_IDS.repASales!
 		});
+	});
+});
+
+/**
+ * SCO-172: the orders UPDATE policy used to be role-only, so
+ * member_brand_access scoping constrained INSERT and SELECT but not UPDATE.
+ * A sales user scoped to one brand could update any order in the org,
+ * including orders for brands they cannot see, and with no WITH CHECK at all
+ * nothing constrained the resulting row's brand_id either.
+ *
+ * brandASales has no member_brand_access rows in the fixture, which makes the
+ * helper grant every brand in the org. Each test here grants exactly one brand
+ * for its duration and removes it in `finally`, so the persona goes back to
+ * unscoped for every other suite that uses it.
+ */
+describe('orders UPDATE is brand-scoped', () => {
+	async function withScope<T>(brandId: string, run: () => Promise<T>): Promise<T> {
+		const { data, error } = await adminClient()
+			.from('member_brand_access')
+			.insert({
+				member_id: MEMBER_ROW_IDS.brandASales!,
+				brand_id: brandId,
+				granted_by: PERSONA_IDS.brandAAdmin!
+			})
+			.select('id')
+			.single();
+		if (error) throw new Error(`could not scope brandASales: ${error.message}`);
+		try {
+			return await run();
+		} finally {
+			await adminClient().from('member_brand_access').delete().eq('id', data!.id);
+		}
+	}
+
+	// orderBrandAInternal is organization_id=orgBrandA, brand_id=brandA2.
+	// brandA1 is the other brand in the same org.
+
+	/**
+	 * expectUpdateDenied alone is not enough here. The orders SELECT policy is
+	 * brand-scoped too, so a scoped user's UPDATE ... RETURNING comes back
+	 * empty whether RLS blocked the write or merely hid the returned row.
+	 * Reading the row back through the service role is what makes the
+	 * assertion real.
+	 *
+	 * Worth knowing when these ever go red: the denials below also hold under
+	 * the old role-only policy, because Postgres applies SELECT policies to the
+	 * rows an UPDATE reads through its WHERE clause, and PostgREST always
+	 * writes one. That incidental coupling is exactly what the explicit brand
+	 * scope and WITH CHECK replace, and it is why these tests are worth
+	 * keeping: they go red the moment a future migration widens the SELECT
+	 * policy without revisiting the write path.
+	 */
+	async function expectOrderUnchanged(
+		client: SupabaseClient,
+		patch: Record<string, unknown>,
+		column: string,
+		expected: unknown
+	): Promise<void> {
+		await client.from('orders').update(patch).eq('id', RLS_IDS.orderBrandAInternal).select('id');
+		const { data, error } = await adminClient()
+			.from('orders')
+			.select(column)
+			.eq('id', RLS_IDS.orderBrandAInternal)
+			.single();
+		expect(error, 'service-role read-back should succeed').toBeNull();
+		expect(
+			(data as unknown as Record<string, unknown>)[column],
+			`orders.${column} should not have been written`
+		).toEqual(expected);
+	}
+
+	it('positive control: an unscoped sales user can update the order', async () => {
+		const brandASales = await personaClient('brandASales');
+		try {
+			await expectUpdateAllowed(brandASales, 'orders', RLS_IDS.orderBrandAInternal, {
+				notes: 'updated by unscoped sales'
+			});
+		} finally {
+			await adminClient()
+				.from('orders')
+				.update({ notes: null })
+				.eq('id', RLS_IDS.orderBrandAInternal);
+		}
+	});
+
+	it('a sales user scoped to another brand cannot update the order', async () => {
+		const brandASales = await personaClient('brandASales');
+		await withScope(RLS_IDS.brandA1, async () => {
+			await expectOrderUnchanged(brandASales, { notes: 'should not land' }, 'notes', null);
+		});
+	});
+
+	it('a member scoped to another brand cannot update the order either', async () => {
+		// brandAMember is scoped to brandA1 by the fixture itself.
+		const brandAMember = await personaClient('brandAMember');
+		await expectOrderUnchanged(brandAMember, { notes: 'should not land' }, 'notes', null);
+	});
+
+	it('a sales user scoped to the order own brand can still update it', async () => {
+		const brandASales = await personaClient('brandASales');
+		await withScope(RLS_IDS.brandA2, async () => {
+			try {
+				await expectUpdateAllowed(brandASales, 'orders', RLS_IDS.orderBrandAInternal, {
+					notes: 'updated by in-scope sales'
+				});
+			} finally {
+				await adminClient()
+					.from('orders')
+					.update({ notes: null })
+					.eq('id', RLS_IDS.orderBrandAInternal);
+			}
+		});
+	});
+
+	it('a scoped sales user cannot move the order to a brand outside their access', async () => {
+		const brandASales = await personaClient('brandASales');
+		await withScope(RLS_IDS.brandA2, async () => {
+			try {
+				await expectOrderUnchanged(
+					brandASales,
+					{ brand_id: RLS_IDS.brandA1 },
+					'brand_id',
+					RLS_IDS.brandA2
+				);
+			} finally {
+				await adminClient()
+					.from('orders')
+					.update({ brand_id: RLS_IDS.brandA2 })
+					.eq('id', RLS_IDS.orderBrandAInternal);
+			}
+		});
+	});
+
+	it('an admin is unaffected: every brand in the org stays editable', async () => {
+		const brandAAdmin = await personaClient('brandAAdmin');
+		try {
+			await expectUpdateAllowed(brandAAdmin, 'orders', RLS_IDS.orderBrandAInternal, {
+				notes: 'updated by admin'
+			});
+		} finally {
+			await adminClient()
+				.from('orders')
+				.update({ notes: null })
+				.eq('id', RLS_IDS.orderBrandAInternal);
+		}
 	});
 });
