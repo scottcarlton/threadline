@@ -3,14 +3,12 @@
 // Pure so it can be tested without a component. The panel that renders the
 // result lives in `src/lib/components/ai/SuggestionPanel.svelte`.
 //
-// Match strategy mirrors `csv-column-suggest.ts`: normalize, then score by how
-// early and how literally the typed text lands.
+// This is typeahead, not search: a row is offered only when the suggestion
+// starts with what was typed, so every row completes the sentence in progress.
+// Matching a word buried mid-sentence produces rows the user cannot read as a
+// completion of their own typing, which is worse than showing nothing.
 //
-//   1. The suggestion starts with what was typed.
-//   2. Some word in the suggestion starts with what was typed.
-//   3. A keyword starts with what was typed.
-//
-// Ties break on whether the entry belongs to the current route, then on catalog
+// Ranking is by whether the entry belongs to the current route, then catalog
 // order. Route is a tie-breaker rather than a filter: typing "commission" on
 // /orders should still surface the commission prompts.
 
@@ -27,10 +25,6 @@ export const MIN_QUERY_LENGTH = 2;
 /** The panel shows at most this many rows. */
 export const MAX_SUGGESTIONS = 6;
 
-const SCORE_TEXT_PREFIX = 3;
-const SCORE_WORD_PREFIX = 2;
-const SCORE_KEYWORD = 1;
-
 export type SuggestionContext = {
 	/** Raw text from the input. */
 	query: string;
@@ -46,10 +40,11 @@ export type SuggestionContext = {
 
 export type SuggestionMatch = {
 	text: string;
-	/** Start of the matched run within `text`, for dimming what was typed. */
-	matchStart: number;
-	/** End of the matched run, exclusive. */
-	matchEnd: number;
+	/**
+	 * Length of the leading run the user already typed, for dimming it. Always
+	 * anchored at index 0 — a match that is not a prefix is not offered.
+	 */
+	matchLength: number;
 };
 
 function normalize(value: string): string {
@@ -70,55 +65,22 @@ function isVisible(entry: AiSuggestion, ctx: SuggestionContext): boolean {
 	return true;
 }
 
-/** Index of the first word in `haystack` that starts with `needle`, or -1. */
-function wordPrefixIndex(haystack: string, needle: string): number {
-	let from = 0;
-	while (from <= haystack.length - needle.length) {
-		const at = haystack.indexOf(needle, from);
-		if (at === -1) return -1;
-		if (at === 0 || !/[a-z0-9]/.test(haystack[at - 1])) return at;
-		from = at + 1;
-	}
-	return -1;
-}
+type Candidate = SuggestionMatch & { onRoute: boolean; order: number };
 
-type Scored = SuggestionMatch & { score: number; onRoute: boolean; order: number };
+function matchPrefix(
+	entry: AiSuggestion,
+	query: string,
+	order: number,
+	path: string
+): Candidate | null {
+	if (!normalize(entry.text).startsWith(query)) return null;
 
-function score(entry: AiSuggestion, query: string, order: number, path: string): Scored | null {
-	const text = normalize(entry.text);
-	const onRoute = (entry.routes ?? []).some((prefix) => path.startsWith(prefix));
-
-	if (text.startsWith(query)) {
-		return {
-			text: entry.text,
-			matchStart: 0,
-			matchEnd: query.length,
-			score: SCORE_TEXT_PREFIX,
-			onRoute,
-			order
-		};
-	}
-
-	const wordAt = wordPrefixIndex(text, query);
-	if (wordAt !== -1) {
-		return {
-			text: entry.text,
-			matchStart: wordAt,
-			matchEnd: wordAt + query.length,
-			score: SCORE_WORD_PREFIX,
-			onRoute,
-			order
-		};
-	}
-
-	// A keyword hit means the text itself carries no visible match, so there is
-	// nothing to dim. Highlighting an arbitrary run would misreport the reason
-	// the row is here.
-	if ((entry.keywords ?? []).some((keyword) => normalize(keyword).startsWith(query))) {
-		return { text: entry.text, matchStart: 0, matchEnd: 0, score: SCORE_KEYWORD, onRoute, order };
-	}
-
-	return null;
+	return {
+		text: entry.text,
+		matchLength: query.length,
+		onRoute: (entry.routes ?? []).some((prefix) => path.startsWith(prefix)),
+		order
+	};
 }
 
 /**
@@ -134,20 +96,17 @@ export function suggestPrompts(
 	const query = normalize(ctx.query);
 	if (query.length < MIN_QUERY_LENGTH) return [];
 
-	const scored: Scored[] = [];
+	const matches: Candidate[] = [];
 	catalog.forEach((entry, order) => {
 		if (!isVisible(entry, ctx)) return;
-		const hit = score(entry, query, order, ctx.path);
-		if (hit) scored.push(hit);
+		const hit = matchPrefix(entry, query, order, ctx.path);
+		if (hit) matches.push(hit);
 	});
 
-	scored.sort((a, b) => {
-		if (a.score !== b.score) return b.score - a.score;
+	matches.sort((a, b) => {
 		if (a.onRoute !== b.onRoute) return a.onRoute ? -1 : 1;
 		return a.order - b.order;
 	});
 
-	return scored
-		.slice(0, MAX_SUGGESTIONS)
-		.map(({ text, matchStart, matchEnd }) => ({ text, matchStart, matchEnd }));
+	return matches.slice(0, MAX_SUGGESTIONS).map(({ text, matchLength }) => ({ text, matchLength }));
 }

@@ -26,8 +26,6 @@ export type AiSuggestion = {
 	unscopedOnly?: boolean;
 	/** Requires this record type to be on screen. */
 	entity?: SuggestionEntity;
-	/** Extra match terms that do not appear in `text`. */
-	keywords?: string[];
 };
 
 /**
@@ -39,15 +37,6 @@ export type AiSuggestion = {
 export const WRITE_ROLES: UserRole[] = ['admin', 'owner', 'member', 'sales'];
 
 const REPORT_ROUTES = ['/reports', '/dashboard', '/insight'];
-const REPORT_KEYWORDS = [
-	'sell-through',
-	'sellthrough',
-	'revenue',
-	'report',
-	'analytics',
-	'velocity',
-	'performance'
-];
 
 export const AI_SUGGESTIONS: AiSuggestion[] = [
 	// Reports
@@ -55,105 +44,88 @@ export const AI_SUGGESTIONS: AiSuggestion[] = [
 		text: 'Sell-through by brand this season',
 		routes: REPORT_ROUTES,
 		orgTypes: ['rep'],
-		unscopedOnly: true,
-		keywords: REPORT_KEYWORDS
+		unscopedOnly: true
 	},
 	{
 		text: 'Top 10 styles by units this season',
-		routes: REPORT_ROUTES,
-		keywords: [...REPORT_KEYWORDS, 'best', 'bestsellers']
+		routes: REPORT_ROUTES
 	},
 	{
 		text: 'Which accounts have not reordered since last season?',
-		routes: REPORT_ROUTES,
-		keywords: [...REPORT_KEYWORDS, 'reorder', 'lapsed', 'gap']
+		routes: REPORT_ROUTES
 	},
 	{
 		text: 'Commission owed by brand this season',
 		routes: REPORT_ROUTES,
-		orgTypes: ['rep'],
-		keywords: [...REPORT_KEYWORDS, 'commission', 'owed', 'payout']
+		orgTypes: ['rep']
 	},
 	{
 		text: 'Commission owed by rep this season',
 		routes: REPORT_ROUTES,
-		orgTypes: ['brand'],
-		keywords: [...REPORT_KEYWORDS, 'commission', 'owed', 'payout']
+		orgTypes: ['brand']
 	},
 	{
 		text: 'Compare this season to last season by account',
-		routes: REPORT_ROUTES,
-		keywords: [...REPORT_KEYWORDS, 'compare', 'growth', 'year over year']
+		routes: REPORT_ROUTES
 	},
 	{
 		text: 'Which styles are underperforming?',
-		routes: REPORT_ROUTES,
-		keywords: [...REPORT_KEYWORDS, 'slow', 'worst']
+		routes: REPORT_ROUTES
 	},
 	{
 		text: 'Which accounts grew year over year?',
-		routes: REPORT_ROUTES,
-		keywords: [...REPORT_KEYWORDS, 'growth', 'yoy']
+		routes: REPORT_ROUTES
 	},
 	{
 		text: 'Export this to a Google Sheet',
 		routes: REPORT_ROUTES,
-		roles: WRITE_ROLES,
-		keywords: ['export', 'sheet', 'spreadsheet', 'download']
+		roles: WRITE_ROLES
 	},
 
 	// Orders
-	{ text: 'Show me draft orders', routes: ['/orders'], keywords: ['draft', 'pending'] },
-	{ text: 'Which orders ship this month?', routes: ['/orders'], keywords: ['ship', 'delivery'] },
+	{ text: 'Show me draft orders', routes: ['/orders'] },
+	{ text: 'Which orders ship this month?', routes: ['/orders'] },
 	{
 		text: 'Total order value by account this season',
-		routes: ['/orders'],
-		keywords: ['total', 'value', 'bookings']
+		routes: ['/orders']
 	},
-	{ text: 'Create an order', routes: ['/orders'], roles: WRITE_ROLES, keywords: ['new', 'add'] },
+	{ text: 'Create an order', routes: ['/orders'], roles: WRITE_ROLES },
 	{
 		text: 'Add a line to this order',
 		routes: ['/orders'],
 		roles: WRITE_ROLES,
-		entity: 'order',
-		keywords: ['line', 'style', 'add']
+		entity: 'order'
 	},
 	{
 		text: 'Mark this order confirmed',
 		routes: ['/orders'],
 		roles: WRITE_ROLES,
-		entity: 'order',
-		keywords: ['status', 'confirm']
+		entity: 'order'
 	},
 
 	// Accounts
 	{
 		text: 'Which accounts have not ordered this season?',
-		routes: ['/accounts'],
-		keywords: ['lapsed', 'quiet', 'inactive']
+		routes: ['/accounts']
 	},
 	{
 		text: 'Show me accounts by territory',
-		routes: ['/accounts'],
-		keywords: ['territory', 'region']
+		routes: ['/accounts']
 	},
 	{
 		text: 'Which accounts are at risk?',
-		routes: ['/accounts'],
-		keywords: ['health', 'churn', 'risk']
+		routes: ['/accounts']
 	},
 	{
 		text: 'Create an account',
 		routes: ['/accounts'],
-		roles: WRITE_ROLES,
-		keywords: ['new', 'add']
+		roles: WRITE_ROLES
 	},
 	{
 		text: 'Assign this account to a territory',
 		routes: ['/accounts'],
 		roles: WRITE_ROLES,
-		entity: 'account',
-		keywords: ['territory', 'assign']
+		entity: 'account'
 	},
 
 	// Brands. A brand org does not manage a list of brands.
@@ -161,66 +133,56 @@ export const AI_SUGGESTIONS: AiSuggestion[] = [
 		text: 'Which brands are growing this season?',
 		routes: ['/brands'],
 		orgTypes: ['rep'],
-		unscopedOnly: true,
-		keywords: ['growth', 'performance']
+		unscopedOnly: true
 	},
 	{
 		text: 'Show me orders for this brand',
 		routes: ['/brands'],
 		orgTypes: ['rep'],
-		entity: 'brand',
-		keywords: ['orders']
+		entity: 'brand'
 	},
 	{
 		text: 'Create a brand',
 		routes: ['/brands'],
 		orgTypes: ['rep'],
 		roles: WRITE_ROLES,
-		unscopedOnly: true,
-		keywords: ['new', 'add']
+		unscopedOnly: true
 	},
 
 	// Products
 	{
 		text: 'Which styles sold best this season?',
-		routes: ['/products'],
-		keywords: ['best', 'top', 'velocity']
+		routes: ['/products']
 	},
 	{
 		text: 'Show me products without images',
-		routes: ['/products'],
-		keywords: ['image', 'photo', 'missing']
+		routes: ['/products']
 	},
-	{ text: 'Add a product', routes: ['/products'], roles: WRITE_ROLES, keywords: ['new', 'create'] },
+	{ text: 'Add a product', routes: ['/products'], roles: WRITE_ROLES },
 	{
 		text: 'Update wholesale prices for this brand',
 		routes: ['/products'],
-		roles: WRITE_ROLES,
-		keywords: ['price', 'wholesale', 'update']
+		roles: WRITE_ROLES
 	},
 
 	// Appointments and shows
 	{
 		text: 'What appointments do I have this week?',
-		routes: ['/appointments'],
-		keywords: ['calendar', 'meeting', 'schedule']
+		routes: ['/appointments']
 	},
 	{
 		text: 'Which shows are coming up?',
-		routes: ['/shows', '/seasons'],
-		keywords: ['market', 'tradeshow']
+		routes: ['/shows', '/seasons']
 	},
 	{
 		text: 'Book an appointment',
 		routes: ['/appointments'],
-		roles: WRITE_ROLES,
-		keywords: ['new', 'schedule', 'meeting']
+		roles: WRITE_ROLES
 	},
 	{
 		text: 'Create a season',
 		routes: ['/seasons', '/shows'],
-		roles: WRITE_ROLES,
-		keywords: ['new', 'add']
+		roles: WRITE_ROLES
 	},
 
 	// Inbox
@@ -228,17 +190,15 @@ export const AI_SUGGESTIONS: AiSuggestion[] = [
 		text: 'Draft a follow-up to this account',
 		routes: ['/inbox'],
 		roles: WRITE_ROLES,
-		entity: 'account',
-		keywords: ['email', 'draft', 'follow up']
+		entity: 'account'
 	},
 	{
 		text: 'Search emails from this account',
 		routes: ['/inbox'],
-		entity: 'account',
-		keywords: ['email', 'search']
+		entity: 'account'
 	},
 
 	// Always available
-	{ text: 'What should I focus on today?', keywords: ['today', 'priority', 'focus'] },
-	{ text: 'Show me this season at a glance', keywords: ['summary', 'overview', 'season'] }
+	{ text: 'What should I focus on today?' },
+	{ text: 'Show me this season at a glance' }
 ];

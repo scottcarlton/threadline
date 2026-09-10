@@ -51,17 +51,10 @@
 						/>
 					</svg>
 					<span class="truncate text-zinc-100">
-						<!-- What the user already typed is dimmed, so the eye lands on
-						     the part that is new. A keyword-only match has an empty run
-						     and renders undimmed. -->
-						{#if suggestion.matchEnd > suggestion.matchStart}
-							<span>{suggestion.text.slice(0, suggestion.matchStart)}</span><span
-								class="text-zinc-500"
-								>{suggestion.text.slice(suggestion.matchStart, suggestion.matchEnd)}</span
-							><span>{suggestion.text.slice(suggestion.matchEnd)}</span>
-						{:else}
-							{suggestion.text}
-						{/if}
+						<!-- The leading run the user already typed is dimmed, so the eye
+						     lands on the completion. -->
+						<span class="text-zinc-500">{suggestion.text.slice(0, suggestion.matchLength)}</span
+						>{suggestion.text.slice(suggestion.matchLength)}
 					</span>
 				</button>
 			</li>

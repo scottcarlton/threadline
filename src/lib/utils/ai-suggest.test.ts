@@ -14,28 +14,30 @@ const base: SuggestionContext = {
 const ctx = (over: Partial<SuggestionContext> = {}): SuggestionContext => ({ ...base, ...over });
 const texts = (result: { text: string }[]) => result.map((r) => r.text);
 
-describe('suggestPrompts scoring', () => {
+describe('suggestPrompts matching', () => {
 	const catalog: AiSuggestion[] = [
-		{ text: 'Keyword only', keywords: ['commission'] },
 		{ text: 'Show me commission owed' },
 		{ text: 'Commission owed by brand' }
 	];
 
-	it('ranks text prefix above word prefix above keyword', () => {
+	it('offers only suggestions that start with what was typed', () => {
 		const result = suggestPrompts(ctx({ query: 'commission' }), catalog);
-		expect(texts(result)).toEqual([
-			'Commission owed by brand',
-			'Show me commission owed',
-			'Keyword only'
-		]);
+		expect(texts(result)).toEqual(['Commission owed by brand']);
 	});
 
-	it('reports the matched run so the caller can dim what was typed', () => {
-		const [first, second, third] = suggestPrompts(ctx({ query: 'commission' }), catalog);
-		expect(first).toMatchObject({ matchStart: 0, matchEnd: 10 });
-		expect(second).toMatchObject({ matchStart: 8, matchEnd: 18 });
-		// A keyword hit has no visible run in the text, so nothing is dimmed.
-		expect(third).toMatchObject({ matchStart: 0, matchEnd: 0 });
+	it('reports the typed run so the caller can dim it', () => {
+		const [first] = suggestPrompts(ctx({ query: 'commission' }), catalog);
+		expect(first).toMatchObject({ matchLength: 10 });
+	});
+
+	it('does not match a word buried mid-sentence', () => {
+		// Regression: "ac" used to surface "Show me accounts by territory", which
+		// reads as a search hit rather than a completion of what was typed.
+		const result = suggestPrompts(ctx({ query: 'ac' }), [
+			{ text: 'Show me accounts by territory' },
+			{ text: 'Total order value by account this season' }
+		]);
+		expect(result).toEqual([]);
 	});
 
 	it('does not match mid-word', () => {
