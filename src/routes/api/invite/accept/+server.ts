@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { notifyOrgMembers } from '$lib/server/notifications.js';
-import { resolveAcceptingProfileId } from './authorize.js';
+import { resolveAcceptingProfileId } from '$lib/server/invites/authorize.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { token, userId: bodyUserId } = await request.json();

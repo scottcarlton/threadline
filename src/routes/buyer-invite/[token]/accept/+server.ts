@@ -1,15 +1,15 @@
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { resolveAcceptingProfileId } from '$lib/server/invites/authorize.js';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
-	const { session } = await locals.safeGetSession();
+	const { session, user: sessionUser } = await locals.safeGetSession();
 	if (!session) {
 		throw redirect(303, `/buyer-invite/${params.token}`);
 	}
 
 	const userId = session.user.id;
-	const userEmail = session.user.email?.toLowerCase() ?? null;
 	const token = params.token;
 
 	const { data: invitation } = await supabaseAdmin
@@ -35,11 +35,12 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	// are all gated on the same check: the session's authenticated email
 	// must match the invitation's recipient email, so a leaked token alone
 	// is never enough to join an account.
-	const inviteEmailLower = invitation.email.toLowerCase();
-	const acceptableEmail = userEmail === inviteEmailLower;
-
-	if (!acceptableEmail) {
-		throw redirect(303, '/login?error=invite_accept_failed');
+	const authResult = resolveAcceptingProfileId(sessionUser, undefined, invitation.email);
+	if (!authResult.ok) {
+		throw redirect(
+			303,
+			`/login?error=invite_email_mismatch&expected=${encodeURIComponent(invitation.email)}`
+		);
 	}
 
 	type Invitation = {

@@ -77,8 +77,13 @@ describe('GET /buyer-invite/[token]/accept', () => {
 			await GET(makeEvent('someone-else@example.com'));
 			expect.unreachable('expected a redirect throw');
 		} catch (err) {
-			expect(redirectLocation(err)).toContain('/login');
-			expect(redirectLocation(err)).toContain('error=');
+			const location = redirectLocation(err);
+			expect(location).toContain('/login');
+			// Specific, actionable code: a generic invite_accept_failed reads as
+			// transient and invites a pointless retry, when the real problem is
+			// that the caller is signed in as the wrong account.
+			expect(location).toContain('error=invite_email_mismatch');
+			expect(location).toContain('expected=buyer%40example.com');
 		}
 
 		const upsertCalled = fromMock.mock.results.some((r) => {

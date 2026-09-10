@@ -18,10 +18,14 @@ describe('resolveAcceptingProfileId', () => {
 		// invitation's role instead of their own.
 		const result = resolveAcceptingProfileId(session, 'victim-id', INVITE_EMAIL);
 
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.status).toBe(403);
-		}
+		// Asserting the exact message (not just ok/status) so this test can
+		// only pass if the userId guard specifically is the one that fired,
+		// not the email guard also returning a 403 for the wrong reason.
+		expect(result).toEqual({
+			ok: false,
+			status: 403,
+			error: 'Invitation must be accepted by the signed-in user'
+		});
 	});
 
 	it('rejects when the session email does not match the invitation email', () => {
@@ -29,10 +33,11 @@ describe('resolveAcceptingProfileId', () => {
 
 		const result = resolveAcceptingProfileId(session, 'session-user', INVITE_EMAIL);
 
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.status).toBe(403);
-		}
+		expect(result).toEqual({
+			ok: false,
+			status: 403,
+			error: 'Invitation email does not match the signed-in user'
+		});
 	});
 
 	it('rejects when the session has no email at all', () => {
@@ -40,7 +45,11 @@ describe('resolveAcceptingProfileId', () => {
 
 		const result = resolveAcceptingProfileId(session, 'session-user', INVITE_EMAIL);
 
-		expect(result.ok).toBe(false);
+		expect(result).toEqual({
+			ok: false,
+			status: 403,
+			error: 'Invitation email does not match the signed-in user'
+		});
 	});
 
 	it('compares invitation email case-insensitively', () => {

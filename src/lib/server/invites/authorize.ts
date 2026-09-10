@@ -1,8 +1,13 @@
 /**
- * Binds the accepting identity for a pending org invitation to the caller's
- * own session, rather than trusting whatever profile_id the request body
- * names. Extracted from +server.ts so the binding rules are unit-testable
- * without standing up a full SvelteKit RequestEvent.
+ * Binds the accepting identity for a pending invitation (org or buyer) to
+ * the caller's own session, rather than trusting whatever profile_id the
+ * request body names. Shared by all four accept routes:
+ *   - src/routes/api/invite/accept/+server.ts (org, OTP client, POST)
+ *   - src/routes/invite/[token]/accept/+server.ts (org, OAuth client, GET)
+ *   - src/routes/api/buyer-invite/accept/+server.ts (buyer, OTP client, POST)
+ *   - src/routes/buyer-invite/[token]/accept/+server.ts (buyer, OAuth, GET)
+ * The GET routes derive identity from the session alone and have no request
+ * body, so they call this with `bodyUserId: undefined`.
  */
 
 export type SessionUser = {
