@@ -4,6 +4,10 @@ import { sendOrderEmail } from '$lib/server/order-emails.js';
 import type { OrderEmailEvent } from '$lib/server/order-emails.js';
 import { createNotification, notifyBrandAdmins } from '$lib/server/notifications.js';
 import { emitOrderEvent } from '$lib/server/integrations/events.js';
+import {
+	mayAdvanceOrderStatus,
+	FULFILLMENT_STATUS_ERROR
+} from '$lib/utils/order-status-permissions.js';
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 	draft: ['submitted'],
@@ -50,6 +54,20 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 
 	if (fetchErr || !order) {
 		return json({ error: 'Order not found' }, { status: 404 });
+	}
+
+	// Fulfillment is the brand's to report, not the rep's. Checked before the
+	// transition graph so a rep gets the reason, not "cannot transition".
+	if (!mayAdvanceOrderStatus(orgType, newStatus)) {
+		locals.audit.record('order.status_changed', {
+			subjectId: order.id,
+			subjectLabel: order.order_number,
+			status: 'failure',
+			errorCode: 'forbidden_status',
+			errorMessage: FULFILLMENT_STATUS_ERROR,
+			changes: { status: { before: order.status, after: newStatus } }
+		});
+		return json({ error: FULFILLMENT_STATUS_ERROR }, { status: 403 });
 	}
 
 	const allowed = ALLOWED_TRANSITIONS[order.status] ?? [];

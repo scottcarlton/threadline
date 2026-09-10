@@ -19,6 +19,7 @@
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
 	import { diffLineEdits, type DraftRowInput } from '$lib/utils/order-line-diff.js';
+	import { allowedNextStatuses } from '$lib/utils/order-status-permissions.js';
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import { SelectField } from '$lib/components/ui/select/index.js';
@@ -273,9 +274,18 @@
 		preparing: ['shipped', 'cancelled'],
 		shipped: ['delivered']
 	};
+	// A rep org never reports fulfillment, so preparing/shipped/delivered are
+	// stripped from its own-org ladder. The federated (brand-side) view keeps
+	// them: that viewer is the brand.
 	const nextStatuses = $derived(
-		isFederatedView ? (brandAllowedNext[order.status] ?? []) : (statusFlow[order.status] ?? [])
+		isFederatedView
+			? (brandAllowedNext[order.status] ?? [])
+			: allowedNextStatuses(data.orgType, statusFlow[order.status] ?? [])
 	);
+	// Cancel lives in the overflow menu, not the advance row. Gate the row on
+	// what it will actually render, or a rep looking at a confirmed order gets
+	// a bare divider where the "Prepare shipment" button used to be.
+	const advanceableStatuses = $derived(nextStatuses.filter((s) => s !== 'cancelled'));
 
 	function seasonLabel(): string {
 		const name = order.seasons?.name;
@@ -1386,9 +1396,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 							{/if}
 						{/each}
 					</ol>
-					{#if canAdvanceStatus && nextStatuses.length > 0 && order.status !== 'cancelled'}
+					{#if canAdvanceStatus && advanceableStatuses.length > 0 && order.status !== 'cancelled'}
 						<div class="flex items-center gap-2 border-l pl-4">
-							{#each nextStatuses.filter((s) => s !== 'cancelled') as nextStatus (nextStatus)}
+							{#each advanceableStatuses as nextStatus (nextStatus)}
 								<Button
 									size="sm"
 									onclick={() => {
