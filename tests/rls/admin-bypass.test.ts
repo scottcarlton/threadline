@@ -27,24 +27,19 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/lib/server/ai-limits.ts',
 	'src/lib/server/ai-tools.ts',
 	'src/lib/server/ai-usage.ts',
-	'src/lib/server/audit/hook.test.ts',
 	'src/lib/server/audit/hook.ts',
-	'src/lib/server/audit/query.test.ts',
 	'src/lib/server/audit/query.ts',
-	'src/lib/server/beta-whitelist.test.ts',
 	'src/lib/server/beta-whitelist.ts',
 	'src/lib/server/email-intake/outcome.ts',
 	'src/lib/server/email-intake/resolve.ts',
 	'src/lib/server/email-intake/route.ts',
 	'src/lib/server/email.ts',
 	'src/lib/server/email/service.ts',
-	'src/lib/server/federation.test.ts',
 	'src/lib/server/gmail.ts',
 	'src/lib/server/insights-engine.ts',
 	'src/lib/server/integrations/calendar-sync.ts',
 	'src/lib/server/integrations/calendly.ts',
 	'src/lib/server/integrations/discord.ts',
-	'src/lib/server/integrations/events.test.ts',
 	'src/lib/server/integrations/events.ts',
 	'src/lib/server/integrations/google-calendar.ts',
 	'src/lib/server/integrations/google-sheets.ts',
@@ -62,14 +57,11 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/lib/server/messaging/verification-attempts.ts',
 	'src/lib/server/notifications.ts',
 	'src/lib/server/order-emails.ts',
-	'src/lib/server/orders/authorize-order.test.ts',
 	'src/lib/server/orders/authorize-order.ts',
 	'src/lib/server/orders/load-order-prereqs.ts',
 	'src/lib/server/orders/save-line-edits.ts',
 	'src/lib/server/orders/submit-order.ts',
-	'src/lib/server/queries/expenses.test.ts',
 	'src/lib/server/queries/expenses.ts',
-	'src/lib/server/queries/scope.test.ts',
 	'src/lib/server/queries/scope.ts',
 	'src/lib/server/retailers.ts',
 	'src/lib/server/setup-status.ts',
@@ -187,7 +179,6 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/routes/orders/+page.server.ts',
 	'src/routes/orders/[id]/+page.server.ts',
 	'src/routes/orders/confirmation/+page.server.ts',
-	'src/routes/orders/confirmation/page.server.test.ts',
 	'src/routes/orders/review/[intake_id]/+page.server.ts',
 	'src/routes/organization/+layout.server.ts',
 	'src/routes/organization/+page.server.ts',
@@ -214,10 +205,16 @@ const KNOWN_BYPASS_FILES: string[] = [
 ];
 
 function currentBypassFiles(): string[] {
-	const out = execSync("grep -rl 'supabaseAdmin' src --include=*.ts --include=*.svelte || true", {
-		encoding: 'utf8',
-		cwd: REPO_ROOT
-	});
+	// Excludes *.test.ts: this inventory is meant to pin production
+	// RLS-bypassing call sites, and test doubles that mock supabaseAdmin
+	// would otherwise dilute it with entries that carry no actual bypass risk.
+	const out = execSync(
+		"grep -rl 'supabaseAdmin' src --include=*.ts --include=*.svelte --exclude=*.test.ts || true",
+		{
+			encoding: 'utf8',
+			cwd: REPO_ROOT
+		}
+	);
 	return out
 		.split('\n')
 		.map((line) => line.trim())

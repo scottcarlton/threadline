@@ -1,9 +1,10 @@
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { resolveAcceptingProfileId } from '$lib/server/invites/authorize.js';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
-	const { session } = await locals.safeGetSession();
+	const { session, user: sessionUser } = await locals.safeGetSession();
 	if (!session) {
 		throw redirect(303, `/invite/${params.token}`);
 	}
@@ -27,6 +28,20 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	if (new Date(invitation.expires_at) < new Date()) {
 		throw redirect(303, '/login?error=invitation_expired');
+	}
+
+	// This is the route the "Continue with Google" button targets (via
+	// /auth/callback?next=/invite/[token]/accept), so unlike the OTP path it
+	// never verifies invitation.email before establishing the session. Bind
+	// here: profile_id already comes from the session (not the body), but
+	// without this check any authenticated Google account holding the token
+	// could still join at the invitation's role, up to org owner.
+	const authResult = resolveAcceptingProfileId(sessionUser, undefined, invitation.email);
+	if (!authResult.ok) {
+		throw redirect(
+			303,
+			`/login?error=invite_email_mismatch&expected=${encodeURIComponent(invitation.email)}`
+		);
 	}
 
 	// Normalize sales-scoped fields the same way /api/invite/send does
