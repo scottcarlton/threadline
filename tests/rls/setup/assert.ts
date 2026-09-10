@@ -137,7 +137,11 @@ type FilterResult = { data: unknown[] | null; error: { code?: string; message: s
  * `any` in and out deliberately: the real Postgrest builder generics are
  * deep enough that a generic wrapper here trips "excessively deep"
  * instantiation in svelte-check. Every call site re-types the awaited
- * result explicitly, so `any` never actually leaks to a caller.
+ * result explicitly, so `any` never actually leaks to a caller. Because
+ * the filter keys aren't checked against the table's real columns, a
+ * caller who passes a column name that doesn't exist on `table` gets a
+ * runtime Postgrest error, not a compile-time one -- there's no static
+ * safety net here the way there is for the id-based helpers above.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyFilter(query: any, filter: Record<string, unknown>): any {
@@ -251,10 +255,17 @@ export async function expectDeleteAllowedByFilter(
 	).toBe(1);
 }
 
-/** Insert denial doesn't need an id; keyless tables reuse expectInsertDenied
+/**
+ * Insert denial doesn't need an id; keyless tables reuse expectInsertDenied
  * as-is. This is the keyless counterpart of expectInsertAllowed, for tables
  * where the caller already knows the full key from the input row and
- * doesn't need one selected back. */
+ * doesn't need one selected back. expectInsertAllowed can chain
+ * `.select('id').single()` because every id-based table has an `id`
+ * column to ask for; a composite-PK table doesn't have one uniform column
+ * to select, so this variant just confirms the insert didn't error and
+ * leaves it to the caller to already know the row's full key from the
+ * input.
+ */
 export async function expectInsertAllowedNoId(
 	client: SupabaseClient,
 	table: string,

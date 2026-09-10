@@ -24,30 +24,41 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 /**
  * ai_requests and messaging_verification_attempts are unreachable one
  * layer below RLS: they carry no GRANT to `authenticated` at all, so
- * Postgres refuses the query before RLS is even evaluated, raising the
- * same 42501 code visibleByFilter treats as an unexpected error for
- * ordinary RLS-guarded tables. beta_whitelist, messaging_sessions, and
- * messaging_messages DO carry the standard grants, so their denial is
- * pure RLS (empty result set, no error) -- confirmed against
+ * Postgres refuses the query before RLS is even evaluated, raising a
+ * 42501 error. beta_whitelist, messaging_sessions, and messaging_messages
+ * DO carry the standard grants, so their denial is pure RLS (empty
+ * result set, no error) -- confirmed against
  * information_schema.role_table_grants for all five tables. Both
- * mechanisms make a table unreachable to authenticated roles; this
- * helper accepts either as "hidden" for that reason.
+ * mechanisms make a table unreachable to authenticated roles, but they
+ * are distinct failure modes, so this helper requires the caller to say
+ * which one it expects and fails if the other one happens instead --
+ * accepting either would blur exactly the distinction this section
+ * exists to pin down.
  */
 async function expectUnreachableByFilter(
 	client: SupabaseClient,
 	table: string,
-	filter: Record<string, unknown>
+	filter: Record<string, unknown>,
+	mechanism: 'grant-revoked' | 'rls-denied'
 ): Promise<void> {
 	let query = client.from(table).select('*');
 	for (const [column, value] of Object.entries(filter)) {
 		query = query.eq(column, value);
 	}
 	const { data, error } = await query;
-	if (error) {
-		if (error.code !== '42501') {
-			throw new Error(`${table}: unexpected select error ${error.code}: ${error.message}`);
+	if (mechanism === 'grant-revoked') {
+		if (!error || error.code !== '42501') {
+			throw new Error(
+				`${table}: expected a grant-level 42501 error (no GRANT to authenticated), got ` +
+					(error ? `${error.code}: ${error.message}` : `no error, ${(data ?? []).length} rows`)
+			);
 		}
 		return;
+	}
+	if (error) {
+		throw new Error(
+			`${table}: expected a pure-RLS denial (empty result, no error), got ${error.code}: ${error.message}`
+		);
 	}
 	if ((data ?? []).length !== 0) {
 		throw new Error(`${table}: expected no rows visible, got ${(data ?? []).length}`);
@@ -638,27 +649,33 @@ describe('zero-policy tables: unreachable to any role subject to RLS', () => {
 		}
 	});
 
+	// mechanism is carried in the test name (not just the module comment)
+	// so CI output alone doesn't read as "RLS protects all five" -- two of
+	// these fail at the GRANT layer before RLS ever runs, the other three
+	// fail by RLS's own empty-policy-set denial.
 	it.each([
-		['ai_requests', { organization_id: RLS_IDS.orgBrandA, endpoint: 'rls-write-probe' }],
-		['beta_whitelist', { email: 'rls-zero-policy-probe@rls-test.threadline.local' }],
-		['messaging_verification_attempts', { phone_number: '+15550002222' }]
+		[
+			'ai_requests',
+			'grant-revoked',
+			{ organization_id: RLS_IDS.orgBrandA, endpoint: 'rls-write-probe' }
+		],
+		['beta_whitelist', 'rls-denied', { email: 'rls-zero-policy-probe@rls-test.threadline.local' }],
+		['messaging_verification_attempts', 'grant-revoked', { phone_number: '+15550002222' }]
 	] as const)(
-		'%s: an authenticated org admin can neither read nor insert',
-		async (table, filter) => {
+		'%s (%s): an authenticated org admin can neither read nor insert',
+		async (table, mechanism, filter) => {
 			const brandA = await personaClient('brandAAdmin');
-			await expectUnreachableByFilter(brandA, table, filter);
-			try {
-				await expectInsertDenied(brandA, table, filter);
-			} finally {
-				await adminClient()
-					.from(table)
-					.delete()
-					.match(filter as Record<string, unknown>);
-			}
+			await expectUnreachableByFilter(brandA, table, filter, mechanism);
+			// The forged insert is denied, so it never creates a row -- there
+			// is nothing here to clean up. The seeded probe row (same filter
+			// shape) is removed once, in this describe's afterAll. Deleting
+			// by `filter` here would delete that seeded row instead of a
+			// forged one, since the two are indistinguishable by filter.
+			await expectInsertDenied(brandA, table, filter);
 		}
 	);
 
-	it('messaging_sessions: an authenticated org admin can neither read nor insert', async () => {
+	it('messaging_sessions (rls-denied): an authenticated org admin can neither read nor insert', async () => {
 		const brandA = await personaClient('brandAAdmin');
 		await expectHidden(brandA, 'messaging_sessions', sessionId);
 		const forgedRow = {
@@ -677,7 +694,7 @@ describe('zero-policy tables: unreachable to any role subject to RLS', () => {
 		}
 	});
 
-	it('messaging_messages: an authenticated org admin can neither read nor insert', async () => {
+	it('messaging_messages (rls-denied): an authenticated org admin can neither read nor insert', async () => {
 		const brandA = await personaClient('brandAAdmin');
 		await expectHiddenByFilter(brandA, 'messaging_messages', { session_id: sessionId });
 		const forgedRow = {
