@@ -17,7 +17,7 @@
 	const rows = $derived(suggestions.map((suggestion, index) => ({ suggestion, index })).reverse());
 </script>
 
-<div class="animate-in rounded-2xl bg-zinc-900 py-2 shadow-2xl ring-1 ring-white/10">
+<div class="animate-in rounded-2xl bg-zinc-900 p-2 shadow-2xl ring-1 ring-white/10">
 	<ul id="ai-suggestion-list" role="listbox" aria-label="Prompt suggestions">
 		{#each rows as { suggestion, index } (suggestion.text)}
 			<li>
@@ -30,7 +30,7 @@
 					onmouseenter={() => onhover(index)}
 					onmousedown={(e) => e.preventDefault()}
 					onclick={() => onselect(suggestion.text)}
-					class="flex w-full items-center gap-4 px-5 py-2.5 text-left text-base transition-colors {index ===
+					class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-base transition-colors {index ===
 					activeIndex
 						? 'bg-zinc-800'
 						: 'hover:bg-zinc-800/60'}"
