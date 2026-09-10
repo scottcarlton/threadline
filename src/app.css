@@ -132,6 +132,36 @@
 	}
 }
 
+/* Persistent chrome (navbar, sidebar, AI dock, mobile bottom nav) is unchanged
+   across a navigation, but the root snapshot covers the whole viewport, so the
+   cross-fade above dips it to partial opacity and back on every route change.
+   Giving each one its own view-transition-name lifts it out of the root
+   snapshot; killing the animation on its group leaves it sitting still while
+   only the main content cross-fades underneath. */
+::view-transition-group(tl-navbar),
+::view-transition-group(tl-sidebar),
+::view-transition-group(tl-ai-dock),
+::view-transition-group(tl-mobile-nav),
+::view-transition-image-pair(tl-navbar),
+::view-transition-image-pair(tl-sidebar),
+::view-transition-image-pair(tl-ai-dock),
+::view-transition-image-pair(tl-mobile-nav) {
+	animation: none;
+}
+::view-transition-old(tl-navbar),
+::view-transition-old(tl-sidebar),
+::view-transition-old(tl-ai-dock),
+::view-transition-old(tl-mobile-nav) {
+	display: none;
+}
+::view-transition-new(tl-navbar),
+::view-transition-new(tl-sidebar),
+::view-transition-new(tl-ai-dock),
+::view-transition-new(tl-mobile-nav) {
+	animation: none;
+	opacity: 1;
+}
+
 button:not(:disabled),
 a[href],
 [role='button']:not([aria-disabled='true']),
