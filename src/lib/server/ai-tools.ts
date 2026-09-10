@@ -2,6 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getGmailClient, parseMessage, buildRawEmail } from './gmail.js';
 import { supabaseAdmin } from './supabase.js';
 import { checkFilterColumns, omitForEntity } from './ai-query-columns.js';
+import {
+	FULFILLMENT_STATUSES,
+	FULFILLMENT_STATUS_ERROR
+} from '../utils/order-status-permissions.js';
 import { computeAccountHealth } from './account-health.js';
 import { getSetupStatus } from './setup-status.js';
 import { sendSlackMessage } from './integrations/slack.js';
@@ -837,6 +841,20 @@ async function updateOrderStatus(
 
 	const permitted = maySetOrderStatus(ctx.trust, status);
 	if (!permitted.allowed) return { success: false, error: permitted.error };
+
+	// Same rule the /api/orders/[id]/status endpoint enforces: fulfillment is
+	// the brand's to report. Looked up only on the path that can be refused so
+	// the common case stays a single round-trip.
+	if (FULFILLMENT_STATUSES.has(status)) {
+		const { data: org } = await ctx.supabase
+			.from('organizations')
+			.select('org_type')
+			.eq('id', ctx.organizationId)
+			.single();
+		if ((org as { org_type?: string } | null)?.org_type !== 'brand') {
+			return { success: false, error: FULFILLMENT_STATUS_ERROR };
+		}
+	}
 
 	const timestampField: Record<string, string> = {
 		submitted: 'submitted_at',
