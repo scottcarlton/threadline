@@ -465,12 +465,18 @@ export interface Order {
 	expected_ship_date: string | null;
 	start_ship_date: string | null;
 	status: OrderStatus;
+	/** Merchandise only: the sum of `order_lines.line_total`, DB-generated. */
 	total_amount: number;
 	shipped_amount: number | null;
+	/** Quoted when the brand prepares the shipment, firmed up when it ships. */
+	shipping_cost: number | null;
+	carrier: string | null;
+	tracking_number: string | null;
 	notes: string | null;
 	created_by: string;
 	submitted_at: string | null;
 	confirmed_at: string | null;
+	preparing_at: string | null;
 	shipped_at: string | null;
 	delivered_at: string | null;
 	cancelled_at: string | null;

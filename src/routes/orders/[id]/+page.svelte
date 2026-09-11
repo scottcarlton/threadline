@@ -19,7 +19,20 @@
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
 	import { diffLineEdits, type DraftRowInput } from '$lib/utils/order-line-diff.js';
-	import { allowedNextStatuses } from '$lib/utils/order-status-permissions.js';
+	import { allowedNextStatuses, mayEditShipWindow } from '$lib/utils/order-status-permissions.js';
+	import { mayConvertNote } from '$lib/utils/order-convert-permissions.js';
+	import { classifyOrder, SPOTLIGHT_LABELS } from '$lib/utils/order-spotlight.js';
+	import {
+		orderShippingCost,
+		orderGrandTotal,
+		isShippingEstimate
+	} from '$lib/utils/order-total.js';
+	import {
+		Tooltip,
+		TooltipContent,
+		TooltipProvider,
+		TooltipTrigger
+	} from '$lib/components/ui/tooltip/index.js';
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import { SelectField } from '$lib/components/ui/select/index.js';
@@ -265,6 +278,19 @@
 	);
 	const isFederatedView = $derived(federation?.isFederatedView === true);
 
+	// The ship window is the rep's to negotiate while the order is being sold.
+	// From 'preparing' on the warehouse is picking against those dates, so only
+	// the brand keeps the edit. `data.orgType` is the *viewer's* org type, so a
+	// BOA on a federated rep-owned order reads as 'brand' here and keeps it.
+	const canEditShipWindow = $derived(canEdit && mayEditShipWindow(data.orgType, order.status));
+
+	// Converting a note submits the order. On a federated view that is a
+	// federated status change, which is admin/owner only: the same rule the
+	// convert action enforces server-side. Own-org convert is unchanged.
+	const canConvertNote = $derived(
+		canEdit && (!isFederatedView || mayConvertNote(data.membership?.role ?? '', true))
+	);
+
 	// Brand-side federated view: BOA can advance status at every step AND can
 	// cancel before the order ships. After ship, cancellation is reconciled
 	// differently (via return/credit), so it's removed from the allowed set.
@@ -420,7 +446,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		{
 			status: 'preparing',
 			label: 'Preparing',
-			date: (order as unknown as Record<string, unknown>).preparing_at as string | null
+			date: order.preparing_at
 		},
 		{ status: 'shipped', label: 'Shipped', date: order.shipped_at },
 		{ status: 'delivered', label: 'Delivered', date: order.delivered_at }
@@ -433,6 +459,12 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	let savingShipped = $state(false);
 
 	const isShippedOrDelivered = $derived(order.status === 'shipped' || order.status === 'delivered');
+
+	// `order.total_amount` is merchandise only; the payable total adds shipping.
+	// See src/lib/utils/order-total.ts for why the two stay separate.
+	const shippingCost = $derived(orderShippingCost(order));
+	const shippingIsEstimate = $derived(isShippingEstimate(order));
+	const grandTotal = $derived(orderGrandTotal(order));
 	const repCommissionOnTotal = $derived((Number(order.total_amount) * repCommissionRate) / 100);
 	const repCommissionOnShipped = $derived(
 		order.shipped_amount != null ? (Number(order.shipped_amount) * repCommissionRate) / 100 : null
@@ -446,6 +478,19 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 		return Math.round((b - a) / 86_400_000);
 	}
 	const shipWindowLength = $derived(daysBetween(order.start_ship_date, order.expected_ship_date));
+	// Same classifier and same red/amber dot the /orders list uses, so an order
+	// flagged in the list carries the flag onto its own page instead of the
+	// reason for the flag disappearing the moment you click through.
+	const spotlightBuckets = $derived(
+		classifyOrder({
+			status: order.status,
+			start_ship_date: order.start_ship_date,
+			expected_ship_date: order.expected_ship_date,
+			shipped_at: order.shipped_at,
+			updated_at: order.updated_at
+		})
+	);
+	const spotlightTooltip = $derived(spotlightBuckets.map((b) => SPOTLIGHT_LABELS[b]).join(', '));
 	const shipsInDays = $derived.by(() => {
 		if (!order.start_ship_date) return null;
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient local value
@@ -508,9 +553,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				return `${head} ${tail}`;
 			}
 			case 'preparing': {
-				const preparingAt = (order as unknown as Record<string, unknown>).preparing_at as
-					| string
-					| null;
+				const preparingAt = order.preparing_at;
 				const head = `Preparing${preparingAt ? ` · ${longDate(preparingAt)}` : ''}.`;
 				const tail = isBrandSide
 					? 'Fill in shipment details. Mark as Shipped when the order leaves your warehouse.'
@@ -898,10 +941,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	let shipCost = $state('');
 
 	$effect(() => {
-		shipCarrier = ((order as unknown as Record<string, unknown>).carrier as string) ?? '';
-		shipTracking = ((order as unknown as Record<string, unknown>).tracking_number as string) ?? '';
-		const cost = (order as unknown as Record<string, unknown>).shipping_cost;
-		shipCost = cost != null ? String(cost) : '';
+		shipCarrier = order.carrier ?? '';
+		shipTracking = order.tracking_number ?? '';
+		shipCost = order.shipping_cost != null ? String(order.shipping_cost) : '';
 	});
 
 	// ── Prepare shipment dialog ─────────────────────────────────────────
@@ -960,11 +1002,10 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	let shippingOrder = $state(false);
 
 	function openShipConfirm() {
-		shipConfirmCarrier = ((order as unknown as Record<string, unknown>).carrier as string) ?? '';
+		shipConfirmCarrier = order.carrier ?? '';
 		shipConfirmServiceLevel = prepServiceLevel;
-		shipConfirmTracking =
-			((order as unknown as Record<string, unknown>).tracking_number as string) ?? '';
-		shipConfirmCost = Number((order as unknown as Record<string, unknown>).shipping_cost) || 0;
+		shipConfirmTracking = order.tracking_number ?? '';
+		shipConfirmCost = Number(order.shipping_cost) || 0;
 		shipConfirmOpen = true;
 	}
 
@@ -1352,7 +1393,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 								federation?.repDisplayName}{/if}
 					</div>
 				</div>
-				{#if canEdit}
+				{#if canConvertNote}
 					<Button onclick={openConvertModal} loading={convertSubmitting}>Convert to Order</Button>
 				{/if}
 			</div>
@@ -1428,10 +1469,30 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			>
 				<div class="flex flex-wrap gap-10">
 					<div>
-						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">
-							Ship window{#if shipWindowLength !== null}<span class="normal-case"
-									>&nbsp;({shipWindowLength}-day window)</span
-								>{/if}
+						<div
+							class="flex items-center gap-2 text-xs tracking-wider text-muted-foreground/70 uppercase"
+						>
+							<span>
+								Ship window{#if shipWindowLength !== null}<span class="normal-case"
+										>&nbsp;({shipWindowLength}-day window)</span
+									>{/if}
+							</span>
+							{#if spotlightBuckets.length > 0}
+								<TooltipProvider delayDuration={150}>
+									<Tooltip>
+										<TooltipTrigger class="inline-flex" aria-label={spotlightTooltip}>
+											<span
+												class="block h-2 w-2 rounded-full {spotlightBuckets.includes('overdue')
+													? 'bg-red-500'
+													: 'bg-amber-500'}"
+											></span>
+										</TooltipTrigger>
+										<TooltipContent side="right">
+											{spotlightTooltip}
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							{/if}
 						</div>
 						<div class="mt-1.5 flex items-center gap-3">
 							<span class="font-mono text-base font-medium sm:text-xl">
@@ -1473,7 +1534,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 						</div>
 					{/if}
 				</div>
-				{#if canEdit}
+				{#if canEditShipWindow}
 					<ShipWindowPicker
 						variant="button"
 						deliveries={[]}
@@ -2521,12 +2582,12 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				<div class="border-b px-5 py-4">
 					<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Total</div>
 					<div class="mt-1 font-mono text-2xl font-medium tracking-tight sm:text-3xl">
-						{fmt.format(Number(order.total_amount))}
+						{fmt.format(grandTotal)}
 					</div>
 					<div class="mt-1 font-mono text-sm text-muted-foreground/70">
 						{totalUnits} unit{totalUnits === 1 ? '' : 's'} · {totalStyles} style{totalStyles === 1
 							? ''
-							: 's'}
+							: 's'}{#if shippingIsEstimate}<span>&nbsp;· incl. est. shipping</span>{/if}
 					</div>
 				</div>
 				<dl class="space-y-2 px-5 py-4 text-sm">
@@ -2540,7 +2601,14 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 					<div class="flex justify-between">
 						<dt class="text-muted-foreground">Shipping</dt>
-						<dd class="font-mono text-muted-foreground/70">Calc. at ship</dd>
+						{#if shippingCost === null}
+							<dd class="font-mono text-muted-foreground/70">Calc. at ship</dd>
+						{:else}
+							<dd class="font-mono">
+								{#if shippingIsEstimate}<span class="text-muted-foreground/70">est.</span>{/if}
+								{fmt.format(shippingCost)}
+							</dd>
+						{/if}
 					</div>
 					<div class="flex justify-between">
 						<dt class="text-muted-foreground">Tax</dt>
