@@ -1667,3 +1667,31 @@ Recorded so they surface as decisions rather than bug reports:
 - Suggestion chips and tool progress are not stored, so a resumed thread renders without suggestions under its last answer.
 - Two tabs on the same conversation both append to it, interleaved by `created_at`. No locking.
 - The recents popover shows 20 threads with no path to older ones. Unbounded retention means this list will eventually hide history from heavy users, which is a known follow-up, not a defect in this work.
+
+---
+
+## What changed during implementation
+
+This plan is the record of what was intended. Where the shipped code diverges, the spec is the current description and this list is why.
+
+**Found by the tooling, not by review:**
+
+- **Migration version collision.** `20260914000001` was already taken in the shared local database by an unrelated `invoices` migration from another worktree, so `db push` recorded the version without running the SQL. Renamed to `20260914000010`. The CLI's suggested fix (`migration repair --status reverted`) would have deleted another branch's history row and was not used.
+- **supabaseAdmin bypass inventory.** `tests/rls/admin-bypass.test.ts` pins every `supabaseAdmin` call site and failed on the new ones. `ai-conversations.ts` is a real bypass and was registered. `/api/ai/+server.ts` was flagged only because a code comment contained the literal string, since the inventory is a `grep -rl`; the comment was reworded rather than polluting the inventory with a non-bypass.
+- **`RLS_IDS.orgRepA`, not `RLS_ORG_IDS.repA`.** The plan named a helper that does not exist in that shape; `RLS_ORG_IDS` is a string array.
+- **`no-useless-assignment`.** `let activeConversationId: string | null = null` with both branches assigning is a lint error. Dropped the initializer.
+
+**Found by exercising the UI, which the unit and RLS suites could not have caught:**
+
+- **Title never reached the header.** Generation is fire and forget on the server, so nothing pushed the result to the client and the header stayed "New conversation" until a later resume. Added a one-shot client fetch with a single retry.
+- **`bind:this` race.** The parent mounted `ConversationList` and called `conversationListRef?.load()` in the same tick, so the reference was still null and the first open silently rendered an empty list. Fixed by moving the fetch, and later by lifting it to the layout entirely.
+- **Row selection reopened the list.** The dock card sits in the click path and re-toggled the state the same tick the parent closed it. Fixed with `stopPropagation` on the row.
+
+**Design changes requested after the walkthrough:**
+
+- Remix `chat-history-line` replaced with `list-unordered`.
+- Rows went from stacked title-over-timestamp to a single line, title left and timestamp right.
+- The list moved from a floating popover to taking over the prompt area, headed by "Recent" with a close button.
+- The list button is disabled when there are no conversations, which moved the fetch from on-open to on-mount. This reverses the earlier spec note that argued for an in-popover empty state instead.
+- Bits UI tooltips on add files, recents, and voice mode.
+- The `-` button now collapses the panel to a header strip behind the prompt bar, mirroring the onboarding preflight panel, instead of closing it.

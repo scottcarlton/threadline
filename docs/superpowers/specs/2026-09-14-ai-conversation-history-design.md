@@ -52,34 +52,43 @@ The only live chat surface is the dock in `src/routes/+layout.svelte`. All UI ch
 
 ### List button
 
-Goes in the left toolbar group, immediately to the right of the attach button at `+layout.svelte:1176`. The agent picker at `:1198` follows it, and renders only when `availableAgents.length > 0`, so in an org with no agents the toolbar shows two buttons rather than three.
+Goes in the left toolbar group, immediately to the right of the attach button. The agent picker follows it, and renders only when `availableAgents.length > 0`, so in an org with no agents the toolbar shows two buttons rather than three.
 
-Icon is an inline SVG copied verbatim from remixicon.com. No custom path geometry.
+Icon is Remix Icon `list-unordered`, copied verbatim. Remix "line" icons are filled paths rather than strokes, so it carries `fill="currentColor"` and no `stroke`, unlike the attach and agent icons beside it.
 
-### Recents popup
+The button is disabled when the user has no conversations yet. That is why the list is fetched on mount rather than on open: whether the button is clickable has to be known before the first click. A failed fetch leaves it disabled, which is the safe default. The list is refetched after each send, so the button enables the moment a first conversation exists and picks up new titles without a reload.
 
-Opens anchored above the list button, matching the agent picker's existing popover behavior rather than introducing a modal. Shows the 20 most recent conversations ordered by `updated_at` descending, each rendering its title and a relative timestamp.
+### Recents list
 
-Rows follow the inset highlight pattern: container gets `p-2`, each row `rounded-lg px-3`. No edge-to-edge bands.
+The list replaces the prompt area rather than floating above it. While it is open the dock is a picker, not an input, so rendering a text field underneath would be misleading.
 
-If the user has no conversations yet, the popup opens and reads "No conversations yet" at `text-sm` in muted text. Disabling the button instead would mean fetching a count on page load for every user just to decide whether a button is clickable, which is a request per session to answer a question the click itself already answers. A full canonical empty state, with the `h-16 w-16` icon, is disproportionate for a popover this small.
+It is headed by "Recent" on the left with a close button on the right, then up to 20 conversations ordered by `updated_at` descending. Each row is a single line: title left, relative timestamp right. Long titles truncate so the timestamp column stays flush.
+
+Rows follow the inset highlight pattern: `rounded-lg px-3` inside the padded container, never edge-to-edge bands. Row clicks call `stopPropagation`, because the dock card sits in the click path and would otherwise reopen the list the same tick the parent closes it.
+
+No empty state is needed, since the button cannot be pressed with an empty list.
 
 ### Panel header
 
-`+layout.svelte:869` currently renders:
+The static `text-xs` "Conversation" label becomes the active conversation's title at `text-sm`, per the typography minimum. While `title` is still null it reads "New conversation".
 
-```svelte
-<span class="text-xs font-medium text-zinc-500">Conversation</span>
-```
+Title generation runs fire and forget on the server, so it is usually but not always finished when the response arrives. After the first exchange of a new conversation the client fetches the title once, retrying once after 1.5s. If it is still missing the header keeps reading "New conversation" and corrects itself the next time the thread is listed or resumed.
 
-This becomes the active conversation's title. Two changes beyond the text itself:
+### Minimizing
 
-- `text-xs` becomes `text-sm`. The existing value violates the typography minimum in CLAUDE.md, and since this element is being rewritten anyway, it gets fixed here rather than inherited.
-- While `title` is still null, it reads "New conversation".
+The `-` button collapses the panel to its header strip, which tucks in behind the prompt bar, rather than closing it. The body collapses to zero height via `grid-rows-[0fr]` and the padding shrinks on the way down, so the strip animates smaller instead of snapping. Collapsed, the whole panel is the hit area to expand again, since the header row alone is too small a target; the collapse button itself hides and stops propagation so its click cannot bubble to the expand handler.
+
+This mirrors the onboarding preflight panel in `src/routes/onboarding/+page.svelte`, which is the established pattern for this interaction.
+
+Collapse resets whenever a thread is resumed or the conversation is ended, so a new thread never opens already collapsed.
+
+### Tooltips
+
+Add files, recent conversations, and voice mode each get a Bits UI tooltip (never the native `title` attribute), rendered below the button with a 500ms delay and tightened `px-2 py-1` padding. Text stays `text-sm`, per the typography minimum. Only these three call sites are restyled; the shared `tooltip-content.svelte` default is untouched so the rest of the app is unaffected.
 
 ### Resuming
 
-Clicking a row in the popup loads that conversation's full message list into the store, closes the popup, opens the panel, and scrolls to the bottom so the most recent turn is visible and ready to continue. It replaces the current thread rather than appending to it.
+Clicking a row loads that conversation's full message list into the store, closes the list, opens the panel expanded, and scrolls to the bottom so the most recent turn is visible and ready to continue. It replaces the current thread rather than appending to it.
 
 ## Data model
 
@@ -210,6 +219,7 @@ Rejected alternatives: deriving the title from the first message alone is free b
 ## Edge cases
 
 - **Conversation started, first request fails before any message is persisted.** The row exists with a null title and no messages. It is excluded from the recents query, which requires at least one message. No orphan appears in the list.
+- **Request aborted after the user turn is persisted but before the reply.** Observed in testing: the user turn is saved, the stream is cancelled, so no assistant turn and no title are ever written. The thread does list, titled "New conversation", holding a question with no answer. Resuming it works and the question is not lost, which is why it is listed rather than hidden. Open question for later: whether a thread with no assistant reply should appear in the list at all. Deliberately not decided here.
 - **Attachments-only turn.** `content` is an empty string and `attachments` carries the metadata. The resumed thread shows the attachment names with no text, which is what the user actually sent.
 - **Resuming a conversation whose `organization_id` is not the active org.** Only reachable for multi-org members. The resume path switches the active org to the conversation's org first, using the existing membership-verified endpoint at `src/routes/api/org/switch/+server.ts`, then loads the thread. This keeps the model from running with a history from one org and tool scope from another. For the overwhelmingly common single-org user, this branch never executes.
 - **User is removed from the org a conversation belonged to.** The conversation still lists and still opens, because visibility is person-scoped. Any tool call made while resuming it is scoped at execution time and will simply return nothing for that org. No special handling.
