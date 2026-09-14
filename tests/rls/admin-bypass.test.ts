@@ -24,6 +24,7 @@ const REPO_ROOT = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..
 const KNOWN_BYPASS_FILES: string[] = [
 	'src/hooks.server.ts',
 	'src/lib/server/agent-executor.ts',
+	'src/lib/server/ai-conversations.ts',
 	'src/lib/server/ai-limits.ts',
 	'src/lib/server/ai-tools.ts',
 	'src/lib/server/ai-usage.ts',
