@@ -626,5 +626,43 @@ describe('own-org isolation', () => {
 		} finally {
 			await adminClient().from('notifications').delete().eq('id', notificationId);
 		}
+
+		// ai_conversations is person-scoped with no organization_id predicate at
+		// all, so repASales is the right negative persona twice over: same org,
+		// different user. ai_messages has no profile_id of its own and reaches
+		// auth.uid() only through its parent conversation, which is the part
+		// worth proving rather than assuming.
+		const { data: aiConversation, error: aiConversationErr } = await adminClient()
+			.from('ai_conversations')
+			.insert({
+				profile_id: PERSONA_IDS.repAAdmin!,
+				organization_id: RLS_IDS.orgRepA,
+				title: 'RLS probe conversation'
+			})
+			.select('id')
+			.single();
+		expect(aiConversationErr).toBeNull();
+		const aiConversationId = (aiConversation as { id: string }).id;
+		try {
+			const { data: aiMessage, error: aiMessageErr } = await adminClient()
+				.from('ai_messages')
+				.insert({
+					conversation_id: aiConversationId,
+					role: 'user',
+					content: 'rls probe'
+				})
+				.select('id')
+				.single();
+			expect(aiMessageErr).toBeNull();
+			const aiMessageId = (aiMessage as { id: string }).id;
+
+			await expectVisible(owner, 'ai_conversations', aiConversationId);
+			await expectHidden(sameOrgNonOwner, 'ai_conversations', aiConversationId);
+			await expectVisible(owner, 'ai_messages', aiMessageId);
+			await expectHidden(sameOrgNonOwner, 'ai_messages', aiMessageId);
+		} finally {
+			// Deleting the parent cascades the message.
+			await adminClient().from('ai_conversations').delete().eq('id', aiConversationId);
+		}
 	});
 });

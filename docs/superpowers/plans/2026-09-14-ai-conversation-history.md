@@ -29,7 +29,7 @@
 
 Create:
 
-- `supabase/migrations/20260914000001_ai_conversations.sql` - both tables, indexes, RLS policies.
+- `supabase/migrations/20260914000010_ai_conversations.sql` - both tables, indexes, RLS policies.
 - `src/lib/server/ai-conversations.ts` - pure history/title helpers plus the database calls for conversations and messages.
 - `src/lib/server/ai-conversations.test.ts` - unit tests for the pure helpers.
 - `src/lib/server/ai-conversation-title.ts` - the Haiku title call. Separate from the above so `ai-conversations.ts` stays free of Anthropic and usage-logging imports.
@@ -51,7 +51,7 @@ Modify:
 
 **Files:**
 
-- Create: `supabase/migrations/20260914000001_ai_conversations.sql`
+- Create: `supabase/migrations/20260914000010_ai_conversations.sql`
 - Modify: `tests/rls/own-org.test.ts` (the `user-scoped tables (no org disjunct) are hidden from a same-org non-owner` block, currently at line 574)
 
 **Interfaces:**
@@ -61,7 +61,7 @@ Modify:
 
 - [ ] **Step 1: Write the migration**
 
-Create `supabase/migrations/20260914000001_ai_conversations.sql`:
+Create `supabase/migrations/20260914000010_ai_conversations.sql`:
 
 ```sql
 -- Persisted threads for the in-app AI assistant dock.
@@ -211,7 +211,7 @@ Expected: PASS. If the probe insert fails with a missing-table error, the PostgR
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/20260914000001_ai_conversations.sql tests/rls/own-org.test.ts
+git add supabase/migrations/20260914000010_ai_conversations.sql tests/rls/own-org.test.ts
 git commit -m "feat: add ai_conversations and ai_messages tables
 
 Person-scoped RLS (profile_id = auth.uid()) with no org predicate, matching
