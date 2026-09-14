@@ -126,6 +126,28 @@ These tables use explicit link records rather than `get_connected_org_ids()`.
 
 **Converting a federated note is admin/owner.** The `convert` action in `src/routes/orders/[id]/+page.server.ts` flips a note to `status = 'submitted'` through `supabaseAdmin`, so RLS never sees it. On a note reached through an active `federated_order_links` row it therefore reproduces `Brand admin updates federated order status` in the app layer: admin/owner only, so a BLSR cannot submit a rep-owned note. Own-org convert stays open to `member`/`sales`, matching the own-org UPDATE policy. The predicate lives in `src/lib/utils/order-convert-permissions.ts` and also gates the Convert to Order button. `PATCH /api/orders/[id]/lines` deliberately stays open to `member`/`sales` on federated orders: editing lines is a content edit, not a status change, and is the documented BOA behavior above.
 
+### Invoice tables (denormalized federation keys)
+
+`invoices` is a third federation shape and does not fit either mechanism above. It is owned by the **issuing brand org**, which on a federated order is _not_ `orders.organization_id` (always the rep org). Three different actors read it, so three keys are copied onto the row when the draft is created (`brand_id`, `order_org_id`, `account_id`) and every SELECT policy is a single-table predicate.
+
+Subquerying through `orders` instead was rejected deliberately: a subquery inside an RLS policy is subject to the referenced table's RLS, and `orders` has already produced a `42P17` once (`20260901000001_fix_orders_update_recursion.sql`).
+
+| Table              | Brand SELECT                                      | Federation SELECT                                                                                                                                                                 | INSERT                                       | UPDATE                                         | DELETE                                             |
+| ------------------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------- | -------------------------------------------------- |
+| `invoices`         | `brand_id IN get_user_brand_ids(organization_id)` | **Rep:** `order_org_id IN get_user_org_ids() AND order_org_id <> organization_id AND status <> 'draft'`. **Buyer:** `account_id IN get_buyer_account_ids() AND status <> 'draft'` | **none** (trigger-only, see below)           | admin/owner/member, brand-scoped, `WITH CHECK` | admin/owner, brand-scoped, `status = 'draft'` only |
+| `invoice_lines`    | via `invoice_id IN (SELECT id FROM invoices)`     | same (inherited through the parent's policies)                                                                                                                                    | admin/owner/member, parent must be `draft`   | admin/owner/member, parent must be `draft`     | admin/owner/member, parent must be `draft`         |
+| `invoice_payments` | via `invoice_id IN (SELECT id FROM invoices)`     | same (inherited through the parent's policies)                                                                                                                                    | admin/owner only, parent must not be `draft` | admin/owner only                               | admin/owner only                                   |
+
+**A draft is visible only inside the issuing brand org.** Both federation arms carry `status <> 'draft'`. A draft is the brand's working document: it exists while they pack, its shipping cost is usually still null, and its lines may change for a short-ship.
+
+**`order_org_id <> organization_id` on the rep arm is load-bearing.** Policies are OR'd, so without it the rep arm matches for a _brand-internal_ order (whose order org is the issuing org) and grants every member of the brand org a row the brand-scoped arm withheld, defeating `member_brand_access`. Same shape as the `brand_expenses` federation arm, and the same class of bug `20260910000002_orders_update_brand_scope.sql` fixed on `orders`. Covered by `tests/rls/invoices.test.ts`.
+
+**`invoices` has no INSERT policy at all.** Rows are created only by the `SECURITY DEFINER` trigger that fires when an order enters `preparing`, which makes "a rep cannot issue an invoice" true by construction rather than by a check that could later be widened.
+
+**Writes on `invoices` are brand-scoped in both `USING` and `WITH CHECK`,** per the lesson in `20260910000002`: a user may only edit what they can read, and may not move a row to a brand they cannot read. Sales and guest are excluded entirely; issuing or voiding a bill is not a sales action. `invoice_payments` is tighter still at admin/owner, because it is the money record.
+
+**`reject_sent_invoice_edits()`** freezes `invoice_number`, the money columns, the tax columns, and `bill_to_*` once `status` leaves `draft`. It needs `OLD`, so it is a trigger rather than a `WITH CHECK`, and it fires ahead of RLS so it also covers service-role writes.
+
 ### Connection management tables
 
 | Table                       | SELECT                                                                       | INSERT/UPDATE/DELETE            |
