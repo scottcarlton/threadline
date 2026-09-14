@@ -34,8 +34,29 @@ export const RLS_IDS = {
 	orderRepAOnBrandA: `${P}000000000501`,
 	orderBrandAInternal: `${P}000000000502`,
 	orderRepBOnBrandB: `${P}000000000503`,
+	// Exists only to carry the draft invoice below: invoices are UNIQUE on
+	// order_id, so a draft and a sent invoice cannot share one order.
+	orderRepAForDraft: `${P}000000000504`,
 
-	orderLineRepAOnBrandA: `${P}000000000601`
+	orderLineRepAOnBrandA: `${P}000000000601`,
+
+	// Invoices are always issued by the brand org (orgBrandA here), even when
+	// the order belongs to a rep org.
+	//
+	// invoiceSentRepA   sent,  order in orgRepA,   brand A1, account accountBrandA
+	// invoiceSentBrandA2 sent, order in orgBrandA, brand A2, account accountBrandA
+	// invoiceDraftRepA  draft, order in orgRepA,   brand A1, account accountBrandA
+	//
+	// invoiceSentBrandA2 is on brand A2 on purpose: brandAMember is scoped to
+	// A1 via member_brand_access, so it is the row that proves brand scoping
+	// bites on invoices. invoiceDraftRepA carries both a rep org and the
+	// buyer's account so one row proves the draft rule for both readers.
+	invoiceSentRepA: `${P}000000000701`,
+	invoiceSentBrandA2: `${P}000000000702`,
+	invoiceDraftRepA: `${P}000000000703`,
+
+	invoiceLineSentRepA: `${P}000000000801`,
+	invoicePaymentSentRepA: `${P}000000000901`
 } as const;
 
 export const RLS_ORG_IDS: string[] = [

@@ -18,6 +18,7 @@ export type OrderStatus =
 	| 'cancelled';
 export type OrderType = 'order' | 'note';
 export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+export type InvoiceStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'void';
 export type ExpenseCategory =
 	| 'trade_show'
 	| 'samples'
@@ -920,4 +921,98 @@ export interface BuyerInvitation {
 	created_at: string;
 	accounts?: Account;
 	organizations?: Organization;
+}
+
+/**
+ * A bill issued by the brand for one order.
+ *
+ * `organization_id` is the *issuing brand org*, which for a federated order is
+ * not `orders.organization_id` (always the rep org). `order_org_id` carries
+ * that second org so the rep-side RLS read is a single-table predicate.
+ *
+ * `invoice_number` is null until the invoice is sent. Numbering is deferred so
+ * an order cancelled while being packed does not gap the issued sequence.
+ */
+export interface Invoice {
+	id: string;
+	/** The issuing brand org. */
+	organization_id: string;
+	order_id: string;
+	brand_id: string;
+	/** Copy of `orders.organization_id`: the rep org on a federated order. */
+	order_org_id: string;
+	account_id: string | null;
+	/** Null while `status` is `draft`; assigned on send. */
+	invoice_number: string | null;
+	status: InvoiceStatus;
+	issue_date: string | null;
+	due_date: string | null;
+	payment_terms: string | null;
+	po_number: string | null;
+	bill_to_name: string | null;
+	bill_to_line1: string | null;
+	bill_to_line2: string | null;
+	bill_to_city: string | null;
+	bill_to_state: string | null;
+	bill_to_zip: string | null;
+	bill_to_country: string | null;
+	subtotal: number;
+	shipping_amount: number | null;
+	/** Null means "not calculated yet", which is not the same as no tax owed. */
+	tax_amount: number | null;
+	/**
+	 * Stored rather than derived: under tax-inclusive pricing the tax is
+	 * already inside the line prices, so this is not always subtotal +
+	 * shipping + tax.
+	 */
+	total: number;
+	/** Derived from `invoice_payments` by a DB trigger. Never write directly. */
+	amount_paid: number;
+	tax_breakdown: InvoiceTaxBreakdown[];
+	sent_at: string | null;
+	paid_at: string | null;
+	voided_at: string | null;
+	void_reason: string | null;
+	created_by: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+/** Which tax system applied, at what rate, and on what base. Frozen at send. */
+export interface InvoiceTaxBreakdown {
+	system: 'us_sales_tax' | 'vat' | 'gst';
+	rate: number;
+	basis: number;
+	amount: number;
+}
+
+/** A snapshot of an `order_lines` row, taken when the draft is created. */
+export interface InvoiceLine {
+	id: string;
+	invoice_id: string;
+	style_number: string | null;
+	description: string | null;
+	color: string | null;
+	size: string | null;
+	qty: number;
+	unit_price: number;
+	/** DB-generated (`qty * unit_price`). Never send this on write. */
+	line_total: number;
+	sort_order: number | null;
+	created_at: string;
+}
+
+/** One payment against an invoice. The sum rolls up into `Invoice.amount_paid`. */
+export interface InvoicePayment {
+	id: string;
+	invoice_id: string;
+	organization_id: string;
+	amount: number;
+	paid_on: string;
+	/** Validated app-side against PAYMENT_METHODS, not by a DB constraint. */
+	method: string | null;
+	reference: string | null;
+	note: string | null;
+	recorded_by: string | null;
+	created_at: string;
 }
