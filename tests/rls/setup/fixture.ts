@@ -396,6 +396,14 @@ async function seedOrders(admin: SupabaseClient): Promise<void> {
 					freeform_name: 'RLS Rep B Freeform Buyer',
 					created_by: PERSONA_IDS.repBAdmin!,
 					status: 'draft'
+				},
+				{
+					id: RLS_IDS.orderRepAForDraft,
+					organization_id: RLS_IDS.orgRepA,
+					brand_id: RLS_IDS.brandA1,
+					account_id: RLS_IDS.accountBrandA,
+					created_by: PERSONA_IDS.repAAdmin!,
+					status: 'submitted'
 				}
 			])
 		).error
@@ -420,6 +428,90 @@ async function seedOrders(admin: SupabaseClient): Promise<void> {
 	);
 }
 
+/**
+ * Invoices are issued by the brand org even when the order belongs to a rep
+ * org, so every row here has organization_id = orgBrandA while order_org_id
+ * varies. See RLS_IDS for what each row is shaped to prove.
+ */
+async function seedInvoices(admin: SupabaseClient): Promise<void> {
+	check(
+		'invoices insert',
+		(
+			await admin.from('invoices').insert([
+				{
+					id: RLS_IDS.invoiceSentRepA,
+					organization_id: RLS_IDS.orgBrandA,
+					order_id: RLS_IDS.orderRepAOnBrandA,
+					brand_id: RLS_IDS.brandA1,
+					order_org_id: RLS_IDS.orgRepA,
+					account_id: RLS_IDS.accountBrandA,
+					invoice_number: 'INV-RLS-00001',
+					status: 'sent',
+					issue_date: '2026-09-01',
+					due_date: '2026-10-01',
+					subtotal: 300,
+					total: 300
+				},
+				{
+					id: RLS_IDS.invoiceSentBrandA2,
+					organization_id: RLS_IDS.orgBrandA,
+					order_id: RLS_IDS.orderBrandAInternal,
+					brand_id: RLS_IDS.brandA2,
+					order_org_id: RLS_IDS.orgBrandA,
+					account_id: RLS_IDS.accountBrandA,
+					invoice_number: 'INV-RLS-00002',
+					status: 'sent',
+					issue_date: '2026-09-01',
+					due_date: '2026-10-01',
+					subtotal: 100,
+					total: 100
+				},
+				{
+					id: RLS_IDS.invoiceDraftRepA,
+					organization_id: RLS_IDS.orgBrandA,
+					order_id: RLS_IDS.orderRepAForDraft,
+					brand_id: RLS_IDS.brandA1,
+					order_org_id: RLS_IDS.orgRepA,
+					account_id: RLS_IDS.accountBrandA,
+					status: 'draft',
+					subtotal: 50,
+					total: 50
+				}
+			])
+		).error
+	);
+
+	// line_total is a generated column. Never send it.
+	check(
+		'invoice_lines insert',
+		(
+			await admin.from('invoice_lines').insert({
+				id: RLS_IDS.invoiceLineSentRepA,
+				invoice_id: RLS_IDS.invoiceSentRepA,
+				style_number: 'RLS-A1',
+				color: 'Black',
+				size: 'M',
+				qty: 3,
+				unit_price: 100
+			})
+		).error
+	);
+
+	check(
+		'invoice_payments insert',
+		(
+			await admin.from('invoice_payments').insert({
+				id: RLS_IDS.invoicePaymentSentRepA,
+				invoice_id: RLS_IDS.invoiceSentRepA,
+				organization_id: RLS_IDS.orgBrandA,
+				amount: 100,
+				paid_on: '2026-09-05',
+				method: 'check'
+			})
+		).error
+	);
+}
+
 export async function seedRlsFixture(): Promise<void> {
 	const admin = adminClient();
 	await seedUsers(admin);
@@ -429,6 +521,7 @@ export async function seedRlsFixture(): Promise<void> {
 	await seedAccounts(admin);
 	await seedConnections(admin);
 	await seedOrders(admin);
+	await seedInvoices(admin);
 }
 
 /**
@@ -487,8 +580,19 @@ export async function teardownRlsFixture(): Promise<void> {
 		.in('order_id', [
 			RLS_IDS.orderRepAOnBrandA,
 			RLS_IDS.orderBrandAInternal,
-			RLS_IDS.orderRepBOnBrandB
+			RLS_IDS.orderRepBOnBrandB,
+			RLS_IDS.orderRepAForDraft
 		]);
+
+	// invoices.order_org_id is a NO ACTION FK to organizations, so an invoice
+	// whose issuing org and order org are both in this list can block the
+	// cascade depending on which org Postgres reaches first. Same class of
+	// problem as federated_order_links below, handled the same way.
+	// invoice_lines and invoice_payments cascade from invoices.
+	await admin
+		.from('invoices')
+		.delete()
+		.or(`organization_id.in.(${orgList}),order_org_id.in.(${orgList})`);
 
 	// These FKs to organizations are NO ACTION, so they must go before the
 	// orgs. Everything else cascades from organizations.
