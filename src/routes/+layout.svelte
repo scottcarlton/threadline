@@ -266,6 +266,7 @@
 
 	let showHelp = $state(false);
 	let aiPanelOpen = $state(false);
+	let chatPanelCollapsed = $state(false);
 	let mobileAiDockOpen = $state(false);
 	let messagesContainer = $state<HTMLDivElement | null>(null);
 	let aiInputEl = $state<HTMLDivElement | null>(null);
@@ -895,17 +896,38 @@
 		>
 			<div class="pointer-events-auto w-full max-w-[754px] space-y-3 px-4">
 				<!-- Conversation panel (separate floating panel above input) -->
+				<!-- Collapsed, the panel shrinks to its header and tucks in behind the
+				     prompt bar, which sits above it. Mirrors the onboarding preflight
+				     panel in src/routes/onboarding/+page.svelte. -->
+				<!-- Collapsed, the whole panel is the hit area to expand again — the
+				     header row alone is too small a target. Guarded on chatPanelCollapsed
+				     so clicks inside the expanded body do nothing. -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				{#if aiPanelOpen && $messages.length > 0}
-					<div class="animate-in rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10">
-						<div class="flex items-center justify-between px-5 pt-4 pb-2">
+					<div
+						onclick={() => {
+							if (chatPanelCollapsed) chatPanelCollapsed = false;
+						}}
+						class="animate-in rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10 transition-all duration-300 ease-out {chatPanelCollapsed
+							? 'mx-5 -mb-11 cursor-pointer px-5 pt-2 pb-8'
+							: ''}"
+					>
+						<div
+							class="flex items-center justify-between {chatPanelCollapsed ? '' : 'px-5 pt-4 pb-2'}"
+						>
 							<span class="line-clamp-1 text-sm font-medium text-zinc-500"
 								>{$conversationTitle ?? 'New conversation'}</span
 							>
 							<div class="flex items-center gap-1">
+								<!-- Collapse to just this header. stopPropagation, or the click
+								     bubbles to the header's expand handler and undoes itself. -->
 								<button
+									class:hidden={chatPanelCollapsed}
 									class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
-									onclick={() => {
-										aiPanelOpen = false;
+									onclick={(e) => {
+										e.stopPropagation();
+										chatPanelCollapsed = true;
 									}}
 									aria-label="Minimize chat"
 								>
@@ -924,6 +946,7 @@
 									class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
 									onclick={() => {
 										aiPanelOpen = false;
+										chatPanelCollapsed = false;
 										conversation.clear();
 									}}
 									aria-label="Close conversation"
@@ -941,54 +964,61 @@
 								</button>
 							</div>
 						</div>
+						<!-- Body: collapses to zero height via grid-rows -->
 						<div
-							bind:this={messagesContainer}
-							class="max-h-[50dvh] space-y-3 overflow-y-auto px-5 pb-5"
-							style={chatFontStyle}
+							class="grid transition-all duration-300 ease-out {chatPanelCollapsed
+								? 'grid-rows-[0fr] opacity-0'
+								: 'grid-rows-[1fr] opacity-100'}"
 						>
-							{#each $messages as msg, i (i)}
-								<div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
-									<div
-										class="max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed {msg.role === 'user'
-											? 'bg-zinc-700 text-zinc-100'
-											: 'bg-zinc-800 text-zinc-100'}"
-										style={chatFontStyle}
-									>
-										{#if msg.role === 'assistant'}
-											<Markdown content={msg.content} />
-										{:else}
-											<p class="whitespace-pre-wrap">{msg.content}</p>
-										{/if}
+							<div
+								bind:this={messagesContainer}
+								class="max-h-[50dvh] space-y-3 overflow-y-auto px-5 pb-5"
+								style={chatFontStyle}
+							>
+								{#each $messages as msg, i (i)}
+									<div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
+										<div
+											class="max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed {msg.role === 'user'
+												? 'bg-zinc-700 text-zinc-100'
+												: 'bg-zinc-800 text-zinc-100'}"
+											style={chatFontStyle}
+										>
+											{#if msg.role === 'assistant'}
+												<Markdown content={msg.content} />
+											{:else}
+												<p class="whitespace-pre-wrap">{msg.content}</p>
+											{/if}
+										</div>
 									</div>
-								</div>
-								{#if msg.role === 'assistant' && i === $messages.length - 1 && msg.suggestions?.length && !$loading}
-									<div class="flex flex-wrap gap-2 pl-1">
-										{#each msg.suggestions as suggestion (suggestion)}
-											<button
-												onclick={() => sendAiMessage(suggestion)}
-												class="rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
-											>
-												{suggestion}
-											</button>
-										{/each}
+									{#if msg.role === 'assistant' && i === $messages.length - 1 && msg.suggestions?.length && !$loading}
+										<div class="flex flex-wrap gap-2 pl-1">
+											{#each msg.suggestions as suggestion (suggestion)}
+												<button
+													onclick={() => sendAiMessage(suggestion)}
+													class="rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+												>
+													{suggestion}
+												</button>
+											{/each}
+										</div>
+									{/if}
+								{/each}
+								{#if $loading}
+									<div class="flex justify-start">
+										<div class="flex items-center gap-1.5 rounded-2xl bg-zinc-800 px-4 py-3">
+											<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"></div>
+											<div
+												class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
+												style="animation-delay: 0.15s"
+											></div>
+											<div
+												class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
+												style="animation-delay: 0.3s"
+											></div>
+										</div>
 									</div>
 								{/if}
-							{/each}
-							{#if $loading}
-								<div class="flex justify-start">
-									<div class="flex items-center gap-1.5 rounded-2xl bg-zinc-800 px-4 py-3">
-										<div class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"></div>
-										<div
-											class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
-											style="animation-delay: 0.15s"
-										></div>
-										<div
-											class="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500"
-											style="animation-delay: 0.3s"
-										></div>
-									</div>
-								</div>
-							{/if}
+							</div>
 						</div>
 					</div>
 				{/if}
@@ -1134,6 +1164,7 @@
 									onselect={async (id) => {
 										showConversationList = false;
 										aiPanelOpen = true;
+										chatPanelCollapsed = false;
 										await conversation.loadConversation(id, data.organization?.id);
 									}}
 								/>
