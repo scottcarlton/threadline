@@ -8,6 +8,14 @@ import { logUsage } from '$lib/server/ai-usage.js';
 import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
 import { sanitizeConversationHistory } from '$lib/server/ai-history.js';
+import {
+	appendMessage,
+	conversationBelongsTo,
+	createConversation,
+	loadHistory,
+	type StoredAttachment
+} from '$lib/server/ai-conversations.js';
+import { generateTitle } from '$lib/server/ai-conversation-title.js';
 import { isSafePath, sanitizeEntityContext } from '$lib/server/ai-context.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
@@ -1016,6 +1024,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		message,
 		files,
 		conversationHistory,
+		conversationId,
 		currentPage,
 		entityContext: entityCtx,
 		agentId,
@@ -1039,6 +1048,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			{ error: limit.message },
 			{ status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
 		);
+	}
+
+	// Resolve the conversation before anything touches the model, so a forged
+	// id fails closed rather than silently starting a new thread. The helpers
+	// in ai-conversations.ts run through the admin client and therefore bypass
+	// RLS, which is why ownership is checked here rather than relied on from
+	// the policy.
+	let activeConversationId: string | null;
+	let isNewConversation = false;
+	if (typeof conversationId === 'string' && conversationId) {
+		const owns = await conversationBelongsTo(conversationId, locals.user.id);
+		if (!owns) return json({ error: 'Conversation not found' }, { status: 403 });
+		activeConversationId = conversationId;
+	} else {
+		activeConversationId = await createConversation(locals.user.id, locals.organization.id);
+		isNewConversation = activeConversationId !== null;
 	}
 
 	// Resolve agent — by explicit agentId or @slug mention
@@ -1200,18 +1225,44 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 	);
 
 	try {
-		// History comes from the client, so it is validated before it can shape
-		// what the model believes about its own past. See ai-history.ts.
-		const history = sanitizeConversationHistory(conversationHistory);
-		if (history.rejected > 0) {
-			console.warn(
-				`[ai] discarded ${history.rejected} malformed history turn(s) from user ${locals.user!.id}`
-			);
+		// For an existing conversation, history comes from rows this server
+		// wrote, so the forgery vector ai-history.ts guards against does not
+		// apply. The sanitizer stays for the first turn of a new conversation
+		// and as a fallback when the conversation row could not be created.
+		let historyMessages: Anthropic.MessageParam[];
+		if (activeConversationId && !isNewConversation) {
+			historyMessages = await loadHistory(activeConversationId);
+		} else {
+			const history = sanitizeConversationHistory(conversationHistory);
+			if (history.rejected > 0) {
+				console.warn(
+					`[ai] discarded ${history.rejected} malformed history turn(s) from user ${locals.user!.id}`
+				);
+			}
+			historyMessages = history.messages;
 		}
 		const messages: Anthropic.MessageParam[] = [
-			...history.messages,
+			...historyMessages,
 			{ role: 'user' as const, content: userContent }
 		];
+
+		// Persist the user turn before the model call. Attachment bytes are never
+		// stored, only enough metadata to render the turn on resume.
+		if (activeConversationId) {
+			const storedAttachments: StoredAttachment[] | null = Array.isArray(files)
+				? files.map((f: { name: string; type: string; data: string }) => ({
+						name: f.name,
+						type: f.type,
+						size: f.data?.length ?? 0
+					}))
+				: null;
+			await appendMessage(
+				activeConversationId,
+				'user',
+				cleanMessage,
+				storedAttachments && storedAttachments.length > 0 ? storedAttachments : null
+			);
+		}
 
 		// Pre-flight: use Haiku to classify whether this needs tools/Sonnet or can be answered directly.
 		// Skip classification if files are attached (needs Sonnet vision) or a custom agent is active.
@@ -1222,7 +1273,7 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			// Include the last 2 messages of history so follow-ups like "what about
 			// the other ones?" classify correctly against prior tool context.
 			const classifyMessages: Anthropic.MessageParam[] = [
-				...history.messages.slice(-2),
+				...historyMessages.slice(-2),
 				{ role: 'user', content: userContent }
 			];
 
@@ -1280,7 +1331,21 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 				}
 			}
 
-			return json({ response: responseText, suggestions });
+			if (activeConversationId) {
+				await appendMessage(activeConversationId, 'assistant', responseText);
+				if (isNewConversation) {
+					generateTitle({
+						anthropic,
+						conversationId: activeConversationId,
+						firstUserMessage: cleanMessage,
+						firstAssistantMessage: responseText,
+						organizationId: locals.organization!.id,
+						userId: locals.user!.id
+					});
+				}
+			}
+
+			return json({ response: responseText, suggestions, conversationId: activeConversationId });
 		}
 
 		// Streaming branch: return Server-Sent Events so the client can render
@@ -1297,7 +1362,9 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 				origin,
 				resolvedAgentId,
 				cleanMessage,
-				requestStartTime
+				requestStartTime,
+				conversationId: activeConversationId,
+				isNewConversation
 			});
 		}
 
@@ -1451,10 +1518,25 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			}
 		});
 
+		if (activeConversationId) {
+			await appendMessage(activeConversationId, 'assistant', responseText);
+			if (isNewConversation) {
+				generateTitle({
+					anthropic,
+					conversationId: activeConversationId,
+					firstUserMessage: cleanMessage,
+					firstAssistantMessage: responseText,
+					organizationId: locals.organization!.id,
+					userId: locals.user!.id
+				});
+			}
+		}
+
 		return json({
 			response: responseText,
 			actions: actions.length > 0 ? actions : undefined,
-			suggestions
+			suggestions,
+			conversationId: activeConversationId
 		});
 	} catch (err) {
 		console.error('AI API error:', err);
@@ -1479,6 +1561,8 @@ type StreamResponseParams = {
 	resolvedAgentId: string | null;
 	cleanMessage: string;
 	requestStartTime: number;
+	conversationId: string | null;
+	isNewConversation: boolean;
 };
 
 function streamResponse(params: StreamResponseParams): Response {
@@ -1624,11 +1708,26 @@ function streamResponse(params: StreamResponseParams): Response {
 					});
 				}
 
+				if (params.conversationId) {
+					await appendMessage(params.conversationId, 'assistant', responseText);
+					if (params.isNewConversation) {
+						generateTitle({
+							anthropic: params.anthropic,
+							conversationId: params.conversationId,
+							firstUserMessage: params.cleanMessage,
+							firstAssistantMessage: responseText,
+							organizationId: params.locals.organization!.id,
+							userId: params.locals.user!.id
+						});
+					}
+				}
+
 				send(controller, {
 					type: 'done',
 					response: responseText,
 					actions: actions.length > 0 ? actions : undefined,
-					suggestions
+					suggestions,
+					conversationId: params.conversationId
 				});
 			} catch (err) {
 				console.error('AI stream error:', err);
