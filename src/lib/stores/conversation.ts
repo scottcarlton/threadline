@@ -27,8 +27,6 @@ export type ActiveAgent = {
 	slug: string;
 } | null;
 
-const MAX_HISTORY = 10;
-
 // Map each tool name to the invalidation keys it affects. Pages declare
 // dependencies with `depends('data:key')` in their load fn; for any tool
 // whose keys aren't listed we fall back to invalidateAll().
@@ -72,28 +70,32 @@ const READ_ONLY_TOOLS = new Set([
 	'pull_from_notion'
 ]);
 
-export function windowHistory(
-	history: Array<{ role: 'user' | 'assistant'; content: string }>
-): Array<{ role: 'user' | 'assistant'; content: string }> {
-	if (history.length <= MAX_HISTORY) return history;
-	const older = history.slice(0, -MAX_HISTORY);
-	// Summary of what was discussed earlier — kept terse so we don't burn
-	// tokens re-stating the conversation verbatim.
-	const topics = older
-		.filter((m) => m.role === 'user')
-		.map((m) => m.content.split(/[.?!]/)[0].slice(0, 80))
-		.slice(-5)
-		.map((s) => s.trim())
-		.filter(Boolean)
-		.join(' · ');
-	const summary = topics
-		? `[Earlier in this conversation the user asked about: ${topics}]`
-		: '[This conversation has been running a while; prior messages were trimmed.]';
-	return [
-		{ role: 'user', content: summary },
-		{ role: 'assistant', content: 'Understood, I have that context.' },
-		...history.slice(-MAX_HISTORY)
-	];
+export type StoredRow = {
+	role: 'user' | 'assistant';
+	content: string;
+	attachments: Array<{ name: string; type: string; size: number }> | null;
+};
+
+/**
+ * Stored rows to store messages.
+ *
+ * Attachment bytes are never persisted, so `data` comes back empty. It exists
+ * only to satisfy FileAttachment; nothing re-sends a resumed attachment to the
+ * model.
+ */
+export function messagesFromStored(rows: StoredRow[]): Message[] {
+	return rows.map((row) => {
+		const message: Message = { role: row.role, content: row.content };
+		if (row.attachments && row.attachments.length > 0) {
+			message.attachments = row.attachments.map((a) => ({
+				name: a.name,
+				type: a.type,
+				size: a.size,
+				data: ''
+			}));
+		}
+		return message;
+	});
 }
 
 export function planInvalidation(actions: Array<{ tool: string }>): {
@@ -126,6 +128,8 @@ function createConversationStore() {
 	const messages = writable<Message[]>([]);
 	const loading = writable(false);
 	const activeAgent = writable<ActiveAgent>(null);
+	const conversationId = writable<string | null>(null);
+	const title = writable<string | null>(null);
 
 	async function sendMessage(text: string, files?: FileAttachment[]) {
 		const userMessage: Message = { role: 'user', content: text, attachments: files };
@@ -137,11 +141,15 @@ function createConversationStore() {
 		const agent = get(activeAgent);
 
 		try {
-			const rawHistory = get(messages).map((m) => ({
-				role: m.role,
-				content: m.content
-			}));
-			const history = windowHistory(rawHistory.slice(0, -1));
+			// Once a conversation exists the server reads history from the
+			// database and ignores anything sent here, so only the very first
+			// message of a new thread needs to carry it.
+			const activeId = get(conversationId);
+			const history = activeId
+				? []
+				: get(messages)
+						.slice(0, -1)
+						.map((m) => ({ role: m.role, content: m.content }));
 
 			// Skip streaming when files are attached — the multimodal path
 			// uses Sonnet vision which doesn't compose cleanly with our
@@ -152,6 +160,7 @@ function createConversationStore() {
 				message: text,
 				files: files?.map((f) => ({ name: f.name, type: f.type, data: f.data })),
 				conversationHistory: history,
+				conversationId: activeId,
 				currentPage,
 				entityContext: entity.summary ? entity : undefined,
 				agentId: agent?.id ?? undefined,
@@ -169,6 +178,7 @@ function createConversationStore() {
 
 			if (!isStream) {
 				const data = await res.json();
+				if (data.conversationId) conversationId.set(data.conversationId);
 				const assistantMessage: Message = {
 					role: 'assistant',
 					content: data.response ?? "Sorry, I couldn't process that request.",
@@ -210,6 +220,9 @@ function createConversationStore() {
 					applyStreamEvent(event, messages);
 					if (event.type === 'done') {
 						finalActions = event.actions as Array<{ tool: string }> | undefined;
+						if (typeof event.conversationId === 'string') {
+							conversationId.set(event.conversationId);
+						}
 					}
 				}
 			}
@@ -232,8 +245,29 @@ function createConversationStore() {
 		}
 	}
 
+	async function loadConversation(id: string) {
+		loading.set(true);
+		try {
+			const res = await fetch(`/api/ai/conversations/${id}`);
+			if (!res.ok) return;
+			const data = await res.json();
+			messages.set(messagesFromStored(data.messages ?? []));
+			conversationId.set(data.id);
+			title.set(data.title ?? null);
+		} finally {
+			loading.set(false);
+		}
+	}
+
+	/**
+	 * Ends the session in the UI only. The thread is already persisted, so this
+	 * is no longer destructive: it leaves the current conversation rather than
+	 * discarding it.
+	 */
 	function clear() {
 		messages.set([]);
+		conversationId.set(null);
+		title.set(null);
 		activeAgent.set(null);
 	}
 
@@ -241,7 +275,17 @@ function createConversationStore() {
 		activeAgent.set(agent);
 	}
 
-	return { messages, loading, activeAgent, sendMessage, clear, setAgent };
+	return {
+		messages,
+		loading,
+		activeAgent,
+		conversationId,
+		title,
+		sendMessage,
+		loadConversation,
+		clear,
+		setAgent
+	};
 }
 
 function applyStreamEvent(
