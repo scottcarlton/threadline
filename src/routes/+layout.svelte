@@ -15,7 +15,15 @@
 	import NotificationCenter from '$lib/components/notifications/NotificationCenter.svelte';
 	import Markdown from '$lib/components/ai/Markdown.svelte';
 	import SuggestionPanel from '$lib/components/ai/SuggestionPanel.svelte';
-	import ConversationList from '$lib/components/ai/ConversationList.svelte';
+	import ConversationList, {
+		type ConversationSummary
+	} from '$lib/components/ai/ConversationList.svelte';
+	import {
+		Tooltip,
+		TooltipContent,
+		TooltipProvider,
+		TooltipTrigger
+	} from '$lib/components/ui/tooltip/index.js';
 	import { suggestPrompts, type SuggestionMatch } from '$lib/utils/ai-suggest.js';
 	import { entityContext } from '$lib/stores/entityContext.js';
 	import { startUnreadPolling } from '$lib/stores/unread.js';
@@ -252,6 +260,8 @@
 		requestAnimationFrame(() => {
 			sidebarMounted = true;
 		});
+		// Buyers never reach the org assistant, and the endpoint 401s for them.
+		if (data.organization && !data.isBuyer) void loadRecentConversations();
 	});
 
 	let showHelp = $state(false);
@@ -270,7 +280,21 @@
 	const availableAgents = $derived(data.agents ?? []);
 	let showAgentPicker = $state(false);
 	let showConversationList = $state(false);
-	let conversationListRef = $state<ConversationList | null>(null);
+	let recentConversations = $state<ConversationSummary[]>([]);
+
+	// Loaded up front rather than on open, because the list button is disabled
+	// when the user has no past conversations and that has to be known before
+	// the first click.
+	async function loadRecentConversations() {
+		try {
+			const res = await fetch('/api/ai/conversations');
+			if (!res.ok) return;
+			const data = await res.json();
+			recentConversations = data.conversations ?? [];
+		} catch {
+			// A failed load leaves the button disabled, which is the safe default.
+		}
+	}
 
 	const { activeAgent } = conversation;
 	let attachedFiles = $state<{ file: File; preview?: string }[]>([]);
@@ -685,6 +709,7 @@
 
 	async function sendVoiceMessage(text: string) {
 		await conversation.sendMessage(text);
+		void loadRecentConversations();
 		if (!voiceMode) return;
 
 		const allMsgs = $messages;
@@ -760,6 +785,10 @@
 		}
 
 		await conversation.sendMessage(msg || 'What is this file?', files);
+		// A first message creates a conversation, which is what flips the recents
+		// button from disabled to enabled. Titles also land shortly after the
+		// reply, so this refresh picks them up too.
+		void loadRecentConversations();
 	}
 </script>
 
@@ -1096,28 +1125,42 @@
 								</div>
 							{/if}
 
-							<!-- Text input row -->
-							<div class="flex items-center gap-4">
-								<div
-									bind:this={aiInputEl}
-									id="ai-dock-input"
-									contenteditable="true"
-									role="textbox"
-									tabindex="0"
-									aria-label="Ask anything about your business"
-									aria-multiline="true"
-									aria-controls={aiSuggestions.length > 0 ? 'ai-suggestion-list' : undefined}
-									aria-activedescendant={suggestionIndex >= 0
-										? `ai-suggestion-${suggestionIndex}`
-										: undefined}
-									onkeydown={handleAiKeydown}
-									oninput={handleAiInput}
-									onblur={closeSuggestions}
-									class="ai-input max-h-40 min-h-6 flex-1 overflow-y-auto bg-transparent text-base leading-6 break-words text-zinc-100 outline-none"
-									data-placeholder="Ask anything about your business..."
-									style={chatFontStyle}
-								></div>
-							</div>
+							<!-- Recent conversations take over the prompt area: while the list
+							     is open this is a picker, not an input. -->
+							{#if showConversationList}
+								<ConversationList
+									conversations={recentConversations}
+									onclose={() => (showConversationList = false)}
+									onselect={async (id) => {
+										showConversationList = false;
+										aiPanelOpen = true;
+										await conversation.loadConversation(id, data.organization?.id);
+									}}
+								/>
+							{:else}
+								<!-- Text input row -->
+								<div class="flex items-center gap-4">
+									<div
+										bind:this={aiInputEl}
+										id="ai-dock-input"
+										contenteditable="true"
+										role="textbox"
+										tabindex="0"
+										aria-label="Ask anything about your business"
+										aria-multiline="true"
+										aria-controls={aiSuggestions.length > 0 ? 'ai-suggestion-list' : undefined}
+										aria-activedescendant={suggestionIndex >= 0
+											? `ai-suggestion-${suggestionIndex}`
+											: undefined}
+										onkeydown={handleAiKeydown}
+										oninput={handleAiInput}
+										onblur={closeSuggestions}
+										class="ai-input max-h-40 min-h-6 flex-1 overflow-y-auto bg-transparent text-base leading-6 break-words text-zinc-100 outline-none"
+										data-placeholder="Ask anything about your business..."
+										style={chatFontStyle}
+									></div>
+								</div>
+							{/if}
 
 							<!-- Attached files -->
 							{#if hasAttachments}
@@ -1178,60 +1221,64 @@
 							<!-- Toolbar row: +file & agent on left, mic/send on right -->
 							<div class="mt-2 flex items-center justify-between">
 								<div class="flex items-center gap-1">
-									<button
-										onclick={() => fileInput?.click()}
-										disabled={$loading}
-										class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
-										aria-label="Attach file"
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-5 w-5"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="1.5"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M12 4.5v15m7.5-7.5h-15"
-											/>
-										</svg>
-									</button>
+									<TooltipProvider delayDuration={500}>
+										<Tooltip>
+											<TooltipTrigger
+												onclick={() => fileInput?.click()}
+												disabled={$loading}
+												class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
+												aria-label="Attach file"
+											>
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													class="h-5 w-5"
+													fill="none"
+													viewBox="0 0 24 24"
+													stroke="currentColor"
+													stroke-width="1.5"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														d="M12 4.5v15m7.5-7.5h-15"
+													/>
+												</svg>
+											</TooltipTrigger>
+											<TooltipContent side="bottom" sideOffset={6} class="px-2 py-1"
+												>Add files</TooltipContent
+											>
+										</Tooltip>
+									</TooltipProvider>
 
 									<div class="relative">
-										<button
-											onclick={async () => {
-												showConversationList = !showConversationList;
-												if (showConversationList) await conversationListRef?.load();
-											}}
-											disabled={$loading}
-											class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
-											aria-label="Recent conversations"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												class="h-5 w-5"
-												viewBox="0 0 24 24"
-												fill="currentColor"
-											>
-												<path
-													d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C10.298 22 8.69525 21.5748 7.29229 20.8248L2 22L3.17629 16.7097C2.42562 15.3063 2 13.7028 2 12C2 6.47715 6.47715 2 12 2ZM12 4C7.58172 4 4 7.58172 4 12C4 13.3347 4.32563 14.6181 4.93987 15.7664L5.28952 16.4201L4.63445 19.3663L7.58189 18.7118L8.23518 19.061C9.38315 19.6747 10.6659 20 12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4ZM13 7V12H17V14H11V7H13Z"
-												/>
-											</svg>
-										</button>
-
-										{#if showConversationList}
-											<ConversationList
-												bind:this={conversationListRef}
-												onselect={async (id) => {
-													showConversationList = false;
-													aiPanelOpen = true;
-													await conversation.loadConversation(id, data.organization?.id);
-												}}
-											/>
-										{/if}
+										<TooltipProvider delayDuration={500}>
+											<Tooltip>
+												<TooltipTrigger
+													onclick={() => {
+														showConversationList = !showConversationList;
+													}}
+													disabled={$loading || recentConversations.length === 0}
+													class="rounded-lg p-2.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:p-1.5 {showConversationList
+														? 'bg-zinc-800 text-zinc-200'
+														: 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'}"
+													aria-label="Recent conversations"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="h-5 w-5"
+														viewBox="0 0 24 24"
+														fill="currentColor"
+													>
+														<path
+															d="M8 4H21V6H8V4ZM4.5 6.5C3.67157 6.5 3 5.82843 3 5C3 4.17157 3.67157 3.5 4.5 3.5C5.32843 3.5 6 4.17157 6 5C6 5.82843 5.32843 6.5 4.5 6.5ZM4.5 13.5C3.67157 13.5 3 12.8284 3 12C3 11.1716 3.67157 10.5 4.5 10.5C5.32843 10.5 6 11.1716 6 12C6 12.8284 5.32843 13.5 4.5 13.5ZM4.5 20.4C3.67157 20.4 3 19.7284 3 18.9C3 18.0716 3.67157 17.4 4.5 17.4C5.32843 17.4 6 18.0716 6 18.9C6 19.7284 5.32843 20.4 4.5 20.4ZM8 11H21V13H8V11ZM8 18H21V20H8V18Z"
+														/>
+													</svg>
+												</TooltipTrigger>
+												<TooltipContent side="bottom" sideOffset={6} class="px-2 py-1"
+													>Recent conversations</TooltipContent
+												>
+											</Tooltip>
+										</TooltipProvider>
 									</div>
 
 									{#if availableAgents.length > 0}
@@ -1381,19 +1428,26 @@
 										</button>
 									{:else}
 										<!-- Voice idle: static wave icon -->
-										<button
-											onclick={toggleVoice}
-											disabled={!$isOnline}
-											class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
-											aria-label={$isOnline ? 'Voice input' : 'Offline — voice unavailable'}
-										>
-											<div class="flex items-center gap-[2px]">
-												<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
-												<span class="h-[18px] w-[3px] rounded-full bg-current"></span>
-												<span class="h-[12px] w-[3px] rounded-full bg-current"></span>
-												<span class="h-[6px] w-[3px] rounded-full bg-current"></span>
-											</div>
-										</button>
+										<TooltipProvider delayDuration={500}>
+											<Tooltip>
+												<TooltipTrigger
+													onclick={toggleVoice}
+													disabled={!$isOnline}
+													class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+													aria-label={$isOnline ? 'Voice input' : 'Offline — voice unavailable'}
+												>
+													<div class="flex items-center gap-[2px]">
+														<span class="h-[8px] w-[3px] rounded-full bg-current"></span>
+														<span class="h-[18px] w-[3px] rounded-full bg-current"></span>
+														<span class="h-[12px] w-[3px] rounded-full bg-current"></span>
+														<span class="h-[6px] w-[3px] rounded-full bg-current"></span>
+													</div>
+												</TooltipTrigger>
+												<TooltipContent side="bottom" sideOffset={6} class="px-2 py-1"
+													>Voice mode</TooltipContent
+												>
+											</Tooltip>
+										</TooltipProvider>
 									{/if}
 								</div>
 							</div>

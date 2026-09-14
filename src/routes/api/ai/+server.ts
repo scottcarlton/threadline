@@ -1051,10 +1051,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Resolve the conversation before anything touches the model, so a forged
-	// id fails closed rather than silently starting a new thread. supabaseAdmin
-	// bypasses RLS, which is why ownership is checked here rather than relied
-	// on from the policy.
-	let activeConversationId: string | null = null;
+	// id fails closed rather than silently starting a new thread. The helpers
+	// in ai-conversations.ts run through the admin client and therefore bypass
+	// RLS, which is why ownership is checked here rather than relied on from
+	// the policy.
+	let activeConversationId: string | null;
 	let isNewConversation = false;
 	if (typeof conversationId === 'string' && conversationId) {
 		const owns = await conversationBelongsTo(conversationId, locals.user.id);

@@ -131,6 +131,32 @@ function createConversationStore() {
 	const conversationId = writable<string | null>(null);
 	const title = writable<string | null>(null);
 
+	/**
+	 * Pick up the title the server generates after the first exchange.
+	 *
+	 * Generation is fire and forget on the server so it never delays the
+	 * answer, which means it is usually but not always finished by the time the
+	 * response reaches us. One retry covers the common miss; if it is still not
+	 * there the header keeps reading "New conversation" and corrects itself the
+	 * next time the thread is listed or resumed.
+	 */
+	async function refreshTitle(id: string, attemptsLeft = 2) {
+		try {
+			const res = await fetch(`/api/ai/conversations/${id}`);
+			if (!res.ok) return;
+			const data = await res.json();
+			if (data.title) {
+				title.set(data.title);
+				return;
+			}
+		} catch {
+			return;
+		}
+		if (attemptsLeft > 1) {
+			setTimeout(() => void refreshTitle(id, attemptsLeft - 1), 1500);
+		}
+	}
+
 	async function sendMessage(text: string, files?: FileAttachment[]) {
 		const userMessage: Message = { role: 'user', content: text, attachments: files };
 		messages.update((m) => [...m, userMessage]);
@@ -145,6 +171,7 @@ function createConversationStore() {
 			// database and ignores anything sent here, so only the very first
 			// message of a new thread needs to carry it.
 			const activeId = get(conversationId);
+			const wasNewConversation = !activeId;
 			const history = activeId
 				? []
 				: get(messages)
@@ -185,6 +212,7 @@ function createConversationStore() {
 					suggestions: data.suggestions
 				};
 				messages.update((m) => [...m, assistantMessage]);
+				if (wasNewConversation && data.conversationId) void refreshTitle(data.conversationId);
 				if (data.actions?.length) await invalidateAfterActions(data.actions);
 				return;
 			}
@@ -233,6 +261,9 @@ function createConversationStore() {
 				if (last && last.role === 'assistant') last.streaming = false;
 				return [...m];
 			});
+
+			const newId = get(conversationId);
+			if (wasNewConversation && newId) void refreshTitle(newId);
 
 			if (finalActions?.length) await invalidateAfterActions(finalActions);
 		} catch {
