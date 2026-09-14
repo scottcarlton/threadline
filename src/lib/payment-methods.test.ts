@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	PAYMENT_METHODS,
+	dueDateFromTerms,
 	PAYMENT_TERMS,
 	PAYMENT_PREFERENCES,
 	acceptedMethodsOnly,
@@ -120,5 +121,55 @@ describe('acceptedMethodsOnly / acceptedTermsOnly', () => {
 	it('terms includeCode only accepts term codes', () => {
 		const result = acceptedTermsOnly(['net_30'], 'credit_card');
 		expect(result.map((r) => r.code)).toEqual(['net_30']);
+	});
+});
+
+describe('dueDateFromTerms', () => {
+	it('adds the net period to the issue date', () => {
+		expect(dueDateFromTerms('net_30', '2026-09-01')).toBe('2026-10-01');
+		expect(dueDateFromTerms('net_15', '2026-09-01')).toBe('2026-09-16');
+		expect(dueDateFromTerms('net_60', '2026-09-01')).toBe('2026-10-31');
+		expect(dueDateFromTerms('net_90', '2026-09-01')).toBe('2026-11-30');
+	});
+
+	it('makes COD and prepaid due on the issue date', () => {
+		expect(dueDateFromTerms('cod', '2026-09-01')).toBe('2026-09-01');
+		expect(dueDateFromTerms('prepaid', '2026-09-01')).toBe('2026-09-01');
+	});
+
+	it('returns null for `other` rather than inventing a deadline', () => {
+		// An invented due date silently turns the invoice overdue and starts
+		// chasing a buyer who was never given a deadline.
+		expect(dueDateFromTerms('other', '2026-09-01')).toBeNull();
+	});
+
+	it('returns null for an unknown, missing, or empty code', () => {
+		expect(dueDateFromTerms('net_45', '2026-09-01')).toBeNull();
+		expect(dueDateFromTerms(null, '2026-09-01')).toBeNull();
+		expect(dueDateFromTerms(undefined, '2026-09-01')).toBeNull();
+		expect(dueDateFromTerms('', '2026-09-01')).toBeNull();
+	});
+
+	it('returns null for an unparseable issue date', () => {
+		expect(dueDateFromTerms('net_30', 'not-a-date')).toBeNull();
+	});
+
+	it('crosses month and year boundaries correctly', () => {
+		expect(dueDateFromTerms('net_30', '2026-12-15')).toBe('2027-01-14');
+	});
+
+	it('handles a leap day', () => {
+		expect(dueDateFromTerms('net_30', '2028-02-28')).toBe('2028-03-29');
+	});
+
+	it('every term code resolves to a date or an explicit null', () => {
+		for (const term of PAYMENT_TERMS) {
+			const due = dueDateFromTerms(term.code, '2026-09-01');
+			if (term.netDays === null) {
+				expect(due, term.code).toBeNull();
+			} else {
+				expect(due, term.code).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+			}
+		}
 	});
 });
