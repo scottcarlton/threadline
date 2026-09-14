@@ -62,7 +62,7 @@ Opens anchored above the list button, matching the agent picker's existing popov
 
 Rows follow the inset highlight pattern: container gets `p-2`, each row `rounded-lg px-3`. No edge-to-edge bands.
 
-If the user has no conversations yet, the popup does not open at all and the button is disabled. A full empty state is disproportionate for a popover this small.
+If the user has no conversations yet, the popup opens and reads "No conversations yet" at `text-sm` in muted text. Disabling the button instead would mean fetching a count on page load for every user just to decide whether a button is clickable, which is a request per session to answer a question the click itself already answers. A full canonical empty state, with the `h-16 w-16` icon, is disproportionate for a popover this small.
 
 ### Panel header
 
