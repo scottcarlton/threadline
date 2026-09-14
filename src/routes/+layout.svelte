@@ -15,6 +15,7 @@
 	import NotificationCenter from '$lib/components/notifications/NotificationCenter.svelte';
 	import Markdown from '$lib/components/ai/Markdown.svelte';
 	import SuggestionPanel from '$lib/components/ai/SuggestionPanel.svelte';
+	import ConversationList from '$lib/components/ai/ConversationList.svelte';
 	import { suggestPrompts, type SuggestionMatch } from '$lib/utils/ai-suggest.js';
 	import { entityContext } from '$lib/stores/entityContext.js';
 	import { startUnreadPolling } from '$lib/stores/unread.js';
@@ -38,7 +39,7 @@
 	import { selectedProductIds } from '$lib/stores/productSelection.js';
 	import { supabase } from '$lib/supabase.js';
 
-	const { messages, loading } = conversation;
+	const { messages, loading, title: conversationTitle } = conversation;
 
 	function getUserInitials(name?: string | null): string {
 		if (!name) return '??';
@@ -268,6 +269,8 @@
 	let fileInput = $state<HTMLInputElement | null>(null);
 	const availableAgents = $derived(data.agents ?? []);
 	let showAgentPicker = $state(false);
+	let showConversationList = $state(false);
+	let conversationListRef = $state<ConversationList | null>(null);
 
 	const { activeAgent } = conversation;
 	let attachedFiles = $state<{ file: File; preview?: string }[]>([]);
@@ -866,7 +869,9 @@
 				{#if aiPanelOpen && $messages.length > 0}
 					<div class="animate-in rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10">
 						<div class="flex items-center justify-between px-5 pt-4 pb-2">
-							<span class="text-xs font-medium text-zinc-500">Conversation</span>
+							<span class="line-clamp-1 text-sm font-medium text-zinc-500"
+								>{$conversationTitle ?? 'New conversation'}</span
+							>
 							<div class="flex items-center gap-1">
 								<button
 									class="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1"
@@ -1194,6 +1199,40 @@
 											/>
 										</svg>
 									</button>
+
+									<div class="relative">
+										<button
+											onclick={async () => {
+												showConversationList = !showConversationList;
+												if (showConversationList) await conversationListRef?.load();
+											}}
+											disabled={$loading}
+											class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
+											aria-label="Recent conversations"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-5 w-5"
+												viewBox="0 0 24 24"
+												fill="currentColor"
+											>
+												<path
+													d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C10.298 22 8.69525 21.5748 7.29229 20.8248L2 22L3.17629 16.7097C2.42562 15.3063 2 13.7028 2 12C2 6.47715 6.47715 2 12 2ZM12 4C7.58172 4 4 7.58172 4 12C4 13.3347 4.32563 14.6181 4.93987 15.7664L5.28952 16.4201L4.63445 19.3663L7.58189 18.7118L8.23518 19.061C9.38315 19.6747 10.6659 20 12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4ZM13 7V12H17V14H11V7H13Z"
+												/>
+											</svg>
+										</button>
+
+										{#if showConversationList}
+											<ConversationList
+												bind:this={conversationListRef}
+												onselect={async (id) => {
+													showConversationList = false;
+													aiPanelOpen = true;
+													await conversation.loadConversation(id, data.organization?.id);
+												}}
+											/>
+										{/if}
+									</div>
 
 									{#if availableAgents.length > 0}
 										<div class="relative">

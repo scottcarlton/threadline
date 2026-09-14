@@ -245,12 +245,26 @@ function createConversationStore() {
 		}
 	}
 
-	async function loadConversation(id: string) {
+	async function loadConversation(id: string, activeOrgId?: string) {
 		loading.set(true);
 		try {
 			const res = await fetch(`/api/ai/conversations/${id}`);
 			if (!res.ok) return;
 			const data = await res.json();
+
+			// Align the active org with the thread before its history reaches a
+			// model holding org-scoped tools. Only a user with memberships in more
+			// than one org can ever reach this branch.
+			if (activeOrgId && data.organizationId && data.organizationId !== activeOrgId) {
+				const switched = await fetch('/api/org/switch', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ orgId: data.organizationId })
+				});
+				if (!switched.ok) return;
+				await invalidateAll();
+			}
+
 			messages.set(messagesFromStored(data.messages ?? []));
 			conversationId.set(data.id);
 			title.set(data.title ?? null);
