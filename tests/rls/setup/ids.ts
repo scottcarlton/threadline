@@ -56,7 +56,30 @@ export const RLS_IDS = {
 	invoiceDraftRepA: `${P}000000000703`,
 
 	invoiceLineSentRepA: `${P}000000000801`,
-	invoicePaymentSentRepA: `${P}000000000901`
+	invoicePaymentSentRepA: `${P}000000000901`,
+
+	// Returns are issued by the brand org, exactly like invoices, so every row
+	// here has organization_id = orgBrandA while order_org_id varies.
+	//
+	// returnRequestedRepA  requested, order in orgRepA,   brand A1, account accountBrandA
+	// returnApprovedBrandA2 approved, order in orgBrandA, brand A2, account accountBrandA
+	// returnFreeEntryRepA  requested, NO order,           brand A1, order_org_id orgRepA
+	//
+	// returnApprovedBrandA2 is the load-bearing row. It is brand-internal
+	// (order_org_id = organization_id) AND on brand A2, which brandAMember is
+	// scoped out of via member_brand_access. Without
+	// `order_org_id <> organization_id` on the rep arm, that arm fires for
+	// brandAMember -- who is a member of orgBrandA, so orgBrandA is in their
+	// get_user_org_ids() -- and hands them a row brand scoping withheld.
+	//
+	// returnFreeEntryRepA has no order at all, which is the case `invoices`
+	// never has to model: it proves a rep still sees a free-entry return they
+	// raised, via order_org_id alone.
+	returnRequestedRepA: `${P}000000001001`,
+	returnApprovedBrandA2: `${P}000000001002`,
+	returnFreeEntryRepA: `${P}000000001003`,
+
+	returnLineRequestedRepA: `${P}000000001101`
 } as const;
 
 export const RLS_ORG_IDS: string[] = [
