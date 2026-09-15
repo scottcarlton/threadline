@@ -1,7 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { listInvoices, computeInvoiceMetrics } from '$lib/server/queries/invoices.js';
-import { resolveQueryScope } from '$lib/server/queries/scope.js';
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('data:invoices');
@@ -14,11 +13,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	if (!locals.organization) throw redirect(303, '/insight');
 	if (locals.orgType !== 'brand') throw redirect(303, '/insight');
 
-	// The root layout assigns locals.queryScope, but layout and page server
-	// loads run in parallel, so it is not reliably set by the time this runs.
-	// Resolving it here when absent is what the layout does anyway, and it is
-	// idempotent.
-	const scope = locals.queryScope ?? (locals.queryScope = await resolveQueryScope(locals));
+	const scope = await locals.getQueryScope();
 	const today = new Date().toISOString().slice(0, 10);
 
 	if (!scope) {

@@ -15,6 +15,8 @@ import { loadUserContext, applyUserContext } from '$lib/server/auth.js';
 import { auditHandle } from '$lib/server/audit/hook.js';
 import { landingPathForOrgType } from '$lib/server/landing.js';
 import type { OrgType } from '$lib/types/database.js';
+import { resolveQueryScope } from '$lib/server/queries/scope.js';
+import { once } from '$lib/utils/once.js';
 
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
@@ -84,6 +86,22 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 	const { session, user } = await event.locals.safeGetSession();
 	event.locals.session = session;
+
+	// Query scope is a lazy, memoized accessor rather than a field someone has
+	// to remember to populate.
+	//
+	// It used to be assigned in the root layout's `load`, which raced: SvelteKit
+	// runs layout and page server loads in parallel, so a page could read
+	// `locals.queryScope` before the layout set it and get null. The failure
+	// mode was the worst kind -- no throw, no log, just a plausible-looking
+	// empty list. /invoices shipped rendering zero rows against a database
+	// holding three before this was found.
+	//
+	// Installing it here is safe despite running before the user context is
+	// loaded below: the closure reads `event.locals` at call time, and callers
+	// are `load` functions that run after this handle completes. Laziness also
+	// means requests that never ask -- assets, most API routes -- pay nothing.
+	event.locals.getQueryScope = once(() => resolveQueryScope(event.locals));
 
 	// Initialize buyer locals
 	event.locals.isBuyer = false;

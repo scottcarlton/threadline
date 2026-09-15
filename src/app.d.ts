@@ -28,7 +28,12 @@ declare global {
 			buyerAccounts: AccountUser[] | null;
 			buyerBrandIds: string[] | null;
 			isSystemAdmin: boolean;
-			queryScope: QueryScope | null;
+			/**
+			 * Resolved lazily and memoized per request. Await it; never assume a
+			 * field has been populated for you, which is what the previous
+			 * layout-assigned `queryScope` got wrong.
+			 */
+			getQueryScope: () => Promise<QueryScope | null>;
 			/** Per-request audit recorder. Always present; writes only what handlers name. */
 			audit: import('$lib/server/audit').AuditRecorder;
 		}
