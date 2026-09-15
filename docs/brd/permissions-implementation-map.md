@@ -269,6 +269,9 @@ For each route with a `+page.server.ts`, the tables queried and whether it needs
 
 ---
 
+| `/invoices` | GET | `invoices` | Own-org: `organization_id IN scope.ownOrgIds`. Redirects a non-brand org. | Brand-org only. A rep org never issues invoices, so an empty list would read as "none yet" rather than "not your screen". |
+| `/invoices/[id]` | GET | `invoices`, `invoice_lines`, `invoice_payments` | Own-org, scoped inside the query; 404 when outside it | 404 rather than 403, so an invoice in another org is indistinguishable from one that does not exist. |
+
 ## A.5 Per-API-Endpoint Classification
 
 | Endpoint                                     | Method(s)         | Tables                                                                                                             | Filter strategy                                                                                                   | Notes                                                                                                                                                                                                                             |

@@ -64,6 +64,7 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/lib/server/orders/save-line-edits.ts',
 	'src/lib/server/orders/submit-order.ts',
 	'src/lib/server/queries/expenses.ts',
+	'src/lib/server/queries/invoices.ts',
 	'src/lib/server/queries/scope.ts',
 	'src/lib/server/retailers.ts',
 	'src/lib/server/setup-status.ts',
