@@ -33,8 +33,14 @@ export type InvoiceDetail = InvoiceListRow & {
  */
 export type InvoiceDisplayStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'void' | 'overdue';
 
+/**
+ * Accepts the loose shape PostgREST actually returns rather than the strict
+ * `Invoice` type: NUMERIC columns arrive as strings and enum columns as plain
+ * strings. Demanding the strict type would push a cast onto every call site,
+ * which is how a wrong cast eventually gets written.
+ */
 export function invoiceDisplayStatus(
-	invoice: Pick<Invoice, 'status' | 'due_date'>,
+	invoice: { status: string; due_date: string | null },
 	today: string
 ): InvoiceDisplayStatus {
 	const status = invoice.status as InvoiceDisplayStatus;
@@ -44,7 +50,11 @@ export function invoiceDisplayStatus(
 }
 
 /** What is still owed. Void invoices owe nothing regardless of their total. */
-export function invoiceBalance(invoice: Pick<Invoice, 'status' | 'total' | 'amount_paid'>): number {
+export function invoiceBalance(invoice: {
+	status: string;
+	total: number | string | null;
+	amount_paid: number | string | null;
+}): number {
 	if (invoice.status === 'void') return 0;
 	return Number(invoice.total ?? 0) - Number(invoice.amount_paid ?? 0);
 }
@@ -64,7 +74,12 @@ export type InvoiceMetrics = {
  * an unsent invoice is not owed anything yet.
  */
 export function computeInvoiceMetrics(
-	invoices: Array<Pick<Invoice, 'status' | 'due_date' | 'total' | 'amount_paid'>>,
+	invoices: Array<{
+		status: string;
+		due_date: string | null;
+		total: number | string | null;
+		amount_paid: number | string | null;
+	}>,
 	today: string
 ): InvoiceMetrics {
 	let outstanding = 0;
