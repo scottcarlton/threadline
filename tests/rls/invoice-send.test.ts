@@ -86,8 +86,14 @@ async function makeDraft(opts: {
 	return { orderId, invoiceId: invoice!.id as string };
 }
 
+/**
+ * Sends as a real brand-org member rather than service-role. send_invoice()
+ * authorizes its caller through get_user_role(), which resolves to whoever
+ * holds the session; under service-role there is no auth.uid() for it to
+ * identify, so the call is correctly rejected.
+ */
 async function send(invoiceId: string, dueDate: string | null = null) {
-	const admin = adminClient();
+	const admin = await personaClient('brandAAdmin');
 	const { data, error } = await admin.rpc('send_invoice', {
 		p_invoice_id: invoiceId,
 		p_due_date: dueDate,
@@ -321,11 +327,11 @@ describe('send_invoice', () => {
 	});
 
 	it('refuses to issue the same invoice twice', async () => {
-		const admin = adminClient();
+		const client = await personaClient('brandAAdmin');
 		const { invoiceId } = await makeDraft({});
 		await send(invoiceId);
 
-		const { error } = await admin.rpc('send_invoice', {
+		const { error } = await client.rpc('send_invoice', {
 			p_invoice_id: invoiceId,
 			p_due_date: null,
 			p_issue_date: '2026-09-14'
@@ -344,7 +350,8 @@ describe('send_invoice', () => {
 			.eq('id', orgId)
 			.single();
 
-		await admin.rpc('send_invoice', {
+		const client = await personaClient('brandAAdmin');
+		await client.rpc('send_invoice', {
 			p_invoice_id: invoiceId,
 			p_due_date: null,
 			p_issue_date: '2026-09-14'
@@ -362,8 +369,8 @@ describe('send_invoice', () => {
 	});
 
 	it('errors on an unknown invoice', async () => {
-		const admin = adminClient();
-		const { error } = await admin.rpc('send_invoice', {
+		const client = await personaClient('brandAAdmin');
+		const { error } = await client.rpc('send_invoice', {
 			p_invoice_id: '00000000-0000-4000-8000-000000000000',
 			p_due_date: null,
 			p_issue_date: '2026-09-14'
