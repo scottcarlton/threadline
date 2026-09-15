@@ -22,6 +22,7 @@
 	import { allowedNextStatuses, mayEditShipWindow } from '$lib/utils/order-status-permissions.js';
 	import { mayConvertNote } from '$lib/utils/order-convert-permissions.js';
 	import { classifyOrder, SPOTLIGHT_LABELS } from '$lib/utils/order-spotlight.js';
+	import { invoiceDisplayStatus, invoiceBalance } from '$lib/utils/invoice-status.js';
 	import {
 		orderShippingCost,
 		orderGrandTotal,
@@ -469,6 +470,37 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	// Null means no ship-to yet, so no rate can be resolved. Zero is a settled
 	// answer: this brand charges no tax on this sale. They render differently.
 	const taxAmount = $derived(orderTaxAmount(order));
+
+	// Null unless the viewer is allowed to see one. RLS decides that, not this
+	// component: a draft never reaches a rep or a buyer, so there is nothing to
+	// hide here and no chance of leaking that one exists.
+	const invoice = $derived(
+		data.invoice as {
+			id: string;
+			invoice_number: string | null;
+			status: string;
+			issue_date: string | null;
+			due_date: string | null;
+			total: number | string;
+			amount_paid: number | string;
+		} | null
+	);
+	const todayIso = $derived(data.today as string);
+
+	/** Date-only values render in UTC so they do not shift a day either way. */
+	function formatInvoiceDate(value: string | null): string {
+		if (!value) return '—';
+		return new Date(`${value}T00:00:00Z`).toLocaleDateString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			timeZone: 'UTC'
+		});
+	}
+	const invoiceDisplay = $derived(invoice ? invoiceDisplayStatus(invoice, todayIso) : null);
+	const invoiceBalanceDue = $derived(invoice ? invoiceBalance(invoice) : 0);
+	// The brand manages the invoice; everyone else is looking at a record of it.
+	const canOpenInvoice = $derived(isBrandOrg && !data.isBuyer);
 	const repCommissionOnTotal = $derived((Number(order.total_amount) * repCommissionRate) / 100);
 	const repCommissionOnShipped = $derived(
 		order.shipped_amount != null ? (Number(order.shipped_amount) * repCommissionRate) / 100 : null
@@ -2639,6 +2671,103 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 				</dl>
 			</div>
+
+			<!--
+				Invoice panel. Renders only when the viewer is allowed an invoice at
+				all: RLS withholds a draft from reps and buyers, so this is absent
+				rather than empty for them, and its absence says nothing about
+				whether one exists.
+
+				Read-only on purpose. Sending, recording payment and voiding belong
+				to the brand on /invoices; putting them here would be a second place
+				to keep those rules right.
+			-->
+			{#if invoice}
+				<div class="rounded-lg border bg-muted/30 p-5">
+					<div class="flex items-center justify-between">
+						<div class="text-xs tracking-wider text-muted-foreground/70 uppercase">Invoice</div>
+						<span
+							class="inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-medium {invoiceDisplay ===
+							'overdue'
+								? 'bg-red-50 text-red-700'
+								: invoiceDisplay === 'paid'
+									? 'bg-emerald-50 text-emerald-700'
+									: invoiceDisplay === 'partial'
+										? 'bg-amber-50 text-amber-700'
+										: invoiceDisplay === 'void'
+											? 'bg-zinc-100 text-zinc-500'
+											: invoiceDisplay === 'draft'
+												? 'bg-zinc-100 text-zinc-600'
+												: 'bg-blue-50 text-blue-700'}"
+						>
+							{invoiceDisplay === 'partial'
+								? 'Part paid'
+								: (invoiceDisplay ?? '').charAt(0).toUpperCase() + (invoiceDisplay ?? '').slice(1)}
+						</span>
+					</div>
+
+					<div class="mt-2 font-mono text-lg font-medium">
+						{invoice.invoice_number ?? 'Draft'}
+					</div>
+
+					<dl class="mt-3 space-y-2 text-sm">
+						<div class="flex justify-between">
+							<dt class="text-muted-foreground">Issued</dt>
+							<dd class="font-mono">{formatInvoiceDate(invoice.issue_date)}</dd>
+						</div>
+						<div class="flex justify-between">
+							<dt class="text-muted-foreground">Due</dt>
+							<dd class="font-mono {invoiceDisplay === 'overdue' ? 'text-red-600' : ''}">
+								<!--
+									Three distinct cases. Not issued yet: there is no schedule
+									because the clock has not started. Issued with `other` terms:
+									genuinely no due date, which is different from one we failed
+									to load. Otherwise, the date.
+								-->
+								{#if !invoice.issue_date}
+									—
+								{:else if invoice.due_date}
+									{formatInvoiceDate(invoice.due_date)}
+								{:else}
+									No due date
+								{/if}
+							</dd>
+						</div>
+						<div class="flex justify-between">
+							<dt class="text-muted-foreground">Invoiced</dt>
+							<dd class="font-mono">{fmt.format(Number(invoice.total))}</dd>
+						</div>
+						{#if Number(invoice.amount_paid) > 0}
+							<div class="flex justify-between">
+								<dt class="text-muted-foreground">Paid</dt>
+								<dd class="font-mono">{fmt.format(Number(invoice.amount_paid))}</dd>
+							</div>
+							<div class="flex justify-between border-t pt-2 font-medium">
+								<dt>Balance</dt>
+								<dd class="font-mono {invoiceDisplay === 'overdue' ? 'text-red-600' : ''}">
+									{fmt.format(invoiceBalanceDue)}
+								</dd>
+							</div>
+						{/if}
+					</dl>
+
+					<div class="mt-4 flex items-center gap-2">
+						<Button variant="outline" class="flex-1" href="/api/invoices/{invoice.id}/pdf">
+							Download PDF
+						</Button>
+						<!--
+							Only the brand has an /invoices route to open; for a rep or a
+							buyer this link would 404 or bounce to /insight, so it is not
+							rendered rather than rendered broken.
+						-->
+						{#if canOpenInvoice}
+							<Button variant="outline" class="flex-1" href={resolve(`/invoices/${invoice.id}`)}>
+								Open
+							</Button>
+						{/if}
+					</div>
+				</div>
+			{/if}
 
 			<!-- Terms panel: always renders. Brand-specific when the order has
 				 agreed terms on file, brand-specific-current or generic otherwise. -->

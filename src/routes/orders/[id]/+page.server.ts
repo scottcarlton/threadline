@@ -304,8 +304,31 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		currentBrandTerms = (termsRes.data as CurrentBrandTerms | null) ?? null;
 	}
 
+	// Read through `locals.supabase`, so RLS is the whole visibility rule and
+	// nothing is restated here. The three arms from 20260914000001 already say
+	// exactly who sees what:
+	//
+	//   brand  -> its own invoices, drafts included
+	//   rep    -> the order's org, sent only
+	//   buyer  -> its own account, sent only
+	//
+	// So a draft simply does not come back for a rep or a buyer, and the panel
+	// has nothing to render rather than needing to hide itself. Duplicating the
+	// rule in TypeScript here would be a second place for it to drift.
+	const invoiceResult = await supabase
+		.from('invoices')
+		.select(
+			'id, invoice_number, status, issue_date, due_date, total, amount_paid, subtotal, shipping_amount, tax_amount'
+		)
+		.eq('order_id', resolvedOrderId)
+		.maybeSingle();
+
 	return {
 		order: orderResult.data,
+		invoice: invoiceResult.data ?? null,
+		// Server-provided so overdue resolves identically during SSR and after
+		// hydration; `new Date()` in the component could straddle midnight.
+		today: new Date().toISOString().slice(0, 10),
 		lines: linesResult.data ?? [],
 		productsById,
 		brandAssets: brandAssetsRes.data ?? [],
