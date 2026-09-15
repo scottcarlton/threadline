@@ -1,4 +1,4 @@
-import { beforeAll, describe, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { adminClient, anonClient } from './setup/clients.js';
 import { RLS_IDS } from './setup/ids.js';
 import { PERSONA_IDS, loadPersonaIds, personaClient } from './setup/fixture.js';
@@ -371,5 +371,68 @@ describe('invoices RLS', () => {
 				.delete()
 				.eq('id', (data as { id: string }).id);
 		});
+	});
+});
+
+/**
+ * The order detail page renders its invoice panel from exactly one query:
+ * `invoices` filtered by `order_id`, through the RLS-respecting client. It does
+ * not re-state the visibility rule in TypeScript, so what the panel shows is
+ * whatever these return.
+ *
+ * That makes this the real test of the panel. Asserting on the rendered markup
+ * would only prove the component can draw a box; this proves a rep and a buyer
+ * cannot learn that a draft exists.
+ */
+describe('the order detail invoice panel query', () => {
+	const byOrder = async (persona: Parameters<typeof personaClient>[0], orderId: string) => {
+		const client = await personaClient(persona);
+		const { data, error } = await client
+			.from('invoices')
+			.select('id, invoice_number, status')
+			.eq('order_id', orderId)
+			.maybeSingle();
+		if (error) throw new Error(`panel query failed: ${error.message}`);
+		return data;
+	};
+
+	it('gives the issuing brand org its invoice', async () => {
+		const row = await byOrder('brandAAdmin', RLS_IDS.orderRepAOnBrandA);
+		expect(row?.id).toBe(RLS_IDS.invoiceSentRepA);
+	});
+
+	it('gives the rep the sent invoice for its own order', async () => {
+		// The rep sold it, so it is their commission basis.
+		const row = await byOrder('repAAdmin', RLS_IDS.orderRepAOnBrandA);
+		expect(row?.id).toBe(RLS_IDS.invoiceSentRepA);
+	});
+
+	it('returns nothing to the rep for a draft, so the panel cannot render', async () => {
+		// The whole point: not an empty panel, not a "pending" state. Nothing
+		// comes back, so the page has no way to hint that a draft exists.
+		const row = await byOrder('repAAdmin', RLS_IDS.orderRepAForDraft);
+		expect(row).toBeNull();
+	});
+
+	it('returns nothing to the buyer for a draft', async () => {
+		const row = await byOrder('buyer', RLS_IDS.orderRepAForDraft);
+		expect(row).toBeNull();
+	});
+
+	it('gives the buyer a sent invoice for their own account', async () => {
+		const row = await byOrder('buyer', RLS_IDS.orderBrandAInternal);
+		expect(row?.id).toBe(RLS_IDS.invoiceSentBrandA2);
+	});
+
+	it('returns nothing to an unrelated rep org', async () => {
+		const row = await byOrder('repBAdmin', RLS_IDS.orderRepAOnBrandA);
+		expect(row).toBeNull();
+	});
+
+	it('returns nothing to a brand member scoped to another brand', async () => {
+		// brandAMember has member_brand_access for A1 only, and the A2 invoice
+		// is on the brand-internal order.
+		const row = await byOrder('brandAMember', RLS_IDS.orderBrandAInternal);
+		expect(row).toBeNull();
 	});
 });
