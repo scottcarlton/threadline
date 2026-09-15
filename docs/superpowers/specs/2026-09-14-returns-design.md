@@ -123,13 +123,19 @@ A `reject_issued_credit_memo_edits()` trigger freezes `credit_memo_number`, all 
 credit_subtotal    = Σ (return_lines.qty × unit_price)
 restocking_fee     = policy: percent of subtotal, or flat amount
 shipping_deduction = policy: return shipping when returns_buyer_pays_shipping
-credit_tax         = prorated from the source invoice tax_breakdown
+credit_tax         = invoice tax_amount × (credit_subtotal / invoice subtotal)
 credit_total       = credit_subtotal − restocking_fee − shipping_deduction + credit_tax
 ```
 
 Defaults come from `organizations.returns_restocking_fee_type` (`percent` or `flat`), `returns_restocking_fee_value`, and `returns_buyer_pays_shipping`. The brand can override each of the three before issuing, because a goodwill waiver is routine in wholesale and a policy that cannot be waived gets worked around outside the system.
 
-Tax prorates from the source invoice's frozen `tax_breakdown` when the RA is order-derived and that order has a sent invoice. It is zero on free-entry, and zero when no invoice exists, unless entered by hand. Never recompute tax from the org's current rates: the original was frozen at send precisely so a later rate change cannot restate an issued document, and the credit has to match what was charged.
+Tax prorates from the source invoice when the RA is order-derived and that order has a sent invoice. It is zero on free-entry, and zero when no invoice exists, unless entered by hand. Never recompute tax from the org's current rates: the original was frozen at send precisely so a later rate change cannot restate an issued document, and the credit has to match what was charged.
+
+> **Correction (SCO-183 implementation).** This originally said the proration reads `invoices.tax_breakdown`. That is wrong in practice. `send_invoice()` in `20260914000004` sets `subtotal`, `tax_amount`, and `total` and never writes `tax_breakdown`, so the column is still `'[]'::jsonb` on every invoice in the system and prorating from it would return zero tax on every credit ever issued. The proration reads `tax_amount` against `subtotal` instead, both of which are populated and frozen by `reject_sent_invoice_edits()`. If `tax_breakdown` is ever populated it becomes a refinement of this ratio, not a replacement for it.
+
+The credit total branches on pricing display exactly as `send_invoice()` does: under inclusive pricing the tax already sits inside the line prices, so it is reported on the memo but not added to the total; under exclusive pricing it is added. The total is floored at zero, because deductions larger than the goods mean the brand owes nothing, not that the buyer owes the brand.
+
+Rounding is half away from zero at the cent, decided in the module rather than left to Postgres. Binary floating point stores `2.675` as `2.67499999999999982`, so a naive `Math.round(n * 100) / 100` leaves a credit memo a cent short of the invoice it credits.
 
 This all lives in a pure module, `src/lib/server/returns/credit.ts`, with unit tests. No database access, no Supabase client.
 
