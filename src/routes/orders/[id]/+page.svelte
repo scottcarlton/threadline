@@ -25,6 +25,7 @@
 	import {
 		orderShippingCost,
 		orderGrandTotal,
+		orderTaxAmount,
 		isShippingEstimate
 	} from '$lib/utils/order-total.js';
 	import {
@@ -465,6 +466,9 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	const shippingCost = $derived(orderShippingCost(order));
 	const shippingIsEstimate = $derived(isShippingEstimate(order));
 	const grandTotal = $derived(orderGrandTotal(order));
+	// Null means no ship-to yet, so no rate can be resolved. Zero is a settled
+	// answer: this brand charges no tax on this sale. They render differently.
+	const taxAmount = $derived(orderTaxAmount(order));
 	const repCommissionOnTotal = $derived((Number(order.total_amount) * repCommissionRate) / 100);
 	const repCommissionOnShipped = $derived(
 		order.shipped_amount != null ? (Number(order.shipped_amount) * repCommissionRate) / 100 : null
@@ -2587,7 +2591,14 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					<div class="mt-1 font-mono text-sm text-muted-foreground/70">
 						{totalUnits} unit{totalUnits === 1 ? '' : 's'} · {totalStyles} style{totalStyles === 1
 							? ''
-							: 's'}{#if shippingIsEstimate}<span>&nbsp;· incl. est. shipping</span>{/if}
+							: 's'}{#if shippingIsEstimate || (taxAmount ?? 0) > 0}<span
+								>&nbsp;· incl. est. {[
+									shippingIsEstimate ? 'shipping' : null,
+									(taxAmount ?? 0) > 0 ? 'tax' : null
+								]
+									.filter(Boolean)
+									.join(' and ')}</span
+							>{/if}
 					</div>
 				</div>
 				<dl class="space-y-2 px-5 py-4 text-sm">
@@ -2612,7 +2623,19 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 					</div>
 					<div class="flex justify-between">
 						<dt class="text-muted-foreground">Tax</dt>
-						<dd class="font-mono text-muted-foreground/70">—</dd>
+						{#if taxAmount === null}
+							<!-- Matches the Shipping row's idiom for "not resolvable yet". -->
+							<dd class="font-mono text-muted-foreground/70">Calc. at invoice</dd>
+						{:else if taxAmount === 0}
+							<!-- A settled zero. Printing $0.00 on every order from a brand
+								 that charges no tax is noise, so it keeps the dash. -->
+							<dd class="font-mono text-muted-foreground/70">—</dd>
+						{:else}
+							<dd class="font-mono">
+								<span class="text-muted-foreground/70">est.</span>
+								{fmt.format(taxAmount)}
+							</dd>
+						{/if}
 					</div>
 				</dl>
 			</div>

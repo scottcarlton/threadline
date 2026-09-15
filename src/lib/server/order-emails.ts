@@ -170,7 +170,7 @@ export async function sendOrderEmail(
 		if (event === 'shipped') {
 			const { data: freshOrder } = await supabaseAdmin
 				.from('orders')
-				.select('tracking_number, carrier, shipping_cost')
+				.select('tracking_number, carrier, shipping_cost, tax_amount')
 				.eq('id', order.id)
 				.single();
 			// The caller hands us the pre-update row, and the shipping cost is
@@ -181,7 +181,8 @@ export async function sendOrderEmail(
 				total = fmt.format(
 					orderGrandTotal({
 						total_amount: order.total_amount,
-						shipping_cost: freshOrder.shipping_cost
+						shipping_cost: freshOrder.shipping_cost,
+						tax_amount: freshOrder.tax_amount
 					})
 				);
 				baseParams.TOTAL = total;
