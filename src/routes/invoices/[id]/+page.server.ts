@@ -3,7 +3,6 @@ import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import type { PageServerLoad, Actions } from './$types';
 import { getInvoiceForOrg } from '$lib/server/queries/invoices.js';
-import { resolveQueryScope } from '$lib/server/queries/scope.js';
 import { loadIssuingOrgInvoice } from '$lib/server/invoices/authorize-invoice.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { recordPaymentSchema, voidInvoiceSchema } from '$lib/schemas/invoice-payment.js';
@@ -18,11 +17,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	if (!locals.organization) throw redirect(303, '/insight');
 	if (locals.orgType !== 'brand') throw redirect(303, '/insight');
 
-	// The root layout assigns locals.queryScope, but layout and page server
-	// loads run in parallel, so it is not reliably set by the time this runs.
-	// Resolving it here when absent is what the layout does anyway, and it is
-	// idempotent.
-	const scope = locals.queryScope ?? (locals.queryScope = await resolveQueryScope(locals));
+	const scope = await locals.getQueryScope();
 	if (!scope) throw error(404, 'Invoice not found');
 
 	// Scoped to the issuing org inside the query. 404 rather than 403 so an
