@@ -1314,7 +1314,8 @@
 										>{fmt.format(
 											orderGrandTotal({
 												total_amount: order.shipped_amount ?? order.total_amount,
-												shipping_cost: order.shipping_cost
+												shipping_cost: order.shipping_cost,
+												tax_amount: order.tax_amount
 											})
 										)}</span
 									>
