@@ -147,23 +147,29 @@ Also in `src/lib/server/returns/credit.ts`, also pure and tested.
 
 Mirrors invoicing, minus the draft gate. A `requested` RA is the whole point of the request, so there is nobody to hide it from.
 
-| Actor | SELECT on `return_authorizations`                          |
-| ----- | ---------------------------------------------------------- |
-| Brand | `brand_id IN (SELECT get_user_brand_ids(organization_id))` |
-| Rep   | `order_org_id IN (SELECT get_user_org_ids())`              |
-| Buyer | `account_id IN (SELECT get_buyer_account_ids())`           |
+| Actor | SELECT on `return_authorizations`                                                 |
+| ----- | --------------------------------------------------------------------------------- |
+| Brand | `brand_id IN (SELECT get_user_brand_ids(organization_id))`                        |
+| Rep   | `order_org_id IN (SELECT get_user_org_ids()) AND order_org_id <> organization_id` |
+| Buyer | `account_id IN (SELECT get_buyer_account_ids())`                                  |
+
+> **Correction (SCO-182 implementation).** The rep arm originally omitted `order_org_id <> organization_id`. That guard is load-bearing, not tidy-up, and `invoices` already carries it for the same reason: policies are OR'd, so without it the rep arm matches a brand-internal return, whose order org _is_ the issuing org, and hands every member of the brand org a row the brand-scoped arm deliberately withheld, defeating `member_brand_access`. It is the same class of bug `20260910000002_orders_update_brand_scope.sql` fixed on `orders`. Pinned by the "member scoped to one brand" case in `tests/rls/returns.test.ts`.
+>
+> The guard also does the right thing for a rep-raised free-entry return: the issuing org is the brand, `order_org_id` is the rep, so the arm still matches.
 
 INSERT:
 
-- Buyer: own account only, `status = 'requested'` only.
-- Rep: own org only, `status = 'requested'` only.
-- Brand: own brands, `status IN ('requested', 'approved')`.
+- Buyer: own account only, `status = 'requested'` only, and `brand_id IN (SELECT get_buyer_brand_ids())`. The brand clause was added during implementation: without it a buyer could write denormalized keys pointing at a brand org they have no relationship with, injecting a fabricated request into that org's queue. The exposure is integrity, not disclosure, since the keys a writer sets decide who may _read_ the row.
+- Rep: own org only, `status = 'requested'` only, cross-org only.
+- Brand: own brands, `status IN ('requested', 'approved')`, admin/owner/member.
 
 UPDATE: admin, owner, or member of the issuing brand org. This is the only arm that can move status past `requested`, which is what enforces locked decision 5.
 
 DELETE: admin or owner, `status = 'requested'` only. Once approved, an RA carries a number and can only be cancelled.
 
 `return_lines` inherit visibility from the parent RA, and are writable only while the parent is `requested` or `approved`.
+
+A `reject_issued_credit_memo_line_edits()` trigger backstops that for service-role writes, but it guards **INSERT and UPDATE only, never DELETE**. `return_lines.return_id` is `ON DELETE CASCADE`, and a cascade fires the child row trigger with the parent still visible to the statement's snapshot, so guarding DELETE made any return carrying an issued credit memo permanently undeletable, and with it its organization. That was found by testing the cascade against the local database during SCO-182, not by reading the code. Direct deletion of a line on an issued memo is still refused by the RLS DELETE policy; only the service-role case is given up.
 
 Uses only existing helpers (`get_user_brand_ids`, `get_user_org_ids`, `get_buyer_account_ids`), so no new RLS helper and no ADR. Entries go in `docs/brd/permissions-implementation-map.md` §A.3 as part of the schema ticket, not as a follow-up, per `.claude/skills/rbac-change`.
 
