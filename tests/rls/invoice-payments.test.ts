@@ -240,7 +240,6 @@ describe('recalc_invoice_amount_paid', () => {
 
 	it('does not move a voided invoice off void', async () => {
 		// A withdrawn document does not come back because money arrived.
-		const admin = adminClient();
 		const id = await issuedInvoice(1000);
 		await (
 			await personaClient('brandAAdmin')
@@ -257,7 +256,6 @@ describe('void_invoice', () => {
 	it('withdraws an issued invoice but keeps its number', async () => {
 		// Deleting would gap the sequence, which is the one thing invoice
 		// numbering cannot tolerate.
-		const admin = adminClient();
 		const id = await issuedInvoice(500);
 		const before = await read(id);
 
@@ -273,7 +271,6 @@ describe('void_invoice', () => {
 	});
 
 	it('is idempotent', async () => {
-		const admin = adminClient();
 		const id = await issuedInvoice(500);
 		await (
 			await personaClient('brandAAdmin')
@@ -286,7 +283,6 @@ describe('void_invoice', () => {
 	});
 
 	it('normalizes a blank reason to null', async () => {
-		const admin = adminClient();
 		const id = await issuedInvoice(500);
 		await (
 			await personaClient('brandAAdmin')
@@ -329,7 +325,6 @@ describe('void_invoice', () => {
 	});
 
 	it('errors on an unknown invoice', async () => {
-		const admin = adminClient();
 		const { error } = await (
 			await personaClient('brandAAdmin')
 		).rpc('void_invoice', {
