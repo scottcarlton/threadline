@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button/index.js';
 	import { formatOrderPrice } from './order-import-helpers.js';
 	import { groupOrderRows } from './group-order-rows.js';
 
