@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
 	sanitizeConversationHistory,
+	applyHistoryLimits,
 	DEFAULT_HISTORY_LIMITS,
-	TRUNCATION_MARKER
+	TRUNCATION_MARKER,
+	type PlainTurn
 } from './ai-history.js';
 
 const exchange = (n: number) =>
@@ -162,5 +164,60 @@ describe('sanitizeConversationHistory', () => {
 			expect(m.role).toBe(i % 2 === 0 ? 'user' : 'assistant');
 			expect(typeof m.content).toBe('string');
 		});
+	});
+});
+
+describe('applyHistoryLimits', () => {
+	const limits = { maxTurns: 4, maxCharsPerTurn: 10, maxTotalChars: 100 };
+
+	it('keeps the most recent turns up to maxTurns', () => {
+		const turns: PlainTurn[] = [
+			{ role: 'user', content: 'a1' },
+			{ role: 'assistant', content: 'b1' },
+			{ role: 'user', content: 'a2' },
+			{ role: 'assistant', content: 'b2' },
+			{ role: 'user', content: 'a3' },
+			{ role: 'assistant', content: 'b3' }
+		];
+		expect(applyHistoryLimits(turns, limits)).toEqual([
+			{ role: 'user', content: 'a2' },
+			{ role: 'assistant', content: 'b2' },
+			{ role: 'user', content: 'a3' },
+			{ role: 'assistant', content: 'b3' }
+		]);
+	});
+
+	it('truncates an over-long turn rather than dropping it', () => {
+		const turns: PlainTurn[] = [
+			{ role: 'user', content: 'x'.repeat(25) },
+			{ role: 'assistant', content: 'ok' }
+		];
+		const result = applyHistoryLimits(turns, limits);
+		expect(result[0].content).toBe('x'.repeat(10) + TRUNCATION_MARKER);
+	});
+
+	it('drops a trailing user turn so the caller can append the live message', () => {
+		const turns: PlainTurn[] = [
+			{ role: 'user', content: 'a1' },
+			{ role: 'assistant', content: 'b1' },
+			{ role: 'user', content: 'a2' }
+		];
+		expect(applyHistoryLimits(turns, limits)).toEqual([
+			{ role: 'user', content: 'a1' },
+			{ role: 'assistant', content: 'b1' }
+		]);
+	});
+
+	it('repairs alternation by skipping same-role runs', () => {
+		const turns: PlainTurn[] = [
+			{ role: 'assistant', content: 'orphan' },
+			{ role: 'user', content: 'a1' },
+			{ role: 'user', content: 'a2' },
+			{ role: 'assistant', content: 'b1' }
+		];
+		expect(applyHistoryLimits(turns, limits)).toEqual([
+			{ role: 'user', content: 'a1' },
+			{ role: 'assistant', content: 'b1' }
+		]);
 	});
 });

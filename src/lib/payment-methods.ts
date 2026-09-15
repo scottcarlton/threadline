@@ -13,14 +13,17 @@ export const PAYMENT_METHODS = [
 	{ code: 'other', label: 'Other' }
 ] as const;
 
+// `netDays` is how many days after the invoice date payment falls due.
+// `null` means the code carries no implied schedule, which is different from
+// zero: zero is "due on issue", null is "we were never told".
 export const PAYMENT_TERMS = [
-	{ code: 'net_15', label: 'Net 15' },
-	{ code: 'net_30', label: 'Net 30' },
-	{ code: 'net_60', label: 'Net 60' },
-	{ code: 'net_90', label: 'Net 90' },
-	{ code: 'cod', label: 'COD' },
-	{ code: 'prepaid', label: 'Prepaid' },
-	{ code: 'other', label: 'Other' }
+	{ code: 'net_15', label: 'Net 15', netDays: 15 },
+	{ code: 'net_30', label: 'Net 30', netDays: 30 },
+	{ code: 'net_60', label: 'Net 60', netDays: 60 },
+	{ code: 'net_90', label: 'Net 90', netDays: 90 },
+	{ code: 'cod', label: 'COD', netDays: 0 },
+	{ code: 'prepaid', label: 'Prepaid', netDays: 0 },
+	{ code: 'other', label: 'Other', netDays: null }
 ] as const;
 
 // Legacy merged list for callers that still treat methods + terms as
@@ -120,4 +123,31 @@ export function acceptedTermsOnly(
 		base.push({ code: includeCode, label: paymentTermLabel(includeCode) });
 	}
 	return base;
+}
+
+/**
+ * The date an invoice on these terms falls due, as `YYYY-MM-DD`.
+ *
+ * Returns null when the terms imply no schedule (`other`, or an unrecognized
+ * code). That is deliberate: an invoice with an invented due date silently
+ * becomes "overdue" and starts chasing a buyer who was never given a
+ * deadline. A blank due date is the honest rendering of "we do not know".
+ *
+ * Date-only arithmetic in UTC. Terms are counted in calendar days, so a
+ * local-timezone Date would shift the result by a day either side of
+ * midnight depending on where the server happens to run.
+ */
+export function dueDateFromTerms(
+	code: string | null | undefined,
+	issueDate: string
+): string | null {
+	if (!code) return null;
+	const term = PAYMENT_TERMS.find((t) => t.code === code);
+	if (!term || term.netDays === null) return null;
+
+	const parsed = Date.parse(`${issueDate}T00:00:00Z`);
+	if (Number.isNaN(parsed)) return null;
+
+	const due = new Date(parsed + term.netDays * 24 * 60 * 60 * 1000);
+	return due.toISOString().slice(0, 10);
 }

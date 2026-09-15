@@ -43,7 +43,7 @@ export type SanitizedHistory = {
 	rejected: number;
 };
 
-type PlainTurn = { role: 'user' | 'assistant'; content: string };
+export type PlainTurn = { role: 'user' | 'assistant'; content: string };
 
 function asPlainTurn(value: unknown): PlainTurn | null {
 	if (typeof value !== 'object' || value === null) return null;
@@ -82,8 +82,25 @@ export function sanitizeConversationHistory(
 		valid.push(turn);
 	}
 
+	const alternating = applyHistoryLimits(valid, limits);
+
+	return {
+		messages: alternating.map((turn) => ({ role: turn.role, content: turn.content })),
+		rejected
+	};
+}
+
+/**
+ * Cap, truncate, and repair a run of turns so the Messages API will accept it.
+ *
+ * Split out of sanitizeConversationHistory so the database-sourced path in
+ * ai-conversations.ts can reuse the trimming without re-running validation
+ * that only matters for client input. Rows this server wrote are already
+ * known to be plain text turns with a valid role.
+ */
+export function applyHistoryLimits(turns: PlainTurn[], limits: HistoryLimits): PlainTurn[] {
 	// Newest turns are the useful ones, so trim from the front.
-	const recent = valid.slice(-limits.maxTurns);
+	const recent = turns.slice(-limits.maxTurns);
 
 	const capped = recent.map((turn) => ({
 		role: turn.role,
@@ -120,8 +137,5 @@ export function sanitizeConversationHistory(
 	// turn would put two user turns back to back.
 	if (alternating[alternating.length - 1]?.role === 'user') alternating.pop();
 
-	return {
-		messages: alternating.map((turn) => ({ role: turn.role, content: turn.content })),
-		rejected
-	};
+	return alternating;
 }

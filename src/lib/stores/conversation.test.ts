@@ -10,28 +10,40 @@ vi.mock('$app/stores', () => ({
 	page: { subscribe: () => () => {} }
 }));
 
-const { windowHistory, planInvalidation } = await import('./conversation.js');
+const { messagesFromStored, planInvalidation } = await import('./conversation.js');
 
-describe('windowHistory', () => {
-	it('passes short histories through unchanged', () => {
-		const history: Array<{ role: 'user' | 'assistant'; content: string }> = [
+// windowHistory used to live here. It trimmed to the last 10 messages and
+// replaced the rest with a topic summary plus a fabricated "Understood, I have
+// that context." assistant turn. The server now trims real rows out of
+// ai_messages, so both the function and its tests are gone.
+describe('messagesFromStored', () => {
+	it('maps stored rows into store messages', () => {
+		expect(
+			messagesFromStored([
+				{ role: 'user', content: 'hi', attachments: null },
+				{ role: 'assistant', content: 'hello', attachments: null }
+			])
+		).toEqual([
 			{ role: 'user', content: 'hi' },
 			{ role: 'assistant', content: 'hello' }
-		];
-		expect(windowHistory(history)).toEqual(history);
+		]);
 	});
 
-	it('prepends a summary once we exceed 10 messages', () => {
-		const history: Array<{ role: 'user' | 'assistant'; content: string }> = [];
-		for (let i = 0; i < 15; i++) {
-			history.push({ role: i % 2 === 0 ? 'user' : 'assistant', content: `msg ${i}` });
-		}
-		const windowed = windowHistory(history);
-		expect(windowed.length).toBe(12); // 10 recent + 2 summary messages
-		expect(windowed[0].role).toBe('user');
-		expect(windowed[0].content).toContain('Earlier');
-		expect(windowed[1].role).toBe('assistant');
-		expect(windowed[windowed.length - 1].content).toBe('msg 14');
+	it('carries attachment metadata through without file data', () => {
+		const result = messagesFromStored([
+			{
+				role: 'user',
+				content: 'see attached',
+				attachments: [{ name: 'po.pdf', type: 'application/pdf', size: 1024 }]
+			}
+		]);
+		expect(result[0].attachments).toEqual([
+			{ name: 'po.pdf', type: 'application/pdf', size: 1024, data: '' }
+		]);
+	});
+
+	it('returns an empty array for no rows', () => {
+		expect(messagesFromStored([])).toEqual([]);
 	});
 });
 
