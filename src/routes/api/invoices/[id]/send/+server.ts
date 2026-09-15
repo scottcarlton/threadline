@@ -97,7 +97,11 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 
 	// Numbering, dates, and the frozen money all happen in this one call, so
 	// there is no window where the invoice is half-issued.
-	const { data: issued, error: sendError } = await supabaseAdmin.rpc('send_invoice', {
+	// Called as the signed-in user, not service-role: send_invoice() authorizes
+	// the caller via get_user_role(), which resolves to whoever is holding this
+	// session. Under supabaseAdmin there is no auth.uid() and the check would
+	// have nothing to identify.
+	const { data: issued, error: sendError } = await locals.supabase.rpc('send_invoice', {
 		p_invoice_id: invoice.id,
 		p_due_date: dueDate,
 		p_issue_date: issueDate
