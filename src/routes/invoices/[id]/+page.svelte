@@ -4,6 +4,21 @@
 	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
+	import {
+		Dialog,
+		DialogContent,
+		DialogOverlay,
+		DialogPortal,
+		DialogTitle,
+		DialogDescription
+	} from '$lib/components/ui/dialog/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import DateSelect from '$lib/components/ui/date-select.svelte';
+	import { superForm } from 'sveltekit-superforms';
+	import { zod4Client } from 'sveltekit-superforms/adapters';
+	import { recordPaymentSchema, voidInvoiceSchema } from '$lib/schemas/invoice-payment.js';
 	import { paymentTermLabel } from '$lib/payment-methods.js';
 	import {
 		invoiceDisplayStatus,
@@ -15,6 +30,71 @@
 	const invoice = $derived(data.invoice as InvoiceDetail);
 	const today = $derived(data.today as string);
 	const canSend = $derived(data.canSend as boolean);
+	const canRecordMoney = $derived(data.canRecordMoney as boolean);
+	const paymentMethods = $derived(data.paymentMethods as { code: string; label: string }[]);
+
+	// Money can only move on a document that has actually been issued.
+	const isIssued = $derived(
+		invoice.status === 'sent' || invoice.status === 'partial' || invoice.status === 'paid'
+	);
+
+	let paymentOpen = $state(false);
+	let voidOpen = $state(false);
+
+	// svelte-ignore state_referenced_locally
+	const {
+		form: paymentData,
+		errors: paymentErrors,
+		enhance: paymentEnhance,
+		submitting: paymentSubmitting
+	} = superForm(data.paymentForm, {
+		id: 'record-payment',
+		validators: zod4Client(recordPaymentSchema),
+		validationMethod: 'onblur',
+		onUpdated: ({ form }) => {
+			if (form.message?.type === 'success') {
+				paymentOpen = false;
+				toast.success('Payment recorded.');
+				invalidate('data:invoices');
+			} else if (form.message) {
+				toast.error(String(form.message));
+			}
+		},
+		onError: ({ result }) => toast.error(result.error?.message ?? 'Could not record the payment.')
+	});
+
+	// svelte-ignore state_referenced_locally
+	const {
+		form: voidData,
+		enhance: voidEnhance,
+		submitting: voidSubmitting
+	} = superForm(data.voidForm, {
+		id: 'void-invoice',
+		validators: zod4Client(voidInvoiceSchema),
+		validationMethod: 'onblur',
+		onUpdated: ({ form }) => {
+			if (form.message?.type === 'success') {
+				voidOpen = false;
+				toast.success(`Invoice ${invoice.invoice_number ?? ''} voided.`);
+				invalidate('data:invoices');
+			} else if (form.message) {
+				toast.error(String(form.message));
+			}
+		},
+		onError: ({ result }) => toast.error(result.error?.message ?? 'Could not void the invoice.')
+	});
+
+	function openPaymentDialog() {
+		// Default to the outstanding balance and today. The overwhelmingly
+		// common case is "they paid what they owed, today", so typing should be
+		// the exception rather than the default.
+		paymentData.update((d) => ({
+			...d,
+			amount: balance > 0 ? Number(balance.toFixed(2)) : 0,
+			paidOn: today
+		}));
+		paymentOpen = true;
+	}
 
 	const display = $derived(invoiceDisplayStatus(invoice, today));
 	const balance = $derived(invoiceBalance(invoice));
@@ -135,11 +215,26 @@
 			paid. Download is always secondary.
 		-->
 		<div class="flex items-center gap-2">
+			<!--
+				Void sits apart from the rest: it is the one irreversible action
+				here, and giving it the same weight as Download would invite the
+				accident. It is absent entirely on a draft, which is deleted rather
+				than voided, and on an already-void invoice.
+			-->
+			{#if isIssued && canRecordMoney}
+				<Button
+					variant="ghost"
+					class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+					onclick={() => (voidOpen = true)}>Void</Button
+				>
+			{/if}
 			<Button variant="outline" href="/api/invoices/{invoice.id}/pdf">Download PDF</Button>
 			{#if isDraft && canSend}
 				<Button onclick={send} disabled={sending}>
 					{sending ? 'Sending…' : 'Send invoice'}
 				</Button>
+			{:else if isIssued && canRecordMoney && balance > 0}
+				<Button onclick={openPaymentDialog}>Record payment</Button>
 			{/if}
 		</div>
 	</div>
@@ -318,3 +413,125 @@
 		</div>
 	</div>
 </div>
+
+<!--
+	Record payment. A dialog rather than a page: it is three fields against a
+	document the person is already looking at, and sending them somewhere else
+	to fill it in would lose the context that tells them what to type.
+-->
+<Dialog bind:open={paymentOpen}>
+	<DialogPortal>
+		<DialogOverlay />
+		<DialogContent class="max-w-md">
+			<DialogTitle>Record payment</DialogTitle>
+			<DialogDescription>
+				{invoice.invoice_number ?? 'This invoice'} · {fmt.format(balance)} outstanding
+			</DialogDescription>
+
+			<form method="POST" action="?/recordPayment" use:paymentEnhance class="mt-5 space-y-4">
+				<div class="space-y-2">
+					<Label for="payment-amount">Amount</Label>
+					<Input
+						id="payment-amount"
+						type="number"
+						step="0.01"
+						min="0"
+						class="text-right font-mono"
+						bind:value={$paymentData.amount}
+					/>
+					{#if $paymentErrors.amount}
+						<p class="text-sm text-destructive">{$paymentErrors.amount[0]}</p>
+					{/if}
+				</div>
+
+				<div class="space-y-2">
+					<Label for="payment-date">Date received</Label>
+					<DateSelect
+						id="payment-date"
+						value={$paymentData.paidOn}
+						onchange={(v) => ($paymentData.paidOn = v)}
+					/>
+					{#if $paymentErrors.paidOn}
+						<p class="text-sm text-destructive">{$paymentErrors.paidOn[0]}</p>
+					{/if}
+				</div>
+
+				<div class="space-y-2">
+					<Label for="payment-method">Method</Label>
+					<SelectField
+						value={$paymentData.method ?? ''}
+						items={[
+							{ value: '', label: 'Not specified' },
+							...paymentMethods.map((m) => ({ value: m.code, label: m.label }))
+						]}
+						placeholder="Method"
+						onValueChange={(v) => ($paymentData.method = v || undefined)}
+					/>
+				</div>
+
+				<div class="space-y-2">
+					<Label for="payment-reference">Reference</Label>
+					<Input
+						id="payment-reference"
+						placeholder="Check number, transfer id"
+						bind:value={$paymentData.reference}
+					/>
+					{#if $paymentErrors.reference}
+						<p class="text-sm text-destructive">{$paymentErrors.reference[0]}</p>
+					{/if}
+				</div>
+
+				<div class="flex justify-end gap-2 pt-2">
+					<Button type="button" variant="outline" onclick={() => (paymentOpen = false)}>
+						Cancel
+					</Button>
+					<Button type="submit" disabled={$paymentSubmitting}>
+						{$paymentSubmitting ? 'Recording…' : 'Record payment'}
+					</Button>
+				</div>
+			</form>
+		</DialogContent>
+	</DialogPortal>
+</Dialog>
+
+<!--
+	Void. Irreversible, so it gets real friction rather than a reflexive "Are
+	you sure?": the dialog states what survives (the number, so the sequence
+	stays gapless) and asks for a reason, which is the thing the next person
+	reading the ledger will actually want.
+-->
+<Dialog bind:open={voidOpen}>
+	<DialogPortal>
+		<DialogOverlay />
+		<DialogContent class="max-w-md">
+			<DialogTitle>Void {invoice.invoice_number ?? 'this invoice'}?</DialogTitle>
+			<DialogDescription>
+				This cannot be undone. The invoice keeps its number and stays in your records, marked void,
+				so the numbering stays unbroken.
+			</DialogDescription>
+
+			<form method="POST" action="?/voidInvoice" use:voidEnhance class="mt-5 space-y-4">
+				<div class="space-y-2">
+					<Label for="void-reason">Reason</Label>
+					<Input
+						id="void-reason"
+						placeholder="Order cancelled, billed in error"
+						bind:value={$voidData.reason}
+					/>
+					<p class="text-sm text-muted-foreground">
+						Optional, but it is what explains the gap to whoever reads this later.
+					</p>
+				</div>
+
+				<div class="flex justify-end gap-2 pt-2">
+					<Button type="button" variant="outline" onclick={() => (voidOpen = false)}>
+						Keep invoice
+					</Button>
+					<Button type="submit" variant="destructive" disabled={$voidSubmitting}>
+						{$voidSubmitting ? 'Voiding…' : 'Void invoice'}
+					</Button>
+				</div>
+			</form>
+		</DialogContent>
+	</DialogPortal>
+</Dialog>
