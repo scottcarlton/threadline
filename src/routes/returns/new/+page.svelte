@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
@@ -124,6 +125,17 @@
 		}
 		syncOrderLines();
 	}
+
+	// Deep link from order detail (/returns/new?order=…). The server puts the id
+	// on the form, but the picker's own state lives on the client, so without
+	// this the page arrives claiming no order is chosen while the form says
+	// otherwise -- and submitting would post lines that were never shown.
+	onMount(() => {
+		const preselected = $form.orderId;
+		if (!preselected) return;
+		const match = data.orders.find((o) => o.id === preselected);
+		if (match) chooseOrder(match);
+	});
 
 	function addFreeLine() {
 		$form.lines = [
