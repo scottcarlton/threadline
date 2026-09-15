@@ -81,9 +81,25 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      # `version` is deliberately omitted. Per the action's own contract it then
+      # detects the CLI version from the root lockfile, and `supabase` is
+      # already a devDependency here, so bun.lock is the single source of truth
+      # for which CLI everyone runs -- CI and laptops alike.
+      #
+      # It was `version: latest`, which re-resolves through the GitHub API on
+      # every run. That call is unauthenticated and rate limited, and when it
+      # trips the job dies before Docker or a single migration is touched:
+      #
+      #   ##[error]Failed to resolve latest Supabase CLI release: rate limit exceeded
+      #   ##[error]Process completed with exit code 127
+      #
+      # which reads exactly like a policy regression. The retry loop below
+      # cannot help: the failure is in this step, not in `supabase start`, and
+      # is deterministic for the whole run.
+      #
+      # Hard-coding a version here instead would work, but it would be a second
+      # source of truth that silently drifts from package.json.
       - uses: supabase/setup-cli@v1
-        with:
-          version: latest
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Start Supabase

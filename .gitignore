@@ -37,3 +37,7 @@ vite.config.ts.timestamp-*
 /blob-report/
 /playwright/.cache/
 /tests/e2e/artifacts/
+
+# Supabase CLI scratch state. cli-latest is rewritten every time the CLI
+# resolves a release, so tracking it produces diff noise in every checkout.
+supabase/.temp/
