@@ -19,6 +19,14 @@ export type OrderStatus =
 export type OrderType = 'order' | 'note';
 export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 export type InvoiceStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'void';
+export type ReturnStatus =
+	| 'requested'
+	| 'approved'
+	| 'declined'
+	| 'received'
+	| 'closed'
+	| 'cancelled';
+export type ReturnDisposition = 'restock' | 'damaged' | 'destroy';
 export type ExpenseCategory =
 	| 'trade_show'
 	| 'samples'
@@ -1020,5 +1028,75 @@ export interface InvoicePayment {
 	reference: string | null;
 	note: string | null;
 	recorded_by: string | null;
+	created_at: string;
+}
+
+/**
+ * A return authorization, owned by the issuing brand org.
+ *
+ * Only the brand may move this past `requested`: there is no rep or buyer
+ * UPDATE policy, which is what makes "reps request, brands approve" true at
+ * the row level.
+ */
+export interface ReturnAuthorization {
+	id: string;
+	/** The issuing brand org, not the order's org. */
+	organization_id: string;
+	/** NULL on a free-entry return, which has its own items and no source order. */
+	order_id: string | null;
+	brand_id: string;
+	/**
+	 * The order's org, or the requesting rep org on a rep-raised free-entry
+	 * return. NULL when no rep is involved.
+	 */
+	order_org_id: string | null;
+	account_id: string | null;
+	/** NULL until approved, so declined requests do not gap the sequence. */
+	ra_number: string | null;
+	status: ReturnStatus;
+	reason: string | null;
+	/** Validated app-side, not by a DB constraint. */
+	reason_code: string | null;
+	requested_by: string | null;
+	requested_at: string;
+	approved_by: string | null;
+	approved_at: string | null;
+	decline_reason: string | null;
+	received_by: string | null;
+	received_at: string | null;
+	credit_subtotal: number;
+	restocking_fee: number;
+	shipping_deduction: number;
+	credit_tax: number;
+	credit_total: number;
+	/** Once set, the money columns and read keys above are frozen by a trigger. */
+	credit_memo_number: string | null;
+	credit_memo_issued_at: string | null;
+	applied_invoice_id: string | null;
+	created_by: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+/** A line on a return. A snapshot, not a view onto `order_lines`. */
+export interface ReturnLine {
+	id: string;
+	return_id: string;
+	/** NULL on a free-entry line. */
+	order_line_id: string | null;
+	/** Drives restock on receipt. NULL when the style did not resolve. */
+	variant_id: string | null;
+	style_number: string | null;
+	description: string | null;
+	color: string | null;
+	size: string | null;
+	qty: number;
+	unit_price: number;
+	/** DB-generated (`qty * unit_price`). Never send this on write. */
+	line_total: number;
+	reason_code: string | null;
+	/** NULL until the goods are received and inspected. */
+	disposition: ReturnDisposition | null;
+	sort_order: number | null;
 	created_at: string;
 }
