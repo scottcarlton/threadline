@@ -37,3 +37,9 @@ vite.config.ts.timestamp-*
 /blob-report/
 /playwright/.cache/
 /tests/e2e/artifacts/
+
+# Supabase CLI scratch. `supabase/.temp/cli-latest` caches the newest published
+# CLI version and is rewritten by any `supabase` invocation, so tracking it
+# meant every migration or db query dirtied the tree and blocked the next pull
+# with "local changes would be overwritten by merge".
+supabase/.temp/
