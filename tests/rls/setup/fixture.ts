@@ -512,6 +512,68 @@ async function seedInvoices(admin: SupabaseClient): Promise<void> {
 	);
 }
 
+/**
+ * Returns are issued by the brand org even when the order belongs to a rep org,
+ * the same shape as invoices. See RLS_IDS for what each row is shaped to prove.
+ */
+async function seedReturns(admin: SupabaseClient): Promise<void> {
+	check(
+		'return_authorizations insert',
+		(
+			await admin.from('return_authorizations').insert([
+				{
+					id: RLS_IDS.returnRequestedRepA,
+					organization_id: RLS_IDS.orgBrandA,
+					order_id: RLS_IDS.orderRepAOnBrandA,
+					brand_id: RLS_IDS.brandA1,
+					order_org_id: RLS_IDS.orgRepA,
+					account_id: RLS_IDS.accountBrandA,
+					status: 'requested',
+					reason: 'Damaged on arrival'
+				},
+				{
+					id: RLS_IDS.returnApprovedBrandA2,
+					organization_id: RLS_IDS.orgBrandA,
+					order_id: RLS_IDS.orderBrandAInternal,
+					brand_id: RLS_IDS.brandA2,
+					order_org_id: RLS_IDS.orgBrandA,
+					account_id: RLS_IDS.accountBrandA,
+					ra_number: 'RA-RLS-00001',
+					status: 'approved'
+				},
+				{
+					// Free entry: no order at all. order_org_id still carries the rep
+					// org, which is the only thing keeping it visible to them.
+					id: RLS_IDS.returnFreeEntryRepA,
+					organization_id: RLS_IDS.orgBrandA,
+					order_id: null,
+					brand_id: RLS_IDS.brandA1,
+					order_org_id: RLS_IDS.orgRepA,
+					account_id: null,
+					status: 'requested'
+				}
+			])
+		).error
+	);
+
+	// line_total is a generated column. Never send it.
+	check(
+		'return_lines insert',
+		(
+			await admin.from('return_lines').insert({
+				id: RLS_IDS.returnLineRequestedRepA,
+				return_id: RLS_IDS.returnRequestedRepA,
+				order_line_id: RLS_IDS.orderLineRepAOnBrandA,
+				style_number: 'RLS-A1',
+				color: 'Black',
+				size: 'M',
+				qty: 2,
+				unit_price: 100
+			})
+		).error
+	);
+}
+
 export async function seedRlsFixture(): Promise<void> {
 	const admin = adminClient();
 	await seedUsers(admin);
@@ -522,6 +584,7 @@ export async function seedRlsFixture(): Promise<void> {
 	await seedConnections(admin);
 	await seedOrders(admin);
 	await seedInvoices(admin);
+	await seedReturns(admin);
 }
 
 /**
@@ -566,6 +629,18 @@ export async function teardownRlsFixture(): Promise<void> {
 	resetClientCache();
 
 	const orgList = RLS_ORG_IDS.join(',');
+
+	// Returns go first, before order_lines and before invoices.
+	//
+	// return_authorizations has NO ACTION FKs to organizations (order_org_id),
+	// brands, and accounts, so like invoices below it can block the cascade from
+	// organizations. It is deleted ahead of order_lines as well: return_lines
+	// carries an ON DELETE SET NULL FK to order_lines, and dropping the whole
+	// return first means that update never has to run.
+	await admin
+		.from('return_authorizations')
+		.delete()
+		.or(`organization_id.in.(${orgList}),order_org_id.in.(${orgList})`);
 
 	// order_lines_audit (AFTER DELETE on order_lines) inserts into
 	// order_audits referencing order_id. If order_lines cascade-deletes as
