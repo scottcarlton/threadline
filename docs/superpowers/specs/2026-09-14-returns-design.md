@@ -234,12 +234,12 @@ RLS tests in `tests/rls/`, run with `bun run test:rls`:
 
 Seven tickets, one PR each per the one-PR-per-deliverable rule. SCO-141 becomes the parent epic.
 
-1. **Schema, RLS, permissions map.** Both tables, both counters, both triggers, §A.3 entries. No UI, nothing that writes to them.
-2. **Credit and eligibility module.** `src/lib/server/returns/credit.ts`, pure and fully unit-tested. No UI.
-3. **Create a return authorization.** `/returns/new` in both modes, plus the order detail entry points.
-4. **List and detail.** `/returns` and `/returns/[id]`, role-aware, read-only.
-5. **Approve, decline, receive.** RA numbering, per-line disposition, variant restock.
-6. **Credit memo.** Calculation freeze, numbering, PDF, email, CSV export.
-7. **Order detail integration.** Outstanding badge, return history block, invoice linkage.
+1. **SCO-182 Schema, RLS, permissions map.** Both tables, both counters, both triggers, §A.3 entries. No UI, nothing that writes to them.
+2. **SCO-183 Credit and eligibility module.** `src/lib/server/returns/credit.ts`, pure and fully unit-tested. No UI.
+3. **SCO-184 Create a return authorization.** `/returns/new` in both modes, plus the order detail entry points.
+4. **SCO-185 List and detail.** `/returns` and `/returns/[id]`, role-aware, read-only.
+5. **SCO-186 Approve, decline, receive.** RA numbering, per-line disposition, variant restock.
+6. **SCO-187 Credit memo.** Calculation freeze, numbering, PDF, email, CSV export.
+7. **SCO-188 Order detail integration.** Outstanding badge, return history block, invoice linkage.
 
 Tickets 1 and 2 are independent and can run in parallel. 3 through 7 are sequential on 1.
