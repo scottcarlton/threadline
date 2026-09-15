@@ -9,6 +9,8 @@ import {
 	ORDER_WRITE_ROLES,
 	FEDERATED_CONVERT_DENIED_ERROR
 } from '$lib/utils/order-convert-permissions.js';
+import { resolveReturnEntry } from '$lib/server/returns/entry-point.js';
+import type { SourceOrderForReturn } from '$lib/server/returns/create-return.js';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	// Hook for invalidate('data:orders') after AI tool calls that touch orders
@@ -323,6 +325,16 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		.eq('order_id', resolvedOrderId)
 		.maybeSingle();
 
+	// Whether this order can be returned against, and what to call the action.
+	// The brand logs a return; everyone else requests one. A zero or expired
+	// window hides it entirely for the buyer and the rep, but never for the
+	// issuing brand, which waives its own policy routinely.
+	const returnEntry = await resolveReturnEntry({
+		order: orderResult.data as unknown as SourceOrderForReturn,
+		supabase,
+		actorOrgId: organization?.id ?? null
+	});
+
 	return {
 		order: orderResult.data,
 		invoice: invoiceResult.data ?? null,
@@ -330,6 +342,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		// hydration; `new Date()` in the component could straddle midnight.
 		today: new Date().toISOString().slice(0, 10),
 		lines: linesResult.data ?? [],
+		returnEntry,
 		productsById,
 		brandAssets: brandAssetsRes.data ?? [],
 		commissionOverride: overrideRes.data?.rate ?? null,
