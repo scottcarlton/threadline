@@ -10,6 +10,19 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 	const brandId = params.id;
 	const orgId = locals.organization.id;
 
+	// Asset writes are own-org only (§A.6: reps cannot INSERT into a connected
+	// brand's brand_assets), so the brand must belong to us.
+	const { data: parentBrand } = await supabaseAdmin
+		.from('brands')
+		.select('id')
+		.eq('id', brandId)
+		.eq('organization_id', orgId)
+		.maybeSingle();
+
+	if (!parentBrand) {
+		return json({ error: 'Brand not found' }, { status: 404 });
+	}
+
 	const formData = await request.formData();
 	const file = formData.get('file') as File | null;
 	const category = (formData.get('category') as string) || 'general';
@@ -82,7 +95,11 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 
 	const brandId = params.id;
 
-	const { data: assets, error: dbError } = await supabaseAdmin
+	// RLS-scoped read: `brand_assets` already allows own-org (is_org_member) plus
+	// connected orgs via get_connected_org_ids() (§A.3), which is exactly the
+	// intended visibility. The previous supabaseAdmin read returned any brand's
+	// assets to any authenticated user.
+	const { data: assets, error: dbError } = await locals.supabase
 		.from('brand_assets')
 		.select('*')
 		.eq('brand_id', brandId)

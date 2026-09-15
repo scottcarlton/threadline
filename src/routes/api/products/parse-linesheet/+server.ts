@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { LINESHEET_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
+import { checkAiLimits } from '$lib/server/ai-limits.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -96,6 +97,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	if (file.size > MAX_FILE_SIZE) {
 		return json({ error: 'File is too large. Maximum size is 20MB.' }, { status: 400 });
+	}
+
+	// Checked after the cheap validations, so a rejected upload does not consume
+	// a slot. This is the most expensive AI call we make: 16384 max_tokens.
+	const limit = await checkAiLimits(locals.organization.id, locals.user.id, 'linesheet');
+	if (!limit.allowed) {
+		locals.audit.record('assistant.rate_limited', {
+			status: 'failure',
+			errorMessage: limit.scope,
+			metadata: { endpoint: 'linesheet', scope: limit.scope }
+		});
+		return json(
+			{ error: limit.message },
+			{ status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
+		);
 	}
 
 	const arrayBuffer = await file.arrayBuffer();

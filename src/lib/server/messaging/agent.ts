@@ -21,6 +21,7 @@ type AgentInput = {
 	organizationId: string;
 	userId: string;
 	brandScope: string[] | null;
+	orgType: 'rep' | 'brand';
 	mediaUrl?: string | null;
 };
 
@@ -54,12 +55,16 @@ export const MESSAGING_TOOLS: Anthropic.Tool[] = [
 	{
 		name: 'place_order',
 		description:
-			'Create a draft order. Requires account_name, brand_name, ship dates, and at least one line item with product and sizes/quantities.',
+			"Create a draft order. Requires account_name, ship dates, and at least one line item with product and sizes/quantities. brand_name is only needed for rep orgs; for a brand org the server fills in the org's own brand.",
 		input_schema: {
 			type: 'object' as const,
 			properties: {
 				account_name: { type: 'string', description: 'Buyer/retailer name (fuzzy match)' },
-				brand_name: { type: 'string', description: 'Brand name (fuzzy match)' },
+				brand_name: {
+					type: 'string',
+					description:
+						"Brand name (fuzzy match). Required for rep orgs; omit for brand orgs, where the server uses the org's own brand."
+				},
 				start_ship_date: { type: 'string', description: 'Ship window start, YYYY-MM-DD' },
 				complete_ship_date: { type: 'string', description: 'Ship window end, YYYY-MM-DD' },
 				lines: {
@@ -78,7 +83,7 @@ export const MESSAGING_TOOLS: Anthropic.Tool[] = [
 				},
 				notes: { type: 'string' }
 			},
-			required: ['account_name', 'brand_name', 'start_ship_date', 'complete_ship_date', 'lines']
+			required: ['account_name', 'start_ship_date', 'complete_ship_date', 'lines']
 		}
 	},
 	{
@@ -124,7 +129,8 @@ async function executeMessagingTool(
 	input: Record<string, unknown>,
 	organizationId: string,
 	userId: string,
-	brandScope: string[] | null
+	brandScope: string[] | null,
+	orgType: 'rep' | 'brand'
 ): Promise<string> {
 	switch (toolName) {
 		case 'lookup_inventory': {
@@ -225,7 +231,7 @@ async function executeMessagingTool(
 					organizationId,
 					userId,
 					brandScope,
-					orgType: 'rep',
+					orgType,
 					origin: 'messaging'
 				}
 			);
@@ -304,7 +310,8 @@ export async function runAgent(input: AgentInput): Promise<string> {
 					tool.input as Record<string, unknown>,
 					input.organizationId,
 					input.userId,
-					input.brandScope
+					input.brandScope,
+					input.orgType
 				);
 				toolResults.push({
 					type: 'tool_result',

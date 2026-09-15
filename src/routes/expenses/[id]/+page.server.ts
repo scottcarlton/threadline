@@ -109,6 +109,7 @@ export const actions: Actions = {
 			.eq('id', params.id);
 
 		if (err) return fail(500, { message: err.message });
+		locals.audit.record('expense.submitted', { subjectId: params.id });
 		return { success: true };
 	},
 
@@ -146,6 +147,13 @@ export const actions: Actions = {
 			.eq('id', params.id);
 
 		if (err) return fail(500, { message: err.message });
+		// The expense's own org, not the reviewer's: a BOA reviewer approving a
+		// connected rep's expense belongs on the rep org's timeline.
+		locals.audit.record('expense.reviewed', {
+			organizationId: expense.organization_id,
+			subjectId: params.id,
+			metadata: { outcome: 'approved', brandId: expense.brand_id }
+		});
 		return { success: true };
 	},
 
@@ -185,6 +193,11 @@ export const actions: Actions = {
 			.eq('id', params.id);
 
 		if (err) return fail(500, { message: err.message });
+		locals.audit.record('expense.reviewed', {
+			organizationId: expense.organization_id,
+			subjectId: params.id,
+			metadata: { outcome: 'rejected', brandId: expense.brand_id }
+		});
 		return { success: true };
 	},
 

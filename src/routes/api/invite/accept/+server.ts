@@ -2,18 +2,22 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { notifyOrgMembers } from '$lib/server/notifications.js';
+import { resolveAcceptingProfileId } from '$lib/server/invites/authorize.js';
 
-export const POST: RequestHandler = async ({ request }) => {
-	const { token, userId } = await request.json();
+export const POST: RequestHandler = async ({ request, locals }) => {
+	const { token, userId: bodyUserId } = await request.json();
 
-	if (!token || !userId) {
+	if (!token) {
 		return json({ error: 'Missing required fields' }, { status: 400 });
 	}
 
 	// Look up the invitation
 	const { data: invitation, error: invError } = await supabaseAdmin
 		.from('invitations')
-		.select('*')
+		// organizations(name) so the audit row carries the org's name, not just
+		// its id. The console renders organization_name, and the invitee has no
+		// membership yet, so the hook has no default org name to fall back on.
+		.select('*, organizations(name)')
 		.eq('token', token)
 		.is('accepted_at', null)
 		.single();
@@ -25,6 +29,18 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (new Date(invitation.expires_at) < new Date()) {
 		return json({ error: 'Invitation has expired' }, { status: 410 });
 	}
+
+	// The token alone is not enough to grant membership: it must belong to
+	// the actor who is actually signed in, and their session email must
+	// match the invitation's recipient. Otherwise anyone holding a leaked
+	// pending invite token could grant themselves (or any profile_id they
+	// name) the invitation's role, up to org owner.
+	const { user: sessionUser } = await locals.safeGetSession();
+	const authResult = resolveAcceptingProfileId(sessionUser, bodyUserId, invitation.email);
+	if (!authResult.ok) {
+		return json({ error: authResult.error }, { status: authResult.status });
+	}
+	const userId = authResult.profileId;
 
 	// Create organization membership
 	const { error: memberError } = await supabaseAdmin.from('organization_members').insert({
@@ -90,6 +106,36 @@ export const POST: RequestHandler = async ({ request }) => {
 		title: 'New team member',
 		body: `${profile?.display_name ?? 'A new member'} has joined the team`,
 		link: '/organization/members'
+	});
+
+	// The sibling of invite/[token]/accept, which the OAuth flow uses. This is
+	// the endpoint the OTP flow posts to, so without these the log would record
+	// only half the acceptances and read as though the rest never joined.
+	//
+	// userId is the session user's own id (see resolveAcceptingProfileId
+	// above) so the subject here is always the actor, never a caller-named
+	// profile.
+	const invOrg = invitation.organizations as { name?: string } | { name?: string }[] | null;
+	const organizationName = (Array.isArray(invOrg) ? invOrg[0]?.name : invOrg?.name) ?? null;
+	const subjectLabel = profile?.display_name ?? invitation.email ?? userId;
+	locals.audit.record('auth.invite_accepted', {
+		organizationId: invitation.organization_id,
+		organizationName,
+		subjectId: userId,
+		subjectLabel,
+		metadata: { role: invitation.role }
+	});
+	locals.audit.record('member.added', {
+		organizationId: invitation.organization_id,
+		organizationName,
+		subjectId: userId,
+		subjectLabel,
+		metadata: {
+			role: invitation.role,
+			viaInvitation: true,
+			brandCount: invitation.brand_ids?.length ?? 0,
+			territoryCount: invitation.territory_ids?.length ?? 0
+		}
 	});
 
 	return json({ success: true });

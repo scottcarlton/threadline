@@ -224,6 +224,7 @@
 			<div class="relative">
 				<button
 					type="button"
+					aria-label="Toggle spotlight options"
 					class="inline-flex h-5 w-4 cursor-pointer items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
 					onclick={() => (spotlightMenuOpen = !spotlightMenuOpen)}
 				>

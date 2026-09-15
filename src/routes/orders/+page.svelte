@@ -12,6 +12,7 @@
 	import FilterBySheet from '$lib/components/shared/FilterBySheet.svelte';
 	import FilterSortSheet from '$lib/components/shared/FilterSortSheet.svelte';
 	import { isLgUp } from '$lib/utils/viewport.js';
+	import { allowedNextStatuses } from '$lib/utils/order-status-permissions.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
 	import { DropdownMenu } from 'bits-ui';
 	import {
@@ -53,6 +54,7 @@
 		SPOTLIGHT_LABELS,
 		type SpotlightBucket
 	} from '$lib/utils/order-spotlight.js';
+	import { orderGrandTotal } from '$lib/utils/order-total.js';
 	import { Popover } from 'bits-ui';
 
 	const PAGE_SIZE = 50;
@@ -344,10 +346,14 @@
 	};
 
 	// Notes aren't part of the order lifecycle — exclude them from bulk status ops.
+	// A rep org also never reports fulfillment, so shipped/delivered drop out of
+	// the bulk menu for them entirely.
 	const bulkNextStatuses = $derived(() => {
 		const selected = filtered.filter((o) => selectedIds.has(o.id));
 		if (selected.length === 0) return [];
-		const sets = selected.map((o) => new Set(statusFlow[o.status] ?? []));
+		const sets = selected.map(
+			(o) => new Set(allowedNextStatuses(data.orgType, statusFlow[o.status] ?? []))
+		);
 		const common = [...sets[0]].filter((s) => sets.every((set) => set.has(s)));
 		return common;
 	});
@@ -1310,13 +1316,18 @@
 							<td class="px-4 py-3 text-right font-mono">
 								{#if order.status === 'shipped' || order.status === 'delivered'}
 									<span class="text-sm"
-										>{fmt.format(Number(order.shipped_amount ?? order.total_amount))}</span
+										>{fmt.format(
+											orderGrandTotal({
+												total_amount: order.shipped_amount ?? order.total_amount,
+												shipping_cost: order.shipping_cost
+											})
+										)}</span
 									>
 									<p class="text-xs text-muted-foreground">
 										{fmt.format(Number(order.total_amount))}
 									</p>
 								{:else}
-									<span class="text-sm">{fmt.format(Number(order.total_amount))}</span>
+									<span class="text-sm">{fmt.format(orderGrandTotal(order))}</span>
 									<p class="text-xs text-muted-foreground/50">—</p>
 								{/if}
 							</td>

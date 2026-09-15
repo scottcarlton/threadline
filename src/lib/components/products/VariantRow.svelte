@@ -92,9 +92,12 @@
 		<div class="border-t border-border px-3.5 pt-3.5 pb-4">
 			<div class="grid grid-cols-2 gap-3">
 				<div>
-					<label class="mb-1.5 block text-sm font-medium">Color name</label>
+					<label class="mb-1.5 block text-sm font-medium" for="color-name-{variant.id}"
+						>Color name</label
+					>
 					<input
 						bind:this={colorInput}
+						id="color-name-{variant.id}"
 						type="text"
 						class="w-full border border-border bg-background px-2.5 py-2 text-sm"
 						placeholder="e.g. Camel"
@@ -104,9 +107,9 @@
 					/>
 				</div>
 				<div>
-					<label class="mb-1.5 block text-sm font-medium">
+					<span class="mb-1.5 block text-sm font-medium">
 						Hex <span class="text-sm font-normal text-muted-foreground">(optional)</span>
-					</label>
+					</span>
 					<div class="flex border border-border bg-card">
 						<input
 							type="color"
@@ -134,9 +137,9 @@
 			</div>
 
 			<div class="mt-4">
-				<label class="mb-1.5 block text-sm font-medium">
+				<span class="mb-1.5 block text-sm font-medium">
 					Images <span class="text-sm font-normal text-muted-foreground">(optional)</span>
-				</label>
+				</span>
 				<ImagePair
 					primaryFile={variant.images.primary}
 					hoverFile={variant.images.hover}
@@ -150,7 +153,7 @@
 
 			{#if ats}
 				<div class="mt-4">
-					<label class="mb-1.5 block text-sm font-medium">Inventory</label>
+					<span class="mb-1.5 block text-sm font-medium">Inventory</span>
 					<InventoryMatrix
 						{sizes}
 						skuPrefix={styleNumber}

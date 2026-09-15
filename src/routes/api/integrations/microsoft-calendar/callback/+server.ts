@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { exchangeMsCalendarCode } from '$lib/server/integrations/microsoft/calendar-user';
 import { supabaseAdmin } from '$lib/server/supabase';
 
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	if (!locals.session || !locals.user) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
 	}
@@ -15,7 +15,18 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		return new Response(JSON.stringify({ error: 'Missing code or state' }), { status: 400 });
 	}
 
-	if (state !== locals.user.id) {
+	const cookieState = cookies.get('oauth_state');
+	cookies.delete('oauth_state', { path: '/' });
+	if (!cookieState || cookieState !== state) {
+		return new Response(JSON.stringify({ error: 'State mismatch' }), { status: 400 });
+	}
+	let parsed: { userId?: string; nonce?: string };
+	try {
+		parsed = JSON.parse(state);
+	} catch {
+		return new Response(JSON.stringify({ error: 'Invalid state' }), { status: 400 });
+	}
+	if (parsed.userId !== locals.user.id) {
 		return new Response(JSON.stringify({ error: 'State mismatch' }), { status: 400 });
 	}
 

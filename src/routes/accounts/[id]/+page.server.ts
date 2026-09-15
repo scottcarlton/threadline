@@ -373,6 +373,13 @@ export const actions: Actions = {
 			sort_order
 		});
 		if (insertErr) return fail(500, { message: insertErr.message });
+		// One event name for every shape of account edit. The catalog has no
+		// per-location event, and metadata answers "what changed" without one.
+		locals.audit.record('account.updated', {
+			organizationId: acctRow.organization_id,
+			subjectId: params.id,
+			metadata: { change: 'location_added', isDefault: is_default }
+		});
 		return { ok: true };
 	},
 
@@ -389,6 +396,10 @@ export const actions: Actions = {
 			.eq('id', id)
 			.eq('account_id', params.id);
 		if (updErr) return fail(500, { message: updErr.message });
+		locals.audit.record('account.updated', {
+			subjectId: params.id,
+			metadata: { change: 'location_updated' }
+		});
 		return { ok: true };
 	},
 
@@ -426,6 +437,10 @@ export const actions: Actions = {
 				await supabase.from('account_locations').update({ is_default: true }).eq('id', next.id);
 			}
 		}
+		locals.audit.record('account.updated', {
+			subjectId: params.id,
+			metadata: { change: 'location_deleted', wasDefault }
+		});
 		return { ok: true };
 	},
 
@@ -448,6 +463,10 @@ export const actions: Actions = {
 			.eq('id', id)
 			.eq('account_id', params.id);
 		if (setErr) return fail(500, { message: setErr.message });
+		locals.audit.record('account.updated', {
+			subjectId: params.id,
+			metadata: { change: 'default_location_changed' }
+		});
 		return { ok: true };
 	},
 
@@ -482,6 +501,11 @@ export const actions: Actions = {
 			.eq('id', params.id)
 			.in('organization_id', ownOrgIds);
 		if (updErr) return fail(500, { message: updErr.message });
+		locals.audit.record('account.updated', {
+			subjectId: params.id,
+			metadata: { change: 'payment_preference' },
+			changes: { payment_preference: { after: next } }
+		});
 		return { ok: true };
 	}
 };

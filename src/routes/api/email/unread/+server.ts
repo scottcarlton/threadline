@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getGmailClient } from '$lib/server/gmail';
+import { getUnreadCount } from '$lib/server/email/service';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals.session || !locals.user) {
@@ -8,15 +8,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 	}
 
 	try {
-		const gmail = await getGmailClient(locals.user.id);
-		if (!gmail) return json({ count: 0 });
-
-		const label = await gmail.users.labels.get({
-			userId: 'me',
-			id: 'INBOX'
-		});
-
-		return json({ count: label.data.messagesUnread ?? 0 });
+		const count = await getUnreadCount(locals.user.id);
+		return json({ count });
 	} catch {
 		return json({ count: 0 });
 	}

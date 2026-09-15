@@ -17,6 +17,7 @@
 		brandScope?: string[] | null;
 		isBuyer?: boolean;
 		isNxBlsr?: boolean;
+		isSystemAdmin?: boolean;
 		userInitials?: string;
 		onSignOut?: () => void;
 		onHelp?: () => void;
@@ -29,6 +30,7 @@
 		brandScope = null,
 		isBuyer = false,
 		isNxBlsr = false,
+		isSystemAdmin = false,
 		userInitials = '??',
 		onSignOut,
 		onHelp
@@ -48,7 +50,8 @@
 	);
 
 	function isActive(href: string): boolean {
-		if (href === '/insight' || href === '/dashboard') return $page.url.pathname === href;
+		if (href === '/insight' || href === '/dashboard' || href === '/system')
+			return $page.url.pathname === href;
 		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
 	}
 
@@ -108,7 +111,29 @@
 		}
 	];
 
-	const tabs = $derived(isBuyer ? buyerTabs : defaultTabs);
+	// System console tabs. Paths and icons mirror `systemNav` in sidebar.svelte
+	// so the two navs cannot drift.
+	const systemTabs: NavItem[] = [
+		{
+			label: 'Overview',
+			href: '/system',
+			icon: 'M14.2458 10C14.6255 10 14.9393 10.2822 14.9889 10.6482L14.9958 10.75V12.2475C14.9958 13.7083 13.8567 14.9034 12.4177 14.9922L12.2504 14.9975L10.7513 15C10.3371 15.0007 10.0007 14.6655 10 14.2513C9.99936 13.8716 10.281 13.5573 10.647 13.507L10.7487 13.5L12.2479 13.4975C12.8943 13.4964 13.4255 13.0047 13.4893 12.3751L13.4958 12.2475V10.75C13.4958 10.3358 13.8316 10 14.2458 10ZM1.75 10C2.16421 10 2.5 10.3358 2.5 10.75V12.2475C2.5 12.937 3.05836 13.4963 3.74789 13.4975L5.24703 13.5C5.66125 13.5007 5.99646 13.8371 5.99576 14.2513C5.99506 14.6655 5.65871 15.0007 5.2445 15L3.74535 14.9975C2.22839 14.9949 1 13.7644 1 12.2475V10.75C1 10.3358 1.33579 10 1.75 10ZM8 6C9.10457 6 10 6.89543 10 8C10 9.10457 9.10457 10 8 10C6.89543 10 6 9.10457 6 8C6 6.89543 6.89543 6 8 6ZM10.7513 1L12.2504 1.00254C13.7674 1.0051 14.9958 2.23556 14.9958 3.75253V5.25C14.9958 5.66422 14.66 6 14.2458 6C13.8316 6 13.4958 5.66422 13.4958 5.25V3.75253C13.4958 3.063 12.9374 2.5037 12.2479 2.50253L10.7487 2.5C10.3345 2.4993 9.9993 2.16295 10 1.74873C10.0007 1.33452 10.3371 0.999302 10.7513 1ZM5.24873 1C5.66295 0.999303 5.9993 1.33452 6 1.74873C6.0007 2.16295 5.66548 2.4993 5.25127 2.5L3.75212 2.50253C3.06259 2.5037 2.50424 3.063 2.50424 3.75253V5.25C2.50424 5.66422 2.16845 6 1.75424 6C1.34002 6 1.00424 5.66422 1.00424 5.25V3.75253C1.00424 2.23556 2.23262 1.0051 3.74959 1.00254L5.24873 1Z',
+			fill: true,
+			viewBox: '0 0 16 16'
+		},
+		{
+			label: 'Organizations',
+			href: '/system/organizations',
+			icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4'
+		},
+		{
+			label: 'Users',
+			href: '/system/users',
+			icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+		}
+	];
+
+	const tabs = $derived(isSystemAdmin ? systemTabs : isBuyer ? buyerTabs : defaultTabs);
 
 	// --- More menu: grid items (top row with backgrounds) ---
 
@@ -145,12 +170,24 @@
 	);
 
 	const moreGridItems = $derived(
-		allGridItems.filter((item) => gridItemLabels.includes(item.label))
+		isSystemAdmin ? [] : allGridItems.filter((item) => gridItemLabels.includes(item.label))
 	);
 
 	// --- More menu: list items ---
 
 	const allListItems: NavItem[] = [
+		{
+			label: 'Invoices',
+			href: '/invoices',
+			icon: 'M9 4L6 2L3 4V19C3 20.6569 4.34315 22 6 22H20C21.6569 22 23 20.6569 23 19V16H21V4L18 2L15 4L12 2L9 4ZM19 16H7V19C7 19.5523 6.55228 20 6 20C5.44772 20 5 19.5523 5 19V5.07037L6 4.4037L9 6.4037L12 4.4037L15 6.4037L18 4.4037L19 5.07037V16ZM20 20H8.82929C8.93985 19.6872 9 19.3506 9 19V18H21V19C21 19.5523 20.5523 20 20 20Z',
+			fill: true
+		},
+		{
+			label: 'Returns',
+			href: '/returns',
+			icon: 'M12.0049 2C17.5277 2 22.0049 6.47715 22.0049 12C22.0049 17.5228 17.5277 22 12.0049 22C9.57847 22 7.3539 21.1358 5.62216 19.6985L5.37815 19.4892L6.27949 17.5875C7.73229 19.0759 9.76067 20 12.0049 20C16.4232 20 20.0049 16.4183 20.0049 12C20.0049 7.58172 16.4232 4 12.0049 4C7.66997 4 4.14034 7.44784 4.00869 11.7508L4.00488 12H6.50488L3.79854 17.7161C2.66796 16.096 2.00488 14.1254 2.00488 12C2.00488 6.47715 6.48204 2 12.0049 2ZM13.0049 6V8H15.5049V10H10.0049C9.72874 10 9.50488 10.2239 9.50488 10.5C9.50488 10.7455 9.68176 10.9496 9.91501 10.9919L10.0049 11H14.0049C15.3856 11 16.5049 12.1193 16.5049 13.5C16.5049 14.8807 15.3856 16 14.0049 16H13.0049V18H11.0049V16H8.50488V14H14.0049C14.281 14 14.5049 13.7761 14.5049 13.5C14.5049 13.2545 14.328 13.0504 14.0948 13.0081L14.0049 13H10.0049C8.62417 13 7.50488 11.8807 7.50488 10.5C7.50488 9.11929 8.62417 8 10.0049 8H11.0049V6H13.0049Z',
+			fill: true
+		},
 		{
 			label: 'Reports',
 			href: '/reports',
@@ -174,9 +211,10 @@
 			icon: 'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z'
 		},
 		{
-			label: 'Plan',
-			href: '/plan',
-			icon: 'M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z'
+			label: 'Documents',
+			href: '/documents',
+			icon: 'M9 2.00318V2H19.9978C20.5513 2 21 2.45531 21 2.9918V21.0082C21 21.556 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5501 3 20.9932V8L9 2.00318ZM5.82918 8H9V4.83086L5.82918 8ZM11 4V9C11 9.55228 10.5523 10 10 10H5V20H19V4H11Z',
+			fill: true
 		},
 		{
 			label: 'Organization',
@@ -187,14 +225,59 @@
 
 	const listItemLabels = $derived<string[]>(
 		isNxBlsr
-			? ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan', 'Organization']
+			? [
+					'Invoices',
+					'Returns',
+					'Reports',
+					'Inbox',
+					'Appointments',
+					'Workspace',
+					'Documents',
+					'Organization'
+				]
 			: isBrandScoped && !isSales
-				? ['Reports']
-				: ['Reports', 'Inbox', 'Appointments', 'Workspace', 'Plan', 'Organization']
+				? isBrandOrg
+					? ['Invoices', 'Returns', 'Reports', 'Documents']
+					: ['Returns', 'Reports', 'Documents']
+				: isBrandOrg
+					? [
+							'Invoices',
+							'Returns',
+							'Reports',
+							'Inbox',
+							'Appointments',
+							'Workspace',
+							'Documents',
+							'Organization'
+						]
+					: [
+							'Returns',
+							'Reports',
+							'Inbox',
+							'Appointments',
+							'Workspace',
+							'Documents',
+							'Organization'
+						]
 	);
 
+	const systemListItems: NavItem[] = [
+		{
+			label: 'Feature flags',
+			href: '/system/flags',
+			icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z'
+		},
+		{
+			label: 'Invites',
+			href: '/system/invites',
+			icon: 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75'
+		}
+	];
+
 	const moreListItems = $derived(
-		allListItems.filter((item) => listItemLabels.includes(item.label))
+		isSystemAdmin
+			? systemListItems
+			: allListItems.filter((item) => listItemLabels.includes(item.label))
 	);
 
 	const showMoreMenu = $derived(!isBuyer);
@@ -214,7 +297,7 @@
 
 <!-- Bottom bar wrapper — shared centering for popup + bar -->
 <div
-	class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6"
+	class="fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] px-4 pb-6 [view-transition-name:tl-mobile-nav]"
 	transition:fly={{ y: 80, duration: 250 }}
 >
 	<!-- More menu popover -->
@@ -327,7 +410,7 @@
 				>
 					{#each moreListItems as item (item.href)}
 						<a
-							href={resolve(item.href as '/plan')}
+							href={resolve(item.href as '/returns')}
 							onclick={handleNavClick}
 							class={cn(
 								'flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition-colors',

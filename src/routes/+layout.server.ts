@@ -43,13 +43,15 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 		};
 		type CartRow = {
 			added_at: string;
+			selected_color: string | null;
+			size_qtys: Record<string, number> | null;
 			products: ProductRow | ProductRow[] | null;
 		};
 
 		const { data } = await supabaseAdmin
 			.from('cart_items')
 			.select(
-				'added_at, products(id, name, style_number, wholesale_price, brand_id, season_id, brands(id, name), product_variants(color, size), product_images(id, is_primary), seasons(id, name))'
+				'added_at, selected_color, size_qtys, products(id, name, style_number, wholesale_price, brand_id, season_id, brands(id, name), product_variants(color, size), product_images(id, is_primary), seasons(id, name))'
 			)
 			.eq('profile_id', locals.user.id)
 			.order('added_at', { ascending: true });
@@ -83,8 +85,12 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 					addedAt: row.added_at,
 					seasonId: p.season_id ?? null,
 					seasonName: season?.name ?? null,
-					selectedColor: colors[0] ?? '',
-					sizeQtys: {}
+					// Rows written before 20260915000001 carry '' / {} because the table
+					// had nowhere to put a colour or a quantity. Falling back to the
+					// first colourway keeps those legacy lines rendering the way they
+					// always did; anything written since round-trips exactly.
+					selectedColor: row.selected_color || colors[0] || '',
+					sizeQtys: row.size_qtys ?? {}
 				};
 			})
 			.filter((row): row is CartItem => row !== null);

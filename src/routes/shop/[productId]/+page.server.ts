@@ -19,8 +19,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	if (err || !product) throw error(404, 'Product not found');
 
-	// Verify buyer has access to this brand
-	if (buyerBrandIds.length > 0 && !buyerBrandIds.includes(product.brand_id)) {
+	// A buyer with no brand access (e.g. a self-signup store not yet linked
+	// to any brand) can see nothing. An empty list means no access, never
+	// unrestricted access — this load uses supabaseAdmin, so RLS does not
+	// gate it.
+	if (!buyerBrandIds.includes(product.brand_id)) {
 		throw error(403, 'Access denied');
 	}
 

@@ -174,6 +174,7 @@
 		{#if hasPlayed}
 			<button
 				onclick={play}
+				aria-label="Replay"
 				class="absolute right-3 bottom-3 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-white transition-transform hover:bg-indigo-600"
 			>
 				<svg

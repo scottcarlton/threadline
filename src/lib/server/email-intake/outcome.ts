@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import type { ResolvedOrder, ResolvedLine } from './resolve.js';
 import { THRESHOLDS } from './resolve.js';
+import type { SenderAuthVerdict } from './authentication.js';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -15,14 +16,29 @@ export type Outcome = {
  * Decide whether a resolved order can be auto-submitted or needs review.
  *
  * Auto-submit requires ALL of:
+ * - The sender passed SPF/DKIM/DMARC aligned to their From domain
  * - Account resolved with confidence ≥ ACCOUNT_MIN and unambiguous
  * - Brand resolved
  * - Every line's product confidence ≥ PRODUCT_MIN and unambiguous
  * - Every (size, qty) resolves to a product_variant
  * - Every qty in [1, 999]
  */
-export function decideOutcome(resolved: ResolvedOrder & { kind: 'resolved' }): Outcome {
+export function decideOutcome(
+	resolved: ResolvedOrder & { kind: 'resolved' },
+	senderAuth?: SenderAuthVerdict
+): Outcome {
 	const reasons: Outcome['reasons'] = [];
+
+	// An unauthenticated sender can never auto-submit, however cleanly the order
+	// parsed. A spoofed message that resolves perfectly is the dangerous case,
+	// not the harmless one. Held for review rather than rejected, so a
+	// legitimate sender behind a misconfigured domain still gets seen.
+	if (senderAuth && !senderAuth.authenticated) {
+		reasons.push({
+			lineIndex: null,
+			reason: `Sender could not be verified: ${senderAuth.summary}`
+		});
+	}
 
 	// Account checks
 	if (!resolved.accountId) {

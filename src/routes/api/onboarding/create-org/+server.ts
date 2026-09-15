@@ -70,6 +70,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: orgError.message }, { status: 500 });
 	}
 
+	// Recorded before the membership insert so a half-built org (org created,
+	// member insert failed) still leaves a trace to find it by. The hook stamps
+	// no default org on this request because the caller has no membership yet,
+	// so the org has to be named explicitly on every event here.
+	locals.audit.record('organization.created', {
+		organizationId: org.id,
+		organizationName: org.name,
+		subjectId: org.id,
+		subjectLabel: org.name,
+		metadata: { orgType: validOrgType, slug }
+	});
+
 	// Create admin membership for the founding user
 	const { error: memberError } = await supabaseAdmin.from('organization_members').insert({
 		organization_id: org.id,
@@ -81,6 +93,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (memberError) {
 		return json({ error: memberError.message }, { status: 500 });
 	}
+
+	locals.audit.record('member.added', {
+		organizationId: org.id,
+		organizationName: org.name,
+		subjectId: userId,
+		subjectLabel: displayName ?? session.user.email ?? userId,
+		metadata: { role: 'admin', founding: true }
+	});
 
 	// For brand orgs, the auto_create_self_brand trigger has already inserted
 	// a self-brand row. Set its contact_email to the founding admin's email so

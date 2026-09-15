@@ -208,6 +208,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
+	// One row for the whole import, not one per product. A 400-style linesheet
+	// would otherwise bury every other event in the org's timeline.
+	locals.audit.record('product.imported', {
+		organizationId: brandOrgId,
+		metadata: {
+			inserted: result.inserted,
+			updated: result.updated,
+			skipped: result.skipped,
+			imageFailures: result.imageFailures.length
+		}
+	});
+
 	return json(result, { status: 200 });
 };
 

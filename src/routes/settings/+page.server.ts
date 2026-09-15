@@ -25,61 +25,38 @@ export const load: PageServerLoad = async ({ locals }) => {
 		)
 	);
 
-	const [emailRes, calendarRes, outlookRes, msCalendarRes, calendlyRes, prefsRes] =
-		await Promise.all([
-			supabase
-				.from('email_connections')
-				.select('email_address')
-				.eq('profile_id', user.id)
-				.eq('provider', 'gmail')
-				.maybeSingle(),
-			supabase
-				.from('email_connections')
-				.select('email_address')
-				.eq('profile_id', user.id)
-				.eq('provider', 'google_calendar')
-				.maybeSingle(),
-			supabase
-				.from('email_connections')
-				.select('email_address')
-				.eq('profile_id', user.id)
-				.eq('provider', 'outlook')
-				.maybeSingle(),
-			supabase
-				.from('email_connections')
-				.select('email_address')
-				.eq('profile_id', user.id)
-				.eq('provider', 'microsoft_calendar')
-				.maybeSingle(),
-			supabase
-				.from('email_connections')
-				.select('email_address, scheduling_url')
-				.eq('profile_id', user.id)
-				.eq('provider', 'calendly')
-				.maybeSingle(),
-			organization
-				? supabase
-						.from('notification_preferences')
-						.select('*')
-						.eq('user_id', user.id)
-						.eq('organization_id', organization.id)
-						.maybeSingle()
-				: Promise.resolve({ data: null })
-		]);
+	const [connectionsRes, prefsRes] = await Promise.all([
+		supabase
+			.from('email_connections')
+			.select('provider, email_address, scheduling_url')
+			.eq('profile_id', user.id)
+			.in('provider', ['gmail', 'google_calendar', 'outlook', 'microsoft_calendar', 'calendly']),
+		organization
+			? supabase
+					.from('notification_preferences')
+					.select('*')
+					.eq('user_id', user.id)
+					.eq('organization_id', organization.id)
+					.maybeSingle()
+			: Promise.resolve({ data: null })
+	]);
+
+	type ConnectionRow = { provider: string; email_address: string | null; scheduling_url?: string };
+	const connections = (connectionsRes.data ?? []) as ConnectionRow[];
+	const connByProvider = new Map(connections.map((c) => [c.provider, c]));
 
 	return {
-		emailConnected: !!emailRes.data,
-		emailAddress: emailRes.data?.email_address ?? null,
-		calendarConnected: !!calendarRes.data,
-		calendarEmail: calendarRes.data?.email_address ?? null,
-		outlookConnected: !!outlookRes.data,
-		outlookEmail: outlookRes.data?.email_address ?? null,
-		msCalendarConnected: !!msCalendarRes.data,
-		msCalendarEmail: msCalendarRes.data?.email_address ?? null,
-		calendlyConnected: !!calendlyRes.data,
-		calendlyEmail: calendlyRes.data?.email_address ?? null,
-		calendlySchedulingUrl:
-			(calendlyRes.data as { scheduling_url?: string } | null)?.scheduling_url ?? null,
+		emailConnected: connByProvider.has('gmail'),
+		emailAddress: connByProvider.get('gmail')?.email_address ?? null,
+		calendarConnected: connByProvider.has('google_calendar'),
+		calendarEmail: connByProvider.get('google_calendar')?.email_address ?? null,
+		outlookConnected: connByProvider.has('outlook'),
+		outlookEmail: connByProvider.get('outlook')?.email_address ?? null,
+		msCalendarConnected: connByProvider.has('microsoft_calendar'),
+		msCalendarEmail: connByProvider.get('microsoft_calendar')?.email_address ?? null,
+		calendlyConnected: connByProvider.has('calendly'),
+		calendlyEmail: connByProvider.get('calendly')?.email_address ?? null,
+		calendlySchedulingUrl: connByProvider.get('calendly')?.scheduling_url ?? null,
 		notificationPreferences: prefsRes.data ?? null,
 		isBuyer: locals.isBuyer === true,
 		authEmail: authUser?.email ?? null,

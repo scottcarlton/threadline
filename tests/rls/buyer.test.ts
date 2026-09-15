@@ -1,0 +1,254 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import { adminClient } from './setup/clients.js';
+import { RLS_IDS } from './setup/ids.js';
+import { PERSONA_IDS, loadPersonaIds, personaClient } from './setup/fixture.js';
+import {
+	expectHidden,
+	expectInsertAllowed,
+	expectInsertDenied,
+	expectUpdateAllowed,
+	expectUpdateDenied,
+	expectVisible
+} from './setup/assert.js';
+
+beforeAll(loadPersonaIds);
+
+describe('buyer read surface', () => {
+	it('sees their own account', async () => {
+		const buyer = await personaClient('buyer');
+		await expectVisible(buyer, 'accounts', RLS_IDS.accountBrandA);
+	});
+
+	it('does not see other accounts in the same brand org or elsewhere', async () => {
+		const buyer = await personaClient('buyer');
+		await expectHidden(buyer, 'accounts', RLS_IDS.accountRepA);
+		await expectHidden(buyer, 'accounts', RLS_IDS.accountBrandB);
+	});
+
+	it('sees only brands granted via account_brand_access', async () => {
+		const buyer = await personaClient('buyer');
+		await expectVisible(buyer, 'brands', RLS_IDS.brandA1);
+		await expectHidden(buyer, 'brands', RLS_IDS.brandA2);
+		await expectHidden(buyer, 'brands', RLS_IDS.brandB1);
+	});
+
+	it('sees products of granted brands only', async () => {
+		const buyer = await personaClient('buyer');
+		await expectVisible(buyer, 'products', RLS_IDS.productA1);
+		await expectHidden(buyer, 'products', RLS_IDS.productB1);
+	});
+
+	it('sees orders on their own account, even ones they did not personally place', async () => {
+		// EXPECTATION CORRECTION: the brief describes orderBrandAInternal as
+		// "Brand A's own draft... the buyer created neither" and implies both
+		// orders should be hidden. The live policy "Buyers see own account
+		// orders" (supabase/migrations/20260407000001_buyer_portal.sql) is
+		//   USING (account_id IN (SELECT get_buyer_account_ids()))
+		// which is account-scoped, not created_by-scoped. orderBrandAInternal
+		// has account_id = accountBrandA, the buyer's own account (seeded in
+		// tests/rls/setup/fixture.ts), even though brandAAdmin created it (a
+		// staff member entering an order on the account's behalf). Per the
+		// policy that is visible to the buyer by design: the account is the
+		// scoping unit, not the order's creator. orderRepAOnBrandA belongs to
+		// accountRepA, a different account, so it stays hidden.
+		const buyer = await personaClient('buyer');
+		await expectVisible(buyer, 'orders', RLS_IDS.orderBrandAInternal);
+		await expectHidden(buyer, 'orders', RLS_IDS.orderRepAOnBrandA);
+	});
+
+	it('cannot enumerate the brand org staff', async () => {
+		const buyer = await personaClient('buyer');
+		const { data } = await buyer
+			.from('organization_members')
+			.select('id')
+			.eq('organization_id', RLS_IDS.orgBrandA);
+		expect(data ?? [], 'buyer must not enumerate brand staff').toEqual([]);
+	});
+
+	it('does not see other buyers account_users rows', async () => {
+		const buyer = await personaClient('buyer');
+		const { data } = await buyer.from('account_users').select('profile_id');
+		const profiles = ((data ?? []) as Array<{ profile_id: string }>).map((r) => r.profile_id);
+		expect(new Set(profiles)).toEqual(new Set([PERSONA_IDS.buyer]));
+	});
+});
+
+describe('buyer write surface', () => {
+	it('can insert a draft order for their own account and brand, and a line on it', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			// This is the positive control for the denial tests below: it
+			// proves a buyer can create a valid draft order and a line on it
+			// at all, so the denials that follow are the policy actually
+			// stopping something, not the buyer being unable to write
+			// anything.
+			const { error: lineError } = await buyer.from('order_lines').insert({
+				order_id: orderId,
+				qty: 1,
+				unit_price: 50
+			});
+			expect(
+				lineError,
+				`order_lines insert should be allowed, got ${lineError?.message}`
+			).toBeNull();
+		} finally {
+			// order_lines has an AFTER DELETE trigger that inserts into
+			// order_audits referencing order_id. Deleting the order first
+			// would cascade-delete the line and race that insert against the
+			// order's own removal (see the same note in
+			// tests/rls/setup/fixture.ts teardownRlsFixture). Delete the line
+			// first, while the parent order still exists.
+			await adminClient().from('order_lines').delete().eq('order_id', orderId);
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('cannot insert an order against a brand not granted through account_brand_access', async () => {
+		// brandA2 belongs to orgBrandA but account_brand_access only grants
+		// accountBrandA access to brandA1. The row is otherwise valid, so a
+		// 42501 here is the "Buyers can create draft orders" WITH CHECK
+		// clause (brand_id IN get_buyer_brand_ids()) doing the denying, not a
+		// malformed row failing a NOT NULL or check constraint.
+		const buyer = await personaClient('buyer');
+		await expectInsertDenied(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA2,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+	});
+
+	it('cannot insert an order against an account that is not theirs', async () => {
+		// accountRepA is Rep A's account, not the buyer's. Same reasoning as
+		// above: the row is otherwise valid, so 42501 here is the WITH CHECK
+		// clause (account_id IN get_buyer_account_ids()) denying it.
+		const buyer = await personaClient('buyer');
+		await expectInsertDenied(buyer, 'orders', {
+			organization_id: RLS_IDS.orgRepA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountRepA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+	});
+
+	// The recursive WITH CHECK on "Brand admin updates federated order
+	// status" (supabase/migrations/20260530000001_security_review_fixes.sql)
+	// used to cause Postgres error 42P17 (infinite recursion detected in
+	// policy for relation "orders") on every UPDATE to orders, for every
+	// persona, regardless of which policy would otherwise apply. Fixed in
+	// supabase/migrations/20260901000001_fix_orders_update_recursion.sql.
+	//
+	// That same migration also tightened "Buyers can update own draft
+	// orders" (supabase/migrations/20260407000001_buyer_portal.sql), which
+	// was named for draft orders but never checked status in either
+	// direction: while the recursion above blocked every orders UPDATE,
+	// this gap was unreachable, and fixing the recursion alone would have
+	// reopened it. The policy now requires status = 'draft' to touch the
+	// row at all, and its WITH CHECK only allows the new status to be
+	// 'draft' or 'submitted' -- the only buyer-side transition. Everything
+	// from 'confirmed' onward is brand or rep side.
+	it('can update their own draft order while it stays a draft', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateAllowed(buyer, 'orders', orderId, { notes: 'updated by buyer' });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('can move their own draft order to submitted', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateAllowed(buyer, 'orders', orderId, { status: 'submitted' });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('cannot flip their own draft order to confirmed', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateDenied(buyer, 'orders', orderId, { status: 'confirmed' });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	it('cannot update an order that is already past draft', async () => {
+		const orderId = await expectInsertAllowed(adminClient(), 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'submitted'
+		});
+		try {
+			const buyer = await personaClient('buyer');
+			await expectUpdateDenied(buyer, 'orders', orderId, {
+				notes: 'buyer trying to edit after submit'
+			});
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+
+	// The status/notes cases above only vary values inside the granted
+	// scope. The security-load-bearing half of the new WITH CHECK is the
+	// scope bounding itself (account_id, created_by, and, as of this
+	// migration, brand_id): a buyer must not be able to reassign a draft
+	// order they own onto someone else's identity, someone else's account,
+	// or a brand they were never granted access to. All three escapes are
+	// asserted against one shared order (rather than a fresh insert per
+	// case) because orders.order_number is generated from a per-org
+	// counter with no reuse of deleted numbers -- keeping the insert count
+	// down here avoids an unrelated, pre-existing collision in that
+	// counter once it crosses into double digits within a single test
+	// file, which is not something this migration touches.
+	it('cannot reassign scope-bounding columns', async () => {
+		const buyer = await personaClient('buyer');
+		const orderId = await expectInsertAllowed(buyer, 'orders', {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA,
+			created_by: PERSONA_IDS.buyer,
+			status: 'draft'
+		});
+		try {
+			await expectUpdateDenied(buyer, 'orders', orderId, { created_by: PERSONA_IDS.repAAdmin });
+			await expectUpdateDenied(buyer, 'orders', orderId, { account_id: RLS_IDS.accountRepA });
+			await expectUpdateDenied(buyer, 'orders', orderId, { brand_id: RLS_IDS.brandA2 });
+		} finally {
+			await adminClient().from('orders').delete().eq('id', orderId);
+		}
+	});
+});

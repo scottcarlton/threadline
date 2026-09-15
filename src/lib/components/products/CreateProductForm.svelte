@@ -404,7 +404,7 @@
 						>
 							<Checkbox bind:checked={$form.ats} />
 							<div>
-								<label class="text-sm font-medium">Available to ship (ATS)</label>
+								<span class="text-sm font-medium">Available to ship (ATS)</span>
 								<p class="mt-0.5 text-sm text-muted-foreground">
 									In stock and shippable now. Turn off for futures or pre-orders. Inventory inputs
 									only appear when this is on.
@@ -419,7 +419,7 @@
 						>
 							<Checkbox bind:checked={$form.featured} />
 							<div>
-								<label class="text-sm font-medium">Featured</label>
+								<span class="text-sm font-medium">Featured</span>
 								<p class="mt-0.5 text-sm text-muted-foreground">
 									Surfaces on the brand homepage and in seasonal pickers.
 								</p>

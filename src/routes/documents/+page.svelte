@@ -10,12 +10,13 @@
 		<path
 			stroke-linecap="round"
 			stroke-linejoin="round"
-			d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"
+			d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
 		/>
 	</svg>
 	<p class="mt-4 font-mono text-sm text-muted-foreground">[Coming Soon]</p>
-	<h1 class="mt-2 text-lg font-semibold">Plan</h1>
+	<h1 class="mt-2 text-lg font-semibold">Documents</h1>
 	<p class="mt-2 max-w-md text-sm text-muted-foreground">
-		AI sales planner that turns last year's signal into next quarter's plan.
+		Line sheets, contracts, and credit applications stored against the accounts and orders they
+		belong to.
 	</p>
 </div>

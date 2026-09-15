@@ -39,5 +39,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.update({ status: 'revoked' })
 		.eq('connection_id', connectionId);
 
+	locals.audit.record('connection.revoked', {
+		subjectId: connectionId
+	});
+
 	return json({ success: true });
 };

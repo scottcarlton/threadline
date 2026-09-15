@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { findUserIdByEmail } from '$lib/server/user-lookup.js';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -17,11 +18,11 @@ export type RouteResult =
  * memberships where email_intake_enabled = true.
  */
 export async function resolveOrgFromSender(fromEmail: string): Promise<RouteResult> {
-	// Find the user by email
-	const { data: userList } = await supabaseAdmin.auth.admin.listUsers();
-	const user = userList?.users?.find((u) => u.email?.toLowerCase() === fromEmail.toLowerCase());
+	// Indexed lookup. This used to scan the first page of listUsers(), so a
+	// sender who signed up after the first fifty users was reported unknown.
+	const userId = await findUserIdByEmail(fromEmail);
 
-	if (!user) {
+	if (!userId) {
 		return { kind: 'none', reason: 'unknown_sender' };
 	}
 
@@ -29,7 +30,7 @@ export async function resolveOrgFromSender(fromEmail: string): Promise<RouteResu
 	const { data: memberships } = await supabaseAdmin
 		.from('organization_members')
 		.select('organization_id, organizations(name)')
-		.eq('profile_id', user.id)
+		.eq('profile_id', userId)
 		.eq('email_intake_enabled', true);
 
 	const eligible = (memberships ?? []) as Array<{
@@ -45,7 +46,7 @@ export async function resolveOrgFromSender(fromEmail: string): Promise<RouteResu
 		return {
 			kind: 'single',
 			organizationId: eligible[0].organization_id,
-			userId: user.id
+			userId
 		};
 	}
 
@@ -57,7 +58,7 @@ export async function resolveOrgFromSender(fromEmail: string): Promise<RouteResu
 				: (m.organizations?.name ?? '');
 			return {
 				organizationId: m.organization_id,
-				userId: user.id,
+				userId,
 				orgName
 			};
 		})

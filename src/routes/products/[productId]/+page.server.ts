@@ -86,6 +86,12 @@ export const actions: Actions = {
 			return fail(500, { error: updateErr.message });
 		}
 
+		locals.audit.record('product.updated', {
+			subjectId: params.productId,
+			subjectLabel: (fd.get('style_number') as string) ?? null,
+			metadata: { name: fd.get('name') as string }
+		});
+
 		return { success: true };
 	},
 
@@ -103,6 +109,10 @@ export const actions: Actions = {
 		if (deleteErr) {
 			return fail(500, { error: deleteErr.message });
 		}
+
+		// Recorded before the redirect: the hook treats a thrown redirect as an
+		// outcome and flushes on it, so the row still lands.
+		locals.audit.record('product.deleted', { subjectId: params.productId });
 
 		throw redirect(303, '/products');
 	}

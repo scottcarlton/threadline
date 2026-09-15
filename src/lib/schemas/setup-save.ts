@@ -62,9 +62,18 @@ const brandManualPayload = z.object({
 	step: z.literal('brand-manual'),
 	value: z.object({
 		name: z.string().trim().min(1, 'Brand name is required').max(255),
+		// contactName is the legacy single-field shape SetupQuestionCard still
+		// sends; the preflight form sends the split names the brands table
+		// actually stores. The endpoint takes the split pair when present and
+		// falls back to splitting contactName.
 		contactName: z.string().trim().max(255).default(''),
+		contactFirstName: z.string().trim().max(255).default(''),
+		contactLastName: z.string().trim().max(255).default(''),
 		contactEmail: z.union([z.literal(''), z.string().trim().email()]).default(''),
-		website: z.string().trim().max(500).default('')
+		contactPhone: z.string().trim().max(50).default(''),
+		website: z.string().trim().max(500).default(''),
+		commissionRate: z.coerce.number().min(0).max(100).default(0),
+		notes: z.string().trim().max(2000).default('')
 	})
 });
 

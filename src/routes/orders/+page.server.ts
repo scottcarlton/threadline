@@ -390,6 +390,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			status: o.status,
 			total_amount: o.total_amount,
 			shipped_amount: o.shipped_amount,
+			shipping_cost: o.shipping_cost,
 			shipped_at: o.shipped_at,
 			created_at: o.created_at,
 			expected_ship_date: o.expected_ship_date,

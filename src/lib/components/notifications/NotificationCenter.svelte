@@ -23,9 +23,13 @@
 {#if open}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="fixed inset-0 z-[59]" onmousedown={onclose}></div>
+	<!-- opacity: 1 keeps the drawer from fading. An element with opacity < 1 is a
+	     backdrop root, which suppresses the cards' backdrop-blur for the whole
+	     slide and lets the page show through the 80%-opaque cards until the
+	     transition lands. Sliding without a fade keeps the blur consistent. -->
 	<aside
 		class="pointer-events-none fixed top-12 right-0 z-[60] flex h-[calc(100dvh-3rem)] w-full flex-col gap-2 overflow-y-auto bg-transparent p-3 sm:w-[400px]"
-		transition:fly={{ x: 420, duration: 280, easing: quintOut }}
+		transition:fly={{ x: 420, opacity: 1, duration: 280, easing: quintOut }}
 		aria-label="Notifications"
 	>
 		{#if items.length === 0}

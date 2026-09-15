@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getGmailClient, parseMessage, buildRawEmail } from './gmail.js';
 import { supabaseAdmin } from './supabase.js';
+import { checkFilterColumns, omitForEntity } from './ai-query-columns.js';
+import {
+	FULFILLMENT_STATUSES,
+	FULFILLMENT_STATUS_ERROR
+} from '../utils/order-status-permissions.js';
 import { computeAccountHealth } from './account-health.js';
 import { getSetupStatus } from './setup-status.js';
 import { sendSlackMessage } from './integrations/slack.js';
@@ -52,7 +57,49 @@ type ToolContext = {
 	brandScope: string[] | null;
 	orgType: 'rep' | 'brand';
 	origin: string;
+	/**
+	 * Who is driving this tool call.
+	 *
+	 * `interactive` means a signed-in human is typing and reading the result, so
+	 * the model's output is checked by the person who asked for it.
+	 *
+	 * `automated` means a scheduled or event-triggered agent, where the prompt
+	 * can carry content we did not author (an inbound email body, a webhook
+	 * payload). Instructions hidden in that content reach the model, so those
+	 * runs are held to a narrower set of writes. See ADVANCING_STATUSES.
+	 *
+	 * Defaults to `automated` when unset: a caller that forgot to say gets the
+	 * cautious treatment, not the permissive one.
+	 */
+	trust?: 'interactive' | 'automated';
 };
+
+/**
+ * Statuses an automated run may not set.
+ *
+ * An order arriving through AI should be submitted, not confirmed. Submitting
+ * puts it in front of a human; confirming is the human's answer, and a model
+ * acting on text it was handed must not be able to give that answer on their
+ * behalf. Shipped and delivered are the same act further along, and cancelling
+ * is destructive.
+ *
+ * Interactive chat is unaffected: the person typing "confirm order 1042" is the
+ * accountable human, and taking that away would remove working behaviour.
+ */
+export const ADVANCING_STATUSES = new Set(['confirmed', 'shipped', 'delivered', 'cancelled']);
+
+/** Whether this context may move an order into `status`. */
+export function maySetOrderStatus(
+	trust: ToolContext['trust'],
+	status: string
+): { allowed: true } | { allowed: false; error: string } {
+	if (trust === 'interactive') return { allowed: true };
+	if (!ADVANCING_STATUSES.has(status)) return { allowed: true };
+	return {
+		allowed: false,
+		error: `An automated run cannot set an order to "${status}". Orders can be created and submitted this way, but confirming, shipping, or cancelling one is a person's decision. Leave it submitted and tell the user it is waiting on them.`
+	};
+}
 
 type ToolResult = {
 	success: boolean;
@@ -77,8 +124,6 @@ function formatToolResult(
 	for (const key of opts.omit ?? []) delete result[key];
 	return result;
 }
-
-const QUERY_OMIT_FIELDS = ['organization_id', 'updated_at'];
 
 export async function executeToolCall(
 	toolName: string,
@@ -203,12 +248,35 @@ async function createBrand(input: Record<string, unknown>, ctx: ToolContext): Pr
 	return { success: true, data };
 }
 
+const BRAND_UPDATE_FIELDS = [
+	'name',
+	'logo_url',
+	'contact_name',
+	'contact_first_name',
+	'contact_last_name',
+	'contact_email',
+	'contact_phone',
+	'website',
+	'notes',
+	'is_active',
+	'commission_rate'
+] as const;
+
 async function updateBrand(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	const { brand_id, ...updates } = input;
+	const brand_id = input.brand_id as string;
+	const patch: Record<string, unknown> = {};
+	for (const key of BRAND_UPDATE_FIELDS) {
+		if (key in input) patch[key] = input[key];
+	}
+	if (Object.keys(patch).length === 0) {
+		return { success: false, error: 'No allowed fields in updates' };
+	}
+	patch.updated_at = new Date().toISOString();
+
 	const { data, error } = await ctx.supabase
 		.from('brands')
-		.update(updates)
-		.eq('id', brand_id as string)
+		.update(patch)
+		.eq('id', brand_id)
 		.eq('organization_id', ctx.organizationId)
 		.select()
 		.single();
@@ -275,12 +343,23 @@ async function createAccount(
 	// Auto-invite contact to buyer portal if email provided
 	const contactEmail = input.contact_email as string | undefined;
 	if (contactEmail && data?.id) {
-		await supabaseAdmin.from('buyer_invitations').insert({
+		// Result was previously discarded, so a rejected insert (invited_by is
+		// uuid not null) looked like a sent invitation. Surface it instead: the
+		// account is still created, the caller just needs to know the invite
+		// did not go out.
+		const { error: inviteError } = await supabaseAdmin.from('buyer_invitations').insert({
 			account_id: data.id,
 			organization_id: ctx.organizationId,
 			email: contactEmail,
 			invited_by: ctx.userId
 		});
+		if (inviteError) {
+			console.error('[ai-tools] buyer invitation insert failed:', inviteError.message);
+			return {
+				success: true,
+				data: { ...data, buyer_invitation_sent: false, buyer_invitation_error: inviteError.message }
+			};
+		}
 	}
 
 	if (data?.id) {
@@ -296,15 +375,42 @@ async function createAccount(
 	return { success: true, data };
 }
 
+const ACCOUNT_UPDATE_FIELDS = [
+	'business_name',
+	'contact_name',
+	'contact_first_name',
+	'contact_last_name',
+	'contact_email',
+	'phone',
+	'address_line1',
+	'address_line2',
+	'city',
+	'state',
+	'zip',
+	'country',
+	'notes',
+	'is_active',
+	'territory_id'
+] as const;
+
 async function updateAccount(
 	input: Record<string, unknown>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const { account_id, ...updates } = input;
+	const account_id = input.account_id as string;
+	const patch: Record<string, unknown> = {};
+	for (const key of ACCOUNT_UPDATE_FIELDS) {
+		if (key in input) patch[key] = input[key];
+	}
+	if (Object.keys(patch).length === 0) {
+		return { success: false, error: 'No allowed fields in updates' };
+	}
+	patch.updated_at = new Date().toISOString();
+
 	const { data, error } = await ctx.supabase
 		.from('accounts')
-		.update(updates)
-		.eq('id', account_id as string)
+		.update(patch)
+		.eq('id', account_id)
 		.eq('organization_id', ctx.organizationId)
 		.select()
 		.single();
@@ -322,6 +428,18 @@ type OrderLineInput = {
 	unit_price?: number;
 };
 
+// Pick the brand a brand org is selling when the user didn't name one. Brand
+// orgs get an is_self_brand row created alongside the organization, so that's
+// the default. A user scoped to a single brand is unambiguous too. Anything
+// else is a real choice the user has to make.
+export function pickOwnBrand<T extends { id: string; name: string; is_self_brand: boolean }>(
+	rows: T[]
+): T | null {
+	const self = rows.find((b) => b.is_self_brand);
+	if (self) return self;
+	return rows.length === 1 ? rows[0] : null;
+}
+
 async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
 	// Mirror the manual /orders/new flow (src/lib/server/orders/cart.ts):
 	//   - one order per (brand, season)
@@ -337,7 +455,6 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	const rawLines = input.lines as OrderLineInput[] | undefined;
 
 	if (!accountName) return { success: false, error: 'account_name is required' };
-	if (!brandName) return { success: false, error: 'brand_name is required' };
 	if (!startShip || !completeShip) {
 		return {
 			success: false,
@@ -358,16 +475,50 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	if (!account) return { success: false, error: `Account not found matching "${accountName}"` };
 
 	// --- Brand (federation-aware via RLS; honors Sales brandScope) ---
-	const brand = await findByName<{ id: string; name: string }>(
-		() => {
-			let q = ctx.supabase.from('brands').select('id, name').eq('is_active', true);
-			if (ctx.brandScope) q = q.in('id', ctx.brandScope);
-			return q;
-		},
-		'name',
-		brandName
-	);
-	if (!brand) return { success: false, error: `Brand not found matching "${brandName}"` };
+	// brand_name is optional for brand orgs: they sell their own label, so we
+	// default to the org's self-brand the same way the manual /orders/new flow
+	// does (see load-order-prereqs.ts). Reps must always name a brand because
+	// they represent many.
+	let brand: { id: string; name: string } | null;
+	if (brandName) {
+		brand = await findByName<{ id: string; name: string }>(
+			() => {
+				let q = ctx.supabase.from('brands').select('id, name').eq('is_active', true);
+				if (ctx.brandScope) q = q.in('id', ctx.brandScope);
+				return q;
+			},
+			'name',
+			brandName
+		);
+		if (!brand) return { success: false, error: `Brand not found matching "${brandName}"` };
+	} else if (ctx.orgType !== 'brand') {
+		return {
+			success: false,
+			error: 'brand_name is required. Ask the user which brand this order is for.'
+		};
+	} else {
+		let ownQuery = ctx.supabase
+			.from('brands')
+			.select('id, name, is_self_brand')
+			.eq('organization_id', ctx.organizationId)
+			.eq('is_active', true);
+		if (ctx.brandScope) ownQuery = ownQuery.in('id', ctx.brandScope);
+		const { data: ownRows } = await ownQuery;
+		const rows = (ownRows ?? []) as Array<{ id: string; name: string; is_self_brand: boolean }>;
+		brand = pickOwnBrand(rows);
+		if (!brand) {
+			return {
+				success: false,
+				error: rows.length
+					? `This organization has more than one brand (${rows
+							.map((b) => b.name)
+							.join(
+								', '
+							)}) and none is marked as the primary. Ask the user which brand this order is for and pass brand_name.`
+					: 'No active brand found for this organization. Ask the user to add a brand before creating orders.'
+			};
+		}
+	}
 
 	// --- Sales rep → created_by (defaults to the authenticated user) ---
 	let createdBy = ctx.userId;
@@ -395,7 +546,11 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	}
 
 	// --- Resolve each line to a product (for season + default unit_price) ---
-	type ResolvedLine = OrderLineInput & { seasonId: string | null; resolvedPrice: number };
+	type ResolvedLine = OrderLineInput & {
+		productId: string | null;
+		seasonId: string | null;
+		resolvedPrice: number;
+	};
 	const resolved: ResolvedLine[] = [];
 	for (const line of rawLines) {
 		if (!line.qty || line.qty < 1) {
@@ -445,7 +600,7 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 			};
 		}
 
-		resolved.push({ ...line, seasonId, resolvedPrice: price });
+		resolved.push({ ...line, productId: product?.id ?? null, seasonId, resolvedPrice: price });
 	}
 
 	// All lines must share a single season (null is fine). Multi-season carts
@@ -500,6 +655,7 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	// --- Insert lines (line_total is GENERATED ALWAYS; do NOT include) ---
 	const lineRows = resolved.map((line, idx) => ({
 		order_id: orderRow.id,
+		product_id: line.productId,
 		style_number: line.style_number ?? null,
 		description: line.description ?? null,
 		color: line.color ?? null,
@@ -682,6 +838,24 @@ async function updateOrderStatus(
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	const status = input.status as string;
+
+	const permitted = maySetOrderStatus(ctx.trust, status);
+	if (!permitted.allowed) return { success: false, error: permitted.error };
+
+	// Same rule the /api/orders/[id]/status endpoint enforces: fulfillment is
+	// the brand's to report. Looked up only on the path that can be refused so
+	// the common case stays a single round-trip.
+	if (FULFILLMENT_STATUSES.has(status)) {
+		const { data: org } = await ctx.supabase
+			.from('organizations')
+			.select('org_type')
+			.eq('id', ctx.organizationId)
+			.single();
+		if ((org as { org_type?: string } | null)?.org_type !== 'brand') {
+			return { success: false, error: FULFILLMENT_STATUS_ERROR };
+		}
+	}
+
 	const timestampField: Record<string, string> = {
 		submitted: 'submitted_at',
 		confirmed: 'confirmed_at',
@@ -818,6 +992,11 @@ async function queryData(input: Record<string, unknown>, ctx: ToolContext): Prom
 	const table = tableMap[entity];
 	if (!table) return { success: false, error: `Unknown entity: ${entity}` };
 
+	// A filter is a read. Restricting which columns can be filtered keeps the
+	// readable set from being wider than the visible one. See ai-query-columns.ts.
+	const filterCheck = checkFilterColumns(entity, filters);
+	if (!filterCheck.ok) return { success: false, error: filterCheck.error };
+
 	let selectStr = '*';
 	if (entity === 'orders') {
 		selectStr = '*, brands(name), accounts(business_name), seasons(name)';
@@ -872,7 +1051,7 @@ async function queryData(input: Record<string, unknown>, ctx: ToolContext): Prom
 
 	if (error) return { success: false, error: error.message };
 	const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
-	const stripped = rows.map((row) => formatToolResult(row, { omit: QUERY_OMIT_FIELDS }));
+	const stripped = rows.map((row) => formatToolResult(row, { omit: omitForEntity(entity) }));
 	return { success: true, data: stripped };
 }
 

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { logUsage } from '$lib/server/ai-usage.js';
+import { wrapUntrusted, UNTRUSTED_CONTENT_RULE } from '$lib/server/ai-untrusted.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -100,13 +101,15 @@ export async function parseInboundOrder(
 	const response = await anthropic.messages.create({
 		model: 'claude-sonnet-4-6',
 		max_tokens: 4096,
-		system: SYSTEM_PROMPT,
+		system: `${SYSTEM_PROMPT}
+
+${UNTRUSTED_CONTENT_RULE}`,
 		tools: [extractionTool],
 		tool_choice: { type: 'tool', name: 'extract_order' },
 		messages: [
 			{
 				role: 'user',
-				content: `Extract the order from this email:\n\n${body}`
+				content: `Extract the order from this email.\n\n${wrapUntrusted('inbound email', body)}`
 			}
 		]
 	});

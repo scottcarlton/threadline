@@ -198,13 +198,23 @@
 						<tr class="border-b border-border/50">
 							<td class="px-3 py-3.5">
 								<div class="flex items-center gap-2.5">
-									<div
-										class="relative h-6 w-6 shrink-0 overflow-hidden rounded border border-border {onChangeColorHex
+									<button
+										type="button"
+										disabled={!onChangeColorHex}
+										class="relative h-6 w-6 shrink-0 overflow-hidden rounded border border-border p-0 {onChangeColorHex
 											? 'cursor-pointer'
 											: ''}"
 										style:background={group.colorHex ?? '#f5f5f5'}
+										aria-label={onChangeColorHex ? `Change color for ${group.color}` : undefined}
 										ondblclick={() => {
 											if (onChangeColorHex) {
+												if (colorPickerRef) colorPickerRef.value = group.colorHex ?? '#000000';
+												openColorPicker(group.color);
+											}
+										}}
+										onkeydown={(e) => {
+											if (onChangeColorHex && (e.key === 'Enter' || e.key === ' ')) {
+												e.preventDefault();
 												if (colorPickerRef) colorPickerRef.value = group.colorHex ?? '#000000';
 												openColorPicker(group.color);
 											}
@@ -217,7 +227,7 @@
 												</svg>
 											</div>
 										{/if}
-									</div>
+									</button>
 									<span
 										class="cursor-text font-medium outline-none"
 										contenteditable={editingColor !== false && editingColor === group.color

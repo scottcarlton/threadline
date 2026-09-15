@@ -5,6 +5,7 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { BRIEFING_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
+import { checkAiLimits } from '$lib/server/ai-limits.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -25,6 +26,20 @@ export const POST: RequestHandler = async ({ locals }) => {
 	const cached = briefingCache.get(cacheKey);
 	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
 		return json({ briefing: cached.text, cached: true });
+	}
+
+	// Checked after the cache, since a cache hit costs nothing.
+	const limit = await checkAiLimits(orgId, user.id, 'briefing');
+	if (!limit.allowed) {
+		locals.audit.record('assistant.rate_limited', {
+			status: 'failure',
+			errorMessage: limit.scope,
+			metadata: { endpoint: 'briefing', scope: limit.scope }
+		});
+		return json(
+			{ briefing: null, error: limit.message },
+			{ status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
+		);
 	}
 
 	// Territory scope: accounts the user is responsible for.

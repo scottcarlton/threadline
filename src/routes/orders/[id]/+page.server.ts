@@ -4,6 +4,11 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 import { logSupabaseError } from '$lib/server/log-supabase-error.js';
 import { isPaymentPreferenceCode } from '$lib/payment-methods';
 import { aggregateOrderActivity, type RawAudit } from '$lib/server/orders/activity.js';
+import {
+	mayConvertNote,
+	ORDER_WRITE_ROLES,
+	FEDERATED_CONVERT_DENIED_ERROR
+} from '$lib/utils/order-convert-permissions.js';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	// Hook for invalidate('data:orders') after AI tool calls that touch orders
@@ -102,18 +107,19 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		}
 	}
 
-	// Mark this order as viewed by the current user. Drives the Orders nav badge
-	// ('unviewed' drops once the user opens the detail page). Best-effort — don't
-	// fail the page load if the upsert errors.
+	// Mark this order as viewed — fire-and-forget, don't block the page load.
 	if (locals.user?.id) {
-		await supabaseAdmin.from('order_views').upsert(
-			{
-				order_id: resolvedOrderId,
-				profile_id: locals.user.id,
-				viewed_at: new Date().toISOString()
-			},
-			{ onConflict: 'order_id,profile_id' }
-		);
+		supabaseAdmin
+			.from('order_views')
+			.upsert(
+				{
+					order_id: resolvedOrderId,
+					profile_id: locals.user.id,
+					viewed_at: new Date().toISOString()
+				},
+				{ onConflict: 'order_id,profile_id' }
+			)
+			.then(() => {});
 	}
 
 	// Load brand assets, commission override, rep info, comments, and audits in parallel
@@ -383,7 +389,7 @@ export const actions: Actions = {
 			return fail(401, { message: 'Not authenticated' });
 		}
 		const role = membership?.role ?? '';
-		if (!['admin', 'owner', 'member', 'sales'].includes(role)) {
+		if (!ORDER_WRITE_ROLES.has(role)) {
 			return fail(403, { message: 'You do not have permission to convert this note.' });
 		}
 
@@ -437,6 +443,12 @@ export const actions: Actions = {
 				.eq('status', 'active')
 				.maybeSingle();
 			if (!link) return fail(403, { message: 'Not your note.' });
+			// Converting sets status → submitted, so the federated status rule
+			// applies: admin/owner only, matching the RLS policy this path
+			// bypasses by running through supabaseAdmin.
+			if (!mayConvertNote(role, true)) {
+				return fail(403, { message: FEDERATED_CONVERT_DENIED_ERROR });
+			}
 		}
 		if (row.order_type !== 'note') {
 			return fail(409, { message: 'This is already an order.' });

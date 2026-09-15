@@ -10,6 +10,18 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 	const dateId = params.dateId;
 	const orgId = locals.organization.id;
 
+	// `show_dates` is own-org only (§A.3) — verify before attaching a document.
+	const { data: parentDate } = await supabaseAdmin
+		.from('show_dates')
+		.select('id')
+		.eq('id', dateId)
+		.eq('organization_id', orgId)
+		.maybeSingle();
+
+	if (!parentDate) {
+		return json({ error: 'Show date not found' }, { status: 404 });
+	}
+
 	const formData = await request.formData();
 	const file = formData.get('file') as File | null;
 

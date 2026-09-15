@@ -27,6 +27,34 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	return json({ error: 'Invalid payload', details: parsed.error.issues }, { status: 400 });
 };
 
+// Record a setup section's outcome. A skip must never overwrite a completed
+// section — the two preflight payment questions both map to `payments`, so
+// answering terms then skipping methods would otherwise un-complete it.
+async function markSection(
+	orgId: string,
+	section: string,
+	status: 'completed' | 'skipped'
+): Promise<void> {
+	if (status === 'skipped') {
+		const { data: existing } = await supabaseAdmin
+			.from('org_setup_status')
+			.select('status')
+			.eq('organization_id', orgId)
+			.eq('section', section)
+			.maybeSingle();
+		if (existing?.status === 'completed') return;
+	}
+	await supabaseAdmin.from('org_setup_status').upsert(
+		{
+			organization_id: orgId,
+			section,
+			status,
+			updated_at: new Date().toISOString()
+		},
+		{ onConflict: 'organization_id,section' }
+	);
+}
+
 async function handleStructuredStep(
 	orgId: string,
 	data: import('$lib/schemas/setup-save.js').SetupSaveInput,
@@ -83,7 +111,10 @@ async function handleStructuredStep(
 			}
 
 			case 'payment-methods': {
-				if (data.value === 'skip') break;
+				if (data.value === 'skip') {
+					await markSection(orgId, 'payments', 'skipped');
+					break;
+				}
 				const methods = data.value;
 				const { error } = await supabaseAdmin
 					.from('organizations')
@@ -94,11 +125,17 @@ async function handleStructuredStep(
 					})
 					.eq('id', orgId);
 				if (error) throw error;
+				// Without this the answer is stored on the org but `payments` never
+				// resolves in getSetupStatus(), so the app asks for it again later.
+				await markSection(orgId, 'payments', 'completed');
 				break;
 			}
 
 			case 'payment-terms': {
-				if (data.value === 'skip') break;
+				if (data.value === 'skip') {
+					await markSection(orgId, 'payments', 'skipped');
+					break;
+				}
 				const { error } = await supabaseAdmin
 					.from('organizations')
 					.update({
@@ -107,35 +144,40 @@ async function handleStructuredStep(
 					})
 					.eq('id', orgId);
 				if (error) throw error;
-				// Mark payments as completed in setup status
-				await supabaseAdmin.from('org_setup_status').upsert(
-					{
-						organization_id: orgId,
-						section: 'payments',
-						status: 'completed',
-						updated_at: new Date().toISOString()
-					},
-					{ onConflict: 'organization_id,section' }
-				);
+				await markSection(orgId, 'payments', 'completed');
 				break;
 			}
 
 			case 'brand-manual': {
 				const v = data.value;
+				// brands.contact_name was split into contact_first_name /
+				// contact_last_name by 20260407000005_contact_name_split. Callers
+				// sending the legacy single field get it split on the first space.
+				let firstName = v.contactFirstName;
+				let lastName = v.contactLastName;
+				if (!firstName && !lastName && v.contactName) {
+					const spaceAt = v.contactName.indexOf(' ');
+					firstName = spaceAt === -1 ? v.contactName : v.contactName.slice(0, spaceAt);
+					lastName = spaceAt === -1 ? '' : v.contactName.slice(spaceAt + 1).trim();
+				}
 				const { data: brand, error: brandErr } = await supabaseAdmin
 					.from('brands')
 					.insert({
 						organization_id: orgId,
 						name: v.name,
-						contact_name: v.contactName || null,
+						contact_first_name: firstName || null,
+						contact_last_name: lastName || null,
 						contact_email: v.contactEmail || null,
+						contact_phone: v.contactPhone || null,
 						website: v.website || null,
+						notes: v.notes || null,
+						commission_rate: v.commissionRate,
 						is_active: true
 					})
-					.select('id')
+					.select('id, name')
 					.single();
 				if (brandErr || !brand) throw brandErr ?? new Error('Brand insert failed');
-				return json({ success: true, brandId: brand.id });
+				return json({ success: true, brandId: brand.id, brandName: brand.name });
 			}
 
 			case 'product-manual': {

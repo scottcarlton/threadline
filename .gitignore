@@ -27,3 +27,13 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 .worktrees/
+
+# Subagent-driven development scratch
+.superpowers/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/tests/e2e/artifacts/

@@ -11,6 +11,7 @@ import { resolveOrgFromSender } from '$lib/server/email-intake/route.js';
 import { parseInboundOrder } from '$lib/server/email-intake/parser.js';
 import { resolveEntities } from '$lib/server/email-intake/resolve.js';
 import { decideOutcome, executeOutcome } from '$lib/server/email-intake/outcome.js';
+import { evaluateSenderAuth } from '$lib/server/email-intake/authentication.js';
 
 const RATE_LIMIT_PER_HOUR = 60;
 
@@ -85,6 +86,25 @@ async function processItem(
 
 	const intakeId = intake.id;
 
+	// ── 4b. Sender authentication ────────────────────────────
+	// The bearer token above authenticates Brevo as the deliverer, not this
+	// human as the author. Verify the From address is really theirs before any
+	// of it is trusted enough to auto-submit.
+	const senderAuth = evaluateSenderAuth(fullEmail.headers, fromEmail);
+	await supabaseAdmin
+		.from('email_intakes')
+		.update({
+			sender_authenticated: senderAuth.authenticated,
+			sender_auth_summary: senderAuth.summary
+		})
+		.eq('id', intakeId);
+
+	if (!senderAuth.authenticated) {
+		console.warn(
+			`[email-intake] unverified sender ${fromEmail} on intake ${intakeId}: ${senderAuth.summary}`
+		);
+	}
+
 	// ── 5. Process inline (route → parse → resolve → outcome) ──
 	try {
 		const routeResult = await resolveOrgFromSender(fromEmail);
@@ -136,7 +156,7 @@ async function processItem(
 			.update({ organization_id: resolved.organizationId })
 			.eq('id', intakeId);
 
-		const outcome = decideOutcome(resolved);
+		const outcome = decideOutcome(resolved, senderAuth);
 		await executeOutcome(intakeId, resolved, outcome);
 
 		return { intake_id: intakeId, status: outcome.status };

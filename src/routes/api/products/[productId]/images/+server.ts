@@ -11,6 +11,19 @@ export const POST: RequestHandler = async ({ request, locals, params }) => {
 	const productId = params.productId;
 	const orgId = locals.organization.id;
 
+	// Product image writes are own-org only (§A.6) — a rep can read a connected
+	// brand's images but must not add to them.
+	const { data: parentProduct } = await supabaseAdmin
+		.from('products')
+		.select('id')
+		.eq('id', productId)
+		.eq('organization_id', orgId)
+		.maybeSingle();
+
+	if (!parentProduct) {
+		return json({ error: 'Product not found' }, { status: 404 });
+	}
+
 	const formData = await request.formData();
 	const file = formData.get('file') as File | null;
 	if (!file) return json({ error: 'Missing file' }, { status: 400 });

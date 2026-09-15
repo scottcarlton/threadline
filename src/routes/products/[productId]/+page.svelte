@@ -706,6 +706,7 @@
 										onclick={() => deleteImage(activeGroup.hover!.id)}>Remove</button
 									>
 									<button
+										aria-label="Add video"
 										class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white/90 text-foreground transition-colors hover:bg-white dark:bg-black/90 dark:hover:bg-black"
 										onclick={() => videoUploadInput?.click()}
 									>
@@ -756,6 +757,7 @@
 						{#if canEdit && thumb.variant_id && variantThumbnails.length > 1}
 							<button
 								type="button"
+								aria-label="Remove color"
 								class="absolute -top-2.5 -right-2 z-10 cursor-pointer rounded-full bg-white text-red-500 opacity-0 transition-opacity group-hover/thumb:opacity-100 dark:bg-black"
 								onclick={async () => {
 									const color = (product.product_variants ?? []).find(

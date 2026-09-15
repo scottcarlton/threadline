@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { supabaseAdmin } from '$lib/server/supabase.js';
+import { findEmailsByUserIds } from '$lib/server/user-lookup.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { supabase, organization } = locals;
@@ -75,15 +75,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// Fetch emails from auth.users
 	const profileIds = (members ?? []).map((m: { profile_id: string }) => m.profile_id);
-	const emailMap: Record<string, string> = {};
-	if (profileIds.length > 0) {
-		const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
-		for (const u of authUsers?.users ?? []) {
-			if (profileIds.includes(u.id) && u.email) {
-				emailMap[u.id] = u.email;
-			}
-		}
-	}
+	// Indexed lookup keyed by id. The previous scan read the first page of
+	// listUsers(), so members beyond it showed with no email at all.
+	const emailMap = await findEmailsByUserIds(profileIds);
 
 	const isBrandOrg = locals.orgType === 'brand';
 	const isAdmin = ['admin', 'owner'].includes(locals.membership?.role ?? '');

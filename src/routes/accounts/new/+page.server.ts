@@ -119,6 +119,13 @@ export const actions: Actions = {
 			});
 		}
 
+		locals.audit.record('account.created', {
+			organizationId: orgId,
+			subjectId: accountId,
+			subjectLabel: business.name,
+			metadata: { city: nn(business.address.city), state: nn(business.address.state) }
+		});
+
 		emitIntegrationEvent(orgId, 'new_account', {
 			accountName: business.name,
 			city: business.address.city || undefined,

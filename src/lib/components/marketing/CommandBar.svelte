@@ -286,8 +286,6 @@
 		padding: 6px 8px;
 		border-radius: 6px;
 	}
-	:global(.cmd-row.hl) {
-	}
 	:global(.cmd-row-left) {
 		display: flex;
 		align-items: center;

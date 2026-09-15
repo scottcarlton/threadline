@@ -63,6 +63,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: apptError.message }, { status: 500 });
 	}
 
+	if (appointment) {
+		locals.audit.record('appointment.created', {
+			subjectId: appointment.id,
+			metadata: { accountId: account_id ?? null }
+		});
+	}
+
 	// Auto-sync to Google Calendar (fire-and-forget)
 	if (appointment) {
 		const accountName = account_id
@@ -211,6 +218,10 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 	if (existing?.ms_calendar_event_id) {
 		deleteAppointmentFromMsCalendar(session.user.id, existing.ms_calendar_event_id);
 	}
+
+	// The catalog has no appointment.deleted, and cancelled is what this means
+	// to anyone reading the timeline: the appointment is not happening.
+	locals.audit.record('appointment.cancelled', { subjectId: id });
 
 	return json({ success: true });
 };

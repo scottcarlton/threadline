@@ -67,14 +67,22 @@
 			icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
 		},
 		{
+			label: 'Returns',
+			href: '/returns',
+			icon: 'M12.0049 2C17.5277 2 22.0049 6.47715 22.0049 12C22.0049 17.5228 17.5277 22 12.0049 22C9.57847 22 7.3539 21.1358 5.62216 19.6985L5.37815 19.4892L6.27949 17.5875C7.73229 19.0759 9.76067 20 12.0049 20C16.4232 20 20.0049 16.4183 20.0049 12C20.0049 7.58172 16.4232 4 12.0049 4C7.66997 4 4.14034 7.44784 4.00869 11.7508L4.00488 12H6.50488L3.79854 17.7161C2.66796 16.096 2.00488 14.1254 2.00488 12C2.00488 6.47715 6.48204 2 12.0049 2ZM13.0049 6V8H15.5049V10H10.0049C9.72874 10 9.50488 10.2239 9.50488 10.5C9.50488 10.7455 9.68176 10.9496 9.91501 10.9919L10.0049 11H14.0049C15.3856 11 16.5049 12.1193 16.5049 13.5C16.5049 14.8807 15.3856 16 14.0049 16H13.0049V18H11.0049V16H8.50488V14H14.0049C14.281 14 14.5049 13.7761 14.5049 13.5C14.5049 13.2545 14.328 13.0504 14.0948 13.0081L14.0049 13H10.0049C8.62417 13 7.50488 11.8807 7.50488 10.5C7.50488 9.11929 8.62417 8 10.0049 8H11.0049V6H13.0049Z',
+			fillIcon: true
+		},
+		{
 			label: 'Products',
 			href: '/products',
-			icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
+			icon: 'M12.998 20H18.998V16H14.998V14H18.998V6H16.998V11L12.998 9.4V20ZM10.998 20V9.4L6.99805 11V6H4.99805V20H10.998ZM6.99805 4V3H16.998V4H19.998C20.5503 4 20.998 4.44772 20.998 5V21C20.998 21.5523 20.5503 22 19.998 22H3.99805C3.44576 22 2.99805 21.5523 2.99805 21V5C2.99805 4.44772 3.44576 4 3.99805 4H6.99805ZM11.998 8L15.498 5H8.49805L11.998 8Z',
+			fillIcon: true
 		},
 		{
 			label: 'Accounts',
 			href: '/accounts',
-			icon: 'M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z'
+			icon: 'M21 13V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V13H2V11L3 6H21L22 11V13H21ZM5 13V19H19V13H5ZM4.03961 11H19.9604L19.3604 8H4.63961L4.03961 11ZM6 14H14V17H6V14ZM3 3H21V5H3V3Z',
+			fillIcon: true
 		},
 		{
 			label: 'Brands',
@@ -108,14 +116,28 @@
 			icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
 		},
 		{
+			label: 'Invoices',
+			href: '/invoices',
+			icon: 'M9 4L6 2L3 4V19C3 20.6569 4.34315 22 6 22H20C21.6569 22 23 20.6569 23 19V16H21V4L18 2L15 4L12 2L9 4ZM19 16H7V19C7 19.5523 6.55228 20 6 20C5.44772 20 5 19.5523 5 19V5.07037L6 4.4037L9 6.4037L12 4.4037L15 6.4037L18 4.4037L19 5.07037V16ZM20 20H8.82929C8.93985 19.6872 9 19.3506 9 19V18H21V19C21 19.5523 20.5523 20 20 20Z',
+			fillIcon: true
+		},
+		{
+			label: 'Returns',
+			href: '/returns',
+			icon: 'M12.0049 2C17.5277 2 22.0049 6.47715 22.0049 12C22.0049 17.5228 17.5277 22 12.0049 22C9.57847 22 7.3539 21.1358 5.62216 19.6985L5.37815 19.4892L6.27949 17.5875C7.73229 19.0759 9.76067 20 12.0049 20C16.4232 20 20.0049 16.4183 20.0049 12C20.0049 7.58172 16.4232 4 12.0049 4C7.66997 4 4.14034 7.44784 4.00869 11.7508L4.00488 12H6.50488L3.79854 17.7161C2.66796 16.096 2.00488 14.1254 2.00488 12C2.00488 6.47715 6.48204 2 12.0049 2ZM13.0049 6V8H15.5049V10H10.0049C9.72874 10 9.50488 10.2239 9.50488 10.5C9.50488 10.7455 9.68176 10.9496 9.91501 10.9919L10.0049 11H14.0049C15.3856 11 16.5049 12.1193 16.5049 13.5C16.5049 14.8807 15.3856 16 14.0049 16H13.0049V18H11.0049V16H8.50488V14H14.0049C14.281 14 14.5049 13.7761 14.5049 13.5C14.5049 13.2545 14.328 13.0504 14.0948 13.0081L14.0049 13H10.0049C8.62417 13 7.50488 11.8807 7.50488 10.5C7.50488 9.11929 8.62417 8 10.0049 8H11.0049V6H13.0049Z',
+			fillIcon: true
+		},
+		{
 			label: 'Products',
 			href: '/products',
-			icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
+			icon: 'M12.998 20H18.998V16H14.998V14H18.998V6H16.998V11L12.998 9.4V20ZM10.998 20V9.4L6.99805 11V6H4.99805V20H10.998ZM6.99805 4V3H16.998V4H19.998C20.5503 4 20.998 4.44772 20.998 5V21C20.998 21.5523 20.5503 22 19.998 22H3.99805C3.44576 22 2.99805 21.5523 2.99805 21V5C2.99805 4.44772 3.44576 4 3.99805 4H6.99805ZM11.998 8L15.498 5H8.49805L11.998 8Z',
+			fillIcon: true
 		},
 		{
 			label: 'Accounts',
 			href: '/accounts',
-			icon: 'M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z'
+			icon: 'M21 13V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V13H2V11L3 6H21L22 11V13H21ZM5 13V19H19V13H5ZM4.03961 11H19.9604L19.3604 8H4.63961L4.03961 11ZM6 14H14V17H6V14ZM3 3H21V5H3V3Z',
+			fillIcon: true
 		},
 		{
 			label: 'Expenses',
@@ -132,11 +154,23 @@
 	// Nx-BLSR portal: rep-style nav with Products folded in. Acts across all the
 	// user's brand-org memberships as a single unified context.
 	const nxBlsrNav: NavItem[] = (() => {
-		const productsItem = brandNav.find((it) => it.label === 'Products')!;
-		const order = ['Insight', 'Orders', 'Products', 'Accounts', 'Brands', 'Expenses', 'Reports'];
+		// Nx-BLSR is a brand-org sales user, so Products, Invoices, and Returns come
+		// from the brand nav; everything else mirrors the rep nav.
+		const fromBrand = ['Products', 'Invoices', 'Returns'];
+		const order = [
+			'Insight',
+			'Orders',
+			'Invoices',
+			'Returns',
+			'Products',
+			'Accounts',
+			'Brands',
+			'Expenses',
+			'Reports'
+		];
 		return order
 			.map((label) => {
-				if (label === 'Products') return productsItem;
+				if (fromBrand.includes(label)) return brandNav.find((it) => it.label === label)!;
 				return repNav.find((it) => it.label === label)!;
 			})
 			.filter(Boolean);
@@ -178,11 +212,28 @@
 	);
 
 	// Items a brand-scoped member (not sales) sees
-	const brandScopedNav = ['Insight', 'Orders', 'Accounts', 'Expenses', 'Reports'];
+	const brandScopedNav = [
+		'Insight',
+		'Orders',
+		'Invoices',
+		'Returns',
+		'Accounts',
+		'Expenses',
+		'Reports'
+	];
 	// Brand-org sales reps: everything except Reps
-	const salesBrandNav = ['Insight', 'Orders', 'Products', 'Accounts', 'Expenses', 'Reports'];
+	const salesBrandNav = [
+		'Insight',
+		'Orders',
+		'Invoices',
+		'Returns',
+		'Products',
+		'Accounts',
+		'Expenses',
+		'Reports'
+	];
 	// Rep-org sales members: existing reduced set
-	const salesRepNav = ['Insight', 'Orders', 'Accounts', 'Expenses', 'Reports'];
+	const salesRepNav = ['Insight', 'Orders', 'Returns', 'Accounts', 'Expenses', 'Reports'];
 	const shopNav: NavItem = {
 		label: 'Shop',
 		href: '/shop',
@@ -231,7 +282,9 @@
 	const kbdClass = 'rounded border bg-muted px-1.5 py-0.5 text-xs font-mono';
 
 	function isActive(href: string): boolean {
-		if (href === '/dashboard') return $page.url.pathname === '/dashboard';
+		// '/system' is the console overview, not a prefix for the console: exact
+		// match only, or every /system/* page lights up Overview as well.
+		if (href === '/dashboard' || href === '/system') return $page.url.pathname === href;
 		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
 	}
 </script>
@@ -336,6 +389,30 @@
 						>
 					{/if}
 				</a>
+
+				{#if !isSystemAdmin}
+					<a
+						href={resolve('/documents')}
+						class={cn(
+							'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
+							isActive('/documents')
+								? 'bg-ghost font-medium text-foreground'
+								: 'text-muted-foreground hover:bg-ghost/50 hover:text-foreground'
+						)}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-[18px] w-[18px] shrink-0"
+							fill="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								d="M9 2.00318V2H19.9978C20.5513 2 21 2.45531 21 2.9918V21.0082C21 21.556 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5501 3 20.9932V8L9 2.00318ZM5.82918 8H9V4.83086L5.82918 8ZM11 4V9C11 9.55228 10.5523 10 10 10H5V20H19V4H11Z"
+							/>
+						</svg>
+						<span>Documents</span>
+					</a>
+				{/if}
 			</div>
 
 			<!-- Workspace -->
@@ -364,56 +441,6 @@
 						/>
 					</svg>
 					<span class="flex-1">Workspace</span>
-				</a>
-				<a
-					href={resolve('/sheets')}
-					class={cn(
-						'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
-						isActive('/sheets')
-							? 'bg-ghost font-medium text-foreground'
-							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
-					)}
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-[18px] w-[18px] shrink-0"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2.25"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M10.875 12c-.621 0-1.125.504-1.125 1.125M12 10.875c-.621 0-1.125.504-1.125 1.125m0 0v1.5c0 .621.504 1.125 1.125 1.125m-1.125-2.625c0 .621.504 1.125 1.125 1.125m0 0c.621 0 1.125.504 1.125 1.125m-1.125-1.125c-.621 0-1.125.504-1.125 1.125m1.125-1.125c.621 0 1.125.504 1.125 1.125M12 15.375v-1.5"
-						/>
-					</svg>
-					<span class="flex-1">Sheets</span>
-				</a>
-				<a
-					href={resolve('/plan')}
-					class={cn(
-						'group flex items-center gap-3 rounded-none px-4 py-3.5 text-base transition-colors lg:px-3 lg:py-2.5 lg:text-sm',
-						isActive('/plan')
-							? 'bg-ghost font-medium text-foreground'
-							: 'text-muted-foreground hover:bg-ghost/60 hover:text-foreground'
-					)}
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-[18px] w-[18px] shrink-0"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2.25"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"
-						/>
-					</svg>
-					<span class="flex-1">Plan</span>
 				</a>
 			</div>
 		{/if}

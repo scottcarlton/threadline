@@ -18,8 +18,12 @@ import {
 import { runAgent } from '$lib/server/messaging/agent.js';
 import { sendReply } from '$lib/server/messaging/send.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
-
-const RATE_LIMIT_PER_HOUR = 120;
+import { checkInboundRateLimit } from '$lib/server/messaging/rate-limit.js';
+import {
+	getVerificationAttempts,
+	recordVerificationAttempt,
+	clearVerificationAttempts
+} from '$lib/server/messaging/verification-attempts.js';
 
 export const POST: RequestHandler = async ({ request, url }) => {
 	const body = await request.text();
@@ -39,17 +43,13 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
 	const message = parseTwilioWebhook(params);
 
-	const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-	const { count } = await supabaseAdmin
-		.from('messaging_messages')
-		.select('id', { count: 'exact', head: true })
-		.gte('created_at', oneHourAgo);
-
-	if ((count ?? 0) >= RATE_LIMIT_PER_HOUR) {
-		await sendReply(
-			message.from,
-			"You've sent a lot of messages recently. Please wait a bit before trying again.",
-			message.channel
+	const verdict = await checkInboundRateLimit(message.from);
+	if (!verdict.allowed) {
+		// Drop silently rather than replying. A message over the ceiling is either
+		// abuse or a runaway loop, and answering each one turns our own rate limit
+		// into an outbound-SMS amplifier billed to us.
+		console.warn(
+			`[messaging] rate limited (${verdict.scope}) at ${verdict.count} inbound messages in the last hour`
 		);
 		return twimlResponse();
 	}
@@ -84,11 +84,13 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
 	const { data: org } = await supabaseAdmin
 		.from('organizations')
-		.select('name')
+		.select('name, org_type')
 		.eq('id', organizationId)
 		.single();
 
-	const orgName = ((org as Record<string, unknown> | null)?.name as string) ?? 'your organization';
+	const orgRow = org as Record<string, unknown> | null;
+	const orgName = (orgRow?.name as string) ?? 'your organization';
+	const orgType = ((orgRow?.org_type as string) === 'brand' ? 'brand' : 'rep') as 'rep' | 'brand';
 
 	const { data: profile } = await supabaseAdmin
 		.from('profiles')
@@ -128,6 +130,7 @@ export const POST: RequestHandler = async ({ request, url }) => {
 		organizationId,
 		userId: identity.userId,
 		brandScope,
+		orgType,
 		mediaUrl: message.mediaUrl
 	});
 
@@ -144,14 +147,14 @@ export const POST: RequestHandler = async ({ request, url }) => {
 	return twimlResponse();
 };
 
-const verificationAttempts = new Map<string, number>();
-
 async function handleVerification(
 	phone: string,
 	body: string | null,
 	channel: 'whatsapp' | 'sms'
 ): Promise<void> {
-	const attempts = verificationAttempts.get(phone) ?? 0;
+	// Persisted rather than held in memory: the old Map was per instance, so the
+	// cap reset whenever a request landed on a fresh one.
+	const attempts = await getVerificationAttempts(phone);
 
 	if (attempts >= MAX_ATTEMPTS) {
 		await sendReply(phone, getMaxAttemptsMessage(), channel);
@@ -165,7 +168,7 @@ async function handleVerification(
 
 	const email = parseVerificationReply(body);
 	if (!email) {
-		verificationAttempts.set(phone, attempts + 1);
+		await recordVerificationAttempt(phone);
 		await sendReply(
 			phone,
 			"I didn't catch an email address. Please reply with the email you use to sign in to Threadline.",
@@ -176,12 +179,12 @@ async function handleVerification(
 
 	const result = await bindPhoneToUser(phone, email);
 	if (!result.success) {
-		verificationAttempts.set(phone, attempts + 1);
+		await recordVerificationAttempt(phone);
 		await sendReply(phone, result.message, channel);
 		return;
 	}
 
-	verificationAttempts.delete(phone);
+	await clearVerificationAttempts(phone);
 	await sendReply(
 		phone,
 		"You're verified. You can now place orders, check inventory, and more — just text naturally.",

@@ -62,6 +62,16 @@ export const actions: Actions = {
 			return fail(500, { message: err?.message ?? 'Failed to create expense' });
 		}
 
+		// A draft is not submitted. Recording it as expense.submitted would put an
+		// approval request on the brand's timeline that nobody actually made.
+		if (!asDraft) {
+			locals.audit.record('expense.submitted', {
+				subjectId: expense.id,
+				subjectLabel: expense.expense_number,
+				metadata: { category, amount, brandId }
+			});
+		}
+
 		return { success: true, expenseId: expense.id, expenseNumber: expense.expense_number, asDraft };
 	}
 };

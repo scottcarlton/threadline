@@ -5,6 +5,18 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
 import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
+import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
+import { checkAiLimits } from '$lib/server/ai-limits.js';
+import { sanitizeConversationHistory } from '$lib/server/ai-history.js';
+import {
+	appendMessage,
+	conversationBelongsTo,
+	createConversation,
+	loadHistory,
+	type StoredAttachment
+} from '$lib/server/ai-conversations.js';
+import { generateTitle } from '$lib/server/ai-conversation-title.js';
+import { isSafePath, sanitizeEntityContext } from '$lib/server/ai-context.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -89,7 +101,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'create_order',
 		description:
-			'Create a wholesale order OR a note in one call: account, brand, ship window, and line items. order_type defaults to "order"; pass order_type="note" when the user says anything like "create note", "create a note", "notes out", "write up notes", "note for <account>", etc. — those phrases mean the record should be stored as a note, not a standard order. The server auto-resolves each line against the brand\'s product catalog by style_number OR by product name (passed as `description`) — that lookup supplies season_id and wholesale_price for you. DO NOT ask the user for a wholesale price; the product catalog has it. Only fall back to asking if the user explicitly says the item is not in the catalog. Season is derived from the products; do not pass season separately. If the ship window is missing, ask the user for start_ship_date and complete_ship_date — do not guess. Sales rep defaults to the authenticated user unless rep_name is supplied. line_total and orders.total_amount are computed by the database; never pass them. Status defaults to "submitted" — pass status="draft" ONLY when the user explicitly asks to save a draft (e.g. "hold it", "save as draft"). Returns the order with joined brand, account, and season names.',
+			'Create a wholesale order OR a note in one call: account, brand, ship window, and line items. order_type defaults to "order"; pass order_type="note" when the user says anything like "create note", "create a note", "notes out", "write up notes", "note for <account>", etc. — those phrases mean the record should be stored as a note, not a standard order. The server auto-resolves each line against the brand\'s product catalog by style_number OR by product name (passed as `description`) — that lookup supplies season_id and wholesale_price for you. DO NOT ask the user for a wholesale price; the product catalog has it. Only fall back to asking if the user explicitly says the item is not in the catalog. Season is derived from the products; do not pass season separately. Brand orgs should omit brand_name entirely. The server resolves the org\'s own brand, so never ask a brand user which brand their order is for. If the ship window is missing, ask the user for start_ship_date and complete_ship_date — do not guess. Sales rep defaults to the authenticated user unless rep_name is supplied. line_total and orders.total_amount are computed by the database; never pass them. Status defaults to "submitted" — pass status="draft" ONLY when the user explicitly asks to save a draft (e.g. "hold it", "save as draft"). Returns the order with joined brand, account, and season names.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
@@ -99,7 +111,8 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 				},
 				brand_name: {
 					type: 'string',
-					description: 'Brand name to fuzzy match (required)'
+					description:
+						"Brand name to fuzzy match. Required for rep orgs, which represent many brands. OMIT this for brand orgs. The server fills in the org's own brand automatically. Only pass it for a brand org when the user explicitly names one of their other labels."
 				},
 				start_ship_date: {
 					type: 'string',
@@ -152,7 +165,7 @@ export const _toolDefinitions: Anthropic.Tool[] = [
 				},
 				notes: { type: 'string', description: 'Order notes (optional)' }
 			},
-			required: ['account_name', 'brand_name', 'start_ship_date', 'complete_ship_date', 'lines']
+			required: ['account_name', 'start_ship_date', 'complete_ship_date', 'lines']
 		}
 	},
 	{
@@ -971,7 +984,8 @@ const WRITE_TOOLS = new Set([
 	'update_org_payments',
 	'update_org_taxes',
 	'update_org_returns',
-	'skip_setup_section'
+	'skip_setup_section',
+	'update_products'
 ]);
 
 function describeCurrentPage(path: string): string {
@@ -994,11 +1008,15 @@ function describeCurrentPage(path: string): string {
 	if (path === '/appointments') return 'Appointments calendar';
 	if (path.match(/^\/settings/)) return 'Settings';
 	if (path.match(/^\/organization/)) return 'Organization settings';
-	return path;
+	// Unrecognised but well-formed routes are echoed; anything else is the
+	// caller putting their own text into the system prompt. See ai-context.ts.
+	return isSafePath(path) ? path : 'Unknown page';
 }
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.session || !locals.user || !locals.organization) {
+	// Buyers — retailer-org members and legacy account_users buyers alike — have a
+	// session/user/org but must never reach the org AI endpoint.
+	if (!locals.session || !locals.user || !locals.organization || locals.isBuyer) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
@@ -1006,6 +1024,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		message,
 		files,
 		conversationHistory,
+		conversationId,
 		currentPage,
 		entityContext: entityCtx,
 		agentId,
@@ -1016,6 +1035,35 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	if (!message || typeof message !== 'string') {
 		return json({ error: 'Message is required' }, { status: 400 });
+	}
+
+	const limit = await checkAiLimits(locals.organization.id, locals.user.id, 'chat');
+	if (!limit.allowed) {
+		locals.audit.record('assistant.rate_limited', {
+			status: 'failure',
+			errorMessage: limit.scope,
+			metadata: { endpoint: 'chat', scope: limit.scope }
+		});
+		return json(
+			{ error: limit.message },
+			{ status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
+		);
+	}
+
+	// Resolve the conversation before anything touches the model, so a forged
+	// id fails closed rather than silently starting a new thread. The helpers
+	// in ai-conversations.ts run through the admin client and therefore bypass
+	// RLS, which is why ownership is checked here rather than relied on from
+	// the policy.
+	let activeConversationId: string | null;
+	let isNewConversation = false;
+	if (typeof conversationId === 'string' && conversationId) {
+		const owns = await conversationBelongsTo(conversationId, locals.user.id);
+		if (!owns) return json({ error: 'Conversation not found' }, { status: 403 });
+		activeConversationId = conversationId;
+	} else {
+		activeConversationId = await createConversation(locals.user.id, locals.organization.id);
+		isNewConversation = activeConversationId !== null;
 	}
 
 	// Resolve agent — by explicit agentId or @slug mention
@@ -1059,32 +1107,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	// Build multimodal user content if files are attached
-	type FilePayload = { name: string; type: string; data: string };
-	let userContent: string | Anthropic.ContentBlockParam[];
-	if (files && Array.isArray(files) && files.length > 0) {
-		const contentBlocks: Anthropic.ContentBlockParam[] = [];
-		for (const file of files as FilePayload[]) {
-			if (file.type.startsWith('image/')) {
-				const mediaType = file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-				contentBlocks.push({
-					type: 'image',
-					source: { type: 'base64', media_type: mediaType, data: file.data }
-				});
-			} else {
-				// For non-image files, decode base64 and include as text context
-				const decoded = Buffer.from(file.data, 'base64').toString('utf-8');
-				contentBlocks.push({
-					type: 'text',
-					text: `[Attached file: ${file.name}]\n${decoded}`
-				});
-			}
-		}
-		contentBlocks.push({ type: 'text', text: cleanMessage });
-		userContent = contentBlocks;
-	} else {
-		userContent = cleanMessage;
+	// Build multimodal user content if files are attached. Size, count, and type
+	// are validated before anything reaches the prompt.
+	const attachments = buildAttachmentBlocks(files);
+	if (!attachments.ok) {
+		return json({ error: attachments.error }, { status: 400 });
 	}
+
+	const userContent: string | Anthropic.ContentBlockParam[] = attachments.blocks.length
+		? [...attachments.blocks, { type: 'text', text: cleanMessage }]
+		: cleanMessage;
 
 	const role = locals.membership?.role ?? 'guest';
 	const brandScopeInfo = locals.brandScope
@@ -1099,8 +1131,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const staticSystem = MAIN_STATIC_PROMPT;
 
 	// Dynamic per-request context
-	const entityInfo = entityCtx?.summary
-		? `\n- Entity in view: ${entityCtx.summary}. The user is currently looking at this ${entityCtx.type} — use this context to answer questions without requiring them to re-specify which ${entityCtx.type} they mean.`
+	const entity = sanitizeEntityContext(entityCtx);
+	const entityInfo = entity?.summary
+		? `\n- Entity in view: ${entity.summary}. The user is currently looking at this ${entity.type} — use this context to answer questions without requiring them to re-specify which ${entity.type} they mean.`
 		: '';
 
 	const orgTypeLabel = locals.orgType === 'brand' ? 'Brand (manufacturer)' : 'Rep (sales agency)';
@@ -1158,7 +1191,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 - Brand access: ${brandScopeInfo}
 - Current date/time: ${dateStr} at ${timeStr}
 - Currently viewing: ${pageContext}${entityInfo}
-${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_sales_analytics, get_commission_report, and get_style_velocity.' : ''}`;
+${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment. Orders they create are for their own brand. Omit brand_name when calling create_order and never ask them which brand an order is for.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_sales_analytics, get_commission_report, and get_style_velocity.' : ''}`;
 
 	// Use structured system blocks for prompt caching
 	const systemBlocks: Anthropic.TextBlockParam[] = [
@@ -1192,13 +1225,44 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 	);
 
 	try {
-		// Cap prior turns to keep request size bounded; older turns are dropped.
-		const HISTORY_LIMIT = 20;
-		const trimmedHistory = (conversationHistory ?? []).slice(-HISTORY_LIMIT);
+		// For an existing conversation, history comes from rows this server
+		// wrote, so the forgery vector ai-history.ts guards against does not
+		// apply. The sanitizer stays for the first turn of a new conversation
+		// and as a fallback when the conversation row could not be created.
+		let historyMessages: Anthropic.MessageParam[];
+		if (activeConversationId && !isNewConversation) {
+			historyMessages = await loadHistory(activeConversationId);
+		} else {
+			const history = sanitizeConversationHistory(conversationHistory);
+			if (history.rejected > 0) {
+				console.warn(
+					`[ai] discarded ${history.rejected} malformed history turn(s) from user ${locals.user!.id}`
+				);
+			}
+			historyMessages = history.messages;
+		}
 		const messages: Anthropic.MessageParam[] = [
-			...trimmedHistory,
+			...historyMessages,
 			{ role: 'user' as const, content: userContent }
 		];
+
+		// Persist the user turn before the model call. Attachment bytes are never
+		// stored, only enough metadata to render the turn on resume.
+		if (activeConversationId) {
+			const storedAttachments: StoredAttachment[] | null = Array.isArray(files)
+				? files.map((f: { name: string; type: string; data: string }) => ({
+						name: f.name,
+						type: f.type,
+						size: f.data?.length ?? 0
+					}))
+				: null;
+			await appendMessage(
+				activeConversationId,
+				'user',
+				cleanMessage,
+				storedAttachments && storedAttachments.length > 0 ? storedAttachments : null
+			);
+		}
 
 		// Pre-flight: use Haiku to classify whether this needs tools/Sonnet or can be answered directly.
 		// Skip classification if files are attached (needs Sonnet vision) or a custom agent is active.
@@ -1208,11 +1272,10 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 		if (needsClassification) {
 			// Include the last 2 messages of history so follow-ups like "what about
 			// the other ones?" classify correctly against prior tool context.
-			const classifyMessages: Anthropic.MessageParam[] = [];
-			for (const msg of (conversationHistory ?? []).slice(-2)) {
-				classifyMessages.push({ role: msg.role, content: msg.content });
-			}
-			classifyMessages.push({ role: 'user', content: userContent });
+			const classifyMessages: Anthropic.MessageParam[] = [
+				...historyMessages.slice(-2),
+				{ role: 'user', content: userContent }
+			];
 
 			const classifyResponse = await anthropic.messages.create({
 				model: 'claude-haiku-4-5',
@@ -1268,7 +1331,21 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 				}
 			}
 
-			return json({ response: responseText, suggestions });
+			if (activeConversationId) {
+				await appendMessage(activeConversationId, 'assistant', responseText);
+				if (isNewConversation) {
+					generateTitle({
+						anthropic,
+						conversationId: activeConversationId,
+						firstUserMessage: cleanMessage,
+						firstAssistantMessage: responseText,
+						organizationId: locals.organization!.id,
+						userId: locals.user!.id
+					});
+				}
+			}
+
+			return json({ response: responseText, suggestions, conversationId: activeConversationId });
 		}
 
 		// Streaming branch: return Server-Sent Events so the client can render
@@ -1285,7 +1362,9 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 				origin,
 				resolvedAgentId,
 				cleanMessage,
-				requestStartTime
+				requestStartTime,
+				conversationId: activeConversationId,
+				isNewConversation
 			});
 		}
 
@@ -1356,7 +1435,8 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 					organizationId: locals.organization!.id,
 					userId: locals.user!.id,
 					brandScope: locals.brandScope,
-					orgType: locals.orgType,
+					trust: 'interactive',
+					orgType: locals.orgType === 'brand' ? 'brand' : 'rep',
 					origin
 				});
 
@@ -1425,14 +1505,47 @@ ${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages
 			});
 		}
 
+		// The prompt is the useful part when troubleshooting a Stitch complaint.
+		// It passes through the audit redactor, which caps length and masks
+		// PII-shaped values, so it is safe to keep.
+		locals.audit.record('assistant.queried', {
+			subjectId: resolvedAgentId ?? undefined,
+			metadata: {
+				prompt: cleanMessage,
+				tools_used: actions.map((a) => a.tool),
+				agent_id: resolvedAgentId ?? null,
+				duration_ms: Date.now() - requestStartTime
+			}
+		});
+
+		if (activeConversationId) {
+			await appendMessage(activeConversationId, 'assistant', responseText);
+			if (isNewConversation) {
+				generateTitle({
+					anthropic,
+					conversationId: activeConversationId,
+					firstUserMessage: cleanMessage,
+					firstAssistantMessage: responseText,
+					organizationId: locals.organization!.id,
+					userId: locals.user!.id
+				});
+			}
+		}
+
 		return json({
 			response: responseText,
 			actions: actions.length > 0 ? actions : undefined,
-			suggestions
+			suggestions,
+			conversationId: activeConversationId
 		});
 	} catch (err) {
 		console.error('AI API error:', err);
 		const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+		locals.audit.record('assistant.queried', {
+			status: 'failure',
+			errorMessage,
+			metadata: { prompt: cleanMessage, duration_ms: Date.now() - requestStartTime }
+		});
 		return json({ error: errorMessage }, { status: 500 });
 	}
 };
@@ -1448,6 +1561,8 @@ type StreamResponseParams = {
 	resolvedAgentId: string | null;
 	cleanMessage: string;
 	requestStartTime: number;
+	conversationId: string | null;
+	isNewConversation: boolean;
 };
 
 function streamResponse(params: StreamResponseParams): Response {
@@ -1542,7 +1657,8 @@ function streamResponse(params: StreamResponseParams): Response {
 							organizationId: params.locals.organization!.id,
 							userId: params.locals.user!.id,
 							brandScope: params.locals.brandScope,
-							orgType: params.locals.orgType,
+							trust: 'interactive',
+							orgType: params.locals.orgType === 'brand' ? 'brand' : 'rep',
 							origin: params.origin
 						});
 
@@ -1592,11 +1708,26 @@ function streamResponse(params: StreamResponseParams): Response {
 					});
 				}
 
+				if (params.conversationId) {
+					await appendMessage(params.conversationId, 'assistant', responseText);
+					if (params.isNewConversation) {
+						generateTitle({
+							anthropic: params.anthropic,
+							conversationId: params.conversationId,
+							firstUserMessage: params.cleanMessage,
+							firstAssistantMessage: responseText,
+							organizationId: params.locals.organization!.id,
+							userId: params.locals.user!.id
+						});
+					}
+				}
+
 				send(controller, {
 					type: 'done',
 					response: responseText,
 					actions: actions.length > 0 ? actions : undefined,
-					suggestions
+					suggestions,
+					conversationId: params.conversationId
 				});
 			} catch (err) {
 				console.error('AI stream error:', err);
