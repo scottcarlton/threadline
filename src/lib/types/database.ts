@@ -479,6 +479,12 @@ export interface Order {
 	shipped_amount: number | null;
 	/** Quoted when the brand prepares the shipment, firmed up when it ships. */
 	shipping_cost: number | null;
+	/**
+	 * Sales tax, maintained by `recalc_order_tax()`. Null means not determinable
+	 * yet (no resolvable ship-to), which is not the same as zero. Never part of
+	 * `total_amount`, which feeds commission.
+	 */
+	tax_amount: number | null;
 	carrier: string | null;
 	tracking_number: string | null;
 	notes: string | null;

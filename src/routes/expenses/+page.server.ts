@@ -18,7 +18,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		}
 	};
 
-	const scope = locals.queryScope;
+	const scope = await locals.getQueryScope();
 	if (!scope) return emptyReturn;
 
 	const status = url.searchParams.get('status');

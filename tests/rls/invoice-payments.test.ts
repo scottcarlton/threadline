@@ -53,7 +53,11 @@ async function issuedInvoice(total = 1000): Promise<string> {
 		.eq('order_id', order.id)
 		.single();
 
-	const { error: sendError } = await admin.rpc('send_invoice', {
+	// send_invoice() authorizes its caller, so this has to be a real member of
+	// the issuing org rather than service-role, which has no identity for
+	// get_user_role() to resolve. SCO-189.
+	const sender = await personaClient('brandAAdmin');
+	const { error: sendError } = await sender.rpc('send_invoice', {
 		p_invoice_id: invoice!.id,
 		p_due_date: null,
 		p_issue_date: '2026-09-14'
@@ -236,9 +240,10 @@ describe('recalc_invoice_amount_paid', () => {
 
 	it('does not move a voided invoice off void', async () => {
 		// A withdrawn document does not come back because money arrived.
-		const admin = adminClient();
 		const id = await issuedInvoice(1000);
-		await admin.rpc('void_invoice', { p_invoice_id: id, p_reason: 'test' });
+		await (
+			await personaClient('brandAAdmin')
+		).rpc('void_invoice', { p_invoice_id: id, p_reason: 'test' });
 
 		await pay(id, 1000);
 		const inv = await read(id);
@@ -251,11 +256,12 @@ describe('void_invoice', () => {
 	it('withdraws an issued invoice but keeps its number', async () => {
 		// Deleting would gap the sequence, which is the one thing invoice
 		// numbering cannot tolerate.
-		const admin = adminClient();
 		const id = await issuedInvoice(500);
 		const before = await read(id);
 
-		await admin.rpc('void_invoice', { p_invoice_id: id, p_reason: 'Order cancelled' });
+		await (
+			await personaClient('brandAAdmin')
+		).rpc('void_invoice', { p_invoice_id: id, p_reason: 'Order cancelled' });
 
 		const inv = await read(id);
 		expect(inv.status).toBe('void');
@@ -265,18 +271,22 @@ describe('void_invoice', () => {
 	});
 
 	it('is idempotent', async () => {
-		const admin = adminClient();
 		const id = await issuedInvoice(500);
-		await admin.rpc('void_invoice', { p_invoice_id: id, p_reason: 'first' });
-		const { error } = await admin.rpc('void_invoice', { p_invoice_id: id, p_reason: 'second' });
+		await (
+			await personaClient('brandAAdmin')
+		).rpc('void_invoice', { p_invoice_id: id, p_reason: 'first' });
+		const { error } = await (
+			await personaClient('brandAAdmin')
+		).rpc('void_invoice', { p_invoice_id: id, p_reason: 'second' });
 		expect(error).toBeNull();
 		expect((await read(id)).void_reason).toBe('first');
 	});
 
 	it('normalizes a blank reason to null', async () => {
-		const admin = adminClient();
 		const id = await issuedInvoice(500);
-		await admin.rpc('void_invoice', { p_invoice_id: id, p_reason: '   ' });
+		await (
+			await personaClient('brandAAdmin')
+		).rpc('void_invoice', { p_invoice_id: id, p_reason: '   ' });
 		expect((await read(id)).void_reason).toBeNull();
 	});
 
@@ -305,7 +315,9 @@ describe('void_invoice', () => {
 			.eq('order_id', order!.id)
 			.single();
 
-		const { error } = await admin.rpc('void_invoice', {
+		const { error } = await (
+			await personaClient('brandAAdmin')
+		).rpc('void_invoice', {
 			p_invoice_id: draft!.id,
 			p_reason: null
 		});
@@ -313,8 +325,9 @@ describe('void_invoice', () => {
 	});
 
 	it('errors on an unknown invoice', async () => {
-		const admin = adminClient();
-		const { error } = await admin.rpc('void_invoice', {
+		const { error } = await (
+			await personaClient('brandAAdmin')
+		).rpc('void_invoice', {
 			p_invoice_id: '00000000-0000-4000-8000-000000000000',
 			p_reason: null
 		});

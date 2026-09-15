@@ -1,10 +1,11 @@
-import { orderGrandTotal, orderShippingCost } from '$lib/utils/order-total';
+import { orderGrandTotal, orderShippingCost, orderTaxAmount } from '$lib/utils/order-total';
 import { createPdfCanvas, drawLineItemTable, drawTotalRow, type TableLine } from './pdf-layout.js';
 
 export interface OrderData {
 	order_number: string;
 	total_amount: number;
 	shipping_cost?: number | string | null;
+	tax_amount?: number | string | null;
 	status: string;
 	notes: string | null;
 	created_at: string;
@@ -109,10 +110,14 @@ export async function generateOrderPdf(order: OrderData, lines: LineData[]): Pro
 	// "Order Total" that quietly folds in shipping is not a document a buyer can
 	// reconcile against the line items printed directly above it.
 	const shipping = orderShippingCost(order);
-	if (shipping !== null) {
-		c.ensureSpace(70);
+	const tax = orderTaxAmount(order);
+	if (shipping !== null || (tax ?? 0) > 0) {
+		c.ensureSpace(90);
 		drawTotalRow(c, 'Merchandise:', Number(order.total_amount));
-		drawTotalRow(c, 'Shipping:', shipping);
+		if (shipping !== null) drawTotalRow(c, 'Shipping:', shipping);
+		// Only when something is actually charged. A $0.00 tax line on every
+		// order from a brand that does not charge tax is noise on a document.
+		if ((tax ?? 0) > 0) drawTotalRow(c, 'Estimated tax:', tax as number);
 		c.y -= 4;
 	}
 
