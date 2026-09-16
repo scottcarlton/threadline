@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { invoiceJustSettled, invoicePaidNotification } from './paid-notification.js';
+import {
+	invoiceJustSettled,
+	invoicePaidNotification,
+	repCommissionNotification
+} from './paid-notification.js';
 
 describe('invoiceJustSettled', () => {
 	it('fires on the crossing into paid', () => {
@@ -56,5 +60,47 @@ describe('invoicePaidNotification', () => {
 		// cannot take a payment. This is about not rendering "Invoice null".
 		const n = invoicePaidNotification({ id: 'inv-1', invoice_number: null, total: 10 });
 		expect(n.body).toBe('An invoice has been paid in full ($10.00)');
+	});
+});
+
+describe('repCommissionNotification', () => {
+	it('names the invoice and order, and links to the order', () => {
+		// Links to the order, not the invoice: a rep has no /invoices route, and
+		// the order page is where commission is already displayed.
+		const n = repCommissionNotification({
+			orderId: 'ord-1',
+			orderNumber: 'DEN-000002',
+			invoiceNumber: 'INV-CAT-00004'
+		});
+		expect(n.type).toBe('commission_earned');
+		expect(n.title).toBe('Commission earned');
+		expect(n.body).toBe(
+			'INV-CAT-00004 for order DEN-000002 has been paid, so your commission on it is earned'
+		);
+		expect(n.link).toBe('/orders/ord-1');
+	});
+
+	it('carries no amount', () => {
+		// Commission resolves from three different places and the order page does
+		// not collapse them server-side. Quoting a figure here would be a second,
+		// divergent calculation of someone's pay.
+		const n = repCommissionNotification({
+			orderId: 'ord-1',
+			orderNumber: 'DEN-1',
+			invoiceNumber: 'INV-1'
+		});
+		expect(n.body).not.toMatch(/[$%]/);
+		expect(n.body).not.toMatch(/\d+\.\d\d/);
+	});
+
+	it('reads sensibly when the numbers are missing', () => {
+		const n = repCommissionNotification({
+			orderId: 'ord-1',
+			orderNumber: null,
+			invoiceNumber: null
+		});
+		expect(n.body).toBe(
+			'The invoice for your order has been paid, so your commission on it is earned'
+		);
 	});
 });

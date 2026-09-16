@@ -6,12 +6,50 @@ import { getInvoiceForOrg } from '$lib/server/queries/invoices.js';
 import { loadIssuingOrgInvoice, type InvoiceRow } from '$lib/server/invoices/authorize-invoice.js';
 import {
 	invoiceJustSettled,
-	invoicePaidNotification
+	invoicePaidNotification,
+	repCommissionNotification
 } from '$lib/server/invoices/paid-notification.js';
-import { notifyOrgMembers } from '$lib/server/notifications.js';
+import { createNotification, notifyOrgMembers } from '$lib/server/notifications.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { recordPaymentSchema, voidInvoiceSchema } from '$lib/schemas/invoice-payment.js';
 import { acceptedMethodsOnly } from '$lib/payment-methods.js';
+
+/**
+ * Tell the rep who owns the relationship that the invoice behind their
+ * commission has been paid.
+ *
+ * `rep_user_id` is the rep of record, kept separate from `created_by` so an
+ * admin submitting on someone's behalf does not take the attribution
+ * (20260421000004). It is nullable on pre-existing orders, hence the fallback.
+ *
+ * Written against the rep's own org, which is how it reaches them:
+ * `notifications` is read with `user_id = auth.uid()` and no org filter, so
+ * cross-org delivery needs no new mechanism.
+ */
+async function notifyRepOfRecord(
+	orderId: string,
+	repOrgId: string,
+	invoiceNumber: string | null
+): Promise<void> {
+	const { data: order } = await supabaseAdmin
+		.from('orders')
+		.select('id, order_number, rep_user_id, created_by')
+		.eq('id', orderId)
+		.maybeSingle();
+
+	const repUserId = (order?.rep_user_id ?? order?.created_by) as string | undefined;
+	if (!order || !repUserId) return;
+
+	await createNotification({
+		organizationId: repOrgId,
+		userId: repUserId,
+		...repCommissionNotification({
+			orderId: order.id as string,
+			orderNumber: (order.order_number as string | null) ?? null,
+			invoiceNumber
+		})
+	});
+}
 
 /** Recording money and withdrawing a document are both accounting acts. */
 const MONEY_ROLES = new Set(['admin', 'owner']);
@@ -98,18 +136,19 @@ export const actions: Actions = {
 		// counts as paid lives in the database, and duplicating it here is how
 		// the two drift.
 		const settled = await loadIssuingOrgInvoice<
-			InvoiceRow & { invoice_number: string | null; total: number | string | null }
+			InvoiceRow & {
+				invoice_number: string | null;
+				total: number | string | null;
+				order_id: string;
+			}
 		>(
 			params.id,
 			locals.organization.id,
-			'id, organization_id, order_org_id, account_id, status, invoice_number, total'
+			'id, organization_id, order_org_id, account_id, status, invoice_number, total, order_id'
 		);
 
 		if (settled && invoiceJustSettled(invoice.status, settled.status)) {
 			// Colleagues in the issuing org, not the person who just typed it in.
-			// Deliberately not the rep or the buyer: notifications are org-scoped
-			// and there is no cross-org delivery mechanism today. Telling the rep
-			// their commission has landed is a real want, and a separate one.
 			//
 			// Not awaited, for the same reason the order-status notifications are
 			// not: a notification failing must not fail the payment that was
@@ -118,6 +157,14 @@ export const actions: Actions = {
 				actorUserId: locals.user?.id ?? null,
 				...invoicePaidNotification(settled)
 			});
+
+			// The rep is paid on goods sold, so this is the moment their commission
+			// on the order stops being a projection. Only for a genuinely federated
+			// order: when the order org and the issuing org match, the brand sold it
+			// itself and there is no rep to tell.
+			if (settled.order_org_id !== locals.organization.id) {
+				notifyRepOfRecord(settled.order_id, settled.order_org_id, settled.invoice_number);
+			}
 		}
 
 		return message(form, { type: 'success', action: 'payment' as const });

@@ -43,3 +43,35 @@ export function invoicePaidNotification(invoice: {
 		link: `/invoices/${invoice.id}`
 	};
 }
+
+/**
+ * The rep's copy of the same event.
+ *
+ * A rep is paid on goods sold, so an invoice settling is the moment their
+ * commission on that order stops being a projection. They have no `/invoices`
+ * route, so this links to the order, which is where commission is already
+ * displayed.
+ *
+ * Deliberately no amount. Commission resolves from three places -- the rep's
+ * default on `organization_members`, a per-brand rate on
+ * `member_brand_commissions`, and an account-level `commission_overrides` row
+ * -- and the order page passes them to the client rather than collapsing them
+ * server-side. Computing a figure here would be a second, divergent commission
+ * calculation, and being casually wrong about someone's pay is worse than
+ * making them click through to the number that is already correct.
+ */
+export function repCommissionNotification(params: {
+	orderId: string;
+	orderNumber: string | null;
+	invoiceNumber: string | null;
+}): { type: string; title: string; body: string; link: string } {
+	const order = params.orderNumber ? `order ${params.orderNumber}` : 'your order';
+	const invoice = params.invoiceNumber ?? 'The invoice';
+
+	return {
+		type: 'commission_earned',
+		title: 'Commission earned',
+		body: `${invoice} for ${order} has been paid, so your commission on it is earned`,
+		link: `/orders/${params.orderId}`
+	};
+}
