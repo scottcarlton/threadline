@@ -2979,12 +2979,17 @@
 											</button>
 										{/if}
 									</div>
-									<button
-										onclick={skip}
-										class="shrink-0 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
-									>
-										Skip for now
-									</button>
+									<!-- The connect step is the last question, and Finish setup already
+									     moves on with or without a connection, so Skip would be a
+									     second button that does the same thing. -->
+									{#if sub.kind !== 'connect'}
+										<button
+											onclick={skip}
+											class="shrink-0 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
+										>
+											Skip for now
+										</button>
+									{/if}
 								</div>
 							{/if}
 						</div>
