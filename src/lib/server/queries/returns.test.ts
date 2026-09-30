@@ -24,11 +24,11 @@ const buyer: QueryScope = {
 	buyerBrandIds: []
 };
 
-const row = (status: ReturnStatus, createdAt: string, orgId = BRAND_ORG): ReturnListRow =>
+const row = (status: ReturnStatus, requestedAt: string, orgId = BRAND_ORG): ReturnListRow =>
 	({
-		id: `${status}-${createdAt}`,
+		id: `${status}-${requestedAt}`,
 		status,
-		created_at: createdAt,
+		requested_at: requestedAt,
 		organization_id: orgId
 	}) as ReturnListRow;
 
@@ -69,14 +69,14 @@ describe('sortReturnsForViewer', () => {
 		expect(sorted.map((r) => r.status)).toEqual(['requested', 'approved', 'received', 'closed']);
 	});
 
-	it('breaks ties by newest first', () => {
+	it('breaks ties by the newest request first', () => {
 		const rows = [
 			row('requested', '2026-09-01'),
 			row('requested', '2026-09-20'),
 			row('requested', '2026-09-10')
 		];
 		const sorted = sortReturnsForViewer(rows, internal([BRAND_ORG]));
-		expect(sorted.map((r) => r.created_at)).toEqual(['2026-09-20', '2026-09-10', '2026-09-01']);
+		expect(sorted.map((r) => r.requested_at)).toEqual(['2026-09-20', '2026-09-10', '2026-09-01']);
 	});
 
 	it('gives a rep a plain log, not somebody else workload order', () => {
@@ -88,7 +88,7 @@ describe('sortReturnsForViewer', () => {
 			row('approved', '2026-09-19')
 		];
 		const sorted = sortReturnsForViewer(rows, internal([REP_ORG]));
-		expect(sorted.map((r) => r.created_at)).toEqual(['2026-09-20', '2026-09-19', '2026-09-18']);
+		expect(sorted.map((r) => r.requested_at)).toEqual(['2026-09-20', '2026-09-19', '2026-09-18']);
 	});
 
 	it('gives a buyer a plain log too', () => {
@@ -113,6 +113,6 @@ describe('sortReturnsForViewer', () => {
 		// own settled one, but a return it merely watches is not pulled up.
 		const rows = [row('closed', '2026-09-20'), row('requested', '2026-09-01', REP_ORG)];
 		const sorted = sortReturnsForViewer(rows, internal([BRAND_ORG]));
-		expect(sorted.map((r) => r.created_at)).toEqual(['2026-09-20', '2026-09-01']);
+		expect(sorted.map((r) => r.requested_at)).toEqual(['2026-09-20', '2026-09-01']);
 	});
 });

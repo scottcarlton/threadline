@@ -65,7 +65,10 @@ export async function listReturns(
 	let query = supabase
 		.from('return_authorizations')
 		.select(LIST_SELECT)
-		.order('created_at', { ascending: false });
+		// requested_at, not created_at: it is the date the list displays, and a
+		// list sorted by a column it does not show looks unsorted the first time
+		// the two disagree.
+		.order('requested_at', { ascending: false });
 
 	if (filters.status === 'open') {
 		query = query.in('status', ['requested', 'approved', 'received']);
@@ -134,10 +137,10 @@ export function sortReturnsForViewer(
 			const rank = returnQueueRank(a.status) - returnQueueRank(b.status);
 			if (rank !== 0) return rank;
 		}
-		// Newest first within a rank. Stated rather than left to sort stability:
-		// the query does return created_at descending today, but a comparator
-		// that silently depends on its input order breaks the moment that changes.
-		return (b.created_at ?? '').localeCompare(a.created_at ?? '');
+		// Newest request first within a rank, on the same column the list shows.
+		// Stated rather than left to sort stability, so the comparator does not
+		// silently depend on the order the query happened to return.
+		return (b.requested_at ?? '').localeCompare(a.requested_at ?? '');
 	});
 	return sorted;
 }
