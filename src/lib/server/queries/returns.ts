@@ -21,10 +21,10 @@ export type { ReturnDetail, ReturnListRow, ReturnMetrics } from '$lib/utils/retu
 
 /**
  * ───────────────────────────────────────────────────────────────────────────
- * Why this reads through `locals.supabase` and not `supabaseAdmin`
+ * Why this reads through `locals.supabase` and not the service-role client
  * ───────────────────────────────────────────────────────────────────────────
  *
- * Every other module in this folder takes `supabaseAdmin` and restates the
+ * Every other module in this folder takes the service-role client and restates the
  * visibility rule from `QueryScope`. That works for `invoices`, which is a
  * single own-org predicate. It does not work here, and the difference is not
  * stylistic.

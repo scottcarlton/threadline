@@ -12,7 +12,7 @@ import {
  * brand sees its brands' returns, a rep sees returns on its orders, and a buyer
  * sees its accounts' — all three arms from 20260915000010, with no predicate
  * restated here. The header of queries/returns.ts says why this route does not
- * follow the supabaseAdmin convention the other list routes use.
+ * follow the service-role convention the other list routes use.
  *
  * Unlike /invoices there is no orgType redirect. Invoices only ever belong to a
  * brand, but a rep requests returns and a buyer requests returns, so all three
