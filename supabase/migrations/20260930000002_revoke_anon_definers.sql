@@ -1,0 +1,34 @@
+-- Revoke anon and authenticated EXECUTE from two SECURITY DEFINER functions
+-- that were callable with no login at all. SCO-191.
+--
+-- ───────────────────────────────────────────────────────────────────────────
+-- Why `REVOKE ... FROM PUBLIC` did not close these
+-- ───────────────────────────────────────────────────────────────────────────
+--
+-- On Supabase the platform's default privileges grant EXECUTE on every new
+-- function in `public` to `anon`, `authenticated` and `service_role`
+-- DIRECTLY, not through PUBLIC:
+--
+--   postgres -> postgres=X, anon=X, authenticated=X, service_role=X
+--
+-- So `REVOKE ALL ON FUNCTION f FROM PUBLIC` reads as locked down and is not:
+-- anon's direct grant survives it. Name the roles. SCO-189 got this right only
+-- because it happened to.
+--
+-- ───────────────────────────────────────────────────────────────────────────
+-- The two functions
+-- ───────────────────────────────────────────────────────────────────────────
+--
+-- get_user_emails_by_ids(uuid[]) returns auth.users.email for arbitrary ids
+-- with no caller check. With the public anon key, any logged-out caller who
+-- knows a user's UUID gets their email, and UUIDs appear throughout API
+-- responses. Its only app caller, src/lib/server/user-lookup.ts, uses
+-- supabaseAdmin, which keeps EXECUTE.
+--
+-- generate_ra_number(uuid) increments organizations.next_ra_number with no
+-- caller check, so any caller could burn any org's RA sequence and gap the
+-- issued series. It is only called from assign_ra_number_on_approval(), a
+-- trigger function that runs as the owner, where the EXECUTE check passes.
+
+REVOKE EXECUTE ON FUNCTION public.get_user_emails_by_ids(UUID[]) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.generate_ra_number(UUID) FROM PUBLIC, anon, authenticated;
