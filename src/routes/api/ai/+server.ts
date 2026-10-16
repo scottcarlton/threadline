@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
-import { MAIN_STATIC_PROMPT, CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server/ai-prompts.js';
+import { CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
 import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
@@ -18,6 +18,7 @@ import {
 import { generateTitle } from '$lib/server/ai-conversation-title.js';
 import { isSafePath, sanitizeEntityContext } from '$lib/server/ai-context.js';
 import { WRITE_TOOLS, buildStitchTools } from '$lib/server/stitch/tools.js';
+import { buildStitchSystem } from '$lib/server/stitch/system.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -152,24 +153,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		: cleanMessage;
 
 	const role = locals.membership?.role ?? 'guest';
-	const brandScopeInfo = locals.brandScope
-		? `You are scoped to specific brands only. Only interact with data for your assigned brands.`
-		: 'You have access to all brands in the organization.';
 
 	const pageContext = describeCurrentPage(currentPage ?? '/');
-
-	// Static system instructions (cacheable — same for all users/requests).
-	// Sourced from $lib/server/ai-prompts so we can version it and share
-	// the constant with observability tooling.
-	const staticSystem = MAIN_STATIC_PROMPT;
 
 	// Dynamic per-request context
 	const entity = sanitizeEntityContext(entityCtx);
 	const entityInfo = entity?.summary
 		? `\n- Entity in view: ${entity.summary}. The user is currently looking at this ${entity.type} — use this context to answer questions without requiring them to re-specify which ${entity.type} they mean.`
 		: '';
-
-	const orgTypeLabel = locals.orgType === 'brand' ? 'Brand (manufacturer)' : 'Rep (sales agency)';
 
 	// Check setup state for new rep orgs.
 	// All four counts rely on RLS so federation visibility counts: a rep connected
@@ -207,42 +198,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	const now = new Date();
-	const dateStr = now.toLocaleDateString('en-US', {
-		weekday: 'long',
-		year: 'numeric',
-		month: 'long',
-		day: 'numeric'
+	const systemBlocks = buildStitchSystem({
+		organizationName: locals.organization.name,
+		orgType: locals.orgType,
+		userDisplayName: locals.user.display_name,
+		role,
+		brandScoped: Boolean(locals.brandScope),
+		pageContext,
+		entityInfo,
+		setupInfo,
+		agentPrompt,
+		now: new Date()
 	});
-	const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-	const dynamicSystem = `Current user context:
-- Organization: ${locals.organization.name}
-- Org type: ${orgTypeLabel}
-- User: ${locals.user.display_name}
-- Role: ${role}
-- Brand access: ${brandScopeInfo}
-- Current date/time: ${dateStr} at ${timeStr}
-- Currently viewing: ${pageContext}${entityInfo}
-${locals.orgType === 'brand' ? '\nThis is a BRAND organization. The user manages their own product catalog and sees orders from connected reps. Focus on products, rep performance, and order fulfillment. Orders they create are for their own brand. Omit brand_name when calling create_order and never ask them which brand an order is for.' : ''}${setupInfo}${role === 'guest' ? '\nIMPORTANT: This user has READ-ONLY access. Do NOT perform any create, update, or delete operations. Only use query_data, list_brands, list_accounts, get_dashboard_metrics, get_sales_report, get_sales_analytics, get_commission_report, and get_style_velocity.' : ''}`;
-
-	// Use structured system blocks for prompt caching
-	const systemBlocks: Anthropic.TextBlockParam[] = [
-		{
-			type: 'text',
-			text: staticSystem,
-			cache_control: { type: 'ephemeral' }
-		} as Anthropic.TextBlockParam,
-		{ type: 'text', text: dynamicSystem }
-	];
-
-	// Inject custom agent prompt if active
-	if (agentPrompt) {
-		systemBlocks.push({
-			type: 'text',
-			text: `\n\nCUSTOM AGENT INSTRUCTIONS:\n${agentPrompt}`
-		});
-	}
 
 	const cachedTools = buildStitchTools(agentToolWhitelist);
 
