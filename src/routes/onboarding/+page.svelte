@@ -50,6 +50,16 @@
 		type ProductDraft,
 		type OrderRowDraft
 	} from '$lib/components/onboarding/parse';
+	import {
+		emptyManualAccount,
+		emptyManualProduct,
+		emptyManualMember,
+		manualAccountDraft,
+		manualProductDraft,
+		manualMemberInvite,
+		isTablePaste,
+		MEMBER_ROLES
+	} from '$lib/components/onboarding/manual';
 	import { startVoiceCapture, type VoiceCaptureHandle } from '$lib/utils/voice-capture';
 	import IntegrationLogo from '$lib/components/integrations/IntegrationLogo.svelte';
 	import MailProviderLogo from '$lib/components/settings/MailProviderLogo.svelte';
@@ -765,6 +775,8 @@
 	function complete(state: 'done' | 'skipped') {
 		subStates[cursorKey(phaseIndex, subIndex)] = state;
 		draft = '';
+		// An error belongs to the step that raised it, not the next question.
+		errorMsg = '';
 		advanceGlobal();
 	}
 
@@ -1051,7 +1063,9 @@
 			error: ''
 		}))
 	);
-	let manualOpen = $state(false);
+	// Which step's manual form is open. Keyed by step rather than a boolean so
+	// moving on closes it without every exit path having to remember to.
+	let manualFor = $state<string | null>(null);
 	let manualSaving = $state(false);
 	let manualBrand = $state({
 		name: '',
@@ -1272,13 +1286,170 @@
 		if (subId === 'orders') return downloadOrderCsvTemplate();
 	}
 
-	// Brands is the one step with a manual path today: a rep who carries four
-	// brands shouldn't have to build a CSV. Everywhere else the button is still
-	// intentionally inert, since behavior isn't decided yet.
+	const NO_CATALOG_MSG =
+		"Product imports need a brand catalog, and that's only set up for brand organizations right now.";
+
+	// Not everyone has a file. Brands, members, accounts, and products each open
+	// a short form that saves one row at a time through the same endpoint the
+	// CSV import uses. Orders stay import-or-skip: an order needs an account and
+	// line items, which is more than a form here should ask for.
 	function startManualEntry() {
-		if (sub.id !== 'brands') return;
 		errorMsg = '';
-		manualOpen = true;
+		if (sub.id === 'products' && !data.selfBrandId) {
+			errorMsg = NO_CATALOG_MSG;
+			return;
+		}
+		manualFor = sub.id;
+	}
+
+	// ── Manual entry: members, accounts, products ─────────────────────────
+	// Rows saved here, per step, so the step can list them and offer Continue
+	// the way brands does. The list is this session's only; the records
+	// themselves are in the org the moment they're saved.
+	let manualAdded = $state<Record<'members' | 'accounts' | 'products', string[]>>({
+		members: [],
+		accounts: [],
+		products: []
+	});
+	let manualAccount = $state(emptyManualAccount());
+	let manualProduct = $state(emptyManualProduct());
+	let manualMember = $state(emptyManualMember());
+
+	const manualAddedHere = $derived(
+		sub.id === 'members' || sub.id === 'accounts' || sub.id === 'products'
+			? manualAdded[sub.id]
+			: []
+	);
+
+	function recordManual(key: 'members' | 'accounts' | 'products', label: string) {
+		manualAdded[key] = [...manualAdded[key], label];
+		addStat({ key, n: String(manualAdded[key].length) });
+	}
+
+	function closeManual() {
+		manualFor = null;
+		errorMsg = '';
+		manualAccount = emptyManualAccount();
+		manualProduct = emptyManualProduct();
+		manualMember = emptyManualMember();
+		resetManualBrand();
+	}
+
+	async function submitManualAccount() {
+		if (manualSaving) return;
+		const built = manualAccountDraft(manualAccount);
+		if (!built.ok) {
+			errorMsg = built.error;
+			return;
+		}
+		errorMsg = '';
+		manualSaving = true;
+		try {
+			const res = await fetch('/api/accounts/import', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ accounts: [built.draft] })
+			});
+			const result = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				errorMsg = result.error || "That account couldn't be saved.";
+				return;
+			}
+			if (importedCount('accounts', result) === 0) {
+				errorMsg = `${built.draft.business_name} is already on your list.`;
+				return;
+			}
+			recordManual('accounts', built.draft.business_name);
+			manualAccount = emptyManualAccount();
+		} catch {
+			errorMsg = "That account couldn't be saved.";
+		} finally {
+			manualSaving = false;
+		}
+	}
+
+	async function submitManualProduct() {
+		if (manualSaving || !data.selfBrandId) return;
+		const built = manualProductDraft(manualProduct);
+		if (!built.ok) {
+			errorMsg = built.error;
+			return;
+		}
+		errorMsg = '';
+		manualSaving = true;
+		try {
+			const res = await fetch('/api/products/import', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					brandId: data.selfBrandId,
+					onConflict: 'skip',
+					products: [built.draft]
+				})
+			});
+			const result = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				errorMsg = result.error || "That product couldn't be saved.";
+				return;
+			}
+			if (importedCount('products', result) === 0) {
+				errorMsg = `Style ${built.draft.style_number} is already in your catalog.`;
+				return;
+			}
+			recordManual('products', `${built.draft.name} · ${built.draft.style_number}`);
+			manualProduct = emptyManualProduct();
+		} catch {
+			errorMsg = "That product couldn't be saved.";
+		} finally {
+			manualSaving = false;
+		}
+	}
+
+	async function submitManualMember() {
+		if (manualSaving) return;
+		const built = manualMemberInvite(manualMember);
+		if (!built.ok) {
+			errorMsg = built.error;
+			return;
+		}
+		errorMsg = '';
+		manualSaving = true;
+		try {
+			const res = await fetch('/api/invite/send', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(built.draft)
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				errorMsg = body.error || "That invite couldn't be sent.";
+				return;
+			}
+			recordManual('members', `${built.draft.email} · ${roleLabel(built.draft.role)}`);
+			// Keep the role: people tend to invite a few of the same kind in a row.
+			manualMember = { ...emptyManualMember(), role: manualMember.role };
+		} catch {
+			errorMsg = "That invite couldn't be sent.";
+		} finally {
+			manualSaving = false;
+		}
+	}
+
+	function onManualRowKeydown(e: KeyboardEvent, submit: () => Promise<void>) {
+		if (e.key !== 'Enter' || e.shiftKey) return;
+		e.preventDefault();
+		void submit();
+	}
+
+	// "You can paste your data here too": the prompt bar is a single-line
+	// input, which would flatten pasted rows into one line. Catch the paste
+	// first and read it through the same preview a dropped file gets.
+	function onPromptPaste(e: ClipboardEvent) {
+		if (!showConversation || sub.kind !== 'upload' || ingestState !== 'idle') return;
+		const text = e.clipboardData?.getData('text/plain') ?? '';
+		if (!isTablePaste(text)) return;
+		e.preventDefault();
+		void handleFile(new File([text], 'Pasted data', { type: 'text/csv' }));
 	}
 
 	const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
@@ -1303,8 +1474,7 @@
 			}
 			if (!data.selfBrandId) {
 				resetIngest();
-				errorMsg =
-					"Product imports need a brand catalog — that's only set up for brand organizations right now.";
+				errorMsg = NO_CATALOG_MSG;
 				return;
 			}
 			try {
@@ -1481,8 +1651,7 @@
 		if (sub.id === 'products') {
 			if (!data.selfBrandId) {
 				resetIngest();
-				errorMsg =
-					"Product imports need a brand catalog — that's only set up for brand organizations right now.";
+				errorMsg = NO_CATALOG_MSG;
 				return;
 			}
 			const cappedproductDrafts = capRows(parseProducts(headers, rows));
@@ -2400,7 +2569,7 @@
 								{/if}
 							{/if}
 
-							{#if sub.id === 'brands' && manualOpen && inputRevealed}
+							{#if sub.id === 'brands' && manualFor === 'brands' && inputRevealed}
 								<div
 									class="mt-3 space-y-2 rounded-xl bg-zinc-800/40 p-4"
 									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
@@ -2470,16 +2639,207 @@
 											{manualSaving ? 'Adding…' : 'Add brand'}
 										</button>
 										<button
-											onclick={() => {
-												manualOpen = false;
-												resetManualBrand();
-											}}
+											onclick={closeManual}
 											class="rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100"
 										>
 											Done adding
 										</button>
 									</div>
 								</div>
+							{/if}
+
+							{#if sub.id === 'accounts' && manualFor === 'accounts' && inputRevealed}
+								<div
+									class="mt-3 space-y-2 rounded-xl bg-zinc-800/40 p-4"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									<input
+										bind:value={manualAccount.businessName}
+										onkeydown={(e) => onManualRowKeydown(e, submitManualAccount)}
+										placeholder="Business name"
+										class="w-full rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+									/>
+									<div class="flex gap-2">
+										<input
+											bind:value={manualAccount.contactFirstName}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualAccount)}
+											placeholder="Contact first name"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={manualAccount.contactLastName}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualAccount)}
+											placeholder="Contact last name"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+									</div>
+									<div class="flex gap-2">
+										<input
+											bind:value={manualAccount.contactEmail}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualAccount)}
+											type="email"
+											placeholder="Contact email"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={manualAccount.phone}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualAccount)}
+											placeholder="Phone"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+									</div>
+									<div class="flex gap-2">
+										<input
+											bind:value={manualAccount.city}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualAccount)}
+											placeholder="City"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={manualAccount.state}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualAccount)}
+											placeholder="State"
+											class="w-24 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+									</div>
+									<div class="flex items-center gap-2 pt-1">
+										<button
+											onclick={submitManualAccount}
+											disabled={!manualAccount.businessName.trim() || manualSaving}
+											class="rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+										>
+											{manualSaving ? 'Adding…' : 'Add account'}
+										</button>
+										<button
+											onclick={closeManual}
+											class="rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100"
+										>
+											Done adding
+										</button>
+									</div>
+								</div>
+							{/if}
+
+							{#if sub.id === 'products' && manualFor === 'products' && inputRevealed}
+								<div
+									class="mt-3 space-y-2 rounded-xl bg-zinc-800/40 p-4"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									<div class="flex gap-2">
+										<input
+											bind:value={manualProduct.styleNumber}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualProduct)}
+											placeholder="Style number"
+											class="w-40 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={manualProduct.name}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualProduct)}
+											placeholder="Product name"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+									</div>
+									<div class="flex gap-2">
+										<input
+											bind:value={manualProduct.wholesalePrice}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualProduct)}
+											inputmode="decimal"
+											placeholder="Wholesale price"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										<input
+											bind:value={manualProduct.retailPrice}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualProduct)}
+											inputmode="decimal"
+											placeholder="Retail price (optional)"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+									</div>
+									<div class="flex items-center gap-2 pt-1">
+										<button
+											onclick={submitManualProduct}
+											disabled={!manualProduct.styleNumber.trim() ||
+												!manualProduct.name.trim() ||
+												!manualProduct.wholesalePrice.trim() ||
+												manualSaving}
+											class="rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+										>
+											{manualSaving ? 'Adding…' : 'Add product'}
+										</button>
+										<button
+											onclick={closeManual}
+											class="rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100"
+										>
+											Done adding
+										</button>
+									</div>
+								</div>
+							{/if}
+
+							{#if sub.id === 'members' && manualFor === 'members' && inputRevealed}
+								<div
+									class="mt-3 space-y-2 rounded-xl bg-zinc-800/40 p-4"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									<div class="flex flex-wrap gap-2">
+										{#each MEMBER_ROLES as role (role)}
+											<button
+												onclick={() => (manualMember.role = role)}
+												aria-pressed={manualMember.role === role}
+												class="rounded-lg border px-3.5 py-2 text-sm transition-colors {manualMember.role ===
+												role
+													? 'border-zinc-200 bg-zinc-100 text-zinc-900'
+													: 'border-zinc-700 bg-zinc-800/40 text-zinc-300 hover:border-zinc-500'}"
+											>
+												{roleLabel(role)}
+											</button>
+										{/each}
+									</div>
+									<div class="flex gap-2">
+										<input
+											bind:value={manualMember.email}
+											onkeydown={(e) => onManualRowKeydown(e, submitManualMember)}
+											type="email"
+											placeholder="Email"
+											class="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+										/>
+										{#if manualMember.role === 'sales'}
+											<input
+												bind:value={manualMember.commissionRate}
+												onkeydown={(e) => onManualRowKeydown(e, submitManualMember)}
+												inputmode="decimal"
+												placeholder="Commission %"
+												class="w-36 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+											/>
+										{/if}
+									</div>
+									<div class="flex items-center gap-2 pt-1">
+										<button
+											onclick={submitManualMember}
+											disabled={!manualMember.email.trim() || manualSaving}
+											class="rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-40"
+										>
+											{manualSaving ? 'Sending…' : 'Send invite'}
+										</button>
+										<button
+											onclick={closeManual}
+											class="rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100"
+										>
+											Done adding
+										</button>
+									</div>
+								</div>
+							{/if}
+
+							{#if manualAddedHere.length > 0 && inputRevealed}
+								<ul
+									class="mt-3 divide-y divide-white/5 overflow-hidden rounded-xl bg-zinc-800/50"
+									in:fly={{ y: prefersReduced ? 0 : 8, duration: revealMs, easing: cubicOut }}
+								>
+									{#each manualAddedHere as label, i (i)}
+										<li class="truncate px-4 py-2.5 text-sm text-zinc-100">{label}</li>
+									{/each}
+								</ul>
 							{/if}
 
 							{#if sub.id === 'brands' && createdBrands.length > 0 && inputRevealed}
@@ -2574,7 +2934,7 @@
 											>
 												{startedConnections.length ? 'Done connecting' : 'Finish setup'}
 											</button>
-										{:else if sub.id === 'brands' && createdBrands.length > 0}
+										{:else if (sub.id === 'brands' && createdBrands.length > 0) || manualAddedHere.length > 0}
 											<button
 												onclick={() => complete('done')}
 												class="rounded-lg bg-white px-3.5 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
@@ -2619,12 +2979,17 @@
 											</button>
 										{/if}
 									</div>
-									<button
-										onclick={skip}
-										class="shrink-0 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
-									>
-										Skip for now
-									</button>
+									<!-- The connect step is the last question, and Finish setup already
+									     moves on with or without a connection, so Skip would be a
+									     second button that does the same thing. -->
+									{#if sub.kind !== 'connect'}
+										<button
+											onclick={skip}
+											class="shrink-0 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-700 active:scale-95"
+										>
+											Skip for now
+										</button>
+									{/if}
 								</div>
 							{/if}
 						</div>
@@ -2642,6 +3007,7 @@
 					<input
 						bind:value={draft}
 						onkeydown={onInputKeydown}
+						onpaste={onPromptPaste}
 						disabled={loading}
 						placeholder={sub.placeholder}
 						class="w-full bg-transparent px-2 py-2 text-base text-zinc-100 placeholder:text-zinc-500 focus:outline-none disabled:opacity-50"
