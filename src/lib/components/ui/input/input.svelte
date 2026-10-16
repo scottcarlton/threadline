@@ -10,7 +10,10 @@
 	let {
 		class: className = '',
 		type = 'text',
-		value = $bindable(''),
+		// No fallback. Svelte refuses `bind:value={undefined}` when the prop has
+		// one, and an optional superforms field is exactly undefined until typed
+		// in, so a fallback here crashed every dialog binding such a field.
+		value = $bindable(),
 		...restProps
 	}: Props = $props();
 </script>
