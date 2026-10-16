@@ -1,3 +1,4 @@
+import { TRANSITION_ROLES } from '$lib/server/returns/apply-transition.js';
 import type { PageServerLoad } from './$types';
 import {
 	computeReturnMetrics,
@@ -39,6 +40,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		// account, so an account column tells them nothing; a brand or rep is
 		// looking at someone else's account and needs it on every row.
 		viewerKind: scope?.kind ?? null,
+		// Credit memos are the brand's books, exported by the roles that issue them.
+		canExportCreditMemos:
+			locals.orgType === 'brand' && TRANSITION_ROLES.has(locals.membership?.role ?? ''),
 		metrics: computeReturnMetrics(book)
 	};
 };
