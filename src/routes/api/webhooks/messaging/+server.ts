@@ -16,6 +16,7 @@ import {
 	recordMessage
 } from '$lib/server/messaging/session.js';
 import { runAgent } from '$lib/server/messaging/agent.js';
+import { reportAiError } from '$lib/server/ai-errors.js';
 import { sendReply } from '$lib/server/messaging/send.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { checkInboundRateLimit } from '$lib/server/messaging/rate-limit.js';
@@ -123,16 +124,28 @@ export const POST: RequestHandler = async ({ request, url }) => {
 		mediaUrl: message.mediaUrl ?? undefined
 	});
 
-	const reply = await runAgent({
-		context: { orgName, userName, role, channel: message.channel },
-		conversationHistory: session.conversationHistory,
-		newMessage: message.body ?? '(image sent)',
-		organizationId,
-		userId: identity.userId,
-		brandScope,
-		orgType,
-		mediaUrl: message.mediaUrl
-	});
+	let reply: string;
+	try {
+		reply = await runAgent({
+			context: { orgName, userName, role, channel: message.channel },
+			conversationHistory: session.conversationHistory,
+			newMessage: message.body ?? '(image sent)',
+			organizationId,
+			userId: identity.userId,
+			brandScope,
+			orgType,
+			mediaUrl: message.mediaUrl
+		});
+	} catch (err) {
+		// Rethrown so the response is unchanged; the tagged capture here is the
+		// one Sentry keeps.
+		reportAiError(err, {
+			endpoint: 'messaging-agent',
+			purpose: message.channel,
+			organizationId
+		});
+		throw err;
+	}
 
 	const replySid = await sendReply(message.from, reply, message.channel);
 

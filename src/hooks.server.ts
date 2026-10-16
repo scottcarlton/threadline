@@ -187,6 +187,19 @@ const authHandle: Handle = async ({ event, resolve }) => {
 		const auditOrg = context.kind === 'org_member' ? context.organization : null;
 		event.locals.audit.setOrganization(auditOrg?.id ?? null, auditOrg?.name ?? null);
 
+		// Tag every Sentry event this request produces so an issue can be
+		// filtered by org and role. sentryHandle gives each request its own
+		// isolation scope, so these do not leak across requests. Id only: no
+		// email or name is sent to Sentry.
+		Sentry.setUser({ id: user.id });
+		const sentryTags: Record<string, string> = { user_kind: context.kind };
+		if (auditOrg) {
+			sentryTags.organization_id = auditOrg.id;
+			sentryTags.org_type = event.locals.orgType;
+		}
+		if (event.locals.membership?.role) sentryTags.member_role = event.locals.membership.role;
+		Sentry.setTags(sentryTags);
+
 		switch (context.kind) {
 			case 'system_admin': {
 				// Confine the system super-admin session to /system/** and its

@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { executeAgent } from '$lib/server/agent-executor.js';
+import { logSupabaseError } from '$lib/server/log-supabase-error.js';
 import { isDue } from './is-due.js';
 
 // Vercel invokes this endpoint on the schedule in vercel.json.
@@ -40,23 +41,23 @@ export const POST: RequestHandler = async ({ request }) => {
 	// than adding a second cron entry. Rows older than the longest window we
 	// count over are dead weight.
 	const { error: pruneError } = await supabaseAdmin.rpc('prune_ai_requests');
-	if (pruneError) console.error('[cron] prune_ai_requests failed:', pruneError.message);
+	logSupabaseError('cron prune_ai_requests', pruneError);
 
 	// Same reasoning for the verification attempt counters, on a longer horizon:
 	// they are the only durable trace of a stranger texting our number, so they
 	// are worth keeping for a while before they become clutter.
 	const { error: attemptPruneError } = await supabaseAdmin.rpc('prune_verification_attempts');
-	if (attemptPruneError) {
-		console.error('[cron] prune_verification_attempts failed:', attemptPruneError.message);
-	}
+	logSupabaseError('cron prune_verification_attempts', attemptPruneError);
 
-	const { data: triggers } = await supabaseAdmin
+	const { data: triggers, error: triggersError } = await supabaseAdmin
 		.from('org_agent_triggers')
 		.select(
 			'id, agent_id, organization_id, cron_expression, trigger_prompt, notify_channel, last_run_at, org_agents!inner(id, system_prompt, is_active, tool_whitelist)'
 		)
 		.eq('trigger_type', 'schedule')
 		.eq('is_active', true);
+	// Without this a failed load looks exactly like "no agents were due".
+	logSupabaseError('cron load schedule triggers', triggersError);
 
 	const rows = (triggers ?? []) as unknown as ScheduleTrigger[];
 	const executed: Array<{ triggerId: string; ok: boolean; error?: string }> = [];

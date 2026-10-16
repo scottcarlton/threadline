@@ -8,6 +8,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { fallbackTitle, normalizeTitle, setTitle } from './ai-conversations.js';
 import { logUsage } from './ai-usage.js';
+import { reportAiError } from './ai-errors.js';
+import { defer } from './audit/defer.js';
 
 const TITLE_MODEL = 'claude-haiku-4-5';
 
@@ -31,7 +33,7 @@ export function generateTitle(params: {
 }): void {
 	const fallback = fallbackTitle(params.firstUserMessage);
 
-	void (async () => {
+	void defer(async () => {
 		try {
 			const response = await params.anthropic.messages.create({
 				model: TITLE_MODEL,
@@ -56,8 +58,12 @@ export function generateTitle(params: {
 			const title = normalizeTitle(raw) ?? fallback;
 			if (title) await setTitle(params.conversationId, title);
 		} catch (err) {
-			console.error('conversation title generation failed:', err);
+			reportAiError(err, {
+				endpoint: 'chat',
+				purpose: 'title',
+				organizationId: params.organizationId
+			});
 			if (fallback) await setTitle(params.conversationId, fallback);
 		}
-	})();
+	});
 }
