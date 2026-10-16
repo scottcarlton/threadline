@@ -47,6 +47,24 @@
 	let cancelOpen = $state(false);
 	let issueOpen = $state(false);
 	let pending = $state<'approve' | 'cancel' | null>(null);
+	let sendingMemo = $state(false);
+
+	async function sendMemo() {
+		sendingMemo = true;
+		try {
+			const res = await fetch(`/api/returns/${ra.id}/credit-memo/send`, { method: 'POST' });
+			const body = await res.json();
+			if (!res.ok) {
+				toast.error(body.error ?? 'Could not send the credit memo.');
+				return;
+			}
+			toast.success(`Credit memo ${body.credit_memo_number} sent to ${body.to}.`);
+		} catch {
+			toast.error('Could not reach the server.');
+		} finally {
+			sendingMemo = false;
+		}
+	}
 
 	// svelte-ignore state_referenced_locally
 	const {
@@ -286,9 +304,18 @@
 			sits beside it with less weight. Brand only; a rep or buyer asked for
 			this and sees its progress, not the controls.
 		-->
-		{#if data.canAction}
+		{#if data.canAction || creditIssued}
 			<div class="flex items-center gap-2">
-				{#if ra.status === 'requested'}
+				{#if creditIssued}
+					<!-- Every reader of the return may download its memo; only the brand sends it. -->
+					<Button variant="outline" href="/api/returns/{ra.id}/credit-memo/pdf">Download PDF</Button
+					>
+					{#if data.canAction}
+						<Button onclick={sendMemo} disabled={sendingMemo}>
+							{sendingMemo ? 'Sending…' : 'Send credit memo'}
+						</Button>
+					{/if}
+				{:else if data.canAction && ra.status === 'requested'}
 					<Button variant="outline" onclick={() => (declineOpen = true)}>Decline</Button>
 					<form
 						method="POST"
@@ -303,14 +330,14 @@
 							{pending === 'approve' ? 'Approving…' : 'Approve'}
 						</Button>
 					</form>
-				{:else if ra.status === 'approved'}
+				{:else if data.canAction && ra.status === 'approved'}
 					<Button
 						variant="ghost"
 						class="text-destructive hover:bg-destructive/10 hover:text-destructive"
 						onclick={() => (cancelOpen = true)}>Cancel return</Button
 					>
 					<Button onclick={openReceive}>Receive goods</Button>
-				{:else if ra.status === 'received' && credit}
+				{:else if data.canAction && ra.status === 'received' && credit}
 					<Button onclick={() => (issueOpen = true)}>Issue credit memo</Button>
 				{/if}
 			</div>
