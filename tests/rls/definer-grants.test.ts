@@ -58,7 +58,9 @@ const INTERNAL = [
 	'get_federated_order_ids',
 	'get_revenue_by_brand',
 	'get_revenue_summary',
-	'get_top_accounts'
+	'get_top_accounts',
+	// SCO-187: increments the credit memo counter. Only issue_credit_memo() calls it.
+	'generate_credit_memo_number'
 ];
 
 /**
@@ -88,6 +90,7 @@ const CALLER_FACING = [
 	'send_invoice',
 	'void_invoice',
 	'receive_return',
+	'issue_credit_memo',
 	...ANALYTICS,
 	// RLS helpers no anon-applicable policy uses. Keyed on auth.uid().
 	'can_write_brands',

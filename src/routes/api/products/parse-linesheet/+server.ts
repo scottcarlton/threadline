@@ -5,6 +5,7 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { LINESHEET_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
+import { reportAiError } from '$lib/server/ai-errors.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -197,14 +198,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		return json({ products: normalized, season: seasonHint, year: yearHint });
 	} catch (err) {
-		console.error('Linesheet parse error:', err);
 		const message = err instanceof Error ? err.message : 'Unknown error';
+		// An unreadable upload is the user's file, not our bug. Keep it out of
+		// Sentry so real failures are not buried under bad PDFs.
 		if (message.includes('Could not process') || message.includes('image')) {
+			console.warn('Linesheet rejected as unreadable:', message);
 			return json(
 				{ error: "Could not process this file. Make sure it's a clear PDF of a linesheet." },
 				{ status: 422 }
 			);
 		}
+		reportAiError(err, {
+			endpoint: 'linesheet',
+			purpose: 'parse_products',
+			organizationId: locals.organization.id
+		});
 		return json({ error: 'Failed to analyze linesheet. Please try again.' }, { status: 500 });
 	}
 };

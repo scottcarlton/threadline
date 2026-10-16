@@ -109,10 +109,25 @@ export function shouldRestock(line: {
 	variant?: { stock_qty: number | null; shopify_variant_id: string | null } | null;
 }): boolean {
 	if (line.disposition !== 'restock') return false;
-	if (!line.variant_id || !line.variant) return false;
-	if (line.variant.stock_qty === null) return false;
-	if (line.variant.shopify_variant_id) return false;
-	return true;
+	return restockSkipReason(line) === null;
+}
+
+export type RestockSkipReason = 'no_variant' | 'untracked' | 'shopify';
+
+/**
+ * Why marking this line Restock would leave stock untouched, or null if it
+ * would restock. The same three skips as shouldRestock(), named, so the
+ * receive dialog can say so before anything moves rather than leaving the brand
+ * to discover a count that did not change.
+ */
+export function restockSkipReason(line: {
+	variant_id: string | null;
+	variant?: { stock_qty: number | null; shopify_variant_id: string | null } | null;
+}): RestockSkipReason | null {
+	if (!line.variant_id || !line.variant) return 'no_variant';
+	if (line.variant.stock_qty === null) return 'untracked';
+	if (line.variant.shopify_variant_id) return 'shopify';
+	return null;
 }
 
 export type DispositionInput = { lineId: string; disposition: string };
