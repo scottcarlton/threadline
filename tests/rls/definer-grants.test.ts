@@ -8,6 +8,14 @@
  * default -- so a perfectly ordinary refactor can silently reopen this. This
  * file pins the contract so that happens loudly instead.
  *
+ * On Supabase there is a second trap, and it has already shipped a hole
+ * (SCO-191). The platform's default privileges grant EXECUTE on every new
+ * public function to `anon`, `authenticated` and `service_role` DIRECTLY, not
+ * through PUBLIC. So `REVOKE ... FROM PUBLIC` looks locked down and leaves
+ * anon able to call the function. Always name the roles:
+ *
+ *   REVOKE EXECUTE ON FUNCTION f(...) FROM PUBLIC, anon, authenticated;
+ *
  * SCO-189: all five of these were reachable by `anon`, including the two that
  * mutate. `generate_invoice_number` increments a counter, so calling it burned
  * an org's invoice sequence; `send_invoice` published a draft; `void_invoice`
@@ -23,7 +31,15 @@ import { anonClient, adminClient } from './setup/clients.js';
  * SECURITY DEFINER functions, where the current user is the definer and the
  * EXECUTE check passes regardless.
  */
-const INTERNAL = ['compute_order_tax', 'brand_pricing_display', 'generate_invoice_number'];
+const INTERNAL = [
+	'compute_order_tax',
+	'brand_pricing_display',
+	'generate_invoice_number',
+	// SCO-191: increments organizations.next_ra_number with no caller check.
+	'generate_ra_number',
+	// SCO-191: returns auth.users.email for arbitrary ids. Service-role only.
+	'get_user_emails_by_ids'
+];
 
 /**
  * Functions the app calls as the signed-in user. They authorize themselves
