@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
-import { CLASSIFIER_PROMPT, SETUP_PROMPT } from '$lib/server/ai-prompts.js';
+import { SETUP_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
 import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
@@ -20,6 +20,8 @@ import { isSafePath, sanitizeEntityContext } from '$lib/server/ai-context.js';
 import { WRITE_TOOLS, buildStitchTools } from '$lib/server/stitch/tools.js';
 import { buildStitchSystem } from '$lib/server/stitch/system.js';
 import { runStitchTurn, STITCH_MODEL } from '$lib/server/stitch/turn.js';
+import { classifyStitchMessage, CLASSIFIER_MODEL } from '$lib/server/stitch/classify.js';
+import { runStitchChatReply, CHAT_MODEL } from '$lib/server/stitch/chat.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -260,66 +262,41 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		let useHaiku = false;
 
 		if (needsClassification) {
-			// Include the last 2 messages of history so follow-ups like "what about
-			// the other ones?" classify correctly against prior tool context.
-			const classifyMessages: Anthropic.MessageParam[] = [
-				...historyMessages.slice(-2),
-				{ role: 'user', content: userContent }
-			];
-
-			const classifyResponse = await anthropic.messages.create({
-				model: 'claude-haiku-4-5',
-				max_tokens: 20,
-				system: [{ type: 'text', text: CLASSIFIER_PROMPT }],
-				messages: classifyMessages
+			const { route } = await classifyStitchMessage({
+				client: anthropic,
+				history: historyMessages,
+				message: userContent as string,
+				onResponse: (response) =>
+					logUsage({
+						endpoint: 'chat',
+						purpose: 'classifier',
+						model: CLASSIFIER_MODEL,
+						organizationId: locals.organization!.id,
+						userId: locals.user!.id,
+						response
+					})
 			});
-			logUsage({
-				endpoint: 'chat',
-				purpose: 'classifier',
-				model: 'claude-haiku-4-5',
-				organizationId: locals.organization!.id,
-				userId: locals.user!.id,
-				response: classifyResponse
-			});
-			const classification =
-				classifyResponse.content[0]?.type === 'text'
-					? classifyResponse.content[0].text.trim().toUpperCase()
-					: 'TOOLS';
-			useHaiku = classification === 'CHAT';
+			useHaiku = route === 'CHAT';
 		}
 
 		if (useHaiku) {
 			// Simple conversational response — Haiku without tools
-			const haikuResponse = await anthropic.messages.create({
-				model: 'claude-haiku-4-5',
-				max_tokens: 1024,
+			const reply = await runStitchChatReply({
+				client: anthropic,
 				system: systemBlocks,
-				messages
+				messages,
+				onResponse: (response) =>
+					logUsage({
+						endpoint: 'chat',
+						purpose: 'chat',
+						model: CHAT_MODEL,
+						organizationId: locals.organization!.id,
+						userId: locals.user!.id,
+						response
+					})
 			});
-			logUsage({
-				endpoint: 'chat',
-				purpose: 'chat',
-				model: 'claude-haiku-4-5',
-				organizationId: locals.organization!.id,
-				userId: locals.user!.id,
-				response: haikuResponse
-			});
-			const textBlocks = haikuResponse.content.filter(
-				(block): block is Anthropic.TextBlock => block.type === 'text'
-			);
-			let responseText = textBlocks.map((b) => b.text).join('\n');
-
-			let suggestions: string[] | undefined;
-			const lines = responseText.trimEnd().split('\n');
-			const lastLine = lines[lines.length - 1];
-			if (lastLine?.startsWith('SUGGESTIONS:')) {
-				try {
-					suggestions = JSON.parse(lastLine.slice('SUGGESTIONS:'.length));
-					responseText = lines.slice(0, -1).join('\n').trimEnd();
-				} catch {
-					/* leave as-is */
-				}
-			}
+			const responseText = reply.text;
+			const suggestions = reply.suggestions;
 
 			if (activeConversationId) {
 				await appendMessage(activeConversationId, 'assistant', responseText);
