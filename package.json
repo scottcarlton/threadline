@@ -24,7 +24,9 @@
 		"seed": "bun run scripts/seed-demo.ts",
 		"admin:create": "bun run scripts/create-system-admin.ts",
 		"seed:reset": "bun run reset && bun run seed",
-		"dev:fresh": "bun run seed:reset && bun run dev"
+		"dev:fresh": "bun run seed:reset && bun run dev",
+		"eval:stitch": "bun run scripts/eval-stitch-init.ts && bun run scripts/eval-stitch.mjs --flow .claude/hillclimb/stitch-chat --timeout-s 300",
+		"eval:stitch:gate": "bun run scripts/eval-stitch-gate.ts"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.3",
