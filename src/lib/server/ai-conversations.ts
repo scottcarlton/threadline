@@ -16,6 +16,7 @@ import { supabaseAdmin } from './supabase.js';
 import {
 	applyHistoryLimits,
 	DEFAULT_HISTORY_LIMITS,
+	toHistoryMessages,
 	type HistoryLimits,
 	type PlainTurn
 } from './ai-history.js';
@@ -43,19 +44,8 @@ const MAX_TITLE_CHARS = 60;
 const FALLBACK_TITLE_CHARS = 50;
 const DEFAULT_LIST_LIMIT = 20;
 
-/** Stored rows to Messages API params. Empty turns are dropped, not sent. */
-export function toHistoryMessages(
-	rows: PlainTurn[],
-	limits: HistoryLimits = DEFAULT_HISTORY_LIMITS
-): Anthropic.MessageParam[] {
-	const nonEmpty = rows
-		.map((row) => ({ role: row.role, content: row.content.trim() }))
-		.filter((row) => row.content.length > 0);
-	return applyHistoryLimits(nonEmpty, limits).map((turn) => ({
-		role: turn.role,
-		content: turn.content
-	}));
-}
+// Re-export toHistoryMessages so existing importers still work
+export { toHistoryMessages };
 
 /** Clean a model-generated title, or null if nothing usable came back. */
 export function normalizeTitle(raw: string): string | null {
