@@ -303,6 +303,8 @@ For each route with a `+page.server.ts`, the tables queried and whether it needs
 
 | `/invoices` | GET | `invoices` | Own-org: `organization_id IN scope.ownOrgIds`. Redirects a non-brand org. | Brand-org only. A rep org never issues invoices, so an empty list would read as "none yet" rather than "not your screen". |
 | `/invoices/[id]` | GET, POST | `invoices`, `invoice_lines`, `invoice_payments` | Own-org, scoped inside the query; 404 when outside it | 404 rather than 403, so an invoice in another org is indistinguishable from one that does not exist. Actions `?/recordPayment` and `?/voidInvoice` are **admin/owner only**, one step tighter than the table's UPDATE policy, and go through `loadIssuingOrgInvoice` so they never follow the federation arm. |
+| `/returns` | GET | `return_authorizations` | RLS (`locals.supabase`): all three SELECT arms | Brand, rep and buyer each see their own slice; no own-org filter because a rep's and a buyer's returns are issued by the brand org. |
+| `/returns/[id]` | GET, POST | `return_authorizations`, `return_lines`, `product_variants` | RLS (`locals.supabase`): brand, rep and buyer arms of the returns SELECT policy; 404 when not visible | Actions `?/approve`, `?/decline`, `?/receive`, `?/cancel` go through `applyReturnTransition()`: **issuing org only** (`loadIssuingOrgReturn`), admin/owner/member, same as `/api/returns/[id]/transition`. Controls render only for that audience; reps and buyers see progress, not buttons. |
 
 ## A.5 Per-API-Endpoint Classification
 
