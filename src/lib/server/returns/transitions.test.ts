@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	decideTransition,
+	restockSkipReason,
 	shouldRestock,
 	validateDispositions,
 	type ReturnTransition
@@ -129,6 +130,29 @@ describe('shouldRestock', () => {
 				variant: { stock_qty: 0, shopify_variant_id: null }
 			})
 		).toBe(true);
+	});
+});
+
+describe('restockSkipReason', () => {
+	it('names each skip, and agrees with shouldRestock', () => {
+		const cases = [
+			{ variant_id: null, variant: null, want: 'no_variant' },
+			{
+				variant_id: 'v1',
+				variant: { stock_qty: null, shopify_variant_id: null },
+				want: 'untracked'
+			},
+			{
+				variant_id: 'v1',
+				variant: { stock_qty: 4, shopify_variant_id: 'gid://1' },
+				want: 'shopify'
+			},
+			{ variant_id: 'v1', variant: { stock_qty: 0, shopify_variant_id: null }, want: null }
+		] as const;
+		for (const c of cases) {
+			expect(restockSkipReason(c)).toBe(c.want);
+			expect(shouldRestock({ ...c, disposition: 'restock' })).toBe(c.want === null);
+		}
 	});
 });
 

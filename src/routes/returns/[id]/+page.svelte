@@ -1,6 +1,23 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { toast } from 'svelte-sonner';
+	import { superForm } from 'sveltekit-superforms';
+	import { zod4Client } from 'sveltekit-superforms/adapters';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
+	import {
+		Dialog,
+		DialogContent,
+		DialogTitle,
+		DialogDescription
+	} from '$lib/components/ui/dialog/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import { declineReturnSchema, receiveReturnSchema } from '$lib/schemas/return-transition.js';
 	import {
 		RETURN_DISPOSITION_LABELS,
 		RETURN_STATUS_LABELS,
@@ -19,6 +36,94 @@
 	const lines = $derived(ra.return_lines ?? []);
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+	let declineOpen = $state(false);
+	let receiveOpen = $state(false);
+	let cancelOpen = $state(false);
+	let pending = $state<'approve' | 'cancel' | null>(null);
+
+	// svelte-ignore state_referenced_locally
+	const {
+		form: declineData,
+		errors: declineErrors,
+		enhance: declineEnhance,
+		submitting: declineSubmitting
+	} = superForm(data.declineForm, {
+		id: 'decline-return',
+		validators: zod4Client(declineReturnSchema),
+		validationMethod: 'onblur',
+		onUpdated: ({ form }) => {
+			if (form.message?.type === 'success') {
+				declineOpen = false;
+				toast.success('Return declined.');
+				invalidate('data:returns');
+			} else if (form.message) {
+				toast.error(String(form.message));
+			}
+		},
+		onError: ({ result }) => toast.error(result.error?.message ?? 'Could not decline the return.')
+	});
+
+	// svelte-ignore state_referenced_locally
+	const {
+		form: receiveData,
+		enhance: receiveEnhance,
+		submitting: receiveSubmitting
+	} = superForm(data.receiveForm, {
+		id: 'receive-return',
+		dataType: 'json',
+		validators: zod4Client(receiveReturnSchema),
+		onUpdated: ({ form }) => {
+			if (form.message?.type === 'success') {
+				receiveOpen = false;
+				toast.success('Return received.');
+				invalidate('data:returns');
+			} else if (form.message) {
+				toast.error(String(form.message));
+			}
+		},
+		onError: ({ result }) => toast.error(result.error?.message ?? 'Could not receive the return.')
+	});
+
+	function openReceive() {
+		// Restock is the default because it is what happens to most returned
+		// wholesale goods. The brand changes the exceptions, not every line.
+		receiveData.update((d) => ({
+			...d,
+			dispositions: lines.map((l) => ({ lineId: l.id, disposition: 'restock' as const }))
+		}));
+		receiveOpen = true;
+	}
+
+	const dispositionItems = (['restock', 'damaged', 'destroy'] as const).map((value) => ({
+		value,
+		label: RETURN_DISPOSITION_LABELS[value]
+	}));
+
+	const restockSkipNotes: Record<string, string> = {
+		no_variant: 'Not linked to a catalog item, so no stock changes.',
+		untracked: 'Stock is not tracked for this item, so no count changes.',
+		shopify: 'Stock syncs from Shopify. Restock it there.'
+	};
+
+	/** Approve and cancel carry no fields, so they post plainly. */
+	function plainAction(name: 'approve' | 'cancel', done: string, failed: string): SubmitFunction {
+		return () => {
+			pending = name;
+			return async ({ result }) => {
+				pending = null;
+				if (result.type === 'success') {
+					cancelOpen = false;
+					toast.success(done);
+					await invalidate('data:returns');
+				} else if (result.type === 'failure') {
+					toast.error(String(result.data?.message ?? failed));
+				} else if (result.type === 'error') {
+					toast.error(result.error?.message ?? failed);
+				}
+			};
+		};
+	}
 
 	// Same palette as the list, and as /invoices.
 	const statusBadgeColors: Record<string, string> = {
@@ -56,7 +161,9 @@
 			{ label: 'Requested', at: ra.requested_at }
 		];
 		if (ra.status === 'declined') {
-			events.push({ label: 'Declined', at: ra.approved_at, note: ra.decline_reason });
+			// No declined_at column, and a decline is the last write a declined
+			// return receives, so updated_at is when it happened. Same as cancel.
+			events.push({ label: 'Declined', at: ra.updated_at, note: ra.decline_reason });
 		} else if (ra.approved_at) {
 			events.push({ label: 'Approved', at: ra.approved_at });
 		}
@@ -103,6 +210,40 @@
 				{/if}
 			</p>
 		</div>
+
+		<!--
+			One primary action for where the return is: a request waits on a
+			decision, an approved return waits on the goods. The negative action
+			sits beside it with less weight. Brand only; a rep or buyer asked for
+			this and sees its progress, not the controls.
+		-->
+		{#if data.canAction}
+			<div class="flex items-center gap-2">
+				{#if ra.status === 'requested'}
+					<Button variant="outline" onclick={() => (declineOpen = true)}>Decline</Button>
+					<form
+						method="POST"
+						action="?/approve"
+						use:enhance={plainAction(
+							'approve',
+							'Return approved.',
+							'Could not approve the return.'
+						)}
+					>
+						<Button type="submit" disabled={pending === 'approve'}>
+							{pending === 'approve' ? 'Approving…' : 'Approve'}
+						</Button>
+					</form>
+				{:else if ra.status === 'approved'}
+					<Button
+						variant="ghost"
+						class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+						onclick={() => (cancelOpen = true)}>Cancel return</Button
+					>
+					<Button onclick={openReceive}>Receive goods</Button>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	<div class="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -268,3 +409,115 @@
 		</div>
 	</div>
 </div>
+
+<Dialog bind:open={declineOpen}>
+	<DialogContent class="max-w-md p-6">
+		<DialogTitle>Decline this return?</DialogTitle>
+		<DialogDescription>The requester sees your reason.</DialogDescription>
+
+		<form method="POST" action="?/decline" use:declineEnhance class="mt-5 space-y-4">
+			<div class="space-y-2">
+				<Label for="decline-reason">Reason</Label>
+				<Input
+					id="decline-reason"
+					name="reason"
+					placeholder="Outside the return window"
+					bind:value={$declineData.reason}
+				/>
+				{#if $declineErrors.reason}
+					<p class="text-sm text-destructive">{$declineErrors.reason[0]}</p>
+				{/if}
+			</div>
+
+			<div class="flex justify-end gap-2 pt-2">
+				<Button type="button" variant="outline" onclick={() => (declineOpen = false)}>
+					Keep it
+				</Button>
+				<Button type="submit" disabled={$declineSubmitting}>
+					{$declineSubmitting ? 'Declining…' : 'Decline return'}
+				</Button>
+			</div>
+		</form>
+	</DialogContent>
+</Dialog>
+
+<!--
+	Receive. Every line needs a disposition before the goods count as in, and
+	the lines that will not move stock say so here, before anything changes,
+	rather than leaving the brand to notice a count that stayed put.
+-->
+<Dialog bind:open={receiveOpen}>
+	<DialogContent class="max-w-lg p-6">
+		<DialogTitle>Receive {ra.ra_number ?? 'return'}</DialogTitle>
+		<DialogDescription>
+			Set what happens to each item. Restocked items go back into available stock.
+		</DialogDescription>
+
+		<form method="POST" action="?/receive" use:receiveEnhance class="mt-5 space-y-4">
+			<div class="max-h-[50vh] space-y-3 overflow-y-auto">
+				{#each $receiveData.dispositions as row, i (row.lineId)}
+					{@const line = lines.find((l) => l.id === row.lineId)}
+					{@const skip = data.restockSkips[row.lineId]}
+					<div class="flex items-start justify-between gap-4">
+						<div class="min-w-0">
+							<p class="text-sm">
+								<span class="font-mono">{line?.style_number ?? '—'}</span>
+								<span class="text-muted-foreground">
+									· {[line?.color, line?.size].filter(Boolean).join(' · ')} · {line?.qty} units
+								</span>
+							</p>
+							{#if row.disposition === 'restock' && skip}
+								<p class="mt-1 text-sm text-muted-foreground">{restockSkipNotes[skip]}</p>
+							{/if}
+						</div>
+						<div class="w-36 shrink-0">
+							<SelectField
+								value={row.disposition}
+								items={dispositionItems}
+								placeholder="Disposition"
+								onValueChange={(v) =>
+									($receiveData.dispositions[i].disposition = v as
+										| 'restock'
+										| 'damaged'
+										| 'destroy')}
+							/>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<div class="flex justify-end gap-2 pt-2">
+				<Button type="button" variant="outline" onclick={() => (receiveOpen = false)}>
+					Not yet
+				</Button>
+				<Button type="submit" disabled={$receiveSubmitting}>
+					{$receiveSubmitting ? 'Receiving…' : 'Mark received'}
+				</Button>
+			</div>
+		</form>
+	</DialogContent>
+</Dialog>
+
+<Dialog bind:open={cancelOpen}>
+	<DialogContent class="max-w-md p-6">
+		<DialogTitle>Cancel {ra.ra_number ?? 'this return'}?</DialogTitle>
+		<DialogDescription>
+			This cannot be undone. The return keeps its number and stays in your records, marked
+			cancelled, so the numbering stays unbroken.
+		</DialogDescription>
+
+		<form
+			method="POST"
+			action="?/cancel"
+			use:enhance={plainAction('cancel', 'Return cancelled.', 'Could not cancel the return.')}
+			class="mt-5 flex justify-end gap-2"
+		>
+			<Button type="button" variant="outline" onclick={() => (cancelOpen = false)}>
+				Keep return
+			</Button>
+			<Button type="submit" variant="destructive" disabled={pending === 'cancel'}>
+				{pending === 'cancel' ? 'Cancelling…' : 'Cancel return'}
+			</Button>
+		</form>
+	</DialogContent>
+</Dialog>
