@@ -6,6 +6,7 @@ import { computeAccountHealth } from '$lib/server/account-health.js';
 import { BRIEFING_PROMPT } from '$lib/server/ai-prompts.js';
 import { logUsage } from '$lib/server/ai-usage.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
+import { reportAiError } from '$lib/server/ai-errors.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -329,7 +330,8 @@ ${
 		}
 
 		return json({ briefing });
-	} catch {
+	} catch (err) {
+		reportAiError(err, { endpoint: 'briefing', purpose: 'briefing', organizationId: orgId });
 		return json({ briefing: null, error: 'Failed to generate briefing' });
 	}
 };

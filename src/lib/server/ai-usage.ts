@@ -1,6 +1,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from './supabase.js';
 import { PROMPT_VERSION } from './ai-prompts.js';
+import { defer } from './audit/defer.js';
+import { logSupabaseError } from './log-supabase-error.js';
 
 export type UsageLogInput = {
 	endpoint: string;
@@ -11,8 +13,11 @@ export type UsageLogInput = {
 	response: Anthropic.Message;
 };
 
-// Fire-and-forget usage logger. Never blocks the response path — if the
-// insert fails we swallow the error and keep serving the request.
+// Fire-and-forget usage logger. Never blocks the response path. The insert
+// runs through defer so Vercel keeps the instance alive until it lands; a
+// bare floating promise can be frozen mid-flight and the row silently lost.
+// A failed insert is reported, never thrown: spend data must not cost the
+// user their answer.
 export function logUsage(input: UsageLogInput): void {
 	const usage = input.response.usage;
 	const record = {
@@ -31,11 +36,8 @@ export function logUsage(input: UsageLogInput): void {
 	// Console log for fast local iteration / log aggregation
 	console.log('AI usage', record);
 
-	// Best-effort DB insert — swallow errors, don't block the caller
-	void supabaseAdmin
-		.from('ai_usage_logs')
-		.insert(record)
-		.then(({ error }) => {
-			if (error) console.error('ai_usage_logs insert failed:', error.message);
-		});
+	void defer(async () => {
+		const { error } = await supabaseAdmin.from('ai_usage_logs').insert(record);
+		logSupabaseError('ai_usage_logs insert', error);
+	});
 }
