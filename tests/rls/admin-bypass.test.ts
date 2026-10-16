@@ -69,6 +69,7 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/lib/server/retailers.ts',
 	'src/lib/server/returns/apply-transition.ts',
 	'src/lib/server/returns/authorize-return.ts',
+	'src/lib/server/returns/credit-memo.ts',
 	'src/lib/server/returns/policy.ts',
 	'src/lib/server/setup-status.ts',
 	'src/lib/server/user-lookup.ts',

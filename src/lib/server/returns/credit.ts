@@ -37,6 +37,8 @@
  * this ratio rather than a replacement for it.
  */
 
+import { returnCreditTotal } from '$lib/utils/return-credit-total.js';
+
 /** Mirrors `organizations.returns_restocking_fee_type`. */
 export type RestockingFeeType = 'percent' | 'flat';
 
@@ -211,15 +213,13 @@ export function calculateReturnCredit(input: ReturnCreditInput): ReturnCreditBre
 			? roundMoney(toAmount(overrides.creditTax))
 			: proratedCreditTax(sourceInvoice, creditSubtotal);
 
-	const inclusive = sourceInvoice?.pricingDisplay === 'inclusive';
-	const rawTotal = inclusive
-		? creditSubtotal - restockingFee - shippingDeduction
-		: creditSubtotal - restockingFee - shippingDeduction + creditTax;
-
-	// Floored at zero. Deductions larger than the goods mean the brand owes
-	// nothing, not that the buyer owes the brand; billing for a return is a new
-	// invoice and a separate decision.
-	const creditTotal = roundMoney(Math.max(rawTotal, 0));
+	const creditTotal = returnCreditTotal({
+		creditSubtotal,
+		restockingFee,
+		shippingDeduction,
+		creditTax,
+		inclusive: sourceInvoice?.pricingDisplay === 'inclusive'
+	});
 
 	return { creditSubtotal, restockingFee, shippingDeduction, creditTax, creditTotal };
 }
