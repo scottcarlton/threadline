@@ -7,8 +7,6 @@
 	import {
 		Dialog,
 		DialogContent,
-		DialogOverlay,
-		DialogPortal,
 		DialogTitle,
 		DialogDescription
 	} from '$lib/components/ui/dialog/index.js';
@@ -49,6 +47,9 @@
 		submitting: paymentSubmitting
 	} = superForm(data.paymentForm, {
 		id: 'record-payment',
+		// JSON, not form data: DateSelect and SelectField render no named
+		// input, so a native post silently dropped the date and the method.
+		dataType: 'json',
 		validators: zod4Client(recordPaymentSchema),
 		validationMethod: 'onblur',
 		onUpdated: ({ form }) => {
@@ -70,6 +71,7 @@
 		submitting: voidSubmitting
 	} = superForm(data.voidForm, {
 		id: 'void-invoice',
+		dataType: 'json',
 		validators: zod4Client(voidInvoiceSchema),
 		validationMethod: 'onblur',
 		onUpdated: ({ form }) => {
@@ -420,78 +422,75 @@
 	to fill it in would lose the context that tells them what to type.
 -->
 <Dialog bind:open={paymentOpen}>
-	<DialogPortal>
-		<DialogOverlay />
-		<DialogContent class="max-w-md">
-			<DialogTitle>Record payment</DialogTitle>
-			<DialogDescription>
-				{invoice.invoice_number ?? 'This invoice'} · {fmt.format(balance)} outstanding
-			</DialogDescription>
+	<DialogContent class="max-w-md p-6">
+		<DialogTitle>Record payment</DialogTitle>
+		<DialogDescription>
+			{invoice.invoice_number ?? 'This invoice'} · {fmt.format(balance)} outstanding
+		</DialogDescription>
 
-			<form method="POST" action="?/recordPayment" use:paymentEnhance class="mt-5 space-y-4">
-				<div class="space-y-2">
-					<Label for="payment-amount">Amount</Label>
-					<Input
-						id="payment-amount"
-						type="number"
-						step="0.01"
-						min="0"
-						class="text-right font-mono"
-						bind:value={$paymentData.amount}
-					/>
-					{#if $paymentErrors.amount}
-						<p class="text-sm text-destructive">{$paymentErrors.amount[0]}</p>
-					{/if}
-				</div>
+		<form method="POST" action="?/recordPayment" use:paymentEnhance class="mt-5 space-y-4">
+			<div class="space-y-2">
+				<Label for="payment-amount">Amount</Label>
+				<Input
+					id="payment-amount"
+					type="number"
+					step="0.01"
+					min="0"
+					class="text-right font-mono"
+					bind:value={$paymentData.amount}
+				/>
+				{#if $paymentErrors.amount}
+					<p class="text-sm text-destructive">{$paymentErrors.amount[0]}</p>
+				{/if}
+			</div>
 
-				<div class="space-y-2">
-					<Label for="payment-date">Date received</Label>
-					<DateSelect
-						id="payment-date"
-						value={$paymentData.paidOn}
-						onchange={(v) => ($paymentData.paidOn = v)}
-					/>
-					{#if $paymentErrors.paidOn}
-						<p class="text-sm text-destructive">{$paymentErrors.paidOn[0]}</p>
-					{/if}
-				</div>
+			<div class="space-y-2">
+				<Label for="payment-date">Date received</Label>
+				<DateSelect
+					id="payment-date"
+					value={$paymentData.paidOn}
+					onchange={(v) => ($paymentData.paidOn = v)}
+				/>
+				{#if $paymentErrors.paidOn}
+					<p class="text-sm text-destructive">{$paymentErrors.paidOn[0]}</p>
+				{/if}
+			</div>
 
-				<div class="space-y-2">
-					<Label for="payment-method">Method</Label>
-					<SelectField
-						value={$paymentData.method ?? ''}
-						items={[
-							{ value: '', label: 'Not specified' },
-							...paymentMethods.map((m) => ({ value: m.code, label: m.label }))
-						]}
-						placeholder="Method"
-						onValueChange={(v) => ($paymentData.method = v || undefined)}
-					/>
-				</div>
+			<div class="space-y-2">
+				<Label for="payment-method">Method</Label>
+				<SelectField
+					value={$paymentData.method ?? ''}
+					items={[
+						{ value: '', label: 'Not specified' },
+						...paymentMethods.map((m) => ({ value: m.code, label: m.label }))
+					]}
+					placeholder="Method"
+					onValueChange={(v) => ($paymentData.method = v || undefined)}
+				/>
+			</div>
 
-				<div class="space-y-2">
-					<Label for="payment-reference">Reference</Label>
-					<Input
-						id="payment-reference"
-						placeholder="Check number, transfer id"
-						bind:value={$paymentData.reference}
-					/>
-					{#if $paymentErrors.reference}
-						<p class="text-sm text-destructive">{$paymentErrors.reference[0]}</p>
-					{/if}
-				</div>
+			<div class="space-y-2">
+				<Label for="payment-reference">Reference</Label>
+				<Input
+					id="payment-reference"
+					placeholder="Check number, transfer id"
+					bind:value={$paymentData.reference}
+				/>
+				{#if $paymentErrors.reference}
+					<p class="text-sm text-destructive">{$paymentErrors.reference[0]}</p>
+				{/if}
+			</div>
 
-				<div class="flex justify-end gap-2 pt-2">
-					<Button type="button" variant="outline" onclick={() => (paymentOpen = false)}>
-						Cancel
-					</Button>
-					<Button type="submit" disabled={$paymentSubmitting}>
-						{$paymentSubmitting ? 'Recording…' : 'Record payment'}
-					</Button>
-				</div>
-			</form>
-		</DialogContent>
-	</DialogPortal>
+			<div class="flex justify-end gap-2 pt-2">
+				<Button type="button" variant="outline" onclick={() => (paymentOpen = false)}>
+					Cancel
+				</Button>
+				<Button type="submit" disabled={$paymentSubmitting}>
+					{$paymentSubmitting ? 'Recording…' : 'Record payment'}
+				</Button>
+			</div>
+		</form>
+	</DialogContent>
 </Dialog>
 
 <!--
@@ -501,37 +500,34 @@
 	reading the ledger will actually want.
 -->
 <Dialog bind:open={voidOpen}>
-	<DialogPortal>
-		<DialogOverlay />
-		<DialogContent class="max-w-md">
-			<DialogTitle>Void {invoice.invoice_number ?? 'this invoice'}?</DialogTitle>
-			<DialogDescription>
-				This cannot be undone. The invoice keeps its number and stays in your records, marked void,
-				so the numbering stays unbroken.
-			</DialogDescription>
+	<DialogContent class="max-w-md p-6">
+		<DialogTitle>Void {invoice.invoice_number ?? 'this invoice'}?</DialogTitle>
+		<DialogDescription>
+			This cannot be undone. The invoice keeps its number and stays in your records, marked void, so
+			the numbering stays unbroken.
+		</DialogDescription>
 
-			<form method="POST" action="?/voidInvoice" use:voidEnhance class="mt-5 space-y-4">
-				<div class="space-y-2">
-					<Label for="void-reason">Reason</Label>
-					<Input
-						id="void-reason"
-						placeholder="Order cancelled, billed in error"
-						bind:value={$voidData.reason}
-					/>
-					<p class="text-sm text-muted-foreground">
-						Optional, but it is what explains the gap to whoever reads this later.
-					</p>
-				</div>
+		<form method="POST" action="?/voidInvoice" use:voidEnhance class="mt-5 space-y-4">
+			<div class="space-y-2">
+				<Label for="void-reason">Reason</Label>
+				<Input
+					id="void-reason"
+					placeholder="Order cancelled, billed in error"
+					bind:value={$voidData.reason}
+				/>
+				<p class="text-sm text-muted-foreground">
+					Optional, but it is what explains the gap to whoever reads this later.
+				</p>
+			</div>
 
-				<div class="flex justify-end gap-2 pt-2">
-					<Button type="button" variant="outline" onclick={() => (voidOpen = false)}>
-						Keep invoice
-					</Button>
-					<Button type="submit" variant="destructive" disabled={$voidSubmitting}>
-						{$voidSubmitting ? 'Voiding…' : 'Void invoice'}
-					</Button>
-				</div>
-			</form>
-		</DialogContent>
-	</DialogPortal>
+			<div class="flex justify-end gap-2 pt-2">
+				<Button type="button" variant="outline" onclick={() => (voidOpen = false)}>
+					Keep invoice
+				</Button>
+				<Button type="submit" variant="destructive" disabled={$voidSubmitting}>
+					{$voidSubmitting ? 'Voiding…' : 'Void invoice'}
+				</Button>
+			</div>
+		</form>
+	</DialogContent>
 </Dialog>
