@@ -237,7 +237,7 @@ export function drawTotalRow(
 	c: PdfCanvas,
 	label: string,
 	amount: number,
-	options: { emphasis?: boolean } = {}
+	options: { emphasis?: boolean; deduction?: boolean } = {}
 ): void {
 	const emphasis = options.emphasis ?? false;
 	const size = emphasis ? 12 : 10;
@@ -245,6 +245,9 @@ export function drawTotalRow(
 	const color = emphasis ? c.colors.black : c.colors.gray;
 
 	c.text(label, c.pageWidth - c.margin - 150, c.y, { font, size, color });
-	c.rightText('$' + amount.toFixed(2), c.y, { font, size, color });
+	// A deduction prints as -$10.00, not $-10.00, which is how a credit memo
+	// reader expects money taken off to look.
+	const text = options.deduction ? '-$' + Math.abs(amount).toFixed(2) : '$' + amount.toFixed(2);
+	c.rightText(text, c.y, { font, size, color });
 	c.y -= emphasis ? 30 : 16;
 }
