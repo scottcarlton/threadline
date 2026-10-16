@@ -68,7 +68,19 @@ describe('buildJudgeRequest', () => {
 		const user = JSON.stringify(req.messages[0].content);
 		expect(user).toContain('untrusted-content source=\\"conversation transcript\\"');
 		expect(user).toContain(kase.rubric);
-		expect(user).toContain('turn 2: CHAT');
+		expect(user).toContain('turn 2 (\\"Saltwater Linen\\"): CHAT');
+	});
+	it('labels routes with the live turn text and states the seeded history size', () => {
+		const t = loadStitchCases(['thanks-routes-chat'])[0];
+		const user = JSON.stringify(
+			buildJudgeRequest(t, [{ role: 'user', content: 'x' }], ['CHAT']).messages[0].content
+		);
+		expect(user).toContain('turn 1 (\\"thanks, that\'s perfect\\"): CHAT (Haiku, no tools)');
+		expect(user).toContain('<seeded_history>');
+		expect(user).toContain('first 2 messages');
+	});
+	it('omits the seeded-history block when there is no history', () => {
+		expect(JSON.stringify(req.messages[0].content)).not.toContain('<seeded_history>');
 	});
 	it('tells the judge earlier tool results are not visible in later turns', () => {
 		expect(String(req.system)).toMatch(/earlier turns? (were|are) not visible/i);
