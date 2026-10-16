@@ -9,7 +9,13 @@ import {
 	type TransitionInput
 } from '$lib/server/returns/apply-transition.js';
 import { restockSkipReason, type RestockSkipReason } from '$lib/server/returns/transitions.js';
-import { declineReturnSchema, receiveReturnSchema } from '$lib/schemas/return-transition.js';
+import { loadCreditDefaults } from '$lib/server/returns/credit-memo.js';
+import { loadIssuingOrgReturn } from '$lib/server/returns/authorize-return.js';
+import {
+	declineReturnSchema,
+	issueCreditMemoSchema,
+	receiveReturnSchema
+} from '$lib/schemas/return-transition.js';
 
 /**
  * One return.
@@ -32,8 +38,23 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	// the gate, just the reason a rep never sees a button that would 403.
 	const canAction = isIssuer && TRANSITION_ROLES.has(locals.membership?.role ?? '');
 
+	const creditDefaults =
+		canAction && ra.status === 'received' ? await loadCreditDefaults(ra) : null;
+
 	return {
 		returnAuthorization: ra,
+		creditDefaults,
+		issueForm: await superValidate(
+			creditDefaults
+				? {
+						restockingFee: creditDefaults.restockingFee,
+						shippingDeduction: creditDefaults.shippingDeduction,
+						creditTax: creditDefaults.creditTax
+					}
+				: { restockingFee: 0, shippingDeduction: 0, creditTax: 0 },
+			zod4(issueCreditMemoSchema),
+			{ errors: false }
+		),
 		isIssuer,
 		canAction,
 		restockSkips: canAction && ra.status === 'approved' ? await loadRestockSkips(locals, ra) : {},
@@ -130,5 +151,35 @@ export const actions: Actions = {
 		if (!result.ok) return fail(result.httpStatus, { form, message: result.error });
 
 		return message(form, { type: 'success' as const });
+	},
+
+	issueCreditMemo: async ({ request, locals, params }) => {
+		const form = await superValidate(request, zod4(issueCreditMemoSchema));
+		if (!form.valid) return fail(400, { form });
+
+		if (!locals.organization || !TRANSITION_ROLES.has(locals.membership?.role ?? '')) {
+			return fail(403, { form, message: 'Only the brand can issue a credit memo.' });
+		}
+
+		// Issuing org only. issue_credit_memo() re-checks the role itself; this
+		// is what turns another org's return into a 404 rather than an error
+		// message about it.
+		const ra = await loadIssuingOrgReturn(params.id, locals.organization.id);
+		if (!ra) return fail(404, { form, message: 'Return not found.' });
+
+		// As the signed-in user: the function authorizes through get_user_role().
+		const { data, error: issueError } = await locals.supabase.rpc('issue_credit_memo', {
+			p_return_id: ra.id,
+			p_restocking_fee: form.data.restockingFee,
+			p_shipping_deduction: form.data.shippingDeduction,
+			p_credit_tax: form.data.creditTax
+		});
+		if (issueError) return fail(400, { form, message: issueError.message });
+
+		const issued = data as { credit_memo_number: string | null } | null;
+		return message(form, {
+			type: 'success' as const,
+			creditMemoNumber: issued?.credit_memo_number ?? null
+		});
 	}
 };

@@ -17,7 +17,12 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
-	import { declineReturnSchema, receiveReturnSchema } from '$lib/schemas/return-transition.js';
+	import {
+		declineReturnSchema,
+		issueCreditMemoSchema,
+		receiveReturnSchema
+	} from '$lib/schemas/return-transition.js';
+	import { returnCreditTotal } from '$lib/utils/return-credit-total.js';
 	import {
 		RETURN_DISPOSITION_LABELS,
 		RETURN_STATUS_LABELS,
@@ -40,6 +45,7 @@
 	let declineOpen = $state(false);
 	let receiveOpen = $state(false);
 	let cancelOpen = $state(false);
+	let issueOpen = $state(false);
 	let pending = $state<'approve' | 'cancel' | null>(null);
 
 	// svelte-ignore state_referenced_locally
@@ -83,6 +89,69 @@
 			}
 		},
 		onError: ({ result }) => toast.error(result.error?.message ?? 'Could not receive the return.')
+	});
+
+	// svelte-ignore state_referenced_locally
+	const {
+		form: issueData,
+		errors: issueErrors,
+		enhance: issueEnhance,
+		submitting: issueSubmitting
+	} = superForm(data.issueForm, {
+		id: 'issue-credit-memo',
+		dataType: 'json',
+		validators: zod4Client(issueCreditMemoSchema),
+		validationMethod: 'onblur',
+		onUpdated: ({ form }) => {
+			if (form.message?.type === 'success') {
+				issueOpen = false;
+				toast.success(`Credit memo ${form.message.creditMemoNumber ?? ''} issued.`);
+				invalidate('data:returns');
+			} else if (form.message) {
+				toast.error(String(form.message));
+			}
+		},
+		onError: ({ result }) =>
+			toast.error(result.error?.message ?? 'Could not issue the credit memo.')
+	});
+
+	const credit = $derived(data.creditDefaults);
+
+	/** Live, as the brand edits the deductions. The database recomputes it on issue. */
+	const issueTotal = $derived(
+		credit
+			? returnCreditTotal({
+					creditSubtotal: credit.creditSubtotal,
+					restockingFee: Number($issueData.restockingFee) || 0,
+					shippingDeduction: Number($issueData.shippingDeduction) || 0,
+					creditTax: Number($issueData.creditTax) || 0,
+					inclusive: credit.inclusive
+				})
+			: 0
+	);
+
+	const feeHint = $derived.by(() => {
+		if (!credit) return '';
+		const { restockingFeeType, restockingFeeValue } = credit.policy;
+		if (!(restockingFeeValue > 0)) return 'Your policy has no restocking fee.';
+		return restockingFeeType === 'percent'
+			? `Your policy: ${restockingFeeValue}% of merchandise.`
+			: `Your policy: ${fmt.format(restockingFeeValue)} per return.`;
+	});
+
+	const shippingHint = $derived(
+		credit?.policy.buyerPaysShipping
+			? 'Your policy charges return shipping to the buyer. Enter what it cost.'
+			: 'Your policy covers return shipping.'
+	);
+
+	const taxHint = $derived.by(() => {
+		if (!credit) return '';
+		if (!credit.sourceInvoiceNumber)
+			return 'No issued invoice for this return, so no tax unless you enter it.';
+		return credit.inclusive
+			? `Prorated from ${credit.sourceInvoiceNumber}. Your prices include tax, so it is shown on the memo but not added.`
+			: `Prorated from ${credit.sourceInvoiceNumber}.`;
 	});
 
 	function openReceive() {
@@ -241,6 +310,8 @@
 						onclick={() => (cancelOpen = true)}>Cancel return</Button
 					>
 					<Button onclick={openReceive}>Receive goods</Button>
+				{:else if ra.status === 'received' && credit}
+					<Button onclick={() => (issueOpen = true)}>Issue credit memo</Button>
 				{/if}
 			</div>
 		{/if}
@@ -519,5 +590,93 @@
 				{pending === 'cancel' ? 'Cancelling…' : 'Cancel return'}
 			</Button>
 		</form>
+	</DialogContent>
+</Dialog>
+
+<!--
+	Issue. The policy's answer is filled in and the brand changes what it is
+	waiving; each field says where its number came from. Issuing numbers and
+	freezes the memo, so the dialog says that before the button does it.
+-->
+<Dialog bind:open={issueOpen}>
+	<DialogContent class="max-w-md p-6">
+		<DialogTitle>Issue credit memo</DialogTitle>
+		<DialogDescription>
+			Issuing numbers the memo and locks it. It cannot be edited afterwards.
+		</DialogDescription>
+
+		{#if credit}
+			<form method="POST" action="?/issueCreditMemo" use:issueEnhance class="mt-5 space-y-4">
+				<div class="flex justify-between text-sm">
+					<span class="text-muted-foreground">Merchandise</span>
+					<span class="font-mono">{fmt.format(credit.creditSubtotal)}</span>
+				</div>
+
+				<div class="space-y-2">
+					<Label for="issue-restocking">Restocking fee</Label>
+					<Input
+						id="issue-restocking"
+						type="number"
+						step="0.01"
+						min="0"
+						class="text-right font-mono"
+						bind:value={$issueData.restockingFee}
+					/>
+					{#if $issueErrors.restockingFee}
+						<p class="text-sm text-destructive">{$issueErrors.restockingFee[0]}</p>
+					{:else}
+						<p class="text-sm text-muted-foreground">{feeHint}</p>
+					{/if}
+				</div>
+
+				<div class="space-y-2">
+					<Label for="issue-shipping">Return shipping</Label>
+					<Input
+						id="issue-shipping"
+						type="number"
+						step="0.01"
+						min="0"
+						class="text-right font-mono"
+						bind:value={$issueData.shippingDeduction}
+					/>
+					{#if $issueErrors.shippingDeduction}
+						<p class="text-sm text-destructive">{$issueErrors.shippingDeduction[0]}</p>
+					{:else}
+						<p class="text-sm text-muted-foreground">{shippingHint}</p>
+					{/if}
+				</div>
+
+				<div class="space-y-2">
+					<Label for="issue-tax">Tax</Label>
+					<Input
+						id="issue-tax"
+						type="number"
+						step="0.01"
+						min="0"
+						class="text-right font-mono"
+						bind:value={$issueData.creditTax}
+					/>
+					{#if $issueErrors.creditTax}
+						<p class="text-sm text-destructive">{$issueErrors.creditTax[0]}</p>
+					{:else}
+						<p class="text-sm text-muted-foreground">{taxHint}</p>
+					{/if}
+				</div>
+
+				<div class="flex justify-between border-t pt-3 text-base font-semibold">
+					<span>Credit</span>
+					<span class="font-mono">{fmt.format(issueTotal)}</span>
+				</div>
+
+				<div class="flex justify-end gap-2 pt-2">
+					<Button type="button" variant="outline" onclick={() => (issueOpen = false)}>
+						Not yet
+					</Button>
+					<Button type="submit" disabled={$issueSubmitting}>
+						{$issueSubmitting ? 'Issuing…' : 'Issue credit memo'}
+					</Button>
+				</div>
+			</form>
+		{/if}
 	</DialogContent>
 </Dialog>

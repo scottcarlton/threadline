@@ -32,3 +32,21 @@ export const receiveReturnSchema = z.object({
 });
 
 export type ReceiveReturnInput = z.infer<typeof receiveReturnSchema>;
+
+const deduction = (label: string) =>
+	z.coerce
+		.number({ message: `Enter the ${label}, or 0` })
+		.min(0, `The ${label} cannot be negative`)
+		.max(99_999_999, 'That amount looks wrong');
+
+/**
+ * Issuing the credit memo. Only the three amounts the brand may override; the
+ * subtotal, applied invoice and total are derived by issue_credit_memo().
+ */
+export const issueCreditMemoSchema = z.object({
+	restockingFee: deduction('restocking fee'),
+	shippingDeduction: deduction('shipping deduction'),
+	creditTax: deduction('tax')
+});
+
+export type IssueCreditMemoInput = z.infer<typeof issueCreditMemoSchema>;
