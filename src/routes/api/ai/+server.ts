@@ -19,6 +19,7 @@ import { generateTitle } from '$lib/server/ai-conversation-title.js';
 import { isSafePath, sanitizeEntityContext } from '$lib/server/ai-context.js';
 import { WRITE_TOOLS, buildStitchTools } from '$lib/server/stitch/tools.js';
 import { buildStitchSystem } from '$lib/server/stitch/system.js';
+import { runStitchTurn, STITCH_MODEL } from '$lib/server/stitch/turn.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -562,86 +563,16 @@ function streamResponse(params: StreamResponseParams): Response {
 
 	const stream = new ReadableStream({
 		async start(controller) {
-			const actions: Array<{ tool: string; input: Record<string, unknown>; result: unknown }> = [];
-			const MAX_TOOL_ITERATIONS = 10;
-			let accumulatedText = '';
-			const messages = params.messages;
-
 			try {
-				let iteration = 0;
-				let stopReason: string | null = null;
-
-				while (iteration++ < MAX_TOOL_ITERATIONS) {
-					const modelStream = params.anthropic.messages.stream({
-						model: 'claude-sonnet-4-6',
-						max_tokens: 4096,
-						system: params.systemBlocks,
-						tools: params.cachedTools,
-						messages
-					});
-
-					modelStream.on('text', (delta: string) => {
-						accumulatedText += delta;
-						send(controller, { type: 'text', delta });
-					});
-
-					const finalMessage = await modelStream.finalMessage();
-					stopReason = finalMessage.stop_reason ?? null;
-					logUsage({
-						endpoint: 'chat',
-						purpose: 'tools',
-						model: 'claude-sonnet-4-6',
-						organizationId: params.locals.organization!.id,
-						userId: params.locals.user!.id,
-						response: finalMessage
-					});
-
-					if (stopReason !== 'tool_use') {
-						messages.push({ role: 'assistant', content: finalMessage.content });
-						break;
-					}
-
-					// Execute tool calls, streaming progress events
-					const toolResults: Anthropic.ToolResultBlockParam[] = [];
-					for (const block of finalMessage.content) {
-						if (block.type !== 'tool_use') continue;
-						send(controller, { type: 'tool_start', name: block.name });
-
-						if (WRITE_TOOLS.has(block.name) && params.role === 'guest') {
-							const denied = {
-								success: false,
-								error: 'Permission denied. Guest users have read-only access.'
-							};
-							toolResults.push({
-								type: 'tool_result',
-								tool_use_id: block.id,
-								content: JSON.stringify(denied)
-							});
-							send(controller, { type: 'tool_result', name: block.name, ok: false });
-							continue;
-						}
-
-						const toolInput = block.input as Record<string, unknown>;
-						if (
-							params.locals.brandScope &&
-							['update_brand'].includes(block.name) &&
-							toolInput.brand_id &&
-							!params.locals.brandScope.includes(toolInput.brand_id as string)
-						) {
-							const denied = {
-								success: false,
-								error: 'Access denied. This brand is outside your scope.'
-							};
-							toolResults.push({
-								type: 'tool_result',
-								tool_use_id: block.id,
-								content: JSON.stringify(denied)
-							});
-							send(controller, { type: 'tool_result', name: block.name, ok: false });
-							continue;
-						}
-
-						const result = await executeToolCall(block.name, toolInput, {
+				const turn = await runStitchTurn({
+					client: params.anthropic,
+					system: params.systemBlocks,
+					tools: params.cachedTools,
+					messages: params.messages,
+					role: params.role,
+					brandScope: params.locals.brandScope ?? null,
+					executeTool: (name, input) =>
+						executeToolCall(name, input, {
 							supabase: params.locals.supabase,
 							organizationId: params.locals.organization!.id,
 							userId: params.locals.user!.id,
@@ -649,38 +580,21 @@ function streamResponse(params: StreamResponseParams): Response {
 							trust: 'interactive',
 							orgType: params.locals.orgType === 'brand' ? 'brand' : 'rep',
 							origin: params.origin
-						});
-
-						actions.push({ tool: block.name, input: toolInput, result });
-						toolResults.push({
-							type: 'tool_result',
-							tool_use_id: block.id,
-							content: JSON.stringify(result)
-						});
-						send(controller, {
-							type: 'tool_result',
-							name: block.name,
-							ok: (result as { success?: boolean }).success !== false
-						});
-					}
-
-					messages.push({ role: 'assistant', content: finalMessage.content });
-					messages.push({ role: 'user', content: toolResults });
-				}
-
-				// Parse suggestions out of the last line before finalizing
-				let responseText = accumulatedText;
-				let suggestions: string[] | undefined;
-				const lines = responseText.trimEnd().split('\n');
-				const lastLine = lines[lines.length - 1];
-				if (lastLine?.startsWith('SUGGESTIONS:')) {
-					try {
-						suggestions = JSON.parse(lastLine.slice('SUGGESTIONS:'.length));
-						responseText = lines.slice(0, -1).join('\n').trimEnd();
-					} catch {
-						/* leave as-is */
-					}
-				}
+						}),
+					onEvent: (event) => send(controller, event),
+					onResponse: (response) =>
+						logUsage({
+							endpoint: 'chat',
+							purpose: 'tools',
+							model: STITCH_MODEL,
+							organizationId: params.locals.organization!.id,
+							userId: params.locals.user!.id,
+							response
+						})
+				});
+				const responseText = turn.text;
+				const suggestions = turn.suggestions;
+				const actions = turn.actions;
 
 				if (params.resolvedAgentId) {
 					const toolNames = actions.map((a) => a.tool);
