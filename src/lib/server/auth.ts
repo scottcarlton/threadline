@@ -25,6 +25,7 @@ import type {
 } from '$lib/types/database.js';
 import { isSystemAdminEmail, SYSTEM_ADMIN_DISPLAY_NAME } from '$lib/server/system-admin.js';
 import { resolveRetailerBuyerContext } from '$lib/server/buyer-context.js';
+import { logSupabaseError } from '$lib/server/log-supabase-error.js';
 
 export type MembershipWithOrg = OrganizationMember & { organizations: Organization };
 type BrandAccessRow = { brand_id: string; brands?: { name?: string } | { name?: string }[] | null };
@@ -217,10 +218,20 @@ export async function loadUserContext(
 	}
 
 	// Not an org member — check for buyer access.
-	const { data: buyerAccess } = await supabase
+	//
+	// The organizations embed names its foreign key explicitly. `accounts` has two
+	// FKs to `organizations` (organization_id, and retailer_org_id since
+	// 20260709000001), and an unqualified `organizations(*)` is ambiguous:
+	// PostgREST rejects the whole query with PGRST201. That error used to be
+	// discarded here, `buyerAccess` came back null, and every invited buyer
+	// without an org membership fell through to 'onboarding' instead of the
+	// portal. The error is now logged so a failure here is loud rather than a
+	// silent redirect.
+	const { data: buyerAccess, error: buyerAccessError } = await supabase
 		.from('account_users')
-		.select('*, accounts(*, organizations(*))')
+		.select('*, accounts(*, organizations!accounts_organization_id_fkey(*))')
 		.eq('profile_id', user.id);
+	logSupabaseError('auth: buyer access lookup', buyerAccessError);
 
 	if (buyerAccess?.length) {
 		const typedBuyerAccess = buyerAccess as BuyerAccountRow[];

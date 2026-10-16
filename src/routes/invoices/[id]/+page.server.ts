@@ -3,7 +3,12 @@ import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import type { PageServerLoad, Actions } from './$types';
 import { getInvoiceForOrg } from '$lib/server/queries/invoices.js';
-import { loadIssuingOrgInvoice } from '$lib/server/invoices/authorize-invoice.js';
+import { loadIssuingOrgInvoice, type InvoiceRow } from '$lib/server/invoices/authorize-invoice.js';
+import {
+	invoiceJustSettled,
+	invoicePaidNotification
+} from '$lib/server/invoices/paid-notification.js';
+import { notifyOrgMembers } from '$lib/server/notifications.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { recordPaymentSchema, voidInvoiceSchema } from '$lib/schemas/invoice-payment.js';
 import { acceptedMethodsOnly } from '$lib/payment-methods.js';
@@ -88,8 +93,33 @@ export const actions: Actions = {
 		}
 
 		// amount_paid and status are updated by recalc_invoice_amount_paid(),
-		// so nothing is written to `invoices` here. The page reloads and reads
-		// whatever the trigger settled on.
+		// so nothing is written to `invoices` here. Read back what the trigger
+		// settled on rather than predicting it: the rule for when an invoice
+		// counts as paid lives in the database, and duplicating it here is how
+		// the two drift.
+		const settled = await loadIssuingOrgInvoice<
+			InvoiceRow & { invoice_number: string | null; total: number | string | null }
+		>(
+			params.id,
+			locals.organization.id,
+			'id, organization_id, order_org_id, account_id, status, invoice_number, total'
+		);
+
+		if (settled && invoiceJustSettled(invoice.status, settled.status)) {
+			// Colleagues in the issuing org, not the person who just typed it in.
+			// Deliberately not the rep or the buyer: notifications are org-scoped
+			// and there is no cross-org delivery mechanism today. Telling the rep
+			// their commission has landed is a real want, and a separate one.
+			//
+			// Not awaited, for the same reason the order-status notifications are
+			// not: a notification failing must not fail the payment that was
+			// already written.
+			notifyOrgMembers(locals.organization.id, locals.user?.id ?? '', {
+				actorUserId: locals.user?.id ?? null,
+				...invoicePaidNotification(settled)
+			});
+		}
+
 		return message(form, { type: 'success', action: 'payment' as const });
 	},
 
