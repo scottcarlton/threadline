@@ -17,3 +17,6 @@ bun.lockb
 
 # Prototype HTML files
 /explorations/
+
+# Vendored eval runner scaffold
+scripts/eval-stitch.mjs
