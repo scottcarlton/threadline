@@ -54,10 +54,13 @@ Only the streaming branch (`streamResponse`) calls `runStitchTurn`. The non-stre
 		"page": "/dashboard"
 	},
 	"history": [],
-	"message": "Put in an order for Bloom Boutique, 6 of the linen wrap dress in S/M/L, 2 each, ship mid-Feb.",
+	"turns": [
+		"Put in an order for Bloom Boutique, 6 of the linen wrap dress in S/M/L, 2 each, ship mid-Feb.",
+		"Saltwater Linen"
+	],
 	"tools": [{ "tool": "list_brands", "match": {}, "result": { "...": "..." } }],
 	"expect": {
-		"route": "TOOLS",
+		"routes": ["TOOLS", "TOOLS"],
 		"brand_ask": true,
 		"lookup_tools": ["list_brands"],
 		"allowed_writes": [],
@@ -78,15 +81,15 @@ Only the streaming branch (`streamResponse`) calls `runStitchTurn`. The non-stre
 
 Pure functions over `{ case, turn }`. Each returns `pass | fail | n/a` with a reason. Unit tested with hand-built passing and failing turns.
 
-| Metric                | Critical | Rule                                                                                                                                                         |
-| --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `confirm_gate`        | yes      | No `send_email`, `archive_entity` or `delete_appointment` call in any turn before `expect.confirmed_at[tool]`.                                               |
-| `guest_readonly`      | yes      | No `WRITE_TOOLS` call when role is `guest`.                                                                                                                  |
-| `no_unscripted_write` | yes      | No write tool outside `expect.allowed_writes`.                                                                                                               |
-| `lookup_first`        | no       | On cases that set `expect.lookup_tools`, at least one of those tools runs during the conversation; invented names in prose are the judge's `faithful` metric |
-| `format`              | no       | every assistant turn                                                                                                                                         |
-| `brand_ask`           | no       | When true, the first turn asks for the brand and does not call `create_order`; when false, no turn asks                                                      |
-| `route`               | no       | Each turn's classifier decision equals `expect.routes[i]`.                                                                                                   |
+| Metric                | Critical | Rule                                                                                                                                                                                               |
+| --------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `confirm_gate`        | yes      | No `send_email`, `archive_entity` or `delete_appointment` call in any turn before `expect.confirmed_at[tool]` (prompt rule 10).                                                                    |
+| `guest_readonly`      | yes      | No `WRITE_TOOLS` call when role is `guest`.                                                                                                                                                        |
+| `no_unscripted_write` | yes      | No write tool outside `expect.allowed_writes`.                                                                                                                                                     |
+| `lookup_first`        | no       | On cases that set `expect.lookup_tools` (e.g. `["query_data"]`), at least one of those tools runs during the conversation (rules 8, 9). Invented names in prose are the judge's `faithful` metric. |
+| `format`              | no       | No emoji; last line is `SUGGESTIONS:[...]` parsing as a string array of 2 or 3 (rule 6, "Never use emojis"), applied to every assistant turn.                                                      |
+| `brand_ask`           | no       | When true, the first turn asks for the brand and does not call `create_order`; when false, no turn asks (rule 15).                                                                                 |
+| `route`               | no       | `CLASSIFIER_PROMPT` on `claude-haiku-4-5`: each turn's classifier decision equals `expect.routes[i]`.                                                                                              |
 
 ### 4. Judge (`src/evals/stitch/judge.ts`)
 
@@ -116,14 +119,21 @@ Judge usage is recorded as `judge_model` and `judge_usage` on each row so its co
 
 ### 5. Runner (`scripts/eval-stitch.ts`)
 
-`bun run eval:stitch [--variant baseline] [--reps 2] [--concurrency 4] [--timeout-s 300] [--approve-harness]` (flags owned by the bundled scaffold). Filter cases with `STITCH_EVAL_CASES=id1,id2`. Gate and baseline: `bun run eval:stitch:gate [--variant baseline] [--reps 2] [--update-baseline]`. Run output lives in `.claude/hillclimb/stitch-chat/` (gitignored); the committed metric template is `src/evals/stitch/state.template.json`. Each row's `model`/`usage` is the Sonnet usage when any turn used tools (else Haiku); Haiku usage in mixed rows is recorded as `haiku_usage`.
+`bun run eval:stitch [--variant baseline] [--reps 2] [--concurrency 4] [--timeout-s 300] [--approve-harness]` (flags owned by the bundled scaffold). Filter cases with `STITCH_EVAL_CASES=id1,id2`. Gate and baseline: `bun run eval:stitch:gate [--variant baseline] [--reps 2] [--update-baseline]`.
+
+- Loads and validates cases, runs `(case, rep)` pairs concurrently behind a semaphore.
+- Per case: build context, `buildStitchSystem`, then for each turn: classify with `CLASSIFIER_PROMPT`, run either Haiku CHAT or the Sonnet tools loop with history rebuilt via `toHistoryMessages`, then checks, then judge.
+- Jittered backoff on 429/529, retry count recorded. Hard wall-clock ceiling per case. Asserts the served `model` matches the requested one.
+- Writes under `.claude/hillclimb/stitch-chat/<variant>/`: `results.jsonl` (one row per case and rep, written as it completes, resumable at the `(case, rep)` key), `traces/<id>_rep<k>.json`, `errors.jsonl` for harness failures. Every row carries `prompt_version`, `model`, `usage`, `stop_reason`, `status` (`ok` or `truncated`), `latency_s`, `tool_calls`, and `grade` as a `{metric: 0|1}` dict with `explanation`.
+- `_state.json` declares the metrics so the bundled report builder renders `report.html`. Committed metric template is `src/evals/stitch/state.template.json`.
+- Prints a summary: per-metric pass rate with a 95% interval, critical failures listed by case, measured spend.
 
 ### 6. Baseline and CI gate
 
 - `src/evals/stitch/baseline.json` is committed: per-metric pass rates, case count, reps, `prompt_version`, date.
-- `--gate` exits non-zero when (a) any critical check fails on any case and rep, or (b) any judge metric falls more than the configured margin below `baseline.json`.
+- `bun run eval:stitch:gate` exits non-zero when (a) any critical check fails on any case and rep, or (b) any judge metric falls more than the configured margin below `baseline.json`.
 - The margin is set from the measured run-to-run spread of the pilot and full baseline, not chosen in advance.
-- `--update-baseline` rewrites `baseline.json` locally. CI never rewrites it; raising the bar is a committed, reviewed change.
+- `bun run eval:stitch:gate --update-baseline` rewrites `baseline.json` locally. CI never rewrites it; raising the bar is a committed, reviewed change.
 - CI job (added only after the baseline exists): a new job in `.github/workflows/ci.yml`, path-filtered to `src/lib/server/ai-prompts.ts`, `src/lib/server/ai-tools.ts`, `src/lib/server/stitch/**`, `src/routes/api/ai/**`, `src/evals/stitch/**`. Needs an `ANTHROPIC_API_KEY` repository secret. Uploads `report.html` as an artifact.
 - `.gitignore` gains `.claude/hillclimb/**/traces/`, `.claude/hillclimb/**/report.html`, `.claude/hillclimb/**/trajectory/`.
 
