@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { Toaster } from 'svelte-sonner';
+	import { Toaster, toast } from 'svelte-sonner';
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { navigating } from '$app/stores';
@@ -14,6 +14,7 @@
 	import NotificationToasts from '$lib/components/notifications/NotificationToasts.svelte';
 	import NotificationCenter from '$lib/components/notifications/NotificationCenter.svelte';
 	import Markdown from '$lib/components/ai/Markdown.svelte';
+	import DictationWaveform from '$lib/components/ai/DictationWaveform.svelte';
 	import SuggestionPanel from '$lib/components/ai/SuggestionPanel.svelte';
 	import ConversationList, {
 		type ConversationSummary
@@ -653,6 +654,7 @@
 	}
 
 	function enterVoiceMode() {
+		cancelDictation();
 		voiceMode = true;
 		// We're inside a user-gesture handler here. Pre-unlock the audio
 		// element so iOS Safari accepts later play() calls that occur
@@ -706,6 +708,57 @@
 	function stopMicStream() {
 		capture?.cancel();
 		capture = null;
+	}
+
+	// Dictation: one capture, transcript appended to the prompt for the user to
+	// edit and send. Unlike voice mode, nothing is sent and nothing is spoken.
+	let dictationState = $state<'idle' | 'listening' | 'processing'>('idle');
+	let dictation: VoiceCaptureHandle | null = null;
+	let dictationLevels = $state<number[]>([]);
+	// Enough history to fill the widest prompt bar.
+	const MAX_DICTATION_LEVELS = 300;
+
+	async function toggleDictation() {
+		if (dictationState !== 'idle') {
+			dictation?.stop();
+			dictation = null;
+			return;
+		}
+		dictationState = 'listening';
+		dictationLevels = [];
+		dictation = await startVoiceCapture({
+			onState: (s) => (dictationState = s),
+			onLevel: (level) => {
+				dictationLevels = [...dictationLevels.slice(-(MAX_DICTATION_LEVELS - 1)), level];
+			},
+			onResult: (text) => {
+				dictationState = 'idle';
+				dictation = null;
+				appendToAiInput(text);
+			},
+			onError: (message) => {
+				dictationState = 'idle';
+				dictation = null;
+				toast.error(message);
+			}
+		});
+		if (!dictation) dictationState = 'idle';
+	}
+
+	function cancelDictation() {
+		dictation?.cancel();
+		dictation = null;
+		dictationState = 'idle';
+	}
+
+	/** Dictation appends, so speaking twice builds one prompt. */
+	function appendToAiInput(text: string) {
+		if (!aiInputEl) return;
+		const current = getAiInput();
+		// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable element managed outside Svelte's reactive graph
+		aiInputEl.innerText = current ? `${current} ${text}` : text;
+		handleAiInput();
+		focusAiInput();
 	}
 
 	async function sendVoiceMessage(text: string) {
@@ -1251,48 +1304,169 @@
 
 							<!-- Toolbar row: +file & agent on left, mic/send on right -->
 							<div class="mt-2 flex items-center justify-between">
-								<div class="flex items-center gap-1">
-									<TooltipProvider delayDuration={500}>
-										<Tooltip>
-											<TooltipTrigger
-												onclick={() => fileInput?.click()}
-												disabled={$loading}
-												class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
-												aria-label="Attach file"
-											>
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													class="h-5 w-5"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke="currentColor"
-													stroke-width="1.5"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M12 4.5v15m7.5-7.5h-15"
-													/>
-												</svg>
-											</TooltipTrigger>
-											<TooltipContent side="bottom" sideOffset={6} class="px-2 py-1"
-												>Add files</TooltipContent
-											>
-										</Tooltip>
-									</TooltipProvider>
-
-									<div class="relative">
+								{#if dictationState !== 'idle'}
+									<!-- Dictating: live waveform replaces the left-side tools -->
+									<DictationWaveform levels={dictationLevels} class="mr-3 min-w-0 flex-1 pl-1" />
+								{:else}
+									<div class="flex items-center gap-1">
 										<TooltipProvider delayDuration={500}>
 											<Tooltip>
 												<TooltipTrigger
-													onclick={() => {
-														showConversationList = !showConversationList;
-													}}
-													disabled={$loading || recentConversations.length === 0}
-													class="rounded-lg p-2.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:p-1.5 {showConversationList
-														? 'bg-zinc-800 text-zinc-200'
-														: 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'}"
-													aria-label="Recent conversations"
+													onclick={() => fileInput?.click()}
+													disabled={$loading}
+													class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50 lg:p-1.5"
+													aria-label="Attach file"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="h-5 w-5"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor"
+														stroke-width="1.5"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															d="M12 4.5v15m7.5-7.5h-15"
+														/>
+													</svg>
+												</TooltipTrigger>
+												<TooltipContent side="bottom" sideOffset={6} class="px-2 py-1"
+													>Add files</TooltipContent
+												>
+											</Tooltip>
+										</TooltipProvider>
+
+										<div class="relative">
+											<TooltipProvider delayDuration={500}>
+												<Tooltip>
+													<TooltipTrigger
+														onclick={() => {
+															showConversationList = !showConversationList;
+														}}
+														disabled={$loading || recentConversations.length === 0}
+														class="rounded-lg p-2.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:p-1.5 {showConversationList
+															? 'bg-zinc-800 text-zinc-200'
+															: 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'}"
+														aria-label="Recent conversations"
+													>
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															class="h-5 w-5"
+															viewBox="0 0 24 24"
+															fill="currentColor"
+														>
+															<path
+																d="M8 4H21V6H8V4ZM4.5 6.5C3.67157 6.5 3 5.82843 3 5C3 4.17157 3.67157 3.5 4.5 3.5C5.32843 3.5 6 4.17157 6 5C6 5.82843 5.32843 6.5 4.5 6.5ZM4.5 13.5C3.67157 13.5 3 12.8284 3 12C3 11.1716 3.67157 10.5 4.5 10.5C5.32843 10.5 6 11.1716 6 12C6 12.8284 5.32843 13.5 4.5 13.5ZM4.5 20.4C3.67157 20.4 3 19.7284 3 18.9C3 18.0716 3.67157 17.4 4.5 17.4C5.32843 17.4 6 18.0716 6 18.9C6 19.7284 5.32843 20.4 4.5 20.4ZM8 11H21V13H8V11ZM8 18H21V20H8V18Z"
+															/>
+														</svg>
+													</TooltipTrigger>
+													<TooltipContent side="bottom" sideOffset={6} class="px-2 py-1"
+														>Recent conversations</TooltipContent
+													>
+												</Tooltip>
+											</TooltipProvider>
+										</div>
+
+										{#if availableAgents.length > 0}
+											<div class="relative">
+												<button
+													onclick={() => (showAgentPicker = !showAgentPicker)}
+													class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1.5 {$activeAgent
+														? 'text-blue-400'
+														: ''}"
+													aria-label="Select agent"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="h-5 w-5"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor"
+														stroke-width="1.5"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+														/>
+													</svg>
+												</button>
+
+												{#if showAgentPicker}
+													<div
+														class="absolute bottom-full left-0 mb-2 w-56 rounded-xl bg-zinc-800 p-2 shadow-xl ring-1 ring-white/10"
+													>
+														<button
+															class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {!$activeAgent
+																? 'bg-zinc-700 text-zinc-100'
+																: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
+															onclick={() => {
+																conversation.setAgent(null);
+																showAgentPicker = false;
+															}}
+														>
+															<span class="text-sm">Default Assistant</span>
+														</button>
+														{#each availableAgents as agent (agent.id)}
+															<button
+																class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {$activeAgent?.id ===
+																agent.id
+																	? 'bg-zinc-700 text-zinc-100'
+																	: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
+																onclick={() => {
+																	conversation.setAgent({
+																		id: agent.id,
+																		name: agent.name,
+																		slug: agent.slug
+																	});
+																	showAgentPicker = false;
+																}}
+															>
+																<div>
+																	<span class="text-sm font-medium">{agent.name}</span>
+																	{#if agent.description}
+																		<p class="line-clamp-1 text-[11px] text-zinc-500">
+																			{agent.description}
+																		</p>
+																	{/if}
+																</div>
+															</button>
+														{/each}
+													</div>
+												{/if}
+											</div>
+										{/if}
+									</div>
+								{/if}
+
+								<div class="flex shrink-0 items-center gap-3">
+									{#if dictationState !== 'idle'}
+										<TooltipProvider delayDuration={500}>
+											<Tooltip>
+												<TooltipTrigger
+													onclick={cancelDictation}
+													disabled={dictationState === 'processing'}
+													class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full ring-1 ring-zinc-600 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+													aria-label="Discard dictation"
+												>
+													<span class="h-3.5 w-3.5 rounded-sm bg-white"></span>
+												</TooltipTrigger>
+												<TooltipContent side="bottom" sideOffset={6} class="px-2 py-1"
+													>Discard</TooltipContent
+												>
+											</Tooltip>
+										</TooltipProvider>
+									{:else if !voiceMode}
+										<!-- Dictation: speech fills the prompt, nothing is sent -->
+										<TooltipProvider delayDuration={500}>
+											<Tooltip>
+												<TooltipTrigger
+													onclick={toggleDictation}
+													disabled={!$isOnline}
+													class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-40 lg:p-1.5"
+													aria-label="Dictate"
 												>
 													<svg
 														xmlns="http://www.w3.org/2000/svg"
@@ -1301,90 +1475,53 @@
 														fill="currentColor"
 													>
 														<path
-															d="M8 4H21V6H8V4ZM4.5 6.5C3.67157 6.5 3 5.82843 3 5C3 4.17157 3.67157 3.5 4.5 3.5C5.32843 3.5 6 4.17157 6 5C6 5.82843 5.32843 6.5 4.5 6.5ZM4.5 13.5C3.67157 13.5 3 12.8284 3 12C3 11.1716 3.67157 10.5 4.5 10.5C5.32843 10.5 6 11.1716 6 12C6 12.8284 5.32843 13.5 4.5 13.5ZM4.5 20.4C3.67157 20.4 3 19.7284 3 18.9C3 18.0716 3.67157 17.4 4.5 17.4C5.32843 17.4 6 18.0716 6 18.9C6 19.7284 5.32843 20.4 4.5 20.4ZM8 11H21V13H8V11ZM8 18H21V20H8V18Z"
+															d="M11.9998 3C10.3429 3 8.99976 4.34315 8.99976 6V10C8.99976 11.6569 10.3429 13 11.9998 13C13.6566 13 14.9998 11.6569 14.9998 10V6C14.9998 4.34315 13.6566 3 11.9998 3ZM11.9998 1C14.7612 1 16.9998 3.23858 16.9998 6V10C16.9998 12.7614 14.7612 15 11.9998 15C9.23833 15 6.99976 12.7614 6.99976 10V6C6.99976 3.23858 9.23833 1 11.9998 1ZM3.05469 11H5.07065C5.55588 14.3923 8.47329 17 11.9998 17C15.5262 17 18.4436 14.3923 18.9289 11H20.9448C20.4837 15.1716 17.1714 18.4839 12.9998 18.9451V23H10.9998V18.9451C6.82814 18.4839 3.51584 15.1716 3.05469 11Z"
 														/>
 													</svg>
 												</TooltipTrigger>
 												<TooltipContent side="bottom" sideOffset={6} class="px-2 py-1"
-													>Recent conversations</TooltipContent
+													>Dictate</TooltipContent
 												>
 											</Tooltip>
 										</TooltipProvider>
-									</div>
-
-									{#if availableAgents.length > 0}
-										<div class="relative">
-											<button
-												onclick={() => (showAgentPicker = !showAgentPicker)}
-												class="rounded-lg p-2.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:p-1.5 {$activeAgent
-													? 'text-blue-400'
-													: ''}"
-												aria-label="Select agent"
-											>
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													class="h-5 w-5"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke="currentColor"
-													stroke-width="1.5"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
-													/>
-												</svg>
-											</button>
-
-											{#if showAgentPicker}
-												<div
-													class="absolute bottom-full left-0 mb-2 w-56 rounded-xl bg-zinc-800 p-2 shadow-xl ring-1 ring-white/10"
-												>
-													<button
-														class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {!$activeAgent
-															? 'bg-zinc-700 text-zinc-100'
-															: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
-														onclick={() => {
-															conversation.setAgent(null);
-															showAgentPicker = false;
-														}}
-													>
-														<span class="text-sm">Default Assistant</span>
-													</button>
-													{#each availableAgents as agent (agent.id)}
-														<button
-															class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors {$activeAgent?.id ===
-															agent.id
-																? 'bg-zinc-700 text-zinc-100'
-																: 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"
-															onclick={() => {
-																conversation.setAgent({
-																	id: agent.id,
-																	name: agent.name,
-																	slug: agent.slug
-																});
-																showAgentPicker = false;
-															}}
-														>
-															<div>
-																<span class="text-sm font-medium">{agent.name}</span>
-																{#if agent.description}
-																	<p class="line-clamp-1 text-[11px] text-zinc-500">
-																		{agent.description}
-																	</p>
-																{/if}
-															</div>
-														</button>
-													{/each}
-												</div>
-											{/if}
-										</div>
 									{/if}
-								</div>
-
-								<div class="shrink-0">
-									{#if voiceMode}
+									{#if dictationState !== 'idle'}
+										<!-- Dictating: accept stops recording and drops the transcript into the prompt -->
+										<TooltipProvider delayDuration={500}>
+											<Tooltip>
+												<TooltipTrigger
+													onclick={toggleDictation}
+													disabled={dictationState === 'processing'}
+													class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed lg:h-9 lg:w-9"
+													aria-label={dictationState === 'processing'
+														? 'Transcribing'
+														: 'Accept dictation'}
+												>
+													{#if dictationState === 'processing'}
+														<div
+															class="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 border-t-zinc-900"
+														></div>
+													{:else}
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															class="h-5 w-5"
+															viewBox="0 0 24 24"
+															fill="currentColor"
+														>
+															<path
+																d="M9.9997 15.1709L19.1921 5.97852L20.6063 7.39273L9.9997 17.9993L3.63574 11.6354L5.04996 10.2212L9.9997 15.1709Z"
+															/>
+														</svg>
+													{/if}
+												</TooltipTrigger>
+												<TooltipContent side="bottom" sideOffset={6} class="px-2 py-1"
+													>{dictationState === 'processing'
+														? 'Transcribing'
+														: 'Accept'}</TooltipContent
+												>
+											</Tooltip>
+										</TooltipProvider>
+									{:else if voiceMode}
 										<!-- Voice mode active — always show voice button regardless of $loading -->
 										<button
 											onclick={toggleVoice}

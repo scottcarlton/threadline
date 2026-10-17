@@ -13,6 +13,8 @@
 const SILENCE_THRESHOLD = 15;
 const SILENCE_FRAMES_TO_STOP = 12; // ~1.5s at 125ms intervals
 const FRAME_INTERVAL_MS = 125;
+const LEVEL_INTERVAL_MS = 60;
+const LEVEL_NOISE_FLOOR = 0.01;
 
 /** Strip non-speech artifacts like [music playing] or (background noise). */
 export function cleanTranscript(raw: string | null | undefined): string {
@@ -30,6 +32,27 @@ export function pickMimeType(): string {
 	return '';
 }
 
+/** RMS loudness (0–1) of one frame of time-domain samples (128 = silence). */
+export function levelFromTimeDomain(data: Uint8Array): number {
+	if (data.length === 0) return 0;
+	let sum = 0;
+	for (const v of data) {
+		const n = (v - 128) / 128;
+		sum += n * n;
+	}
+	return Math.sqrt(sum / data.length);
+}
+
+/**
+ * Map a loudness level to a waveform bar height in px. Room noise under the
+ * floor stays a dot (`min`); the curve is square-rooted so normal speech
+ * fills the range instead of only shouting.
+ */
+export function levelToBarHeight(level: number, min = 2, max = 24): number {
+	const gated = Math.max(0, level - LEVEL_NOISE_FLOOR);
+	return Math.round(min + (max - min) * Math.min(1, Math.sqrt(gated * 5)));
+}
+
 export type VoiceCaptureState = 'listening' | 'processing';
 
 export interface VoiceCaptureHandle {
@@ -43,6 +66,8 @@ export interface VoiceCaptureOptions {
 	onState?: (state: VoiceCaptureState) => void;
 	onResult: (text: string) => void;
 	onError?: (message: string) => void;
+	/** Loudness (0–1) every ~60ms while recording, for live waveforms. */
+	onLevel?: (level: number) => void;
 }
 
 /**
@@ -52,19 +77,21 @@ export interface VoiceCaptureOptions {
 export async function startVoiceCapture(
 	opts: VoiceCaptureOptions
 ): Promise<VoiceCaptureHandle | null> {
-	const { onState, onResult, onError } = opts;
+	const { onState, onResult, onError, onLevel } = opts;
 
 	let stream: MediaStream | null = null;
 	let audioContext: AudioContext | null = null;
 	let analyser: AnalyserNode | null = null;
 	let recorder: MediaRecorder | null = null;
 	let frameTimer: ReturnType<typeof setTimeout> | undefined;
+	let levelTimer: ReturnType<typeof setInterval> | undefined;
 	let cancelled = false;
 	let speechDetected = false;
 	const chunks: Blob[] = [];
 
 	function teardown() {
 		clearTimeout(frameTimer);
+		clearInterval(levelTimer);
 		if (stream) {
 			stream.getTracks().forEach((t) => t.stop());
 			stream = null;
@@ -147,6 +174,15 @@ export async function startVoiceCapture(
 			frameTimer = setTimeout(checkAudio, FRAME_INTERVAL_MS);
 		};
 		checkAudio();
+
+		if (onLevel) {
+			const samples = new Uint8Array(analyser.fftSize);
+			levelTimer = setInterval(() => {
+				if (cancelled || !analyser || !recorder || recorder.state !== 'recording') return;
+				analyser.getByteTimeDomainData(samples);
+				onLevel(levelFromTimeDomain(samples));
+			}, LEVEL_INTERVAL_MS);
+		}
 	} catch {
 		teardown();
 		onError?.("I couldn't start recording.");
