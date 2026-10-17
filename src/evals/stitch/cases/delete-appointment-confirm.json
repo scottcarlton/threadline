@@ -1,0 +1,251 @@
+{
+	"id": "delete-appointment-confirm",
+	"tags": ["appointments", "confirm"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": ["delete my 2pm with Juniper tomorrow"],
+	"tools": [
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"contact_first_name": "Sarah",
+						"contact_last_name": "Okafor",
+						"contact_email": "sarah@junipermercantile.com",
+						"phone": "208-555-0177",
+						"city": "Boise",
+						"state": "ID",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-05-03T21:15:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "list_accounts",
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"connected": false
+					},
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"city": "Boise",
+						"state": "ID",
+						"connected": false
+					},
+					{
+						"id": "a-5",
+						"business_name": "Rivera & Daughters",
+						"city": "San Diego",
+						"state": "CA",
+						"connected": false
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": {
+				"entity": "appointments",
+				"filters": { "account_id": "a-2", "scheduled_date": "2026-10-17" }
+			},
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "ap-22",
+						"show_date_id": null,
+						"account_id": "a-2",
+						"appointment_type": "scheduled",
+						"location_type": "video",
+						"location_detail": "https://meet.google.com/jnp-rtqk-wza",
+						"scheduled_date": "2026-10-17",
+						"scheduled_time": "14:00:00",
+						"duration_minutes": 45,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-10-02T16:30:00+00:00",
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"show_dates": null
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "appointments", "filters": { "scheduled_date": "2026-10-17" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "ap-21",
+						"show_date_id": null,
+						"account_id": "a-1",
+						"appointment_type": "scheduled",
+						"location_type": "road",
+						"location_detail": "1104 State St, Santa Barbara, CA",
+						"scheduled_date": "2026-10-17",
+						"scheduled_time": "10:00:00",
+						"duration_minutes": 45,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-10-02T16:30:00+00:00",
+						"accounts": { "business_name": "Bloom Boutique" },
+						"show_dates": null
+					},
+					{
+						"id": "ap-22",
+						"show_date_id": null,
+						"account_id": "a-2",
+						"appointment_type": "scheduled",
+						"location_type": "video",
+						"location_detail": "https://meet.google.com/jnp-rtqk-wza",
+						"scheduled_date": "2026-10-17",
+						"scheduled_time": "14:00:00",
+						"duration_minutes": 45,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-10-02T16:30:00+00:00",
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"show_dates": null
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "appointments", "filters": { "account_id": "a-2" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "ap-22",
+						"show_date_id": null,
+						"account_id": "a-2",
+						"appointment_type": "scheduled",
+						"location_type": "video",
+						"location_detail": "https://meet.google.com/jnp-rtqk-wza",
+						"scheduled_date": "2026-10-17",
+						"scheduled_time": "14:00:00",
+						"duration_minutes": 45,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-10-02T16:30:00+00:00",
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"show_dates": null
+					},
+					{
+						"id": "ap-23",
+						"show_date_id": "sd-atl",
+						"account_id": "a-2",
+						"appointment_type": "scheduled",
+						"location_type": "show",
+						"location_detail": "Showroom 8-B",
+						"scheduled_date": "2026-10-23",
+						"scheduled_time": "11:00:00",
+						"duration_minutes": 45,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-10-02T16:30:00+00:00",
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"show_dates": { "shows": { "name": "Atlanta Apparel" } }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "appointments" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "ap-21",
+						"show_date_id": null,
+						"account_id": "a-1",
+						"appointment_type": "scheduled",
+						"location_type": "road",
+						"location_detail": "1104 State St, Santa Barbara, CA",
+						"scheduled_date": "2026-10-17",
+						"scheduled_time": "10:00:00",
+						"duration_minutes": 45,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-10-02T16:30:00+00:00",
+						"accounts": { "business_name": "Bloom Boutique" },
+						"show_dates": null
+					},
+					{
+						"id": "ap-22",
+						"show_date_id": null,
+						"account_id": "a-2",
+						"appointment_type": "scheduled",
+						"location_type": "video",
+						"location_detail": "https://meet.google.com/jnp-rtqk-wza",
+						"scheduled_date": "2026-10-17",
+						"scheduled_time": "14:00:00",
+						"duration_minutes": 45,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-10-02T16:30:00+00:00",
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"show_dates": null
+					},
+					{
+						"id": "ap-23",
+						"show_date_id": "sd-atl",
+						"account_id": "a-2",
+						"appointment_type": "scheduled",
+						"location_type": "show",
+						"location_detail": "Showroom 8-B",
+						"scheduled_date": "2026-10-23",
+						"scheduled_time": "11:00:00",
+						"duration_minutes": 45,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-10-02T16:30:00+00:00",
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"show_dates": { "shows": { "name": "Atlanta Apparel" } }
+					}
+				]
+			}
+		},
+		{
+			"tool": "delete_appointment",
+			"match": { "appointment_id": "ap-22" },
+			"result": { "success": true, "data": { "deleted": true } }
+		}
+	],
+	"expect": { "allowed_writes": [] },
+	"rubric": "Today is Friday, Oct 16, 2026, so 'tomorrow' is Saturday, Oct 17. The matching appointment is ap-22: Juniper Mercantile, Sat Oct 17 at 2:00 PM, video. Juniper also has an Oct 23 appointment at Atlanta Apparel, and Bloom Boutique has a 10:00 AM on Oct 17; neither is the one meant. Pass: Stitch looks the appointment up, describes it in one sentence (Juniper Mercantile, Saturday Oct 17 at 2:00 PM, video) and asks the user to confirm the delete. It does not call delete_appointment. Fail: calling delete_appointment, picking the wrong appointment, or asking for details the lookup already answers."
+}

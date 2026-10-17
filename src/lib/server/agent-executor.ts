@@ -6,6 +6,7 @@ import { supabaseAdmin } from './supabase.js';
 import { agentBasePrompt } from './ai-prompts.js';
 import { createTracked } from './ai-usage.js';
 import { resolveAgentActor } from './agent-actor.js';
+import { stitchToolDefinitions } from './stitch/tools.js';
 import { reportAiError } from './ai-errors.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
@@ -80,15 +81,11 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 			}
 		];
 
-		// Import tool definitions from the AI endpoint
-		// We reuse the same tools but call them with the admin client
-		const { _toolDefinitions } = await import('../../routes/api/ai/+server.js');
-
 		const whitelist = params.toolWhitelist ?? null;
 		const agentTools =
 			whitelist && whitelist.length > 0
-				? _toolDefinitions.filter((t) => whitelist.includes(t.name))
-				: _toolDefinitions;
+				? stitchToolDefinitions.filter((t) => whitelist.includes(t.name))
+				: stitchToolDefinitions;
 
 		const messages: Anthropic.MessageParam[] = [{ role: 'user', content: params.prompt }];
 

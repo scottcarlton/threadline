@@ -139,3 +139,17 @@ export function applyHistoryLimits(turns: PlainTurn[], limits: HistoryLimits): P
 
 	return alternating;
 }
+
+/** Stored rows to Messages API params. Empty turns are dropped, not sent. */
+export function toHistoryMessages(
+	rows: PlainTurn[],
+	limits: HistoryLimits = DEFAULT_HISTORY_LIMITS
+): Anthropic.MessageParam[] {
+	const nonEmpty = rows
+		.map((row) => ({ role: row.role, content: row.content.trim() }))
+		.filter((row) => row.content.length > 0);
+	return applyHistoryLimits(nonEmpty, limits).map((turn) => ({
+		role: turn.role,
+		content: turn.content
+	}));
+}

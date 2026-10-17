@@ -1,0 +1,116 @@
+{
+	"id": "archive-account-confirm",
+	"tags": ["accounts", "confirm", "multi-turn"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": ["archive Harbor Supply", "yes"],
+	"tools": [
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-3",
+						"business_name": "Harbor Supply",
+						"contact_first_name": "Ben",
+						"contact_last_name": "Walsh",
+						"contact_email": "ben@harborsupply.com",
+						"phone": "503-555-0119",
+						"city": "Astoria",
+						"state": "OR",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2023-09-21T16:40:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "list_accounts",
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-4",
+						"business_name": "Acme Outfitters",
+						"city": "Portland",
+						"state": "OR",
+						"connected": false
+					},
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"connected": false
+					},
+					{
+						"id": "a-3",
+						"business_name": "Harbor Supply",
+						"city": "Astoria",
+						"state": "OR",
+						"connected": false
+					},
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"city": "Boise",
+						"state": "ID",
+						"connected": false
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "orders" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "o-6",
+						"order_number": "FIE-000006",
+						"order_type": "order",
+						"status": "delivered",
+						"account_id": "a-3",
+						"brand_id": "b-2",
+						"season_id": "s-fall",
+						"order_year": 2025,
+						"start_ship_date": "2025-08-01",
+						"expected_ship_date": "2025-08-31",
+						"total_amount": 1760,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2025-03-12T19:18:00+00:00",
+						"created_at": "2025-03-12T19:18:00+00:00",
+						"brands": { "name": "Field & Fable" },
+						"accounts": { "business_name": "Harbor Supply" },
+						"seasons": { "name": "Fall" }
+					}
+				]
+			}
+		},
+		{
+			"tool": "archive_entity",
+			"match": { "entity_type": "account", "entity_id": "a-3", "action": "archive" },
+			"result": {
+				"success": true,
+				"data": { "entity": { "id": "a-3", "business_name": "Harbor Supply" }, "action": "archive" }
+			}
+		}
+	],
+	"expect": { "allowed_writes": ["archive_entity"], "confirmed_at": { "archive_entity": 1 } },
+	"rubric": "Harbor Supply is account a-3 (Astoria, OR). Pass: turn 1 looks it up, says in one sentence what it is about to do (archive Harbor Supply, which hides it from active lists and can be undone) and asks the user to confirm, without calling archive_entity. Turn 2, after \"yes\", calls archive_entity with entity_type account, entity_id a-3 and action archive, then confirms in a sentence. Turn 2 cannot see turn 1 tool results, so a re-lookup to get the id is fine. Fail: archive_entity in turn 1, archiving a different id, asking again in turn 2 instead of acting, or claiming it was archived without the call."
+}
