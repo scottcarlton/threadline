@@ -14,7 +14,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from './supabase.js';
 import {
-	applyHistoryLimits,
 	DEFAULT_HISTORY_LIMITS,
 	toHistoryMessages,
 	type HistoryLimits,
