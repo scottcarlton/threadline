@@ -1,5 +1,6 @@
 <script lang="ts">
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
+	import { unreadableStylesNotice } from '$lib/utils/linesheet-unreadable.js';
 
 	type Props = {
 		open: boolean;
@@ -29,6 +30,8 @@
 	});
 	let pasteValue = $state('');
 	let parsedRows = $state<Record<string, string>[]>([]);
+	// Styles the line sheet parser could not read. Only the PDF path sets it.
+	let unreadableNotice = $state<string | null>(null);
 	let parseError = $state('');
 	let importing = $state(false);
 	let result = $state<{ success: number; errors: string[] } | null>(null);
@@ -79,6 +82,7 @@
 		pasteValue = '';
 		parsedRows = [];
 		parseError = '';
+		unreadableNotice = null;
 		importing = false;
 		result = null;
 		linesheetFile = null;
@@ -173,6 +177,7 @@
 
 	function handleParse() {
 		parseError = '';
+		unreadableNotice = null;
 		const raw = parseCSV(pasteValue);
 		if (raw.length === 0) {
 			parseError = 'No data found. Make sure to include a header row.';
@@ -240,6 +245,7 @@
 				return row;
 			});
 			parsedRows = matchColumns(flattened);
+			unreadableNotice = unreadableStylesNotice(data.unreadable);
 		} catch {
 			parseError = 'Failed to connect to the server. Please try again.';
 		} finally {
@@ -350,11 +356,16 @@
 								onclick={() => {
 									parsedRows = [];
 									pasteValue = '';
+									unreadableNotice = null;
 								}}
 							>
 								<LongArrow direction="left" /> Back
 							</button>
 						</div>
+
+						{#if unreadableNotice}
+							<p class="text-sm text-muted-foreground">{unreadableNotice}</p>
+						{/if}
 
 						{#if seasons.length > 0}
 							<div class="rounded-none border bg-muted/20 p-4">

@@ -51,12 +51,29 @@ const flexibleStringArray = z
 		return [];
 	});
 
+// Wholesale price is the one number an import cannot guess. `z.coerce.number()`
+// turned null and blank cells into 0, so a missing price imported as a $0
+// product. Blank now fails with a message that says so.
+const requiredPrice = z.preprocess(
+	(v) => {
+		if (v === null || v === undefined) return undefined;
+		if (typeof v === 'string') return v.trim() === '' ? undefined : Number(v);
+		return v;
+	},
+	z
+		.number({
+			error: (issue) =>
+				issue.input === undefined
+					? 'wholesale_price is required'
+					: 'wholesale_price must be a number'
+		})
+		.min(0, 'wholesale_price must be 0 or more')
+);
+
 export const productDraftSchema = z.object({
 	style_number: z.string().trim().min(1, 'style_number is required'),
 	name: z.string().trim().min(1, 'name is required'),
-	wholesale_price: z.coerce
-		.number({ message: 'wholesale_price must be a number' })
-		.min(0, 'wholesale_price must be 0 or more'),
+	wholesale_price: requiredPrice,
 	retail_price: optNonNegativeNumber,
 	category: optTrimmedString,
 	subcategory: optTrimmedString,

@@ -2,26 +2,33 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { logUsage } from '$lib/server/ai-usage.js';
 import { wrapUntrusted, UNTRUSTED_CONTENT_RULE } from '$lib/server/ai-untrusted.js';
+import { reportAiValidation } from '$lib/server/ai-errors.js';
+import {
+	emailOrderToolInputSchema,
+	parseEmailOrderOutput,
+	type ParsedOrder,
+	type ParsedOrderItem
+} from '$lib/schemas/email-order-extraction.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-// ── Types ────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────
 
-export type ParsedOrderItem = {
-	raw_text: string;
-	product_name: string;
-	color: string | null;
-	sizes: Array<{ size: string; qty: number }>;
-};
+// Derived from the schema so the tool definition, the runtime check, and the
+// resolver's types cannot drift apart.
+export type { ParsedOrder, ParsedOrderItem };
 
-export type ParsedOrder = {
-	account_name: string;
-	brand_name: string | null;
-	org_hint: string | null;
-	ship_window: { start: string | null; end: string | null } | null;
-	notes: string | null;
-	items: ParsedOrderItem[];
-};
+/**
+ * The model returned an order that failed the schema. Thrown so the webhook
+ * sends the intake to review; already reported as a validation failure, so
+ * the caller should not report it again as an exception.
+ */
+export class OrderExtractionInvalidError extends Error {
+	constructor(readonly issues: string[]) {
+		super(`Extracted order failed validation: ${issues.slice(0, 3).join('; ')}`);
+		this.name = 'OrderExtractionInvalidError';
+	}
+}
 
 // ── Tool schema ──────────────────────────────────────────────
 
@@ -30,64 +37,7 @@ const SYSTEM_PROMPT = `You extract orders from plain-text emails for a wholesale
 const extractionTool: Anthropic.Tool = {
 	name: 'extract_order',
 	description: 'Extract an order from a plain-text email body.',
-	input_schema: {
-		type: 'object' as const,
-		properties: {
-			account_name: {
-				type: 'string',
-				description: 'Retailer/buyer name (e.g. "Bloom Boutique").'
-			},
-			brand_name: {
-				type: ['string', 'null'] as unknown as 'string',
-				description: 'Brand if explicitly stated; null if not mentioned.'
-			},
-			org_hint: {
-				type: ['string', 'null'] as unknown as 'string',
-				description: 'If the email says "Org: X", return X.'
-			},
-			ship_window: {
-				type: ['object', 'null'] as unknown as 'object',
-				properties: {
-					start: {
-						type: ['string', 'null'] as unknown as 'string',
-						description: 'ISO date or null'
-					},
-					end: { type: ['string', 'null'] as unknown as 'string', description: 'ISO date or null' }
-				}
-			},
-			notes: {
-				type: ['string', 'null'] as unknown as 'string',
-				description: 'Free-form notes from the email.'
-			},
-			items: {
-				type: 'array',
-				items: {
-					type: 'object',
-					properties: {
-						raw_text: { type: 'string', description: 'The original line from the email.' },
-						product_name: { type: 'string', description: 'Product name extracted.' },
-						color: {
-							type: ['string', 'null'] as unknown as 'string',
-							description: 'Color if present.'
-						},
-						sizes: {
-							type: 'array',
-							items: {
-								type: 'object',
-								properties: {
-									size: { type: 'string' },
-									qty: { type: 'integer' }
-								},
-								required: ['size', 'qty']
-							}
-						}
-					},
-					required: ['raw_text', 'product_name', 'sizes']
-				}
-			}
-		},
-		required: ['account_name', 'items']
-	}
+	input_schema: emailOrderToolInputSchema()
 };
 
 /**
@@ -128,18 +78,17 @@ ${UNTRUSTED_CONTENT_RULE}`,
 		throw new Error('AI did not return structured order data');
 	}
 
-	const input = toolBlock.input as ParsedOrder;
-	return {
-		account_name: input.account_name,
-		brand_name: input.brand_name ?? null,
-		org_hint: input.org_hint ?? null,
-		ship_window: input.ship_window ?? null,
-		notes: input.notes ?? null,
-		items: (input.items ?? []).map((item) => ({
-			raw_text: item.raw_text,
-			product_name: item.product_name,
-			color: item.color ?? null,
-			sizes: item.sizes ?? []
-		}))
-	};
+	const result = parseEmailOrderOutput(toolBlock.input);
+	if (!result.ok) {
+		reportAiValidation({
+			endpoint: 'email-intake',
+			purpose: 'extract_order',
+			organizationId: organizationId ?? null,
+			failed: 1,
+			total: 1,
+			issues: result.issues
+		});
+		throw new OrderExtractionInvalidError(result.issues);
+	}
+	return result.order;
 }
