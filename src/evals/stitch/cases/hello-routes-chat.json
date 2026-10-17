@@ -1,0 +1,15 @@
+{
+	"id": "hello-routes-chat",
+	"tags": ["routing"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": ["hey Stitch"],
+	"expect": { "routes": ["CHAT"], "allowed_writes": [] },
+	"rubric": "A greeting with no history. Pass: routes to CHAT and replies with a short greeting, optionally offering a next step such as checking draft orders or this week's appointments, without stating any facts about the user's data. Fail: claiming specific numbers, accounts or orders (nothing was looked up), a long capabilities list, or help-desk filler."
+}

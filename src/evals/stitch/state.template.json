@@ -1,0 +1,36 @@
+{
+	"metrics": [
+		{ "id": "right_action", "label": "right action", "kind": "binary" },
+		{ "id": "faithful", "label": "faithful", "kind": "binary" },
+		{ "id": "route", "label": "route", "kind": "binary" },
+		{ "id": "confirm_gate", "label": "confirm gate", "kind": "binary" },
+		{ "id": "guest_readonly", "label": "guest r/o", "kind": "binary" },
+		{ "id": "no_unscripted_write", "label": "no stray write", "kind": "binary" },
+		{ "id": "lookup_first", "label": "lookup first", "kind": "binary" },
+		{ "id": "brand_ask", "label": "brand ask", "kind": "binary" },
+		{ "id": "format", "label": "format", "kind": "binary" },
+		{ "id": "brief", "label": "brief", "kind": "binary" },
+		{ "id": "voice", "label": "voice", "kind": "binary" }
+	],
+	"perf_fields": [
+		{ "id": "cost_usd", "label": "cost", "unit": "$" },
+		{ "id": "turns", "label": "turns" },
+		{ "id": "tool_calls", "label": "tool calls" },
+		{ "id": "unscripted_calls", "label": "unscripted" },
+		{ "id": "latency_s", "label": "latency", "unit": "s" }
+	],
+	"prices": {
+		"claude-opus-5-5": { "in": 4, "out": 20 },
+		"claude-sonnet-4-6": { "in": 3, "out": 15 },
+		"claude-haiku-4-5": { "in": 1, "out": 5 }
+	},
+	"harness_paths": [
+		"src/evals/stitch/adapter.ts",
+		"src/evals/stitch/checks.ts",
+		"src/evals/stitch/conversation.ts",
+		"src/evals/stitch/executor.ts",
+		"src/evals/stitch/judge.ts",
+		"src/evals/stitch/schema.ts",
+		"src/evals/stitch/trace.ts"
+	]
+}

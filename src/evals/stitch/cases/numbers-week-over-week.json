@@ -1,0 +1,113 @@
+{
+	"id": "numbers-week-over-week",
+	"tags": ["analytics", "dates"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": ["What were my numbers last week vs. the week before?"],
+	"tools": [
+		{
+			"tool": "get_sales_analytics",
+			"match": { "date_from": "2026-10-05", "date_to": "2026-10-11" },
+			"result": {
+				"success": true,
+				"data": {
+					"filters": {
+						"date_from": "2026-10-05",
+						"date_to": "2026-10-11",
+						"season": null,
+						"brand": null,
+						"account": null,
+						"rep": null
+					},
+					"group_by": "total",
+					"results": {
+						"revenue": 18420,
+						"order_count": 7,
+						"units_sold": 296,
+						"avg_order_value": 2631.43
+					}
+				}
+			}
+		},
+		{
+			"tool": "get_sales_analytics",
+			"match": { "date_from": "2026-09-28", "date_to": "2026-10-04" },
+			"result": {
+				"success": true,
+				"data": {
+					"filters": {
+						"date_from": "2026-09-28",
+						"date_to": "2026-10-04",
+						"season": null,
+						"brand": null,
+						"account": null,
+						"rep": null
+					},
+					"group_by": "total",
+					"results": {
+						"revenue": 14960,
+						"order_count": 6,
+						"units_sold": 241,
+						"avg_order_value": 2493.33
+					}
+				}
+			}
+		},
+		{
+			"tool": "get_sales_analytics",
+			"match": { "date_from": "2026-10-04", "date_to": "2026-10-10" },
+			"result": {
+				"success": true,
+				"data": {
+					"filters": {
+						"date_from": "2026-10-04",
+						"date_to": "2026-10-10",
+						"season": null,
+						"brand": null,
+						"account": null,
+						"rep": null
+					},
+					"group_by": "total",
+					"results": {
+						"revenue": 17640,
+						"order_count": 7,
+						"units_sold": 281,
+						"avg_order_value": 2520
+					}
+				}
+			}
+		},
+		{
+			"tool": "get_sales_analytics",
+			"match": { "date_from": "2026-09-27", "date_to": "2026-10-03" },
+			"result": {
+				"success": true,
+				"data": {
+					"filters": {
+						"date_from": "2026-09-27",
+						"date_to": "2026-10-03",
+						"season": null,
+						"brand": null,
+						"account": null,
+						"rep": null
+					},
+					"group_by": "total",
+					"results": {
+						"revenue": 15300,
+						"order_count": 6,
+						"units_sold": 247,
+						"avg_order_value": 2550
+					}
+				}
+			}
+		}
+	],
+	"expect": { "lookup_tools": ["get_sales_analytics"] },
+	"rubric": "Today is Friday, Oct 16, 2026. Pass: Stitch makes two get_sales_analytics calls, one per week, for the two full weeks before the current one. Monday to Sunday: last week Oct 5 to 11 ($18,420, 7 orders, 296 units, AOV $2,631.43) vs the week before Sep 28 to Oct 4 ($14,960, 6 orders, 241 units, AOV $2,493.33), up $3,460 or about 23%. Sunday to Saturday also passes: Oct 4 to 10 ($17,640, 7 orders, 281 units) vs Sep 27 to Oct 3 ($15,300, 6 orders, 247 units), up $2,340 or about 15%. The reply states the two date ranges and compares the scripted totals correctly. Fail: a single call over 14 days, the current partial week (Oct 12 onward), wrong boundaries, numbers not in the tool results, or a wrong difference or percentage."
+}

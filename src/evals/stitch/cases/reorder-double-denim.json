@@ -1,0 +1,488 @@
+{
+	"id": "reorder-double-denim",
+	"tags": ["orders", "reorder", "history", "multi-turn"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"history": [
+		{
+			"role": "user",
+			"content": "Sarah at Juniper Mercantile called. She wants to reorder for a Jan 15 to Feb 15 ship."
+		},
+		{
+			"role": "assistant",
+			"content": "Got it: Juniper Mercantile, shipping Jan 15 to Feb 15. What does she want on the order?"
+		}
+	],
+	"turns": [
+		"Same as her last order but double the denim.",
+		"yes, those two, and re-price from the current catalog"
+	],
+	"tools": [
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts", "filters": { "business_name": "Juniper" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"contact_first_name": "Sarah",
+						"contact_last_name": "Okafor",
+						"contact_email": "sarah@junipermercantile.com",
+						"phone": "208-555-0177",
+						"city": "Boise",
+						"state": "ID",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-05-03T21:15:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-4",
+						"business_name": "Acme Outfitters",
+						"contact_first_name": "Tom",
+						"contact_last_name": "Reyes",
+						"contact_email": "tom@acmeoutfitters.com",
+						"phone": "503-555-0163",
+						"city": "Portland",
+						"state": "OR",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2023-03-14T17:22:00+00:00"
+					},
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"contact_first_name": "Lena",
+						"contact_last_name": "Ortiz",
+						"contact_email": "lena@bloomboutique.com",
+						"phone": "805-555-0142",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"country": "US",
+						"notes": "Prefers early-February ship windows. Pays net 30.",
+						"territory_id": "t-1",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-02-12T18:04:00+00:00"
+					},
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"contact_first_name": "Sarah",
+						"contact_last_name": "Okafor",
+						"contact_email": "sarah@junipermercantile.com",
+						"phone": "208-555-0177",
+						"city": "Boise",
+						"state": "ID",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-05-03T21:15:00+00:00"
+					},
+					{
+						"id": "a-5",
+						"business_name": "Rivera & Daughters",
+						"contact_first_name": "Marcus",
+						"contact_last_name": "Rivera",
+						"contact_email": "marcus@riveraanddaughters.com",
+						"phone": "619-555-0108",
+						"city": "San Diego",
+						"state": "CA",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-1",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-01-09T19:30:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "list_accounts",
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-4",
+						"business_name": "Acme Outfitters",
+						"city": "Portland",
+						"state": "OR",
+						"connected": false
+					},
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"connected": false
+					},
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"city": "Boise",
+						"state": "ID",
+						"connected": false
+					},
+					{
+						"id": "a-5",
+						"business_name": "Rivera & Daughters",
+						"city": "San Diego",
+						"state": "CA",
+						"connected": false
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "order_lines", "filters": { "order_id": "o-112" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "l-1",
+						"order_id": "o-112",
+						"product_id": "p-ff-1",
+						"variant_id": null,
+						"style_number": "FF-1101",
+						"description": "Gauze Camp Shirt",
+						"color": "White",
+						"size": "M",
+						"qty": 6,
+						"unit_price": 48,
+						"line_total": 288,
+						"sort_order": 0,
+						"original_qty": null,
+						"removed_at": null,
+						"removed_reason": null,
+						"created_at": "2025-11-04T17:50:00+00:00"
+					},
+					{
+						"id": "l-2",
+						"order_id": "o-112",
+						"product_id": "p-ff-2",
+						"variant_id": null,
+						"style_number": "FF-1204",
+						"description": "Rigid Denim Jacket",
+						"color": "Indigo",
+						"size": "M",
+						"qty": 4,
+						"unit_price": 78,
+						"line_total": 312,
+						"sort_order": 1,
+						"original_qty": null,
+						"removed_at": null,
+						"removed_reason": null,
+						"created_at": "2025-11-04T17:50:00+00:00"
+					},
+					{
+						"id": "l-3",
+						"order_id": "o-112",
+						"product_id": "p-ff-3",
+						"variant_id": null,
+						"style_number": "FF-1310",
+						"description": "High-Rise Straight Jean",
+						"color": "Rinse",
+						"size": "28",
+						"qty": 6,
+						"unit_price": 64,
+						"line_total": 384,
+						"sort_order": 2,
+						"original_qty": null,
+						"removed_at": null,
+						"removed_reason": null,
+						"created_at": "2025-11-04T17:50:00+00:00"
+					},
+					{
+						"id": "l-4",
+						"order_id": "o-112",
+						"product_id": "p-ff-4",
+						"variant_id": null,
+						"style_number": "FF-1422",
+						"description": "Poplin Shirt Dress",
+						"color": "Sage",
+						"size": "S",
+						"qty": 4,
+						"unit_price": 62,
+						"line_total": 248,
+						"sort_order": 3,
+						"original_qty": null,
+						"removed_at": null,
+						"removed_reason": null,
+						"created_at": "2025-11-04T17:50:00+00:00"
+					},
+					{
+						"id": "l-5",
+						"order_id": "o-112",
+						"product_id": "p-ff-5",
+						"variant_id": null,
+						"style_number": "FF-1530",
+						"description": "Cotton Knit Tank",
+						"color": "Black",
+						"size": "M",
+						"qty": 8,
+						"unit_price": 22,
+						"line_total": 176,
+						"sort_order": 4,
+						"original_qty": null,
+						"removed_at": null,
+						"removed_reason": null,
+						"created_at": "2025-11-04T17:50:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "orders" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "o-112",
+						"order_number": "FIE-000112",
+						"order_type": "order",
+						"status": "delivered",
+						"account_id": "a-2",
+						"brand_id": "b-2",
+						"season_id": "s-spring",
+						"order_year": 2026,
+						"start_ship_date": "2026-01-15",
+						"expected_ship_date": "2026-02-15",
+						"total_amount": 1408,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2025-11-04T17:50:00+00:00",
+						"created_at": "2025-11-04T17:50:00+00:00",
+						"brands": { "name": "Field & Fable" },
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-71",
+						"order_number": "FIE-000071",
+						"order_type": "order",
+						"status": "delivered",
+						"account_id": "a-2",
+						"brand_id": "b-2",
+						"season_id": "s-fall",
+						"order_year": 2025,
+						"start_ship_date": "2025-07-15",
+						"expected_ship_date": "2025-08-15",
+						"total_amount": 1236,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2025-04-22T18:30:00+00:00",
+						"created_at": "2025-04-22T18:30:00+00:00",
+						"brands": { "name": "Field & Fable" },
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"seasons": { "name": "Fall" }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "products" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "p-ff-1",
+						"brand_id": "b-2",
+						"style_number": "FF-1101",
+						"name": "Gauze Camp Shirt",
+						"description": null,
+						"wholesale_price": 50,
+						"retail_price": 118,
+						"category": "Tops",
+						"subcategory": null,
+						"season_id": "s-spring",
+						"product_year": 2027,
+						"ats": false,
+						"is_featured": false,
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2026-06-18T16:00:00+00:00",
+						"attributes": [],
+						"brands": { "name": "Field & Fable" },
+						"product_variants": [
+							{ "color": "White", "size": "S", "sku": "FF-1101-WHI-S" },
+							{ "color": "White", "size": "M", "sku": "FF-1101-WHI-M" },
+							{ "color": "White", "size": "L", "sku": "FF-1101-WHI-L" },
+							{ "color": "Sky", "size": "S", "sku": "FF-1101-SKY-S" },
+							{ "color": "Sky", "size": "M", "sku": "FF-1101-SKY-M" },
+							{ "color": "Sky", "size": "L", "sku": "FF-1101-SKY-L" }
+						]
+					},
+					{
+						"id": "p-ff-2",
+						"brand_id": "b-2",
+						"style_number": "FF-1204",
+						"name": "Rigid Denim Jacket",
+						"description": null,
+						"wholesale_price": 82,
+						"retail_price": 192,
+						"category": "Outerwear",
+						"subcategory": "Denim",
+						"season_id": "s-spring",
+						"product_year": 2027,
+						"ats": false,
+						"is_featured": false,
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2026-06-18T16:00:00+00:00",
+						"attributes": [],
+						"brands": { "name": "Field & Fable" },
+						"product_variants": [
+							{ "color": "Indigo", "size": "S", "sku": "FF-1204-IND-S" },
+							{ "color": "Indigo", "size": "M", "sku": "FF-1204-IND-M" },
+							{ "color": "Indigo", "size": "L", "sku": "FF-1204-IND-L" }
+						]
+					},
+					{
+						"id": "p-ff-3",
+						"brand_id": "b-2",
+						"style_number": "FF-1310",
+						"name": "High-Rise Straight Jean",
+						"description": null,
+						"wholesale_price": 68,
+						"retail_price": 158,
+						"category": "Bottoms",
+						"subcategory": "Denim",
+						"season_id": "s-spring",
+						"product_year": 2027,
+						"ats": false,
+						"is_featured": false,
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2026-06-18T16:00:00+00:00",
+						"attributes": [],
+						"brands": { "name": "Field & Fable" },
+						"product_variants": [
+							{ "color": "Rinse", "size": "26", "sku": "FF-1310-RIN-26" },
+							{ "color": "Rinse", "size": "28", "sku": "FF-1310-RIN-28" },
+							{ "color": "Rinse", "size": "30", "sku": "FF-1310-RIN-30" },
+							{ "color": "Indigo", "size": "26", "sku": "FF-1310-IND-26" },
+							{ "color": "Indigo", "size": "28", "sku": "FF-1310-IND-28" },
+							{ "color": "Indigo", "size": "30", "sku": "FF-1310-IND-30" }
+						]
+					},
+					{
+						"id": "p-ff-4",
+						"brand_id": "b-2",
+						"style_number": "FF-1422",
+						"name": "Poplin Shirt Dress",
+						"description": null,
+						"wholesale_price": 64,
+						"retail_price": 152,
+						"category": "Dresses",
+						"subcategory": null,
+						"season_id": "s-spring",
+						"product_year": 2027,
+						"ats": false,
+						"is_featured": false,
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2026-06-18T16:00:00+00:00",
+						"attributes": [],
+						"brands": { "name": "Field & Fable" },
+						"product_variants": [
+							{ "color": "Sage", "size": "S", "sku": "FF-1422-SAG-S" },
+							{ "color": "Sage", "size": "M", "sku": "FF-1422-SAG-M" },
+							{ "color": "Sage", "size": "L", "sku": "FF-1422-SAG-L" },
+							{ "color": "White", "size": "S", "sku": "FF-1422-WHI-S" },
+							{ "color": "White", "size": "M", "sku": "FF-1422-WHI-M" },
+							{ "color": "White", "size": "L", "sku": "FF-1422-WHI-L" }
+						]
+					},
+					{
+						"id": "p-ff-5",
+						"brand_id": "b-2",
+						"style_number": "FF-1530",
+						"name": "Cotton Knit Tank",
+						"description": null,
+						"wholesale_price": 24,
+						"retail_price": 56,
+						"category": "Tops",
+						"subcategory": null,
+						"season_id": "s-spring",
+						"product_year": 2027,
+						"ats": false,
+						"is_featured": false,
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2026-06-18T16:00:00+00:00",
+						"attributes": [],
+						"brands": { "name": "Field & Fable" },
+						"product_variants": [
+							{ "color": "Black", "size": "S", "sku": "FF-1530-BLA-S" },
+							{ "color": "Black", "size": "M", "sku": "FF-1530-BLA-M" },
+							{ "color": "Black", "size": "L", "sku": "FF-1530-BLA-L" },
+							{ "color": "White", "size": "S", "sku": "FF-1530-WHI-S" },
+							{ "color": "White", "size": "M", "sku": "FF-1530-WHI-M" },
+							{ "color": "White", "size": "L", "sku": "FF-1530-WHI-L" }
+						]
+					}
+				]
+			}
+		},
+		{
+			"tool": "list_brands",
+			"result": {
+				"success": true,
+				"data": [
+					{ "id": "b-2", "name": "Field & Fable", "connected": true },
+					{ "id": "b-3", "name": "Northbound Denim", "connected": true },
+					{ "id": "b-1", "name": "Saltwater Linen", "connected": true }
+				]
+			}
+		},
+		{
+			"tool": "create_order",
+			"result": {
+				"success": true,
+				"data": {
+					"id": "o-158",
+					"order_number": "FIE-000158",
+					"status": "submitted",
+					"total_amount": 2220,
+					"order_year": 2027,
+					"brands": { "name": "Field & Fable" },
+					"accounts": { "business_name": "Juniper Mercantile" },
+					"seasons": { "name": "Spring" },
+					"lines_added": 5
+				}
+			}
+		}
+	],
+	"expect": { "routes": ["TOOLS", "TOOLS"], "allowed_writes": ["create_order"] },
+	"rubric": "The history names Sarah at Juniper Mercantile and a Jan 15 to Feb 15 ship window (2027, since today is Oct 16, 2026). Juniper's last order is FIE-000112 (Field & Fable, Spring 2026, delivered) with 5 lines: Gauze Camp Shirt M x6 at $48, Rigid Denim Jacket M x4 at $78, High-Rise Straight Jean 28 x6 at $64, Poplin Shirt Dress S x4 at $62, Cotton Knit Tank M x8 at $22. The two denim lines are the Rigid Denim Jacket and the High-Rise Straight Jean (subcategory Denim). The current catalog prices them at $82 and $68. Pass: turn 1 finds that order, names the two denim lines it will double, asks whether to keep last order's prices or re-price from the current catalog, and makes no write. Turn 2 calls create_order once for Juniper Mercantile with brand_name Field & Fable, start_ship_date 2027-01-15, complete_ship_date 2027-02-15, and all five lines with the same style, color and size, the jacket at qty 8 and the jean at qty 12, the other three at their original quantities, each line identified by style_number or description and with no unit_price so the server prices from the catalog. It then confirms with FIE-000158 and the $2,220 total from the result. Turn 2 cannot see turn 1 tool results, so a re-lookup there is fine. Fail: any write in turn 1, doubling non-denim lines, dropping the non-denim lines, passing unit_price, ship dates in another year, or a total or order number not in the tool result."
+}

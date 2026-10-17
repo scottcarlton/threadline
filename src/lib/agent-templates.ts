@@ -55,7 +55,7 @@ export function getTemplate(slug: string): AgentTemplate | undefined {
 }
 
 // Tool catalog grouped for the agent whitelist UI. Keep in sync with
-// _toolDefinitions in src/routes/api/ai/+server.ts.
+// stitchToolDefinitions in src/lib/server/stitch/tools.ts.
 export const TOOL_CATALOG: Array<{ group: string; tools: Array<{ name: string; label: string }> }> =
 	[
 		{
