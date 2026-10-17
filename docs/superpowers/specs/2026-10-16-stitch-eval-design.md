@@ -115,25 +115,28 @@ Output, one entry per metric:
 - `brief`: condensed, no padding, per "Be brief".
 - `voice`: teammate tone, calibrated urgency, frames next moves, no help-desk filler.
 
+The system prompt names the `<untrusted-content>` fence and carries `UNTRUSTED_CONTENT_RULE` from `ai-untrusted.ts`. When a case made tool calls with no scripted result, an author-side `<unscripted_tool_calls>` block, outside the fence, names them and tells the judge they returned an empty success because of a fixture gap, so Stitch is not penalized for acting on that empty result.
+
 Judge usage is recorded as `judge_model` and `judge_usage` on each row so its cost is visible separately.
 
 ### 5. Runner (`scripts/eval-stitch.ts`)
 
-`bun run eval:stitch [--variant baseline] [--reps 2] [--concurrency 4] [--timeout-s 300] [--approve-harness]` (flags owned by the bundled scaffold). Filter cases with `STITCH_EVAL_CASES=id1,id2`. Gate and baseline: `bun run eval:stitch:gate [--variant baseline] [--reps 2] [--update-baseline]`.
+`bun run eval:stitch [--variant baseline] [--reps 2] [--concurrency 4] [--timeout-s 600] [--approve-harness]` (flags owned by the bundled scaffold; the package script passes `--timeout-s 600`). Filter cases with `STITCH_EVAL_CASES=id1,id2`. Gate and baseline: `bun run eval:stitch:gate [--variant baseline] [--reps 2] [--update-baseline]`.
 
 - Loads and validates cases, runs `(case, rep)` pairs concurrently behind a semaphore.
 - Per case: build context, `buildStitchSystem`, then for each turn: classify with `CLASSIFIER_PROMPT`, run either Haiku CHAT or the Sonnet tools loop with history rebuilt via `toHistoryMessages`, then checks, then judge.
 - Jittered backoff on 429/529, retry count recorded. Hard wall-clock ceiling per case. Asserts the served `model` matches the requested one.
 - Writes under `.claude/hillclimb/stitch-chat/<variant>/`: `results.jsonl` (one row per case and rep, written as it completes, resumable at the `(case, rep)` key), `traces/<id>_rep<k>.json`, `errors.jsonl` for harness failures. Every row carries `prompt_version`, `model`, `usage`, `stop_reason`, `status` (`ok` or `truncated`), `latency_s`, `tool_calls`, and `grade` as a `{metric: 0|1}` dict with `explanation`.
-- `_state.json` declares the metrics so the bundled report builder renders `report.html`. Committed metric template is `src/evals/stitch/state.template.json`.
-- Prints a summary: per-metric pass rate with a 95% interval, critical failures listed by case, measured spend.
+- `_state.json` declares the metrics and per-MTok `prices` (`{model_id: {in, out}}`). Committed template is `src/evals/stitch/state.template.json`.
+- `bun run eval:stitch:report` runs the vendored lite report builder (`scripts/eval-stitch-report.mjs`, copied verbatim and lint-ignored) over `.claude/hillclimb/stitch-chat/` to write `report.html`.
+- The gate prints a summary: per-metric pass rate with a 95% interval, critical failures listed by case, error rows by `failure_class`, rows with unscripted tool calls (a warning, not a failure), and measured spend (total and per-row median). Spend prices `usage` at the row model, `haiku_usage` at Haiku and `judge_usage` at the judge model, with cache reads at 0.1x input and cache writes at 1.25x, matching model ids by prefix. Prices come from the run folder's `_state.json`, else the template.
 
 ### 6. Baseline and CI gate
 
 - `src/evals/stitch/baseline.json` is committed: per-metric pass rates, case count, reps, `prompt_version`, date.
-- `bun run eval:stitch:gate` exits non-zero when (a) any critical check fails on any case and rep, or (b) any judge metric falls more than the configured margin below `baseline.json`.
-- The margin is set from the measured run-to-run spread of the pilot and full baseline, not chosen in advance.
-- `bun run eval:stitch:gate --update-baseline` rewrites `baseline.json` locally. CI never rewrites it; raising the bar is a committed, reviewed change.
+- `bun run eval:stitch:gate` exits non-zero when (a) any critical check fails on any graded row, including truncated ones, (b) any judge metric falls more than the margin below `baseline.json`, (c) any row in `errors.jsonl` has no results row for its `(case, rep)`, or (d) fewer rows were scored than the baseline's `cases * reps` ("coverage: N of M rows scored"). Rates use status-ok rows only.
+- The margin is the widest 95% Wilson half-interval across the judge metrics at baseline time, a proxy for run-to-run spread rather than a measured one.
+- `bun run eval:stitch:gate --update-baseline` rewrites `baseline.json` locally. It refuses on critical failures, unresolved error rows, or no scored judge metric. CI never rewrites it; raising the bar is a committed, reviewed change.
 - CI job (added only after the baseline exists): a new job in `.github/workflows/ci.yml`, path-filtered to `src/lib/server/ai-prompts.ts`, `src/lib/server/ai-tools.ts`, `src/lib/server/stitch/**`, `src/routes/api/ai/**`, `src/evals/stitch/**`. Needs an `ANTHROPIC_API_KEY` repository secret. Uploads `report.html` as an artifact.
 - `.gitignore` gains `.claude/hillclimb/**/traces/`, `.claude/hillclimb/**/report.html`, `.claude/hillclimb/**/trajectory/`.
 
