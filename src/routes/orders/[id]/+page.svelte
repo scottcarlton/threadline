@@ -24,6 +24,12 @@
 	import { classifyOrder, SPOTLIGHT_LABELS } from '$lib/utils/order-spotlight.js';
 	import { invoiceDisplayStatus, invoiceBalance } from '$lib/utils/invoice-status.js';
 	import {
+		creditsAgainstInvoice,
+		orderReturnBadge,
+		RETURN_STATUS_LABELS,
+		returnUnits
+	} from '$lib/utils/return-status.js';
+	import {
 		orderShippingCost,
 		orderGrandTotal,
 		orderTaxAmount,
@@ -499,6 +505,27 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	}
 	const invoiceDisplay = $derived(invoice ? invoiceDisplayStatus(invoice, todayIso) : null);
 	const invoiceBalanceDue = $derived(invoice ? invoiceBalance(invoice) : 0);
+
+	// Returns against this order. RLS already narrowed them to what this viewer
+	// may see, so an empty list means "none visible" and the block is absent.
+	const orderReturns = $derived(data.returns ?? []);
+	const returnBadge = $derived(orderReturnBadge(orderReturns));
+	// Memos applied to this order's invoice. Credits change what is owed on the
+	// document without changing its status, which follows payments only, so
+	// they are shown alongside it rather than folded into it.
+	const invoiceCredits = $derived(
+		invoice ? creditsAgainstInvoice(orderReturns, invoice.id) : { total: 0, memoNumbers: [] }
+	);
+
+	// Same palette as /returns.
+	const returnBadgeColors: Record<string, string> = {
+		requested: 'bg-amber-50 text-amber-700',
+		approved: 'bg-blue-50 text-blue-700',
+		received: 'bg-blue-50 text-blue-700',
+		closed: 'bg-emerald-50 text-emerald-700',
+		declined: 'bg-zinc-100 text-zinc-500',
+		cancelled: 'bg-zinc-100 text-zinc-500'
+	};
 	// The brand manages the invoice; everyone else is looking at a record of it.
 	const canOpenInvoice = $derived(isBrandOrg && !data.isBuyer);
 	const repCommissionOnTotal = $derived((Number(order.total_amount) * repCommissionRate) / 100);
@@ -1428,6 +1455,18 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				>
 					{statusLabels[order.status] ?? order.status}
 				</span>
+			{/if}
+			<!--
+				Open returns only. One links to the return; several link down to the
+				list, since a badge cannot hold more than one destination.
+			-->
+			{#if returnBadge}
+				<a
+					href={returnBadge.returnId ? resolve(`/returns/${returnBadge.returnId}`) : '#returns'}
+					class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100"
+				>
+					{returnBadge.label}
+				</a>
 			{/if}
 		</div>
 		<div class="mt-1 text-sm text-muted-foreground">
@@ -2757,15 +2796,33 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 							<dt class="text-muted-foreground">Invoiced</dt>
 							<dd class="font-mono">{fmt.format(Number(invoice.total))}</dd>
 						</div>
+						{#if invoiceCredits.total > 0}
+							<div class="flex justify-between">
+								<dt class="text-muted-foreground">
+									Credited
+									<span class="font-mono">({invoiceCredits.memoNumbers.join(', ')})</span>
+								</dt>
+								<dd class="font-mono">-{fmt.format(invoiceCredits.total)}</dd>
+							</div>
+						{/if}
 						{#if Number(invoice.amount_paid) > 0}
 							<div class="flex justify-between">
 								<dt class="text-muted-foreground">Paid</dt>
 								<dd class="font-mono">{fmt.format(Number(invoice.amount_paid))}</dd>
 							</div>
+						{/if}
+						<!--
+							Net of payments and of any credit memo applied to this invoice,
+							so what is still owed reads off one panel. A void invoice owes
+							nothing, credited or not.
+						-->
+						{#if Number(invoice.amount_paid) > 0 || invoiceCredits.total > 0}
 							<div class="flex justify-between border-t pt-2 font-medium">
 								<dt>Balance</dt>
 								<dd class="font-mono {invoiceDisplay === 'overdue' ? 'text-red-600' : ''}">
-									{fmt.format(invoiceBalanceDue)}
+									{fmt.format(
+										invoice.status === 'void' ? 0 : invoiceBalanceDue - invoiceCredits.total
+									)}
 								</dd>
 							</div>
 						{/if}
@@ -2786,6 +2843,45 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 							</Button>
 						{/if}
 					</div>
+				</div>
+			{/if}
+
+			<!--
+				Returns against this order. Absent, not empty, when there are none:
+				most orders are never returned and an empty block would only be noise.
+				No account or brand column; the order header already says both.
+			-->
+			{#if orderReturns.length > 0}
+				<div id="returns" class="rounded-lg border bg-muted/30 p-2">
+					<div class="px-3 pt-3 pb-1 text-sm tracking-wider text-muted-foreground/70 uppercase">
+						Returns
+					</div>
+					{#each orderReturns as ra (ra.id)}
+						<a
+							href={resolve(`/returns/${ra.id}`)}
+							class="flex items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted"
+						>
+							<div class="min-w-0">
+								<!-- Same wording as /returns: no number until the brand approves it. -->
+								<div class="font-mono text-sm">{ra.ra_number ?? 'No number yet'}</div>
+								<div class="text-sm text-muted-foreground">
+									{returnUnits(ra.return_lines ?? [])} units
+								</div>
+							</div>
+							<div class="flex items-center gap-3">
+								{#if ra.credit_memo_number}
+									<span class="font-mono text-sm">{fmt.format(Number(ra.credit_total))}</span>
+								{/if}
+								<span
+									class="inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-medium {returnBadgeColors[
+										ra.status
+									] ?? 'bg-zinc-100 text-zinc-500'}"
+								>
+									{RETURN_STATUS_LABELS[ra.status]}
+								</span>
+							</div>
+						</a>
+					{/each}
 				</div>
 			{/if}
 
