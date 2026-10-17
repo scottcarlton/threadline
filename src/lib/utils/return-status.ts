@@ -142,3 +142,51 @@ export function computeReturnMetrics(rows: ReturnListRow[]): ReturnMetrics {
 
 	return { openCount, requestedCount, creditedTotal };
 }
+
+/** The few columns order detail reads for each return against the order. */
+export type OrderReturnRow = {
+	id: string;
+	ra_number: string | null;
+	status: ReturnStatus;
+	credit_memo_number: string | null;
+	credit_total: number | string | null;
+	applied_invoice_id: string | null;
+};
+
+/**
+ * The header badge for an order with returns still moving, or null.
+ *
+ * Clears once every return is closed, declined or cancelled: those are
+ * finished, and the history block below says what happened to them. One open
+ * return names its state and links to it; several just say how many, since a
+ * badge cannot hold a list.
+ */
+export function orderReturnBadge(
+	returns: OrderReturnRow[]
+): { label: string; returnId: string | null } | null {
+	const open = returns.filter((r) => returnIsOpen(r.status));
+	if (open.length === 0) return null;
+	if (open.length === 1) {
+		return {
+			label: `Return ${RETURN_STATUS_LABELS[open[0].status].toLowerCase()}`,
+			returnId: open[0].id
+		};
+	}
+	return { label: `${open.length} returns open`, returnId: null };
+}
+
+/**
+ * What issued credit memos take off a given invoice.
+ *
+ * Only memos whose applied_invoice_id names this invoice. A free-entry memo, or
+ * one issued before the invoice was sent, credits the account rather than this
+ * document, so counting it here would understate what the buyer owes on it.
+ */
+export function creditsAgainstInvoice(
+	returns: OrderReturnRow[],
+	invoiceId: string
+): { total: number; memoNumbers: string[] } {
+	const applied = returns.filter((r) => r.applied_invoice_id === invoiceId && r.credit_memo_number);
+	const cents = applied.reduce((sum, r) => sum + Math.round(Number(r.credit_total ?? 0) * 100), 0);
+	return { total: cents / 100, memoNumbers: applied.map((r) => r.credit_memo_number as string) };
+}

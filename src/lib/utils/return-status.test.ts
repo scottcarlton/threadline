@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	computeReturnMetrics,
+	creditsAgainstInvoice,
+	orderReturnBadge,
 	RETURN_DISPOSITION_LABELS,
 	RETURN_STATUS_LABELS,
 	returnCreditIssued,
@@ -9,6 +11,7 @@ import {
 	returnNeedsAction,
 	returnQueueRank,
 	returnUnits,
+	type OrderReturnRow,
 	type ReturnListRow
 } from './return-status';
 import type { ReturnDisposition, ReturnStatus } from '$lib/types/database';
@@ -188,5 +191,70 @@ describe('computeReturnMetrics', () => {
 			requestedCount: 0,
 			creditedTotal: 0
 		});
+	});
+});
+
+describe('orderReturnBadge', () => {
+	const ra = (status: OrderReturnRow['status'], id: string = status): OrderReturnRow => ({
+		id,
+		ra_number: null,
+		status,
+		credit_memo_number: null,
+		credit_total: 0,
+		applied_invoice_id: null
+	});
+
+	it('names the state of a single open return and links to it', () => {
+		expect(orderReturnBadge([ra('approved', 'r1')])).toEqual({
+			label: 'Return approved',
+			returnId: 'r1'
+		});
+	});
+
+	it('counts several open returns instead of linking one', () => {
+		expect(orderReturnBadge([ra('requested', 'a'), ra('received', 'b')])).toEqual({
+			label: '2 returns open',
+			returnId: null
+		});
+	});
+
+	it('clears once nothing is still moving', () => {
+		expect(orderReturnBadge([ra('closed'), ra('declined'), ra('cancelled')])).toBeNull();
+		expect(orderReturnBadge([])).toBeNull();
+	});
+
+	it('ignores finished returns when counting open ones', () => {
+		expect(orderReturnBadge([ra('closed', 'x'), ra('requested', 'y')])?.returnId).toBe('y');
+	});
+});
+
+describe('creditsAgainstInvoice', () => {
+	const memo = (over: Partial<OrderReturnRow>): OrderReturnRow => ({
+		id: 'r',
+		ra_number: 'RA-1',
+		status: 'closed',
+		credit_memo_number: 'CM-1',
+		credit_total: 0,
+		applied_invoice_id: 'inv',
+		...over
+	});
+
+	it('sums only memos applied to this invoice, to the cent', () => {
+		const result = creditsAgainstInvoice(
+			[
+				memo({ credit_memo_number: 'CM-1', credit_total: '0.10' }),
+				memo({ credit_memo_number: 'CM-2', credit_total: 0.2 }),
+				memo({ credit_memo_number: 'CM-3', credit_total: 50, applied_invoice_id: 'other' }),
+				memo({ credit_memo_number: 'CM-4', credit_total: 9, applied_invoice_id: null })
+			],
+			'inv'
+		);
+		expect(result).toEqual({ total: 0.3, memoNumbers: ['CM-1', 'CM-2'] });
+	});
+
+	it('ignores a return with no memo yet', () => {
+		expect(
+			creditsAgainstInvoice([memo({ credit_memo_number: null, credit_total: 0 })], 'inv')
+		).toEqual({ total: 0, memoNumbers: [] });
 	});
 });
