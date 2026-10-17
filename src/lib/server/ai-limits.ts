@@ -16,6 +16,7 @@
  * quietly served worse answers it cannot distinguish from good ones.
  */
 import { supabaseAdmin } from './supabase.js';
+import { logSupabaseError } from './log-supabase-error.js';
 
 export type AiLimitConfig = {
 	userPerMinute: number;
@@ -135,6 +136,13 @@ export async function checkAiLimits(
 			.gte('created_at', startOfDay)
 	]);
 
+	// A failed count reads as zero and the request is allowed. Failing open is
+	// deliberate (a database blip should not take Stitch down), but it has to
+	// be loud: a limiter that quietly stops counting is no limiter at all.
+	logSupabaseError('ai-limits user rate count', userRate.error);
+	logSupabaseError('ai-limits org rate count', orgRate.error);
+	logSupabaseError('ai-limits org token usage', usage.error);
+
 	const rows = (usage.data ?? []) as Array<{
 		input_tokens: number | null;
 		output_tokens: number | null;
@@ -161,7 +169,7 @@ export async function checkAiLimits(
 		// A counter we failed to write means the next check undercounts. Say so
 		// rather than swallowing it, but do not refuse a legitimate request over
 		// bookkeeping.
-		if (error) console.error('[ai-limits] request counter insert failed:', error.message);
+		logSupabaseError('ai-limits request counter insert', error);
 	}
 
 	return verdict;

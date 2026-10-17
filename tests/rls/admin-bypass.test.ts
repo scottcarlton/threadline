@@ -23,6 +23,7 @@ const REPO_ROOT = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..
  */
 const KNOWN_BYPASS_FILES: string[] = [
 	'src/hooks.server.ts',
+	'src/lib/server/account-recipients.ts',
 	'src/lib/server/agent-executor.ts',
 	'src/lib/server/ai-conversations.ts',
 	'src/lib/server/ai-limits.ts',
@@ -31,6 +32,7 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/lib/server/audit/hook.ts',
 	'src/lib/server/audit/query.ts',
 	'src/lib/server/beta-whitelist.ts',
+	'src/lib/server/document-email.ts',
 	'src/lib/server/email-intake/outcome.ts',
 	'src/lib/server/email-intake/resolve.ts',
 	'src/lib/server/email-intake/route.ts',
@@ -67,7 +69,9 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/lib/server/queries/invoices.ts',
 	'src/lib/server/queries/scope.ts',
 	'src/lib/server/retailers.ts',
+	'src/lib/server/returns/apply-transition.ts',
 	'src/lib/server/returns/authorize-return.ts',
+	'src/lib/server/returns/credit-memo.ts',
 	'src/lib/server/returns/policy.ts',
 	'src/lib/server/setup-status.ts',
 	'src/lib/server/user-lookup.ts',
@@ -154,7 +158,6 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/routes/api/products/[productId]/images/[imageId]/+server.ts',
 	'src/routes/api/products/import/+server.ts',
 	'src/routes/api/products/variants/[variantId]/stock/+server.ts',
-	'src/routes/api/returns/[id]/transition/+server.ts',
 	'src/routes/api/search/+server.ts',
 	'src/routes/api/setup/save/+server.ts',
 	'src/routes/api/shows/[dateId]/documents/+server.ts',

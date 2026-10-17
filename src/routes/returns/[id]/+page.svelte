@@ -1,6 +1,28 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { toast } from 'svelte-sonner';
+	import { superForm } from 'sveltekit-superforms';
+	import { zod4Client } from 'sveltekit-superforms/adapters';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { Card, CardContent } from '$lib/components/ui/card/index.js';
+	import {
+		Dialog,
+		DialogContent,
+		DialogTitle,
+		DialogDescription
+	} from '$lib/components/ui/dialog/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import {
+		declineReturnSchema,
+		issueCreditMemoSchema,
+		receiveReturnSchema
+	} from '$lib/schemas/return-transition.js';
+	import { returnCreditTotal } from '$lib/utils/return-credit-total.js';
 	import {
 		RETURN_DISPOSITION_LABELS,
 		RETURN_STATUS_LABELS,
@@ -19,6 +41,176 @@
 	const lines = $derived(ra.return_lines ?? []);
 
 	const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+	let declineOpen = $state(false);
+	let receiveOpen = $state(false);
+	let cancelOpen = $state(false);
+	let issueOpen = $state(false);
+	let pending = $state<'approve' | 'cancel' | null>(null);
+	let sendingMemo = $state(false);
+
+	async function sendMemo() {
+		sendingMemo = true;
+		try {
+			const res = await fetch(`/api/returns/${ra.id}/credit-memo/send`, { method: 'POST' });
+			const body = await res.json();
+			if (!res.ok) {
+				toast.error(body.error ?? 'Could not send the credit memo.');
+				return;
+			}
+			toast.success(`Credit memo ${body.credit_memo_number} sent to ${body.to}.`);
+		} catch {
+			toast.error('Could not reach the server.');
+		} finally {
+			sendingMemo = false;
+		}
+	}
+
+	// svelte-ignore state_referenced_locally
+	const {
+		form: declineData,
+		errors: declineErrors,
+		enhance: declineEnhance,
+		submitting: declineSubmitting
+	} = superForm(data.declineForm, {
+		id: 'decline-return',
+		validators: zod4Client(declineReturnSchema),
+		validationMethod: 'onblur',
+		onUpdated: ({ form }) => {
+			if (form.message?.type === 'success') {
+				declineOpen = false;
+				toast.success('Return declined.');
+				invalidate('data:returns');
+			} else if (form.message) {
+				toast.error(String(form.message));
+			}
+		},
+		onError: ({ result }) => toast.error(result.error?.message ?? 'Could not decline the return.')
+	});
+
+	// svelte-ignore state_referenced_locally
+	const {
+		form: receiveData,
+		enhance: receiveEnhance,
+		submitting: receiveSubmitting
+	} = superForm(data.receiveForm, {
+		id: 'receive-return',
+		dataType: 'json',
+		validators: zod4Client(receiveReturnSchema),
+		onUpdated: ({ form }) => {
+			if (form.message?.type === 'success') {
+				receiveOpen = false;
+				toast.success('Return received.');
+				invalidate('data:returns');
+			} else if (form.message) {
+				toast.error(String(form.message));
+			}
+		},
+		onError: ({ result }) => toast.error(result.error?.message ?? 'Could not receive the return.')
+	});
+
+	// svelte-ignore state_referenced_locally
+	const {
+		form: issueData,
+		errors: issueErrors,
+		enhance: issueEnhance,
+		submitting: issueSubmitting
+	} = superForm(data.issueForm, {
+		id: 'issue-credit-memo',
+		dataType: 'json',
+		validators: zod4Client(issueCreditMemoSchema),
+		validationMethod: 'onblur',
+		onUpdated: ({ form }) => {
+			if (form.message?.type === 'success') {
+				issueOpen = false;
+				toast.success(`Credit memo ${form.message.creditMemoNumber ?? ''} issued.`);
+				invalidate('data:returns');
+			} else if (form.message) {
+				toast.error(String(form.message));
+			}
+		},
+		onError: ({ result }) =>
+			toast.error(result.error?.message ?? 'Could not issue the credit memo.')
+	});
+
+	const credit = $derived(data.creditDefaults);
+
+	/** Live, as the brand edits the deductions. The database recomputes it on issue. */
+	const issueTotal = $derived(
+		credit
+			? returnCreditTotal({
+					creditSubtotal: credit.creditSubtotal,
+					restockingFee: Number($issueData.restockingFee) || 0,
+					shippingDeduction: Number($issueData.shippingDeduction) || 0,
+					creditTax: Number($issueData.creditTax) || 0,
+					inclusive: credit.inclusive
+				})
+			: 0
+	);
+
+	const feeHint = $derived.by(() => {
+		if (!credit) return '';
+		const { restockingFeeType, restockingFeeValue } = credit.policy;
+		if (!(restockingFeeValue > 0)) return 'Your policy has no restocking fee.';
+		return restockingFeeType === 'percent'
+			? `Your policy: ${restockingFeeValue}% of merchandise.`
+			: `Your policy: ${fmt.format(restockingFeeValue)} per return.`;
+	});
+
+	const shippingHint = $derived(
+		credit?.policy.buyerPaysShipping
+			? 'Your policy charges return shipping to the buyer. Enter what it cost.'
+			: 'Your policy covers return shipping.'
+	);
+
+	const taxHint = $derived.by(() => {
+		if (!credit) return '';
+		if (!credit.sourceInvoiceNumber)
+			return 'No issued invoice for this return, so no tax unless you enter it.';
+		return credit.inclusive
+			? `Prorated from ${credit.sourceInvoiceNumber}. Your prices include tax, so it is shown on the memo but not added.`
+			: `Prorated from ${credit.sourceInvoiceNumber}.`;
+	});
+
+	function openReceive() {
+		// Restock is the default because it is what happens to most returned
+		// wholesale goods. The brand changes the exceptions, not every line.
+		receiveData.update((d) => ({
+			...d,
+			dispositions: lines.map((l) => ({ lineId: l.id, disposition: 'restock' as const }))
+		}));
+		receiveOpen = true;
+	}
+
+	const dispositionItems = (['restock', 'damaged', 'destroy'] as const).map((value) => ({
+		value,
+		label: RETURN_DISPOSITION_LABELS[value]
+	}));
+
+	const restockSkipNotes: Record<string, string> = {
+		no_variant: 'Not linked to a catalog item, so no stock changes.',
+		untracked: 'Stock is not tracked for this item, so no count changes.',
+		shopify: 'Stock syncs from Shopify. Restock it there.'
+	};
+
+	/** Approve and cancel carry no fields, so they post plainly. */
+	function plainAction(name: 'approve' | 'cancel', done: string, failed: string): SubmitFunction {
+		return () => {
+			pending = name;
+			return async ({ result }) => {
+				pending = null;
+				if (result.type === 'success') {
+					cancelOpen = false;
+					toast.success(done);
+					await invalidate('data:returns');
+				} else if (result.type === 'failure') {
+					toast.error(String(result.data?.message ?? failed));
+				} else if (result.type === 'error') {
+					toast.error(result.error?.message ?? failed);
+				}
+			};
+		};
+	}
 
 	// Same palette as the list, and as /invoices.
 	const statusBadgeColors: Record<string, string> = {
@@ -56,7 +248,9 @@
 			{ label: 'Requested', at: ra.requested_at }
 		];
 		if (ra.status === 'declined') {
-			events.push({ label: 'Declined', at: ra.approved_at, note: ra.decline_reason });
+			// No declined_at column, and a decline is the last write a declined
+			// return receives, so updated_at is when it happened. Same as cancel.
+			events.push({ label: 'Declined', at: ra.updated_at, note: ra.decline_reason });
 		} else if (ra.approved_at) {
 			events.push({ label: 'Approved', at: ra.approved_at });
 		}
@@ -103,6 +297,51 @@
 				{/if}
 			</p>
 		</div>
+
+		<!--
+			One primary action for where the return is: a request waits on a
+			decision, an approved return waits on the goods. The negative action
+			sits beside it with less weight. Brand only; a rep or buyer asked for
+			this and sees its progress, not the controls.
+		-->
+		{#if data.canAction || creditIssued}
+			<div class="flex items-center gap-2">
+				{#if creditIssued}
+					<!-- Every reader of the return may download its memo; only the brand sends it. -->
+					<Button variant="outline" href="/api/returns/{ra.id}/credit-memo/pdf">Download PDF</Button
+					>
+					{#if data.canAction}
+						<Button onclick={sendMemo} disabled={sendingMemo}>
+							{sendingMemo ? 'Sending…' : 'Send credit memo'}
+						</Button>
+					{/if}
+				{:else if data.canAction && ra.status === 'requested'}
+					<Button variant="outline" onclick={() => (declineOpen = true)}>Decline</Button>
+					<form
+						method="POST"
+						action="?/approve"
+						use:enhance={plainAction(
+							'approve',
+							'Return approved.',
+							'Could not approve the return.'
+						)}
+					>
+						<Button type="submit" disabled={pending === 'approve'}>
+							{pending === 'approve' ? 'Approving…' : 'Approve'}
+						</Button>
+					</form>
+				{:else if data.canAction && ra.status === 'approved'}
+					<Button
+						variant="ghost"
+						class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+						onclick={() => (cancelOpen = true)}>Cancel return</Button
+					>
+					<Button onclick={openReceive}>Receive goods</Button>
+				{:else if data.canAction && ra.status === 'received' && credit}
+					<Button onclick={() => (issueOpen = true)}>Issue credit memo</Button>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	<div class="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -268,3 +507,203 @@
 		</div>
 	</div>
 </div>
+
+<Dialog bind:open={declineOpen}>
+	<DialogContent class="max-w-md p-6">
+		<DialogTitle>Decline this return?</DialogTitle>
+		<DialogDescription>The requester sees your reason.</DialogDescription>
+
+		<form method="POST" action="?/decline" use:declineEnhance class="mt-5 space-y-4">
+			<div class="space-y-2">
+				<Label for="decline-reason">Reason</Label>
+				<Input
+					id="decline-reason"
+					name="reason"
+					placeholder="Outside the return window"
+					bind:value={$declineData.reason}
+				/>
+				{#if $declineErrors.reason}
+					<p class="text-sm text-destructive">{$declineErrors.reason[0]}</p>
+				{/if}
+			</div>
+
+			<div class="flex justify-end gap-2 pt-2">
+				<Button type="button" variant="outline" onclick={() => (declineOpen = false)}>
+					Keep it
+				</Button>
+				<Button type="submit" disabled={$declineSubmitting}>
+					{$declineSubmitting ? 'Declining…' : 'Decline return'}
+				</Button>
+			</div>
+		</form>
+	</DialogContent>
+</Dialog>
+
+<!--
+	Receive. Every line needs a disposition before the goods count as in, and
+	the lines that will not move stock say so here, before anything changes,
+	rather than leaving the brand to notice a count that stayed put.
+-->
+<Dialog bind:open={receiveOpen}>
+	<DialogContent class="max-w-lg p-6">
+		<DialogTitle>Receive {ra.ra_number ?? 'return'}</DialogTitle>
+		<DialogDescription>
+			Set what happens to each item. Restocked items go back into available stock.
+		</DialogDescription>
+
+		<form method="POST" action="?/receive" use:receiveEnhance class="mt-5 space-y-4">
+			<div class="max-h-[50vh] space-y-3 overflow-y-auto">
+				{#each $receiveData.dispositions as row, i (row.lineId)}
+					{@const line = lines.find((l) => l.id === row.lineId)}
+					{@const skip = data.restockSkips[row.lineId]}
+					<div class="flex items-start justify-between gap-4">
+						<div class="min-w-0">
+							<p class="text-sm">
+								<span class="font-mono">{line?.style_number ?? '—'}</span>
+								<span class="text-muted-foreground">
+									· {[line?.color, line?.size].filter(Boolean).join(' · ')} · {line?.qty} units
+								</span>
+							</p>
+							{#if row.disposition === 'restock' && skip}
+								<p class="mt-1 text-sm text-muted-foreground">{restockSkipNotes[skip]}</p>
+							{/if}
+						</div>
+						<div class="w-36 shrink-0">
+							<SelectField
+								value={row.disposition}
+								items={dispositionItems}
+								placeholder="Disposition"
+								onValueChange={(v) =>
+									($receiveData.dispositions[i].disposition = v as
+										| 'restock'
+										| 'damaged'
+										| 'destroy')}
+							/>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<div class="flex justify-end gap-2 pt-2">
+				<Button type="button" variant="outline" onclick={() => (receiveOpen = false)}>
+					Not yet
+				</Button>
+				<Button type="submit" disabled={$receiveSubmitting}>
+					{$receiveSubmitting ? 'Receiving…' : 'Mark received'}
+				</Button>
+			</div>
+		</form>
+	</DialogContent>
+</Dialog>
+
+<Dialog bind:open={cancelOpen}>
+	<DialogContent class="max-w-md p-6">
+		<DialogTitle>Cancel {ra.ra_number ?? 'this return'}?</DialogTitle>
+		<DialogDescription>
+			This cannot be undone. The return keeps its number and stays in your records, marked
+			cancelled, so the numbering stays unbroken.
+		</DialogDescription>
+
+		<form
+			method="POST"
+			action="?/cancel"
+			use:enhance={plainAction('cancel', 'Return cancelled.', 'Could not cancel the return.')}
+			class="mt-5 flex justify-end gap-2"
+		>
+			<Button type="button" variant="outline" onclick={() => (cancelOpen = false)}>
+				Keep return
+			</Button>
+			<Button type="submit" variant="destructive" disabled={pending === 'cancel'}>
+				{pending === 'cancel' ? 'Cancelling…' : 'Cancel return'}
+			</Button>
+		</form>
+	</DialogContent>
+</Dialog>
+
+<!--
+	Issue. The policy's answer is filled in and the brand changes what it is
+	waiving; each field says where its number came from. Issuing numbers and
+	freezes the memo, so the dialog says that before the button does it.
+-->
+<Dialog bind:open={issueOpen}>
+	<DialogContent class="max-w-md p-6">
+		<DialogTitle>Issue credit memo</DialogTitle>
+		<DialogDescription>
+			Issuing numbers the memo and locks it. It cannot be edited afterwards.
+		</DialogDescription>
+
+		{#if credit}
+			<form method="POST" action="?/issueCreditMemo" use:issueEnhance class="mt-5 space-y-4">
+				<div class="flex justify-between text-sm">
+					<span class="text-muted-foreground">Merchandise</span>
+					<span class="font-mono">{fmt.format(credit.creditSubtotal)}</span>
+				</div>
+
+				<div class="space-y-2">
+					<Label for="issue-restocking">Restocking fee</Label>
+					<Input
+						id="issue-restocking"
+						type="number"
+						step="0.01"
+						min="0"
+						class="text-right font-mono"
+						bind:value={$issueData.restockingFee}
+					/>
+					{#if $issueErrors.restockingFee}
+						<p class="text-sm text-destructive">{$issueErrors.restockingFee[0]}</p>
+					{:else}
+						<p class="text-sm text-muted-foreground">{feeHint}</p>
+					{/if}
+				</div>
+
+				<div class="space-y-2">
+					<Label for="issue-shipping">Return shipping</Label>
+					<Input
+						id="issue-shipping"
+						type="number"
+						step="0.01"
+						min="0"
+						class="text-right font-mono"
+						bind:value={$issueData.shippingDeduction}
+					/>
+					{#if $issueErrors.shippingDeduction}
+						<p class="text-sm text-destructive">{$issueErrors.shippingDeduction[0]}</p>
+					{:else}
+						<p class="text-sm text-muted-foreground">{shippingHint}</p>
+					{/if}
+				</div>
+
+				<div class="space-y-2">
+					<Label for="issue-tax">Tax</Label>
+					<Input
+						id="issue-tax"
+						type="number"
+						step="0.01"
+						min="0"
+						class="text-right font-mono"
+						bind:value={$issueData.creditTax}
+					/>
+					{#if $issueErrors.creditTax}
+						<p class="text-sm text-destructive">{$issueErrors.creditTax[0]}</p>
+					{:else}
+						<p class="text-sm text-muted-foreground">{taxHint}</p>
+					{/if}
+				</div>
+
+				<div class="flex justify-between border-t pt-3 text-base font-semibold">
+					<span>Credit</span>
+					<span class="font-mono">{fmt.format(issueTotal)}</span>
+				</div>
+
+				<div class="flex justify-end gap-2 pt-2">
+					<Button type="button" variant="outline" onclick={() => (issueOpen = false)}>
+						Not yet
+					</Button>
+					<Button type="submit" disabled={$issueSubmitting}>
+						{$issueSubmitting ? 'Issuing…' : 'Issue credit memo'}
+					</Button>
+				</div>
+			</form>
+		{/if}
+	</DialogContent>
+</Dialog>

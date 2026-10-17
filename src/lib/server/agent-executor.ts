@@ -5,6 +5,7 @@ import { supabaseAdmin } from './supabase.js';
 import { agentBasePrompt } from './ai-prompts.js';
 import { logUsage } from './ai-usage.js';
 import { resolveAgentActor } from './agent-actor.js';
+import { reportAiError } from './ai-errors.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -185,6 +186,15 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 	} catch (err) {
 		const duration = Date.now() - startTime;
 		const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+
+		// Reported here rather than by the callers (cron, event triggers) because
+		// only this frame knows which agent and run failed.
+		reportAiError(err, {
+			endpoint: 'agent',
+			purpose: params.triggeredBy,
+			organizationId: params.orgId,
+			extra: { agentId: params.agentId, triggerId: params.triggerId ?? null, runId: runId ?? null }
+		});
 
 		if (runId) {
 			await supabaseAdmin
