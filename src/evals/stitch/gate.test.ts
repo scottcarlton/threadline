@@ -180,3 +180,29 @@ describe('toBaseline', () => {
 		);
 	});
 });
+
+describe('unscripted warnings', () => {
+	it('collects rows with unscripted tool calls, whatever their status', () => {
+		const s = summarize([
+			{ ...row('a', { faithful: 1 }), unscripted_calls: 2 },
+			{ ...row('b', { faithful: 1 }), unscripted_calls: 0 },
+			{ ...row('c', { faithful: 1 }, 1, 'truncated'), unscripted_calls: 1 }
+		]);
+		expect(s.unscripted).toEqual([
+			{ prompt_id: 'a', rep: 0, unscripted_calls: 2 },
+			{ prompt_id: 'c', rep: 1, unscripted_calls: 1 }
+		]);
+	});
+	it('does not fail the gate on unscripted calls alone', () => {
+		const base = {
+			prompt_version: '3.2.0',
+			date: '2026-10-16',
+			cases: 1,
+			reps: 1,
+			margin: 0.1,
+			metrics: { faithful: 1 }
+		};
+		const s = summarize([{ ...row('a', { faithful: 1 }), unscripted_calls: 3 }]);
+		expect(evaluateGate(s, base).ok).toBe(true);
+	});
+});

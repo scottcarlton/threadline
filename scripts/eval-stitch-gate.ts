@@ -52,6 +52,12 @@ if (errors.length) {
 		console.log(`  ${k.padEnd(20)} ${n}`);
 }
 
+if (s.unscripted.length) {
+	console.log(`warning: ${s.unscripted.length} rows made tool calls the case does not script`);
+	for (const u of s.unscripted)
+		console.log(`  ${u.prompt_id} rep${u.rep}: ${u.unscripted_calls} unscripted`);
+}
+
 if (args.includes('--update-baseline')) {
 	if (s.critical_failures.length) {
 		console.error('refusing to record a baseline with critical failures');

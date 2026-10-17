@@ -3,6 +3,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { toTrace } from './trace';
 import { buildJudgeRequest, parseJudge, promptSection, JUDGE_MODEL, JUDGE_METRICS } from './judge';
 import { loadStitchCases } from './schema';
+import { UNTRUSTED_CONTENT_RULE } from '../../lib/server/ai-untrusted.js';
 
 const kase = loadStitchCases(['order-bloom-multi-brand-rep'])[0];
 
@@ -81,6 +82,32 @@ describe('buildJudgeRequest', () => {
 	});
 	it('omits the seeded-history block when there is no history', () => {
 		expect(JSON.stringify(req.messages[0].content)).not.toContain('<seeded_history>');
+	});
+	it('omits the unscripted block when every call was scripted', () => {
+		expect(JSON.stringify(req.messages[0].content)).not.toContain('<unscripted_tool_calls>');
+	});
+	it('notes unscripted tool calls outside the untrusted fence, deduplicated', () => {
+		const user = buildJudgeRequest(
+			kase,
+			[{ role: 'user', content: 'x' }],
+			['TOOLS'],
+			['search_products', 'search_products', 'list_accounts']
+		).messages[0].content as string;
+		const block = user.slice(
+			user.indexOf('<unscripted_tool_calls>'),
+			user.indexOf('</unscripted_tool_calls>')
+		);
+		expect(block).toContain('search_products, list_accounts');
+		expect(block).toContain('{"success":true,"data":[]}');
+		expect(block).toMatch(/gap in the test fixture, not real data/);
+		expect(block).toMatch(/Do not penalize Stitch/);
+		expect(user.indexOf('</unscripted_tool_calls>')).toBeLessThan(
+			user.indexOf('<untrusted-content')
+		);
+	});
+	it('names the untrusted-content fence and carries the shared untrusted rule', () => {
+		expect(String(req.system)).toContain('<untrusted-content> block');
+		expect(String(req.system)).toContain(UNTRUSTED_CONTENT_RULE);
 	});
 	it('tells the judge earlier tool results are not visible in later turns', () => {
 		expect(String(req.system)).toMatch(/earlier turns? (were|are) not visible/i);

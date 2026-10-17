@@ -153,7 +153,7 @@ export async function gradeCase(
 		explanation[id] = r.reason;
 	}
 	const response = await deps(d).client.messages.create(
-		buildJudgeRequest(c, run.transcript, run.routes)
+		buildJudgeRequest(c, run.transcript, run.routes, run.observation.unscripted)
 	);
 	const verdict = parseJudge(response);
 	for (const [id, v] of Object.entries(verdict)) {

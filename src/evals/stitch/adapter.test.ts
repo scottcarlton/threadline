@@ -145,6 +145,30 @@ describe('adapter', () => {
 		expect(g.explanation.route).toMatch(/turn 2/);
 	});
 
+	it('tells the judge which tool calls were unscripted', async () => {
+		const c = loadStitchCases(['thanks-routes-chat'])[0];
+		const client = fake({
+			classify: ['CHAT'],
+			chat: ['Anytime.\nSUGGESTIONS:["a","b"]'],
+			judge: passAll
+		});
+		const run = await runCase(c, {}, { client });
+		run.observation.unscripted = ['search_products'];
+		const sent: Anthropic.MessageCreateParamsNonStreaming[] = [];
+		const create = client.messages.create.bind(client.messages);
+		(client.messages as unknown as { create: unknown }).create = (
+			p: Anthropic.MessageCreateParamsNonStreaming
+		) => {
+			sent.push(p);
+			return create(p);
+		};
+		await gradeCase(c, run, null, {}, { client });
+		const judgeReq = sent.find((p) => p.model === JUDGE_MODEL)!;
+		expect(String(judgeReq.messages[0].content)).toMatch(
+			/<unscripted_tool_calls>[^<]*search_products/
+		);
+	});
+
 	it('a CHAT-only conversation reports Haiku as the row model', async () => {
 		const c = loadStitchCases(['thanks-routes-chat'])[0];
 		const run = await runCase(

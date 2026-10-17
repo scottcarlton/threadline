@@ -13,6 +13,7 @@ export type ResultRow = {
 	status?: string;
 	grade?: Record<string, number>;
 	prompt_version?: string;
+	unscripted_calls?: number;
 	model?: string;
 	usage?: Usage;
 	haiku_usage?: Usage;
@@ -36,6 +37,7 @@ export type Summary = {
 	prompt_versions: string[];
 	metrics: Record<string, MetricSummary>;
 	critical_failures: Array<{ prompt_id: string; rep: number; metric: string }>;
+	unscripted: Array<{ prompt_id: string; rep: number; unscripted_calls: number }>;
 };
 export type Baseline = {
 	prompt_version: string;
@@ -88,7 +90,10 @@ export function summarize(rows: ResultRow[]): Summary {
 			...new Set(rows.map((r) => r.prompt_version).filter((v): v is string => Boolean(v)))
 		],
 		metrics,
-		critical_failures
+		critical_failures,
+		unscripted: rows
+			.filter((r) => (r.unscripted_calls ?? 0) > 0)
+			.map((r) => ({ prompt_id: r.prompt_id, rep: r.rep, unscripted_calls: r.unscripted_calls! }))
 	};
 }
 
