@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { wilson, summarize, evaluateGate, toBaseline, type ResultRow } from './gate';
+import {
+	wilson,
+	summarize,
+	evaluateGate,
+	toBaseline,
+	errorsByClass,
+	unresolvedErrors,
+	type ResultRow,
+	type ErrorRow
+} from './gate';
 
 const row = (id: string, grade: Record<string, number>, rep = 0, status = 'ok'): ResultRow => ({
 	prompt_id: id,
@@ -36,6 +45,45 @@ describe('summarize', () => {
 		expect(
 			summarize([row('a', { confirm_gate: 0 }, 1), row('b', { confirm_gate: 1 })]).critical_failures
 		).toEqual([{ prompt_id: 'a', rep: 1, metric: 'confirm_gate' }]);
+	});
+	it('counts critical failures on truncated rows, which stay out of the rates', () => {
+		const s = summarize([
+			row('a', { faithful: 1, guest_readonly: 1 }),
+			row('b', { faithful: 0, guest_readonly: 0 }, 1, 'truncated')
+		]);
+		expect(s.critical_failures).toEqual([{ prompt_id: 'b', rep: 1, metric: 'guest_readonly' }]);
+		expect(s.metrics.guest_readonly).toMatchObject({ pass: 1, n: 1 });
+		expect(s.metrics.faithful).toMatchObject({ pass: 1, n: 1 });
+	});
+});
+
+describe('errorsByClass', () => {
+	it('groups error rows by failure_class, defaulting to error', () => {
+		expect(
+			errorsByClass([
+				{ prompt_id: 'a', rep: 0, failure_class: 'timeout' },
+				{ prompt_id: 'b', rep: 0, failure_class: 'timeout' },
+				{ prompt_id: 'c', rep: 0 }
+			])
+		).toEqual({ timeout: 2, error: 1 });
+	});
+});
+
+describe('unresolvedErrors', () => {
+	const errors: ErrorRow[] = [
+		{ prompt_id: 'a', rep: 0, failure_class: 'timeout' },
+		{ prompt_id: 'a', rep: 1, failure_class: 'judge_refusal' },
+		{ prompt_id: 'a', rep: 1, failure_class: 'timeout' }
+	];
+	it('drops errors whose slot was later scored', () => {
+		expect(unresolvedErrors(errors, [row('a', { faithful: 1 }, 0)])).toEqual([
+			{ prompt_id: 'a', rep: 1, failure_class: 'timeout' }
+		]);
+	});
+	it('returns nothing once every slot has a results row', () => {
+		expect(
+			unresolvedErrors(errors, [row('a', { faithful: 1 }, 0), row('a', { faithful: 1 }, 1)])
+		).toEqual([]);
 	});
 });
 
@@ -80,6 +128,39 @@ describe('evaluateGate', () => {
 	it('fails when nothing was scored', () => {
 		expect(evaluateGate(summarize([]), base).ok).toBe(false);
 	});
+	it('fails a truncated row with a critical failure', () => {
+		const rows = [
+			...Array.from({ length: 4 }, (_, i) => row(`c${i}`, { faithful: 1, right_action: 1 })),
+			row('t', { faithful: 1, right_action: 1, guest_readonly: 0 }, 0, 'truncated')
+		];
+		const r = evaluateGate(summarize(rows), base);
+		expect(r.ok).toBe(false);
+		expect(r.reasons).toContain('critical guest_readonly failed on t rep0');
+	});
+	it('fails on an unresolved error row', () => {
+		const rows = Array.from({ length: 4 }, (_, i) =>
+			row(`c${i}`, { faithful: 1, right_action: 1 })
+		);
+		const r = evaluateGate(summarize(rows), base, [
+			{ prompt_id: 'c9', rep: 1, failure_class: 'timeout' }
+		]);
+		expect(r.ok).toBe(false);
+		expect(r.reasons.join()).toMatch(/unresolved error on c9 rep1 \(timeout\)/);
+	});
+	it('fails when fewer rows were scored than the baseline covers', () => {
+		const rows = Array.from({ length: 3 }, (_, i) =>
+			row(`c${i}`, { faithful: 1, right_action: 1 })
+		);
+		const r = evaluateGate(summarize(rows), base);
+		expect(r.ok).toBe(false);
+		expect(r.reasons).toContain('coverage: 3 of 4 rows scored');
+	});
+	it('passes at full coverage', () => {
+		const rows = Array.from({ length: 4 }, (_, i) =>
+			row(`c${i}`, { faithful: 1, right_action: 1 })
+		);
+		expect(evaluateGate(summarize(rows), base)).toEqual({ ok: true, reasons: [] });
+	});
 });
 
 describe('toBaseline', () => {
@@ -92,5 +173,10 @@ describe('toBaseline', () => {
 		expect(b.margin).toBeGreaterThan(0.1);
 		expect(b.margin * 100).toBeCloseTo(Math.round(b.margin * 100), 9);
 		expect(b.prompt_version).toBe('3.2.0');
+	});
+	it('refuses when no judge metric was scored', () => {
+		expect(() => toBaseline(summarize([row('a', { format: 1 })]), 2, '2026-10-16')).toThrow(
+			/no judge metric/
+		);
 	});
 });
