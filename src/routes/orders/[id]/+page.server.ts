@@ -1,3 +1,4 @@
+import type { OrderReturnRow } from '$lib/utils/return-status.js';
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
@@ -325,6 +326,19 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		.eq('order_id', resolvedOrderId)
 		.maybeSingle();
 
+	// Returns against this order, read the same way and for the same reason as
+	// the invoice: the three SELECT arms on return_authorizations
+	// (20260915000010) already decide brand, rep and buyer visibility, so a
+	// return the viewer may not see is simply absent. Oldest first, which is
+	// the order they happened in.
+	const { data: returnRows } = await supabase
+		.from('return_authorizations')
+		.select(
+			'id, ra_number, status, credit_memo_number, credit_total, applied_invoice_id, requested_at, return_lines(qty)'
+		)
+		.eq('order_id', resolvedOrderId)
+		.order('requested_at', { ascending: true });
+
 	// Whether this order can be returned against, and what to call the action.
 	// The brand logs a return; everyone else requests one. A zero or expired
 	// window hides it entirely for the buyer and the rep, but never for the
@@ -338,6 +352,9 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	return {
 		order: orderResult.data,
 		invoice: invoiceResult.data ?? null,
+		returns: (returnRows ?? []) as unknown as Array<
+			OrderReturnRow & { requested_at: string | null; return_lines: Array<{ qty: number }> | null }
+		>,
 		// Server-provided so overdue resolves identically during SSR and after
 		// hydration; `new Date()` in the component could straddle midnight.
 		today: new Date().toISOString().slice(0, 10),
