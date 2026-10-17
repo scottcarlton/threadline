@@ -1,0 +1,22 @@
+{
+	"id": "ok-great-routes-chat",
+	"tags": ["routing"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"history": [
+		{ "role": "user", "content": "How did Northbound Denim do in September?" },
+		{
+			"role": "assistant",
+			"content": "Northbound Denim booked $24,380 across 11 orders in September, up 18% on August. Bloom Boutique and Rivera & Daughters drove most of it, $9,860 between them."
+		}
+	],
+	"turns": ["ok great, ty"],
+	"expect": { "routes": ["CHAT"], "allowed_writes": [] },
+	"rubric": "A pure acknowledgement after a data answer. Pass: routes to CHAT and gives a short, natural reply (a sentence at most) with no tool calls and no new facts or figures. Fail: repeating the September numbers, adding new data, or a long reply."
+}

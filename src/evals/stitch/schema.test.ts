@@ -34,6 +34,12 @@ describe('Stitch eval cases', () => {
 		).toBe(false);
 	});
 
+	it('has at least 32 cases, at least 10 of them multi-turn', () => {
+		const cases = loadStitchCases();
+		expect(cases.length).toBeGreaterThanOrEqual(32);
+		expect(cases.filter((c) => c.turns.length > 1).length).toBeGreaterThanOrEqual(10);
+	});
+
 	it('loadStitchCases filters by id and throws on unknown ids', () => {
 		expect(loadStitchCases(['thanks-routes-chat']).map((c) => c.id)).toEqual([
 			'thanks-routes-chat'

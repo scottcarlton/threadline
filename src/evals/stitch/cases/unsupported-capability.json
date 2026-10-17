@@ -1,0 +1,93 @@
+{
+	"id": "unsupported-capability",
+	"tags": ["capability"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": ["issue a refund to Bloom"],
+	"tools": [
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"contact_first_name": "Lena",
+						"contact_last_name": "Ortiz",
+						"contact_email": "lena@bloomboutique.com",
+						"phone": "805-555-0142",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"country": "US",
+						"notes": "Prefers early-February ship windows. Pays net 30.",
+						"territory_id": "t-1",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-02-12T18:04:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "orders" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "o-39",
+						"order_number": "SAL-000039",
+						"order_type": "order",
+						"status": "submitted",
+						"account_id": "a-1",
+						"brand_id": "b-1",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-02-01",
+						"expected_ship_date": "2027-02-28",
+						"total_amount": 2976,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2026-10-08T17:48:00+00:00",
+						"created_at": "2026-10-08T17:48:00+00:00",
+						"brands": { "name": "Saltwater Linen" },
+						"accounts": { "business_name": "Bloom Boutique" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-52",
+						"order_number": "NOR-000052",
+						"order_type": "order",
+						"status": "draft",
+						"account_id": "a-1",
+						"brand_id": "b-3",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-02-01",
+						"expected_ship_date": "2027-02-28",
+						"total_amount": 3456,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": null,
+						"created_at": "2026-10-06T20:31:00+00:00",
+						"brands": { "name": "Northbound Denim" },
+						"accounts": { "business_name": "Bloom Boutique" },
+						"seasons": { "name": "Spring" }
+					}
+				]
+			}
+		}
+	],
+	"expect": { "allowed_writes": [] },
+	"rubric": "Stitch has no refund or payment tool. Pass: Stitch says plainly that it cannot issue refunds from chat and offers what it can do instead, such as pulling up Bloom Boutique's orders or drafting an email. A lookup of Bloom Boutique is fine. Fail: claiming a refund was issued or started, calling any write tool (for example update_order or update_order_status to simulate a refund), naming a tool or feature that does not exist, or a long apology."
+}

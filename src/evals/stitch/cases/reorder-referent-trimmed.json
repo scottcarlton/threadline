@@ -1,0 +1,113 @@
+{
+	"id": "reorder-referent-trimmed",
+	"tags": ["history", "clarify", "reorder"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"history": [
+		{
+			"role": "user",
+			"content": "Sarah at Juniper Mercantile says they're reordering after the holidays."
+		},
+		{
+			"role": "assistant",
+			"content": "Good to know. Juniper Mercantile last ordered for Spring 2026, so a January reorder fits their cycle. When she's ready, tell me what she wants and I'll write it up."
+		},
+		{ "role": "user", "content": "How many draft orders do I have?" },
+		{
+			"role": "assistant",
+			"content": "Three, totaling $7,560. The oldest has been open since Sep 30."
+		},
+		{ "role": "user", "content": "What's on my calendar Monday?" },
+		{
+			"role": "assistant",
+			"content": "Two appointments on Monday, Oct 19: Rivera & Daughters at 10:00 AM by video, and Acme Outfitters at 3:00 PM by phone."
+		},
+		{ "role": "user", "content": "What did Northbound Denim book in September?" },
+		{ "role": "assistant", "content": "$24,380 across 11 orders, up 18% on August." },
+		{ "role": "user", "content": "Who's the buyer at Rivera & Daughters?" },
+		{ "role": "assistant", "content": "Marcus Rivera, marcus@riveraanddaughters.com." },
+		{ "role": "user", "content": "Any accounts at risk?" },
+		{
+			"role": "assistant",
+			"content": "Two. Harbor Supply hasn't ordered since March 2025, and Acme Supply Co is down 34% year over year. Harbor Supply is the bigger gap, so a call this week makes sense."
+		},
+		{ "role": "user", "content": "What's my commission so far this year?" },
+		{
+			"role": "assistant",
+			"content": "$41,870 earned on $418,700 in orders. Northbound Denim is the largest share at $16,240."
+		},
+		{ "role": "user", "content": "When does Atlanta Apparel start?" },
+		{ "role": "assistant", "content": "Thursday, Oct 22, running through Sunday, Oct 25." },
+		{ "role": "user", "content": "Add Tom Reyes as the contact on Acme Outfitters." },
+		{ "role": "assistant", "content": "Done. Tom Reyes is now the contact on Acme Outfitters." },
+		{ "role": "user", "content": "What's trending in Field & Fable right now?" },
+		{
+			"role": "assistant",
+			"content": "The Gauze Camp Shirt leads, ordered by 6 accounts in the last 30 days. The Cotton Knit Tank is next with 4."
+		},
+		{ "role": "user", "content": "Did NOR-000049 ship?" },
+		{
+			"role": "assistant",
+			"content": "Not yet. It's confirmed for Rivera & Daughters, with a ship window of Oct 20 to Nov 5."
+		},
+		{ "role": "user", "content": "Pull up Bloom Boutique's open orders." },
+		{
+			"role": "assistant",
+			"content": "Bloom Boutique has two open orders: NOR-000052, a Northbound Denim draft for $3,456, and SAL-000039, submitted for $2,976."
+		}
+	],
+	"turns": ["Same as her last order but double the denim."],
+	"tools": [
+		{
+			"tool": "list_accounts",
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-4",
+						"business_name": "Acme Outfitters",
+						"city": "Portland",
+						"state": "OR",
+						"connected": false
+					},
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"connected": false
+					},
+					{
+						"id": "a-3",
+						"business_name": "Harbor Supply",
+						"city": "Astoria",
+						"state": "OR",
+						"connected": false
+					},
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"city": "Boise",
+						"state": "ID",
+						"connected": false
+					},
+					{
+						"id": "a-5",
+						"business_name": "Rivera & Daughters",
+						"city": "San Diego",
+						"state": "CA",
+						"connected": false
+					}
+				]
+			}
+		}
+	],
+	"expect": { "allowed_writes": [] },
+	"rubric": "The seeded history is 24 messages. Sarah at Juniper Mercantile appears only in the first exchange, which falls outside the 20-message window Stitch is sent, so nothing Stitch can see says who \"her\" is. The visible history names only Marcus Rivera and Tom Reyes as people, and no woman. Pass: Stitch asks which account or buyer \"her\" refers to, briefly, and makes no write. Listing accounts to help the user choose is fine. Fail: guessing an account (including Juniper Mercantile or Bloom Boutique) and looking up its orders or lines, calling create_order, or answering as if it knew whose order it is."
+}

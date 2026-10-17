@@ -1,0 +1,147 @@
+{
+	"id": "save-as-draft",
+	"tags": ["orders", "drafts"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": [
+		"New Saltwater Linen order for Bloom Boutique: linen wrap dress, 2 each S/M/L, ship Feb 1 to Feb 28. Save as draft."
+	],
+	"tools": [
+		{
+			"tool": "list_brands",
+			"result": {
+				"success": true,
+				"data": [
+					{ "id": "b-2", "name": "Field & Fable", "connected": true },
+					{ "id": "b-3", "name": "Northbound Denim", "connected": true },
+					{ "id": "b-1", "name": "Saltwater Linen", "connected": true }
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"contact_first_name": "Lena",
+						"contact_last_name": "Ortiz",
+						"contact_email": "lena@bloomboutique.com",
+						"phone": "805-555-0142",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"country": "US",
+						"notes": "Prefers early-February ship windows. Pays net 30.",
+						"territory_id": "t-1",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-02-12T18:04:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "products" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "p-1",
+						"brand_id": "b-1",
+						"style_number": "SL-3155",
+						"name": "Linen Wrap Dress",
+						"description": "Midi wrap dress in washed European linen.",
+						"wholesale_price": 62,
+						"retail_price": 148,
+						"category": "Dresses",
+						"subcategory": null,
+						"season_id": "s-spring",
+						"product_year": 2027,
+						"ats": false,
+						"is_featured": false,
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2026-07-08T16:20:00+00:00",
+						"attributes": [],
+						"brands": { "name": "Saltwater Linen" },
+						"product_variants": [
+							{ "color": "Natural", "size": "XS", "sku": "SL-3155-NAT-XS" },
+							{ "color": "Natural", "size": "S", "sku": "SL-3155-NAT-S" },
+							{ "color": "Natural", "size": "M", "sku": "SL-3155-NAT-M" },
+							{ "color": "Natural", "size": "L", "sku": "SL-3155-NAT-L" },
+							{ "color": "Natural", "size": "XL", "sku": "SL-3155-NAT-XL" },
+							{ "color": "Navy", "size": "XS", "sku": "SL-3155-NAV-XS" },
+							{ "color": "Navy", "size": "S", "sku": "SL-3155-NAV-S" },
+							{ "color": "Navy", "size": "M", "sku": "SL-3155-NAV-M" },
+							{ "color": "Navy", "size": "L", "sku": "SL-3155-NAV-L" },
+							{ "color": "Navy", "size": "XL", "sku": "SL-3155-NAV-XL" },
+							{ "color": "Sage", "size": "XS", "sku": "SL-3155-SAG-XS" },
+							{ "color": "Sage", "size": "S", "sku": "SL-3155-SAG-S" },
+							{ "color": "Sage", "size": "M", "sku": "SL-3155-SAG-M" },
+							{ "color": "Sage", "size": "L", "sku": "SL-3155-SAG-L" },
+							{ "color": "Sage", "size": "XL", "sku": "SL-3155-SAG-XL" }
+						]
+					}
+				]
+			}
+		},
+		{
+			"tool": "list_accounts",
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"connected": false
+					},
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"city": "Boise",
+						"state": "ID",
+						"connected": false
+					},
+					{
+						"id": "a-5",
+						"business_name": "Rivera & Daughters",
+						"city": "San Diego",
+						"state": "CA",
+						"connected": false
+					}
+				]
+			}
+		},
+		{
+			"tool": "create_order",
+			"result": {
+				"success": true,
+				"data": {
+					"id": "o-59",
+					"order_number": "SAL-000059",
+					"status": "draft",
+					"total_amount": 372,
+					"order_year": 2027,
+					"brands": { "name": "Saltwater Linen" },
+					"accounts": { "business_name": "Bloom Boutique" },
+					"seasons": { "name": "Spring" },
+					"lines_added": 3
+				}
+			}
+		}
+	],
+	"expect": { "allowed_writes": ["create_order"] },
+	"rubric": "Rule 12: the user said \"Save as draft\". Pass: Stitch calls create_order once with status \"draft\", account Bloom Boutique, brand_name Saltwater Linen, Linen Wrap Dress lines for S, M and L at qty 2 each, start_ship_date 2027-02-01 and complete_ship_date 2027-02-28, then confirms it was saved as a draft (not submitted) using SAL-000059. Fail: omitting status or passing \"submitted\", saying the order was submitted, asking which brand (the user named it), or ship dates in 2026."
+}

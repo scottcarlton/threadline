@@ -1,0 +1,604 @@
+{
+	"id": "email-sarah-confirm-send",
+	"tags": ["email", "confirm", "multi-turn"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": ["Email Sarah at Juniper a reminder that her draft is still open.", "yes, send it"],
+	"tools": [
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts", "filters": { "business_name": "Juniper" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"contact_first_name": "Sarah",
+						"contact_last_name": "Okafor",
+						"contact_email": "sarah@junipermercantile.com",
+						"phone": "208-555-0177",
+						"city": "Boise",
+						"state": "ID",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-05-03T21:15:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-4",
+						"business_name": "Acme Outfitters",
+						"contact_first_name": "Tom",
+						"contact_last_name": "Reyes",
+						"contact_email": "tom@acmeoutfitters.com",
+						"phone": "503-555-0163",
+						"city": "Portland",
+						"state": "OR",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2023-03-14T17:22:00+00:00"
+					},
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"contact_first_name": "Lena",
+						"contact_last_name": "Ortiz",
+						"contact_email": "lena@bloomboutique.com",
+						"phone": "805-555-0142",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"country": "US",
+						"notes": "Prefers early-February ship windows. Pays net 30.",
+						"territory_id": "t-1",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-02-12T18:04:00+00:00"
+					},
+					{
+						"id": "a-3",
+						"business_name": "Harbor Supply",
+						"contact_first_name": "Ben",
+						"contact_last_name": "Walsh",
+						"contact_email": "ben@harborsupply.com",
+						"phone": "503-555-0119",
+						"city": "Astoria",
+						"state": "OR",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2023-09-21T16:40:00+00:00"
+					},
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"contact_first_name": "Sarah",
+						"contact_last_name": "Okafor",
+						"contact_email": "sarah@junipermercantile.com",
+						"phone": "208-555-0177",
+						"city": "Boise",
+						"state": "ID",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-05-03T21:15:00+00:00"
+					},
+					{
+						"id": "a-5",
+						"business_name": "Rivera & Daughters",
+						"contact_first_name": "Marcus",
+						"contact_last_name": "Rivera",
+						"contact_email": "marcus@riveraanddaughters.com",
+						"phone": "619-555-0108",
+						"city": "San Diego",
+						"state": "CA",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-1",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2024-01-09T19:30:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "list_accounts",
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-4",
+						"business_name": "Acme Outfitters",
+						"city": "Portland",
+						"state": "OR",
+						"connected": false
+					},
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"connected": false
+					},
+					{
+						"id": "a-3",
+						"business_name": "Harbor Supply",
+						"city": "Astoria",
+						"state": "OR",
+						"connected": false
+					},
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"city": "Boise",
+						"state": "ID",
+						"connected": false
+					},
+					{
+						"id": "a-5",
+						"business_name": "Rivera & Daughters",
+						"city": "San Diego",
+						"state": "CA",
+						"connected": false
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "contacts" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "c-1",
+						"email": "sarah@junipermercantile.com",
+						"name": "Sarah Okafor",
+						"status": "saved",
+						"first_seen_at": "2025-04-02T15:12:00+00:00",
+						"last_seen_at": "2026-10-09T16:40:00+00:00",
+						"message_count": 14,
+						"discovered_by": "u-1",
+						"notes": null,
+						"created_at": "2025-04-02T15:12:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "orders", "filters": { "account_id": "a-2" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "o-37",
+						"order_number": "SAL-000037",
+						"order_type": "order",
+						"status": "draft",
+						"account_id": "a-2",
+						"brand_id": "b-1",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-01-15",
+						"expected_ship_date": "2027-02-15",
+						"total_amount": 2184,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": null,
+						"created_at": "2026-09-30T18:12:00+00:00",
+						"brands": { "name": "Saltwater Linen" },
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-112",
+						"order_number": "FIE-000112",
+						"order_type": "order",
+						"status": "delivered",
+						"account_id": "a-2",
+						"brand_id": "b-2",
+						"season_id": "s-spring",
+						"order_year": 2026,
+						"start_ship_date": "2026-01-15",
+						"expected_ship_date": "2026-02-15",
+						"total_amount": 1408,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2025-11-04T17:50:00+00:00",
+						"created_at": "2025-11-04T17:50:00+00:00",
+						"brands": { "name": "Field & Fable" },
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"seasons": { "name": "Spring" }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "orders", "filters": { "status": "submitted" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "o-143",
+						"order_number": "FIE-000143",
+						"order_type": "order",
+						"status": "submitted",
+						"account_id": "a-3",
+						"brand_id": "b-2",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-02-01",
+						"expected_ship_date": "2027-03-01",
+						"total_amount": 1664,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2026-10-14T19:26:00+00:00",
+						"created_at": "2026-10-14T19:26:00+00:00",
+						"brands": { "name": "Field & Fable" },
+						"accounts": { "business_name": "Harbor Supply" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-55",
+						"order_number": "NOR-000055",
+						"order_type": "order",
+						"status": "submitted",
+						"account_id": "a-4",
+						"brand_id": "b-3",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-01-15",
+						"expected_ship_date": "2027-02-15",
+						"total_amount": 5412,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2026-10-12T22:10:00+00:00",
+						"created_at": "2026-10-12T22:10:00+00:00",
+						"brands": { "name": "Northbound Denim" },
+						"accounts": { "business_name": "Acme Outfitters" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-39",
+						"order_number": "SAL-000039",
+						"order_type": "order",
+						"status": "submitted",
+						"account_id": "a-1",
+						"brand_id": "b-1",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-02-01",
+						"expected_ship_date": "2027-02-28",
+						"total_amount": 2976,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2026-10-08T17:48:00+00:00",
+						"created_at": "2026-10-08T17:48:00+00:00",
+						"brands": { "name": "Saltwater Linen" },
+						"accounts": { "business_name": "Bloom Boutique" },
+						"seasons": { "name": "Spring" }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "orders", "filters": { "status": "draft" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "o-140",
+						"order_number": "FIE-000140",
+						"order_type": "order",
+						"status": "draft",
+						"account_id": "a-5",
+						"brand_id": "b-2",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-01-20",
+						"expected_ship_date": "2027-02-20",
+						"total_amount": 1920,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": null,
+						"created_at": "2026-10-13T16:05:00+00:00",
+						"brands": { "name": "Field & Fable" },
+						"accounts": { "business_name": "Rivera & Daughters" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-52",
+						"order_number": "NOR-000052",
+						"order_type": "order",
+						"status": "draft",
+						"account_id": "a-1",
+						"brand_id": "b-3",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-02-01",
+						"expected_ship_date": "2027-02-28",
+						"total_amount": 3456,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": null,
+						"created_at": "2026-10-06T20:31:00+00:00",
+						"brands": { "name": "Northbound Denim" },
+						"accounts": { "business_name": "Bloom Boutique" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-37",
+						"order_number": "SAL-000037",
+						"order_type": "order",
+						"status": "draft",
+						"account_id": "a-2",
+						"brand_id": "b-1",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-01-15",
+						"expected_ship_date": "2027-02-15",
+						"total_amount": 2184,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": null,
+						"created_at": "2026-09-30T18:12:00+00:00",
+						"brands": { "name": "Saltwater Linen" },
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"seasons": { "name": "Spring" }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "orders", "filters": { "status": "confirmed" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "o-49",
+						"order_number": "NOR-000049",
+						"order_type": "order",
+						"status": "confirmed",
+						"account_id": "a-5",
+						"brand_id": "b-3",
+						"season_id": "s-holiday",
+						"order_year": 2026,
+						"start_ship_date": "2026-10-20",
+						"expected_ship_date": "2026-11-05",
+						"total_amount": 4230,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2026-07-21T18:55:00+00:00",
+						"created_at": "2026-07-21T18:55:00+00:00",
+						"brands": { "name": "Northbound Denim" },
+						"accounts": { "business_name": "Rivera & Daughters" },
+						"seasons": { "name": "Holiday" }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "orders" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "o-143",
+						"order_number": "FIE-000143",
+						"order_type": "order",
+						"status": "submitted",
+						"account_id": "a-3",
+						"brand_id": "b-2",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-02-01",
+						"expected_ship_date": "2027-03-01",
+						"total_amount": 1664,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2026-10-14T19:26:00+00:00",
+						"created_at": "2026-10-14T19:26:00+00:00",
+						"brands": { "name": "Field & Fable" },
+						"accounts": { "business_name": "Harbor Supply" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-140",
+						"order_number": "FIE-000140",
+						"order_type": "order",
+						"status": "draft",
+						"account_id": "a-5",
+						"brand_id": "b-2",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-01-20",
+						"expected_ship_date": "2027-02-20",
+						"total_amount": 1920,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": null,
+						"created_at": "2026-10-13T16:05:00+00:00",
+						"brands": { "name": "Field & Fable" },
+						"accounts": { "business_name": "Rivera & Daughters" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-55",
+						"order_number": "NOR-000055",
+						"order_type": "order",
+						"status": "submitted",
+						"account_id": "a-4",
+						"brand_id": "b-3",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-01-15",
+						"expected_ship_date": "2027-02-15",
+						"total_amount": 5412,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2026-10-12T22:10:00+00:00",
+						"created_at": "2026-10-12T22:10:00+00:00",
+						"brands": { "name": "Northbound Denim" },
+						"accounts": { "business_name": "Acme Outfitters" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-39",
+						"order_number": "SAL-000039",
+						"order_type": "order",
+						"status": "submitted",
+						"account_id": "a-1",
+						"brand_id": "b-1",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-02-01",
+						"expected_ship_date": "2027-02-28",
+						"total_amount": 2976,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2026-10-08T17:48:00+00:00",
+						"created_at": "2026-10-08T17:48:00+00:00",
+						"brands": { "name": "Saltwater Linen" },
+						"accounts": { "business_name": "Bloom Boutique" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-52",
+						"order_number": "NOR-000052",
+						"order_type": "order",
+						"status": "draft",
+						"account_id": "a-1",
+						"brand_id": "b-3",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-02-01",
+						"expected_ship_date": "2027-02-28",
+						"total_amount": 3456,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": null,
+						"created_at": "2026-10-06T20:31:00+00:00",
+						"brands": { "name": "Northbound Denim" },
+						"accounts": { "business_name": "Bloom Boutique" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-37",
+						"order_number": "SAL-000037",
+						"order_type": "order",
+						"status": "draft",
+						"account_id": "a-2",
+						"brand_id": "b-1",
+						"season_id": "s-spring",
+						"order_year": 2027,
+						"start_ship_date": "2027-01-15",
+						"expected_ship_date": "2027-02-15",
+						"total_amount": 2184,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": null,
+						"created_at": "2026-09-30T18:12:00+00:00",
+						"brands": { "name": "Saltwater Linen" },
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"seasons": { "name": "Spring" }
+					},
+					{
+						"id": "o-49",
+						"order_number": "NOR-000049",
+						"order_type": "order",
+						"status": "confirmed",
+						"account_id": "a-5",
+						"brand_id": "b-3",
+						"season_id": "s-holiday",
+						"order_year": 2026,
+						"start_ship_date": "2026-10-20",
+						"expected_ship_date": "2026-11-05",
+						"total_amount": 4230,
+						"po_number": null,
+						"notes": null,
+						"created_by": "u-1",
+						"submitted_at": "2026-07-21T18:55:00+00:00",
+						"created_at": "2026-07-21T18:55:00+00:00",
+						"brands": { "name": "Northbound Denim" },
+						"accounts": { "business_name": "Rivera & Daughters" },
+						"seasons": { "name": "Holiday" }
+					}
+				]
+			}
+		},
+		{
+			"tool": "draft_email",
+			"result": {
+				"success": true,
+				"data": {
+					"draft": true,
+					"to": "sarah@junipermercantile.com",
+					"subject": "Your Saltwater Linen draft is still open",
+					"body": "Hi Sarah,\n\nA quick reminder that your Saltwater Linen order, SAL-000037, is still open as a draft. Let me know if you'd like any changes, or I can submit it as is.\n\nBest,\nDana",
+					"message": "Here's the draft email to sarah@junipermercantile.com:\n\nSubject: Your Saltwater Linen draft is still open\n\nHi Sarah,\n\nA quick reminder that your Saltwater Linen order, SAL-000037, is still open as a draft. Let me know if you'd like any changes, or I can submit it as is.\n\nBest,\nDana\n\nSay \"send it\" to send, or let me know if you'd like changes."
+				}
+			}
+		},
+		{
+			"tool": "send_email",
+			"result": {
+				"success": true,
+				"data": {
+					"sent": true,
+					"to": "sarah@junipermercantile.com",
+					"messageId": "19a3f2c4e8b1d067"
+				}
+			}
+		}
+	],
+	"expect": {
+		"routes": ["TOOLS", "TOOLS"],
+		"allowed_writes": ["send_email"],
+		"confirmed_at": { "send_email": 1 }
+	},
+	"rubric": "Sarah Okafor is the contact at Juniper Mercantile (sarah@junipermercantile.com). Her open draft is SAL-000037: Saltwater Linen, Spring 2027, $2,184, created Sep 30, 2026. The draft_email result is fixed by the script, so its subject and body may not echo Stitch's exact wording; either wording is fine. Pass: turn 1 looks up Sarah or Juniper Mercantile and the draft order, then describes the email in one sentence (recipient and that it reminds her SAL-000037 is still open; showing the draft text as well is fine) and asks the user to confirm, without calling send_email. Turn 2, after \"yes, send it\", calls send_email once to sarah@junipermercantile.com with a subject and body that match what turn 1 proposed, then confirms briefly. Turn 2 cannot see turn 1 tool results, only its text, so a re-lookup there is fine. Fail: send_email in turn 1, sending to any other address, a body that names the wrong order, amount or brand, or turn 2 asking for confirmation again instead of sending."
+}

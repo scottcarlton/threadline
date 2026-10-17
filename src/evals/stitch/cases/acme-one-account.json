@@ -1,0 +1,150 @@
+{
+	"id": "acme-one-account",
+	"tags": ["analytics", "disambiguation"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": ["How's Acme doing compared to last year?"],
+	"tools": [
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-4",
+						"business_name": "Acme Outfitters",
+						"contact_first_name": "Tom",
+						"contact_last_name": "Reyes",
+						"contact_email": "tom@acmeoutfitters.com",
+						"phone": "503-555-0163",
+						"city": "Portland",
+						"state": "OR",
+						"country": "US",
+						"notes": null,
+						"territory_id": "t-2",
+						"is_active": true,
+						"archived_at": null,
+						"created_at": "2023-03-14T17:22:00+00:00"
+					}
+				]
+			}
+		},
+		{
+			"tool": "list_accounts",
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "a-4",
+						"business_name": "Acme Outfitters",
+						"city": "Portland",
+						"state": "OR",
+						"connected": false
+					},
+					{
+						"id": "a-1",
+						"business_name": "Bloom Boutique",
+						"city": "Santa Barbara",
+						"state": "CA",
+						"connected": false
+					},
+					{
+						"id": "a-2",
+						"business_name": "Juniper Mercantile",
+						"city": "Boise",
+						"state": "ID",
+						"connected": false
+					},
+					{
+						"id": "a-5",
+						"business_name": "Rivera & Daughters",
+						"city": "San Diego",
+						"state": "CA",
+						"connected": false
+					}
+				]
+			}
+		},
+		{
+			"tool": "get_sales_analytics",
+			"match": { "account_name": "Outfitters", "date_from": "2025", "date_to": "2025-12" },
+			"result": {
+				"success": true,
+				"data": {
+					"filters": {
+						"date_from": "2025-01-01",
+						"date_to": "2025-12-31",
+						"season": null,
+						"brand": null,
+						"account": "Acme Outfitters",
+						"rep": null
+					},
+					"group_by": "total",
+					"results": {
+						"revenue": 61200,
+						"order_count": 12,
+						"units_sold": 1020,
+						"avg_order_value": 5100
+					}
+				}
+			}
+		},
+		{
+			"tool": "get_sales_analytics",
+			"match": { "account_name": "Outfitters", "date_from": "2025" },
+			"result": {
+				"success": true,
+				"data": {
+					"filters": {
+						"date_from": "2025-01-01",
+						"date_to": "2025-10-16",
+						"season": null,
+						"brand": null,
+						"account": "Acme Outfitters",
+						"rep": null
+					},
+					"group_by": "total",
+					"results": {
+						"revenue": 40500,
+						"order_count": 8,
+						"units_sold": 690,
+						"avg_order_value": 5062.5
+					}
+				}
+			}
+		},
+		{
+			"tool": "get_sales_analytics",
+			"match": { "account_name": "Outfitters", "date_from": "2026" },
+			"result": {
+				"success": true,
+				"data": {
+					"filters": {
+						"date_from": "2026-01-01",
+						"date_to": "2026-10-16",
+						"season": null,
+						"brand": null,
+						"account": "Acme Outfitters",
+						"rep": null
+					},
+					"group_by": "total",
+					"results": {
+						"revenue": 48600,
+						"order_count": 9,
+						"units_sold": 812,
+						"avg_order_value": 5400
+					}
+				}
+			}
+		}
+	],
+	"expect": { "lookup_tools": ["query_data", "list_accounts", "get_sales_analytics"] },
+	"rubric": "Only one account matches 'Acme': Acme Outfitters. Pass: Stitch looks it up, calls get_sales_analytics for this year and last year, and answers the year-over-year question directly without asking which Acme. Scripted figures for Acme Outfitters: 2026 to date (Jan 1 to Oct 16) $48,600 across 9 orders, 812 units; the same period of 2025 $40,500 across 8 orders, 690 units, so up $8,100 or 20%; full-year 2025 $61,200 across 12 orders. Comparing 2026 to date against the same period of 2025 is the like-for-like answer; comparing against full-year 2025 also passes only if Stitch says plainly that 2026 is a partial year. Fail: asking a clarifying question about which Acme, numbers not in the tool results, wrong percentage, or an answer with no figures."
+}

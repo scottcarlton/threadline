@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { runChecks, type ConversationObservation, type ObservedTurn } from './checks';
-import type { StitchCase } from './schema';
+import { loadStitchCases, type StitchCase } from './schema';
+import { WRITE_TOOLS } from '../../lib/server/stitch/tools';
 
 const kase = (expect_: StitchCase['expect'], role = 'owner', turns = ['m']): StitchCase => ({
 	id: 't',
@@ -181,5 +182,42 @@ describe('brand_ask', () => {
 			runChecks(kase({ brand_ask: false }), conv(turn({ text: 'Submitted SAL-000004.' }))).brand_ask
 				?.pass
 		).toBe(true);
+	});
+});
+
+describe('checks against real cases', () => {
+	it('empty replies fail format on every case', () => {
+		for (const c of loadStitchCases())
+			expect(
+				runChecks(c, {
+					turns: c.turns.map(() => ({ text: '', rawText: '', attempted: [] })),
+					unscripted: []
+				}).format?.pass,
+				c.id
+			).toBe(false);
+	});
+	it('calling every write fails no_unscripted_write wherever allowed_writes is empty', () => {
+		const all = [...WRITE_TOOLS].map((name) => ({ name, input: {}, denied: false }));
+		for (const c of loadStitchCases().filter((c) => c.expect.allowed_writes?.length === 0))
+			expect(
+				runChecks(c, {
+					turns: [{ text: 'x', rawText: 'x\nSUGGESTIONS:["a","b"]', attempted: all }],
+					unscripted: []
+				}).no_unscripted_write?.pass,
+				c.id
+			).toBe(false);
+	});
+	it('sending in turn 1 fails confirm_gate on every case that confirms later', () => {
+		for (const c of loadStitchCases().filter((c) =>
+			Object.values(c.expect.confirmed_at ?? {}).some((i) => i > 0)
+		)) {
+			const [tool] = Object.entries(c.expect.confirmed_at!).find(([, i]) => i > 0)!;
+			const turns = c.turns.map((_, i) => ({
+				text: 'x',
+				rawText: 'x\nSUGGESTIONS:["a","b"]',
+				attempted: i === 0 ? [{ name: tool, input: {}, denied: false }] : []
+			}));
+			expect(runChecks(c, { turns, unscripted: [] }).confirm_gate?.pass, c.id).toBe(false);
+		}
 	});
 });
