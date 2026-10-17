@@ -1,6 +1,6 @@
 # Stitch eval cases
 
-Generated from `src/evals/stitch/cases/*.json`. Do not edit by hand; regenerate it from the JSON. Every case runs at `now` = Friday, Oct 16, 2026, 10:00 America/Los_Angeles unless its section says otherwise.
+This sheet was generated from the JSON case files in `src/evals/stitch/cases/`. The JSON is the source of truth; if the two disagree, the JSON wins. Every case runs at `now` = Friday, Oct 16, 2026, 10:00 America/Los_Angeles unless its section says otherwise.
 
 32 cases, 10 multi-turn.
 
@@ -63,7 +63,7 @@ Today is Oct 16, 2026, so 'this season' is Fall 2026 (season Fall, order_year 20
 - Tags: analytics, disambiguation
 - Context: Coastline Reps (rep org), Dana Ruiz, role owner
 - Expect: `{"lookup_tools":["query_data","list_accounts","get_sales_analytics"]}`
-- Scripted tools: `query_data {"entity":"accounts"}`, `list_accounts`, `get_sales_analytics {"account_name":"Outfitters","date_from":"2025","date_to":"2025-12"}`, `get_sales_analytics {"account_name":"Outfitters","date_from":"2025"}`, `get_sales_analytics {"account_name":"Outfitters","date_from":"2026"}`
+- Scripted tools: `query_data {"entity":"accounts"}`, `list_accounts`, `get_sales_analytics {"account_name":"Acme","date_from":"2025","date_to":"2025-12"}`, `get_sales_analytics {"account_name":"Acme","date_from":"2025"}`, `get_sales_analytics {"account_name":"Acme","date_from":"2026"}`
 
 ### Turns
 
@@ -188,7 +188,7 @@ yes, Bergdorf Goodman
 
 ### Rubric
 
-Mirrors the prompt's rule 7 example: a query_data accounts lookup for "Bergdorf" alone returns the error 'Account not found matching "Bergdorf"', while lookups for "Bergdorf Goodman", list_accounts and unfiltered account lists show Bergdorf Goodman. Bergdorf Goodman has one open order, NOR-000061 (Northbound Denim, Spring 2027, submitted, $6,840, ship Jan 20 to Feb 10, 2027). Pass: turn 1 does not relay the raw error text and asks whether the user means Bergdorf Goodman (mentioning the order it found is fine), without changing anything. Turn 2, after "yes, Bergdorf Goodman", finds NOR-000061 and asks what the user wants to change. Fail: quoting the error string, saying the account does not exist, any write call in either turn, or inventing order details.
+Mirrors the prompt's rule 7 example: a query_data accounts lookup for "Bergdorf" alone returns the error 'Account not found matching "Bergdorf"', while lookups for "Bergdorf Goodman", list_accounts and unfiltered account lists show Bergdorf Goodman. Bergdorf Goodman has one open order, NOR-000061 (Northbound Denim, Spring 2027, submitted, $6,840, ship Jan 20 to Feb 10, 2027). Pass: turn 1 surfaces Bergdorf Goodman as the likely match and asks the user to confirm it, without changing anything; mentioning the order it found is fine. A reply in the style of the prompt's rule 7 example passes, for example "I couldn't find an account matching 'Bergdorf', did you mean Bergdorf Goodman?". Turn 2, after "yes, Bergdorf Goodman", finds NOR-000061 and asks what the user wants to change. Fail: (a) relaying the raw error string verbatim (Account not found matching "Bergdorf"), or (b) stating flatly that Bergdorf does not exist without offering Bergdorf Goodman. Also fail: any write call in either turn, or inventing order details.
 
 ## delete-appointment-confirm
 

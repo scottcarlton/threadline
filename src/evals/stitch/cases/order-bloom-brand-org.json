@@ -75,17 +75,7 @@
 							{ "color": "Natural", "size": "S", "sku": "SL-3155-NAT-S" },
 							{ "color": "Natural", "size": "M", "sku": "SL-3155-NAT-M" },
 							{ "color": "Natural", "size": "L", "sku": "SL-3155-NAT-L" },
-							{ "color": "Natural", "size": "XL", "sku": "SL-3155-NAT-XL" },
-							{ "color": "Navy", "size": "XS", "sku": "SL-3155-NAV-XS" },
-							{ "color": "Navy", "size": "S", "sku": "SL-3155-NAV-S" },
-							{ "color": "Navy", "size": "M", "sku": "SL-3155-NAV-M" },
-							{ "color": "Navy", "size": "L", "sku": "SL-3155-NAV-L" },
-							{ "color": "Navy", "size": "XL", "sku": "SL-3155-NAV-XL" },
-							{ "color": "Sage", "size": "XS", "sku": "SL-3155-SAG-XS" },
-							{ "color": "Sage", "size": "S", "sku": "SL-3155-SAG-S" },
-							{ "color": "Sage", "size": "M", "sku": "SL-3155-SAG-M" },
-							{ "color": "Sage", "size": "L", "sku": "SL-3155-SAG-L" },
-							{ "color": "Sage", "size": "XL", "sku": "SL-3155-SAG-XL" }
+							{ "color": "Natural", "size": "XL", "sku": "SL-3155-NAT-XL" }
 						]
 					}
 				]
