@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const captureException = vi.fn();
-vi.mock('@sentry/sveltekit', () => ({ captureException }));
+const captureMessage = vi.fn();
+vi.mock('@sentry/sveltekit', () => ({ captureException, captureMessage }));
 
-const { reportAiError } = await import('./ai-errors.js');
+const { reportAiError, reportAiValidation } = await import('./ai-errors.js');
 
 beforeEach(() => {
 	captureException.mockClear();
+	captureMessage.mockClear();
 	vi.spyOn(console, 'error').mockImplementation(() => {});
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
 describe('reportAiError', () => {
@@ -45,5 +48,33 @@ describe('reportAiError', () => {
 		reportAiError(err, { endpoint: 'agent', purpose: 'schedule' });
 
 		expect(console.error).toHaveBeenCalledWith('[ai] agent/schedule failed:', err);
+	});
+});
+
+describe('reportAiValidation', () => {
+	it('sends a grouped warning with counts and a capped issue sample', () => {
+		reportAiValidation({
+			endpoint: 'linesheet',
+			purpose: 'parse_products',
+			organizationId: 'org-1',
+			failed: 2,
+			total: 40,
+			issues: Array.from({ length: 15 }, (_, i) => `products.${i}.wholesale_price: required`)
+		});
+
+		const [message, options] = captureMessage.mock.calls[0];
+		expect(message).toBe('[ai] linesheet/parse_products output failed validation');
+		expect(options.level).toBe('warning');
+		expect(options.fingerprint).toEqual(['ai-validation', 'linesheet', 'parse_products']);
+		expect(options.tags.organization_id).toBe('org-1');
+		expect(options.extra.failed).toBe(2);
+		expect(options.extra.total).toBe(40);
+		expect(options.extra.issues).toHaveLength(10);
+	});
+
+	it('stays silent when nothing failed', () => {
+		reportAiValidation({ endpoint: 'linesheet', failed: 0, total: 40, issues: [] });
+
+		expect(captureMessage).not.toHaveBeenCalled();
 	});
 });

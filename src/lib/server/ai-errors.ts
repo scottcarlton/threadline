@@ -27,3 +27,36 @@ export function reportAiError(err: unknown, ctx: AiErrorContext): void {
 
 	Sentry.captureException(err, { tags, extra: ctx.extra });
 }
+
+export type AiValidationContext = AiErrorContext & {
+	/** Items that failed the schema. */
+	failed: number;
+	/** Items the model returned in total. */
+	total: number;
+	/** A few issue strings, enough to see the pattern without the payload. */
+	issues: string[];
+};
+
+/**
+ * Record model output that failed its schema. Not an exception (the caller
+ * handles the bad items), so it goes to Sentry as a warning grouped per
+ * endpoint and purpose: the issue's event count is the "how often does the
+ * model get this wrong" number.
+ */
+export function reportAiValidation(ctx: AiValidationContext): void {
+	if (ctx.failed === 0) return;
+
+	const label = ctx.purpose ? `${ctx.endpoint}/${ctx.purpose}` : ctx.endpoint;
+	console.warn(`[ai] ${label} output failed validation: ${ctx.failed} of ${ctx.total}`);
+
+	const tags: Record<string, string> = { subsystem: 'ai', ai_endpoint: ctx.endpoint };
+	if (ctx.purpose) tags.ai_purpose = ctx.purpose;
+	if (ctx.organizationId) tags.organization_id = ctx.organizationId;
+
+	Sentry.captureMessage(`[ai] ${label} output failed validation`, {
+		level: 'warning',
+		tags,
+		fingerprint: ['ai-validation', ctx.endpoint, ctx.purpose ?? ''],
+		extra: { ...ctx.extra, failed: ctx.failed, total: ctx.total, issues: ctx.issues.slice(0, 10) }
+	});
+}
