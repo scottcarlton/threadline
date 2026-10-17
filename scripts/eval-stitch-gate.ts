@@ -11,8 +11,10 @@ import {
 	toBaseline,
 	errorsByClass,
 	unresolvedErrors,
+	spendUsd,
 	type Baseline,
 	type ErrorRow,
+	type Prices,
 	type ResultRow
 } from '../src/evals/stitch/gate.ts';
 
@@ -57,6 +59,21 @@ if (s.unscripted.length) {
 	for (const u of s.unscripted)
 		console.log(`  ${u.prompt_id} rep${u.rep}: ${u.unscripted_calls} unscripted`);
 }
+
+const statePath = existsSync(`${FLOW}/_state.json`)
+	? `${FLOW}/_state.json`
+	: 'src/evals/stitch/state.template.json';
+const prices: Prices = JSON.parse(readFileSync(statePath, 'utf-8')).prices ?? {};
+const spend = spendUsd(rows, prices);
+const failedSpend = spendUsd(errors, prices);
+console.log(
+	`spend $${spend.total.toFixed(2)} over ${rows.length} rows (median $${spend.median.toFixed(4)}/row)` +
+		(errors.length ? `, plus $${failedSpend.total.toFixed(2)} on failed attempts` : '') +
+		` (prices from ${statePath})`
+);
+const unpriced = [...new Set([...spend.unpriced, ...failedSpend.unpriced])];
+if (unpriced.length)
+	console.log(`warning: no price for ${unpriced.join(', ')}; that usage is not in the total`);
 
 if (args.includes('--update-baseline')) {
 	if (s.critical_failures.length) {

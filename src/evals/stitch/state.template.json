@@ -19,7 +19,11 @@
 		{ "id": "unscripted_calls", "label": "unscripted" },
 		{ "id": "latency_s", "label": "latency", "unit": "s" }
 	],
-	"prices": { "claude-opus-5-5": { "in": 4, "out": 20 } },
+	"prices": {
+		"claude-opus-5-5": { "in": 4, "out": 20 },
+		"claude-sonnet-4-6": { "in": 3, "out": 15 },
+		"claude-haiku-4-5": { "in": 1, "out": 5 }
+	},
 	"harness_paths": [
 		"src/evals/stitch/adapter.ts",
 		"src/evals/stitch/checks.ts",

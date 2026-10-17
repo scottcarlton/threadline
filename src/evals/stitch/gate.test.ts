@@ -6,6 +6,8 @@ import {
 	toBaseline,
 	errorsByClass,
 	unresolvedErrors,
+	spendUsd,
+	priceFor,
 	type ResultRow,
 	type ErrorRow
 } from './gate';
@@ -204,5 +206,58 @@ describe('unscripted warnings', () => {
 		};
 		const s = summarize([{ ...row('a', { faithful: 1 }), unscripted_calls: 3 }]);
 		expect(evaluateGate(s, base).ok).toBe(true);
+	});
+});
+
+describe('spendUsd', () => {
+	const prices = {
+		'claude-opus-5-5': { in: 4, out: 20 },
+		'claude-sonnet-4-6': { in: 3, out: 15 },
+		'claude-haiku-4-5': { in: 1, out: 5 }
+	};
+	it('matches dated model ids by prefix', () => {
+		expect(priceFor('claude-haiku-4-5-20251001', prices)).toEqual({ in: 1, out: 5 });
+		expect(priceFor('claude-unknown', prices)).toBeUndefined();
+	});
+	it('prices usage at the row model, haiku_usage at Haiku and judge_usage at the judge model', () => {
+		const r = spendUsd(
+			[
+				{
+					model: 'claude-sonnet-4-6',
+					usage: {
+						input_tokens: 1_000_000,
+						output_tokens: 100_000,
+						cache_read_input_tokens: 1_000_000,
+						cache_creation_input_tokens: 1_000_000
+					},
+					haiku_usage: { input_tokens: 1_000_000, output_tokens: 1_000_000 },
+					judge_model: 'claude-opus-5-5',
+					judge_usage: { input_tokens: 500_000, output_tokens: 50_000 }
+				}
+			],
+			prices
+		);
+		// sonnet: 3 + 1.5 + 0.3 + 3.75 = 8.55; haiku: 1 + 5 = 6; judge: 2 + 1 = 3
+		expect(r.total).toBeCloseTo(17.55, 9);
+		expect(r.unpriced).toEqual([]);
+	});
+	it('reports the per-row median and flags unpriced models instead of guessing', () => {
+		const u = { input_tokens: 1_000_000 };
+		const r = spendUsd(
+			[
+				{ model: 'claude-haiku-4-5', usage: u },
+				{ model: 'claude-sonnet-4-6', usage: u },
+				{ model: 'claude-opus-5-5', usage: u },
+				{ model: 'mystery-model', usage: u }
+			],
+			prices
+		);
+		expect(r.perRow).toEqual([1, 3, 4, 0]);
+		expect(r.median).toBe(2);
+		expect(r.total).toBe(8);
+		expect(r.unpriced).toEqual(['mystery-model']);
+	});
+	it('returns zeros for no rows', () => {
+		expect(spendUsd([], prices)).toEqual({ total: 0, median: 0, perRow: [], unpriced: [] });
 	});
 });

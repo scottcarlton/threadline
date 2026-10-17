@@ -47,6 +47,9 @@ export type Baseline = {
 	margin: number;
 	metrics: Record<string, number>;
 };
+export type Prices = Record<string, { in: number; out: number }>;
+
+export const HAIKU_PRICE_MODEL = 'claude-haiku-4-5';
 
 /** 95% Wilson score interval. */
 export function wilson(pass: number, n: number): { lo: number; hi: number } {
@@ -176,5 +179,62 @@ export function toBaseline(s: Summary, reps: number, date: string): Baseline {
 		reps,
 		margin: Math.ceil(widest * 100) / 100,
 		metrics
+	};
+}
+
+/** Price for a model id, matched by the longest price key it starts with, so dated ids resolve. */
+export function priceFor(model: string | undefined, prices: Prices) {
+	if (!model) return undefined;
+	const key = Object.keys(prices)
+		.filter((k) => model.startsWith(k))
+		.sort((a, b) => b.length - a.length)[0];
+	return key ? prices[key] : undefined;
+}
+
+function usageUsd(
+	u: Usage | undefined,
+	model: string | undefined,
+	prices: Prices,
+	unpriced: Set<string>
+): number {
+	if (!u) return 0;
+	const p = priceFor(model, prices);
+	if (!p) {
+		unpriced.add(model ?? 'unknown model');
+		return 0;
+	}
+	const input =
+		(u.input_tokens ?? 0) +
+		(u.cache_read_input_tokens ?? 0) * 0.1 +
+		(u.cache_creation_input_tokens ?? 0) * 1.25;
+	return (input * p.in + (u.output_tokens ?? 0) * p.out) / 1e6;
+}
+
+/**
+ * Measured spend in USD. Prices are per MTok. `usage` is priced at the row
+ * model, `haiku_usage` at Haiku, `judge_usage` at the judge model. Cache reads
+ * bill at 0.1x input and cache writes at 1.25x input. Usage on a model with no
+ * price is left out of the total and its id returned in `unpriced`.
+ */
+export function spendUsd(
+	rows: Array<Pick<ResultRow, 'model' | 'usage' | 'haiku_usage' | 'judge_model' | 'judge_usage'>>,
+	prices: Prices
+): { total: number; median: number; perRow: number[]; unpriced: string[] } {
+	const unpriced = new Set<string>();
+	const perRow = rows.map(
+		(r) =>
+			usageUsd(r.usage, r.model, prices, unpriced) +
+			usageUsd(r.haiku_usage, HAIKU_PRICE_MODEL, prices, unpriced) +
+			usageUsd(r.judge_usage, r.judge_model, prices, unpriced)
+	);
+	const sorted = [...perRow].sort((a, b) => a - b);
+	const mid = Math.floor(sorted.length / 2);
+	const median =
+		sorted.length === 0 ? 0 : sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+	return {
+		total: perRow.reduce((a, b) => a + b, 0),
+		median,
+		perRow,
+		unpriced: [...unpriced]
 	};
 }

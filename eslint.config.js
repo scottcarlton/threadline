@@ -12,7 +12,7 @@ const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 
 export default defineConfig(
 	{
-		ignores: ['scripts/eval-stitch.mjs']
+		ignores: ['scripts/eval-stitch.mjs', 'scripts/eval-stitch-report.mjs']
 	},
 	includeIgnoreFile(gitignorePath),
 	js.configs.recommended,
