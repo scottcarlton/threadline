@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { LINESHEET_PROMPT } from '$lib/server/ai-prompts.js';
-import { logUsage } from '$lib/server/ai-usage.js';
+import { createTracked } from '$lib/server/ai-usage.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
 import { reportAiError, reportAiValidation } from '$lib/server/ai-errors.js';
 import {
@@ -85,22 +85,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	];
 
 	try {
-		const response = await anthropic.messages.create({
-			model: 'claude-sonnet-4-6',
-			max_tokens: 16384,
-			system: SYSTEM_PROMPT,
-			tools: [extractionTool],
-			tool_choice: { type: 'tool', name: 'parse_products' },
-			messages: [{ role: 'user', content }]
-		});
-		logUsage({
-			endpoint: 'linesheet',
-			purpose: 'parse_products',
-			model: 'claude-sonnet-4-6',
-			organizationId: locals.organization?.id ?? null,
-			userId: locals.user?.id ?? null,
-			response
-		});
+		const response = await createTracked(
+			anthropic,
+			{
+				model: 'claude-sonnet-4-6',
+				max_tokens: 16384,
+				system: SYSTEM_PROMPT,
+				tools: [extractionTool],
+				tool_choice: { type: 'tool', name: 'parse_products' },
+				messages: [{ role: 'user', content }]
+			},
+			{
+				endpoint: 'linesheet',
+				purpose: 'parse_products',
+				organizationId: locals.organization?.id ?? null,
+				userId: locals.user?.id ?? null
+			}
+		);
 
 		// Forced tool_choice means valid JSON, not valid data. The schema check
 		// below is what decides whether a row is usable.

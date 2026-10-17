@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
-import { logUsage } from '$lib/server/ai-usage.js';
+import { createTracked } from '$lib/server/ai-usage.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import type { MessagingChannel, ConversationMessage } from './types.js';
 import { buildConversationHistory } from './session.js';
@@ -273,28 +274,31 @@ export async function runAgent(input: AgentInput): Promise<string> {
 		{ role: 'user', content: userContent }
 	];
 
+	// Every model call answering this one message shares a turn.
+	const turnId = randomUUID();
 	let iterations = 0;
 	const maxIterations = 5;
 
 	while (iterations < maxIterations) {
 		iterations++;
 
-		const response = await anthropic.messages.create({
-			model: 'claude-sonnet-4-6',
-			max_tokens: 1024,
-			system: systemPrompt,
-			tools: MESSAGING_TOOLS,
-			messages
-		});
-
-		logUsage({
-			endpoint: 'messaging-agent',
-			purpose: 'messaging_conversation',
-			model: 'claude-sonnet-4-6',
-			organizationId: input.organizationId,
-			userId: input.userId,
-			response
-		});
+		const response = await createTracked(
+			anthropic,
+			{
+				model: 'claude-sonnet-4-6',
+				max_tokens: 1024,
+				system: systemPrompt,
+				tools: MESSAGING_TOOLS,
+				messages
+			},
+			{
+				endpoint: 'messaging-agent',
+				purpose: 'messaging_conversation',
+				organizationId: input.organizationId,
+				userId: input.userId,
+				turnId
+			}
+		);
 
 		if (response.stop_reason === 'tool_use') {
 			const toolBlocks = response.content.filter(
