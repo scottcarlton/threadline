@@ -12,6 +12,7 @@ import { parseInboundOrder } from '$lib/server/email-intake/parser.js';
 import { resolveEntities } from '$lib/server/email-intake/resolve.js';
 import { decideOutcome, executeOutcome } from '$lib/server/email-intake/outcome.js';
 import { evaluateSenderAuth } from '$lib/server/email-intake/authentication.js';
+import { reportAiError } from '$lib/server/ai-errors.js';
 
 const RATE_LIMIT_PER_HOUR = 60;
 
@@ -125,7 +126,12 @@ async function processItem(
 		}
 
 		const emailBody = fullEmail.text ?? fullEmail.html ?? '';
-		const parsed = await parseInboundOrder(emailBody);
+		// Attribute usage to the org when routing is unambiguous; a multi-org
+		// sender is only resolved after parsing.
+		const parsed =
+			routeResult.kind === 'single'
+				? await parseInboundOrder(emailBody, routeResult.organizationId, routeResult.userId)
+				: await parseInboundOrder(emailBody);
 
 		await supabaseAdmin
 			.from('email_intakes')
@@ -161,7 +167,7 @@ async function processItem(
 
 		return { intake_id: intakeId, status: outcome.status };
 	} catch (err) {
-		console.error(`[email-intake] Processing failed for ${intakeId}:`, err);
+		reportAiError(err, { endpoint: 'email-intake', extra: { intakeId } });
 		await supabaseAdmin
 			.from('email_intakes')
 			.update({
