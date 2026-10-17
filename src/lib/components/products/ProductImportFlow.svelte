@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { parseCSV as parseProductCSV } from '$lib/utils/csv-parse.js';
+	import { unreadableStylesNotice } from '$lib/utils/linesheet-unreadable.js';
 	import {
 		SCANNING_MIN_MS,
 		PARSING_MIN_MS,
@@ -62,6 +63,8 @@
 	let previewRows = $state<Record<string, unknown>[]>([]);
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	let previewUnmapped = $state<string[]>([]);
+	// Styles the line sheet parser could not read. CSV previews leave it null.
+	let unreadableNotice = $state<string | null>(null);
 	let committing = $state(false);
 
 	// Cascade detection results. `detectedHint` holds whatever the
@@ -147,6 +150,7 @@
 				const prepStart = Date.now();
 				previewRows = products;
 				previewUnmapped = [];
+				unreadableNotice = unreadableStylesNotice(body.unreadable);
 				// Cascade for PDF: filename → AI response.
 				const fromFilename = detectHintFromText(file.name);
 				const fromAi = {
@@ -177,6 +181,7 @@
 			const built = buildPreviewFromCsv(headers, rows);
 			previewRows = built.previewRows;
 			previewUnmapped = built.previewUnmapped;
+			unreadableNotice = null;
 			// Cascade for CSV file: filename → mapped columns → raw text.
 			resolveDetection(
 				mergeHints(
@@ -219,6 +224,7 @@
 			const built = buildPreviewFromCsv(headers, rows);
 			previewRows = built.previewRows;
 			previewUnmapped = built.previewUnmapped;
+			unreadableNotice = null;
 			// Cascade for paste: mapped columns → raw text. No filename.
 			resolveDetection(
 				mergeHints(detectHintFromCsvRows(built.previewRows), detectHintFromText(pasteValue))
@@ -531,6 +537,10 @@
 				Showing {Math.min(previewRows.length, 10)} of {previewRows.length} items
 			</p>
 		</div>
+
+		{#if unreadableNotice}
+			<p class="text-sm text-muted-foreground">{unreadableNotice}</p>
+		{/if}
 
 		{#if !isHighConfidence && seasons.length > 0}
 			<div class="grid grid-cols-2 gap-2">
