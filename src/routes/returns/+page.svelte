@@ -97,6 +97,9 @@
 
 <div class="space-y-6">
 	<PageHeader title="Returns" subtitle="{data.totalCount} return{data.totalCount !== 1 ? 's' : ''}">
+		{#if data.canExportCreditMemos}
+			<Button variant="outline" href="/api/returns/credit-memos/export">Export credit memos</Button>
+		{/if}
 		<Button href={resolve('/returns/new')}>New return</Button>
 	</PageHeader>
 
