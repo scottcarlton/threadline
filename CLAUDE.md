@@ -143,6 +143,7 @@ Don't roll new ad-hoc `let error = $state('')` patterns. If a form is being touc
 ## Project Management
 
 - Tasks and milestones live in Linear project **"Threadline"**
+- **Specs and design docs live in Notion, not the repo.** Create each spec as a child page of Notion **Threadline → Projects**, in the same shape as the existing pages there (e.g. "Order Invoicing"). Link Linear tickets to the Notion page. Do not commit specs to `docs/superpowers/specs/` or anywhere else in the repo, even when a skill defaults to writing one there.
 - Move tickets to **In Progress** when you start work, not after completing it
 - Skills: `.claude/skills/linear-flow` (pickup → branch → PR → close), `.claude/skills/linear-milestone` (plan all tickets in a milestone), `.claude/skills/git-pre` (end-of-feature: verify → self-review → commit → sync dev → push → open PR)
 
