@@ -10,7 +10,7 @@
 	import type { Product } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
 	import ProductCard from '$lib/components/products/ProductCard.svelte';
-	import { aggregateStockStatus } from '$lib/utils/products';
+	import { aggregateStockStatus, allVariantsOut } from '$lib/utils/products';
 	import { cart } from '$lib/stores/cart.js';
 	import QuickAddModal from '$lib/components/shared/QuickAddModal.svelte';
 
@@ -111,10 +111,7 @@
 				(p.brands?.name.toLowerCase().includes(search.toLowerCase()) ?? false);
 			if (!matchesBrand || !matchesSeason || !matchesCategory || !matchesPrice || !matchesSearch)
 				return false;
-			if (p.ats) {
-				const agg = aggregateStockStatus(p.product_variants ?? []);
-				if (agg === 'out') return false;
-			}
+			if (p.ats && allVariantsOut(p.product_variants ?? [])) return false;
 			return true;
 		})
 	);

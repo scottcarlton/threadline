@@ -22,3 +22,9 @@ export function aggregateStockStatus(
 	if (statuses.includes('low')) return 'low';
 	return 'in';
 }
+
+/** True only when every variant with tracked stock is out. Untracked variants are ignored. */
+export function allVariantsOut(variants: { stock_qty: number | null }[]): boolean {
+	const tracked = variants.filter((v) => v.stock_qty !== null);
+	return tracked.length > 0 && tracked.every((v) => (v.stock_qty ?? 0) <= 0);
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getVariantSummary, aggregateStockStatus } from './products';
+import { getVariantSummary, aggregateStockStatus, allVariantsOut } from './products';
 
 describe('getVariantSummary', () => {
 	it('returns color and size counts', () => {
@@ -67,5 +67,24 @@ describe('aggregateStockStatus', () => {
 			{ stock_qty: 0, stock_threshold: 5 }
 		];
 		expect(aggregateStockStatus(variants)).toBe('out');
+	});
+});
+
+describe('allVariantsOut', () => {
+	it('is false when only some variants are out', () => {
+		expect(allVariantsOut([{ stock_qty: 0 }, { stock_qty: 12 }])).toBe(false);
+	});
+
+	it('is true when every tracked variant is out', () => {
+		expect(allVariantsOut([{ stock_qty: 0 }, { stock_qty: -2 }])).toBe(true);
+	});
+
+	it('ignores untracked variants', () => {
+		expect(allVariantsOut([{ stock_qty: 0 }, { stock_qty: null }])).toBe(true);
+	});
+
+	it('is false when nothing is tracked', () => {
+		expect(allVariantsOut([{ stock_qty: null }])).toBe(false);
+		expect(allVariantsOut([])).toBe(false);
 	});
 });
