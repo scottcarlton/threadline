@@ -8,7 +8,7 @@ import {
 } from '$lib/server/email-intake/brevo-inbound.js';
 import type { ReceivedEmail } from '$lib/server/email-intake/brevo-inbound.js';
 import { resolveOrgFromSender } from '$lib/server/email-intake/route.js';
-import { parseInboundOrder } from '$lib/server/email-intake/parser.js';
+import { parseInboundOrder, OrderExtractionInvalidError } from '$lib/server/email-intake/parser.js';
 import { resolveEntities } from '$lib/server/email-intake/resolve.js';
 import { decideOutcome, executeOutcome } from '$lib/server/email-intake/outcome.js';
 import { evaluateSenderAuth } from '$lib/server/email-intake/authentication.js';
@@ -167,7 +167,11 @@ async function processItem(
 
 		return { intake_id: intakeId, status: outcome.status };
 	} catch (err) {
-		reportAiError(err, { endpoint: 'email-intake', extra: { intakeId } });
+		// A schema failure was already reported as a validation warning; it is a
+		// model miss, not a bug, and lands in review like any other.
+		if (!(err instanceof OrderExtractionInvalidError)) {
+			reportAiError(err, { endpoint: 'email-intake', extra: { intakeId } });
+		}
 		await supabaseAdmin
 			.from('email_intakes')
 			.update({

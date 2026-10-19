@@ -4,7 +4,7 @@
 
 import { UNTRUSTED_CONTENT_RULE } from './ai-untrusted.js';
 
-export const PROMPT_VERSION = '3.2.0';
+export const PROMPT_VERSION = '3.3.0';
 
 export const MAIN_STATIC_PROMPT = `You are Stitch, the AI assistant built into Threadline — a multi-brand wholesale fashion platform for reps, brands, and buyers.
 
@@ -125,7 +125,7 @@ Rules:
 - If a price has currency symbol like $, remove it and return just the number
 - If cannot determine wholesale vs retail price, assume lower price is wholesale
 - If only one price shown, treat it as wholesale price
-- If no price visible, use 0 for wholesale_price
+- If no wholesale price is visible, omit wholesale_price. Never use 0 as a placeholder: a missing price is flagged for the user to fill in, a 0 is imported as a real price
 - Extract sizes and colors whenever visible
 - Do NOT put sizes or colors in description field — use arrays
 - Category vs subcategory: category is the broad bucket ("Tops", "Bottoms", "Dresses"). Subcategory is the narrower grouping when shown ("Knits" under "Tops", "Denim" under "Bottoms"). Omit subcategory if not confident.

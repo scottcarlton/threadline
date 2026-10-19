@@ -27,6 +27,7 @@
 		matchOrgType
 	} from '$lib/components/onboarding/machine';
 	import { parseCSV } from '$lib/utils/csv-parse';
+	import { unreadableCount } from '$lib/utils/linesheet-unreadable';
 	import {
 		buildAccountPreviewFromCsv,
 		downloadAccountCsvTemplate
@@ -1256,6 +1257,8 @@
 	let ingestNoun = $state('');
 	// Rows beyond MAX_IMPORT_ROWS, surfaced in the preview instead of vanishing.
 	let droppedRows = $state(0);
+	// Line sheet styles the parser could not read, surfaced the same way.
+	let unreadableRows = $state(0);
 
 	let memberDrafts: MemberDraft[] = [];
 	let brandDrafts: BrandDraft[] = [];
@@ -1266,6 +1269,7 @@
 	function resetIngest() {
 		ingestState = 'idle';
 		droppedRows = 0;
+		unreadableRows = 0;
 		ingestFileName = '';
 		ingestRows = [];
 		memberDrafts = [];
@@ -1519,6 +1523,7 @@
 					return;
 				}
 				ingestNoun = productDrafts.length === 1 ? 'product' : 'products';
+				unreadableRows = unreadableCount(body.unreadable);
 				ingestRows = productDrafts.map((p) => ({
 					primary: p.name,
 					secondary: [p.style_number, p.wholesale_price ? money(p.wholesale_price) : '']
@@ -2508,6 +2513,17 @@
 											<p class="mt-1 text-sm text-zinc-400">
 												That's the first {ingestRows.length} — {droppedRows} more didn't make this round.
 												Split the file to bring in the rest.
+											</p>
+										{/if}
+										{#if unreadableRows === 1}
+											<p class="mt-1 text-sm text-zinc-400">
+												1 style left out. I couldn't read its price, style number, or name. Add it
+												by hand or check the line sheet.
+											</p>
+										{:else if unreadableRows > 1}
+											<p class="mt-1 text-sm text-zinc-400">
+												{unreadableRows} styles left out. I couldn't read their price, style number, or
+												name. Add them by hand or check the line sheet.
 											</p>
 										{/if}
 										<ul

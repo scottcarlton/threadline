@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	sanitizeConversationHistory,
 	applyHistoryLimits,
+	toHistoryMessages,
 	DEFAULT_HISTORY_LIMITS,
 	TRUNCATION_MARKER,
 	type PlainTurn
@@ -219,5 +220,29 @@ describe('applyHistoryLimits', () => {
 			{ role: 'user', content: 'a1' },
 			{ role: 'assistant', content: 'b1' }
 		]);
+	});
+});
+
+describe('toHistoryMessages', () => {
+	it('trims, drops empty turns, and applies the limits', () => {
+		const rows = [
+			{ role: 'user' as const, content: '  hi  ' },
+			{ role: 'assistant' as const, content: '   ' },
+			{ role: 'assistant' as const, content: 'hello' }
+		];
+		expect(toHistoryMessages(rows)).toEqual([
+			{ role: 'user', content: 'hi' },
+			{ role: 'assistant', content: 'hello' }
+		]);
+	});
+
+	it('keeps only the last 20 turns', () => {
+		const rows = Array.from({ length: 24 }, (_, i) => ({
+			role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+			content: `t${i}`
+		}));
+		const out = toHistoryMessages(rows);
+		expect(out).toHaveLength(20);
+		expect(out[0]).toEqual({ role: 'user', content: 't4' });
 	});
 });

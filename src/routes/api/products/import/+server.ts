@@ -62,7 +62,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const parsed = productImportSchema.safeParse(body);
 	if (!parsed.success) {
 		const first = parsed.error.issues[0];
-		return json({ error: first?.message ?? 'Invalid payload' }, { status: 400 });
+		// Name the row so a 300-line CSV with one blank price is fixable.
+		const [field, row] = first?.path ?? [];
+		const prefix = field === 'products' && typeof row === 'number' ? `Row ${row + 1}: ` : '';
+		return json({ error: `${prefix}${first?.message ?? 'Invalid payload'}` }, { status: 400 });
 	}
 
 	const { brandId, onConflict, products } = parsed.data;

@@ -574,6 +574,8 @@ describe('zero-policy tables: unreachable to any role subject to RLS', () => {
 	// Each row is seeded with the service-role client first so the read
 	// denial is meaningful rather than an empty table.
 	let sessionId: string;
+	// Fixed so the forged insert and the cleanup filter on the same turn.
+	const AI_TOOL_CALL_PROBE_TURN = '00000000-0000-4000-8000-0000000000a1';
 
 	beforeAll(async () => {
 		const admin = adminClient();
@@ -600,6 +602,16 @@ describe('zero-policy tables: unreachable to any role subject to RLS', () => {
 					organization_id: RLS_IDS.orgBrandA,
 					user_id: PERSONA_IDS.brandAAdmin!,
 					endpoint: 'rls-write-probe'
+				}
+			],
+			[
+				'ai_tool_calls',
+				{
+					organization_id: RLS_IDS.orgBrandA,
+					turn_id: AI_TOOL_CALL_PROBE_TURN,
+					endpoint: 'rls-write-probe',
+					tool: 'rls-write-probe',
+					status: 'ok'
 				}
 			],
 			[
@@ -638,6 +650,7 @@ describe('zero-policy tables: unreachable to any role subject to RLS', () => {
 			.delete()
 			.eq('organization_id', RLS_IDS.orgBrandA)
 			.eq('endpoint', 'rls-write-probe');
+		await admin.from('ai_tool_calls').delete().eq('turn_id', AI_TOOL_CALL_PROBE_TURN);
 		await admin
 			.from('beta_whitelist')
 			.delete()
@@ -659,6 +672,7 @@ describe('zero-policy tables: unreachable to any role subject to RLS', () => {
 			'grant-revoked',
 			{ organization_id: RLS_IDS.orgBrandA, endpoint: 'rls-write-probe' }
 		],
+		['ai_tool_calls', 'grant-revoked', { turn_id: AI_TOOL_CALL_PROBE_TURN }],
 		['beta_whitelist', 'rls-denied', { email: 'rls-zero-policy-probe@rls-test.threadline.local' }],
 		['messaging_verification_attempts', 'grant-revoked', { phone_number: '+15550002222' }]
 	] as const)(

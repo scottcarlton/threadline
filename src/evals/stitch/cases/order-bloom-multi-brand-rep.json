@@ -1,0 +1,61 @@
+{
+	"id": "order-bloom-multi-brand-rep",
+	"tags": ["orders", "brand-ask", "multi-turn", "seed"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": [
+		"Put in an order for Bloom Boutique, 6 of the linen wrap dress in S/M/L, 2 each, ship mid-Feb.",
+		"Saltwater Linen"
+	],
+	"tools": [
+		{
+			"tool": "list_brands",
+			"result": {
+				"success": true,
+				"data": [
+					{ "id": "b-1", "name": "Saltwater Linen" },
+					{ "id": "b-2", "name": "Juniper & Co" },
+					{ "id": "b-3", "name": "Harbor Denim" }
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "accounts" },
+			"result": { "success": true, "data": [{ "id": "a-1", "business_name": "Bloom Boutique" }] }
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "products" },
+			"result": {
+				"success": true,
+				"data": [{ "id": "p-1", "name": "Linen Wrap Dress", "brand_id": "b-1" }]
+			}
+		},
+		{
+			"tool": "create_order",
+			"result": {
+				"success": true,
+				"data": {
+					"order_number": "SAL-000041",
+					"status": "submitted",
+					"total": 744,
+					"season": "Spring 2027"
+				}
+			}
+		}
+	],
+	"expect": {
+		"routes": ["TOOLS", "TOOLS"],
+		"brand_ask": true,
+		"allowed_writes": ["create_order"],
+		"lookup_tools": ["list_brands", "query_data"]
+	},
+	"rubric": "The rep represents three brands and the first message names none. Turn 1 must ask which brand and must not create the order, even though only Saltwater Linen carries a linen wrap dress. After the user answers 'Saltwater Linen', turn 2 must call create_order for Bloom Boutique with brand Saltwater Linen, Linen Wrap Dress sizes S, M, L at qty 2 each, and a ship window inside February 2027, then confirm using the order number from the tool result. Earlier tool results are not visible in turn 2, so a fresh lookup there is fine."
+}

@@ -380,9 +380,12 @@
 				{$form.lines.length}
 				{$form.lines.length === 1 ? 'item' : 'items'} · {money.format(selectedTotal)}
 			</p>
-			<Button type="submit" disabled={$submitting || $form.lines.length === 0}>
-				{$submitting ? 'Saving…' : 'Create return'}
-			</Button>
+			<div class="flex items-center gap-2">
+				<Button variant="outline" href={data.cancelHref}>Cancel</Button>
+				<Button type="submit" disabled={$submitting || $form.lines.length === 0}>
+					{$submitting ? 'Saving…' : 'Create return'}
+				</Button>
+			</div>
 		</div>
 	</form>
 </div>

@@ -108,6 +108,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	return {
 		form,
+		// Back to wherever the return was started: the order's own page when it
+		// came from "Request return" / "Log return", otherwise the list.
+		cancelHref: preselectedOrderId
+			? `/orders/${encodeURIComponent(preselectedOrderId)}`
+			: '/returns',
 		orders,
 		brands: (brandsResult.data ?? []) as Array<{
 			id: string;

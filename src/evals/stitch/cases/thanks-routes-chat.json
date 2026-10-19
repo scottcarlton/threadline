@@ -1,0 +1,22 @@
+{
+	"id": "thanks-routes-chat",
+	"tags": ["routing", "seed"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"history": [
+		{ "role": "user", "content": "How many draft orders do I have?" },
+		{
+			"role": "assistant",
+			"content": "You have 3 draft orders. The oldest is Juniper & Co from Sep 30."
+		}
+	],
+	"turns": ["thanks, that's perfect"],
+	"expect": { "routes": ["CHAT"], "allowed_writes": [] },
+	"rubric": "A pure acknowledgement. It should route to CHAT and get a short, natural reply with no tool calls and no new facts."
+}

@@ -1,10 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { randomUUID } from 'node:crypto';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from './ai-tools.js';
 import { supabaseAdmin } from './supabase.js';
 import { agentBasePrompt } from './ai-prompts.js';
-import { logUsage } from './ai-usage.js';
+import { createTracked } from './ai-usage.js';
 import { resolveAgentActor } from './agent-actor.js';
+import { stitchToolDefinitions } from './stitch/tools.js';
 import { reportAiError } from './ai-errors.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
@@ -45,6 +47,9 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 		.single();
 
 	const runId = run?.id;
+	// One run is one turn; reusing the run id lets telemetry join to
+	// org_agent_runs directly.
+	const turnId: string = runId ?? randomUUID();
 
 	try {
 		// Get org info for context
@@ -76,32 +81,30 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 			}
 		];
 
-		// Import tool definitions from the AI endpoint
-		// We reuse the same tools but call them with the admin client
-		const { _toolDefinitions } = await import('../../routes/api/ai/+server.js');
-
 		const whitelist = params.toolWhitelist ?? null;
 		const agentTools =
 			whitelist && whitelist.length > 0
-				? _toolDefinitions.filter((t) => whitelist.includes(t.name))
-				: _toolDefinitions;
+				? stitchToolDefinitions.filter((t) => whitelist.includes(t.name))
+				: stitchToolDefinitions;
 
 		const messages: Anthropic.MessageParam[] = [{ role: 'user', content: params.prompt }];
 
-		let response = await anthropic.messages.create({
-			model: 'claude-sonnet-4-6',
-			max_tokens: 4096,
-			system: systemBlocks,
-			tools: agentTools,
-			messages
-		});
-		logUsage({
-			endpoint: 'agent',
-			purpose: 'agent',
-			model: 'claude-sonnet-4-6',
-			organizationId: params.orgId,
-			response
-		});
+		let response = await createTracked(
+			anthropic,
+			{
+				model: 'claude-sonnet-4-6',
+				max_tokens: 4096,
+				system: systemBlocks,
+				tools: agentTools,
+				messages
+			},
+			{
+				endpoint: 'agent',
+				purpose: 'agent',
+				organizationId: params.orgId,
+				turnId
+			}
+		);
 
 		// Tool use loop
 		const MAX_TOOL_ITERATIONS = 10;
@@ -137,20 +140,22 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 			messages.push({ role: 'assistant', content: response.content });
 			messages.push({ role: 'user', content: toolResults });
 
-			response = await anthropic.messages.create({
-				model: 'claude-sonnet-4-6',
-				max_tokens: 4096,
-				system: systemBlocks,
-				tools: agentTools,
-				messages
-			});
-			logUsage({
-				endpoint: 'agent',
-				purpose: 'agent',
-				model: 'claude-sonnet-4-6',
-				organizationId: params.orgId,
-				response
-			});
+			response = await createTracked(
+				anthropic,
+				{
+					model: 'claude-sonnet-4-6',
+					max_tokens: 4096,
+					system: systemBlocks,
+					tools: agentTools,
+					messages
+				},
+				{
+					endpoint: 'agent',
+					purpose: 'agent',
+					organizationId: params.orgId,
+					turnId
+				}
+			);
 		}
 
 		// Extract text

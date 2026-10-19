@@ -1,0 +1,243 @@
+{
+	"id": "atlanta-market-block",
+	"tags": ["appointments", "capability"],
+	"now": "2026-10-16T10:00:00-07:00",
+	"context": {
+		"orgName": "Coastline Reps",
+		"orgType": "rep",
+		"userName": "Dana Ruiz",
+		"role": "owner",
+		"brandScope": null
+	},
+	"turns": [
+		"I'm at Atlanta market Thursday through Sunday. Block it off and remind me who I'm seeing."
+	],
+	"tools": [
+		{
+			"tool": "query_data",
+			"match": { "entity": "appointments", "filters": { "scheduled_date": "2026-10-22" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "ap-11",
+						"show_date_id": "sd-atl",
+						"account_id": "a-1",
+						"appointment_type": "scheduled",
+						"location_type": "show",
+						"location_detail": "Showroom 8-B",
+						"scheduled_date": "2026-10-22",
+						"scheduled_time": "10:00:00",
+						"duration_minutes": 60,
+						"notes": "Walk the Spring 2027 Saltwater Linen line.",
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-09-14T17:00:00+00:00",
+						"accounts": { "business_name": "Bloom Boutique" },
+						"show_dates": { "shows": { "name": "Atlanta Apparel" } }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "appointments", "filters": { "scheduled_date": "2026-10-23" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "ap-12",
+						"show_date_id": "sd-atl",
+						"account_id": "a-2",
+						"appointment_type": "scheduled",
+						"location_type": "show",
+						"location_detail": "Showroom 8-B",
+						"scheduled_date": "2026-10-23",
+						"scheduled_time": "11:00:00",
+						"duration_minutes": 60,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-09-14T17:00:00+00:00",
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"show_dates": { "shows": { "name": "Atlanta Apparel" } }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "appointments", "filters": { "scheduled_date": "2026-10-24" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "ap-13",
+						"show_date_id": "sd-atl",
+						"account_id": "a-5",
+						"appointment_type": "scheduled",
+						"location_type": "show",
+						"location_detail": "Showroom 8-B",
+						"scheduled_date": "2026-10-24",
+						"scheduled_time": "14:30:00",
+						"duration_minutes": 45,
+						"notes": "Northbound Denim reorder.",
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-09-14T17:00:00+00:00",
+						"accounts": { "business_name": "Rivera & Daughters" },
+						"show_dates": { "shows": { "name": "Atlanta Apparel" } }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "appointments", "filters": { "scheduled_date": "2026-10-25" } },
+			"result": { "success": true, "data": [] }
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "appointments", "filters": { "scheduled_date": "2026-10-28" } },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "ap-14",
+						"show_date_id": null,
+						"account_id": "a-4",
+						"appointment_type": "scheduled",
+						"location_type": "phone",
+						"location_detail": "503-555-0163",
+						"scheduled_date": "2026-10-28",
+						"scheduled_time": "15:00:00",
+						"duration_minutes": 30,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-09-14T17:00:00+00:00",
+						"accounts": { "business_name": "Acme Outfitters" },
+						"show_dates": null
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "appointments" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "ap-11",
+						"show_date_id": "sd-atl",
+						"account_id": "a-1",
+						"appointment_type": "scheduled",
+						"location_type": "show",
+						"location_detail": "Showroom 8-B",
+						"scheduled_date": "2026-10-22",
+						"scheduled_time": "10:00:00",
+						"duration_minutes": 60,
+						"notes": "Walk the Spring 2027 Saltwater Linen line.",
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-09-14T17:00:00+00:00",
+						"accounts": { "business_name": "Bloom Boutique" },
+						"show_dates": { "shows": { "name": "Atlanta Apparel" } }
+					},
+					{
+						"id": "ap-12",
+						"show_date_id": "sd-atl",
+						"account_id": "a-2",
+						"appointment_type": "scheduled",
+						"location_type": "show",
+						"location_detail": "Showroom 8-B",
+						"scheduled_date": "2026-10-23",
+						"scheduled_time": "11:00:00",
+						"duration_minutes": 60,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-09-14T17:00:00+00:00",
+						"accounts": { "business_name": "Juniper Mercantile" },
+						"show_dates": { "shows": { "name": "Atlanta Apparel" } }
+					},
+					{
+						"id": "ap-13",
+						"show_date_id": "sd-atl",
+						"account_id": "a-5",
+						"appointment_type": "scheduled",
+						"location_type": "show",
+						"location_detail": "Showroom 8-B",
+						"scheduled_date": "2026-10-24",
+						"scheduled_time": "14:30:00",
+						"duration_minutes": 45,
+						"notes": "Northbound Denim reorder.",
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-09-14T17:00:00+00:00",
+						"accounts": { "business_name": "Rivera & Daughters" },
+						"show_dates": { "shows": { "name": "Atlanta Apparel" } }
+					},
+					{
+						"id": "ap-14",
+						"show_date_id": null,
+						"account_id": "a-4",
+						"appointment_type": "scheduled",
+						"location_type": "phone",
+						"location_detail": "503-555-0163",
+						"scheduled_date": "2026-10-28",
+						"scheduled_time": "15:00:00",
+						"duration_minutes": 30,
+						"notes": null,
+						"status": "scheduled",
+						"created_by": "u-1",
+						"created_at": "2026-09-14T17:00:00+00:00",
+						"accounts": { "business_name": "Acme Outfitters" },
+						"show_dates": null
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "show_dates" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "sd-atl",
+						"show_id": "sh-1",
+						"year": 2026,
+						"month": 10,
+						"venue": "AmericasMart",
+						"city": "Atlanta",
+						"state": "GA",
+						"start_date": "2026-10-22",
+						"end_date": "2026-10-25",
+						"created_at": "2026-06-02T15:00:00+00:00",
+						"shows": { "name": "Atlanta Apparel" }
+					}
+				]
+			}
+		},
+		{
+			"tool": "query_data",
+			"match": { "entity": "shows" },
+			"result": {
+				"success": true,
+				"data": [
+					{
+						"id": "sh-1",
+						"name": "Atlanta Apparel",
+						"is_active": true,
+						"created_at": "2025-01-10T15:00:00+00:00",
+						"seasons": null
+					}
+				]
+			}
+		}
+	],
+	"expect": { "allowed_writes": [], "lookup_tools": ["query_data"] },
+	"rubric": "Today is Friday, Oct 16, 2026, so 'Thursday through Sunday' is Thu Oct 22 to Sun Oct 25. Three appointments fall in that window: Bloom Boutique Thu Oct 22 at 10:00 AM, Juniper Mercantile Fri Oct 23 at 11:00 AM, and Rivera & Daughters Sat Oct 24 at 2:30 PM, all at Atlanta Apparel. A fourth, Acme Outfitters by phone on Wed Oct 28, is outside the trip. Pass: Stitch lists exactly those three with day, date and time, and says plainly that it cannot block off calendar time or set reminders from here. Mentioning the Oct 28 call separately as after the trip is fine. Fail: calling create_appointment or any other write, claiming the time was blocked or a reminder was set, inventing an account or appointment, presenting the Oct 28 call as part of the trip, or using the wrong dates (for example Oct 15 to 18)."
+}

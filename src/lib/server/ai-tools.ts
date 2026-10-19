@@ -101,7 +101,7 @@ export function maySetOrderStatus(
 	};
 }
 
-type ToolResult = {
+export type ToolResult = {
 	success: boolean;
 	data?: unknown;
 	error?: string;
