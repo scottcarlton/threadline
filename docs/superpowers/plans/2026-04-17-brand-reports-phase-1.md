@@ -8,7 +8,7 @@
 
 **Tech Stack:** SvelteKit 5, Svelte 5 runes, TypeScript, Supabase (Postgres + RLS), Tailwind v4, Vitest, Bun.
 
-**Spec:** `docs/superpowers/specs/2026-04-17-brand-reports-phase-1-design.md`
+**Spec:** [Notion](https://app.notion.com/p/3fe0c8824fed81efb3fac08649404832)
 
 **Branch / worktree:** `sco-126-brand-reports` at `/Users/scottcarlton/Sites/threadline/.worktrees/sco-126-brand-reports/`
 
