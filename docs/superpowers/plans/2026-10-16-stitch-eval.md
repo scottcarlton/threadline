@@ -8,7 +8,7 @@
 
 **Tech Stack:** SvelteKit 2, TypeScript, `@anthropic-ai/sdk` 0.82.0, Zod 4.3.6, Vitest 4, Bun.
 
-**Spec:** `docs/superpowers/specs/2026-10-16-stitch-eval-design.md`
+**Spec:** [Notion](https://app.notion.com/p/3fe0c8824fed81d4a071e64169652bd5)
 
 **Linear:** SCO-193. **Branch:** `feat/stitch-eval`. **Worktree:** `/Users/scottcarlton/Sites/threadline/.worktrees/stitch-eval` (run every command from here).
 

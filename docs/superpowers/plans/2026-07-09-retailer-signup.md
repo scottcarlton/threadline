@@ -8,7 +8,7 @@
 
 **Tech Stack:** SvelteKit 2 + Svelte 5 runes, TypeScript, Supabase (Postgres + RLS + `@supabase/ssr`), Vitest, Tailwind v4, bun.
 
-**Spec:** `docs/superpowers/specs/2026-07-09-retailer-signup-design.md`
+**Spec:** [Notion](https://app.notion.com/p/3fe0c8824fed812ebb1bdd22a7b4e347)
 
 **Working directory:** `/Users/scottcarlton/Sites/threadline/.worktrees/store-signup` (branch `feat/store-signup`). All paths below are relative to it. All commands run from it.
 

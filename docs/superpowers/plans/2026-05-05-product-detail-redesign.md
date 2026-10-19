@@ -8,7 +8,7 @@
 
 **Tech Stack:** SvelteKit 2 + Svelte 5 (runes), Bits UI (Dialog, DropdownMenu, Select, Switch), Tailwind CSS v4, Supabase
 
-**Spec:** `docs/superpowers/specs/2026-05-05-product-detail-redesign.md`
+**Spec:** [Notion](https://app.notion.com/p/3fe0c8824fed81e9a63bc1201efc53e7)
 
 ---
 
