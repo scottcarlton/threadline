@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { computeAccountHealth } from '$lib/server/account-health.js';
 import { BRIEFING_PROMPT } from '$lib/server/ai-prompts.js';
-import { logUsage } from '$lib/server/ai-usage.js';
+import { createTracked } from '$lib/server/ai-usage.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
 import { reportAiError } from '$lib/server/ai-errors.js';
 
@@ -303,25 +303,26 @@ ${
 `;
 
 	try {
-		const response = await anthropic.messages.create({
-			model: 'claude-haiku-4-5',
-			max_tokens: 600,
-			system: BRIEFING_PROMPT,
-			messages: [
-				{
-					role: 'user',
-					content: `Generate a briefing based on this data:\n${contextData}`
-				}
-			]
-		});
-		logUsage({
-			endpoint: 'briefing',
-			purpose: 'briefing',
-			model: 'claude-haiku-4-5',
-			organizationId: orgId,
-			userId: user.id,
-			response
-		});
+		const response = await createTracked(
+			anthropic,
+			{
+				model: 'claude-haiku-4-5',
+				max_tokens: 600,
+				system: BRIEFING_PROMPT,
+				messages: [
+					{
+						role: 'user',
+						content: `Generate a briefing based on this data:\n${contextData}`
+					}
+				]
+			},
+			{
+				endpoint: 'briefing',
+				purpose: 'briefing',
+				organizationId: orgId,
+				userId: user.id
+			}
+		);
 
 		const briefing = response.content[0].type === 'text' ? response.content[0].text : '';
 

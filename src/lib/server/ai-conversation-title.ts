@@ -7,7 +7,7 @@
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import { fallbackTitle, normalizeTitle, setTitle } from './ai-conversations.js';
-import { logUsage } from './ai-usage.js';
+import { createTracked } from './ai-usage.js';
 import { reportAiError } from './ai-errors.js';
 import { defer } from './audit/defer.js';
 
@@ -35,25 +35,27 @@ export function generateTitle(params: {
 
 	void defer(async () => {
 		try {
-			const response = await params.anthropic.messages.create({
-				model: TITLE_MODEL,
-				max_tokens: 20,
-				system: [{ type: 'text', text: TITLE_PROMPT }],
-				messages: [
-					{
-						role: 'user',
-						content: `User: ${params.firstUserMessage}\n\nAssistant: ${params.firstAssistantMessage}`
-					}
-				]
-			});
-			logUsage({
-				endpoint: 'chat',
-				purpose: 'title',
-				model: TITLE_MODEL,
-				organizationId: params.organizationId,
-				userId: params.userId,
-				response
-			});
+			const response = await createTracked(
+				params.anthropic,
+				{
+					model: TITLE_MODEL,
+					max_tokens: 20,
+					system: [{ type: 'text', text: TITLE_PROMPT }],
+					messages: [
+						{
+							role: 'user',
+							content: `User: ${params.firstUserMessage}\n\nAssistant: ${params.firstAssistantMessage}`
+						}
+					]
+				},
+				{
+					endpoint: 'chat',
+					purpose: 'title',
+					conversationId: params.conversationId,
+					organizationId: params.organizationId,
+					userId: params.userId
+				}
+			);
 			const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
 			const title = normalizeTitle(raw) ?? fallback;
 			if (title) await setTitle(params.conversationId, title);

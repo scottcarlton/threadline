@@ -225,6 +225,8 @@ The tables above do not cover every RLS-enabled table in the schema. The followi
 
 Of those, six have RLS enabled with zero policies defined (`pg_policy` has no rows for the table): `ai_requests`, `audit_log`, `beta_whitelist`, `messaging_messages`, `messaging_sessions`, `messaging_verification_attempts`. RLS enabled with zero policies is deny-all to every role except the service role (`supabaseAdmin`), since Postgres RLS defaults closed. Nothing in the codebase or migrations documents whether that deny-all posture is intentional for these six tables. This document does not assert that it is.
 
+`ai_tool_calls` (added by `20261017000001_ai_telemetry.sql`) has the same shape, but on purpose: RLS on, zero policies, and all grants revoked from `anon` and `authenticated`. It is server-written AI telemetry, read only through `supabaseAdmin` (the `/system` views), and it never stores tool inputs. Its migration header records that intent, and `tests/rls/write-policies.test.ts` pins it.
+
 ### Storage (objects table)
 
 Fixed by `supabase/migrations/20260901000020_scope_storage_bucket_policies.sql`. Previously, six policies on `brand-assets`/`expense-receipts` and the two write policies on `organization-logos` had `USING`/`WITH CHECK` expressions of only `bucket_id = '...'`, with no auth or org predicate, and `pg_policy.polroles` of `{0}` (PUBLIC, including `anon`) -- an unauthenticated client could read and write all three buckets. All nine policies below are now `TO authenticated`, with real scoping.
