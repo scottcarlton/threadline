@@ -6,7 +6,7 @@
  * unit-tested and what keeps the rules in one readable place instead of spread
  * across the create, approve, and issue endpoints.
  *
- * Spec: docs/superpowers/specs/2026-09-14-returns-design.md (SCO-183).
+ * Spec: https://app.notion.com/p/3fe0c8824fed81e48359e4c7ed6dd748 (SCO-183).
  *
  * ───────────────────────────────────────────────────────────────────────────
  * Where the policy comes from

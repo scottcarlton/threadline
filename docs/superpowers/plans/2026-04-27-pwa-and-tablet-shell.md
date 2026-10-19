@@ -8,7 +8,7 @@
 
 **Tech Stack:** SvelteKit 2 + Svelte 5 (runes), TypeScript, Tailwind v4, Bits UI (modals), `@sveltejs/adapter-vercel`, Vitest, Sharp (icon generation, dev-only), `bun` package manager.
 
-**Spec:** `docs/superpowers/specs/2026-04-27-pwa-and-tablet-shell-design.md`
+**Spec:** [Notion](https://app.notion.com/p/3fe0c8824fed8196989df7655bbf43e0)
 
 ---
 
@@ -1615,7 +1615,7 @@ This PR is greenfield/additive: it makes Threadline installable as a Progressive
 
 ### Spec
 
-\`docs/superpowers/specs/2026-04-27-pwa-and-tablet-shell-design.md\`
+https://app.notion.com/p/3fe0c8824fed8196989df7655bbf43e0
 
 ## Test plan
 
@@ -2588,7 +2588,7 @@ This PR makes the authenticated app behave correctly on iPad and larger viewport
 
 ### Spec
 
-\`docs/superpowers/specs/2026-04-27-pwa-and-tablet-shell-design.md\`
+https://app.notion.com/p/3fe0c8824fed8196989df7655bbf43e0
 \`docs/tablet-audit.md\` for the per-route verification record.
 
 ## Test plan

@@ -8,7 +8,7 @@
 
 **Tech Stack:** SvelteKit 2 + Svelte 5, Supabase (Postgres + supabaseAdmin for writes), Anthropic SDK (existing Stitch integration), Zod schemas, TypeScript.
 
-**Spec:** `docs/superpowers/specs/2026-05-17-stitch-onboarding-design.md`
+**Spec:** [Notion](https://app.notion.com/p/3fe0c8824fed81ab869efd241a14c37f)
 
 ---
 

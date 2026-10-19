@@ -8,7 +8,7 @@
 
 **Tech Stack:** SvelteKit 5 + Svelte 5 runes, Supabase (Postgres), Tailwind CSS v4, Bits UI, Brevo (email), Vitest
 
-**Spec:** `docs/superpowers/specs/2026-05-06-order-shipping-refinement-design.md`
+**Spec:** [Notion](https://app.notion.com/p/3fe0c8824fed814f959ecdd857c6c287)
 
 ---
 
