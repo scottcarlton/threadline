@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isResizableMime, storeVariants } from './image-variants';
 
 // Shared product image upload helpers.
 //
@@ -9,6 +10,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 //     row. Used by:
 //       • POST /api/products/[productId]/images (interactive upload)
 //       • The CSV importer's per-row image fetch (via the URL helper below)
+//     It also writes resized WebP variants (see image-variants.ts).
+//     Best-effort: a variant failure is logged and the original still
+//     lands; the image route regenerates missing variants on request.
 //
 //   fetchAndUploadProductImageFromUrl — fetches a public URL, validates
 //     content-type + size, then delegates to uploadProductImageFromBlob.
@@ -141,6 +145,18 @@ export async function uploadProductImageFromBlob(
 		// Roll back the storage write so we don't leak orphan blobs.
 		await supabase.storage.from(BUCKET).remove([filePath]);
 		throw new Error(`Image row insert failed: ${dbError?.message ?? 'unknown error'}`);
+	}
+
+	if (isResizableMime(mimeType)) {
+		try {
+			await storeVariants(supabase, filePath, uploadBody);
+		} catch (err) {
+			console.error('[products/upload-image] variant generation failed', {
+				productId,
+				filePath,
+				error: err instanceof Error ? err.message : err
+			});
+		}
 	}
 
 	return { id: row.id as string, file_path: row.file_path as string };

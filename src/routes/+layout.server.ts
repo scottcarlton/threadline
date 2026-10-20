@@ -74,7 +74,9 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 					styleNumber: p.style_number,
 					brandName: brand?.name ?? 'Unknown',
 					price: p.wholesale_price ?? 0,
-					imageUrl: primaryImage ? `/api/products/${p.id}/images/${primaryImage.id}` : null,
+					imageUrl: primaryImage
+						? `/api/products/${p.id}/images/${primaryImage.id}?size=thumb`
+						: null,
 					colors,
 					sizes,
 					addedAt: row.added_at,

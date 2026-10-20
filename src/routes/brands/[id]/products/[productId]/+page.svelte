@@ -248,7 +248,7 @@
 		>
 			{#if primaryImage}
 				<img
-					src={`/api/products/${product.id}/images/${primaryImage.id}`}
+					src={`/api/products/${product.id}/images/${primaryImage.id}?size=display`}
 					alt={product.name}
 					class="h-full w-full object-cover"
 				/>
@@ -687,7 +687,7 @@
 										: ''}"
 								>
 									<img
-										src="/api/products/{product.id}/images/{image.id}"
+										src="/api/products/{product.id}/images/{image.id}?size=card"
 										alt="Product"
 										class="h-full w-full object-cover"
 									/>
