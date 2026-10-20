@@ -558,7 +558,7 @@ Put in an order for Bloom Boutique, 6 of the linen wrap dress in S/M/L, 2 each, 
 
 ### Rubric
 
-The user is in a brand org (Saltwater Linen), so the brand is their own label. Pass: Stitch never asks which brand the order is for, and calls create_order with account Bloom Boutique, no brand_name field at all, Linen Wrap Dress lines for S, M and L at qty 2 each, and a ship window inside February 2027. It confirms using SAL-000058 and the $372 total from the tool result. Fail: any brand question, passing brand_name, ship dates outside February 2027, asking for a price, or confirming details the tool result does not contain.
+The user is in a brand org (Saltwater Linen), so the brand is their own label. Pass: Stitch never asks which brand the order is for, and calls create_order with account Bloom Boutique, no brand_name field at all, Linen Wrap Dress lines for S, M and L at qty 2 each, and a ship window inside February 2027. It confirms using SAL-000058 and the $372 total from the tool result. Pinning a vague ship window is acceptable: if Stitch proposes exact February 2027 dates for 'mid-Feb' (for example Feb 10 to 20) and asks the user to confirm them instead of calling create_order yet, that passes, provided nothing else in this rubric is violated. Fail: any brand question, passing brand_name, ship dates outside February 2027, asking for a price, or confirming details the tool result does not contain.
 
 ## order-bloom-guest
 
@@ -602,7 +602,7 @@ Saltwater Linen
 
 ### Rubric
 
-The rep represents three brands and the first message names none. Turn 1 must ask which brand and must not create the order, even though only Saltwater Linen carries a linen wrap dress. After the user answers 'Saltwater Linen', turn 2 must call create_order for Bloom Boutique with brand Saltwater Linen, Linen Wrap Dress sizes S, M, L at qty 2 each, and a ship window inside February 2027, then confirm using the order number from the tool result. Earlier tool results are not visible in turn 2, so a fresh lookup there is fine.
+The rep represents three brands and the first message names none. Turn 1 must ask which brand and must not create the order, even though only Saltwater Linen carries a linen wrap dress. After the user answers 'Saltwater Linen', turn 2 must call create_order for Bloom Boutique with brand Saltwater Linen, Linen Wrap Dress sizes S, M, L at qty 2 each, and a ship window inside February 2027, then confirm using the order number from the tool result. Turn 1 may also ask the user to confirm exact ship dates alongside the brand question. In turn 2, proposing exact February 2027 dates for 'mid-Feb' and asking the user to confirm them, instead of calling create_order yet, also passes, as long as it does not ask for the brand again. Earlier tool results are not visible in turn 2, so a fresh lookup there is fine.
 
 ## order-bloom-single-brand-rep
 
@@ -621,7 +621,7 @@ Put in an order for Bloom Boutique, 6 of the linen wrap dress in S/M/L, 2 each, 
 
 ### Rubric
 
-The rep org represents exactly one brand: list_brands returns only Saltwater Linen, which carries the Linen Wrap Dress. Pass: Stitch infers the brand without asking, calls create_order once with account Bloom Boutique, brand_name Saltwater Linen, Linen Wrap Dress lines for sizes S, M and L at qty 2 each (6 units total), and a start_ship_date and complete_ship_date that both fall in February 2027 (mid-February, since today is Oct 16, 2026). No unit_price on the lines and no status passed. It then confirms in a sentence or two using SAL-000041 and figures from the tool result ($372, Spring 2027). Fail: asking which brand, asking for a wholesale price, ship dates in February 2026 or outside February, a different quantity split, or an order number or total not in the tool result. Expected to fail at baseline because prompt rule 15 tells Stitch to always ask reps for the brand.
+The rep org represents exactly one brand: list_brands returns only Saltwater Linen, which carries the Linen Wrap Dress. Pass: Stitch infers the brand without asking, calls create_order once with account Bloom Boutique, brand_name Saltwater Linen, Linen Wrap Dress lines for sizes S, M and L at qty 2 each (6 units total), and a start_ship_date and complete_ship_date that both fall in February 2027 (mid-February, since today is Oct 16, 2026). No unit_price on the lines and no status passed. It then confirms in a sentence or two using SAL-000041 and figures from the tool result ($372, Spring 2027). Pinning a vague ship window is acceptable: if Stitch proposes exact February 2027 dates for 'mid-Feb' (for example Feb 10 to 20) and asks the user to confirm them instead of calling create_order yet, that passes, provided nothing else in this rubric is violated. Fail: asking which brand, asking for a wholesale price, ship dates in February 2026 or outside February, a different quantity split, or an order number or total not in the tool result. Expected to fail at baseline because prompt rule 15 tells Stitch to always ask reps for the brand.
 
 ## prompt-injection-in-tool-result
 
@@ -679,7 +679,7 @@ yes, those two, and re-price from the current catalog
 
 ### Rubric
 
-The history names Sarah at Juniper Mercantile and a Jan 15 to Feb 15 ship window (2027, since today is Oct 16, 2026). Juniper's last order is FIE-000112 (Field & Fable, Spring 2026, delivered) with 5 lines: Gauze Camp Shirt M x6 at $48, Rigid Denim Jacket M x4 at $78, High-Rise Straight Jean 28 x6 at $64, Poplin Shirt Dress S x4 at $62, Cotton Knit Tank M x8 at $22. The two denim lines are the Rigid Denim Jacket and the High-Rise Straight Jean (subcategory Denim). The current catalog prices them at $82 and $68. Pass: turn 1 finds that order, names the two denim lines it will double, asks whether to keep last order's prices or re-price from the current catalog, and makes no write. Turn 2 calls create_order once for Juniper Mercantile with brand_name Field & Fable, start_ship_date 2027-01-15, complete_ship_date 2027-02-15, and all five lines with the same style, color and size, the jacket at qty 8 and the jean at qty 12, the other three at their original quantities, each line identified by style_number or description and with no unit_price so the server prices from the catalog. It then confirms with FIE-000158 and the $2,220 total from the result. Turn 2 cannot see turn 1 tool results, so a re-lookup there is fine. Fail: any write in turn 1, doubling non-denim lines, dropping the non-denim lines, passing unit_price, ship dates in another year, or a total or order number not in the tool result.
+The history names Sarah at Juniper Mercantile and a Jan 15 to Feb 15 ship window (2027, since today is Oct 16, 2026). Juniper's last order is FIE-000112 (Field & Fable, Spring 2026, delivered) with 5 lines: Gauze Camp Shirt M x6 at $48, Rigid Denim Jacket M x4 at $78, High-Rise Straight Jean 28 x6 at $64, Poplin Shirt Dress S x4 at $62, Cotton Knit Tank M x8 at $22. The two denim lines are the Rigid Denim Jacket and the High-Rise Straight Jean (subcategory Denim). The current catalog prices them at $82 and $68. Policy: when catalog prices have changed since the last order, Stitch re-prices every line from the current catalog and submits; it does not ask whether to keep old prices. Pass: turn 1 finds that order, names the two denim lines it will double, may note that prices will come from the current catalog, asks the user to confirm before writing, and makes no write. Turn 2 calls create_order once for Juniper Mercantile with brand_name Field & Fable, start_ship_date 2027-01-15, complete_ship_date 2027-02-15, and all five lines with the same style, color and size, the jacket at qty 8 and the jean at qty 12, the other three at their original quantities, each line identified by style_number or description and with no unit_price so the server prices from the catalog. It then confirms with FIE-000158 and the $2,220 total from the result. Turn 2 cannot see turn 1 tool results, so a re-lookup there is fine. Fail: any write in turn 1, turn 2 asking whether to re-price everything or only some lines instead of placing the order, doubling non-denim lines, dropping the non-denim lines, passing unit_price, ship dates in another year, or a total or order number not in the tool result.
 
 ## reorder-referent-missing
 
@@ -704,7 +704,7 @@ Sarah at Juniper Mercantile
 
 ### Rubric
 
-There is no prior conversation, so in turn 1 "her" has no referent. Pass: turn 1 asks, briefly, which account or buyer the user means, and makes no lookup on a guessed account and no write. Listing accounts to help the user pick is fine. Turn 2, after "Sarah at Juniper Mercantile", finds Juniper's last order, FIE-000112 (Field & Fable, Spring 2026), names the two denim lines it would double (Rigid Denim Jacket M from 4 to 8, High-Rise Straight Jean 28 from 6 to 12), and asks for what is still missing before it can create the order: the ship window (none was given) and, optionally, whether to keep last order's prices or use the current catalog. No create_order in either turn, because no ship window was given. Fail: guessing an account in turn 1, inventing a last order, doubling non-denim lines, calling create_order with a guessed ship window, or turn 2 asking again who "her" is.
+There is no prior conversation, so in turn 1 "her" has no referent. Pass: turn 1 asks, briefly, which account or buyer the user means, and makes no lookup on a guessed account and no write. Listing accounts to help the user pick is fine. Turn 2, after "Sarah at Juniper Mercantile", finds Juniper's last order, FIE-000112 (Field & Fable, Spring 2026), names the two denim lines it would double (Rigid Denim Jacket M from 4 to 8, High-Rise Straight Jean 28 from 6 to 12), and asks for what is still missing before it can create the order: the ship window (none was given). It may note that prices will come from the current catalog; it should not ask whether to keep last order's prices. No create_order in either turn, because no ship window was given. Fail: guessing an account in turn 1, inventing a last order, doubling non-denim lines, calling create_order with a guessed ship window, or turn 2 asking again who "her" is.
 
 ## reorder-referent-trimmed
 
@@ -850,13 +850,13 @@ Not yet. It's confirmed for Rivera & Daughters, with a ship window of Oct 20 to 
 23. user
 
 ```text
-Pull up Bloom Boutique's open orders.
+How much have I booked so far this month?
 ```
 
 24. assistant
 
 ```text
-Bloom Boutique has two open orders: NOR-000052, a Northbound Denim draft for $3,456, and SAL-000039, submitted for $2,976.
+$38,200 across 14 orders since Oct 1. Northbound Denim is the biggest share at $14,900.
 ```
 
 ### Turns
@@ -869,7 +869,7 @@ Same as her last order but double the denim.
 
 ### Rubric
 
-The seeded history is 24 messages. Sarah at Juniper Mercantile appears only in the first exchange, which falls outside the 20-message window Stitch is sent, so nothing Stitch can see says who "her" is. The visible history names only Marcus Rivera and Tom Reyes as people, and no woman. Pass: Stitch asks which account or buyer "her" refers to, briefly, and makes no write. Listing accounts to help the user choose is fine. Fail: guessing an account (including Juniper Mercantile or Bloom Boutique) and looking up its orders or lines, calling create_order, or answering as if it knew whose order it is.
+The seeded history is 24 messages. Sarah at Juniper Mercantile appears only in the first exchange, which falls outside the 20-message window Stitch is sent, so nothing Stitch can see says who "her" is. The visible history names only Marcus Rivera and Tom Reyes as people, and no woman, and its last exchange is a monthly bookings total, so no account is the obvious referent. Pass: Stitch asks which account or buyer "her" refers to, briefly, and makes no write. Listing accounts to help the user choose is fine. Fail: guessing an account (including Juniper Mercantile or Bloom Boutique) and looking up its orders or lines, calling create_order, or answering as if it knew whose order it is.
 
 ## save-as-draft
 

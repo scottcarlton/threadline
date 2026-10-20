@@ -110,7 +110,7 @@ Any future table that participates in cross-org visibility must declare its fede
 
 ### BRD update
 
-`docs/brd/roles-permissions.md` §3.4 has been updated (Task A) to reflect the BLSR vs MBISR Sales distinction described above.
+`docs/brd/roles-permissions.md` §3.4 was updated (Task A) to reflect the BLSR vs MBISR Sales distinction described above. That doc has since moved to the Notion [Roles & Access](https://app.notion.com/p/3a70c8824fed81eeb9e2e25bf21e51d6) page, where the distinction lives in §1.3 and §1.4.
 
 ## Alternatives considered
 
