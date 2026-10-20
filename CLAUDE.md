@@ -163,7 +163,7 @@ Consult these before working in the relevant area. Do **not** inline their conte
 ### Business requirements
 
 - [Features BRD](https://app.notion.com/p/3ff0c8824fed8168ad93db8d0eb566fd) (Notion): feature requirements. Read before implementing any feature.
-- `docs/brd/roles-permissions.md` — RBAC rules. Read before touching auth, roles, or permissions.
+- [Roles & Access](https://app.notion.com/p/3a70c8824fed81eeb9e2e25bf21e51d6) (Notion): who may do what. Read before touching auth, roles, or permissions.
 - [Marketing & Launch BRD](https://app.notion.com/p/3ff0c8824fed810484d2f4a4b5112eeb) (Notion): marketing and launch requirements.
 - `docs/brd/permissions-implementation-map.md`: RLS helpers, per-table contracts, route/API classification, federation direction cheat-sheet. Read before touching RLS policies, adding tables, or wiring cross-org routes. Stays in the repo because it changes in the same PR as the migrations it describes.
 
