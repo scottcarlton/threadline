@@ -47,6 +47,7 @@
 	import MobileBottomNav from '$lib/components/layout/MobileBottomNav.svelte';
 	import { selectedProductIds } from '$lib/stores/productSelection.js';
 	import { supabase } from '$lib/supabase.js';
+	import { clearAppCaches } from '$lib/utils/clear-app-caches.js';
 
 	const { messages, loading, title: conversationTitle } = conversation;
 
@@ -61,6 +62,8 @@
 	}
 
 	async function handleSignOut() {
+		// First, so a failed network call below can't leave cached data behind.
+		await clearAppCaches();
 		await supabase.auth.signOut();
 		// Clear the httpOnly active_org_id cookie server-side; client signOut can't.
 		await fetch('/logout', { method: 'POST' });
