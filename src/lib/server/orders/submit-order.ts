@@ -4,47 +4,18 @@ import {
 	buildOrders,
 	validateCart,
 	CartValidationError,
-	type CartLine,
-	type DeliveryChoice
+	type CartLine
 } from '$lib/server/orders/cart.js';
-import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
 import { notifyBrandAdmins } from '$lib/server/notifications.js';
 import { emitOrderEvent } from '$lib/server/integrations/events.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isPaymentPreferenceCode } from '$lib/payment-methods';
-import { finalizeSchema, type FinalizeInput } from '$lib/schemas/order-finalize';
+import type { FinalizeInput } from '$lib/schemas/order-finalize';
+import { submitPayloadSchema } from '$lib/schemas/order-submit';
 import { resolveOrderSettings } from '$lib/server/orders/resolve-order-settings.js';
-
-type FreeformDetails = {
-	business_name: string;
-	contact_first_name: string;
-	contact_last_name: string;
-	contact_email: string;
-	phone: string;
-	address_line1: string;
-	city: string;
-	state: string;
-	zip: string;
-};
-
-export type SubmitPayload = {
-	type: OrderType;
-	account_id: string | null;
-	freeform_name: string | null;
-	freeformDetails?: FreeformDetails;
-	order_year: number | null;
-	submitStatus: OrderStatus;
-	payment_preference: string | null;
-	lines: CartLine[];
-	groups: Array<{
-		brand_id: string;
-		season_id: string | null;
-		delivery: DeliveryChoice | null;
-		location_id: string | null;
-	}>;
-	finalize?: FinalizeInput | null;
-};
+import { resolveOrderScope } from '$lib/server/orders/order-scope.js';
+import { authorizeSubmitPayload } from '$lib/server/orders/authorize-submit.js';
 
 export async function submitOrder(
 	request: Request,
@@ -66,14 +37,65 @@ export async function submitOrder(
 	const raw = formData.get('payload');
 	if (typeof raw !== 'string') return fail(400, { message: 'Missing payload' });
 
-	let payload: SubmitPayload;
+	let json: unknown;
 	try {
-		payload = JSON.parse(raw);
+		json = JSON.parse(raw);
 	} catch {
 		return fail(400, { message: 'Invalid payload JSON' });
 	}
+	const parsed = submitPayloadSchema.safeParse(json);
+	if (!parsed.success) {
+		const first = parsed.error.issues[0];
+		return fail(400, { message: first?.message ?? 'Order payload failed validation' });
+	}
+	const payload = parsed.data;
+	const finalizeData: FinalizeInput | null = payload.finalize ?? null;
 
-	const groups = groupCart(payload.lines);
+	// Everything below writes through supabaseAdmin, so authorize every
+	// referenced ID against the picker scope before the first write.
+	const scope = await resolveOrderScope(locals, organization.id);
+	let auth;
+	try {
+		auth = await authorizeSubmitPayload(supabase, payload, scope, {
+			userId: user.id,
+			orgId: organization.id
+		});
+	} catch (err) {
+		console.error('[submit-order] authorization lookup failed', {
+			org_id: organization.id,
+			error: err
+		});
+		return fail(500, { message: 'Could not verify the order. Try again.' });
+	}
+	if (!auth.ok) {
+		console.warn('[submit-order] payload rejected', {
+			org_id: organization.id,
+			user_id: user.id,
+			status: auth.status,
+			message: auth.message
+		});
+		return fail(auth.status, { message: auth.message });
+	}
+
+	// Price, style number and description come from the product row, never the
+	// client. The wizard shows wholesale_price today, so this matches what the
+	// writer saw unless the price changed after the line was added.
+	const lines: CartLine[] = payload.lines.map((l) => {
+		const prod = auth.products.get(l.product_id)!;
+		return {
+			product_id: l.product_id,
+			brand_id: l.brand_id,
+			season_id: l.season_id,
+			style_number: prod.style_number,
+			description: prod.name,
+			color: l.color,
+			size: l.size,
+			qty: l.qty,
+			unit_price: Number(prod.wholesale_price)
+		};
+	});
+
+	const groups = groupCart(lines);
 
 	for (const g of groups) {
 		const meta = payload.groups.find(
@@ -85,23 +107,44 @@ export async function submitOrder(
 		}
 	}
 
+	const createsFreeformAccount =
+		!payload.account_id && Boolean(payload.freeformDetails?.business_name);
+
+	// Validate before the freeform account insert so a rejected cart leaves no
+	// orphan account behind. The inline account counts as an account here.
+	try {
+		validateCart(
+			groups,
+			{
+				type: payload.type,
+				account_id: createsFreeformAccount ? 'pending-freeform-account' : payload.account_id,
+				freeform_name: createsFreeformAccount ? null : payload.freeform_name,
+				order_year: payload.order_year
+			},
+			payload.submitStatus
+		);
+	} catch (e) {
+		if (e instanceof CartValidationError) return fail(400, { message: e.message });
+		throw e;
+	}
+
 	let resolvedAccountId = payload.account_id;
 	let resolvedFreeformName = payload.freeform_name;
-	if (!resolvedAccountId && payload.freeformDetails?.business_name?.trim()) {
+	if (createsFreeformAccount && payload.freeformDetails) {
 		const details = payload.freeformDetails;
 		const { data: newAccount, error: acctErr } = await supabase
 			.from('accounts')
 			.insert({
 				organization_id: organization.id,
-				business_name: details.business_name.trim(),
-				contact_first_name: details.contact_first_name?.trim() || null,
-				contact_last_name: details.contact_last_name?.trim() || null,
-				contact_email: details.contact_email?.trim() || null,
-				phone: details.phone?.trim() || null,
-				address_line1: details.address_line1?.trim() || null,
-				city: details.city?.trim() || null,
-				state: details.state?.trim() || null,
-				zip: details.zip?.trim() || null
+				business_name: details.business_name,
+				contact_first_name: details.contact_first_name || null,
+				contact_last_name: details.contact_last_name || null,
+				contact_email: details.contact_email || null,
+				phone: details.phone || null,
+				address_line1: details.address_line1 || null,
+				city: details.city || null,
+				state: details.state || null,
+				zip: details.zip || null
 			})
 			.select('id')
 			.single();
@@ -116,22 +159,6 @@ export async function submitOrder(
 		}
 		resolvedAccountId = newAccount.id;
 		resolvedFreeformName = null;
-	}
-
-	try {
-		validateCart(
-			groups,
-			{
-				type: payload.type,
-				account_id: resolvedAccountId,
-				freeform_name: resolvedFreeformName,
-				order_year: payload.order_year
-			},
-			payload.submitStatus
-		);
-	} catch (e) {
-		if (e instanceof CartValidationError) return fail(400, { message: e.message });
-		throw e;
 	}
 
 	const newOrders = buildOrders(
@@ -154,18 +181,6 @@ export async function submitOrder(
 		rawPref && isPaymentPreferenceCode(rawPref) && acceptedMethods.includes(rawPref)
 			? rawPref
 			: null;
-
-	let finalizeData: FinalizeInput | null = null;
-	if (payload.finalize) {
-		const parsed = finalizeSchema.safeParse(payload.finalize);
-		if (!parsed.success) {
-			const first = parsed.error.issues[0];
-			return fail(400, {
-				message: first?.message ?? 'Finalize payload failed validation'
-			});
-		}
-		finalizeData = parsed.data;
-	}
 
 	const overrideByKey = new Map<string, FinalizeInput['orders'][number]>();
 	if (finalizeData) {
