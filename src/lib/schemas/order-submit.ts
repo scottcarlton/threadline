@@ -49,6 +49,9 @@ const freeformDetailsSchema = z.object({
 export const SUBMIT_STATUSES = ['draft', 'submitted', 'confirmed'] as const;
 
 export const submitPayloadSchema = z.object({
+	// One per checkout, reused on every retry. Order ids are derived from it,
+	// so a resubmitted checkout replays instead of duplicating (SCO-204).
+	submission_id: uuid.optional(),
 	type: z.enum(['order', 'note']),
 	account_id: uuidOrNull,
 	freeform_name: optionalText(120),

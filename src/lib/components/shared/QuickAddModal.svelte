@@ -204,10 +204,10 @@
 	function colorImageUrl(color: string): string | null {
 		if (!product) return null;
 		const group = variantImageGroups().find((g) => g.color === color);
-		if (group?.primary) return `/api/products/${product.id}/images/${group.primary.id}`;
+		if (group?.primary) return `/api/products/${product.id}/images/${group.primary.id}?size=thumb`;
 		const fallback =
 			(product.product_images ?? []).find((i) => i.is_primary) ?? (product.product_images ?? [])[0];
-		return fallback ? `/api/products/${product.id}/images/${fallback.id}` : null;
+		return fallback ? `/api/products/${product.id}/images/${fallback.id}?size=thumb` : null;
 	}
 
 	function setQty(size: string, value: number) {
@@ -290,7 +290,7 @@
 			<div class="flex shrink-0 items-start gap-3 px-4 pt-2 pb-4">
 				{#if activeImage}
 					<img
-						src="/api/products/{product.id}/images/{activeImage.id}"
+						src="/api/products/{product.id}/images/{activeImage.id}?size=thumb"
 						alt={product.name}
 						class="h-20 w-20 shrink-0 rounded-md object-cover"
 					/>
@@ -318,7 +318,7 @@
 								onclick={() => (activeGroupIndex = i)}
 							>
 								<img
-									src="/api/products/{product.id}/images/{group.primary!.id}"
+									src="/api/products/{product.id}/images/{group.primary!.id}?size=thumb"
 									alt={group.color || ''}
 									class="h-full w-full object-cover"
 								/>
@@ -404,7 +404,7 @@
 						<div class="h-28 w-28 shrink-0 overflow-hidden rounded bg-muted">
 							{#if activeImage}
 								<img
-									src="/api/products/{product.id}/images/{activeImage.id}"
+									src="/api/products/{product.id}/images/{activeImage.id}?size=thumb"
 									alt={product.name}
 									class="h-full w-full object-cover"
 								/>
@@ -432,7 +432,7 @@
 										onclick={() => (activeGroupIndex = i)}
 									>
 										<img
-											src="/api/products/{product.id}/images/{group.primary!.id}"
+											src="/api/products/{product.id}/images/{group.primary!.id}?size=thumb"
 											alt={group.color || ''}
 											class="h-full w-full object-cover"
 										/>

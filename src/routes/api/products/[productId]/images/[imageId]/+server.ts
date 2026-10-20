@@ -1,7 +1,44 @@
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
+import {
+	generateVariantsFromStorage,
+	isResizableMime,
+	parseImageSize,
+	variantPath,
+	type ImageSize
+} from '$lib/server/products/image-variants';
 
-export const GET: RequestHandler = async ({ params, locals }) => {
+const SIGNED_URL_TTL_S = 300;
+
+async function sign(path: string): Promise<string | null> {
+	const { data } = await supabaseAdmin.storage
+		.from('brand-assets')
+		.createSignedUrl(path, SIGNED_URL_TTL_S);
+	return data?.signedUrl ?? null;
+}
+
+// Signs the resized variant, generating it on first request for images
+// uploaded before variants existed. Returns null when the variant can't be
+// produced so the caller falls back to the original.
+async function signVariant(filePath: string, size: ImageSize): Promise<string | null> {
+	const path = variantPath(filePath, size);
+	const existing = await sign(path);
+	if (existing) return existing;
+
+	try {
+		await generateVariantsFromStorage(supabaseAdmin, filePath);
+	} catch (err) {
+		console.error('[products/images] lazy variant generation failed', {
+			filePath,
+			size,
+			error: err instanceof Error ? err.message : err
+		});
+		return null;
+	}
+	return sign(path);
+}
+
+export const GET: RequestHandler = async ({ params, locals, url }) => {
 	if (!locals.session || !locals.user) {
 		return new Response('Unauthorized', { status: 401 });
 	}
@@ -23,15 +60,23 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	if (!image) return new Response('Not found', { status: 404 });
 
-	const { data: signedData } = await supabaseAdmin.storage
-		.from('brand-assets')
-		.createSignedUrl(image.file_path, 300);
+	// `?size=thumb|card|display` serves a resized WebP. Unknown sizes, video,
+	// and GIFs get the original.
+	const size = parseImageSize(url.searchParams.get('size'));
+	const signedUrl =
+		(size && isResizableMime(image.mime_type) ? await signVariant(image.file_path, size) : null) ??
+		(await sign(image.file_path));
 
-	if (!signedData?.signedUrl) return new Response('File not found', { status: 404 });
+	if (!signedUrl) return new Response('File not found', { status: 404 });
 
-	// Redirect to signed URL
+	// Each request mints a new signature, which defeats the browser's image
+	// cache. Let the browser reuse this redirect (and so the same signed URL)
+	// for most of the signature's lifetime.
 	return new Response(null, {
 		status: 302,
-		headers: { Location: signedData.signedUrl }
+		headers: {
+			Location: signedUrl,
+			'Cache-Control': `private, max-age=${SIGNED_URL_TTL_S - 60}`
+		}
 	});
 };

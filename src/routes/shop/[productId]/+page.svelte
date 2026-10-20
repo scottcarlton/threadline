@@ -198,10 +198,10 @@
 
 	function colorImageUrl(color: string): string | null {
 		const group = variantImageGroups().find((g) => g.color === color);
-		if (group?.primary) return `/api/products/${product.id}/images/${group.primary.id}`;
+		if (group?.primary) return `/api/products/${product.id}/images/${group.primary.id}?size=thumb`;
 		const fallback =
 			(product.product_images ?? []).find((i) => i.is_primary) ?? (product.product_images ?? [])[0];
-		return fallback ? `/api/products/${product.id}/images/${fallback.id}` : null;
+		return fallback ? `/api/products/${product.id}/images/${fallback.id}?size=thumb` : null;
 	}
 
 	function setQty(size: string, value: number) {
@@ -234,7 +234,9 @@
 				styleNumber: product.style_number,
 				brandName: product.brands?.name ?? 'Unknown',
 				price: product.wholesale_price ?? 0,
-				imageUrl: fallbackImg ? `/api/products/${product.id}/images/${fallbackImg.id}` : null,
+				imageUrl: fallbackImg
+					? `/api/products/${product.id}/images/${fallbackImg.id}?size=thumb`
+					: null,
 				colors: colors,
 				sizes: allSizes,
 				addedAt: new Date().toISOString(),
@@ -312,7 +314,7 @@
 					></video>
 				{:else if activeImage}
 					<img
-						src={`/api/products/${product.id}/images/${activeImage.id}`}
+						src={`/api/products/${product.id}/images/${activeImage.id}?size=display`}
 						alt={product.name}
 						class="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
 					/>
@@ -392,7 +394,7 @@
 								onclick={() => (activeGroupIndex = i)}
 							>
 								<img
-									src="/api/products/{product.id}/images/{group.primary!.id}"
+									src="/api/products/{product.id}/images/{group.primary!.id}?size=thumb"
 									alt={group.color || ''}
 									class="h-full w-full object-cover"
 								/>
@@ -425,7 +427,7 @@
 							}}
 						>
 							<img
-								src="/api/products/{product.id}/images/{activeGroup.primary.id}"
+								src="/api/products/{product.id}/images/{activeGroup.primary.id}?size=card"
 								alt="{product.name} — primary"
 								class="h-full w-full object-cover"
 							/>
@@ -446,7 +448,7 @@
 							}}
 						>
 							<img
-								src="/api/products/{product.id}/images/{activeGroup.hover.id}"
+								src="/api/products/{product.id}/images/{activeGroup.hover.id}?size=card"
 								alt="{product.name} — hover"
 								class="h-full w-full object-cover"
 							/>
@@ -502,7 +504,7 @@
 								onclick={() => (activeGroupIndex = i)}
 							>
 								<img
-									src="/api/products/{product.id}/images/{group.primary!.id}"
+									src="/api/products/{product.id}/images/{group.primary!.id}?size=thumb"
 									alt={group.color || ''}
 									class="h-full w-full object-cover"
 								/>

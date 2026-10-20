@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { uploadProductImageFromBlob } from '$lib/server/products/upload-image';
+import { allVariantPaths } from '$lib/server/products/image-variants';
 
 export const POST: RequestHandler = async ({ request, locals, params }) => {
 	if (!locals.session || !locals.user || !locals.organization) {
@@ -81,7 +82,9 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Image not found' }, { status: 404 });
 	}
 
-	await supabaseAdmin.storage.from('brand-assets').remove([image.file_path]);
+	await supabaseAdmin.storage
+		.from('brand-assets')
+		.remove([image.file_path, ...allVariantPaths(image.file_path)]);
 	await supabaseAdmin.from('product_images').delete().eq('id', imageId);
 
 	return json({ success: true });
