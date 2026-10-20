@@ -109,13 +109,7 @@
 				p.style_number.toLowerCase().includes(search.toLowerCase()) ||
 				(p.category?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
 				(p.brands?.name.toLowerCase().includes(search.toLowerCase()) ?? false);
-			if (!matchesBrand || !matchesSeason || !matchesCategory || !matchesPrice || !matchesSearch)
-				return false;
-			if (p.ats) {
-				const agg = aggregateStockStatus(p.product_variants ?? []);
-				if (agg === 'out') return false;
-			}
-			return true;
+			return matchesBrand && matchesSeason && matchesCategory && matchesPrice && matchesSearch;
 		})
 	);
 
@@ -228,9 +222,13 @@
 			<div class="-mx-4 grid grid-cols-2 gap-0 sm:mx-0 sm:gap-4 lg:grid-cols-3">
 				{#each filtered as product (product.id)}
 					{@const seasonRow = seasons.find((s) => s.id === product.season_id)}
+					{@const stockAgg = product.ats
+						? aggregateStockStatus(product.product_variants ?? [])
+						: null}
+					{@const soldOut = stockAgg === 'out'}
 					<ProductCard
 						productId={product.id}
-						href={resolve(`/shop/${product.id}`)}
+						href={soldOut ? null : resolve(`/shop/${product.id}`)}
 						name={product.name}
 						styleNumber={product.style_number}
 						wholesalePrice={Number(product.wholesale_price)}
@@ -240,69 +238,68 @@
 						onImageSelect={(id) => (activeImageByProduct[product.id] = id)}
 					>
 						{#snippet overlay()}
-							{#if product.ats}
-								{@const stockAgg = aggregateStockStatus(product.product_variants ?? [])}
-								{#if stockAgg}
-									<div
-										class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
-									>
-										<StockPill status={stockAgg} qty={null} hideQty />
-									</div>
-								{/if}
+							{#if stockAgg}
+								<div
+									class="absolute top-4 left-4 flex rounded-full bg-white shadow-sm dark:bg-black"
+								>
+									<StockPill status={stockAgg} qty={null} hideQty />
+								</div>
 							{/if}
 							{@const cartUnits = productCartUnits(product.id)}
-							<button
-								type="button"
-								aria-label={cartUnits > 0
-									? `${cartUnits} units in cart — edit`
-									: `Add ${product.name}`}
-								class="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-foreground shadow-md transition-all hover:scale-110 dark:bg-black {cartUnits >
-								0
-									? 'opacity-100'
-									: 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100'}"
-								onclick={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									quickAddProduct = product;
-									quickAddImageId = activeImageByProduct[product.id] ?? null;
-									quickAddOpen = true;
-								}}
-							>
-								{#if cartUnits > 0}
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="absolute h-6 w-6"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="1.5"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-										/>
-									</svg>
-									<span class="translate-y-[4px] text-[10px] leading-none font-bold"
-										>{cartUnits}</span
-									>
-								{:else}
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="h-5 w-5"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="M12 4.5v15m7.5-7.5h-15"
-										/>
-									</svg>
-								{/if}
-							</button>
+							{#if !soldOut}
+								<button
+									type="button"
+									aria-label={cartUnits > 0
+										? `${cartUnits} units in cart — edit`
+										: `Add ${product.name}`}
+									class="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-foreground shadow-md transition-all hover:scale-110 dark:bg-black {cartUnits >
+									0
+										? 'opacity-100'
+										: 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100'}"
+									onclick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										quickAddProduct = product;
+										quickAddImageId = activeImageByProduct[product.id] ?? null;
+										quickAddOpen = true;
+									}}
+								>
+									{#if cartUnits > 0}
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="absolute h-6 w-6"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="1.5"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+											/>
+										</svg>
+										<span class="translate-y-[4px] text-[10px] leading-none font-bold"
+											>{cartUnits}</span
+										>
+									{:else}
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-5 w-5"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M12 4.5v15m7.5-7.5h-15"
+											/>
+										</svg>
+									{/if}
+								</button>
+							{/if}
 						{/snippet}
 					</ProductCard>
 				{/each}

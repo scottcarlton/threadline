@@ -5,7 +5,7 @@
 	import { cart } from '$lib/stores/cart.js';
 	import type { Product, ProductImage } from '$lib/types/database.js';
 	import StockPill from '$lib/components/inventory/StockPill.svelte';
-	import { aggregateStockStatus } from '$lib/utils/products';
+	import { aggregateStockStatus, isVariantSoldOut } from '$lib/utils/products';
 	import { getAttributeLabel } from '$lib/data/product-attributes';
 	import QtyStepper from '$lib/components/shared/QtyStepper.svelte';
 
@@ -151,7 +151,12 @@
 	const availableSizesForColor = $derived(() => {
 		const variants = product.product_variants ?? [];
 		const filtered = selectedColor ? variants.filter((v) => v.color === selectedColor) : variants;
-		return new Set(filtered.map((v) => v.size).filter(Boolean) as string[]);
+		return new Set(
+			filtered
+				.filter((v) => !isVariantSoldOut(product.ats, v))
+				.map((v) => v.size)
+				.filter(Boolean) as string[]
+		);
 	});
 
 	const allSizes = $derived([
