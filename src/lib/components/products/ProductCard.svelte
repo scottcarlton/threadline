@@ -12,7 +12,8 @@
 
 	type Props = {
 		productId: string;
-		href: string;
+		/** Omit to render a non-interactive card (e.g. a sold-out ATS product). */
+		href?: string | null;
 		name: string;
 		styleNumber: string;
 		wholesalePrice: number;
@@ -27,7 +28,7 @@
 
 	let {
 		productId,
-		href,
+		href = null,
 		name,
 		styleNumber,
 		wholesalePrice,
@@ -46,13 +47,13 @@
 
 	let activeImageId = $state<string | null>(null);
 	const activeHref = $derived(
-		activeImageId ? `${href}${href.includes('?') ? '&' : '?'}color=${activeImageId}` : href
+		href && activeImageId ? `${href}${href.includes('?') ? '&' : '?'}color=${activeImageId}` : href
 	);
 </script>
 
 <div class="group rounded-none transition-all duration-200 {archived ? 'opacity-50' : ''}">
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- caller passes pre-resolved href -->
-	<a href={activeHref} class="block">
+	<svelte:element this={activeHref ? 'a' : 'div'} href={activeHref} class="block">
 		<ProductImageCarousel
 			{productId}
 			{images}
@@ -80,7 +81,7 @@
 				</div>
 			</div>
 		</div>
-	</a>
+	</svelte:element>
 	{#if action}
 		<div class="px-4 pb-4">
 			{@render action()}

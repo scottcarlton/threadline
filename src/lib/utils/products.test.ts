@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getVariantSummary, aggregateStockStatus, allVariantsOut } from './products';
+import { getVariantSummary, aggregateStockStatus, isVariantSoldOut } from './products';
 
 describe('getVariantSummary', () => {
 	it('returns color and size counts', () => {
@@ -61,30 +61,32 @@ describe('aggregateStockStatus', () => {
 		expect(aggregateStockStatus(variants)).toBe('low');
 	});
 
-	it('returns "out" when any variant is out', () => {
+	it('returns "low" when only some variants are out', () => {
 		const variants = [
 			{ stock_qty: 50, stock_threshold: 10 },
 			{ stock_qty: 0, stock_threshold: 5 }
+		];
+		expect(aggregateStockStatus(variants)).toBe('low');
+	});
+
+	it('returns "out" when every tracked variant is out', () => {
+		const variants = [
+			{ stock_qty: 0, stock_threshold: 10 },
+			{ stock_qty: 0, stock_threshold: 5 },
+			{ stock_qty: null, stock_threshold: null }
 		];
 		expect(aggregateStockStatus(variants)).toBe('out');
 	});
 });
 
-describe('allVariantsOut', () => {
-	it('is false when only some variants are out', () => {
-		expect(allVariantsOut([{ stock_qty: 0 }, { stock_qty: 12 }])).toBe(false);
+describe('isVariantSoldOut', () => {
+	it('is true for an ATS variant at zero', () => {
+		expect(isVariantSoldOut(true, { stock_qty: 0 })).toBe(true);
 	});
 
-	it('is true when every tracked variant is out', () => {
-		expect(allVariantsOut([{ stock_qty: 0 }, { stock_qty: -2 }])).toBe(true);
-	});
-
-	it('ignores untracked variants', () => {
-		expect(allVariantsOut([{ stock_qty: 0 }, { stock_qty: null }])).toBe(true);
-	});
-
-	it('is false when nothing is tracked', () => {
-		expect(allVariantsOut([{ stock_qty: null }])).toBe(false);
-		expect(allVariantsOut([])).toBe(false);
+	it('is false with stock, untracked stock, or prebook', () => {
+		expect(isVariantSoldOut(true, { stock_qty: 3 })).toBe(false);
+		expect(isVariantSoldOut(true, { stock_qty: null })).toBe(false);
+		expect(isVariantSoldOut(false, { stock_qty: 0 })).toBe(false);
 	});
 });
