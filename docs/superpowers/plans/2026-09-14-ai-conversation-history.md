@@ -8,7 +8,7 @@
 
 **Tech Stack:** SvelteKit 2, Svelte 5 runes, TypeScript, Supabase (Postgres + RLS), Anthropic SDK, Vitest, Tailwind v4.
 
-**Spec:** `docs/superpowers/specs/2026-09-14-ai-conversation-history-design.md`
+**Spec:** [Notion](https://app.notion.com/p/3fe0c8824fed8128b5c1d7a893242d44)
 
 ## Global Constraints
 
