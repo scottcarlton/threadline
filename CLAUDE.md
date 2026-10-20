@@ -143,7 +143,7 @@ Don't roll new ad-hoc `let error = $state('')` patterns. If a form is being touc
 ## Project Management
 
 - Tasks and milestones live in Linear project **"Threadline"**
-- **Specs and design docs live in Notion, not the repo.** Create each spec as a child page of Notion **Threadline → Projects**, in the same shape as the existing pages there (e.g. "Order Invoicing"). Link Linear tickets to the Notion page. Do not commit specs to `docs/superpowers/specs/` or anywhere else in the repo, even when a skill defaults to writing one there.
+- **Specs, implementation plans, and anything a PM would read live in Notion, not the repo.** Create each spec as a child page of Notion **Threadline → Projects**, in the same shape as the existing pages there (e.g. "Order Invoicing"). Put an implementation plan under its spec page. Audits, QA matrices, and research go under Threadline → QA & Audits or Threadline → Strategy. Link Linear tickets to the Notion page. Do not commit specs or plans to `docs/superpowers/specs/`, `docs/superpowers/plans/`, or anywhere else in the repo, even when a skill defaults to writing one there.
 - Move tickets to **In Progress** when you start work, not after completing it
 - Skills: `.claude/skills/linear-flow` (pickup → branch → PR → close), `.claude/skills/linear-milestone` (plan all tickets in a milestone), `.claude/skills/git-pre` (end-of-feature: verify → self-review → commit → sync dev → push → open PR)
 
@@ -188,4 +188,4 @@ Consult these before working in the relevant area. Do **not** inline their conte
 
 ### Research
 
-- `docs/research-ai-wholesale-disruption.md` — background research on the AI + wholesale thesis.
+- [AI + wholesale disruption research](https://app.notion.com/p/3fe0c8824fed81cc9c23fa36218f50f8) (Notion): background research on the AI + wholesale thesis.
