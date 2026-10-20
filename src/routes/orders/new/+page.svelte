@@ -1448,7 +1448,7 @@
 												<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
 													{#if it.image_id}
 														<img
-															src={`/api/products/${it.product_id}/images/${it.image_id}`}
+															src={`/api/products/${it.product_id}/images/${it.image_id}?size=thumb`}
 															alt=""
 															class="h-full w-full object-cover"
 														/>
@@ -1532,7 +1532,7 @@
 												<div class="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
 													{#if it.image_id}
 														<img
-															src={`/api/products/${it.product_id}/images/${it.image_id}`}
+															src={`/api/products/${it.product_id}/images/${it.image_id}?size=thumb`}
 															alt=""
 															class="h-full w-full object-cover"
 														/>
@@ -1904,7 +1904,7 @@
 								>
 									{#if it.image_id}
 										<img
-											src={`/api/products/${it.product_id}/images/${it.image_id}`}
+											src={`/api/products/${it.product_id}/images/${it.image_id}?size=thumb`}
 											alt=""
 											class="h-8 w-8 shrink-0 rounded object-cover"
 										/>
@@ -3134,7 +3134,7 @@
 		: null}
 	color={sizingSheetItem?.selected_color || null}
 	imageUrl={sizingSheetItem?.image_id
-		? `/api/products/${sizingSheetItem.product_id}/images/${sizingSheetItem.image_id}`
+		? `/api/products/${sizingSheetItem.product_id}/images/${sizingSheetItem.image_id}?size=thumb`
 		: null}
 	unitPrice={sizingSheetItem?.unit_price}
 	sizes={sizingSheetItem?.available_sizes}
@@ -3159,7 +3159,7 @@
 		? seasonLabel(colorPickerItem.season_id, colorPickerItem.product_year)
 		: null}
 	imageUrl={colorPickerItem?.image_id
-		? `/api/products/${colorPickerItem.product_id}/images/${colorPickerItem.image_id}`
+		? `/api/products/${colorPickerItem.product_id}/images/${colorPickerItem.image_id}?size=thumb`
 		: null}
 	colors={colorPickerItem?.available_colors}
 	selected={colorPickerItem?.selected_color || null}
