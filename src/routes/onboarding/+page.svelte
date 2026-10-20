@@ -3,7 +3,8 @@
 	// P0: shell + mock state machine. P1: General Information wired to
 	// create-org / create-retailer with resume. Import/Settings/Integrations
 	// (P2+) still advance via the mock. Copy is provisional and NOT final — run
-	// it against docs/brand/guidelines.md §1.5 before ship.
+	// it against brand guidelines §1.5 before ship:
+	// https://app.notion.com/p/3ff0c8824fed811b940eff4b650e1eca
 	//
 	// Entrance choreography (mount):
 	//   t0     greeting types in  +  AI prompt springs up
