@@ -581,7 +581,11 @@
 		}))
 	});
 
+	// One per checkout, reused on every retry so a resubmit replays (SCO-204).
+	const submissionId = crypto.randomUUID();
+
 	const payload = $derived({
+		submission_id: submissionId,
 		type: cart.type ?? 'order',
 		account_id: cart.account_id,
 		freeform_name: cart.freeform_name,

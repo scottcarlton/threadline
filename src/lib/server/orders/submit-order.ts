@@ -16,6 +16,7 @@ import { submitPayloadSchema } from '$lib/schemas/order-submit';
 import { resolveOrderSettings } from '$lib/server/orders/resolve-order-settings.js';
 import { resolveOrderScope } from '$lib/server/orders/order-scope.js';
 import { authorizeSubmitPayload } from '$lib/server/orders/authorize-submit.js';
+import { submissionIds } from '$lib/server/orders/order-ids.js';
 
 export async function submitOrder(
 	request: Request,
@@ -128,36 +129,29 @@ export async function submitOrder(
 		throw e;
 	}
 
+	const ids = submissionIds(payload.submission_id);
+
+	// The inline account is written in the same transaction as the orders, so a
+	// failed submission never leaves an account behind.
 	let resolvedAccountId = payload.account_id;
 	let resolvedFreeformName = payload.freeform_name;
+	let freeformAccountRow: Record<string, string | null> | null = null;
 	if (createsFreeformAccount && payload.freeformDetails) {
 		const details = payload.freeformDetails;
-		const { data: newAccount, error: acctErr } = await supabase
-			.from('accounts')
-			.insert({
-				organization_id: organization.id,
-				business_name: details.business_name,
-				contact_first_name: details.contact_first_name || null,
-				contact_last_name: details.contact_last_name || null,
-				contact_email: details.contact_email || null,
-				phone: details.phone || null,
-				address_line1: details.address_line1 || null,
-				city: details.city || null,
-				state: details.state || null,
-				zip: details.zip || null
-			})
-			.select('id')
-			.single();
-		if (acctErr || !newAccount) {
-			console.error('[submit-order] freeform account insert failed', {
-				org_id: organization.id,
-				user_id: user.id,
-				role,
-				error: acctErr
-			});
-			return fail(500, { message: acctErr?.message ?? 'Failed to create account' });
-		}
-		resolvedAccountId = newAccount.id;
+		freeformAccountRow = {
+			id: ids.accountId(),
+			organization_id: organization.id,
+			business_name: details.business_name,
+			contact_first_name: details.contact_first_name || null,
+			contact_last_name: details.contact_last_name || null,
+			contact_email: details.contact_email || null,
+			phone: details.phone || null,
+			address_line1: details.address_line1 || null,
+			city: details.city || null,
+			state: details.state || null,
+			zip: details.zip || null
+		};
+		resolvedAccountId = freeformAccountRow.id;
 		resolvedFreeformName = null;
 	}
 
@@ -171,9 +165,6 @@ export async function submitOrder(
 		},
 		payload.submitStatus
 	);
-
-	const createdIds: string[] = [];
-	const createdNumbers: string[] = [];
 
 	const acceptedMethods = (organization.accepted_payment_methods ?? []) as string[];
 	const rawPref = (payload.payment_preference ?? '').toString().trim();
@@ -262,7 +253,8 @@ export async function submitOrder(
 		}
 	}
 
-	for (const o of newOrders) {
+	const now = new Date().toISOString();
+	const prepared = newOrders.map((o) => {
 		const ov = overrideFor(o.brand_id, o.season_id);
 
 		const brandAccepted = brandCommerce.get(o.brand_id)?.accepted_payment_methods ?? [];
@@ -297,61 +289,41 @@ export async function submitOrder(
 			? (brandOrgMap.get(o.brand_id) ?? organization.id)
 			: organization.id;
 
-		const { data: orderRow, error: orderErr } = await supabase
-			.from('orders')
-			.insert({
-				organization_id: orderOrgId,
-				order_type: o.order_type,
-				account_id: o.account_id,
-				freeform_name: o.freeform_name,
-				location_id: shipToLocationId,
-				bill_to_location_id: billToLocationId,
-				brand_id: o.brand_id,
-				season_id: o.season_id,
-				order_year: o.order_year,
-				delivery_id: o.delivery_id,
-				expected_ship_date: o.expected_ship_date,
-				start_ship_date: o.start_ship_date,
-				status: o.status,
-				total_amount: o.total_amount,
-				payment_preference: paymentPrefValue,
-				payment_terms: paymentTermsValue,
-				shipping_method: shippingMethodValue,
-				po_number: poNumberValue,
-				notes: internalNoteValue,
-				rep_user_id: finalizeData?.rep_user_id ?? null,
-				channel: finalizeData?.channel ?? (locals.isBuyer ? 'web-buyer' : 'web-rep'),
-				source_type_id: selectedSourceName
-					? (sourceByOrgName.get(`${orderOrgId}::${selectedSourceName.toLowerCase()}`) ?? null)
-					: null,
-				show_date_id: finalizeData?.show_date_id ?? null,
-				show_id: resolvedShowId,
-				terms_id: canStampTerms ? ba!.terms_id : null,
-				terms_agreed_by: canStampTerms ? user.id : null,
-				terms_agreed_at: canStampTerms ? new Date().toISOString() : null,
-				created_by: user.id,
-				submitted_at:
-					o.status === 'submitted' || o.status === 'confirmed' ? new Date().toISOString() : null,
-				confirmed_at: o.status === 'confirmed' ? new Date().toISOString() : null
-			})
-			.select('id, order_number')
-			.single();
-
-		if (orderErr || !orderRow) {
-			console.error('[submit-order] order insert failed', {
-				org_id: organization.id,
-				user_id: user.id,
-				role,
-				brand_id: o.brand_id,
-				account_id: o.account_id,
-				error: orderErr
-			});
-			return fail(500, { message: orderErr?.message ?? 'Failed to create order' });
-		}
-
-		if (o.lines.length > 0) {
-			const linesInsert = o.lines.map((l, i) => ({
-				order_id: orderRow.id,
+		const row = {
+			id: ids.orderId(o.brand_id, o.season_id),
+			organization_id: orderOrgId,
+			order_type: o.order_type,
+			account_id: o.account_id,
+			freeform_name: o.freeform_name,
+			location_id: shipToLocationId,
+			bill_to_location_id: billToLocationId,
+			brand_id: o.brand_id,
+			season_id: o.season_id,
+			order_year: o.order_year,
+			delivery_id: o.delivery_id,
+			expected_ship_date: o.expected_ship_date,
+			start_ship_date: o.start_ship_date,
+			status: o.status,
+			total_amount: o.total_amount,
+			payment_preference: paymentPrefValue,
+			payment_terms: paymentTermsValue,
+			shipping_method: shippingMethodValue,
+			po_number: poNumberValue,
+			notes: internalNoteValue,
+			rep_user_id: finalizeData?.rep_user_id ?? null,
+			channel: finalizeData?.channel ?? (locals.isBuyer ? 'web-buyer' : 'web-rep'),
+			source_type_id: selectedSourceName
+				? (sourceByOrgName.get(`${orderOrgId}::${selectedSourceName.toLowerCase()}`) ?? null)
+				: null,
+			show_date_id: finalizeData?.show_date_id ?? null,
+			show_id: resolvedShowId,
+			terms_id: canStampTerms ? ba!.terms_id : null,
+			terms_agreed_by: canStampTerms ? user.id : null,
+			terms_agreed_at: canStampTerms ? now : null,
+			// created_by is the p_actor argument, not a row field.
+			submitted_at: o.status === 'submitted' || o.status === 'confirmed' ? now : null,
+			confirmed_at: o.status === 'confirmed' ? now : null,
+			lines: o.lines.map((l, i) => ({
 				product_id: l.product_id,
 				style_number: l.style_number,
 				description: l.description,
@@ -360,20 +332,49 @@ export async function submitOrder(
 				qty: l.qty,
 				unit_price: l.unit_price,
 				sort_order: i
-			}));
-			const { error: lineErr } = await supabase.rpc('insert_order_lines_with_actor', {
-				actor: user.id,
-				lines: linesInsert
-			});
-			if (lineErr) {
-				console.error('[submit-order] order_lines insert failed', {
-					order_id: orderRow.id,
-					line_count: linesInsert.length,
-					error: lineErr
-				});
-				return fail(500, { message: lineErr.message });
-			}
-		}
+			}))
+		};
+		return { o, orderOrgId, row };
+	});
+
+	// One transaction for the inline account, every order and every line. Order
+	// ids come from the submission id, so a retry returns the stored orders with
+	// inserted = false instead of writing them again.
+	const { data: written, error: writeErr } = await supabase.rpc('create_order_submission', {
+		p_actor: user.id,
+		p_account: freeformAccountRow,
+		p_orders: prepared.map((p) => p.row)
+	});
+
+	if (writeErr || !written) {
+		console.error('[submit-order] order submission write failed', {
+			org_id: organization.id,
+			user_id: user.id,
+			role,
+			submission_id: ids.submissionId,
+			order_count: prepared.length,
+			error: writeErr
+		});
+		return fail(500, { message: 'Could not save the order. Try again.' });
+	}
+
+	const results = new Map(
+		(written as Array<{ order_id: string; order_number: string; inserted: boolean }>).map((r) => [
+			r.order_id,
+			r
+		])
+	);
+	const createdNumbers: string[] = [];
+
+	for (const { o, orderOrgId, row } of prepared) {
+		const result = results.get(row.id);
+		if (!result) continue;
+		createdNumbers.push(result.order_number);
+
+		// A replay already ran its side effects the first time.
+		if (!result.inserted) continue;
+
+		const orderRow = { id: result.order_id, order_number: result.order_number };
 
 		// orderOrgId, not organization.id: a brand-org writer creates the order in
 		// the brand's org, and the row must land on that org's timeline.
@@ -422,15 +423,12 @@ export async function submitOrder(
 			});
 			emitOrderEvent(orderOrgId, orderRow.id, isConfirmed ? 'confirmed' : 'submitted', origin);
 		}
-
-		createdIds.push(orderRow.id);
-		createdNumbers.push(orderRow.order_number);
 	}
 
 	if (createdNumbers.length === 0) {
 		throw redirect(303, '/orders');
 	}
 
-	const ids = createdNumbers.slice(0, 10).join(',');
-	throw redirect(303, `/orders/confirmation?ids=${ids}`);
+	const numbers = createdNumbers.slice(0, 10).join(',');
+	throw redirect(303, `/orders/confirmation?ids=${numbers}`);
 }
