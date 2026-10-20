@@ -65,6 +65,7 @@
 
 	function blankLocation() {
 		return {
+			id: crypto.randomUUID(),
 			label: '',
 			phone: '',
 			address: { line1: '', line2: '', city: '', state: '', zip: '' },
