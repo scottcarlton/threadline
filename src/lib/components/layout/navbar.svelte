@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
+	import { clearAppCaches } from '$lib/utils/clear-app-caches.js';
 	import { Avatar, AvatarFallback } from '$lib/components/ui/avatar/index.js';
 	import { cart } from '$lib/stores/cart.js';
 	import { unreadNotificationCount } from '$lib/stores/notifications.js';
@@ -51,6 +52,8 @@
 	}
 
 	async function signOut() {
+		// First, so a failed network call below can't leave cached data behind.
+		await clearAppCaches();
 		await supabase.auth.signOut();
 		// Clear the httpOnly active_org_id cookie server-side; client signOut can't.
 		await fetch('/logout', { method: 'POST' });
