@@ -22,7 +22,8 @@ import { walkPreflight } from './setup/walk.js';
  * a silent change. It asserts the current, broken output on purpose. Do not
  * "fix" these expectations by changing src/routes/onboarding.
  *
- * Reference: docs/preflight-ux-review.md M3 and G4.
+ * Reference: preflight UX review M3 and G4,
+ * https://app.notion.com/p/3fe0c8824fed81648712cc30f789079d
  */
 const PRODUCTS_CSV = 'style number,name,wholesale price\nSTYLE-1,Preflight Test Product,100\n';
 const ORDERS_CSV = 'account,style number,qty\nPreflight Test Account,STYLE-1,2\n';
@@ -35,7 +36,7 @@ test('rep hits a dead end on the catalog step and a raw backend error on orders'
 		description:
 			'Rep orgs have no self-brand, so the products step refuses the upload and ' +
 			'the orders step returns a 404 whose raw message reaches the user. ' +
-			'See docs/preflight-ux-review.md M3.'
+			'See the preflight UX review (Notion) M3.'
 	});
 
 	const watch = new ConsoleWatch(page);

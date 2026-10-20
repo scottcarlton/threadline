@@ -193,7 +193,7 @@ Fix: either wire the season picker or drop the query.
     removed; duplicated `svelte-ignore state_referenced_locally` (`:302-303`).
 24. **Right rail is `hidden xl:block`** — no stats at all below 1280px.
 25. **Copy is provisional** — the file header says to run it against
-    `docs/brand/guidelines.md` §1.5. Not done.
+    [brand guidelines](https://app.notion.com/p/3ff0c8824fed811b940eff4b650e1eca) §1.5. Not done.
 26. **`persistCursor` is fire-and-forget** and swallows errors; rapid advances can
     drop the last write with no signal.
 27. **Retailer path is untested end-to-end here** — `create-retailer` sets

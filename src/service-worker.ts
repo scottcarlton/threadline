@@ -41,15 +41,13 @@ function shouldSkipCache(request: Request): boolean {
 	return false;
 }
 
-async function networkFirstPage(request: Request): Promise<Response> {
-	const cache = await caches.open(CACHE);
+// Navigations are never written to the cache: a rendered page carries the
+// signed-in user's data, and Cache Storage outlives sign-out on a shared
+// device. Offline navigations get the static fallback instead.
+async function networkOnlyPage(request: Request): Promise<Response> {
 	try {
-		const networkRes = await fetch(request);
-		if (networkRes.ok) cache.put(request, networkRes.clone());
-		return networkRes;
+		return await fetch(request);
 	} catch {
-		const cached = await cache.match(request);
-		if (cached) return cached;
 		const offline = await caches.match('/offline.html');
 		return offline ?? new Response('Offline', { status: 503 });
 	}
@@ -73,7 +71,7 @@ self.addEventListener('fetch', (event) => {
 	if (!isSameOrigin) return;
 
 	if (request.mode === 'navigate') {
-		event.respondWith(networkFirstPage(request));
+		event.respondWith(networkOnlyPage(request));
 		return;
 	}
 
