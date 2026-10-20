@@ -1,6 +1,6 @@
 # /Threadline — Email Templates
 
-Branded transactional templates for the 9 Brevo emails Threadline sends today, plus 5 Supabase Auth emails. Built against `docs/brand/guidelines.md`.
+Branded transactional templates for the 9 Brevo emails Threadline sends today, plus 5 Supabase Auth emails. Built against the [brand guidelines](https://app.notion.com/p/3ff0c8824fed811b940eff4b650e1eca) (Notion).
 
 ## Folder layout
 

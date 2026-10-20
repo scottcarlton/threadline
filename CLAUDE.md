@@ -13,7 +13,7 @@ If you're not sure, say "I don't know — let me check" and check. If there isn'
 Canonical patterns to verify (not an exhaustive list — the rule applies to everything):
 
 - **Empty states** — see the Empty states subsection in Code Style below. Copy the canonical pattern exactly; do not pick a different variant you happen to remember.
-- **Brand voice** — read `docs/brand/guidelines.md` §1.5 before writing any user-facing copy, including coming-soon subtitles, button labels, toast text, and modal descriptions. Do not transcribe a feature description the user gave you as copy — rewrite it against brand voice.
+- **Brand voice** — read §1.5 of [Brand Identity & Guidelines](https://app.notion.com/p/3ff0c8824fed811b940eff4b650e1eca) (Notion; fetch with the Notion connector) before writing any user-facing copy, including coming-soon subtitles, button labels, toast text, and modal descriptions. Do not transcribe a feature description the user gave you as copy — rewrite it against brand voice.
 - **Role-aware audit** — before shipping a role-scoped page, mentally render it as every role and strip self-referential or tautological content.
 - **UI primitives** — check `src/lib/components/ui/` before hand-rolling a control.
 
@@ -158,24 +158,24 @@ Before claiming a task is done:
 
 ## Reference Docs
 
-Consult these before working in the relevant area. Do **not** inline their contents — read on demand.
+Consult these before working in the relevant area. Do **not** inline their contents; read on demand. Product, brand, design, and marketing docs live only in Notion: fetch them with the Notion connector (`notion-fetch` with the page URL). There is no repo copy to fall back on.
 
 ### Business requirements
 
-- `docs/brd/features.md` — feature requirements. Read before implementing any feature.
+- [Features BRD](https://app.notion.com/p/3ff0c8824fed8168ad93db8d0eb566fd) (Notion): feature requirements. Read before implementing any feature.
 - `docs/brd/roles-permissions.md` — RBAC rules. Read before touching auth, roles, or permissions.
-- `docs/brd/marketing.md` — marketing and launch requirements.
-- `docs/brd/permissions-implementation-map.md` — RLS helpers, per-table contracts, route/API classification, federation direction cheat-sheet. Read before touching RLS policies, adding tables, or wiring cross-org routes.
+- [Marketing & Launch BRD](https://app.notion.com/p/3ff0c8824fed810484d2f4a4b5112eeb) (Notion): marketing and launch requirements.
+- `docs/brd/permissions-implementation-map.md`: RLS helpers, per-table contracts, route/API classification, federation direction cheat-sheet. Read before touching RLS policies, adding tables, or wiring cross-org routes. Stays in the repo because it changes in the same PR as the migrations it describes.
 
 ### Brand
 
-- `docs/brand/philosophy.md` — founding philosophy (process problem thesis). Read before product, marketing, or positioning decisions.
-- `docs/brand/guidelines.md` — voice, colors, typography, tone. Read before UI or marketing work.
-- `docs/brand/visual-guide.html` — rendered visual reference.
+- [Founding Philosophy](https://app.notion.com/p/3ff0c8824fed8192becec5751537c494) (Notion): the process problem thesis. Read before product, marketing, or positioning decisions.
+- [Brand Identity & Guidelines](https://app.notion.com/p/3ff0c8824fed811b940eff4b650e1eca) (Notion): voice, colors, typography, tone. Read before UI or marketing work.
+- [Visual Guide](https://app.notion.com/p/3ff0c8824fed814e9e55f1feb31fb90e) (Notion): rendered visual reference.
 
 ### Design
 
-- `docs/design/frontend-ux.md` — UX principles (mental models, cognitive load, progressive disclosure, friction asymmetry, empty states, keyboard-first, status visibility). Read before designing or reviewing any UI. Skills: `.claude/skills/frontend-ux` (design-time), `.claude/skills/ux-review` (audit existing UI), `.claude/skills/brand-review` (audit against brand guidelines), `.claude/skills/spec` (turn an idea into a BRD-shaped spec).
+- [Frontend UX Principles](https://app.notion.com/p/3ff0c8824fed81eeb72cdb13829e6cd8) (Notion): mental models, cognitive load, progressive disclosure, friction asymmetry, empty states, keyboard-first, status visibility. Read before designing or reviewing any UI. Skills: `.claude/skills/frontend-ux` (design-time), `.claude/skills/ux-review` (audit existing UI), `.claude/skills/brand-review` (audit against brand guidelines), `.claude/skills/spec` (turn an idea into a BRD-shaped spec).
 
 ### Release
 
@@ -183,8 +183,8 @@ Consult these before working in the relevant area. Do **not** inline their conte
 
 ### Marketing copy
 
-- `docs/content/homepage.md` — canonical copy for `/`.
-- `docs/content/early-access.md` — canonical copy for `/early-access`.
+- [Homepage copy](https://app.notion.com/p/3ff0c8824fed81d6993ee7de9c0359dd) (Notion): canonical copy for `/`.
+- [Beta landing page copy](https://app.notion.com/p/3ff0c8824fed8100aba8da8260027ddb) (Notion): canonical copy for `/beta` (formerly early access).
 
 ### Research
 
