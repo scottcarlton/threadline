@@ -38,7 +38,13 @@ const addressSchema = z.object({
 	zip: optZipString
 });
 
+// Client-generated ids make a create safe to retry: the server treats a known
+// id as a replay rather than a second account (SCO-204). The page seeds them
+// on load; offline sync supplies its own.
+const clientId = z.string().uuid().optional();
+
 const additionalLocationSchema = z.object({
+	id: clientId,
 	label: z.string().trim().min(1, 'Label is required').max(100),
 	phone: optPhone,
 	address: addressSchema,
@@ -50,6 +56,8 @@ const additionalLocationSchema = z.object({
 });
 
 export const createAccountSchema = z.object({
+	id: clientId,
+	primaryLocationId: clientId,
 	business: z.object({
 		name: z.string().trim().min(1, 'Business name is required').max(255),
 		website: optUrl,

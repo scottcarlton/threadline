@@ -14,7 +14,11 @@
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
 	import SizeStepperSheet from '$lib/components/shared/SizeStepperSheet.svelte';
 	import ColorPickerSheet from '$lib/components/shared/ColorPickerSheet.svelte';
-	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
+	import type {
+		CatalogCartItem,
+		CatalogProduct
+	} from '$lib/components/shared/catalog-picker-types.js';
+	import { overStockLines } from '$lib/inventory/over-stock';
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
 	import { SelectField } from '$lib/components/ui/select/index.js';
@@ -995,6 +999,23 @@
 		submitStatus = status;
 		await tick();
 		submitFormEl?.requestSubmit();
+	}
+	// Warn-and-allow: count ATS lines over variant stock_qty. Advisory only, so
+	// a failed lookup resolves to 0 rather than blocking or erroring the submit.
+	async function countOverStockLines(lines: CartLine[]): Promise<number> {
+		const ids = [...new Set(lines.map((l) => l.product_id).filter((id): id is string => !!id))];
+		if (ids.length === 0) return 0;
+		try {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+			const params = new URLSearchParams({ limit: '200', archived: 'true' });
+			for (const id of ids) params.append('id', id);
+			const res = await fetch(`/api/products?${params.toString()}`);
+			if (!res.ok) return 0;
+			const { products } = (await res.json()) as { products: CatalogProduct[] };
+			return overStockLines(lines, products).length;
+		} catch {
+			return 0;
+		}
 	}
 	let finalizeExpandedKey = $state<string | null>(null);
 	let finalizeExpandAll = $state(false);
@@ -2906,8 +2927,19 @@
 				action="?/submit"
 				use:enhance={() => {
 					submitting = true;
+					const overStock =
+						cart.type !== 'note' && submitStatus !== 'draft'
+							? countOverStockLines(payload.lines)
+							: Promise.resolve(0);
 					return async ({ result, update }) => {
 						submitting = false;
+						if (result.type === 'redirect' || result.type === 'success') {
+							const n = await overStock;
+							if (n > 0)
+								toast.warning(
+									`Order saved. ${n} line${n === 1 ? '' : 's'} exceed${n === 1 ? 's' : ''} available stock.`
+								);
+						}
 						if (result.type === 'failure') {
 							toast.error((result.data as { message?: string })?.message ?? 'Could not save order');
 						} else if (result.type === 'error') {
