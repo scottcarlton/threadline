@@ -104,7 +104,7 @@
 			></video>
 		{:else if activeImage}
 			<img
-				src="/api/products/{productId}/images/{activeImage.id}"
+				src="/api/products/{productId}/images/{activeImage.id}?size=card"
 				{alt}
 				class="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
 			/>
@@ -152,7 +152,7 @@
 					}}
 				>
 					<img
-						src="/api/products/{productId}/images/{thumb.id}"
+						src="/api/products/{productId}/images/{thumb.id}?size=thumb"
 						alt=""
 						class="h-full w-full object-cover"
 					/>

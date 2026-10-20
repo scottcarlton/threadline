@@ -550,7 +550,7 @@
 													<div class="relative">
 														{#if thumbId}
 															<img
-																src={`/api/products/${it.product_id}/images/${thumbId}`}
+																src={`/api/products/${it.product_id}/images/${thumbId}?size=thumb`}
 																alt={color}
 																class="h-12 w-12 rounded-full object-cover ring-2 ring-offset-2 transition {selected
 																	? 'ring-foreground'
@@ -725,7 +725,7 @@
 						: null}
 					color={sheetItem?.selected_color || null}
 					imageUrl={sheetItem && sheetImg
-						? `/api/products/${sheetItem.product_id}/images/${sheetImg}`
+						? `/api/products/${sheetItem.product_id}/images/${sheetImg}?size=thumb`
 						: null}
 					unitPrice={sheetItem?.unit_price}
 					sizes={sheetItem?.available_sizes}
@@ -764,7 +764,7 @@
 						? seasonLabel(colorItem.season_id, colorItem.product_year)
 						: null}
 					imageUrl={colorItem && colorImg
-						? `/api/products/${colorItem.product_id}/images/${colorImg}`
+						? `/api/products/${colorItem.product_id}/images/${colorImg}?size=thumb`
 						: null}
 					colors={colorItem?.available_colors}
 					selected={colorItem?.selected_color || null}
