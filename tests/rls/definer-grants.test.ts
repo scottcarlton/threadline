@@ -60,7 +60,10 @@ const INTERNAL = [
 	'get_revenue_summary',
 	'get_top_accounts',
 	// SCO-187: increments the credit memo counter. Only issue_credit_memo() calls it.
-	'generate_credit_memo_number'
+	'generate_credit_memo_number',
+	// SCO-204: takes the actor as an argument and writes orders in any org.
+	// submitOrder authorizes the payload first and calls it via supabaseAdmin.
+	'create_order_submission'
 ];
 
 /**
