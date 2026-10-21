@@ -14,7 +14,11 @@
 	import CatalogPickerModal from '$lib/components/shared/CatalogPickerModal.svelte';
 	import SizeStepperSheet from '$lib/components/shared/SizeStepperSheet.svelte';
 	import ColorPickerSheet from '$lib/components/shared/ColorPickerSheet.svelte';
-	import type { CatalogCartItem } from '$lib/components/shared/catalog-picker-types.js';
+	import type {
+		CatalogCartItem,
+		CatalogProduct
+	} from '$lib/components/shared/catalog-picker-types.js';
+	import { overStockLines } from '$lib/inventory/over-stock';
 	import ColorSwatch from '$lib/components/shared/ColorSwatch.svelte';
 	import ColorSwatchPicker from '$lib/components/shared/ColorSwatchPicker.svelte';
 	import { SelectField } from '$lib/components/ui/select/index.js';
@@ -996,6 +1000,23 @@
 		await tick();
 		submitFormEl?.requestSubmit();
 	}
+	// Warn-and-allow: count ATS lines over variant stock_qty. Advisory only, so
+	// a failed lookup resolves to 0 rather than blocking or erroring the submit.
+	async function countOverStockLines(lines: CartLine[]): Promise<number> {
+		const ids = [...new Set(lines.map((l) => l.product_id).filter((id): id is string => !!id))];
+		if (ids.length === 0) return 0;
+		try {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive transient computation
+			const params = new URLSearchParams({ limit: '200', archived: 'true' });
+			for (const id of ids) params.append('id', id);
+			const res = await fetch(`/api/products?${params.toString()}`);
+			if (!res.ok) return 0;
+			const { products } = (await res.json()) as { products: CatalogProduct[] };
+			return overStockLines(lines, products).length;
+		} catch {
+			return 0;
+		}
+	}
 	let finalizeExpandedKey = $state<string | null>(null);
 	let finalizeExpandAll = $state(false);
 	let shipEditOpen = $state(false);
@@ -1159,7 +1180,11 @@
 		}))
 	});
 
+	// One per checkout, reused on every retry so a resubmit replays (SCO-204).
+	const submissionId = crypto.randomUUID();
+
 	const payload = $derived({
+		submission_id: submissionId,
 		type: cart.type ?? 'order',
 		account_id: cart.account_id,
 		freeform_name: cart.freeform_name,
@@ -1423,7 +1448,7 @@
 												<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
 													{#if it.image_id}
 														<img
-															src={`/api/products/${it.product_id}/images/${it.image_id}`}
+															src={`/api/products/${it.product_id}/images/${it.image_id}?size=thumb`}
 															alt=""
 															class="h-full w-full object-cover"
 														/>
@@ -1507,7 +1532,7 @@
 												<div class="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
 													{#if it.image_id}
 														<img
-															src={`/api/products/${it.product_id}/images/${it.image_id}`}
+															src={`/api/products/${it.product_id}/images/${it.image_id}?size=thumb`}
 															alt=""
 															class="h-full w-full object-cover"
 														/>
@@ -1879,7 +1904,7 @@
 								>
 									{#if it.image_id}
 										<img
-											src={`/api/products/${it.product_id}/images/${it.image_id}`}
+											src={`/api/products/${it.product_id}/images/${it.image_id}?size=thumb`}
 											alt=""
 											class="h-8 w-8 shrink-0 rounded object-cover"
 										/>
@@ -2902,8 +2927,19 @@
 				action="?/submit"
 				use:enhance={() => {
 					submitting = true;
+					const overStock =
+						cart.type !== 'note' && submitStatus !== 'draft'
+							? countOverStockLines(payload.lines)
+							: Promise.resolve(0);
 					return async ({ result, update }) => {
 						submitting = false;
+						if (result.type === 'redirect' || result.type === 'success') {
+							const n = await overStock;
+							if (n > 0)
+								toast.warning(
+									`Order saved. ${n} line${n === 1 ? '' : 's'} exceed${n === 1 ? 's' : ''} available stock.`
+								);
+						}
 						if (result.type === 'failure') {
 							toast.error((result.data as { message?: string })?.message ?? 'Could not save order');
 						} else if (result.type === 'error') {
@@ -3098,7 +3134,7 @@
 		: null}
 	color={sizingSheetItem?.selected_color || null}
 	imageUrl={sizingSheetItem?.image_id
-		? `/api/products/${sizingSheetItem.product_id}/images/${sizingSheetItem.image_id}`
+		? `/api/products/${sizingSheetItem.product_id}/images/${sizingSheetItem.image_id}?size=thumb`
 		: null}
 	unitPrice={sizingSheetItem?.unit_price}
 	sizes={sizingSheetItem?.available_sizes}
@@ -3123,7 +3159,7 @@
 		? seasonLabel(colorPickerItem.season_id, colorPickerItem.product_year)
 		: null}
 	imageUrl={colorPickerItem?.image_id
-		? `/api/products/${colorPickerItem.product_id}/images/${colorPickerItem.image_id}`
+		? `/api/products/${colorPickerItem.product_id}/images/${colorPickerItem.image_id}?size=thumb`
 		: null}
 	colors={colorPickerItem?.available_colors}
 	selected={colorPickerItem?.selected_color || null}

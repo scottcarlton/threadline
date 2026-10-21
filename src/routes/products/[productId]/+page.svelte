@@ -524,7 +524,7 @@
 					></video>
 				{:else if activeImage}
 					<img
-						src={`/api/products/${product.id}/images/${activeImage.id}`}
+						src={`/api/products/${product.id}/images/${activeImage.id}?size=display`}
 						alt={product.name}
 						class="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
 					/>
@@ -642,7 +642,7 @@
 							}}
 						>
 							<img
-								src="/api/products/{product.id}/images/{activeGroup.primary.id}"
+								src="/api/products/{product.id}/images/{activeGroup.primary.id}?size=card"
 								alt="{product.name} — primary"
 								class="h-full w-full object-cover"
 							/>
@@ -673,7 +673,7 @@
 							}}
 						>
 							<img
-								src="/api/products/{product.id}/images/{activeGroup.hover.id}"
+								src="/api/products/{product.id}/images/{activeGroup.hover.id}?size=card"
 								alt="{product.name} — hover"
 								class="h-full w-full object-cover"
 							/>
@@ -745,7 +745,7 @@
 							onclick={() => (activeGroupIndex = i)}
 						>
 							<img
-								src="/api/products/{product.id}/images/{thumb.id}"
+								src="/api/products/{product.id}/images/{thumb.id}?size=thumb"
 								alt=""
 								class="h-full w-full object-cover"
 							/>

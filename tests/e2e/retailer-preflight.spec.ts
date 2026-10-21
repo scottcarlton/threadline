@@ -25,7 +25,8 @@ test('retailer answers General Information and is handed to the buyer portal', a
 
 	// Recorded, not endorsed: the roadmap still promises four phases at the
 	// moment a retailer is one answer away from leaving the flow for good.
-	// docs/preflight-ux-review.md calls this out as G2.
+	// The preflight UX review calls this out as G2:
+	// https://app.notion.com/p/3fe0c8824fed81648712cc30f789079d
 	expect(await roadmapTitles(page)).toEqual(RETAILER_PHASES);
 	expect(observed.at(-1)?.stepCounter).toBe('Step 1 of 4');
 

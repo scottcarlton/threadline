@@ -18,7 +18,14 @@ export function aggregateStockStatus(
 		.map((v) => deriveStockStatus(v.stock_qty, v.stock_threshold))
 		.filter((s): s is StockStatus => s !== null);
 	if (statuses.length === 0) return null;
-	if (statuses.includes('out')) return 'out';
-	if (statuses.includes('low')) return 'low';
+	// Product-level: out only when every tracked variant is out. A partly
+	// sold-through style is still orderable, so it reads as low.
+	if (statuses.every((s) => s === 'out')) return 'out';
+	if (statuses.some((s) => s !== 'in')) return 'low';
 	return 'in';
+}
+
+/** An ATS variant with tracked stock at or below zero can't be ordered. */
+export function isVariantSoldOut(ats: boolean, variant: { stock_qty: number | null }): boolean {
+	return ats && variant.stock_qty !== null && variant.stock_qty <= 0;
 }

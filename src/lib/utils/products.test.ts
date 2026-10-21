@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getVariantSummary, aggregateStockStatus } from './products';
+import { getVariantSummary, aggregateStockStatus, isVariantSoldOut } from './products';
 
 describe('getVariantSummary', () => {
 	it('returns color and size counts', () => {
@@ -61,11 +61,32 @@ describe('aggregateStockStatus', () => {
 		expect(aggregateStockStatus(variants)).toBe('low');
 	});
 
-	it('returns "out" when any variant is out', () => {
+	it('returns "low" when only some variants are out', () => {
 		const variants = [
 			{ stock_qty: 50, stock_threshold: 10 },
 			{ stock_qty: 0, stock_threshold: 5 }
 		];
+		expect(aggregateStockStatus(variants)).toBe('low');
+	});
+
+	it('returns "out" when every tracked variant is out', () => {
+		const variants = [
+			{ stock_qty: 0, stock_threshold: 10 },
+			{ stock_qty: 0, stock_threshold: 5 },
+			{ stock_qty: null, stock_threshold: null }
+		];
 		expect(aggregateStockStatus(variants)).toBe('out');
+	});
+});
+
+describe('isVariantSoldOut', () => {
+	it('is true for an ATS variant at zero', () => {
+		expect(isVariantSoldOut(true, { stock_qty: 0 })).toBe(true);
+	});
+
+	it('is false with stock, untracked stock, or prebook', () => {
+		expect(isVariantSoldOut(true, { stock_qty: 3 })).toBe(false);
+		expect(isVariantSoldOut(true, { stock_qty: null })).toBe(false);
+		expect(isVariantSoldOut(false, { stock_qty: 0 })).toBe(false);
 	});
 });

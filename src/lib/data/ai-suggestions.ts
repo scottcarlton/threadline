@@ -5,8 +5,8 @@
 // org type will refuse, is worse than suggesting nothing: the user spends a
 // round trip to learn they were misled.
 //
-// Copy follows docs/brand/guidelines.md section 1.5: specific over vague,
-// declarative, industry language, no superlatives.
+// Copy follows section 1.5 of the brand guidelines (Notion: https://app.notion.com/p/3ff0c8824fed811b940eff4b650e1eca):
+// specific over vague, declarative, industry language, no superlatives.
 
 import type { OrgType, UserRole } from '$lib/types/database.js';
 import type { EntityContext } from '$lib/stores/entityContext.js';
