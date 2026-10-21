@@ -21,3 +21,13 @@ describe('confirmSignOut', () => {
 		await expect(again).resolves.toBe(true);
 	});
 });
+
+describe('holdInForeground', () => {
+	it('hides an item while a form waits on it, then releases it', async () => {
+		const { foregroundIds, holdInForeground } = await import('./sync-ui');
+		const release = holdInForeground('a');
+		expect(get(foregroundIds).has('a')).toBe(true);
+		release();
+		expect(get(foregroundIds).has('a')).toBe(false);
+	});
+});

@@ -272,6 +272,34 @@ export function createOutbox(env: OutboxEnv) {
 			return dependentsOf(id, rows);
 		},
 
+		/**
+		 * Resolve once the item settles (synced, failed, needs_review), or with
+		 * its current state after `timeoutMs`. A form uses this to behave like an
+		 * ordinary online save when the connection is good, and to fall back to
+		 * "saved on this device" when it is not.
+		 */
+		waitFor(id: string, timeoutMs: number): Promise<OutboxItem | undefined> {
+			return new Promise((resolve) => {
+				let latest: OutboxItem | undefined;
+				let done = false;
+				let unsubscribe: (() => void) | null = null;
+				const finish = () => {
+					if (done) return;
+					done = true;
+					clearT(timer);
+					// Deferred: subscribe() may call back before it returns.
+					queueMicrotask(() => unsubscribe?.());
+					resolve(latest);
+				};
+				const timer = setT(finish, timeoutMs);
+				unsubscribe = items.subscribe((rows) => {
+					latest = rows.find((i) => i.id === id);
+					if (latest && latest.status !== 'pending' && latest.status !== 'syncing') finish();
+				});
+				if (done) unsubscribe();
+			});
+		},
+
 		drain
 	};
 }
