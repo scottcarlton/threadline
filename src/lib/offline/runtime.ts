@@ -57,6 +57,7 @@ export function createOutbox(env: OutboxEnv) {
 	const items = writable<OutboxItem[]>([]);
 	const state = writable<SyncState>('idle');
 	const senders: Senders = {};
+	const queueable = writable<OutboxKind[]>([]);
 
 	let userId: string | null = null;
 	let draining = false;
@@ -161,8 +162,15 @@ export function createOutbox(env: OutboxEnv) {
 		/** Everything the rep still has to think about. Drives the shell count. */
 		unsynced: derived(items, (rows) => unsyncedCount(rows)),
 
+		/**
+		 * Kinds this build can send. A form only offers to save offline when its
+		 * kind is here, so the UI never promises a sync that cannot happen.
+		 */
+		queueable: queueable as Readable<OutboxKind[]>,
+
 		registerSender<P>(kind: OutboxKind, sender: Sender<P>) {
 			senders[kind] = sender as Sender;
+			queueable.set(Object.keys(senders) as OutboxKind[]);
 			void drain();
 		},
 
