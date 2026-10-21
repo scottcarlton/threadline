@@ -33,6 +33,9 @@
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
 	import { registerServiceWorker, isOnline, isStandalone } from '$lib/stores/pwa.js';
 	import { outbox, requestPersistentStorage } from '$lib/offline';
+	import { confirmSignOut } from '$lib/offline/sync-ui';
+	import SyncPanel from '$lib/components/pwa/SyncPanel.svelte';
+	import SignOutWarning from '$lib/components/pwa/SignOutWarning.svelte';
 	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
 	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
 	import { startVoiceCapture, type VoiceCaptureHandle } from '$lib/utils/voice-capture';
@@ -63,6 +66,8 @@
 	}
 
 	async function handleSignOut() {
+		// Sign-out deletes the offline outbox; confirm first if it holds unsent work.
+		if (!(await confirmSignOut(outbox.unsynced))) return;
 		// First, so a failed network call below can't leave cached data behind.
 		await clearAppCaches();
 		await supabase.auth.signOut();
@@ -865,6 +870,8 @@
 	{#if data.session && !isAuthRoute}
 		<NotificationToasts />
 		<NotificationCenter open={notificationsOpen} onclose={() => (notificationsOpen = false)} />
+		<SyncPanel />
+		<SignOutWarning />
 	{/if}
 {/if}
 
