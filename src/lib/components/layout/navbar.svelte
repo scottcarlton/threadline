@@ -7,7 +7,7 @@
 	import { cart } from '$lib/stores/cart.js';
 	import { unreadNotificationCount } from '$lib/stores/notifications.js';
 	import { outbox } from '$lib/offline';
-	import { confirmSignOut, syncPanelOpen } from '$lib/offline/sync-ui';
+	import { confirmSignOut, foregroundIds, syncPanelOpen } from '$lib/offline/sync-ui';
 	import type { Profile, Organization, UserRole } from '$lib/types/database.js';
 
 	type Props = {
@@ -43,8 +43,10 @@
 	}
 	let showUserMenu = $state(false);
 	const notifCount = $derived($unreadNotificationCount);
-	const unsyncedStore = outbox.unsynced;
-	const unsyncedCount = $derived($unsyncedStore);
+	const outboxItems = outbox.items;
+	const unsyncedCount = $derived(
+		$outboxItems.filter((i) => i.status !== 'synced' && !$foregroundIds.has(i.id)).length
+	);
 
 	function getInitials(name: string): string {
 		return name

@@ -34,6 +34,7 @@
 	import { registerServiceWorker, isOnline, isStandalone } from '$lib/stores/pwa.js';
 	import { outbox, requestPersistentStorage } from '$lib/offline';
 	import { confirmSignOut } from '$lib/offline/sync-ui';
+	import { registerSenders } from '$lib/offline/senders';
 	import SyncPanel from '$lib/components/pwa/SyncPanel.svelte';
 	import SignOutWarning from '$lib/components/pwa/SignOutWarning.svelte';
 	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
@@ -183,7 +184,7 @@
 			registerServiceWorker();
 			// Offline outbox (SCO-206): send anything this rep saved while offline.
 			if (data.user?.id) {
-				void outbox.start(data.user.id);
+				void outbox.start(data.user.id).then(() => registerSenders(outbox));
 				if ($isStandalone) void requestPersistentStorage();
 			}
 			return () => {

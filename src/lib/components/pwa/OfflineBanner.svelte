@@ -1,10 +1,15 @@
 <script lang="ts">
+	import { derived } from 'svelte/store';
 	import { isOnline } from '$lib/stores/pwa.js';
 	import { outbox } from '$lib/offline';
 	import { bannerFor } from '$lib/offline/banner';
-	import { syncPanelOpen } from '$lib/offline/sync-ui';
+	import { foregroundIds, syncPanelOpen } from '$lib/offline/sync-ui';
 
-	const items = outbox.items;
+	const allItems = outbox.items;
+	// A form waiting on its own save speaks for it; the banner stays out of it.
+	const items = derived([allItems, foregroundIds], ([rows, held]) =>
+		rows.filter((i) => !held.has(i.id))
+	);
 	const syncState = outbox.state;
 	const queueable = outbox.queueable;
 

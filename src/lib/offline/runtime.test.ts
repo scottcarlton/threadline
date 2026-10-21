@@ -187,6 +187,36 @@ describe('outbox runtime', () => {
 		expect(get(outbox.state)).toBe('paused_auth');
 	});
 
+	it('waitFor resolves when the item settles', async () => {
+		const { outbox } = setup();
+		outbox.registerSender('account.create', async () => ({ status: 'synced' }));
+		await outbox.start('user-1');
+		await outbox.enqueue({ id: 'a', kind: 'account.create', payload: {}, label: 'A' });
+		const settled = await outbox.waitFor('a', 10_000);
+		expect(settled?.status).toBe('synced');
+	});
+
+	it('waitFor gives up with the current state after the timeout', async () => {
+		const store = memoryStore();
+		let fire: (() => void) | null = null;
+		const outbox = createOutbox({
+			store,
+			isOnline: () => false,
+			events: null,
+			doc: null,
+			channel: () => null,
+			setTimeout: (fn) => ((fire = fn), 1),
+			clearTimeout: () => {},
+			setInterval: () => 1,
+			clearInterval: () => {}
+		});
+		await outbox.start('user-1');
+		await outbox.enqueue({ id: 'a', kind: 'account.create', payload: {}, label: 'A' });
+		const waiting = outbox.waitFor('a', 20_000);
+		fire!();
+		expect((await waiting)?.status).toBe('pending');
+	});
+
 	it('refuses to enqueue without a signed-in user', async () => {
 		const { outbox } = setup();
 		await expect(
