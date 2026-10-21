@@ -55,16 +55,17 @@ export type DependencyState = 'ready' | 'waiting' | 'blocked';
 /**
  * Whether an item's dependencies let it send.
  *
- * ready    every dependency synced, or is gone (synced and pruned)
+ * ready    every dependency reached the server (synced, or needs_review:
+ *          stored, just not exactly as captured), or is gone (pruned)
  * waiting  a dependency is still pending or syncing
- * blocked  a dependency failed or needs review; the rep has to act first
+ * blocked  a dependency failed; the rep has to act first
  */
 export function dependencyState(item: OutboxItem, byId: Map<string, OutboxItem>): DependencyState {
 	let waiting = false;
 	for (const depId of item.dependsOn) {
 		const dep = byId.get(depId);
-		if (!dep || dep.status === 'synced') continue;
-		if (dep.status === 'failed' || dep.status === 'needs_review') return 'blocked';
+		if (!dep || dep.status === 'synced' || dep.status === 'needs_review') continue;
+		if (dep.status === 'failed') return 'blocked';
 		waiting = true;
 	}
 	return waiting ? 'waiting' : 'ready';

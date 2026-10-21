@@ -79,9 +79,13 @@ describe('dependencies', () => {
 		expect(
 			dependencyState(order, new Map([['acct', item({ id: 'acct', status: 'failed' })]]))
 		).toBe('blocked');
+	});
+
+	it('lets a dependent through once its dependency reached the server for review', () => {
+		const order = item({ id: 'order', dependsOn: ['acct'] });
 		expect(
 			dependencyState(order, new Map([['acct', item({ id: 'acct', status: 'needs_review' })]]))
-		).toBe('blocked');
+		).toBe('ready');
 	});
 
 	it('finds every transitive dependent', () => {

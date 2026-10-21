@@ -152,6 +152,20 @@ describe('outbox runtime', () => {
 		expect(get(outbox.items).map((i) => i.id)).toEqual(['other']);
 	});
 
+	it('dismisses a needs-review item without taking its dependents', async () => {
+		const { outbox, store } = setup({
+			online: false,
+			rows: [
+				item({ id: 'acct', status: 'needs_review' }),
+				item({ id: 'order', kind: 'order.create', dependsOn: ['acct'] })
+			]
+		});
+		await outbox.start('user-1');
+		expect(await outbox.dependentsOf('acct')).toEqual([]);
+		await outbox.discard('acct');
+		expect([...store.rows.keys()]).toEqual(['order']);
+	});
+
 	it('shows and sends only the signed-in user', async () => {
 		const { outbox } = setup({
 			online: false,

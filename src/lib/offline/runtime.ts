@@ -245,8 +245,12 @@ export function createOutbox(env: OutboxEnv) {
 		async discard(id: string) {
 			if (!userId) return;
 			const rows = await env.store.list(userId);
-			if (!rows.some((i) => i.id === id)) return;
-			await env.store.remove([id, ...dependentsOf(id, rows)]);
+			const target = rows.find((i) => i.id === id);
+			if (!target) return;
+			// A needs_review item is already on the server; removing it from the list
+			// takes nothing away from the items that depend on it.
+			const cascade = target.status === 'needs_review' ? [] : dependentsOf(id, rows);
+			await env.store.remove([id, ...cascade]);
 			await refresh();
 			announce();
 		},
@@ -254,7 +258,10 @@ export function createOutbox(env: OutboxEnv) {
 		/** Ids that `discard(id)` would also remove. */
 		async dependentsOf(id: string): Promise<string[]> {
 			if (!userId) return [];
-			return dependentsOf(id, await env.store.list(userId));
+			const rows = await env.store.list(userId);
+			const target = rows.find((i) => i.id === id);
+			if (!target || target.status === 'needs_review') return [];
+			return dependentsOf(id, rows);
 		},
 
 		drain
