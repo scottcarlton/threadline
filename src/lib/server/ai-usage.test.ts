@@ -5,10 +5,11 @@ const insert = vi.fn<(row: Record<string, unknown>) => Promise<{ error: null }>>
 	error: null
 }));
 const reportAiValidation = vi.fn();
+const reportAiDegraded = vi.fn();
 
 vi.mock('./supabase.js', () => ({ supabaseAdmin: { from: () => ({ insert }) } }));
 vi.mock('./log-supabase-error.js', () => ({ logSupabaseError: vi.fn() }));
-vi.mock('./ai-errors.js', () => ({ reportAiValidation }));
+vi.mock('./ai-errors.js', () => ({ reportAiValidation, reportAiDegraded }));
 // Run deferred work inline so assertions do not race the insert.
 vi.mock('./audit/defer.js', () => ({ defer: async (work: () => Promise<void>) => work() }));
 
@@ -75,6 +76,17 @@ describe('logUsage', () => {
 		});
 
 		expect(lastRow().stop_reason).toBe('max_tokens');
+		expect(reportAiDegraded).toHaveBeenCalledWith(
+			'max_tokens',
+			expect.objectContaining({ endpoint: 'chat', purpose: 'tools' })
+		);
+	});
+
+	it('does not flag a response that ended normally', () => {
+		reportAiDegraded.mockClear();
+		logUsage({ endpoint: 'chat', purpose: 'tools', organizationId: ORG, response: message() });
+
+		expect(reportAiDegraded).not.toHaveBeenCalled();
 	});
 
 	it('refuses to insert a row that breaks the contract, and reports it', () => {
