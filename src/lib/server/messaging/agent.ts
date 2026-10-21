@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { createTracked } from '$lib/server/ai-usage.js';
+import { logToolCall } from '$lib/server/ai-tool-calls.js';
+import { reportAiDegraded } from '$lib/server/ai-errors.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import type { MessagingChannel, ConversationMessage } from './types.js';
 import { buildConversationHistory } from './session.js';
@@ -276,6 +278,12 @@ export async function runAgent(input: AgentInput): Promise<string> {
 
 	// Every model call answering this one message shares a turn.
 	const turnId = randomUUID();
+	const toolLog = {
+		endpoint: 'messaging-agent',
+		organizationId: input.organizationId,
+		userId: input.userId,
+		turnId
+	};
 	let iterations = 0;
 	const maxIterations = 5;
 
@@ -309,14 +317,29 @@ export async function runAgent(input: AgentInput): Promise<string> {
 
 			const toolResults: Anthropic.ToolResultBlockParam[] = [];
 			for (const tool of toolBlocks) {
-				const result = await executeMessagingTool(
-					tool.name,
-					tool.input as Record<string, unknown>,
-					input.organizationId,
-					input.userId,
-					input.brandScope,
-					input.orgType
-				);
+				const started = Date.now();
+				let result: string;
+				try {
+					result = await executeMessagingTool(
+						tool.name,
+						tool.input as Record<string, unknown>,
+						input.organizationId,
+						input.userId,
+						input.brandScope,
+						input.orgType
+					);
+				} catch (err) {
+					logToolCall({
+						...toolLog,
+						tool: tool.name,
+						status: 'error',
+						error: err,
+						latencyMs: Date.now() - started
+					});
+					throw err;
+				}
+				// Messaging tools answer in prose and only fail by throwing.
+				logToolCall({ ...toolLog, tool: tool.name, status: 'ok', latencyMs: Date.now() - started });
 				toolResults.push({
 					type: 'tool_result',
 					tool_use_id: tool.id,
@@ -333,5 +356,11 @@ export async function runAgent(input: AgentInput): Promise<string> {
 		return textBlock?.text ?? "I couldn't process that. Could you try rephrasing?";
 	}
 
+	reportAiDegraded('iteration_cap', {
+		endpoint: 'messaging-agent',
+		purpose: input.context.channel,
+		organizationId: input.organizationId,
+		extra: { turnId }
+	});
 	return 'I hit a processing limit. Could you try a simpler request?';
 }

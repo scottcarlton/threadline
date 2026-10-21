@@ -14,6 +14,7 @@ export async function runStitchChatReply(p: {
 	text: string;
 	rawText: string;
 	suggestions?: string[];
+	malformedSuggestions: boolean;
 	response: Anthropic.Message;
 }> {
 	const response = await p.client.messages.create({
@@ -27,6 +28,12 @@ export async function runStitchChatReply(p: {
 		.filter((b): b is Anthropic.TextBlock => b.type === 'text')
 		.map((b) => b.text)
 		.join('\n');
-	const { text, suggestions } = splitSuggestions(rawText);
-	return { text, rawText, suggestions, response };
+	const { text, suggestions, malformedSuggestions } = splitSuggestions(rawText);
+	return {
+		text,
+		rawText,
+		suggestions,
+		malformedSuggestions: malformedSuggestions === true,
+		response
+	};
 }

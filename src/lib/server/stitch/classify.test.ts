@@ -60,4 +60,12 @@ describe('classifyStitchMessage', () => {
 				.route
 		).toBe('TOOLS');
 	});
+	it('says when the label was neither CHAT nor TOOLS', async () => {
+		const run = async (label: string) =>
+			(await classifyStitchMessage({ client: client(label).client, history: [], message: 'x' }))
+				.recognized;
+		expect(await run('TOOLS')).toBe(true);
+		expect(await run(' chat ')).toBe(true);
+		expect(await run('maybe')).toBe(false);
+	});
 });

@@ -14,6 +14,9 @@ export type StitchEvent =
 
 export type StitchAttempt = { name: string; input: Record<string, unknown>; denied: boolean };
 
+/** Why a tool call was refused before it ran. Matches ai_tool_calls.denial_reason. */
+export type StitchDenialReason = 'guest_read_only' | 'brand_scope';
+
 export type StitchTurnResult = {
 	text: string;
 	rawText: string;
@@ -22,6 +25,10 @@ export type StitchTurnResult = {
 	attempted: StitchAttempt[];
 	responses: Anthropic.Message[];
 	stopReason: string | null;
+	/** The loop spent MAX_TOOL_ITERATIONS model calls and the model still wanted tools. */
+	hitIterationCap: boolean;
+	/** The model ended with a SUGGESTIONS line that was not valid JSON. */
+	malformedSuggestions: boolean;
 };
 
 /** The slice of the Anthropic client a streamed turn uses, so tests can fake it. */
@@ -44,10 +51,16 @@ export type RunStitchTurnParams = {
 	executeTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
 	onEvent?: (event: StitchEvent) => void;
 	onResponse?: (message: Anthropic.Message) => void;
+	/** A tool call refused before it ran; executeTool never sees these. */
+	onDenied?: (name: string, reason: StitchDenialReason) => void;
 	model?: string;
 };
 
-export function splitSuggestions(text: string): { text: string; suggestions?: string[] } {
+export function splitSuggestions(text: string): {
+	text: string;
+	suggestions?: string[];
+	malformedSuggestions?: true;
+} {
 	const lines = text.trimEnd().split('\n');
 	const lastLine = lines[lines.length - 1];
 	if (lastLine?.startsWith('SUGGESTIONS:')) {
@@ -55,7 +68,8 @@ export function splitSuggestions(text: string): { text: string; suggestions?: st
 			const suggestions = JSON.parse(lastLine.slice('SUGGESTIONS:'.length));
 			return { text: lines.slice(0, -1).join('\n').trimEnd(), suggestions };
 		} catch {
-			/* leave as-is */
+			// Leave the text as-is, but say so: the line reaches the user raw.
+			return { text, malformedSuggestions: true };
 		}
 	}
 	return { text };
@@ -112,6 +126,7 @@ export async function runStitchTurn(p: RunStitchTurnParams): Promise<StitchTurnR
 
 			if (WRITE_TOOLS.has(block.name) && p.role === 'guest') {
 				attempted.push({ name: block.name, input: toolInput, denied: true });
+				p.onDenied?.(block.name, 'guest_read_only');
 				toolResults.push(deny(block.id, 'Permission denied. Guest users have read-only access.'));
 				emit({ type: 'tool_result', name: block.name, ok: false });
 				continue;
@@ -123,6 +138,7 @@ export async function runStitchTurn(p: RunStitchTurnParams): Promise<StitchTurnR
 				!p.brandScope.includes(toolInput.brand_id as string)
 			) {
 				attempted.push({ name: block.name, input: toolInput, denied: true });
+				p.onDenied?.(block.name, 'brand_scope');
 				toolResults.push(deny(block.id, 'Access denied. This brand is outside your scope.'));
 				emit({ type: 'tool_result', name: block.name, ok: false });
 				continue;
@@ -143,6 +159,17 @@ export async function runStitchTurn(p: RunStitchTurnParams): Promise<StitchTurnR
 		p.messages.push({ role: 'user', content: toolResults });
 	}
 
-	const { text, suggestions } = splitSuggestions(rawText);
-	return { text, rawText, suggestions, actions, attempted, responses, stopReason };
+	const { text, suggestions, malformedSuggestions } = splitSuggestions(rawText);
+	return {
+		text,
+		rawText,
+		suggestions,
+		actions,
+		attempted,
+		responses,
+		stopReason,
+		// The loop only exits on tool_use when it ran out of iterations.
+		hitIterationCap: stopReason === 'tool_use',
+		malformedSuggestions: malformedSuggestions === true
+	};
 }
