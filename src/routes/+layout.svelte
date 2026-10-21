@@ -31,7 +31,8 @@
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
-	import { registerServiceWorker, isOnline } from '$lib/stores/pwa.js';
+	import { registerServiceWorker, isOnline, isStandalone } from '$lib/stores/pwa.js';
+	import { outbox, requestPersistentStorage } from '$lib/offline';
 	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
 	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
 	import { startVoiceCapture, type VoiceCaptureHandle } from '$lib/utils/voice-capture';
@@ -175,7 +176,13 @@
 			const stopAttention = startOrderAttentionPolling(60000);
 			const stopNotifications = startNotificationPolling(30000);
 			registerServiceWorker();
+			// Offline outbox (SCO-206): send anything this rep saved while offline.
+			if (data.user?.id) {
+				void outbox.start(data.user.id);
+				if ($isStandalone) void requestPersistentStorage();
+			}
 			return () => {
+				outbox.stop();
 				stopUnread?.();
 				stopAppointments?.();
 				stopAttention?.();

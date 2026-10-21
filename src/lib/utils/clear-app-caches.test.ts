@@ -50,4 +50,20 @@ describe('clearAppCaches', () => {
 		expect(spy).toHaveBeenCalled();
 		spy.mockRestore();
 	});
+
+	it('deletes the offline database as part of the same call', async () => {
+		const clearOffline = vi.fn(async () => {});
+		await clearAppCaches(undefined, clearOffline);
+		expect(clearOffline).toHaveBeenCalledTimes(1);
+	});
+
+	it('still clears caches when deleting the offline database fails', async () => {
+		const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const { storage, remaining } = fakeCacheStorage({ 'cache-v1': ['/dashboard'] });
+		await clearAppCaches(storage, async () => {
+			throw new Error('blocked');
+		});
+		expect(remaining()).toEqual({ 'cache-v1': [] });
+		spy.mockRestore();
+	});
 });

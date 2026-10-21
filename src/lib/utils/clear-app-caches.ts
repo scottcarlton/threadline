@@ -1,3 +1,5 @@
+import { clearOfflineData } from '$lib/offline';
+
 /**
  * Empties Cache Storage on sign-out, keeping only the offline fallback page.
  *
@@ -7,14 +9,21 @@
  * it would leave a signed-out visitor with no offline fallback until the next
  * deploy.
  *
- * SCO-206 will also clear the offline outbox and reference snapshot in
- * IndexedDB here, so every sign-out path wipes both stores through one call.
+ * It also deletes the offline database (outbox now, reference snapshot from
+ * SCO-208), so every sign-out path wipes both stores through one call. The
+ * sign-out handlers warn first when the outbox still holds unsent work.
  */
 export const KEEP_ON_SIGN_OUT = '/offline.html';
 
 export async function clearAppCaches(
-	cacheStorage: CacheStorage | undefined = typeof caches === 'undefined' ? undefined : caches
+	cacheStorage: CacheStorage | undefined = typeof caches === 'undefined' ? undefined : caches,
+	clearOffline: () => Promise<void> = clearOfflineData
 ): Promise<void> {
+	try {
+		await clearOffline();
+	} catch (err) {
+		console.error('Clearing offline data failed:', err);
+	}
 	if (!cacheStorage) return;
 	try {
 		for (const name of await cacheStorage.keys()) {
