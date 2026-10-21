@@ -4,7 +4,7 @@ const captureException = vi.fn();
 const captureMessage = vi.fn();
 vi.mock('@sentry/sveltekit', () => ({ captureException, captureMessage }));
 
-const { reportAiError, reportAiValidation } = await import('./ai-errors.js');
+const { reportAiError, reportAiValidation, reportAiDegraded } = await import('./ai-errors.js');
 
 beforeEach(() => {
 	captureException.mockClear();
@@ -76,5 +76,23 @@ describe('reportAiValidation', () => {
 		reportAiValidation({ endpoint: 'linesheet', failed: 0, total: 40, issues: [] });
 
 		expect(captureMessage).not.toHaveBeenCalled();
+	});
+});
+
+describe('reportAiDegraded', () => {
+	it('sends a warning grouped by kind and endpoint', () => {
+		reportAiDegraded('iteration_cap', {
+			endpoint: 'chat',
+			purpose: 'tools',
+			organizationId: 'org-1',
+			extra: { turnId: 't-1' }
+		});
+
+		const [message, options] = captureMessage.mock.calls[0];
+		expect(message).toBe('[ai] chat/tools degraded: iteration_cap');
+		expect(options.level).toBe('warning');
+		expect(options.fingerprint).toEqual(['ai-degraded', 'iteration_cap', 'chat']);
+		expect(options.tags).toMatchObject({ ai_degraded: 'iteration_cap', organization_id: 'org-1' });
+		expect(options.extra).toEqual({ turnId: 't-1' });
 	});
 });

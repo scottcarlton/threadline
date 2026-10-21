@@ -60,3 +60,36 @@ export function reportAiValidation(ctx: AiValidationContext): void {
 		extra: { ...ctx.extra, failed: ctx.failed, total: ctx.total, issues: ctx.issues.slice(0, 10) }
 	});
 }
+
+export type AiDegradedKind =
+	| 'iteration_cap'
+	| 'max_tokens'
+	| 'classifier_unrecognized'
+	| 'suggestions_unparseable';
+
+/**
+ * Record a turn that "succeeded" but not the way it should have: the tool loop
+ * ran out of iterations, a response was cut off at max_tokens, the classifier
+ * answered with neither label, or the suggestions line did not parse. None of
+ * these throw, so without this they were invisible. A Sentry warning grouped
+ * by kind and endpoint; the event count is the rate.
+ */
+export function reportAiDegraded(kind: AiDegradedKind, ctx: AiErrorContext): void {
+	const label = ctx.purpose ? `${ctx.endpoint}/${ctx.purpose}` : ctx.endpoint;
+	console.warn(`[ai] ${label} degraded: ${kind}`);
+
+	const tags: Record<string, string> = {
+		subsystem: 'ai',
+		ai_endpoint: ctx.endpoint,
+		ai_degraded: kind
+	};
+	if (ctx.purpose) tags.ai_purpose = ctx.purpose;
+	if (ctx.organizationId) tags.organization_id = ctx.organizationId;
+
+	Sentry.captureMessage(`[ai] ${label} degraded: ${kind}`, {
+		level: 'warning',
+		tags,
+		fingerprint: ['ai-degraded', kind, ctx.endpoint],
+		extra: ctx.extra
+	});
+}

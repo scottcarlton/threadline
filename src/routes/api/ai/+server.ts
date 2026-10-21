@@ -4,7 +4,6 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { executeToolCall } from '$lib/server/ai-tools.js';
 import { SETUP_PROMPT } from '$lib/server/ai-prompts.js';
-import { logUsage } from '$lib/server/ai-usage.js';
 import { buildAttachmentBlocks } from '$lib/server/ai-attachments.js';
 import { checkAiLimits } from '$lib/server/ai-limits.js';
 import { sanitizeConversationHistory } from '$lib/server/ai-history.js';
@@ -17,11 +16,23 @@ import {
 } from '$lib/server/ai-conversations.js';
 import { generateTitle } from '$lib/server/ai-conversation-title.js';
 import { isSafePath, sanitizeEntityContext } from '$lib/server/ai-context.js';
-import { WRITE_TOOLS, buildStitchTools } from '$lib/server/stitch/tools.js';
+import { buildStitchTools } from '$lib/server/stitch/tools.js';
 import { buildStitchSystem } from '$lib/server/stitch/system.js';
-import { runStitchTurn, STITCH_MODEL } from '$lib/server/stitch/turn.js';
-import { classifyStitchMessage, CLASSIFIER_MODEL } from '$lib/server/stitch/classify.js';
-import { runStitchChatReply, CHAT_MODEL } from '$lib/server/stitch/chat.js';
+import {
+	runStitchTurn,
+	type RunStitchTurnParams,
+	type StitchTurnResult
+} from '$lib/server/stitch/turn.js';
+import { classifyStitchMessage } from '$lib/server/stitch/classify.js';
+import { runStitchChatReply } from '$lib/server/stitch/chat.js';
+import {
+	trackedClient,
+	trackedToolExecutor,
+	logToolDenial,
+	type TurnContext
+} from '$lib/server/stitch/telemetry.js';
+import { reportAiDegraded, reportAiError } from '$lib/server/ai-errors.js';
+import { randomUUID } from 'node:crypto';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -69,6 +80,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	} = await request.json();
 	const origin = request.headers.get('origin') || new URL(request.url).origin;
 	const requestStartTime = Date.now();
+	const turnId = randomUUID();
 
 	if (!message || typeof message !== 'string') {
 		return json({ error: 'Message is required' }, { status: 400 });
@@ -256,45 +268,43 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
+		// Every row this request writes (usage, tool calls) shares one turn id,
+		// so a bad answer can be reassembled from telemetry alone.
+		const turn: TurnContext = {
+			endpoint: 'chat',
+			organizationId: locals.organization!.id,
+			userId: locals.user!.id,
+			turnId,
+			conversationId: activeConversationId
+		};
+
 		// Pre-flight: use Haiku to classify whether this needs tools/Sonnet or can be answered directly.
 		// Skip classification if files are attached (needs Sonnet vision) or a custom agent is active.
 		const needsClassification = typeof userContent === 'string' && !agentPrompt;
 		let useHaiku = false;
 
 		if (needsClassification) {
-			const { route } = await classifyStitchMessage({
-				client: anthropic,
+			const { route, recognized } = await classifyStitchMessage({
+				client: trackedClient(anthropic, { ...turn, purpose: 'classifier' }),
 				history: historyMessages,
-				message: userContent as string,
-				onResponse: (response) =>
-					logUsage({
-						endpoint: 'chat',
-						purpose: 'classifier',
-						model: CLASSIFIER_MODEL,
-						organizationId: locals.organization!.id,
-						userId: locals.user!.id,
-						response
-					})
+				message: userContent as string
 			});
+			if (!recognized) {
+				reportAiDegraded('classifier_unrecognized', degradedContext(turn, 'classifier'));
+			}
 			useHaiku = route === 'CHAT';
 		}
 
 		if (useHaiku) {
 			// Simple conversational response — Haiku without tools
 			const reply = await runStitchChatReply({
-				client: anthropic,
+				client: trackedClient(anthropic, { ...turn, purpose: 'chat' }),
 				system: systemBlocks,
-				messages,
-				onResponse: (response) =>
-					logUsage({
-						endpoint: 'chat',
-						purpose: 'chat',
-						model: CHAT_MODEL,
-						organizationId: locals.organization!.id,
-						userId: locals.user!.id,
-						response
-					})
+				messages
 			});
+			if (reply.malformedSuggestions) {
+				reportAiDegraded('suggestions_unparseable', degradedContext(turn, 'chat'));
+			}
 			const responseText = reply.text;
 			const suggestions = reply.suggestions;
 
@@ -315,18 +325,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ response: responseText, suggestions, conversationId: activeConversationId });
 		}
 
+		const turnParams = stitchTurnParams({
+			systemBlocks,
+			cachedTools,
+			messages,
+			locals,
+			role,
+			origin,
+			turn
+		});
+
 		// Streaming branch: return Server-Sent Events so the client can render
 		// text deltas and tool progress as they arrive instead of waiting for
 		// the full multi-iteration tool loop to finish.
 		if (stream === true) {
 			return streamResponse({
-				anthropic,
-				systemBlocks,
-				cachedTools,
-				messages,
+				turnParams,
+				turn,
 				locals,
-				role,
-				origin,
 				resolvedAgentId,
 				cleanMessage,
 				requestStartTime,
@@ -335,126 +351,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			});
 		}
 
-		let response = await anthropic.messages.create({
-			model: 'claude-sonnet-4-6',
-			max_tokens: 4096,
-			system: systemBlocks,
-			tools: cachedTools,
-			messages
-		});
-		logUsage({
-			endpoint: 'chat',
-			purpose: 'tools',
-			model: 'claude-sonnet-4-6',
-			organizationId: locals.organization!.id,
-			userId: locals.user!.id,
-			response
-		});
-
-		const actions: Array<{ tool: string; input: Record<string, unknown>; result: unknown }> = [];
-		const MAX_TOOL_ITERATIONS = 10;
-		let toolIterations = 0;
-
-		// Handle tool use loop (Claude may call multiple tools in sequence)
-		while (response.stop_reason === 'tool_use' && toolIterations++ < MAX_TOOL_ITERATIONS) {
-			const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-			for (const block of response.content) {
-				if (block.type !== 'tool_use') continue;
-
-				const toolUse = block;
-
-				// Check write permission
-				if (WRITE_TOOLS.has(toolUse.name) && role === 'guest') {
-					toolResults.push({
-						type: 'tool_result',
-						tool_use_id: toolUse.id,
-						content: JSON.stringify({
-							success: false,
-							error: 'Permission denied. Guest users have read-only access.'
-						})
-					});
-					continue;
-				}
-
-				const toolInput = toolUse.input as Record<string, unknown>;
-
-				// Check brand scope for brand-specific write ops
-				if (
-					locals.brandScope &&
-					['update_brand'].includes(toolUse.name) &&
-					toolInput.brand_id &&
-					!locals.brandScope.includes(toolInput.brand_id as string)
-				) {
-					toolResults.push({
-						type: 'tool_result',
-						tool_use_id: toolUse.id,
-						content: JSON.stringify({
-							success: false,
-							error: 'Access denied. This brand is outside your scope.'
-						})
-					});
-					continue;
-				}
-
-				const result = await executeToolCall(toolUse.name, toolInput, {
-					supabase: locals.supabase,
-					organizationId: locals.organization!.id,
-					userId: locals.user!.id,
-					brandScope: locals.brandScope,
-					trust: 'interactive',
-					orgType: locals.orgType === 'brand' ? 'brand' : 'rep',
-					origin
-				});
-
-				actions.push({ tool: toolUse.name, input: toolInput, result });
-
-				toolResults.push({
-					type: 'tool_result',
-					tool_use_id: toolUse.id,
-					content: JSON.stringify(result)
-				});
-			}
-
-			// Send tool results back to Claude
-			messages.push({ role: 'assistant' as const, content: response.content });
-			messages.push({ role: 'user' as const, content: toolResults });
-
-			response = await anthropic.messages.create({
-				model: 'claude-sonnet-4-6',
-				max_tokens: 4096,
-				system: systemBlocks,
-				tools: cachedTools,
-				messages
-			});
-			logUsage({
-				endpoint: 'chat',
-				purpose: 'tools',
-				model: 'claude-sonnet-4-6',
-				organizationId: locals.organization!.id,
-				userId: locals.user!.id,
-				response
-			});
-		}
-
-		// Extract final text response
-		const textBlocks = response.content.filter(
-			(block): block is Anthropic.TextBlock => block.type === 'text'
-		);
-		let responseText = textBlocks.map((b) => b.text).join('\n');
-
-		// Parse out suggestions from the last line
-		let suggestions: string[] | undefined;
-		const lines = responseText.trimEnd().split('\n');
-		const lastLine = lines[lines.length - 1];
-		if (lastLine?.startsWith('SUGGESTIONS:')) {
-			try {
-				suggestions = JSON.parse(lastLine.slice('SUGGESTIONS:'.length));
-				responseText = lines.slice(0, -1).join('\n').trimEnd();
-			} catch {
-				// If parsing fails, leave response as-is
-			}
-		}
+		// Non-streaming callers (attachments, email compose) run the same loop,
+		// with the same telemetry, and get the result as one JSON body.
+		const result = await runStitchTurn(turnParams);
+		reportTurnOutcome(result, turn);
+		const responseText = result.text;
+		const suggestions = result.suggestions;
+		const actions = result.actions;
 
 		// Log agent run if this was an agent invocation
 		if (resolvedAgentId) {
@@ -506,25 +409,81 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			conversationId: activeConversationId
 		});
 	} catch (err) {
-		console.error('AI API error:', err);
+		reportAiError(err, {
+			endpoint: 'chat',
+			organizationId: locals.organization?.id ?? null,
+			extra: { turnId, conversationId: activeConversationId }
+		});
 		const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
 		locals.audit.record('assistant.queried', {
 			status: 'failure',
 			errorMessage,
 			metadata: { prompt: cleanMessage, duration_ms: Date.now() - requestStartTime }
 		});
-		return json({ error: errorMessage }, { status: 500 });
+		// The raw message can carry provider internals (request ids, model
+		// names); Sentry and the audit row keep it, the user gets this.
+		return json({ error: STITCH_ERROR_MESSAGE }, { status: 500 });
 	}
 };
 
-type StreamResponseParams = {
-	anthropic: Anthropic;
+/** What the user sees when a turn fails. The details go to Sentry. */
+const STITCH_ERROR_MESSAGE = "Stitch couldn't finish that. Try again in a moment.";
+
+function degradedContext(turn: TurnContext, purpose = 'tools') {
+	return {
+		endpoint: turn.endpoint,
+		purpose,
+		organizationId: turn.organizationId,
+		extra: { turnId: turn.turnId, conversationId: turn.conversationId ?? null }
+	};
+}
+
+/** Report what a finished turn did wrong without failing: cap hit, bad suggestions. */
+function reportTurnOutcome(result: StitchTurnResult, turn: TurnContext): void {
+	if (result.hitIterationCap) reportAiDegraded('iteration_cap', degradedContext(turn));
+	if (result.malformedSuggestions) {
+		reportAiDegraded('suggestions_unparseable', degradedContext(turn));
+	}
+}
+
+/** Everything both branches pass to runStitchTurn, with telemetry wired in. */
+function stitchTurnParams(p: {
 	systemBlocks: Anthropic.TextBlockParam[];
 	cachedTools: Anthropic.Tool[];
 	messages: Anthropic.MessageParam[];
 	locals: App.Locals;
 	role: string;
 	origin: string;
+	turn: TurnContext;
+}): RunStitchTurnParams {
+	return {
+		client: trackedClient(anthropic, { ...p.turn, purpose: 'tools' }),
+		system: p.systemBlocks,
+		tools: p.cachedTools,
+		messages: p.messages,
+		role: p.role,
+		brandScope: p.locals.brandScope ?? null,
+		executeTool: trackedToolExecutor(
+			(name, input) =>
+				executeToolCall(name, input, {
+					supabase: p.locals.supabase,
+					organizationId: p.locals.organization!.id,
+					userId: p.locals.user!.id,
+					brandScope: p.locals.brandScope,
+					trust: 'interactive',
+					orgType: p.locals.orgType === 'brand' ? 'brand' : 'rep',
+					origin: p.origin
+				}),
+			p.turn
+		),
+		onDenied: (name, reason) => logToolDenial(p.turn, name, reason)
+	};
+}
+
+type StreamResponseParams = {
+	turnParams: RunStitchTurnParams;
+	turn: TurnContext;
+	locals: App.Locals;
 	resolvedAgentId: string | null;
 	cleanMessage: string;
 	requestStartTime: number;
@@ -542,33 +501,10 @@ function streamResponse(params: StreamResponseParams): Response {
 		async start(controller) {
 			try {
 				const turn = await runStitchTurn({
-					client: params.anthropic,
-					system: params.systemBlocks,
-					tools: params.cachedTools,
-					messages: params.messages,
-					role: params.role,
-					brandScope: params.locals.brandScope ?? null,
-					executeTool: (name, input) =>
-						executeToolCall(name, input, {
-							supabase: params.locals.supabase,
-							organizationId: params.locals.organization!.id,
-							userId: params.locals.user!.id,
-							brandScope: params.locals.brandScope,
-							trust: 'interactive',
-							orgType: params.locals.orgType === 'brand' ? 'brand' : 'rep',
-							origin: params.origin
-						}),
-					onEvent: (event) => send(controller, event),
-					onResponse: (response) =>
-						logUsage({
-							endpoint: 'chat',
-							purpose: 'tools',
-							model: STITCH_MODEL,
-							organizationId: params.locals.organization!.id,
-							userId: params.locals.user!.id,
-							response
-						})
+					...params.turnParams,
+					onEvent: (event) => send(controller, event)
 				});
+				reportTurnOutcome(turn, params.turn);
 				const responseText = turn.text;
 				const suggestions = turn.suggestions;
 				const actions = turn.actions;
@@ -592,7 +528,7 @@ function streamResponse(params: StreamResponseParams): Response {
 					await appendMessage(params.conversationId, 'assistant', responseText);
 					if (params.isNewConversation) {
 						generateTitle({
-							anthropic: params.anthropic,
+							anthropic,
 							conversationId: params.conversationId,
 							firstUserMessage: params.cleanMessage,
 							firstAssistantMessage: responseText,
@@ -610,9 +546,13 @@ function streamResponse(params: StreamResponseParams): Response {
 					conversationId: params.conversationId
 				});
 			} catch (err) {
-				console.error('AI stream error:', err);
-				const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
-				send(controller, { type: 'error', error: errorMessage });
+				reportAiError(err, {
+					endpoint: 'chat',
+					purpose: 'tools',
+					organizationId: params.turn.organizationId,
+					extra: { turnId: params.turn.turnId, conversationId: params.conversationId }
+				});
+				send(controller, { type: 'error', error: STITCH_ERROR_MESSAGE });
 			} finally {
 				controller.close();
 			}
