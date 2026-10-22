@@ -31,7 +31,8 @@ describe('clearAppCaches', () => {
 		const { storage, remaining } = fakeCacheStorage({
 			'cache-v1': ['/offline.html', '/dashboard', '/_app/immutable/app.js', '/icons/icon-192.png'],
 			'cache-v0': ['/accounts/123'],
-			'pages-v1': ['/accounts/new']
+			'pages-v1': ['/accounts/new'],
+			'product-images': ['/api/products/p1/images/i1']
 		});
 		await clearAppCaches(storage, async () => {});
 		expect(remaining()).toEqual({

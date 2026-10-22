@@ -266,6 +266,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				activeConversationId,
 				'user',
 				cleanMessage,
+				turnId,
 				storedAttachments && storedAttachments.length > 0 ? storedAttachments : null
 			);
 		}
@@ -310,8 +311,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			const responseText = reply.text;
 			const suggestions = reply.suggestions;
 
+			let messageId: string | null = null;
 			if (activeConversationId) {
-				await appendMessage(activeConversationId, 'assistant', responseText);
+				messageId = await appendMessage(activeConversationId, 'assistant', responseText, turnId);
 				if (isNewConversation) {
 					generateTitle({
 						anthropic,
@@ -324,7 +326,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				}
 			}
 
-			return json({ response: responseText, suggestions, conversationId: activeConversationId });
+			return json({
+				response: responseText,
+				suggestions,
+				conversationId: activeConversationId,
+				messageId,
+				turnId
+			});
 		}
 
 		const turnParams = stitchTurnParams({
@@ -390,8 +398,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		});
 
+		let messageId: string | null = null;
 		if (activeConversationId) {
-			await appendMessage(activeConversationId, 'assistant', responseText);
+			messageId = await appendMessage(activeConversationId, 'assistant', responseText, turnId);
 			if (isNewConversation) {
 				generateTitle({
 					anthropic,
@@ -408,7 +417,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			response: responseText,
 			actions: actions.length > 0 ? actions : undefined,
 			suggestions,
-			conversationId: activeConversationId
+			conversationId: activeConversationId,
+			messageId,
+			turnId
 		});
 	} catch (err) {
 		reportAiError(err, {
@@ -527,8 +538,14 @@ function streamResponse(params: StreamResponseParams): Response {
 					});
 				}
 
+				let messageId: string | null = null;
 				if (params.conversationId) {
-					await appendMessage(params.conversationId, 'assistant', responseText);
+					messageId = await appendMessage(
+						params.conversationId,
+						'assistant',
+						responseText,
+						params.turn.turnId
+					);
 					if (params.isNewConversation) {
 						generateTitle({
 							anthropic,
@@ -546,7 +563,9 @@ function streamResponse(params: StreamResponseParams): Response {
 					response: responseText,
 					actions: actions.length > 0 ? actions : undefined,
 					suggestions,
-					conversationId: params.conversationId
+					conversationId: params.conversationId,
+					messageId,
+					turnId: params.turn.turnId
 				});
 			} catch (err) {
 				reportAiError(err, {

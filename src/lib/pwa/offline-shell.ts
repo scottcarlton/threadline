@@ -14,7 +14,7 @@
  * saves go through the outbox. Keep `static/offline.html`'s list in step
  * (a test checks it).
  */
-export const OFFLINE_ROUTES = ['/accounts/new'] as const;
+export const OFFLINE_ROUTES = ['/accounts/new', '/orders/new'] as const;
 
 export const codeCacheName = (version: string) => `cache-${version}`;
 export const pagesCacheName = (version: string) => `pages-${version}`;
@@ -64,4 +64,51 @@ export function keepOnSignOut(cacheName: string, pathname: string): boolean {
 	if (pathname === '/offline.html') return true;
 	if (pathname.startsWith('/_app/')) return true;
 	return STATIC_ASSET.test(pathname);
+}
+
+/**
+ * Product images (SCO-208). The app always points at the stable same-origin
+ * URL, which redirects to a storage URL signed for five minutes, so the cache
+ * keys on the stable URL (with its `?size=`). Not per deploy: images do not
+ * change with the build. Scoped to what the user may see, so sign-out deletes it.
+ */
+export const IMAGES_CACHE = 'product-images';
+
+const PRODUCT_IMAGE = /^\/api\/products\/[^/]+\/images\/[^/]+$/;
+
+export function isProductImagePath(pathname: string): boolean {
+	return PRODUCT_IMAGE.test(pathname);
+}
+
+/** Caches holding user-scoped data; sign-out deletes each one whole. */
+export function isUserCache(name: string): boolean {
+	return isPagesCache(name) || name === IMAGES_CACHE;
+}
+
+/** Sizes the order wizard renders: `thumb` in cart rows and sheets, `card` in the picker grid. */
+export const WARM_SIZES = ['thumb', 'card'] as const;
+/** Cap per refresh so a big catalog never turns into an unbounded download. */
+export const WARM_LIMIT = 400;
+
+/**
+ * Image URLs to fetch ahead so the catalog has pictures offline: each
+ * product's primary image (else its first) at each size the wizard renders.
+ */
+export function warmImageUrls(
+	products: Array<{
+		id: string;
+		product_images?: Array<{ id: string; is_primary: boolean }> | null;
+	}>,
+	limit = WARM_LIMIT
+): string[] {
+	const urls: string[] = [];
+	for (const p of products) {
+		const images = p.product_images ?? [];
+		const image = images.find((i) => i.is_primary) ?? images[0];
+		if (!image) continue;
+		for (const size of WARM_SIZES)
+			urls.push(`/api/products/${p.id}/images/${image.id}?size=${size}`);
+		if (urls.length >= limit) break;
+	}
+	return urls.slice(0, limit);
 }

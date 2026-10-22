@@ -5,9 +5,11 @@
 
 import { build, files, version } from '$service-worker';
 import {
+	IMAGES_CACHE,
 	OFFLINE_ROUTES,
 	codeCacheName,
 	isCacheablePage,
+	isProductImagePath,
 	offlineRouteFor,
 	pagesCacheName,
 	precacheList
@@ -40,7 +42,9 @@ self.addEventListener('activate', (event) => {
 			// copies once this worker takes over.
 			const keys = await caches.keys();
 			await Promise.all(
-				keys.filter((k) => k !== CACHE && k !== PAGES).map((k) => caches.delete(k))
+				keys
+					.filter((k) => k !== CACHE && k !== PAGES && k !== IMAGES_CACHE)
+					.map((k) => caches.delete(k))
 			);
 			await self.clients.claim();
 		})()
@@ -66,9 +70,47 @@ async function cacheOfflinePages(): Promise<void> {
 	);
 }
 
+/**
+ * Product images, cache-first under their stable URL (SCO-208). On a miss the
+ * image is fetched with CORS (storage allows it), so the cached copy is a
+ * normal response rather than an opaque one, which Chrome pads heavily against
+ * the storage quota. If CORS is refused, the image still loads, uncached.
+ */
+async function productImage(request: Request): Promise<Response> {
+	const cache = await caches.open(IMAGES_CACHE);
+	const hit = await cache.match(request.url);
+	if (hit) return hit;
+	try {
+		const res = await fetch(new Request(request.url, { mode: 'cors', credentials: 'same-origin' }));
+		if (res.ok) await cache.put(request.url, res.clone());
+		return res;
+	} catch {
+		try {
+			return await fetch(request);
+		} catch {
+			return new Response(null, { status: 504 });
+		}
+	}
+}
+
+/** Fetch ahead, a few at a time, skipping what is already cached. */
+async function warmProductImages(urls: string[]): Promise<void> {
+	const queue = urls.filter((u) => isProductImagePath(new URL(u, self.location.origin).pathname));
+	const worker = async () => {
+		for (let url = queue.shift(); url; url = queue.shift()) {
+			await productImage(new Request(new URL(url, self.location.origin).href));
+		}
+	};
+	await Promise.all([worker(), worker(), worker()]);
+}
+
 self.addEventListener('message', (event) => {
-	if ((event.data as { type?: string } | null)?.type === 'cache-offline-pages') {
+	const data = event.data as { type?: string; urls?: string[] } | null;
+	if (data?.type === 'cache-offline-pages') {
 		event.waitUntil(cacheOfflinePages());
+	}
+	if (data?.type === 'warm-product-images' && Array.isArray(data.urls)) {
+		event.waitUntil(warmProductImages(data.urls));
 	}
 });
 
@@ -112,6 +154,17 @@ async function cacheFirst(request: Request): Promise<Response> {
 
 self.addEventListener('fetch', (event) => {
 	const request = event.request;
+	// Checked before the /api skip: the one /api route that is safe and useful
+	// to cache.
+	const reqUrl = new URL(request.url);
+	if (
+		request.method === 'GET' &&
+		reqUrl.origin === self.location.origin &&
+		isProductImagePath(reqUrl.pathname)
+	) {
+		event.respondWith(productImage(request));
+		return;
+	}
 	if (shouldSkipCache(request)) return;
 
 	const url = new URL(request.url);

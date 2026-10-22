@@ -74,3 +74,17 @@ export async function requestOfflinePages(): Promise<void> {
 		console.error('Requesting offline pages failed:', err);
 	}
 }
+
+/**
+ * Ask the service worker to fetch product images ahead so the order wizard has
+ * pictures offline (SCO-208). Best effort, online only.
+ */
+export async function warmProductImages(urls: string[]): Promise<void> {
+	if (!browser || urls.length === 0 || !('serviceWorker' in navigator) || !navigator.onLine) return;
+	try {
+		const reg = await navigator.serviceWorker.ready;
+		reg.active?.postMessage({ type: 'warm-product-images', urls });
+	} catch (err) {
+		console.error('Warming product images failed:', err);
+	}
+}

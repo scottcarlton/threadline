@@ -4,7 +4,7 @@
 	import type { FileAttachment } from '$lib/stores/conversation.js';
 	import type { UserRole } from '$lib/types/database.js';
 	import { preferences } from '$lib/stores/preferences.js';
-	const { messages, loading } = conversation;
+	const { messages, loading, conversationId } = conversation;
 
 	const chatFontStyle = $derived(
 		$preferences.chatFont === 'sans'
@@ -35,15 +35,18 @@
 		feedbackRatings = { ...feedbackRatings, [index]: rating };
 		const msgs = $messages;
 		const userMessage = msgs[index - 1]?.role === 'user' ? msgs[index - 1].content : '';
-		const responseContent = msgs[index]?.content ?? '';
+		const answer = msgs[index];
 		try {
 			await fetch('/api/ai/feedback', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					messageContent: userMessage,
-					responseContent,
-					rating
+					responseContent: answer?.content ?? '',
+					rating,
+					conversationId: $conversationId ?? undefined,
+					messageId: answer?.id,
+					turnId: answer?.turnId
 				})
 			});
 		} catch {

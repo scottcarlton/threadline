@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+	IMAGES_CACHE,
 	OFFLINE_ROUTES,
+	isProductImagePath,
+	isUserCache,
+	warmImageUrls,
 	isCacheablePage,
 	keepOnSignOut,
 	offlineRouteFor,
@@ -37,6 +41,7 @@ describe('offlineRouteFor', () => {
 	it('matches offline routes, ignoring a trailing slash', () => {
 		expect(offlineRouteFor('/accounts/new')).toBe('/accounts/new');
 		expect(offlineRouteFor('/accounts/new/')).toBe('/accounts/new');
+		expect(offlineRouteFor('/orders/new')).toBe('/orders/new');
 	});
 
 	it('leaves every other page to the offline fallback', () => {
@@ -85,5 +90,41 @@ describe('offline.html', () => {
 		const html = readFileSync(resolve('static/offline.html'), 'utf8');
 		const listed = [...html.matchAll(/path:\s*'([^']+)'/g)].map((m) => m[1]);
 		expect(listed).toEqual([...OFFLINE_ROUTES]);
+	});
+});
+
+describe('product images', () => {
+	it('recognises the stable image URL and nothing else under /api', () => {
+		expect(isProductImagePath('/api/products/p1/images/i1')).toBe(true);
+		expect(isProductImagePath('/api/products/p1/images')).toBe(false);
+		expect(isProductImagePath('/api/products')).toBe(false);
+		expect(isProductImagePath('/api/products/p1/images/i1/extra')).toBe(false);
+	});
+
+	it('treats pages and images as user data', () => {
+		expect(isUserCache('pages-1')).toBe(true);
+		expect(isUserCache(IMAGES_CACHE)).toBe(true);
+		expect(isUserCache('cache-1')).toBe(false);
+	});
+
+	it('warms each primary image at every size the wizard renders, capped', () => {
+		const products = [
+			{
+				id: 'p1',
+				product_images: [
+					{ id: 'a', is_primary: false },
+					{ id: 'b', is_primary: true }
+				]
+			},
+			{ id: 'p2', product_images: [{ id: 'c', is_primary: false }] },
+			{ id: 'p3', product_images: [] }
+		];
+		expect(warmImageUrls(products)).toEqual([
+			'/api/products/p1/images/b?size=thumb',
+			'/api/products/p1/images/b?size=card',
+			'/api/products/p2/images/c?size=thumb',
+			'/api/products/p2/images/c?size=card'
+		]);
+		expect(warmImageUrls(products, 3)).toHaveLength(3);
 	});
 });

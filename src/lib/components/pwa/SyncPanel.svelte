@@ -35,8 +35,15 @@
 		switch (item.status) {
 			case 'syncing':
 				return 'Syncing';
-			case 'synced':
-				return `Synced at ${timeFormat.format(item.updatedAt)}`;
+			case 'synced': {
+				// Orders swap their local reference for the numbers the server assigned.
+				const numbers = (
+					item.result as { orders?: Array<{ order_number: string }> } | undefined
+				)?.orders?.map((o) => o.order_number);
+				return numbers?.length
+					? `Synced as ${numbers.join(', ')}`
+					: `Synced at ${timeFormat.format(item.updatedAt)}`;
+			}
 			case 'failed':
 			case 'needs_review':
 				return item.lastError ?? "Couldn't sync";

@@ -11,6 +11,10 @@ export type FileAttachment = {
 };
 
 export type Message = {
+	// The stored ai_messages row and the request that wrote it. Absent until
+	// the server answers, and when the conversation could not be saved.
+	id?: string;
+	turnId?: string;
 	role: 'user' | 'assistant';
 	content: string;
 	suggestions?: string[];
@@ -71,6 +75,8 @@ const READ_ONLY_TOOLS = new Set([
 ]);
 
 export type StoredRow = {
+	id: string;
+	turn_id: string | null;
 	role: 'user' | 'assistant';
 	content: string;
 	attachments: Array<{ name: string; type: string; size: number }> | null;
@@ -85,7 +91,8 @@ export type StoredRow = {
  */
 export function messagesFromStored(rows: StoredRow[]): Message[] {
 	return rows.map((row) => {
-		const message: Message = { role: row.role, content: row.content };
+		const message: Message = { id: row.id, role: row.role, content: row.content };
+		if (row.turn_id) message.turnId = row.turn_id;
 		if (row.attachments && row.attachments.length > 0) {
 			message.attachments = row.attachments.map((a) => ({
 				name: a.name,
@@ -96,6 +103,14 @@ export function messagesFromStored(rows: StoredRow[]): Message[] {
 		}
 		return message;
 	});
+}
+
+/** The ids the server returns with an answer, for rating it later. */
+export function answerRefs(body: Record<string, unknown>): Pick<Message, 'id' | 'turnId'> {
+	const refs: Pick<Message, 'id' | 'turnId'> = {};
+	if (typeof body.messageId === 'string') refs.id = body.messageId;
+	if (typeof body.turnId === 'string') refs.turnId = body.turnId;
+	return refs;
 }
 
 export function planInvalidation(actions: Array<{ tool: string }>): {
@@ -207,6 +222,7 @@ function createConversationStore() {
 				const data = await res.json();
 				if (data.conversationId) conversationId.set(data.conversationId);
 				const assistantMessage: Message = {
+					...answerRefs(data),
 					role: 'assistant',
 					content: data.response ?? "Sorry, I couldn't process that request.",
 					suggestions: data.suggestions
@@ -358,6 +374,7 @@ function applyStreamEvent(
 			if (Array.isArray(event.suggestions)) {
 				last.suggestions = event.suggestions as string[];
 			}
+			Object.assign(last, answerRefs(event));
 			last.toolProgress = undefined;
 		} else if (type === 'error') {
 			last.content = (event.error as string) || 'Something went wrong.';

@@ -158,6 +158,22 @@ export function createSnapshotSync(env: SnapshotEnv) {
 			await refresh();
 		},
 
+		/**
+		 * The snapshot for this user and org, for a page that needs it now: the
+		 * current copy if it is the right one, else the stored copy, else (when
+		 * online) a fresh fetch. Null means none is available on this device.
+		 */
+		async ensure(userId: string, orgId: string): Promise<OrderSnapshot | null> {
+			const key = snapshotKey(userId, orgId);
+			let found: OrderSnapshot | null = null;
+			current.subscribe((s) => (found = s))();
+			if (found && (found as OrderSnapshot).key === key) return found;
+			const stored = await env.store.get(key);
+			if (stored) return stored;
+			if (!isOnline()) return null;
+			return fetchSnapshot(userId, orgId, env.store, env.fetchFn);
+		},
+
 		stop() {
 			for (const fn of cleanups.splice(0)) fn();
 			if (timer !== null) clearI(timer);
