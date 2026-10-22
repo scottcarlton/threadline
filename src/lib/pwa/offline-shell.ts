@@ -14,7 +14,7 @@
  * saves go through the outbox. Keep `static/offline.html`'s list in step
  * (a test checks it).
  */
-export const OFFLINE_ROUTES = ['/accounts/new'] as const;
+export const OFFLINE_ROUTES = ['/accounts/new', '/orders/new'] as const;
 
 export const codeCacheName = (version: string) => `cache-${version}`;
 export const pagesCacheName = (version: string) => `pages-${version}`;

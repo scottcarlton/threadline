@@ -41,6 +41,7 @@ describe('offlineRouteFor', () => {
 	it('matches offline routes, ignoring a trailing slash', () => {
 		expect(offlineRouteFor('/accounts/new')).toBe('/accounts/new');
 		expect(offlineRouteFor('/accounts/new/')).toBe('/accounts/new');
+		expect(offlineRouteFor('/orders/new')).toBe('/orders/new');
 	});
 
 	it('leaves every other page to the offline fallback', () => {
