@@ -10,28 +10,37 @@ vi.mock('$app/stores', () => ({
 	page: { subscribe: () => () => {} }
 }));
 
-const { messagesFromStored, planInvalidation } = await import('./conversation.js');
+const { answerRefs, messagesFromStored, planInvalidation } = await import('./conversation.js');
 
 // windowHistory used to live here. It trimmed to the last 10 messages and
 // replaced the rest with a topic summary plus a fabricated "Understood, I have
 // that context." assistant turn. The server now trims real rows out of
 // ai_messages, so both the function and its tests are gone.
 describe('messagesFromStored', () => {
-	it('maps stored rows into store messages', () => {
+	it('maps stored rows into store messages, keeping the row and turn ids', () => {
 		expect(
 			messagesFromStored([
-				{ role: 'user', content: 'hi', attachments: null },
-				{ role: 'assistant', content: 'hello', attachments: null }
+				{ id: 'm1', turn_id: 't1', role: 'user', content: 'hi', attachments: null },
+				{ id: 'm2', turn_id: 't1', role: 'assistant', content: 'hello', attachments: null }
 			])
 		).toEqual([
-			{ role: 'user', content: 'hi' },
-			{ role: 'assistant', content: 'hello' }
+			{ id: 'm1', turnId: 't1', role: 'user', content: 'hi' },
+			{ id: 'm2', turnId: 't1', role: 'assistant', content: 'hello' }
 		]);
+	});
+
+	it('leaves turnId off rows saved before turns were recorded', () => {
+		const [message] = messagesFromStored([
+			{ id: 'm1', turn_id: null, role: 'assistant', content: 'hello', attachments: null }
+		]);
+		expect(message).toEqual({ id: 'm1', role: 'assistant', content: 'hello' });
 	});
 
 	it('carries attachment metadata through without file data', () => {
 		const result = messagesFromStored([
 			{
+				id: 'm1',
+				turn_id: null,
 				role: 'user',
 				content: 'see attached',
 				attachments: [{ name: 'po.pdf', type: 'application/pdf', size: 1024 }]
@@ -44,6 +53,22 @@ describe('messagesFromStored', () => {
 
 	it('returns an empty array for no rows', () => {
 		expect(messagesFromStored([])).toEqual([]);
+	});
+});
+
+describe('answerRefs', () => {
+	it('reads the saved message id and turn id off an answer', () => {
+		expect(answerRefs({ response: 'hi', messageId: 'm1', turnId: 't1' })).toEqual({
+			id: 'm1',
+			turnId: 't1'
+		});
+	});
+
+	it('leaves out ids the server could not give', () => {
+		expect(answerRefs({ response: 'hi', messageId: null, turnId: 't1' })).toEqual({
+			turnId: 't1'
+		});
+		expect(answerRefs({ type: 'done' })).toEqual({});
 	});
 });
 
