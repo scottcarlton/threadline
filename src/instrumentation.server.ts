@@ -12,7 +12,11 @@ import { PUBLIC_SENTRY_DSN } from '$env/static/public';
 Sentry.init({
 	dsn: PUBLIC_SENTRY_DSN,
 	enabled: !dev,
-	environment: import.meta.env.VERCEL_ENV ?? (dev ? 'development' : 'production'),
+	// Read at runtime. Vite only inlines VITE_ variables into import.meta.env,
+	// so import.meta.env.VERCEL_ENV was always undefined and every deployment,
+	// previews included, reported as production. $env/dynamic is not ready
+	// this early, so read process.env directly.
+	environment: process.env.VERCEL_ENV ?? (dev ? 'development' : 'production'),
 	tracesSampleRate: 0.1,
 	beforeSend(event, hint) {
 		const err = hint?.originalException as
