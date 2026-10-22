@@ -1,17 +1,13 @@
 import type Anthropic from '@anthropic-ai/sdk';
-import {
-	toolInputJsonSchema,
-	writeToolSchemas,
-	type WriteToolName
-} from '../../schemas/stitch-tools.js';
+import { toolInputJsonSchema, toolSchemas, type ToolName } from '../../schemas/stitch-tools.js';
 
 // Tool definitions for Stitch's main chat. Shared by /api/ai, custom agents
 // (agent-executor.ts) and the Stitch eval, which runs outside SvelteKit, so
 // this file must stay free of $env and database imports.
 
-/** Write tools take their input_schema from the Zod schema that validates them. */
-const inputSchema = (name: WriteToolName): Anthropic.Tool.InputSchema =>
-	toolInputJsonSchema(writeToolSchemas[name]);
+/** Each tool takes its input_schema from the Zod schema that validates it. */
+const inputSchema = (name: ToolName): Anthropic.Tool.InputSchema =>
+	toolInputJsonSchema(toolSchemas[name]);
 
 export const stitchToolDefinitions: Anthropic.Tool[] = [
 	{
@@ -66,94 +62,30 @@ export const stitchToolDefinitions: Anthropic.Tool[] = [
 		name: 'list_brands',
 		description:
 			'List active brands as name+id pairs. Use for quick lookups before creating orders or when the user asks "what brands do we have". Faster and cheaper than query_data for simple list requests.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {},
-			required: []
-		}
+		input_schema: inputSchema('list_brands')
 	},
 	{
 		name: 'list_accounts',
 		description:
 			'List active accounts as business_name+id pairs with city/state. Use for quick lookups before creating orders or when the user asks "what accounts do we have". Faster and cheaper than query_data for simple list requests.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {},
-			required: []
-		}
+		input_schema: inputSchema('list_accounts')
 	},
 	{
 		name: 'query_data',
 		description:
 			'Search and list entities with optional filters. Supported entity values: brands, accounts, orders, shows, seasons, territories, appointments, contacts, order_lines, show_dates, products. Use filters as a key-value object keyed by column names (e.g., { status: "draft" } for orders, { business_name: "Nordstrom" } for accounts — string values use fuzzy ilike matching). For order_lines, order_id is required. Results are scoped to the current org and limited to 50 rows ordered by created_at desc. Prefer list_brands / list_accounts for simple name+id lookups.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				entity: {
-					type: 'string',
-					enum: [
-						'brands',
-						'accounts',
-						'orders',
-						'shows',
-						'seasons',
-						'territories',
-						'appointments',
-						'contacts',
-						'order_lines',
-						'show_dates',
-						'products'
-					],
-					description: 'Entity type to query (required)'
-				},
-				filters: {
-					type: 'object',
-					description:
-						'Key-value filters keyed by column name. String values use fuzzy matching (ilike %value%); numbers and booleans match exactly.',
-					additionalProperties: true
-				}
-			},
-			required: ['entity']
-		}
+		input_schema: inputSchema('query_data')
 	},
 	{
 		name: 'get_dashboard_metrics',
 		description: 'Get aggregated dashboard metrics: order counts, revenue, status breakdowns.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				date_range: {
-					type: 'string',
-					description: 'Optional date range filter (not yet implemented)'
-				},
-				brand_id: { type: 'string', description: 'Filter by specific brand ID' },
-				season_name: { type: 'string', description: 'Filter by season name (fuzzy match)' },
-				order_year: { type: 'number', description: 'Filter by order year' }
-			},
-			required: []
-		}
+		input_schema: inputSchema('get_dashboard_metrics')
 	},
 	{
 		name: 'draft_email',
 		description:
 			'Draft an email to a contact. Accepts either a direct email address or an account/brand name (fuzzy lookup) for the recipient. Returns a draft preview — this does NOT send the email. Call send_email separately after the user confirms the draft.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				to: {
-					type: 'string',
-					description: 'Recipient email address, or account/brand name to look up contact email'
-				},
-				subject: { type: 'string', description: 'Email subject line' },
-				body: { type: 'string', description: 'Email body text' },
-				related_type: {
-					type: 'string',
-					description: 'Related entity type: account, brand, or order'
-				},
-				related_id: { type: 'string', description: 'Related entity ID' }
-			},
-			required: ['to', 'subject', 'body']
-		}
+		input_schema: inputSchema('draft_email')
 	},
 	{
 		name: 'send_email',
@@ -164,15 +96,7 @@ export const stitchToolDefinitions: Anthropic.Tool[] = [
 	{
 		name: 'search_emails',
 		description: "Search the user's Gmail inbox for emails. Requires Gmail to be connected.",
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				query: { type: 'string', description: 'Search query (Gmail search syntax)' },
-				from: { type: 'string', description: 'Filter by sender email' },
-				to: { type: 'string', description: 'Filter by recipient email' }
-			},
-			required: []
-		}
+		input_schema: inputSchema('search_emails')
 	},
 	{
 		name: 'create_territory',
@@ -229,114 +153,31 @@ export const stitchToolDefinitions: Anthropic.Tool[] = [
 		name: 'get_sales_report',
 		description:
 			'Get a sales report grouped by brand, account, territory, or rep. Returns order counts, revenue, and averages.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				group_by: {
-					type: 'string',
-					enum: ['brand', 'account', 'territory', 'rep'],
-					description: 'How to group the data (required)'
-				},
-				order_year: { type: 'number', description: 'Filter by year' },
-				season_name: { type: 'string', description: 'Filter by season (fuzzy match)' }
-			},
-			required: ['group_by']
-		}
+		input_schema: inputSchema('get_sales_report')
 	},
 	{
 		name: 'get_sales_analytics',
 		description:
 			'Fast, pre-computed sales analytics with date range support. Use this for any time-scoped sales question ("this month", "Q2", "last 30 days", "May vs April"). Returns revenue, order count, units sold, and avg order value. Can group by brand, account, rep, season, date, status, or source (in-house vs agency — brand orgs only). Prefer this over get_dashboard_metrics and get_sales_report for any question involving a time period.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				date_from: {
-					type: 'string',
-					description:
-						'Start date in YYYY-MM-DD format. Derive from natural language: "this month" → first day of current month, "Q2 2026" → 2026-04-01, "last 30 days" → today minus 30.'
-				},
-				date_to: {
-					type: 'string',
-					description:
-						'End date in YYYY-MM-DD format. Derive from natural language: "this month" → today or last day of month, "Q2 2026" → 2026-06-30.'
-				},
-				season_name: {
-					type: 'string',
-					description: 'Filter by season name (fuzzy match). E.g. "Fall", "Spring 2026".'
-				},
-				brand_name: {
-					type: 'string',
-					description: 'Filter by brand name (fuzzy match).'
-				},
-				account_name: {
-					type: 'string',
-					description: 'Filter by account name (fuzzy match).'
-				},
-				rep_name: {
-					type: 'string',
-					description: 'Filter by rep name (fuzzy match).'
-				},
-				group_by: {
-					type: 'string',
-					enum: ['total', 'brand', 'account', 'rep', 'season', 'date', 'status', 'source'],
-					description:
-						'How to group results. "total" returns a single aggregate. "date" returns one row per day. "source" splits in-house vs agency (brand orgs only). Default: "total".'
-				}
-			},
-			required: []
-		}
+		input_schema: inputSchema('get_sales_analytics')
 	},
 	{
 		name: 'get_style_velocity',
 		description:
 			'Get trending/hot-selling styles. Shows which styles are being ordered by the most accounts in a given time window. Useful for identifying demand signals and trending products.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				days: {
-					type: 'number',
-					description: 'Time window in days (default 14). Common values: 7, 14, 30.'
-				},
-				brand_name: { type: 'string', description: 'Filter by brand name (fuzzy match)' },
-				min_accounts: {
-					type: 'number',
-					description: 'Minimum number of accounts to qualify as trending (default 2)'
-				},
-				limit: { type: 'number', description: 'Max results to return (default 20)' }
-			},
-			required: []
-		}
+		input_schema: inputSchema('get_style_velocity')
 	},
 	{
 		name: 'get_commission_report',
 		description:
 			'Get commission breakdown showing brand commission rates, rep commission rates, and earned amounts.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				order_year: { type: 'number', description: 'Filter by year' },
-				brand_name: { type: 'string', description: 'Filter by brand (fuzzy match)' },
-				rep_name: { type: 'string', description: 'Filter by rep name (fuzzy match)' }
-			},
-			required: []
-		}
+		input_schema: inputSchema('get_commission_report')
 	},
 	{
 		name: 'get_account_health',
 		description:
 			'Get account health scores. Shows which accounts are thriving, at risk, or need attention. Can filter by health label.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				filter: {
-					type: 'string',
-					enum: ['excellent', 'good', 'fair', 'at_risk', 'inactive', 'new'],
-					description: 'Filter by health label. Omit to see all.'
-				},
-				limit: { type: 'number', description: 'Max results (default 20)' }
-			},
-			required: []
-		}
+		input_schema: inputSchema('get_account_health')
 	},
 	{
 		name: 'add_product',
@@ -371,11 +212,7 @@ export const stitchToolDefinitions: Anthropic.Tool[] = [
 		name: 'list_notion_databases',
 		description:
 			'List available Notion databases in the connected workspace. Requires Notion to be connected.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {},
-			required: []
-		}
+		input_schema: inputSchema('list_notion_databases')
 	},
 	{
 		name: 'sync_to_notion',
@@ -387,24 +224,13 @@ export const stitchToolDefinitions: Anthropic.Tool[] = [
 		name: 'pull_from_notion',
 		description:
 			'Pull pages from a Notion database. Returns page data including properties. Requires Notion to be connected.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				database_id: { type: 'string', description: 'Notion database ID to pull from (required)' },
-				page_size: { type: 'number', description: 'Max pages to return (default 100)' }
-			},
-			required: ['database_id']
-		}
+		input_schema: inputSchema('pull_from_notion')
 	},
 	{
 		name: 'check_setup_status',
 		description:
 			'Check which organization setup sections are complete, incomplete, or skipped. Returns a boolean map of all sections.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {},
-			required: []
-		}
+		input_schema: inputSchema('check_setup_status')
 	},
 	{
 		name: 'update_org_settings',

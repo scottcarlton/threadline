@@ -1,20 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import {
+	toolSchemas,
 	writeToolSchemas,
-	parseWriteToolInput,
+	parseToolInput,
 	checkToolInput,
-	isWriteToolName,
+	isToolName,
 	toolInputJsonSchema
 } from './stitch-tools';
 
-describe('parseWriteToolInput', () => {
+describe('parseToolInput', () => {
 	it('accepts a valid call and returns typed data', () => {
-		const r = parseWriteToolInput('update_order_line', { line_id: 'l1', qty: 3 });
+		const r = parseToolInput('update_order_line', { line_id: 'l1', qty: 3 });
 		expect(r).toEqual({ success: true, data: { line_id: 'l1', qty: 3 } });
 	});
 
 	it('strips fields the schema does not declare, so handlers only see the allow-list', () => {
-		const r = parseWriteToolInput('update_brand', {
+		const r = parseToolInput('update_brand', {
 			brand_id: 'b1',
 			name: 'Acme',
 			commission_rate: 0.5,
@@ -24,7 +25,7 @@ describe('parseWriteToolInput', () => {
 	});
 
 	it('reads null as absent, at the top level and inside order lines', () => {
-		const r = parseWriteToolInput('create_order', {
+		const r = parseToolInput('create_order', {
 			account_name: 'Nordstrom',
 			brand_name: null,
 			start_ship_date: '2026-11-01',
@@ -44,7 +45,7 @@ describe('parseWriteToolInput', () => {
 	});
 
 	it('rejects a wrong type with an error that names the tool and the field path', () => {
-		const r = parseWriteToolInput('create_order', {
+		const r = parseToolInput('create_order', {
 			account_name: 'Nordstrom',
 			start_ship_date: '2026-11-01',
 			complete_ship_date: '2026-11-30',
@@ -57,34 +58,57 @@ describe('parseWriteToolInput', () => {
 	});
 
 	it('rejects a missing required field', () => {
-		const r = parseWriteToolInput('remove_order_line', { line_id: 'l1' });
+		const r = parseToolInput('remove_order_line', { line_id: 'l1' });
 		expect(r.success).toBe(false);
 		if (r.success) return;
 		expect(r.error).toContain('reason');
 	});
 
 	it('rejects a value outside an enum', () => {
-		expect(
-			parseWriteToolInput('update_order_status', { order_id: 'o1', status: 'paid' }).success
-		).toBe(false);
-		expect(parseWriteToolInput('skip_setup_section', { section: 'billing' }).success).toBe(false);
+		expect(parseToolInput('update_order_status', { order_id: 'o1', status: 'paid' }).success).toBe(
+			false
+		);
+		expect(parseToolInput('skip_setup_section', { section: 'billing' }).success).toBe(false);
 	});
 
 	it('requires at least one product id for update_products', () => {
-		expect(parseWriteToolInput('update_products', { product_ids: [], updates: {} }).success).toBe(
-			false
-		);
+		expect(parseToolInput('update_products', { product_ids: [], updates: {} }).success).toBe(false);
 	});
 
 	it('rejects input that is not an object', () => {
-		expect(parseWriteToolInput('create_brand', 'Acme').success).toBe(false);
+		expect(parseToolInput('create_brand', 'Acme').success).toBe(false);
 	});
 });
 
 describe('checkToolInput', () => {
-	it('passes tools without a schema through untouched', () => {
-		const input = { entity: 'orders', filters: { status: 'draft' } };
-		expect(checkToolInput('query_data', input)).toEqual({ success: true, data: input });
+	it('passes a name that is not a Stitch tool through, for the executor to refuse', () => {
+		const input = { anything: 1 };
+		expect(checkToolInput('not_a_tool', input)).toEqual({ success: true, data: input });
+	});
+
+	it('checks read tools too', () => {
+		expect(checkToolInput('query_data', { entity: 'invoices' }).success).toBe(false);
+		expect(checkToolInput('get_sales_report', {}).success).toBe(false);
+		expect(checkToolInput('list_brands', { stray: true })).toEqual({ success: true, data: {} });
+	});
+
+	it('keeps query_data filters to strings, numbers, and booleans, dropping nulls', () => {
+		expect(
+			checkToolInput('query_data', {
+				entity: 'orders',
+				filters: { status: 'draft', order_year: 2026, archived: false, brand_id: null }
+			})
+		).toEqual({
+			success: true,
+			data: { entity: 'orders', filters: { status: 'draft', order_year: 2026, archived: false } }
+		});
+		const nested = checkToolInput('query_data', {
+			entity: 'orders',
+			filters: { status: { in: ['draft'] } }
+		});
+		expect(nested.success).toBe(false);
+		if (nested.success) return;
+		expect(nested.error).toContain('filters.status');
 	});
 
 	it('checks write tools', () => {
@@ -96,14 +120,14 @@ describe('checkToolInput', () => {
 	});
 
 	it('treats an inherited property name as an unknown tool', () => {
-		expect(isWriteToolName('toString')).toBe(false);
-		expect(isWriteToolName('create_brand')).toBe(true);
+		expect(isToolName('toString')).toBe(false);
+		expect(isToolName('create_brand')).toBe(true);
 	});
 });
 
 describe('toolInputJsonSchema', () => {
-	it('gives every write tool an object schema with no $schema key', () => {
-		for (const [name, schema] of Object.entries(writeToolSchemas)) {
+	it('gives every tool an object schema with no $schema key', () => {
+		for (const [name, schema] of Object.entries(toolSchemas)) {
 			const json = toolInputJsonSchema(schema);
 			expect(json.type, name).toBe('object');
 			expect(json, name).not.toHaveProperty('$schema');
