@@ -1040,12 +1040,18 @@
 			});
 			const settled = get(isOnline) ? await outbox.waitFor(id, ONLINE_WAIT_MS) : undefined;
 
-			if (settled?.status === 'synced') {
+			if (settled?.status === 'synced' || settled?.status === 'needs_review') {
 				const numbers =
 					(settled.result as { orders?: Array<{ order_number: string }> } | undefined)?.orders?.map(
 						(o) => o.order_number
 					) ?? [];
+				// Shown here, so it does not need to linger in the sync panel.
 				await outbox.discard(id);
+				// Prices or terms changed since the catalog was downloaded: the order
+				// landed as a draft (SCO-209).
+				if (settled.status === 'needs_review' && settled.lastError) {
+					toast.warning(settled.lastError);
+				}
 				if (overStock > 0) {
 					toast.warning(
 						`Order saved. ${overStock} line${overStock === 1 ? '' : 's'} exceed${overStock === 1 ? 's' : ''} available stock.`

@@ -40,6 +40,7 @@ export async function sendAccount(
 
 type OrderSyncBody = {
 	orders?: Array<{ id: string; order_number: string; inserted: boolean }>;
+	drift?: { reason: string } | null;
 	message?: string;
 };
 
@@ -63,7 +64,10 @@ export async function sendOrder(
 	if (result.status !== 'synced') return result;
 	// The order numbers the server assigned replace the local "Pending sync"
 	// reference in the sync panel.
-	return { status: 'synced', result: { orders: body.orders ?? [] } };
+	const stored = { orders: body.orders ?? [] };
+	// Stored, but as a draft because prices or terms changed (SCO-209).
+	if (body.drift) return { status: 'needs_review', reason: body.drift.reason, result: stored };
+	return { status: 'synced', result: stored };
 }
 
 /** Every kind this build can send. Called once the outbox has started. */

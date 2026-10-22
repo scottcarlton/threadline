@@ -14,10 +14,13 @@ const rpc = vi.fn();
 const sendOrderEmail = vi.fn();
 const notifyBrandAdmins = vi.fn();
 const emitOrderEvent = vi.fn();
+const createNotification = vi.fn<(params: Record<string, unknown>) => Promise<void>>(
+	async () => {}
+);
 
 vi.mock('$lib/server/supabase.js', () => ({ supabaseAdmin: { rpc } }));
 vi.mock('$lib/server/order-emails.js', () => ({ sendOrderEmail }));
-vi.mock('$lib/server/notifications.js', () => ({ notifyBrandAdmins }));
+vi.mock('$lib/server/notifications.js', () => ({ notifyBrandAdmins, createNotification }));
 vi.mock('$lib/server/integrations/events.js', () => ({ emitOrderEvent }));
 vi.mock('$lib/server/orders/order-scope.js', () => ({
 	resolveOrderScope: vi.fn(async () => ({}))
@@ -36,7 +39,8 @@ vi.mock('$lib/server/orders/authorize-submit.js', () => ({
 					archived_at: null
 				}
 			]
-		])
+		]),
+		staleTermsBrandIds: []
 	}))
 }));
 vi.mock('$lib/server/orders/resolve-order-settings.js', () => ({
@@ -230,5 +234,119 @@ describe('submitOrderPayload (shared with POST /api/sync/orders)', () => {
 		const out = await submitOrderPayload(payload(), locals(), '');
 		expect(out).toMatchObject({ ok: true, orders: [{ inserted: false }] });
 		expect(sendOrderEmail).not.toHaveBeenCalled();
+	});
+});
+
+const { authorizeSubmitPayload } = await import('$lib/server/orders/authorize-submit.js');
+
+describe('drift on captured orders (SCO-209)', () => {
+	const captured = (unit_price: number, over: Record<string, unknown> = {}) => ({
+		submission_id: SUBMISSION,
+		type: 'order',
+		account_id: ACCOUNT,
+		freeform_name: null,
+		order_year: 2026,
+		submitStatus: 'submitted',
+		payment_preference: null,
+		lines: [
+			{
+				product_id: PRODUCT,
+				brand_id: BRAND,
+				season_id: null,
+				color: 'Black',
+				size: 'M',
+				qty: 2,
+				unit_price
+			}
+		],
+		groups: [{ brand_id: BRAND, season_id: null, delivery: null, location_id: null }],
+		...over
+	});
+
+	beforeEach(() => createNotification.mockClear());
+
+	it('saves a captured order as a draft when a price moved, and tells the rep once', async () => {
+		rpc.mockResolvedValue({
+			data: [{ order_id: orderId, order_number: 'A-1', inserted: true }],
+			error: null
+		});
+		const out = await submitOrderPayload(captured(8), locals(), '', { captured: true });
+		expect(rpc.mock.calls[0][1].p_orders[0].status).toBe('draft');
+		expect(out).toMatchObject({
+			ok: true,
+			drift: { reason: 'Saved as a draft: prices changed on 1 line since it was written.' }
+		});
+		expect(createNotification).toHaveBeenCalledTimes(1);
+		expect(createNotification.mock.calls[0][0]).toMatchObject({
+			userId: USER,
+			type: 'order_needs_review',
+			link: `/orders/${orderId}`
+		});
+		// A draft goes nowhere yet: no email, notification to the brand or event.
+		expect(sendOrderEmail).not.toHaveBeenCalled();
+		expect(notifyBrandAdmins).not.toHaveBeenCalled();
+	});
+
+	it('submits as written when nothing moved', async () => {
+		rpc.mockResolvedValue({
+			data: [{ order_id: orderId, order_number: 'A-1', inserted: true }],
+			error: null
+		});
+		const out = await submitOrderPayload(captured(10), locals(), '', { captured: true });
+		expect(rpc.mock.calls[0][1].p_orders[0].status).toBe('submitted');
+		expect(out).not.toHaveProperty('drift');
+		expect(createNotification).not.toHaveBeenCalled();
+	});
+
+	it('leaves the online path alone: server price, no draft', async () => {
+		rpc.mockResolvedValue({
+			data: [{ order_id: orderId, order_number: 'A-1', inserted: true }],
+			error: null
+		});
+		await submitOrderPayload(captured(8), locals(), '');
+		expect(rpc.mock.calls[0][1].p_orders[0].status).toBe('submitted');
+		expect(vi.mocked(authorizeSubmitPayload).mock.calls.at(-1)?.[3]).toMatchObject({
+			staleTerms: 'deny'
+		});
+	});
+
+	it('collects replaced terms instead of refusing a captured order', async () => {
+		vi.mocked(authorizeSubmitPayload).mockResolvedValueOnce({
+			ok: true,
+			products: new Map([
+				[
+					PRODUCT,
+					{
+						brand_id: BRAND,
+						wholesale_price: 10,
+						style_number: 'ST-1',
+						name: 'Tee',
+						archived_at: null
+					}
+				]
+			]),
+			staleTermsBrandIds: [BRAND]
+		});
+		rpc.mockResolvedValue({
+			data: [{ order_id: orderId, order_number: 'A-1', inserted: true }],
+			error: null
+		});
+		const out = await submitOrderPayload(captured(10), locals(), '', { captured: true });
+		expect(vi.mocked(authorizeSubmitPayload).mock.calls.at(-1)?.[3]).toMatchObject({
+			staleTerms: 'collect'
+		});
+		expect(rpc.mock.calls[0][1].p_orders[0].status).toBe('draft');
+		expect(out).toMatchObject({
+			drift: { reason: 'Saved as a draft: a brand updated its terms.' }
+		});
+	});
+
+	it('does not notify again on a replay', async () => {
+		rpc.mockResolvedValue({
+			data: [{ order_id: orderId, order_number: 'A-1', inserted: false }],
+			error: null
+		});
+		await submitOrderPayload(captured(8), locals(), '', { captured: true });
+		expect(createNotification).not.toHaveBeenCalled();
 	});
 });
