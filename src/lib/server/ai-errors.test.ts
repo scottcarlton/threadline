@@ -4,7 +4,8 @@ const captureException = vi.fn();
 const captureMessage = vi.fn();
 vi.mock('@sentry/sveltekit', () => ({ captureException, captureMessage }));
 
-const { reportAiError, reportAiValidation, reportAiDegraded } = await import('./ai-errors.js');
+const { reportAiError, reportAiValidation, reportAiDegraded, reportAiRefused } =
+	await import('./ai-errors.js');
 
 beforeEach(() => {
 	captureException.mockClear();
@@ -94,5 +95,35 @@ describe('reportAiDegraded', () => {
 		expect(options.fingerprint).toEqual(['ai-degraded', 'iteration_cap', 'chat']);
 		expect(options.tags).toMatchObject({ ai_degraded: 'iteration_cap', organization_id: 'org-1' });
 		expect(options.extra).toEqual({ turnId: 't-1' });
+	});
+});
+
+describe('reportAiRefused', () => {
+	it('sends a warning grouped by scope alone, tagged with endpoint and org', () => {
+		reportAiRefused('org_budget', {
+			endpoint: 'briefing',
+			organizationId: 'org-1',
+			extra: { userId: 'u-1' }
+		});
+
+		const [message, options] = captureMessage.mock.calls[0];
+		expect(message).toBe('[ai] request refused: org_budget');
+		expect(options.level).toBe('warning');
+		expect(options.fingerprint).toEqual(['ai-refused', 'org_budget']);
+		expect(options.tags).toEqual({
+			subsystem: 'ai',
+			ai_endpoint: 'briefing',
+			ai_refused: 'org_budget',
+			organization_id: 'org-1'
+		});
+		expect(options.extra).toEqual({ userId: 'u-1' });
+	});
+
+	// One issue per scope across endpoints, so the spike alert sees the total.
+	it('groups the same scope from different endpoints together', () => {
+		reportAiRefused('user_rate', { endpoint: 'chat' });
+		reportAiRefused('user_rate', { endpoint: 'linesheet' });
+		const prints = captureMessage.mock.calls.map((c) => c[1].fingerprint);
+		expect(prints[0]).toEqual(prints[1]);
 	});
 });

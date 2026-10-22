@@ -93,3 +93,29 @@ export function reportAiDegraded(kind: AiDegradedKind, ctx: AiErrorContext): voi
 		extra: ctx.extra
 	});
 }
+
+export type AiRefusalScope = 'user_rate' | 'org_rate' | 'org_budget';
+
+/**
+ * Record a request the AI limiter refused. Grouped by scope only, not by
+ * endpoint, so each scope is one Sentry issue whose event count is the refusal
+ * rate across every AI surface: that is what the refusal-spike alert counts.
+ * The endpoint and org ride along as tags for drilling in.
+ */
+export function reportAiRefused(scope: AiRefusalScope, ctx: AiErrorContext): void {
+	console.warn(`[ai] ${ctx.endpoint} refused: ${scope}`);
+
+	const tags: Record<string, string> = {
+		subsystem: 'ai',
+		ai_endpoint: ctx.endpoint,
+		ai_refused: scope
+	};
+	if (ctx.organizationId) tags.organization_id = ctx.organizationId;
+
+	Sentry.captureMessage(`[ai] request refused: ${scope}`, {
+		level: 'warning',
+		tags,
+		fingerprint: ['ai-refused', scope],
+		extra: ctx.extra
+	});
+}
