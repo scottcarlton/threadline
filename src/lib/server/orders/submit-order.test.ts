@@ -45,7 +45,7 @@ vi.mock('$lib/server/orders/resolve-order-settings.js', () => ({
 	)
 }));
 
-const { submitOrder } = await import('./submit-order');
+const { submitOrder, submitOrderPayload } = await import('./submit-order');
 const { uuidV5 } = await import('./order-ids');
 
 const orderId = uuidV5(`${SUBMISSION}:order:${BRAND}:`);
@@ -175,6 +175,60 @@ describe('submitOrder write path (SCO-204)', () => {
 		rpc.mockResolvedValue({ data: null, error: { code: '23502', message: 'boom' } });
 		const res = await run(request(), locals());
 		expect(res).toMatchObject({ status: 500 });
+		expect(sendOrderEmail).not.toHaveBeenCalled();
+	});
+});
+
+describe('submitOrderPayload (shared with POST /api/sync/orders)', () => {
+	const payload = (over: Record<string, unknown> = {}) => ({
+		submission_id: SUBMISSION,
+		type: 'order',
+		account_id: ACCOUNT,
+		freeform_name: null,
+		order_year: 2026,
+		submitStatus: 'submitted',
+		payment_preference: null,
+		lines: [
+			{ product_id: PRODUCT, brand_id: BRAND, season_id: null, color: 'Black', size: 'M', qty: 2 }
+		],
+		groups: [{ brand_id: BRAND, season_id: null, delivery: null, location_id: null }],
+		...over
+	});
+
+	it('returns the written orders instead of redirecting', async () => {
+		rpc.mockResolvedValue({
+			data: [{ order_id: orderId, order_number: 'A-1', inserted: true }],
+			error: null
+		});
+		expect(await submitOrderPayload(payload(), locals(), 'https://app.test')).toEqual({
+			ok: true,
+			orders: [{ id: orderId, order_number: 'A-1', inserted: true }]
+		});
+	});
+
+	it('reports a validation failure as a 400 outcome', async () => {
+		const out = await submitOrderPayload(payload({ lines: [] }), locals(), '');
+		expect(out).toMatchObject({ ok: false, status: 400 });
+		expect(rpc).not.toHaveBeenCalled();
+	});
+
+	it('maps an id collision to 409, not a server error', async () => {
+		const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		rpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'dup' } });
+		expect(await submitOrderPayload(payload(), locals(), '')).toMatchObject({
+			ok: false,
+			status: 409
+		});
+		spy.mockRestore();
+	});
+
+	it('marks a replay so the caller knows nothing new was written', async () => {
+		rpc.mockResolvedValue({
+			data: [{ order_id: orderId, order_number: 'A-1', inserted: false }],
+			error: null
+		});
+		const out = await submitOrderPayload(payload(), locals(), '');
+		expect(out).toMatchObject({ ok: true, orders: [{ inserted: false }] });
 		expect(sendOrderEmail).not.toHaveBeenCalled();
 	});
 });
