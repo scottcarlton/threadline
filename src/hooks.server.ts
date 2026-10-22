@@ -12,21 +12,7 @@ import { landingPathForOrgType } from '$lib/server/landing.js';
 import type { OrgType } from '$lib/types/database.js';
 import { resolveQueryScope } from '$lib/server/queries/scope.js';
 import { once } from '$lib/utils/once.js';
-
-const PUBLIC_ROUTES = [
-	'/login',
-	'/invite',
-	'/buyer-invite',
-	'/connect',
-	'/auth/callback',
-	'/logout',
-	'/upload',
-	'/api/dev',
-	'/api/beta',
-	'/api/auth/check-whitelist',
-	'/beta',
-	'/legal'
-];
+import { isPublicRoute as isPublicPath } from '$lib/server/public-routes.js';
 
 const authHandle: Handle = async ({ event, resolve }) => {
 	const supabase = createServerClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
@@ -87,7 +73,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.orgType = 'rep';
 	event.locals.allMemberships = [];
 
-	const isPublicRoute = PUBLIC_ROUTES.some((r) => event.url.pathname.startsWith(r));
+	const isPublicRoute = isPublicPath(event.url.pathname);
 
 	// Beta whitelist gate: reject users not on the whitelist
 	if (session && user && !isPublicRoute) {
