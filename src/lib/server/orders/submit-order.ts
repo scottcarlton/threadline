@@ -18,22 +18,22 @@ import { resolveOrderScope } from '$lib/server/orders/order-scope.js';
 import { authorizeSubmitPayload } from '$lib/server/orders/authorize-submit.js';
 import { submissionIds } from '$lib/server/orders/order-ids.js';
 
+export type SubmitOutcome =
+	| {
+			ok: true;
+			/** One per brand/season group, in cart order. `inserted` is false on a replay. */
+			orders: Array<{ id: string; order_number: string; inserted: boolean }>;
+	  }
+	| { ok: false; status: 400 | 401 | 403 | 409 | 500; message: string };
+
+/**
+ * The `?/submit` form action on the order wizards: reads the JSON payload from
+ * the form and turns the outcome into a redirect or a `fail`.
+ */
 export async function submitOrder(
 	request: Request,
 	locals: App.Locals
 ): Promise<ReturnType<typeof fail> | never> {
-	const { organization, user } = locals;
-	const role = locals.membership?.role;
-
-	if (!organization || !user) return fail(401, { message: 'Not authenticated' });
-
-	if (!locals.isBuyer && !['admin', 'owner', 'member', 'sales'].includes(role ?? '')) {
-		console.error('[submit-order] role rejected', { role, org_id: organization.id });
-		return fail(403, { message: 'You do not have permission to submit orders.' });
-	}
-
-	const supabase = supabaseAdmin;
-
 	const formData = await request.formData();
 	const raw = formData.get('payload');
 	if (typeof raw !== 'string') return fail(400, { message: 'Missing payload' });
@@ -44,10 +44,44 @@ export async function submitOrder(
 	} catch {
 		return fail(400, { message: 'Invalid payload JSON' });
 	}
+
+	const outcome = await submitOrderPayload(json, locals, request.headers.get('origin') ?? '');
+	if (!outcome.ok) return fail(outcome.status, { message: outcome.message });
+	if (outcome.orders.length === 0) throw redirect(303, '/orders');
+	const numbers = outcome.orders
+		.slice(0, 10)
+		.map((o) => o.order_number)
+		.join(',');
+	throw redirect(303, `/orders/confirmation?ids=${numbers}`);
+}
+
+/**
+ * Validate, authorize and write one order submission (SCO-208). Shared by the
+ * form action above and POST /api/sync/orders, so an order synced from the
+ * offline outbox is checked exactly like one submitted online, at sync time.
+ * `origin` is used for links in emails and integration events.
+ */
+export async function submitOrderPayload(
+	json: unknown,
+	locals: App.Locals,
+	origin: string
+): Promise<SubmitOutcome> {
+	const { organization, user } = locals;
+	const role = locals.membership?.role;
+
+	if (!organization || !user) return { ok: false, status: 401, message: 'Not authenticated' };
+
+	if (!locals.isBuyer && !['admin', 'owner', 'member', 'sales'].includes(role ?? '')) {
+		console.error('[submit-order] role rejected', { role, org_id: organization.id });
+		return { ok: false, status: 403, message: 'You do not have permission to submit orders.' };
+	}
+
+	const supabase = supabaseAdmin;
+
 	const parsed = submitPayloadSchema.safeParse(json);
 	if (!parsed.success) {
 		const first = parsed.error.issues[0];
-		return fail(400, { message: first?.message ?? 'Order payload failed validation' });
+		return { ok: false, status: 400, message: first?.message ?? 'Order payload failed validation' };
 	}
 	const payload = parsed.data;
 	const finalizeData: FinalizeInput | null = payload.finalize ?? null;
@@ -66,7 +100,7 @@ export async function submitOrder(
 			org_id: organization.id,
 			error: err
 		});
-		return fail(500, { message: 'Could not verify the order. Try again.' });
+		return { ok: false, status: 500, message: 'Could not verify the order. Try again.' };
 	}
 	if (!auth.ok) {
 		console.warn('[submit-order] payload rejected', {
@@ -75,7 +109,7 @@ export async function submitOrder(
 			status: auth.status,
 			message: auth.message
 		});
-		return fail(auth.status, { message: auth.message });
+		return { ok: false, status: auth.status, message: auth.message };
 	}
 
 	// Price, style number and description come from the product row, never the
@@ -125,7 +159,7 @@ export async function submitOrder(
 			payload.submitStatus
 		);
 	} catch (e) {
-		if (e instanceof CartValidationError) return fail(400, { message: e.message });
+		if (e instanceof CartValidationError) return { ok: false, status: 400, message: e.message };
 		throw e;
 	}
 
@@ -210,7 +244,7 @@ export async function submitOrder(
 		return null;
 	});
 	if (brandCommerce === null) {
-		return fail(500, { message: 'Failed to resolve brand commerce settings' });
+		return { ok: false, status: 500, message: 'Failed to resolve brand commerce settings' };
 	}
 
 	const brandOrgMap = new Map<string, string>();
@@ -355,7 +389,12 @@ export async function submitOrder(
 			order_count: prepared.length,
 			error: writeErr
 		});
-		return fail(500, { message: 'Could not save the order. Try again.' });
+		// A client id that belongs to another org or user. Retrying would get the
+		// same answer, so it is not a server error.
+		if (writeErr?.code === '23505') {
+			return { ok: false, status: 409, message: 'This order id is already in use.' };
+		}
+		return { ok: false, status: 500, message: 'Could not save the order. Try again.' };
 	}
 
 	const results = new Map(
@@ -364,12 +403,16 @@ export async function submitOrder(
 			r
 		])
 	);
-	const createdNumbers: string[] = [];
+	const orders: Array<{ id: string; order_number: string; inserted: boolean }> = [];
 
 	for (const { o, orderOrgId, row } of prepared) {
 		const result = results.get(row.id);
 		if (!result) continue;
-		createdNumbers.push(result.order_number);
+		orders.push({
+			id: result.order_id,
+			order_number: result.order_number,
+			inserted: result.inserted
+		});
 
 		// A replay already ran its side effects the first time.
 		if (!result.inserted) continue;
@@ -401,7 +444,6 @@ export async function submitOrder(
 				metadata: { status: o.status, brandId: o.brand_id, totalAmount: o.total_amount }
 			});
 
-			const origin = request.headers.get('origin') ?? '';
 			sendOrderEmail(
 				o.status,
 				{
@@ -425,10 +467,5 @@ export async function submitOrder(
 		}
 	}
 
-	if (createdNumbers.length === 0) {
-		throw redirect(303, '/orders');
-	}
-
-	const numbers = createdNumbers.slice(0, 10).join(',');
-	throw redirect(303, `/orders/confirmation?ids=${numbers}`);
+	return { ok: true, orders };
 }
