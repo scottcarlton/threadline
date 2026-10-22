@@ -1,12 +1,10 @@
 import { z } from 'zod';
 
-// Input contracts for Stitch's write tools. Each schema is the single source
+// Input contracts for Stitch's tools. Each schema is the single source
 // for two things: the JSON Schema the model is offered (stitch/tools.ts
 // generates input_schema from it) and the check a tool call must pass before
 // its handler runs (ai-tools.ts and runStitchTurn). Field descriptions are
 // model-facing prompt text, so edit them like prompt text.
-//
-// Read tools still use hand-written input_schemas; they move here next.
 //
 // This file must stay free of $env and database imports: the Stitch eval
 // imports it outside SvelteKit.
@@ -359,17 +357,128 @@ export const writeToolSchemas = {
 	})
 };
 
-export type WriteToolName = keyof typeof writeToolSchemas;
-export type WriteToolInput<K extends WriteToolName> = z.output<(typeof writeToolSchemas)[K]>;
+export const readToolSchemas = {
+	list_brands: z.object({}),
 
-export function isWriteToolName(name: string): name is WriteToolName {
-	return Object.hasOwn(writeToolSchemas, name);
+	list_accounts: z.object({}),
+
+	query_data: z.object({
+		entity: z
+			.enum([
+				'brands',
+				'accounts',
+				'orders',
+				'shows',
+				'seasons',
+				'territories',
+				'appointments',
+				'contacts',
+				'order_lines',
+				'show_dates',
+				'products'
+			])
+			.describe('Entity type to query (required)'),
+		filters: z
+			.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+			.describe(
+				'Key-value filters keyed by column name. String values use fuzzy matching (ilike %value%); numbers and booleans match exactly.'
+			)
+			.optional()
+	}),
+
+	get_dashboard_metrics: z.object({
+		date_range: optText('Optional date range filter (not yet implemented)'),
+		brand_id: optText('Filter by specific brand ID'),
+		season_name: optText('Filter by season name (fuzzy match)'),
+		order_year: optNumber('Filter by order year')
+	}),
+
+	draft_email: z.object({
+		to: text('Recipient email address, or account/brand name to look up contact email'),
+		subject: text('Email subject line'),
+		body: text('Email body text'),
+		related_type: optText('Related entity type: account, brand, or order'),
+		related_id: optText('Related entity ID')
+	}),
+
+	search_emails: z.object({
+		query: optText('Search query (Gmail search syntax)'),
+		from: optText('Filter by sender email'),
+		to: optText('Filter by recipient email')
+	}),
+
+	get_sales_report: z.object({
+		group_by: z
+			.enum(['brand', 'account', 'territory', 'rep'])
+			.describe('How to group the data (required)'),
+		order_year: optNumber('Filter by year'),
+		season_name: optText('Filter by season (fuzzy match)')
+	}),
+
+	get_sales_analytics: z.object({
+		date_from: optText(
+			'Start date in YYYY-MM-DD format. Derive from natural language: "this month" → first day of current month, "Q2 2026" → 2026-04-01, "last 30 days" → today minus 30.'
+		),
+		date_to: optText(
+			'End date in YYYY-MM-DD format. Derive from natural language: "this month" → today or last day of month, "Q2 2026" → 2026-06-30.'
+		),
+		season_name: optText('Filter by season name (fuzzy match). E.g. "Fall", "Spring 2026".'),
+		brand_name: optText('Filter by brand name (fuzzy match).'),
+		account_name: optText('Filter by account name (fuzzy match).'),
+		rep_name: optText('Filter by rep name (fuzzy match).'),
+		group_by: z
+			.enum(['total', 'brand', 'account', 'rep', 'season', 'date', 'status', 'source'])
+			.describe(
+				'How to group results. "total" returns a single aggregate. "date" returns one row per day. "source" splits in-house vs agency (brand orgs only). Default: "total".'
+			)
+			.optional()
+	}),
+
+	get_style_velocity: z.object({
+		days: optNumber('Time window in days (default 14). Common values: 7, 14, 30.'),
+		brand_name: optText('Filter by brand name (fuzzy match)'),
+		min_accounts: optNumber('Minimum number of accounts to qualify as trending (default 2)'),
+		limit: optNumber('Max results to return (default 20)')
+	}),
+
+	get_commission_report: z.object({
+		order_year: optNumber('Filter by year'),
+		brand_name: optText('Filter by brand (fuzzy match)'),
+		rep_name: optText('Filter by rep name (fuzzy match)')
+	}),
+
+	get_account_health: z.object({
+		filter: z
+			.enum(['excellent', 'good', 'fair', 'at_risk', 'inactive', 'new'])
+			.describe('Filter by health label. Omit to see all.')
+			.optional(),
+		limit: optNumber('Max results (default 20)')
+	}),
+
+	list_notion_databases: z.object({}),
+
+	pull_from_notion: z.object({
+		database_id: text('Notion database ID to pull from (required)'),
+		page_size: optNumber('Max pages to return (default 100)')
+	}),
+
+	check_setup_status: z.object({})
+};
+
+/** Every Stitch tool's input contract, writes and reads. */
+export const toolSchemas = { ...writeToolSchemas, ...readToolSchemas };
+
+export type ToolName = keyof typeof toolSchemas;
+export type ToolInput<K extends ToolName> = z.output<(typeof toolSchemas)[K]>;
+
+export function isToolName(name: string): name is ToolName {
+	return Object.hasOwn(toolSchemas, name);
 }
 
 /**
  * The model sometimes sends `null` for a field it means to leave out. Every
  * field here is either required or optional, never nullable, so a null key
- * reads as absent. Applied to the top level and to array items (order lines).
+ * reads as absent. Applied at every depth (order lines, query filters).
  */
 function dropNulls(value: unknown): unknown {
 	if (Array.isArray(value)) return value.map(dropNulls);
@@ -384,16 +493,16 @@ function dropNulls(value: unknown): unknown {
 export type ToolInputCheck<T> = { success: true; data: T } | { success: false; error: string };
 
 /**
- * Check one write tool call against its schema. Unknown keys are stripped, so
- * a handler only ever sees the fields its schema declares. The error is
- * written for the model, which gets it back as the tool result and retries.
+ * Check one tool call against its schema. Unknown keys are stripped, so a
+ * handler only ever sees the fields its schema declares. The error is written
+ * for the model, which gets it back as the tool result and retries.
  */
-export function parseWriteToolInput<K extends WriteToolName>(
+export function parseToolInput<K extends ToolName>(
 	name: K,
 	input: unknown
-): ToolInputCheck<WriteToolInput<K>> {
-	const parsed = writeToolSchemas[name].safeParse(dropNulls(input));
-	if (parsed.success) return { success: true, data: parsed.data as WriteToolInput<K> };
+): ToolInputCheck<ToolInput<K>> {
+	const parsed = toolSchemas[name].safeParse(dropNulls(input));
+	if (parsed.success) return { success: true, data: parsed.data as ToolInput<K> };
 	const issues = parsed.error.issues
 		.map((i) => `${i.path.length ? i.path.join('.') : 'input'}: ${i.message}`)
 		.join('; ');
@@ -401,15 +510,15 @@ export function parseWriteToolInput<K extends WriteToolName>(
 }
 
 /**
- * Same check for any tool name. Tools without a schema yet (the read tools)
- * pass through unchanged.
+ * Same check for any tool name. A name with no schema is not a Stitch tool;
+ * it passes through so the executor can answer "Unknown tool".
  */
 export function checkToolInput(
 	name: string,
 	input: Record<string, unknown>
 ): ToolInputCheck<Record<string, unknown>> {
-	if (!isWriteToolName(name)) return { success: true, data: input };
-	return parseWriteToolInput(name, input);
+	if (!isToolName(name)) return { success: true, data: input };
+	return parseToolInput(name, input);
 }
 
 /** input_schema for the Anthropic tool definition, generated from the Zod schema. */

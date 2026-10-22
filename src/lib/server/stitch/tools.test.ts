@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { stitchToolDefinitions, WRITE_TOOLS, buildStitchTools } from './tools';
-import { isWriteToolName, toolInputJsonSchema, writeToolSchemas } from '../../schemas/stitch-tools';
+import {
+	isToolName,
+	toolInputJsonSchema,
+	toolSchemas,
+	writeToolSchemas
+} from '../../schemas/stitch-tools';
 
 describe('stitch tools', () => {
 	it('has unique tool names', () => {
@@ -17,12 +22,16 @@ describe('stitch tools', () => {
 		expect([...WRITE_TOOLS].sort()).toEqual(Object.keys(writeToolSchemas).sort());
 	});
 
-	it('write tools offer the model the input_schema their Zod schema generates', () => {
+	it('every tool has a schema, and every schema has a tool', () => {
+		expect(stitchToolDefinitions.map((t) => t.name).sort()).toEqual(
+			Object.keys(toolSchemas).sort()
+		);
+	});
+
+	it('every tool offers the model the input_schema its Zod schema generates', () => {
 		for (const tool of stitchToolDefinitions) {
-			if (!isWriteToolName(tool.name)) continue;
-			expect(tool.input_schema, tool.name).toEqual(
-				toolInputJsonSchema(writeToolSchemas[tool.name])
-			);
+			if (!isToolName(tool.name)) throw new Error(`${tool.name} has no schema`);
+			expect(tool.input_schema, tool.name).toEqual(toolInputJsonSchema(toolSchemas[tool.name]));
 		}
 	});
 
