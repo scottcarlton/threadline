@@ -127,7 +127,10 @@
 		<script>
 			// Pages this device can open with no connection (SCO-209). Keep in step
 			// with OFFLINE_ROUTES in src/lib/pwa/offline-shell.ts (a test checks).
-			const OFFLINE_PAGES = [{ path: '/accounts/new', label: 'New account' }];
+			const OFFLINE_PAGES = [
+				{ path: '/accounts/new', label: 'New account' },
+				{ path: '/orders/new', label: 'New order' }
+			];
 
 			(async () => {
 				if (!('caches' in window)) return;

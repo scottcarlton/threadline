@@ -69,7 +69,5 @@ export async function sendOrder(
 /** Every kind this build can send. Called once the outbox has started. */
 export function registerSenders(outbox: Outbox): void {
 	outbox.registerSender('account.create', (item) => sendAccount(item));
-	// order.create registers with the offline order wizard (SCO-208). Until the
-	// wizard queues orders, registering it would let the banner promise an
-	// offline save that no form offers.
+	outbox.registerSender('order.create', (item) => sendOrder(item));
 }
