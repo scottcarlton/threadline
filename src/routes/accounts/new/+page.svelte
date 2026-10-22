@@ -18,35 +18,79 @@
 	import { createAccountSchema } from '$lib/schemas/account';
 	import { acceptedPaymentMethods } from '$lib/payment-methods';
 	import { formatPhone } from '$lib/utils/phone';
+	import { get } from 'svelte/store';
+	import { isOnline } from '$lib/stores/pwa.js';
+	import { outbox } from '$lib/offline';
+	import { holdInForeground } from '$lib/offline/sync-ui';
 
 	let { data } = $props();
 
+	// Saving goes through the offline outbox, online or not (SCO-207). Online,
+	// the page waits for the sync and behaves like an ordinary save. Offline, or
+	// if the connection drops mid-save, the account stays on this device and
+	// syncs later; the shell banner and sync panel take it from there.
+	const ONLINE_WAIT_MS = 20_000;
+
 	// svelte-ignore state_referenced_locally
-	const { form, errors, enhance, submitting, validate } = superForm(data.form, {
+	const { form, errors, enhance, submitting, validate, reset } = superForm(data.form, {
+		SPA: true,
 		validators: zod4Client(createAccountSchema),
 		validationMethod: 'onblur',
 		dataType: 'json',
-		onUpdated: ({ form }) => {
-			const msg = form.message as
-				| { type: 'success'; accountId: string; inviteFailed: boolean }
-				| string
-				| undefined;
-			if (typeof msg === 'string') {
-				toast.error(msg);
+		resetForm: false,
+		onUpdate: async ({ form: submitted }) => {
+			if (!submitted.valid) return;
+			if (!data.organizationId) {
+				toast.error('Choose an organization before adding an account.');
 				return;
 			}
-			if (msg?.type === 'success') {
-				toast.success('Account created');
-				if (msg.inviteFailed) {
-					toast.warning("Account saved, but we couldn't send the buyer invite email.");
+			const id = submitted.data.id ?? crypto.randomUUID();
+			const account = { ...submitted.data, id };
+			const release = holdInForeground(id);
+			try {
+				await outbox.enqueue({
+					id,
+					kind: 'account.create',
+					label: account.business.name,
+					payload: { organization_id: data.organizationId, account }
+				});
+				const settled = get(isOnline) ? await outbox.waitFor(id, ONLINE_WAIT_MS) : undefined;
+
+				if (settled?.status === 'synced' || settled?.status === 'needs_review') {
+					// Shown here, so it does not need to linger in the sync panel.
+					await outbox.discard(id);
+					toast.success('Account created');
+					if (settled.status === 'needs_review') {
+						toast.warning("Account saved, but we couldn't send the buyer invite email.");
+					}
+					goto(resolve('/accounts'));
+					return;
 				}
-				goto(resolve('/accounts'));
+				if (settled?.status === 'failed') {
+					// The server refused it; nothing was stored. Keep the form so the
+					// rep can fix it, and drop the queued copy so it is not resent.
+					await outbox.discard(id);
+					toast.error(settled.lastError ?? 'Could not create the account. Try again.');
+					return;
+				}
+				savedOnDevice();
+			} catch (err) {
+				console.error('[accounts/new] could not save on this device', err);
+				toast.error("Couldn't save the account on this device. Try again.");
+			} finally {
+				release();
 			}
-		},
-		onError: ({ result }) => {
-			toast.error(result.error?.message ?? 'Something went wrong. Please try again.');
 		}
 	});
+
+	function savedOnDevice() {
+		toast.success('Saved on this device. It syncs when you reconnect.');
+		// A fresh form with new ids, so the next account is a new record. The
+		// rest returns to the page's initial values (including the org default
+		// payment method).
+		reset({ data: { id: crypto.randomUUID(), primaryLocationId: crypto.randomUUID() } });
+		step = 1;
+	}
 
 	let step = $state<1 | 2 | 3>(1);
 

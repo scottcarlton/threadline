@@ -31,7 +31,12 @@
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
-	import { registerServiceWorker, isOnline } from '$lib/stores/pwa.js';
+	import { registerServiceWorker, isOnline, isStandalone } from '$lib/stores/pwa.js';
+	import { outbox, requestPersistentStorage } from '$lib/offline';
+	import { confirmSignOut } from '$lib/offline/sync-ui';
+	import { registerSenders } from '$lib/offline/senders';
+	import SyncPanel from '$lib/components/pwa/SyncPanel.svelte';
+	import SignOutWarning from '$lib/components/pwa/SignOutWarning.svelte';
 	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
 	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
 	import { startVoiceCapture, type VoiceCaptureHandle } from '$lib/utils/voice-capture';
@@ -62,6 +67,8 @@
 	}
 
 	async function handleSignOut() {
+		// Sign-out deletes the offline outbox; confirm first if it holds unsent work.
+		if (!(await confirmSignOut(outbox.unsynced))) return;
 		// First, so a failed network call below can't leave cached data behind.
 		await clearAppCaches();
 		await supabase.auth.signOut();
@@ -175,7 +182,13 @@
 			const stopAttention = startOrderAttentionPolling(60000);
 			const stopNotifications = startNotificationPolling(30000);
 			registerServiceWorker();
+			// Offline outbox (SCO-206): send anything this rep saved while offline.
+			if (data.user?.id) {
+				void outbox.start(data.user.id).then(() => registerSenders(outbox));
+				if ($isStandalone) void requestPersistentStorage();
+			}
 			return () => {
+				outbox.stop();
 				stopUnread?.();
 				stopAppointments?.();
 				stopAttention?.();
@@ -858,6 +871,8 @@
 	{#if data.session && !isAuthRoute}
 		<NotificationToasts />
 		<NotificationCenter open={notificationsOpen} onclose={() => (notificationsOpen = false)} />
+		<SyncPanel />
+		<SignOutWarning />
 	{/if}
 {/if}
 
