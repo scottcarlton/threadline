@@ -155,6 +155,9 @@
 			: ''}"
 	>
 		{#if canEdit}
+			<Button variant="outline" class="hidden sm:inline-flex" onclick={() => (showImport = true)}
+				>Import</Button
+			>
 			<Button href="/accounts/new" class="min-w-[100px]">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
