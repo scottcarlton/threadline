@@ -38,7 +38,38 @@ export async function sendAccount(
 	return { status: 'synced', result: stored };
 }
 
+type OrderSyncBody = {
+	orders?: Array<{ id: string; order_number: string; inserted: boolean }>;
+	message?: string;
+};
+
+/** POST one queued order submission to /api/sync/orders (SCO-208). */
+export async function sendOrder(
+	item: OutboxItem,
+	fetchFn: typeof fetch = fetch
+): Promise<SendResult> {
+	const res = await fetchFn('/api/sync/orders', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(item.payload)
+	});
+	let body: OrderSyncBody = {};
+	try {
+		body = (await res.json()) as OrderSyncBody;
+	} catch {
+		// A proxy or the platform answered with something other than our JSON.
+	}
+	const result = classifyResponse(res.status, body.message);
+	if (result.status !== 'synced') return result;
+	// The order numbers the server assigned replace the local "Pending sync"
+	// reference in the sync panel.
+	return { status: 'synced', result: { orders: body.orders ?? [] } };
+}
+
 /** Every kind this build can send. Called once the outbox has started. */
 export function registerSenders(outbox: Outbox): void {
 	outbox.registerSender('account.create', (item) => sendAccount(item));
+	// order.create registers with the offline order wizard (SCO-208). Until the
+	// wizard queues orders, registering it would let the banner promise an
+	// offline save that no form offers.
 }

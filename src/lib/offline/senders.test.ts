@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { sendAccount } from './senders';
+import { sendAccount, sendOrder } from './senders';
 import { item } from './test-helpers';
 
 const respond = (status: number, body: unknown) =>
@@ -44,5 +44,26 @@ describe('sendAccount', () => {
 			status: 'retry',
 			error: 'Server responded 502'
 		});
+	});
+});
+
+describe('sendOrder', () => {
+	const queued = item({ id: 'sub-1', kind: 'order.create', payload: { organization_id: 'org' } });
+
+	it('posts to the order sync endpoint and keeps the assigned numbers', async () => {
+		const orders = [{ id: 'o1', order_number: 'A-1', inserted: true }];
+		const fetchFn = respond(200, { orders });
+		expect(await sendOrder(queued, fetchFn)).toEqual({ status: 'synced', result: { orders } });
+		expect(vi.mocked(fetchFn).mock.calls[0][0]).toBe('/api/sync/orders');
+	});
+
+	it.each([
+		[400, 'failed'],
+		[403, 'failed'],
+		[409, 'failed'],
+		[401, 'auth'],
+		[500, 'retry']
+	])('maps %i to %s', async (status, expected) => {
+		expect((await sendOrder(queued, respond(status, { message: 'x' }))).status).toBe(expected);
 	});
 });
