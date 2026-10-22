@@ -37,7 +37,7 @@
 		isOnline,
 		isStandalone
 	} from '$lib/stores/pwa.js';
-	import { outbox, requestPersistentStorage } from '$lib/offline';
+	import { orderSnapshot, outbox, requestPersistentStorage } from '$lib/offline';
 	import { confirmSignOut } from '$lib/offline/sync-ui';
 	import { registerSenders } from '$lib/offline/senders';
 	import SyncPanel from '$lib/components/pwa/SyncPanel.svelte';
@@ -190,6 +190,10 @@
 			// Offline outbox (SCO-206): send anything this rep saved while offline.
 			if (data.user?.id) {
 				void outbox.start(data.user.id).then(() => registerSenders(outbox));
+				// Reps keep the order wizard's data on the device (SCO-208).
+				if (!data.isBuyer && data.organization?.id) {
+					void orderSnapshot.start(data.user.id, data.organization.id);
+				}
 				if ($isStandalone) void requestPersistentStorage();
 			}
 			// Offline app shell (SCO-209): keep the offline-capable pages cached for
@@ -204,6 +208,7 @@
 				navigator.serviceWorker?.removeEventListener('controllerchange', refreshOfflinePages);
 				window.removeEventListener('online', refreshOfflinePages);
 				outbox.stop();
+				orderSnapshot.stop();
 				stopUnread?.();
 				stopAppointments?.();
 				stopAttention?.();

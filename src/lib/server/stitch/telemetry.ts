@@ -131,3 +131,8 @@ export function trackedToolExecutor(
 export function logToolDenial(ctx: TurnContext, tool: string, reason: StitchDenialReason): void {
 	logToolCall({ ...ctx, tool, status: 'denied', denialReason: reason });
 }
+
+/** Record a tool call whose input failed its schema, for runStitchTurn's onInvalid. */
+export function logToolInvalid(ctx: TurnContext, tool: string, error: string): void {
+	logToolCall({ ...ctx, tool, status: 'invalid', error });
+}

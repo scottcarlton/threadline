@@ -126,6 +126,79 @@ describe('runStitchTurn', () => {
 		expect(messages.at(-1)).toMatchObject({ role: 'assistant' });
 	});
 
+	it('returns a schema failure to the model as an error instead of running the tool', async () => {
+		const { client, calls } = fakeClient([
+			msg([toolUse('t1', 'update_order_line', { line_id: 'l1', qty: 'three' })], 'tool_use'),
+			msg([text('Fixed it.')], 'end_turn')
+		]);
+		const events: StitchEvent[] = [];
+		const invalid: Array<[string, string]> = [];
+		const executeTool = vi.fn();
+		const r = await runStitchTurn({
+			...baseParams,
+			client,
+			messages: [{ role: 'user', content: 'set it to three' }],
+			executeTool,
+			onEvent: (e) => events.push(e),
+			onInvalid: (name, error) => invalid.push([name, error])
+		});
+		expect(executeTool).not.toHaveBeenCalled();
+		expect(invalid).toHaveLength(1);
+		expect(invalid[0][0]).toBe('update_order_line');
+		expect(invalid[0][1]).toContain('qty');
+		expect(events).toContainEqual({ type: 'tool_result', name: 'update_order_line', ok: false });
+		expect(r.attempted).toEqual([
+			{
+				name: 'update_order_line',
+				input: { line_id: 'l1', qty: 'three' },
+				denied: false,
+				invalid: true
+			}
+		]);
+		expect(r.actions).toEqual([]);
+		const fedBack = calls[1].messages.at(-1)!.content as Anthropic.ToolResultBlockParam[];
+		expect(fedBack[0]).toMatchObject({ tool_use_id: 't1', is_error: true });
+		expect(fedBack[0].content).toContain('Invalid input for update_order_line');
+	});
+
+	it('hands the executor only the fields the schema declares', async () => {
+		const { client } = fakeClient([
+			msg(
+				[toolUse('t1', 'create_season', { name: 'Fall', organization_id: 'other', notes: null })],
+				'tool_use'
+			),
+			msg([text('Done.')], 'end_turn')
+		]);
+		const executeTool = vi.fn(async () => ({ success: true }));
+		await runStitchTurn({
+			...baseParams,
+			client,
+			messages: [{ role: 'user', content: 'add fall' }],
+			executeTool
+		});
+		expect(executeTool).toHaveBeenCalledWith('create_season', { name: 'Fall' });
+	});
+
+	it('checks permission before the schema, so a guest is denied, not told how to fix it', async () => {
+		const { client } = fakeClient([
+			msg([toolUse('t1', 'create_season', {})], 'tool_use'),
+			msg([text('No.')], 'end_turn')
+		]);
+		const onInvalid = vi.fn();
+		const onDenied = vi.fn();
+		await runStitchTurn({
+			...baseParams,
+			role: 'guest',
+			client,
+			messages: [{ role: 'user', content: 'x' }],
+			executeTool: vi.fn(),
+			onDenied,
+			onInvalid
+		});
+		expect(onDenied).toHaveBeenCalledWith('create_season', 'guest_read_only');
+		expect(onInvalid).not.toHaveBeenCalled();
+	});
+
 	it('denies write tools for guests without executing them', async () => {
 		const { client, calls } = fakeClient([
 			msg([toolUse('t1', 'create_order', { account_name: 'X' })], 'tool_use'),
