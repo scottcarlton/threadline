@@ -1,12 +1,13 @@
 import { clearOfflineData } from '$lib/offline';
-import { isPagesCache, keepOnSignOut } from '$lib/pwa/offline-shell';
+import { isUserCache, keepOnSignOut } from '$lib/pwa/offline-shell';
 
 /**
  * Empties the user's data from Cache Storage on sign-out.
  *
  * Cache Storage is shared per origin, so the page can clear what the service
  * worker wrote without messaging it. Rendered pages (the offline copies of
- * offline-capable routes, SCO-209) carry the user's data and always go. The
+ * offline-capable routes, SCO-209) and product images (SCO-208) are scoped to
+ * the user and always go. The
  * precached code, static assets and `/offline.html` hold none, and the service
  * worker only adds them at install time; deleting them would leave the next
  * sign-in unable to open the app offline until the next deploy.
@@ -27,7 +28,7 @@ export async function clearAppCaches(
 	if (!cacheStorage) return;
 	try {
 		for (const name of await cacheStorage.keys()) {
-			if (isPagesCache(name)) {
+			if (isUserCache(name)) {
 				await cacheStorage.delete(name);
 				continue;
 			}

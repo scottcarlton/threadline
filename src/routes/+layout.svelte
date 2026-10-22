@@ -34,10 +34,12 @@
 	import {
 		registerServiceWorker,
 		requestOfflinePages,
+		warmProductImages,
 		isOnline,
 		isStandalone
 	} from '$lib/stores/pwa.js';
 	import { orderSnapshot, outbox, requestPersistentStorage } from '$lib/offline';
+	import { warmImageUrls } from '$lib/pwa/offline-shell';
 	import { confirmSignOut } from '$lib/offline/sync-ui';
 	import { registerSenders } from '$lib/offline/senders';
 	import SyncPanel from '$lib/components/pwa/SyncPanel.svelte';
@@ -215,6 +217,17 @@
 				stopNotifications?.();
 			};
 		}
+	});
+
+	// Fetch product images ahead whenever a fresh catalog lands, so the order
+	// wizard has pictures offline (SCO-208).
+	const currentSnapshot = orderSnapshot.current;
+	let warmedAt = 0;
+	$effect(() => {
+		const snap = $currentSnapshot;
+		if (!snap || snap.fetchedAt === warmedAt) return;
+		warmedAt = snap.fetchedAt;
+		void warmProductImages(warmImageUrls(snap.products));
 	});
 
 	// The cached offline pages carry the current org's data, so re-cache on
