@@ -8,7 +8,8 @@ import { createTracked } from './ai-usage.js';
 import { resolveAgentActor } from './agent-actor.js';
 import { stitchToolDefinitions } from './stitch/tools.js';
 import { reportAiDegraded, reportAiError } from './ai-errors.js';
-import { trackedToolExecutor } from './stitch/telemetry.js';
+import { logToolInvalid, trackedToolExecutor } from './stitch/telemetry.js';
+import { checkToolInput } from '../schemas/stitch-tools.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -108,6 +109,12 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 		);
 
 		// Every tool call this run makes lands in ai_tool_calls under the run's turn.
+		const toolCtx = {
+			endpoint: 'agent',
+			organizationId: params.orgId,
+			userId: actor.userId,
+			turnId
+		};
 		const runTool = trackedToolExecutor(
 			(name, input) =>
 				executeToolCall(name, input, {
@@ -121,7 +128,7 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 					orgType: (org?.org_type as 'rep' | 'brand') ?? 'rep',
 					origin: ''
 				}),
-			{ endpoint: 'agent', organizationId: params.orgId, userId: actor.userId, turnId }
+			toolCtx
 		);
 
 		// Tool use loop
@@ -136,7 +143,21 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 				const toolInput = block.input as Record<string, unknown>;
 				toolsUsed.push(block.name);
 
-				const result = await runTool(block.name, toolInput);
+				// Same check runStitchTurn makes: a bad input goes back to the model
+				// as an error to correct, and is recorded as invalid, not as a failure.
+				const checked = checkToolInput(block.name, toolInput);
+				if (!checked.success) {
+					logToolInvalid(toolCtx, block.name, checked.error);
+					toolResults.push({
+						type: 'tool_result',
+						tool_use_id: block.id,
+						is_error: true,
+						content: checked.error
+					});
+					continue;
+				}
+
+				const result = await runTool(block.name, checked.data);
 
 				toolResults.push({
 					type: 'tool_result',
