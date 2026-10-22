@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/sveltekit';
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
@@ -5,6 +6,7 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 import { executeAgent } from '$lib/server/agent-executor.js';
 import { logSupabaseError } from '$lib/server/log-supabase-error.js';
 import { isDue } from './is-due.js';
+import { withCronMonitor } from './monitor.js';
 
 // Vercel invokes this endpoint on the schedule in vercel.json.
 // We fan out to any org_agent_triggers whose cron_expression is due.
@@ -35,8 +37,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		throw error(401, 'Unauthorized');
 	}
 
-	const now = new Date();
+	// Check in only after auth, so a stray request cannot mark a run as done.
+	return withCronMonitor(() => run(new Date()));
+};
 
+async function run(now: Date) {
 	// Piggyback the rate-limit counter cleanup on the existing schedule rather
 	// than adding a second cron entry. Rows older than the longest window we
 	// count over are dead weight.
@@ -90,12 +95,19 @@ export const POST: RequestHandler = async ({ request }) => {
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Unknown error';
 			console.error(`Scheduled trigger ${trigger.id} failed:`, message);
+			// One agent failing is not the cron failing, so it reports as its
+			// own issue instead of failing the check-in.
+			Sentry.captureException(err, {
+				tags: { cron: 'agent-triggers', trigger_id: trigger.id, agent_id: agent.id },
+				extra: { organizationId: trigger.organization_id }
+			});
 			executed.push({ triggerId: trigger.id, ok: false, error: message });
 		}
 	}
 
-	return json({ checked: rows.length, executed });
-};
+	// A failed trigger load means no agent could run, so the run failed.
+	return { ok: !triggersError, result: json({ checked: rows.length, executed }) };
+}
 
 // Vercel Cron can also send GET; handle both for flexibility.
 export const GET: RequestHandler = async (event) => {
