@@ -31,7 +31,12 @@
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
-	import { registerServiceWorker, isOnline, isStandalone } from '$lib/stores/pwa.js';
+	import {
+		registerServiceWorker,
+		requestOfflinePages,
+		isOnline,
+		isStandalone
+	} from '$lib/stores/pwa.js';
 	import { outbox, requestPersistentStorage } from '$lib/offline';
 	import { confirmSignOut } from '$lib/offline/sync-ui';
 	import { registerSenders } from '$lib/offline/senders';
@@ -187,7 +192,17 @@
 				void outbox.start(data.user.id).then(() => registerSenders(outbox));
 				if ($isStandalone) void requestPersistentStorage();
 			}
+			// Offline app shell (SCO-209): keep the offline-capable pages cached for
+			// this user, and refresh them when a new worker takes over or the
+			// connection returns.
+			const refreshOfflinePages = () => {
+				if (!data.isBuyer) void requestOfflinePages();
+			};
+			navigator.serviceWorker?.addEventListener('controllerchange', refreshOfflinePages);
+			window.addEventListener('online', refreshOfflinePages);
 			return () => {
+				navigator.serviceWorker?.removeEventListener('controllerchange', refreshOfflinePages);
+				window.removeEventListener('online', refreshOfflinePages);
 				outbox.stop();
 				stopUnread?.();
 				stopAppointments?.();
@@ -195,6 +210,13 @@
 				stopNotifications?.();
 			};
 		}
+	});
+
+	// The cached offline pages carry the current org's data, so re-cache on
+	// sign-in and on every org switch.
+	$effect(() => {
+		const orgId = data.organization?.id;
+		if (data.session && orgId && !data.isBuyer) void requestOfflinePages();
 	});
 
 	const chatFontStyle = $derived(
