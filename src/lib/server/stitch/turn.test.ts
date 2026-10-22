@@ -60,9 +60,10 @@ describe('splitSuggestions', () => {
 			suggestions: ['a', 'b']
 		});
 	});
-	it('leaves text untouched when the line does not parse', () => {
+	it('leaves text untouched when the line does not parse, and flags it', () => {
 		expect(splitSuggestions('Done.\nSUGGESTIONS:[oops')).toEqual({
-			text: 'Done.\nSUGGESTIONS:[oops'
+			text: 'Done.\nSUGGESTIONS:[oops',
+			malformedSuggestions: true
 		});
 	});
 	it('leaves text untouched when there is no line', () => {
@@ -125,6 +126,79 @@ describe('runStitchTurn', () => {
 		expect(messages.at(-1)).toMatchObject({ role: 'assistant' });
 	});
 
+	it('returns a schema failure to the model as an error instead of running the tool', async () => {
+		const { client, calls } = fakeClient([
+			msg([toolUse('t1', 'update_order_line', { line_id: 'l1', qty: 'three' })], 'tool_use'),
+			msg([text('Fixed it.')], 'end_turn')
+		]);
+		const events: StitchEvent[] = [];
+		const invalid: Array<[string, string]> = [];
+		const executeTool = vi.fn();
+		const r = await runStitchTurn({
+			...baseParams,
+			client,
+			messages: [{ role: 'user', content: 'set it to three' }],
+			executeTool,
+			onEvent: (e) => events.push(e),
+			onInvalid: (name, error) => invalid.push([name, error])
+		});
+		expect(executeTool).not.toHaveBeenCalled();
+		expect(invalid).toHaveLength(1);
+		expect(invalid[0][0]).toBe('update_order_line');
+		expect(invalid[0][1]).toContain('qty');
+		expect(events).toContainEqual({ type: 'tool_result', name: 'update_order_line', ok: false });
+		expect(r.attempted).toEqual([
+			{
+				name: 'update_order_line',
+				input: { line_id: 'l1', qty: 'three' },
+				denied: false,
+				invalid: true
+			}
+		]);
+		expect(r.actions).toEqual([]);
+		const fedBack = calls[1].messages.at(-1)!.content as Anthropic.ToolResultBlockParam[];
+		expect(fedBack[0]).toMatchObject({ tool_use_id: 't1', is_error: true });
+		expect(fedBack[0].content).toContain('Invalid input for update_order_line');
+	});
+
+	it('hands the executor only the fields the schema declares', async () => {
+		const { client } = fakeClient([
+			msg(
+				[toolUse('t1', 'create_season', { name: 'Fall', organization_id: 'other', notes: null })],
+				'tool_use'
+			),
+			msg([text('Done.')], 'end_turn')
+		]);
+		const executeTool = vi.fn(async () => ({ success: true }));
+		await runStitchTurn({
+			...baseParams,
+			client,
+			messages: [{ role: 'user', content: 'add fall' }],
+			executeTool
+		});
+		expect(executeTool).toHaveBeenCalledWith('create_season', { name: 'Fall' });
+	});
+
+	it('checks permission before the schema, so a guest is denied, not told how to fix it', async () => {
+		const { client } = fakeClient([
+			msg([toolUse('t1', 'create_season', {})], 'tool_use'),
+			msg([text('No.')], 'end_turn')
+		]);
+		const onInvalid = vi.fn();
+		const onDenied = vi.fn();
+		await runStitchTurn({
+			...baseParams,
+			role: 'guest',
+			client,
+			messages: [{ role: 'user', content: 'x' }],
+			executeTool: vi.fn(),
+			onDenied,
+			onInvalid
+		});
+		expect(onDenied).toHaveBeenCalledWith('create_season', 'guest_read_only');
+		expect(onInvalid).not.toHaveBeenCalled();
+	});
+
 	it('denies write tools for guests without executing them', async () => {
 		const { client, calls } = fakeClient([
 			msg([toolUse('t1', 'create_order', { account_name: 'X' })], 'tool_use'),
@@ -149,6 +223,34 @@ describe('runStitchTurn', () => {
 		expect(JSON.stringify(calls[1].messages.at(-1)!.content)).toContain('Permission denied');
 	});
 
+	it('reports each denial with its reason, so it can be logged', async () => {
+		const { client } = fakeClient([
+			msg(
+				[
+					toolUse('t1', 'create_order', { account_name: 'X' }),
+					toolUse('t2', 'update_brand', { brand_id: 'b-other' })
+				],
+				'tool_use'
+			),
+			msg([text('No.')], 'end_turn')
+		]);
+		const denied: Array<[string, string]> = [];
+		await runStitchTurn({
+			...baseParams,
+			role: 'guest',
+			brandScope: ['b-mine'],
+			client,
+			messages: [{ role: 'user', content: 'x' }],
+			executeTool: vi.fn(),
+			onDenied: (name, reason) => denied.push([name, reason])
+		});
+		// update_brand is a write tool too, so a guest is refused before scope is checked.
+		expect(denied).toEqual([
+			['create_order', 'guest_read_only'],
+			['update_brand', 'guest_read_only']
+		]);
+	});
+
 	it('denies update_brand outside the brand scope', async () => {
 		const { client } = fakeClient([
 			msg([toolUse('t1', 'update_brand', { brand_id: 'b-other' })], 'tool_use'),
@@ -166,6 +268,23 @@ describe('runStitchTurn', () => {
 		expect(r.attempted[0]).toMatchObject({ name: 'update_brand', denied: true });
 	});
 
+	it('reports a brand-scope denial as brand_scope', async () => {
+		const { client } = fakeClient([
+			msg([toolUse('t1', 'update_brand', { brand_id: 'b-other' })], 'tool_use'),
+			msg([text('No access.')], 'end_turn')
+		]);
+		const onDenied = vi.fn();
+		await runStitchTurn({
+			...baseParams,
+			brandScope: ['b-mine'],
+			client,
+			messages: [{ role: 'user', content: 'rename' }],
+			executeTool: vi.fn(),
+			onDenied
+		});
+		expect(onDenied).toHaveBeenCalledWith('update_brand', 'brand_scope');
+	});
+
 	it('stops after 10 model calls even if the model keeps calling tools', async () => {
 		const { client, calls } = fakeClient([msg([toolUse('t', 'list_brands', {})], 'tool_use')]);
 		const r = await runStitchTurn({
@@ -176,6 +295,19 @@ describe('runStitchTurn', () => {
 		});
 		expect(calls).toHaveLength(10);
 		expect(r.stopReason).toBe('tool_use');
+		expect(r.hitIterationCap).toBe(true);
+	});
+
+	it('does not flag a turn that ended normally', async () => {
+		const { client } = fakeClient([msg([text('Hi.\nSUGGESTIONS:[oops')], 'end_turn')]);
+		const r = await runStitchTurn({
+			...baseParams,
+			client,
+			messages: [{ role: 'user', content: 'x' }],
+			executeTool: vi.fn()
+		});
+		expect(r.hitIterationCap).toBe(false);
+		expect(r.malformedSuggestions).toBe(true);
 	});
 
 	it('reports every response to onResponse', async () => {

@@ -288,6 +288,9 @@
 	// ── Payload for server action ─────────────────────────────────────────
 	let submitFormEl = $state<HTMLFormElement | null>(null);
 
+	// One per checkout, reused on every retry so a resubmit replays (SCO-204).
+	const submissionId = crypto.randomUUID();
+
 	const payload = $derived.by(() => {
 		const lines = orderGroups.flatMap((g) =>
 			g.items.flatMap((item) => {
@@ -352,6 +355,7 @@
 		};
 
 		return {
+			submission_id: submissionId,
 			type: 'order',
 			account_id: data.accountId,
 			freeform_name: undefined,

@@ -10,19 +10,19 @@ import { computeAccountHealth } from './account-health.js';
 import { getSetupStatus } from './setup-status.js';
 import { sendSlackMessage } from './integrations/slack.js';
 import { sendDiscordMessage } from './integrations/discord.js';
-import {
-	exportToSheet,
-	EXPORT_SCHEMAS,
-	type ExportDataType,
-	type ExportRow
-} from './integrations/google-sheets.js';
+import { exportToSheet, EXPORT_SCHEMAS, type ExportRow } from './integrations/google-sheets.js';
 import {
 	listDatabases,
 	syncToNotion,
 	pullFromNotion,
-	mapToNotionProperties,
-	type SyncDataType
+	mapToNotionProperties
 } from './integrations/notion.js';
+import {
+	isToolName,
+	parseToolInput,
+	type ToolInput,
+	type ToolName
+} from '../schemas/stitch-tools.js';
 
 // Submit-side effects (email + notifications) are loaded lazily so that the
 // ai-tools module stays importable in unit tests where $env/dynamic/private
@@ -130,116 +130,97 @@ export async function executeToolCall(
 	toolInput: Record<string, unknown>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	switch (toolName) {
-		case 'create_brand':
-			return createBrand(toolInput, ctx);
-		case 'update_brand':
-			return updateBrand(toolInput, ctx);
-		case 'create_account':
-			return createAccount(toolInput, ctx);
-		case 'update_account':
-			return updateAccount(toolInput, ctx);
-		case 'create_order':
-			return createOrder(toolInput, ctx);
-		case 'add_order_lines':
-			return addOrderLines(toolInput, ctx);
-		case 'update_order_status':
-			return updateOrderStatus(toolInput, ctx);
-		case 'create_season':
-			return createSeason(toolInput, ctx);
-		case 'create_show':
-			return createShow(toolInput, ctx);
-		case 'query_data':
-			return queryData(toolInput, ctx);
-		case 'list_brands':
-			return listBrands(ctx);
-		case 'list_accounts':
-			return listAccounts(ctx);
-		case 'get_dashboard_metrics':
-			return getDashboardMetrics(toolInput, ctx);
-		case 'draft_email':
-			return draftEmail(toolInput, ctx);
-		case 'send_email':
-			return sendEmail(toolInput, ctx);
-		case 'search_emails':
-			return searchEmails(toolInput, ctx);
-		case 'create_territory':
-			return createTerritory(toolInput, ctx);
-		case 'update_territory':
-			return updateTerritory(toolInput, ctx);
-		case 'assign_account_territory':
-			return assignAccountTerritory(toolInput, ctx);
-		case 'create_appointment':
-			return createAppointment(toolInput, ctx);
-		case 'update_appointment':
-			return updateAppointment(toolInput, ctx);
-		case 'delete_appointment':
-			return deleteAppointment(toolInput, ctx);
-		case 'update_order_line':
-			return updateOrderLine(toolInput, ctx);
-		case 'remove_order_line':
-			return removeOrderLine(toolInput, ctx);
-		case 'update_order':
-			return updateOrder(toolInput, ctx);
-		case 'archive_entity':
-			return archiveEntity(toolInput, ctx);
-		case 'get_sales_report':
-			return getSalesReport(toolInput, ctx);
-		case 'get_sales_analytics':
-			return getSalesAnalytics(toolInput, ctx);
-		case 'get_style_velocity':
-			return getStyleVelocity(toolInput, ctx);
-		case 'get_commission_report':
-			return getCommissionReport(toolInput, ctx);
-		case 'get_account_health':
-			return getAccountHealth(toolInput, ctx);
-		case 'add_product':
-			return addProduct(toolInput, ctx);
-		case 'update_products':
-			return updateProducts(toolInput, ctx);
-		case 'send_slack_message':
-			return sendSlack(toolInput, ctx);
-		case 'send_discord_message':
-			return sendDiscord(toolInput, ctx);
-		case 'export_to_google_sheet':
-			return exportGoogleSheet(toolInput, ctx);
-		case 'list_notion_databases':
-			return listNotionDbs(ctx);
-		case 'sync_to_notion':
-			return syncNotion(toolInput, ctx);
-		case 'pull_from_notion':
-			return pullNotion(toolInput, ctx);
-		case 'check_setup_status':
-			return checkSetupStatus(ctx);
-		case 'update_org_settings':
-			return updateOrgSettings(toolInput, ctx);
-		case 'update_org_shipping':
-			return updateOrgShipping(toolInput, ctx);
-		case 'update_org_payments':
-			return updateOrgPayments(toolInput, ctx);
-		case 'update_org_taxes':
-			return updateOrgTaxes(toolInput, ctx);
-		case 'update_org_returns':
-			return updateOrgReturns(toolInput, ctx);
-		case 'skip_setup_section':
-			return skipSetupSection(toolInput, ctx);
-		default:
-			return { success: false, error: `Unknown tool: ${toolName}` };
-	}
+	if (!isToolName(toolName)) return { success: false, error: `Unknown tool: ${toolName}` };
+	return runTool(toolName, toolInput, ctx);
 }
 
-async function createBrand(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+type ToolHandlers = {
+	[K in ToolName]: (input: ToolInput<K>, ctx: ToolContext) => Promise<ToolResult>;
+};
+
+const toolHandlers: ToolHandlers = {
+	create_brand: createBrand,
+	update_brand: updateBrand,
+	create_account: createAccount,
+	update_account: updateAccount,
+	create_order: createOrder,
+	add_order_lines: addOrderLines,
+	update_order_status: updateOrderStatus,
+	create_season: createSeason,
+	create_show: createShow,
+	send_email: sendEmail,
+	create_territory: createTerritory,
+	update_territory: updateTerritory,
+	assign_account_territory: assignAccountTerritory,
+	create_appointment: createAppointment,
+	update_appointment: updateAppointment,
+	delete_appointment: deleteAppointment,
+	update_order_line: updateOrderLine,
+	remove_order_line: removeOrderLine,
+	update_order: updateOrder,
+	archive_entity: archiveEntity,
+	add_product: addProduct,
+	update_products: updateProducts,
+	send_slack_message: sendSlack,
+	send_discord_message: sendDiscord,
+	export_to_google_sheet: exportGoogleSheet,
+	sync_to_notion: syncNotion,
+	update_org_settings: updateOrgSettings,
+	update_org_shipping: updateOrgShipping,
+	update_org_payments: updateOrgPayments,
+	update_org_taxes: updateOrgTaxes,
+	update_org_returns: updateOrgReturns,
+	skip_setup_section: skipSetupSection,
+
+	list_brands: (_input, ctx) => listBrands(ctx),
+	list_accounts: (_input, ctx) => listAccounts(ctx),
+	query_data: queryData,
+	get_dashboard_metrics: getDashboardMetrics,
+	draft_email: draftEmail,
+	search_emails: searchEmails,
+	get_sales_report: getSalesReport,
+	get_sales_analytics: getSalesAnalytics,
+	get_style_velocity: getStyleVelocity,
+	get_commission_report: getCommissionReport,
+	get_account_health: getAccountHealth,
+	list_notion_databases: (_input, ctx) => listNotionDbs(ctx),
+	pull_from_notion: pullNotion,
+	check_setup_status: (_input, ctx) => checkSetupStatus(ctx)
+};
+
+/**
+ * Every call runs through its tool's schema here, whoever the caller is:
+ * Stitch chat, custom agents, or the messaging agent's place_order.
+ * runStitchTurn checks first so it can flag the result as an error and record
+ * the call as invalid; this second check is what lets the handlers trust
+ * their input.
+ */
+async function runTool<K extends ToolName>(
+	name: K,
+	input: Record<string, unknown>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	const parsed = parseToolInput(name, input);
+	if (!parsed.success) return { success: false, error: parsed.error };
+	const handler: ToolHandlers[K] = toolHandlers[name];
+	return handler(parsed.data, ctx);
+}
+
+async function createBrand(
+	input: ToolInput<'create_brand'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const { data, error } = await ctx.supabase
 		.from('brands')
 		.insert({
 			organization_id: ctx.organizationId,
-			name: input.name as string,
-			contact_first_name: (input.contact_first_name as string) ?? null,
-			contact_last_name: (input.contact_last_name as string) ?? null,
-			contact_email: (input.contact_email as string) ?? null,
-			contact_phone: (input.contact_phone as string) ?? null,
-			website: (input.website as string) ?? null,
-			notes: (input.notes as string) ?? null
+			name: input.name,
+			contact_first_name: input.contact_first_name ?? null,
+			contact_last_name: input.contact_last_name ?? null,
+			contact_email: input.contact_email ?? null,
+			contact_phone: input.contact_phone ?? null,
+			website: input.website ?? null,
+			notes: input.notes ?? null
 		})
 		.select()
 		.single();
@@ -248,26 +229,13 @@ async function createBrand(input: Record<string, unknown>, ctx: ToolContext): Pr
 	return { success: true, data };
 }
 
-const BRAND_UPDATE_FIELDS = [
-	'name',
-	'logo_url',
-	'contact_name',
-	'contact_first_name',
-	'contact_last_name',
-	'contact_email',
-	'contact_phone',
-	'website',
-	'notes',
-	'is_active',
-	'commission_rate'
-] as const;
-
-async function updateBrand(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	const brand_id = input.brand_id as string;
-	const patch: Record<string, unknown> = {};
-	for (const key of BRAND_UPDATE_FIELDS) {
-		if (key in input) patch[key] = input[key];
-	}
+async function updateBrand(
+	input: ToolInput<'update_brand'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	// The schema is the allow-list: parsing drops any field it does not declare.
+	const { brand_id, ...fields } = input;
+	const patch: Record<string, unknown> = { ...fields };
 	if (Object.keys(patch).length === 0) {
 		return { success: false, error: 'No allowed fields in updates' };
 	}
@@ -286,10 +254,10 @@ async function updateBrand(input: Record<string, unknown>, ctx: ToolContext): Pr
 }
 
 async function createAccount(
-	input: Record<string, unknown>,
+	input: ToolInput<'create_account'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const businessName = (input.business_name as string)?.trim();
+	const businessName = input.business_name?.trim();
 	if (!businessName) {
 		return { success: false, error: 'business_name is required' };
 	}
@@ -325,15 +293,15 @@ async function createAccount(
 		.insert({
 			organization_id: ctx.organizationId,
 			business_name: businessName,
-			contact_first_name: (input.contact_first_name as string) ?? null,
-			contact_last_name: (input.contact_last_name as string) ?? null,
-			contact_email: (input.contact_email as string) ?? null,
-			phone: (input.phone as string) ?? null,
-			address_line1: (input.address_line1 as string) ?? null,
-			city: (input.city as string) ?? null,
-			state: (input.state as string) ?? null,
-			zip: (input.zip as string) ?? null,
-			notes: (input.notes as string) ?? null
+			contact_first_name: input.contact_first_name ?? null,
+			contact_last_name: input.contact_last_name ?? null,
+			contact_email: input.contact_email ?? null,
+			phone: input.phone ?? null,
+			address_line1: input.address_line1 ?? null,
+			city: input.city ?? null,
+			state: input.state ?? null,
+			zip: input.zip ?? null,
+			notes: input.notes ?? null
 		})
 		.select()
 		.single();
@@ -341,7 +309,7 @@ async function createAccount(
 	if (error) return { success: false, error: error.message };
 
 	// Auto-invite contact to buyer portal if email provided
-	const contactEmail = input.contact_email as string | undefined;
+	const contactEmail = input.contact_email;
 	if (contactEmail && data?.id) {
 		// Result was previously discarded, so a rejected insert (invited_by is
 		// uuid not null) looked like a sent invitation. Surface it instead: the
@@ -366,8 +334,8 @@ async function createAccount(
 		const { emitIntegrationEvent } = await import('./integrations/events.js');
 		emitIntegrationEvent(ctx.organizationId, 'new_account', {
 			accountName: businessName,
-			city: (input.city as string) ?? undefined,
-			state: (input.state as string) ?? undefined,
+			city: input.city ?? undefined,
+			state: input.state ?? undefined,
 			url: `${ctx.origin}/accounts/${data.id}`
 		});
 	}
@@ -375,33 +343,13 @@ async function createAccount(
 	return { success: true, data };
 }
 
-const ACCOUNT_UPDATE_FIELDS = [
-	'business_name',
-	'contact_name',
-	'contact_first_name',
-	'contact_last_name',
-	'contact_email',
-	'phone',
-	'address_line1',
-	'address_line2',
-	'city',
-	'state',
-	'zip',
-	'country',
-	'notes',
-	'is_active',
-	'territory_id'
-] as const;
-
 async function updateAccount(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_account'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const account_id = input.account_id as string;
-	const patch: Record<string, unknown> = {};
-	for (const key of ACCOUNT_UPDATE_FIELDS) {
-		if (key in input) patch[key] = input[key];
-	}
+	// The schema is the allow-list: parsing drops any field it does not declare.
+	const { account_id, ...fields } = input;
+	const patch: Record<string, unknown> = { ...fields };
 	if (Object.keys(patch).length === 0) {
 		return { success: false, error: 'No allowed fields in updates' };
 	}
@@ -419,14 +367,7 @@ async function updateAccount(
 	return { success: true, data };
 }
 
-type OrderLineInput = {
-	style_number?: string;
-	description?: string;
-	color?: string;
-	size?: string;
-	qty: number;
-	unit_price?: number;
-};
+type OrderLineInput = ToolInput<'create_order'>['lines'][number];
 
 // Pick the brand a brand org is selling when the user didn't name one. Brand
 // orgs get an is_self_brand row created alongside the organization, so that's
@@ -440,7 +381,10 @@ export function pickOwnBrand<T extends { id: string; name: string; is_self_brand
 	return rows.length === 1 ? rows[0] : null;
 }
 
-async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function createOrder(
+	input: ToolInput<'create_order'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	// Mirror the manual /orders/new flow (src/lib/server/orders/cart.ts):
 	//   - one order per (brand, season)
 	//   - season is DERIVED from the products in the cart, not passed in
@@ -448,11 +392,11 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	//     delivery_id stays null
 	//   - created_by = the sales rep's profile (defaults to the caller)
 
-	const accountName = (input.account_name as string)?.trim() ?? '';
-	const brandName = (input.brand_name as string)?.trim() ?? '';
-	const startShip = input.start_ship_date as string | undefined;
-	const completeShip = input.complete_ship_date as string | undefined;
-	const rawLines = input.lines as OrderLineInput[] | undefined;
+	const accountName = input.account_name?.trim() ?? '';
+	const brandName = input.brand_name?.trim() ?? '';
+	const startShip = input.start_ship_date;
+	const completeShip = input.complete_ship_date;
+	const rawLines = input.lines;
 
 	if (!accountName) return { success: false, error: 'account_name is required' };
 	if (!startShip || !completeShip) {
@@ -522,7 +466,7 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 
 	// --- Sales rep → created_by (defaults to the authenticated user) ---
 	let createdBy = ctx.userId;
-	const repName = (input.rep_name as string | undefined)?.trim();
+	const repName = input.rep_name?.trim();
 	if (repName) {
 		const { data: memberRow } = await ctx.supabase
 			.from('organization_members')
@@ -623,9 +567,9 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	// (e.g. the user said "save as a draft"). We insert as 'draft' first so
 	// that if line insertion fails the order isn't left submitted-with-no-lines,
 	// then flip to 'submitted' once the lines are in.
-	const requestedStatus = input.status as 'draft' | 'submitted' | undefined;
+	const requestedStatus = input.status;
 	const finalStatus: 'draft' | 'submitted' = requestedStatus === 'draft' ? 'draft' : 'submitted';
-	const requestedType = input.order_type as 'order' | 'note' | undefined;
+	const requestedType = input.order_type;
 	const orderType: 'order' | 'note' = requestedType === 'note' ? 'note' : 'order';
 
 	// --- Insert the order (custom delivery mode — explicit start+expected) ---
@@ -642,7 +586,7 @@ async function createOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 			delivery_id: null,
 			status: 'draft',
 			order_type: orderType,
-			notes: (input.notes as string) ?? null,
+			notes: input.notes ?? null,
 			created_by: createdBy
 		})
 		.select('id, order_number')
@@ -776,7 +720,7 @@ async function findByName<T>(factory: () => any, column: string, value: string):
 }
 
 async function addOrderLines(
-	input: Record<string, unknown>,
+	input: ToolInput<'add_order_lines'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	const lines = input.lines as Array<{
@@ -788,7 +732,7 @@ async function addOrderLines(
 		unit_price: number;
 	}>;
 
-	const orderId = input.order_id as string;
+	const orderId = input.order_id;
 
 	// Verify order belongs to org
 	const { data: order, error: orderError } = await ctx.supabase
@@ -834,10 +778,10 @@ async function addOrderLines(
 }
 
 async function updateOrderStatus(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_order_status'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const status = input.status as string;
+	const status = input.status;
 
 	const permitted = maySetOrderStatus(ctx.trust, status);
 	if (!permitted.allowed) return { success: false, error: permitted.error };
@@ -872,7 +816,7 @@ async function updateOrderStatus(
 	const { data, error } = await ctx.supabase
 		.from('orders')
 		.update(updatePayload)
-		.eq('id', input.order_id as string)
+		.eq('id', input.order_id)
 		.eq('organization_id', ctx.organizationId)
 		.select('id, order_number, status, total_amount, brand_id, account_id, created_by')
 		.single();
@@ -908,13 +852,7 @@ async function updateOrderStatus(
 
 		if (status === 'confirmed' || status === 'shipped' || status === 'cancelled') {
 			const { emitOrderEvent } = await import('./integrations/events.js');
-			await emitOrderEvent(
-				ctx.organizationId,
-				row.id,
-				status as 'confirmed' | 'shipped' | 'cancelled',
-				ctx.origin,
-				status === 'cancelled' ? { reason: input.reason as string | undefined } : undefined
-			);
+			await emitOrderEvent(ctx.organizationId, row.id, status, ctx.origin);
 		}
 	}
 
@@ -924,13 +862,16 @@ async function updateOrderStatus(
 	};
 }
 
-async function createSeason(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function createSeason(
+	input: ToolInput<'create_season'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const { data, error } = await ctx.supabase
 		.from('seasons')
 		.insert({
 			organization_id: ctx.organizationId,
-			name: input.name as string,
-			sort_order: (input.sort_order as number) ?? 0
+			name: input.name,
+			sort_order: input.sort_order ?? 0
 		})
 		.select()
 		.single();
@@ -939,14 +880,14 @@ async function createSeason(input: Record<string, unknown>, ctx: ToolContext): P
 	return { success: true, data };
 }
 
-async function createShow(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function createShow(input: ToolInput<'create_show'>, ctx: ToolContext): Promise<ToolResult> {
 	let seasonId: string | null = null;
 	if (input.season_name) {
 		const { data: seasons } = await ctx.supabase
 			.from('seasons')
 			.select('id')
 			.eq('organization_id', ctx.organizationId)
-			.ilike('name', `%${input.season_name as string}%`)
+			.ilike('name', `%${input.season_name}%`)
 			.limit(1);
 		seasonId = seasons?.[0]?.id ?? null;
 	}
@@ -955,14 +896,14 @@ async function createShow(input: Record<string, unknown>, ctx: ToolContext): Pro
 		.from('shows')
 		.insert({
 			organization_id: ctx.organizationId,
-			name: input.name as string,
-			venue: (input.venue as string) ?? null,
-			city: (input.city as string) ?? null,
-			state: (input.state as string) ?? null,
-			start_date: (input.start_date as string) ?? null,
-			end_date: (input.end_date as string) ?? null,
+			name: input.name,
+			venue: input.venue ?? null,
+			city: input.city ?? null,
+			state: input.state ?? null,
+			start_date: input.start_date ?? null,
+			end_date: input.end_date ?? null,
 			season_id: seasonId,
-			year: (input.year as number) ?? null
+			year: input.year ?? null
 		})
 		.select()
 		.single();
@@ -971,9 +912,9 @@ async function createShow(input: Record<string, unknown>, ctx: ToolContext): Pro
 	return { success: true, data };
 }
 
-async function queryData(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	const entity = input.entity as string;
-	const filters = (input.filters as Record<string, unknown>) ?? {};
+async function queryData(input: ToolInput<'query_data'>, ctx: ToolContext): Promise<ToolResult> {
+	const entity = input.entity;
+	const filters = input.filters ?? {};
 
 	const tableMap: Record<string, string> = {
 		brands: 'brands',
@@ -1098,7 +1039,7 @@ async function listAccounts(ctx: ToolContext): Promise<ToolResult> {
 }
 
 async function getDashboardMetrics(
-	input: Record<string, unknown>,
+	input: ToolInput<'get_dashboard_metrics'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	try {
@@ -1120,17 +1061,17 @@ async function getDashboardMetrics(
 			ordersQuery = ordersQuery.in('brand_id', ctx.brandScope);
 		}
 		if (input.brand_id) {
-			ordersQuery = ordersQuery.eq('brand_id', input.brand_id as string);
+			ordersQuery = ordersQuery.eq('brand_id', input.brand_id);
 		}
 		if (input.order_year) {
-			ordersQuery = ordersQuery.eq('order_year', input.order_year as number);
+			ordersQuery = ordersQuery.eq('order_year', input.order_year);
 		}
 		if (input.season_name) {
 			const { data: seasons } = await ctx.supabase
 				.from('seasons')
 				.select('id')
 				.eq('organization_id', ctx.organizationId)
-				.ilike('name', `%${input.season_name as string}%`)
+				.ilike('name', `%${input.season_name}%`)
 				.limit(1);
 			if (seasons?.[0]) {
 				ordersQuery = ordersQuery.eq('season_id', seasons[0].id);
@@ -1201,10 +1142,10 @@ async function resolveEmail(nameOrEmail: string, ctx: ToolContext): Promise<stri
 	return null;
 }
 
-async function draftEmail(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	const to = input.to as string;
-	const subject = input.subject as string;
-	const body = input.body as string;
+async function draftEmail(input: ToolInput<'draft_email'>, ctx: ToolContext): Promise<ToolResult> {
+	const to = input.to;
+	const subject = input.subject;
+	const body = input.body;
 
 	const email = await resolveEmail(to, ctx);
 	if (!email) {
@@ -1226,12 +1167,12 @@ async function draftEmail(input: Record<string, unknown>, ctx: ToolContext): Pro
 	};
 }
 
-async function sendEmail(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	const to = input.to as string;
-	const subject = input.subject as string;
-	const body = input.body as string;
-	const relatedType = input.related_type as string | undefined;
-	const relatedId = input.related_id as string | undefined;
+async function sendEmail(input: ToolInput<'send_email'>, ctx: ToolContext): Promise<ToolResult> {
+	const to = input.to;
+	const subject = input.subject;
+	const body = input.body;
+	const relatedType = input.related_type;
+	const relatedId = input.related_id;
 
 	const email = await resolveEmail(to, ctx);
 	if (!email) {
@@ -1283,7 +1224,10 @@ async function sendEmail(input: Record<string, unknown>, ctx: ToolContext): Prom
 	}
 }
 
-async function searchEmails(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function searchEmails(
+	input: ToolInput<'search_emails'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	try {
 		const gmail = await getGmailClient(ctx.userId);
 		if (!gmail) {
@@ -1356,12 +1300,12 @@ async function resolveMember(name: string, ctx: ToolContext): Promise<string | n
 
 // --- Territory tools ---
 async function createTerritory(
-	input: Record<string, unknown>,
+	input: ToolInput<'create_territory'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	let assignedTo: string | null = null;
 	if (input.assigned_to_name) {
-		assignedTo = await resolveMember(input.assigned_to_name as string, ctx);
+		assignedTo = await resolveMember(input.assigned_to_name, ctx);
 		if (!assignedTo)
 			return {
 				success: false,
@@ -1373,8 +1317,8 @@ async function createTerritory(
 		.from('territories')
 		.insert({
 			organization_id: ctx.organizationId,
-			name: input.name as string,
-			notes: (input.notes as string) ?? null
+			name: input.name,
+			notes: input.notes ?? null
 		})
 		.select()
 		.single();
@@ -1392,7 +1336,7 @@ async function createTerritory(
 }
 
 async function updateTerritory(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_territory'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -1404,7 +1348,7 @@ async function updateTerritory(
 	let reassignTo: string | null | undefined;
 	if (input.assigned_to_name !== undefined) {
 		if (input.assigned_to_name) {
-			const memberId = await resolveMember(input.assigned_to_name as string, ctx);
+			const memberId = await resolveMember(input.assigned_to_name, ctx);
 			if (!memberId)
 				return {
 					success: false,
@@ -1419,7 +1363,7 @@ async function updateTerritory(
 	const { data, error } = await ctx.supabase
 		.from('territories')
 		.update(updates)
-		.eq('id', input.territory_id as string)
+		.eq('id', input.territory_id)
 		.eq('organization_id', ctx.organizationId)
 		.select()
 		.single();
@@ -1440,7 +1384,7 @@ async function updateTerritory(
 }
 
 async function assignAccountTerritory(
-	input: Record<string, unknown>,
+	input: ToolInput<'assign_account_territory'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	// Fuzzy match account
@@ -1448,7 +1392,7 @@ async function assignAccountTerritory(
 		.from('accounts')
 		.select('id, business_name')
 		.eq('organization_id', ctx.organizationId)
-		.ilike('business_name', `%${input.account_name as string}%`)
+		.ilike('business_name', `%${input.account_name}%`)
 		.limit(1);
 
 	if (!accounts?.length)
@@ -1460,7 +1404,7 @@ async function assignAccountTerritory(
 			.from('territories')
 			.select('id, name')
 			.eq('organization_id', ctx.organizationId)
-			.ilike('name', `%${input.territory_name as string}%`)
+			.ilike('name', `%${input.territory_name}%`)
 			.limit(1);
 		if (!territories?.length)
 			return { success: false, error: `Territory not found matching "${input.territory_name}"` };
@@ -1481,7 +1425,7 @@ async function assignAccountTerritory(
 
 // --- Appointment tools ---
 async function createAppointment(
-	input: Record<string, unknown>,
+	input: ToolInput<'create_appointment'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	// Accounts are federation-aware: RLS returns own + federated so reps can
@@ -1489,14 +1433,15 @@ async function createAppointment(
 	const { data: accounts } = await ctx.supabase
 		.from('accounts')
 		.select('id, business_name')
-		.ilike('business_name', `%${input.account_name as string}%`)
+		.ilike('business_name', `%${input.account_name}%`)
 		.limit(1);
 
 	if (!accounts?.length)
 		return { success: false, error: `Account not found matching "${input.account_name}"` };
 
 	let showDateId: string | null = null;
-	if (input.show_name && input.location_type === 'show') {
+	const showName = input.show_name;
+	if (showName && input.location_type === 'show') {
 		const { data: showDates } = await ctx.supabase
 			.from('show_dates')
 			.select('id, shows(name)')
@@ -1509,7 +1454,7 @@ async function createAppointment(
 		};
 		const match = (showDates as ShowDateRow[] | null)?.find((sd) => {
 			const name = Array.isArray(sd.shows) ? sd.shows[0]?.name : sd.shows?.name;
-			return name?.toLowerCase().includes((input.show_name as string).toLowerCase());
+			return name?.toLowerCase().includes(showName.toLowerCase());
 		});
 		showDateId = match?.id ?? null;
 	}
@@ -1521,12 +1466,12 @@ async function createAppointment(
 			account_id: accounts[0].id,
 			show_date_id: showDateId,
 			appointment_type: 'scheduled',
-			location_type: input.location_type as string,
-			location_detail: (input.location_detail as string) ?? null,
-			scheduled_date: (input.scheduled_date as string) ?? null,
-			scheduled_time: (input.scheduled_time as string) ?? null,
-			duration_minutes: (input.duration_minutes as number) ?? 30,
-			notes: (input.notes as string) ?? null,
+			location_type: input.location_type,
+			location_detail: input.location_detail ?? null,
+			scheduled_date: input.scheduled_date ?? null,
+			scheduled_time: input.scheduled_time ?? null,
+			duration_minutes: input.duration_minutes ?? 30,
+			notes: input.notes ?? null,
 			status: 'scheduled',
 			created_by: ctx.userId
 		})
@@ -1538,7 +1483,7 @@ async function createAppointment(
 }
 
 async function updateAppointment(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_appointment'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -1551,7 +1496,7 @@ async function updateAppointment(
 	const { data, error } = await ctx.supabase
 		.from('appointments')
 		.update(updates)
-		.eq('id', input.appointment_id as string)
+		.eq('id', input.appointment_id)
 		.eq('organization_id', ctx.organizationId)
 		.select('*, accounts(business_name)')
 		.single();
@@ -1561,13 +1506,13 @@ async function updateAppointment(
 }
 
 async function deleteAppointment(
-	input: Record<string, unknown>,
+	input: ToolInput<'delete_appointment'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	const { error } = await ctx.supabase
 		.from('appointments')
 		.delete()
-		.eq('id', input.appointment_id as string)
+		.eq('id', input.appointment_id)
 		.eq('organization_id', ctx.organizationId);
 
 	if (error) return { success: false, error: error.message };
@@ -1576,11 +1521,11 @@ async function deleteAppointment(
 
 // --- Order editing tools ---
 async function updateOrderLine(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_order_line'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const lineId = input.line_id as string;
-	const newQty = input.qty as number;
+	const lineId = input.line_id;
+	const newQty = input.qty;
 	if (newQty < 1) return { success: false, error: 'Quantity must be at least 1' };
 
 	// Get current line and verify org ownership
@@ -1616,11 +1561,11 @@ async function updateOrderLine(
 }
 
 async function removeOrderLine(
-	input: Record<string, unknown>,
+	input: ToolInput<'remove_order_line'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const lineId = input.line_id as string;
-	const reason = input.reason as string;
+	const lineId = input.line_id;
+	const reason = input.reason;
 
 	// Verify org ownership
 	const { data: line } = await ctx.supabase
@@ -1651,7 +1596,10 @@ async function removeOrderLine(
 	return { success: true, data };
 }
 
-async function updateOrder(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function updateOrder(
+	input: ToolInput<'update_order'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 	if (input.notes !== undefined) updates.notes = input.notes || null;
 	if (input.expected_ship_date) updates.expected_ship_date = input.expected_ship_date;
@@ -1660,7 +1608,7 @@ async function updateOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 	const { data, error } = await ctx.supabase
 		.from('orders')
 		.update(updates)
-		.eq('id', input.order_id as string)
+		.eq('id', input.order_id)
 		.eq('organization_id', ctx.organizationId)
 		.select('id, order_number, notes, expected_ship_date')
 		.single();
@@ -1671,12 +1619,12 @@ async function updateOrder(input: Record<string, unknown>, ctx: ToolContext): Pr
 
 // --- Archive tool ---
 async function archiveEntity(
-	input: Record<string, unknown>,
+	input: ToolInput<'archive_entity'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const entityType = input.entity_type as string;
-	const entityId = input.entity_id as string;
-	const action = input.action as string;
+	const entityType = input.entity_type;
+	const entityId = input.entity_id;
+	const action = input.action;
 	const isArchive = action === 'archive';
 
 	const table = entityType === 'brand' ? 'brands' : 'accounts';
@@ -1699,10 +1647,10 @@ async function archiveEntity(
 
 // --- Analytics tools ---
 async function getSalesReport(
-	input: Record<string, unknown>,
+	input: ToolInput<'get_sales_report'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const groupBy = input.group_by as string;
+	const groupBy = input.group_by;
 
 	const brandOrderIds = await getBrandOrderIds(ctx);
 	const db = brandOrderIds ? supabaseAdmin : ctx.supabase;
@@ -1721,13 +1669,13 @@ async function getSalesReport(
 	}
 
 	if (ctx.brandScope) query = query.in('brand_id', ctx.brandScope);
-	if (input.order_year) query = query.eq('order_year', input.order_year as number);
+	if (input.order_year) query = query.eq('order_year', input.order_year);
 	if (input.season_name) {
 		const { data: seasons } = await ctx.supabase
 			.from('seasons')
 			.select('id')
 			.eq('organization_id', ctx.organizationId)
-			.ilike('name', `%${input.season_name as string}%`)
+			.ilike('name', `%${input.season_name}%`)
 			.limit(1);
 		if (seasons?.[0]) query = query.eq('season_id', seasons[0].id);
 	}
@@ -1810,7 +1758,7 @@ async function getSalesReport(
 }
 
 async function getSalesAnalytics(
-	input: Record<string, unknown>,
+	input: ToolInput<'get_sales_analytics'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	try {
@@ -1824,7 +1772,7 @@ async function getSalesAnalytics(
 				.from('seasons')
 				.select('id')
 				.eq('organization_id', ctx.organizationId)
-				.ilike('name', `%${input.season_name as string}%`)
+				.ilike('name', `%${input.season_name}%`)
 				.limit(1);
 			if (seasons?.[0]) seasonId = seasons[0].id;
 			else return { success: false, error: `Season "${input.season_name}" not found.` };
@@ -1834,7 +1782,7 @@ async function getSalesAnalytics(
 			let brandQuery = ctx.supabase
 				.from('brands')
 				.select('id')
-				.ilike('name', `%${input.brand_name as string}%`)
+				.ilike('name', `%${input.brand_name}%`)
 				.limit(1);
 			if (ctx.brandScope) brandQuery = brandQuery.in('id', ctx.brandScope);
 			const { data: brands } = await brandQuery;
@@ -1847,13 +1795,14 @@ async function getSalesAnalytics(
 				.from('accounts')
 				.select('id')
 				.eq('organization_id', ctx.organizationId)
-				.ilike('business_name', `%${input.account_name as string}%`)
+				.ilike('business_name', `%${input.account_name}%`)
 				.limit(1);
 			if (accounts?.[0]) accountId = accounts[0].id;
 			else return { success: false, error: `Account "${input.account_name}" not found.` };
 		}
 
-		if (input.rep_name) {
+		const repName = input.rep_name;
+		if (repName) {
 			const { data: members } = await ctx.supabase
 				.from('organization_members')
 				.select('profile_id, profiles!organization_members_profile_id_fkey(display_name)')
@@ -1865,7 +1814,7 @@ async function getSalesAnalytics(
 			const match = (members as MemberRow[] | null)?.find((m) => {
 				const p = m.profiles;
 				const name = Array.isArray(p) ? p[0]?.display_name : p?.display_name;
-				return name?.toLowerCase().includes((input.rep_name as string).toLowerCase());
+				return name?.toLowerCase().includes(repName.toLowerCase());
 			});
 			if (match) repUserId = match.profile_id;
 			else return { success: false, error: `Rep "${input.rep_name}" not found.` };
@@ -1874,13 +1823,13 @@ async function getSalesAnalytics(
 		const { data, error } = await ctx.supabase.rpc('get_sales_analytics', {
 			p_org_id: ctx.organizationId,
 			p_org_type: ctx.orgType,
-			p_date_from: (input.date_from as string) ?? null,
-			p_date_to: (input.date_to as string) ?? null,
+			p_date_from: input.date_from ?? null,
+			p_date_to: input.date_to ?? null,
 			p_season_id: seasonId,
 			p_brand_id: brandId,
 			p_account_id: accountId,
 			p_rep_user_id: repUserId,
-			p_group_by: (input.group_by as string) ?? 'total'
+			p_group_by: input.group_by ?? 'total'
 		});
 
 		if (error) return { success: false, error: error.message };
@@ -1909,11 +1858,11 @@ async function getSalesAnalytics(
 }
 
 async function getStyleVelocity(
-	input: Record<string, unknown>,
+	input: ToolInput<'get_style_velocity'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const days = (input.days as number) ?? 14;
-	const minAccounts = (input.min_accounts as number) ?? 2;
+	const days = input.days ?? 14;
+	const minAccounts = input.min_accounts ?? 2;
 
 	const rpcName = ctx.orgType === 'brand' ? 'get_style_velocity_for_brand' : 'get_style_velocity';
 	const rpcParams =
@@ -1928,11 +1877,11 @@ async function getStyleVelocity(
 	let results = (data ?? []) as VelocityRow[];
 
 	if (input.brand_name) {
-		const brandFilter = (input.brand_name as string).toLowerCase();
+		const brandFilter = input.brand_name.toLowerCase();
 		results = results.filter((r) => r.brand_name?.toLowerCase().includes(brandFilter));
 	}
 
-	const limit = (input.limit as number) ?? 20;
+	const limit = input.limit ?? 20;
 	results = results.slice(0, limit);
 
 	return {
@@ -1942,7 +1891,7 @@ async function getStyleVelocity(
 }
 
 async function getCommissionReport(
-	input: Record<string, unknown>,
+	input: ToolInput<'get_commission_report'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	const brandOrderIds = await getBrandOrderIds(ctx);
@@ -1962,13 +1911,13 @@ async function getCommissionReport(
 	}
 
 	if (ctx.brandScope) query = query.in('brand_id', ctx.brandScope);
-	if (input.order_year) query = query.eq('order_year', input.order_year as number);
+	if (input.order_year) query = query.eq('order_year', input.order_year);
 
 	if (input.brand_name) {
 		const { data: brands } = await ctx.supabase
 			.from('brands')
 			.select('id')
-			.ilike('name', `%${input.brand_name as string}%`)
+			.ilike('name', `%${input.brand_name}%`)
 			.limit(1);
 		if (brands?.[0]) query = query.eq('brand_id', brands[0].id);
 	}
@@ -2085,13 +2034,13 @@ async function getCommissionReport(
 
 // --- Account Health tool ---
 async function getAccountHealth(
-	input: Record<string, unknown>,
+	input: ToolInput<'get_account_health'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	const healthMap = await computeAccountHealth(ctx.supabase, ctx.organizationId);
 
-	const filter = input.filter as string | undefined; // 'at_risk', 'new', 'excellent', etc.
-	const limit = (input.limit as number) ?? 20;
+	const filter = input.filter; // 'at_risk', 'new', 'excellent', etc.
+	const limit = input.limit ?? 20;
 
 	let accounts = Array.from(healthMap.values());
 
@@ -2133,13 +2082,13 @@ async function getAccountHealth(
 }
 
 // --- Product tool ---
-async function addProduct(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function addProduct(input: ToolInput<'add_product'>, ctx: ToolContext): Promise<ToolResult> {
 	// Fuzzy match brand
 	const { data: brands } = await ctx.supabase
 		.from('brands')
 		.select('id, name')
 		.eq('organization_id', ctx.organizationId)
-		.ilike('name', `%${input.brand_name as string}%`)
+		.ilike('name', `%${input.brand_name}%`)
 		.limit(1);
 
 	if (!brands?.length)
@@ -2151,7 +2100,7 @@ async function addProduct(input: Record<string, unknown>, ctx: ToolContext): Pro
 			.from('seasons')
 			.select('id')
 			.eq('organization_id', ctx.organizationId)
-			.ilike('name', `%${input.season_name as string}%`)
+			.ilike('name', `%${input.season_name}%`)
 			.limit(1);
 		seasonId = seasons?.[0]?.id ?? null;
 	}
@@ -2161,12 +2110,12 @@ async function addProduct(input: Record<string, unknown>, ctx: ToolContext): Pro
 		.insert({
 			organization_id: ctx.organizationId,
 			brand_id: brands[0].id,
-			style_number: input.style_number as string,
-			name: input.name as string,
-			wholesale_price: (input.wholesale_price as number) ?? 0,
-			retail_price: (input.retail_price as number) ?? null,
-			category: (input.category as string) ?? null,
-			description: (input.description as string) ?? null,
+			style_number: input.style_number,
+			name: input.name,
+			wholesale_price: input.wholesale_price ?? 0,
+			retail_price: input.retail_price ?? null,
+			category: input.category ?? null,
+			description: input.description ?? null,
 			season_id: seasonId
 		})
 		.select('*, brands(name)')
@@ -2195,18 +2144,15 @@ export function buildProductPatch(updates: Record<string, unknown>): Record<stri
 }
 
 async function updateProducts(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_products'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
+	// The schema guarantees at least one id and a typed updates object.
 	const productIds = input.product_ids;
-	if (!Array.isArray(productIds) || productIds.length === 0) {
-		return { success: false, error: 'product_ids must be a non-empty array' };
-	}
-
-	const updates = (input.updates ?? {}) as Record<string, unknown>;
+	const updates = input.updates;
 	const patch = buildProductPatch(updates);
 
-	if ('season_name' in updates && typeof updates.season_name === 'string') {
+	if (updates.season_name) {
 		const { data: seasons } = await ctx.supabase
 			.from('seasons')
 			.select('id')
@@ -2225,7 +2171,7 @@ async function updateProducts(
 	const { data, error } = await ctx.supabase
 		.from('products')
 		.update(patch)
-		.in('id', productIds as string[])
+		.in('id', productIds)
 		.eq('organization_id', ctx.organizationId)
 		.select('id, name, style_number, ats');
 
@@ -2234,12 +2180,15 @@ async function updateProducts(
 }
 
 // --- Integration tools ---
-async function sendSlack(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function sendSlack(
+	input: ToolInput<'send_slack_message'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const sent = await sendSlackMessage(ctx.organizationId, {
-		title: input.title as string,
-		text: input.text as string,
-		url: input.url as string | undefined,
-		color: input.color as string | undefined
+		title: input.title,
+		text: input.text,
+		url: input.url,
+		color: input.color
 	});
 	if (!sent)
 		return {
@@ -2249,12 +2198,15 @@ async function sendSlack(input: Record<string, unknown>, ctx: ToolContext): Prom
 	return { success: true, data: { sent: true } };
 }
 
-async function sendDiscord(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+async function sendDiscord(
+	input: ToolInput<'send_discord_message'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
 	const sent = await sendDiscordMessage(ctx.organizationId, {
-		title: input.title as string,
-		text: input.text as string,
-		url: input.url as string | undefined,
-		color: input.color as string | undefined
+		title: input.title,
+		text: input.text,
+		url: input.url,
+		color: input.color
 	});
 	if (!sent)
 		return {
@@ -2266,10 +2218,10 @@ async function sendDiscord(input: Record<string, unknown>, ctx: ToolContext): Pr
 }
 
 async function exportGoogleSheet(
-	input: Record<string, unknown>,
+	input: ToolInput<'export_to_google_sheet'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const dataType = input.data_type as ExportDataType;
+	const dataType = input.data_type;
 	const schema = EXPORT_SCHEMAS[dataType];
 	if (!schema)
 		return {
@@ -2291,9 +2243,9 @@ async function exportGoogleSheet(
 	if (error) return { success: false, error: error.message };
 	if (!rows?.length) return { success: false, error: `No ${dataType} data found to export.` };
 
-	const title = (input.title as string) || `${dataType} ${new Date().toLocaleDateString()}`;
+	const title = input.title || `${dataType} ${new Date().toLocaleDateString()}`;
 	const result = await exportToSheet(ctx.organizationId, ctx.origin, {
-		spreadsheetId: input.spreadsheet_id as string | undefined,
+		spreadsheetId: input.spreadsheet_id,
 		title,
 		headers: schema.headers,
 		rows: (rows as unknown as ExportRow[]).map(schema.mapRow)
@@ -2326,9 +2278,12 @@ async function listNotionDbs(ctx: ToolContext): Promise<ToolResult> {
 	return { success: true, data: { databases } };
 }
 
-async function syncNotion(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	const dataType = input.data_type as SyncDataType;
-	const databaseId = input.database_id as string;
+async function syncNotion(
+	input: ToolInput<'sync_to_notion'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	const dataType = input.data_type;
+	const databaseId = input.database_id;
 	const schema = EXPORT_SCHEMAS[dataType];
 	if (!schema)
 		return {
@@ -2366,12 +2321,11 @@ async function syncNotion(input: Record<string, unknown>, ctx: ToolContext): Pro
 	return { success: true, data: result };
 }
 
-async function pullNotion(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
-	const pages = await pullFromNotion(
-		ctx.organizationId,
-		input.database_id as string,
-		input.page_size as number | undefined
-	);
+async function pullNotion(
+	input: ToolInput<'pull_from_notion'>,
+	ctx: ToolContext
+): Promise<ToolResult> {
+	const pages = await pullFromNotion(ctx.organizationId, input.database_id, input.page_size);
 	if (!pages.length)
 		return {
 			success: false,
@@ -2394,7 +2348,7 @@ async function checkSetupStatus(ctx: ToolContext): Promise<ToolResult> {
 }
 
 async function updateOrgSettings(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_org_settings'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	try {
@@ -2433,7 +2387,7 @@ async function updateOrgSettings(
 }
 
 async function updateOrgShipping(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_org_shipping'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	try {
@@ -2498,7 +2452,7 @@ async function updateOrgShipping(
 }
 
 async function updateOrgPayments(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_org_payments'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	try {
@@ -2537,7 +2491,7 @@ async function updateOrgPayments(
 }
 
 async function updateOrgTaxes(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_org_taxes'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	try {
@@ -2581,7 +2535,7 @@ async function updateOrgTaxes(
 }
 
 async function updateOrgReturns(
-	input: Record<string, unknown>,
+	input: ToolInput<'update_org_returns'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
 	try {
@@ -2632,18 +2586,11 @@ async function updateOrgReturns(
 }
 
 async function skipSetupSection(
-	input: Record<string, unknown>,
+	input: ToolInput<'skip_setup_section'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
-	const section = input.section as string;
-	const validSections = ['orders', 'taxes', 'returns', 'members', 'products', 'accounts'];
-	if (!validSections.includes(section)) {
-		return {
-			success: false,
-			error: `Invalid section: ${section}. Must be one of: ${validSections.join(', ')}`
-		};
-	}
-
+	// The schema's enum is the list of valid sections.
+	const section = input.section;
 	const status = input.status === 'completed' ? 'completed' : 'skipped';
 
 	try {

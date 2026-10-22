@@ -1,12 +1,13 @@
 import { supabaseAdmin } from '$lib/server/supabase.js';
-import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
+import { resolveOrderScope } from '$lib/server/orders/order-scope.js';
+import { isEligibleRep } from '$lib/server/orders/rep-eligibility.js';
 import {
 	resolveOrderSettings,
 	type BrandCommerceSettings
 } from '$lib/server/orders/resolve-order-settings.js';
 
 export async function loadOrderPrereqs(locals: App.Locals) {
-	const { organization, user, allMemberships } = locals;
+	const { organization, user } = locals;
 
 	if (!organization) {
 		return {
@@ -46,55 +47,16 @@ export async function loadOrderPrereqs(locals: App.Locals) {
 		};
 	}
 
-	const isBuyer = locals.isBuyer ?? false;
-	const buyerAccountIds = isBuyer ? (locals.buyerAccounts?.map((a) => a.account_id) ?? []) : null;
-	const buyerBrandIds = isBuyer ? (locals.buyerBrandIds ?? []) : null;
-	const isBrandOrg = locals.orgType === 'brand';
-
-	const brandOrgIds = getNxBlsrBrandOrgIds(allMemberships);
-	const nxBlsr = isNxBlsr(brandOrgIds);
-	const ownOrgIds = nxBlsr ? brandOrgIds : [organization.id];
-	const ownOrgIdSet = new Set(ownOrgIds);
-
-	const orFilter = ownOrgIds
-		.flatMap((id) => [`rep_org_id.eq.${id}`, `brand_org_id.eq.${id}`])
-		.join(',');
-	const { data: conns } = await supabaseAdmin
-		.from('org_connections')
-		.select('rep_org_id, brand_org_id')
-		.eq('status', 'active')
-		.or(orFilter);
-	const visibleOrgIdSet = new Set<string>(ownOrgIds);
-	const connectedBrandOrgIds = new Set<string>();
-	const connectedRepOrgIds = new Set<string>();
-	for (const c of conns ?? []) {
-		if (c.rep_org_id && !ownOrgIdSet.has(c.rep_org_id)) visibleOrgIdSet.add(c.rep_org_id);
-		if (c.brand_org_id && !ownOrgIdSet.has(c.brand_org_id)) visibleOrgIdSet.add(c.brand_org_id);
-		if (c.rep_org_id && ownOrgIdSet.has(c.rep_org_id) && c.brand_org_id) {
-			connectedBrandOrgIds.add(c.brand_org_id);
-		}
-		if (c.brand_org_id && ownOrgIdSet.has(c.brand_org_id) && c.rep_org_id) {
-			connectedRepOrgIds.add(c.rep_org_id);
-		}
-	}
-	const visibleOrgIds = Array.from(visibleOrgIdSet);
-
-	const repVisibleOrgIdSet = new Set(visibleOrgIdSet);
-	if (connectedBrandOrgIds.size > 0) {
-		const { data: siblingConns } = await supabaseAdmin
-			.from('org_connections')
-			.select('rep_org_id, brand_org_id')
-			.eq('status', 'active')
-			.in('brand_org_id', Array.from(connectedBrandOrgIds))
-			.not('rep_org_id', 'in', `(${ownOrgIds.join(',')})`);
-		for (const sc of siblingConns ?? []) {
-			if (sc.rep_org_id) {
-				repVisibleOrgIdSet.add(sc.rep_org_id);
-				connectedRepOrgIds.add(sc.rep_org_id);
-			}
-		}
-	}
-	const repVisibleOrgIds = Array.from(repVisibleOrgIdSet);
+	const scope = await resolveOrderScope(locals, organization.id);
+	const {
+		isBuyer,
+		buyerAccountIds,
+		buyerBrandIds,
+		isBrandOrg,
+		ownOrgIds,
+		visibleOrgIds,
+		repVisibleOrgIds
+	} = scope;
 
 	const [
 		accountsRes,
@@ -142,6 +104,7 @@ export async function loadOrderPrereqs(locals: App.Locals) {
 		supabaseAdmin
 			.from('season_deliveries')
 			.select('id, season_id, label, delivery_month, delivery_day, sort_order')
+			.in('organization_id', visibleOrgIds)
 			.order('delivery_month')
 			.order('delivery_day'),
 		supabaseAdmin
@@ -178,17 +141,9 @@ export async function loadOrderPrereqs(locals: App.Locals) {
 		profiles: { display_name: string | null } | null;
 	};
 	const rawMembers = (membersRes.data ?? []) as unknown as RawMember[];
-	const REP_ROLES = new Set(['admin', 'owner', 'sales']);
 	const seenProfileIds = new Set<string>();
 	const reps = rawMembers
-		.filter((m) => {
-			if (m.organization_id === organization.id) {
-				return isBrandOrg ? m.role === 'sales' : REP_ROLES.has(m.role);
-			}
-			if (connectedBrandOrgIds.has(m.organization_id)) return m.role === 'sales';
-			if (connectedRepOrgIds.has(m.organization_id)) return REP_ROLES.has(m.role);
-			return false;
-		})
+		.filter((m) => isEligibleRep(m, scope, organization.id))
 		.filter((m) => {
 			if (seenProfileIds.has(m.profile_id)) return false;
 			seenProfileIds.add(m.profile_id);
@@ -290,3 +245,5 @@ export async function loadOrderPrereqs(locals: App.Locals) {
 		brandSettings
 	};
 }
+
+export type OrderPrereqs = Awaited<ReturnType<typeof loadOrderPrereqs>>;

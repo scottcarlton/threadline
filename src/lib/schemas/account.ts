@@ -1,6 +1,8 @@
+// Relative imports: the RLS integration suite (plain vitest, no $lib alias)
+// imports this schema through the account sync path.
 import { z } from 'zod';
-import { PHONE_REGEX } from '$lib/utils/phone';
-import { isValidWebsite, stripProtocol } from '$lib/utils/website';
+import { PHONE_REGEX } from '../utils/phone';
+import { isValidWebsite, stripProtocol } from '../utils/website';
 
 const optShortString = z.string().trim().max(255).default('');
 
@@ -38,7 +40,13 @@ const addressSchema = z.object({
 	zip: optZipString
 });
 
+// Client-generated ids make a create safe to retry: the server treats a known
+// id as a replay rather than a second account (SCO-204). The page seeds them
+// on load; offline sync supplies its own.
+const clientId = z.string().uuid().optional();
+
 const additionalLocationSchema = z.object({
+	id: clientId,
 	label: z.string().trim().min(1, 'Label is required').max(100),
 	phone: optPhone,
 	address: addressSchema,
@@ -50,6 +58,8 @@ const additionalLocationSchema = z.object({
 });
 
 export const createAccountSchema = z.object({
+	id: clientId,
+	primaryLocationId: clientId,
 	business: z.object({
 		name: z.string().trim().min(1, 'Business name is required').max(255),
 		website: optUrl,
@@ -68,3 +78,18 @@ export const createAccountSchema = z.object({
 });
 
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
+
+/**
+ * What the offline outbox sends to POST /api/sync/accounts (SCO-207). The ids
+ * are required here: they are the idempotency key. The org is the one the rep
+ * was in when they saved, not whichever org is active when it syncs.
+ */
+export const syncAccountPayloadSchema = z.object({
+	organization_id: z.string().uuid(),
+	account: createAccountSchema.extend({
+		id: z.string().uuid(),
+		primaryLocationId: z.string().uuid()
+	})
+});
+
+export type SyncAccountPayload = z.infer<typeof syncAccountPayloadSchema>;

@@ -33,6 +33,8 @@ export type ConversationDetail = {
 	title: string | null;
 	organizationId: string;
 	messages: Array<{
+		id: string;
+		turn_id: string | null;
 		role: 'user' | 'assistant';
 		content: string;
 		attachments: StoredAttachment[] | null;
@@ -107,30 +109,41 @@ export async function conversationBelongsTo(
  * Append a turn and bump the conversation's updated_at so it sorts to the top
  * of the recents list. Caller must have verified ownership.
  *
- * Failures are logged and swallowed: a user should never lose an answer
- * because a history insert failed.
+ * turnId is the request's telemetry id, so a rating on this message can be
+ * joined to the model and tool calls behind it.
+ *
+ * Returns the new message id, or null if the insert failed. Failures are
+ * logged and swallowed: a user should never lose an answer because a history
+ * insert failed.
  */
 export async function appendMessage(
 	conversationId: string,
 	role: 'user' | 'assistant',
 	content: string,
+	turnId: string,
 	attachments: StoredAttachment[] | null = null
-): Promise<void> {
-	const { error } = await supabaseAdmin.from('ai_messages').insert({
-		conversation_id: conversationId,
-		role,
-		content,
-		attachments
-	});
-	if (error) {
-		console.error('ai_messages insert failed:', error.message);
-		return;
+): Promise<string | null> {
+	const { data, error } = await supabaseAdmin
+		.from('ai_messages')
+		.insert({
+			conversation_id: conversationId,
+			role,
+			content,
+			attachments,
+			turn_id: turnId
+		})
+		.select('id')
+		.single();
+	if (error || !data) {
+		console.error('ai_messages insert failed:', error?.message);
+		return null;
 	}
 	const { error: bumpError } = await supabaseAdmin
 		.from('ai_conversations')
 		.update({ updated_at: new Date().toISOString() })
 		.eq('id', conversationId);
 	if (bumpError) console.error('ai_conversations updated_at bump failed:', bumpError.message);
+	return (data as { id: string }).id;
 }
 
 /** Caller must have verified ownership. */
@@ -199,7 +212,7 @@ export async function getConversation(
 
 	const { data: messages, error: messagesError } = await supabaseAdmin
 		.from('ai_messages')
-		.select('role, content, attachments')
+		.select('id, turn_id, role, content, attachments')
 		.eq('conversation_id', conversationId)
 		.order('created_at', { ascending: true });
 	if (messagesError) {

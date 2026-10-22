@@ -20,8 +20,9 @@ type SourceOrder = OrderRow & {
 	connection_id: string | null;
 };
 
-// A clone is an order creation. docs/brd/roles-permissions.md §4.4 "Create
-// orders" excludes guest.
+// A clone is an order creation. The Roles & Access matrix (§4, "Orders:
+// create / edit / submit") excludes guest.
+// https://app.notion.com/p/3a70c8824fed81eeb9e2e25bf21e51d6
 const CLONE_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
 
 export const POST: RequestHandler = async ({ locals, params }) => {

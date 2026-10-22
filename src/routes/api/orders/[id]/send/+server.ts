@@ -8,7 +8,8 @@ import { loadOrderForOrg, type OrderRow } from '$lib/server/orders/authorize-ord
 
 type OrderForSend = OrderRow & OrderData;
 
-// docs/brd/roles-permissions.md §4.4: "Email orders" excludes guest.
+// Roles & Access §8.5: emailing orders excludes guest.
+// https://app.notion.com/p/3a70c8824fed81eeb9e2e25bf21e51d6
 const SEND_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
 
 export const POST: RequestHandler = async ({ request, locals, params }) => {

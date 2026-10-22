@@ -17,6 +17,7 @@
  */
 import { supabaseAdmin } from './supabase.js';
 import { logSupabaseError } from './log-supabase-error.js';
+import { reportAiRefused } from './ai-errors.js';
 
 export type AiLimitConfig = {
 	userPerMinute: number;
@@ -170,6 +171,8 @@ export async function checkAiLimits(
 		// rather than swallowing it, but do not refuse a legitimate request over
 		// bookkeeping.
 		logSupabaseError('ai-limits request counter insert', error);
+	} else {
+		reportAiRefused(verdict.scope, { endpoint, organizationId, extra: { userId } });
 	}
 
 	return verdict;

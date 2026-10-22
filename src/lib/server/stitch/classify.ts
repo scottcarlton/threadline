@@ -21,7 +21,12 @@ export async function classifyStitchMessage(p: {
 	history: Anthropic.MessageParam[];
 	message: string;
 	onResponse?: (m: Anthropic.Message) => void;
-}): Promise<{ route: StitchRoute; response: Anthropic.Message }> {
+}): Promise<{
+	route: StitchRoute;
+	/** False when the classifier answered with neither label and we fell back to TOOLS. */
+	recognized: boolean;
+	response: Anthropic.Message;
+}> {
 	const response = await p.client.messages.create({
 		model: CLASSIFIER_MODEL,
 		max_tokens: 20,
@@ -31,5 +36,9 @@ export async function classifyStitchMessage(p: {
 	p.onResponse?.(response);
 	const label =
 		response.content[0]?.type === 'text' ? response.content[0].text.trim().toUpperCase() : 'TOOLS';
-	return { route: label === 'CHAT' ? 'CHAT' : 'TOOLS', response };
+	return {
+		route: label === 'CHAT' ? 'CHAT' : 'TOOLS',
+		recognized: label === 'CHAT' || label === 'TOOLS',
+		response
+	};
 }

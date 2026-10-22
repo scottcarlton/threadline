@@ -6,9 +6,10 @@ import { loadOrderForOrg, type OrderRow } from '$lib/server/orders/authorize-ord
 
 type OrderForPdf = OrderRow & OrderData;
 
-// docs/brd/roles-permissions.md §4.4: "Generate order PDF" is Yes/Yes/Scoped/
-// Scoped/No — guest is excluded. Brand scoping for member/sales is enforced by
-// RLS on the underlying order.
+// Roles & Access §8.5: generating the order PDF follows order-edit scope
+// (Yes/Yes/Scoped/Scoped/No), so guest is excluded.
+// https://app.notion.com/p/3a70c8824fed81eeb9e2e25bf21e51d6
+// Brand scoping for member/sales is enforced by RLS on the underlying order.
 const PDF_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
 
 export const GET: RequestHandler = async ({ locals, params }) => {

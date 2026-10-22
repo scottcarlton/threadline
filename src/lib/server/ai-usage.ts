@@ -4,7 +4,7 @@ import { supabaseAdmin } from './supabase.js';
 import { PROMPT_VERSION } from './ai-prompts.js';
 import { defer } from './audit/defer.js';
 import { logSupabaseError } from './log-supabase-error.js';
-import { reportAiValidation } from './ai-errors.js';
+import { reportAiDegraded, reportAiValidation } from './ai-errors.js';
 import {
 	aiUsageRecordSchema,
 	telemetryErrorText,
@@ -43,6 +43,16 @@ export type UsageFailureInput = UsageContext & {
 // user their answer.
 export function logUsage(input: UsageLogInput): void {
 	const usage = input.response.usage;
+	// A cut-off response is still a 200. Flag it here so every endpoint is
+	// covered, not just the ones that remember to check.
+	if (input.response.stop_reason === 'max_tokens') {
+		reportAiDegraded('max_tokens', {
+			endpoint: input.endpoint,
+			purpose: input.purpose,
+			organizationId: input.organizationId,
+			extra: { turnId: input.turnId ?? null, model: input.response.model }
+		});
+	}
 	writeUsage({
 		...baseRecord(input),
 		model: input.response.model || input.model || 'unknown',

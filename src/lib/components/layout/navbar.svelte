@@ -2,9 +2,12 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { supabase } from '$lib/supabase.js';
+	import { clearAppCaches } from '$lib/utils/clear-app-caches.js';
 	import { Avatar, AvatarFallback } from '$lib/components/ui/avatar/index.js';
 	import { cart } from '$lib/stores/cart.js';
 	import { unreadNotificationCount } from '$lib/stores/notifications.js';
+	import { outbox } from '$lib/offline';
+	import { confirmSignOut, foregroundIds, syncPanelOpen } from '$lib/offline/sync-ui';
 	import type { Profile, Organization, UserRole } from '$lib/types/database.js';
 
 	type Props = {
@@ -40,6 +43,10 @@
 	}
 	let showUserMenu = $state(false);
 	const notifCount = $derived($unreadNotificationCount);
+	const outboxItems = outbox.items;
+	const unsyncedCount = $derived(
+		$outboxItems.filter((i) => i.status !== 'synced' && !$foregroundIds.has(i.id)).length
+	);
 
 	function getInitials(name: string): string {
 		return name
@@ -51,6 +58,10 @@
 	}
 
 	async function signOut() {
+		// Sign-out deletes the offline outbox; confirm first if it holds unsent work.
+		if (!(await confirmSignOut(outbox.unsynced))) return;
+		// First, so a failed network call below can't leave cached data behind.
+		await clearAppCaches();
 		await supabase.auth.signOut();
 		// Clear the httpOnly active_org_id cookie server-side; client signOut can't.
 		await fetch('/logout', { method: 'POST' });
@@ -127,6 +138,34 @@
 				/>
 			</svg>
 		</button>
+
+		<!-- Offline outbox: only while something is not yet synced (SCO-206) -->
+		{#if unsyncedCount > 0}
+			<button
+				onclick={() => syncPanelOpen.set(true)}
+				class="relative flex items-center rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-ghost hover:text-foreground active:scale-95"
+				aria-label={`${unsyncedCount} not synced`}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+					/>
+				</svg>
+				<span
+					class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground"
+					>{unsyncedCount > 99 ? '99+' : unsyncedCount}</span
+				>
+			</button>
+		{/if}
 
 		<!-- Notifications -->
 		<button

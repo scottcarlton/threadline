@@ -2033,7 +2033,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 													>
 														{#if draft.image_id}
 															<img
-																src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
+																src={`/api/products/${draft.product_id}/images/${draft.image_id}?size=thumb`}
 																alt=""
 																class="h-full w-full object-cover"
 															/>
@@ -2160,7 +2160,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 												<div class="flex min-w-0 items-center gap-4">
 													{#if draft.image_id}
 														<img
-															src={`/api/products/${draft.product_id}/images/${draft.image_id}`}
+															src={`/api/products/${draft.product_id}/images/${draft.image_id}?size=thumb`}
 															alt=""
 															class="h-20 w-20 shrink-0 rounded-md border object-cover {draft.to_remove
 																? 'opacity-50'
@@ -2403,7 +2403,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 											<div class="flex min-w-0 items-center gap-4">
 												{#if row.image_id}
 													<img
-														src={`/api/products/${row.product_id}/images/${row.image_id}`}
+														src={`/api/products/${row.product_id}/images/${row.image_id}?size=thumb`}
 														alt=""
 														class="h-20 w-20 shrink-0 rounded-md border object-cover"
 													/>
@@ -2980,7 +2980,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	season={sizingSheetDraft?.season_label}
 	color={sizingSheetDraft?.color_edit ?? null}
 	imageUrl={sizingSheetDraft?.image_id
-		? `/api/products/${sizingSheetDraft.product_id}/images/${sizingSheetDraft.image_id}`
+		? `/api/products/${sizingSheetDraft.product_id}/images/${sizingSheetDraft.image_id}?size=thumb`
 		: null}
 	unitPrice={sizingSheetDraft?.unit_price}
 	sizes={sizingSheetDraft?.available_sizes}
@@ -3004,7 +3004,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	name={colorPickerDraft?.name}
 	season={colorPickerDraft?.season_label}
 	imageUrl={colorPickerDraft?.image_id
-		? `/api/products/${colorPickerDraft.product_id}/images/${colorPickerDraft.image_id}`
+		? `/api/products/${colorPickerDraft.product_id}/images/${colorPickerDraft.image_id}?size=thumb`
 		: null}
 	colors={colorPickerDraft?.available_colors}
 	selected={colorPickerDraft?.color_edit ?? null}

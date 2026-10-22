@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { filterCatalog } from '$lib/offline/order-wizard-data';
 	import { untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { fly } from 'svelte/transition';
@@ -91,6 +92,11 @@
 		showBrandFilter?: boolean;
 		/** Product IDs rendered dimmed + non-interactive ("already in order"). */
 		lockedProductIds?: string[];
+		/**
+		 * Search this catalog on the device instead of GET /api/products. The
+		 * offline order wizard passes its snapshot (SCO-208); other callers omit it.
+		 */
+		localProducts?: CatalogProduct[];
 		onclose: () => void;
 		ondone: (items: CatalogCartItem[]) => void;
 	};
@@ -103,6 +109,7 @@
 		seasons,
 		showBrandFilter = false,
 		lockedProductIds = [],
+		localProducts,
 		onclose,
 		ondone
 	}: Props = $props();
@@ -154,6 +161,18 @@
 		if (modalPriceRange[1] < 500) params.set('max_price', String(modalPriceRange[1]));
 		if (modalAtsOnly) params.set('ats', 'true');
 		params.set('limit', '200');
+		if (localProducts) {
+			modalProducts = filterCatalog(localProducts, {
+				q: params.get('q') ?? undefined,
+				brandIds: params.getAll('brand_id'),
+				seasonIds: params.getAll('season_id'),
+				minPrice: params.has('min_price') ? Number(params.get('min_price')) : undefined,
+				maxPrice: params.has('max_price') ? Number(params.get('max_price')) : undefined,
+				atsOnly: params.get('ats') === 'true'
+			});
+			modalLoading = false;
+			return;
+		}
 		try {
 			const res = await fetch(`/api/products?${params.toString()}`);
 			const json = await res.json();
@@ -550,7 +569,7 @@
 													<div class="relative">
 														{#if thumbId}
 															<img
-																src={`/api/products/${it.product_id}/images/${thumbId}`}
+																src={`/api/products/${it.product_id}/images/${thumbId}?size=thumb`}
 																alt={color}
 																class="h-12 w-12 rounded-full object-cover ring-2 ring-offset-2 transition {selected
 																	? 'ring-foreground'
@@ -725,7 +744,7 @@
 						: null}
 					color={sheetItem?.selected_color || null}
 					imageUrl={sheetItem && sheetImg
-						? `/api/products/${sheetItem.product_id}/images/${sheetImg}`
+						? `/api/products/${sheetItem.product_id}/images/${sheetImg}?size=thumb`
 						: null}
 					unitPrice={sheetItem?.unit_price}
 					sizes={sheetItem?.available_sizes}
@@ -764,7 +783,7 @@
 						? seasonLabel(colorItem.season_id, colorItem.product_year)
 						: null}
 					imageUrl={colorItem && colorImg
-						? `/api/products/${colorItem.product_id}/images/${colorImg}`
+						? `/api/products/${colorItem.product_id}/images/${colorImg}?size=thumb`
 						: null}
 					colors={colorItem?.available_colors}
 					selected={colorItem?.selected_color || null}

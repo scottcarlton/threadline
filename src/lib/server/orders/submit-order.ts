@@ -4,76 +4,153 @@ import {
 	buildOrders,
 	validateCart,
 	CartValidationError,
-	type CartLine,
-	type DeliveryChoice
+	type CartLine
 } from '$lib/server/orders/cart.js';
-import type { OrderType, OrderStatus } from '$lib/types/database.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
-import { notifyBrandAdmins } from '$lib/server/notifications.js';
+import { createNotification, notifyBrandAdmins } from '$lib/server/notifications.js';
+import { detectDrift, driftReason } from '$lib/server/orders/drift.js';
 import { emitOrderEvent } from '$lib/server/integrations/events.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isPaymentPreferenceCode } from '$lib/payment-methods';
-import { finalizeSchema, type FinalizeInput } from '$lib/schemas/order-finalize';
+import type { FinalizeInput } from '$lib/schemas/order-finalize';
+import { submitPayloadSchema } from '$lib/schemas/order-submit';
 import { resolveOrderSettings } from '$lib/server/orders/resolve-order-settings.js';
+import { resolveOrderScope } from '$lib/server/orders/order-scope.js';
+import { authorizeSubmitPayload } from '$lib/server/orders/authorize-submit.js';
+import { submissionIds } from '$lib/server/orders/order-ids.js';
 
-type FreeformDetails = {
-	business_name: string;
-	contact_first_name: string;
-	contact_last_name: string;
-	contact_email: string;
-	phone: string;
-	address_line1: string;
-	city: string;
-	state: string;
-	zip: string;
-};
+export type SubmitOutcome =
+	| {
+			ok: true;
+			/** One per brand/season group, in cart order. `inserted` is false on a replay. */
+			orders: Array<{ id: string; order_number: string; inserted: boolean }>;
+			/** Set when a captured order was saved as a draft because of drift. */
+			drift?: { reason: string };
+	  }
+	| { ok: false; status: 400 | 401 | 403 | 409 | 500; message: string };
 
-export type SubmitPayload = {
-	type: OrderType;
-	account_id: string | null;
-	freeform_name: string | null;
-	freeformDetails?: FreeformDetails;
-	order_year: number | null;
-	submitStatus: OrderStatus;
-	payment_preference: string | null;
-	lines: CartLine[];
-	groups: Array<{
-		brand_id: string;
-		season_id: string | null;
-		delivery: DeliveryChoice | null;
-		location_id: string | null;
-	}>;
-	finalize?: FinalizeInput | null;
-};
-
+/**
+ * The `?/submit` form action on the order wizards: reads the JSON payload from
+ * the form and turns the outcome into a redirect or a `fail`.
+ */
 export async function submitOrder(
 	request: Request,
 	locals: App.Locals
 ): Promise<ReturnType<typeof fail> | never> {
-	const { organization, user } = locals;
-	const role = locals.membership?.role;
-
-	if (!organization || !user) return fail(401, { message: 'Not authenticated' });
-
-	if (!locals.isBuyer && !['admin', 'owner', 'member', 'sales'].includes(role ?? '')) {
-		console.error('[submit-order] role rejected', { role, org_id: organization.id });
-		return fail(403, { message: 'You do not have permission to submit orders.' });
-	}
-
-	const supabase = supabaseAdmin;
-
 	const formData = await request.formData();
 	const raw = formData.get('payload');
 	if (typeof raw !== 'string') return fail(400, { message: 'Missing payload' });
 
-	let payload: SubmitPayload;
+	let json: unknown;
 	try {
-		payload = JSON.parse(raw);
+		json = JSON.parse(raw);
 	} catch {
 		return fail(400, { message: 'Invalid payload JSON' });
 	}
 
-	const groups = groupCart(payload.lines);
+	const outcome = await submitOrderPayload(json, locals, request.headers.get('origin') ?? '');
+	if (!outcome.ok) return fail(outcome.status, { message: outcome.message });
+	if (outcome.orders.length === 0) throw redirect(303, '/orders');
+	const numbers = outcome.orders
+		.slice(0, 10)
+		.map((o) => o.order_number)
+		.join(',');
+	throw redirect(303, `/orders/confirmation?ids=${numbers}`);
+}
+
+/**
+ * Validate, authorize and write one order submission (SCO-208). Shared by the
+ * form action above and POST /api/sync/orders, so an order synced from the
+ * offline outbox is checked exactly like one submitted online, at sync time.
+ * `origin` is used for links in emails and integration events.
+ */
+export async function submitOrderPayload(
+	json: unknown,
+	locals: App.Locals,
+	origin: string,
+	opts: {
+		/**
+		 * The order was captured earlier on a device (the offline outbox). Prices
+		 * or terms that changed since then save it as a draft for the rep to
+		 * review, instead of submitting on numbers they never saw (SCO-209).
+		 */
+		captured?: boolean;
+	} = {}
+): Promise<SubmitOutcome> {
+	const { organization, user } = locals;
+	const role = locals.membership?.role;
+
+	if (!organization || !user) return { ok: false, status: 401, message: 'Not authenticated' };
+
+	if (!locals.isBuyer && !['admin', 'owner', 'member', 'sales'].includes(role ?? '')) {
+		console.error('[submit-order] role rejected', { role, org_id: organization.id });
+		return { ok: false, status: 403, message: 'You do not have permission to submit orders.' };
+	}
+
+	const supabase = supabaseAdmin;
+
+	const parsed = submitPayloadSchema.safeParse(json);
+	if (!parsed.success) {
+		const first = parsed.error.issues[0];
+		return { ok: false, status: 400, message: first?.message ?? 'Order payload failed validation' };
+	}
+	const payload = parsed.data;
+	const finalizeData: FinalizeInput | null = payload.finalize ?? null;
+
+	// Everything below writes through supabaseAdmin, so authorize every
+	// referenced ID against the picker scope before the first write.
+	const scope = await resolveOrderScope(locals, organization.id);
+	let auth;
+	try {
+		auth = await authorizeSubmitPayload(supabase, payload, scope, {
+			userId: user.id,
+			orgId: organization.id,
+			staleTerms: opts.captured ? 'collect' : 'deny'
+		});
+	} catch (err) {
+		console.error('[submit-order] authorization lookup failed', {
+			org_id: organization.id,
+			error: err
+		});
+		return { ok: false, status: 500, message: 'Could not verify the order. Try again.' };
+	}
+	if (!auth.ok) {
+		console.warn('[submit-order] payload rejected', {
+			org_id: organization.id,
+			user_id: user.id,
+			status: auth.status,
+			message: auth.message
+		});
+		return { ok: false, status: auth.status, message: auth.message };
+	}
+
+	// A captured order whose prices or terms moved on is saved as a draft: it
+	// still lands (nothing the rep wrote is lost), but nothing goes to the brand
+	// until the rep has looked at it.
+	const drift = opts.captured
+		? detectDrift(payload.lines, auth.products, auth.staleTermsBrandIds)
+		: null;
+	if (drift) payload.submitStatus = 'draft';
+
+	// Price, style number and description come from the product row, never the
+	// client. The wizard shows wholesale_price today, so this matches what the
+	// writer saw unless the price changed after the line was added.
+	const lines: CartLine[] = payload.lines.map((l) => {
+		const prod = auth.products.get(l.product_id)!;
+		return {
+			product_id: l.product_id,
+			brand_id: l.brand_id,
+			season_id: l.season_id,
+			style_number: prod.style_number,
+			description: prod.name,
+			color: l.color,
+			size: l.size,
+			qty: l.qty,
+			unit_price: Number(prod.wholesale_price)
+		};
+	});
+
+	const groups = groupCart(lines);
 
 	for (const g of groups) {
 		const meta = payload.groups.find(
@@ -85,53 +162,51 @@ export async function submitOrder(
 		}
 	}
 
-	let resolvedAccountId = payload.account_id;
-	let resolvedFreeformName = payload.freeform_name;
-	if (!resolvedAccountId && payload.freeformDetails?.business_name?.trim()) {
-		const details = payload.freeformDetails;
-		const { data: newAccount, error: acctErr } = await supabase
-			.from('accounts')
-			.insert({
-				organization_id: organization.id,
-				business_name: details.business_name.trim(),
-				contact_first_name: details.contact_first_name?.trim() || null,
-				contact_last_name: details.contact_last_name?.trim() || null,
-				contact_email: details.contact_email?.trim() || null,
-				phone: details.phone?.trim() || null,
-				address_line1: details.address_line1?.trim() || null,
-				city: details.city?.trim() || null,
-				state: details.state?.trim() || null,
-				zip: details.zip?.trim() || null
-			})
-			.select('id')
-			.single();
-		if (acctErr || !newAccount) {
-			console.error('[submit-order] freeform account insert failed', {
-				org_id: organization.id,
-				user_id: user.id,
-				role,
-				error: acctErr
-			});
-			return fail(500, { message: acctErr?.message ?? 'Failed to create account' });
-		}
-		resolvedAccountId = newAccount.id;
-		resolvedFreeformName = null;
-	}
+	const createsFreeformAccount =
+		!payload.account_id && Boolean(payload.freeformDetails?.business_name);
 
+	// Validate before the freeform account insert so a rejected cart leaves no
+	// orphan account behind. The inline account counts as an account here.
 	try {
 		validateCart(
 			groups,
 			{
 				type: payload.type,
-				account_id: resolvedAccountId,
-				freeform_name: resolvedFreeformName,
+				account_id: createsFreeformAccount ? 'pending-freeform-account' : payload.account_id,
+				freeform_name: createsFreeformAccount ? null : payload.freeform_name,
 				order_year: payload.order_year
 			},
 			payload.submitStatus
 		);
 	} catch (e) {
-		if (e instanceof CartValidationError) return fail(400, { message: e.message });
+		if (e instanceof CartValidationError) return { ok: false, status: 400, message: e.message };
 		throw e;
+	}
+
+	const ids = submissionIds(payload.submission_id);
+
+	// The inline account is written in the same transaction as the orders, so a
+	// failed submission never leaves an account behind.
+	let resolvedAccountId = payload.account_id;
+	let resolvedFreeformName = payload.freeform_name;
+	let freeformAccountRow: Record<string, string | null> | null = null;
+	if (createsFreeformAccount && payload.freeformDetails) {
+		const details = payload.freeformDetails;
+		freeformAccountRow = {
+			id: ids.accountId(),
+			organization_id: organization.id,
+			business_name: details.business_name,
+			contact_first_name: details.contact_first_name || null,
+			contact_last_name: details.contact_last_name || null,
+			contact_email: details.contact_email || null,
+			phone: details.phone || null,
+			address_line1: details.address_line1 || null,
+			city: details.city || null,
+			state: details.state || null,
+			zip: details.zip || null
+		};
+		resolvedAccountId = freeformAccountRow.id;
+		resolvedFreeformName = null;
 	}
 
 	const newOrders = buildOrders(
@@ -145,27 +220,12 @@ export async function submitOrder(
 		payload.submitStatus
 	);
 
-	const createdIds: string[] = [];
-	const createdNumbers: string[] = [];
-
 	const acceptedMethods = (organization.accepted_payment_methods ?? []) as string[];
 	const rawPref = (payload.payment_preference ?? '').toString().trim();
 	const legacyPaymentPrefValue =
 		rawPref && isPaymentPreferenceCode(rawPref) && acceptedMethods.includes(rawPref)
 			? rawPref
 			: null;
-
-	let finalizeData: FinalizeInput | null = null;
-	if (payload.finalize) {
-		const parsed = finalizeSchema.safeParse(payload.finalize);
-		if (!parsed.success) {
-			const first = parsed.error.issues[0];
-			return fail(400, {
-				message: first?.message ?? 'Finalize payload failed validation'
-			});
-		}
-		finalizeData = parsed.data;
-	}
 
 	const overrideByKey = new Map<string, FinalizeInput['orders'][number]>();
 	if (finalizeData) {
@@ -204,7 +264,7 @@ export async function submitOrder(
 		return null;
 	});
 	if (brandCommerce === null) {
-		return fail(500, { message: 'Failed to resolve brand commerce settings' });
+		return { ok: false, status: 500, message: 'Failed to resolve brand commerce settings' };
 	}
 
 	const brandOrgMap = new Map<string, string>();
@@ -247,7 +307,8 @@ export async function submitOrder(
 		}
 	}
 
-	for (const o of newOrders) {
+	const now = new Date().toISOString();
+	const prepared = newOrders.map((o) => {
 		const ov = overrideFor(o.brand_id, o.season_id);
 
 		const brandAccepted = brandCommerce.get(o.brand_id)?.accepted_payment_methods ?? [];
@@ -282,61 +343,41 @@ export async function submitOrder(
 			? (brandOrgMap.get(o.brand_id) ?? organization.id)
 			: organization.id;
 
-		const { data: orderRow, error: orderErr } = await supabase
-			.from('orders')
-			.insert({
-				organization_id: orderOrgId,
-				order_type: o.order_type,
-				account_id: o.account_id,
-				freeform_name: o.freeform_name,
-				location_id: shipToLocationId,
-				bill_to_location_id: billToLocationId,
-				brand_id: o.brand_id,
-				season_id: o.season_id,
-				order_year: o.order_year,
-				delivery_id: o.delivery_id,
-				expected_ship_date: o.expected_ship_date,
-				start_ship_date: o.start_ship_date,
-				status: o.status,
-				total_amount: o.total_amount,
-				payment_preference: paymentPrefValue,
-				payment_terms: paymentTermsValue,
-				shipping_method: shippingMethodValue,
-				po_number: poNumberValue,
-				notes: internalNoteValue,
-				rep_user_id: finalizeData?.rep_user_id ?? null,
-				channel: finalizeData?.channel ?? (locals.isBuyer ? 'web-buyer' : 'web-rep'),
-				source_type_id: selectedSourceName
-					? (sourceByOrgName.get(`${orderOrgId}::${selectedSourceName.toLowerCase()}`) ?? null)
-					: null,
-				show_date_id: finalizeData?.show_date_id ?? null,
-				show_id: resolvedShowId,
-				terms_id: canStampTerms ? ba!.terms_id : null,
-				terms_agreed_by: canStampTerms ? user.id : null,
-				terms_agreed_at: canStampTerms ? new Date().toISOString() : null,
-				created_by: user.id,
-				submitted_at:
-					o.status === 'submitted' || o.status === 'confirmed' ? new Date().toISOString() : null,
-				confirmed_at: o.status === 'confirmed' ? new Date().toISOString() : null
-			})
-			.select('id, order_number')
-			.single();
-
-		if (orderErr || !orderRow) {
-			console.error('[submit-order] order insert failed', {
-				org_id: organization.id,
-				user_id: user.id,
-				role,
-				brand_id: o.brand_id,
-				account_id: o.account_id,
-				error: orderErr
-			});
-			return fail(500, { message: orderErr?.message ?? 'Failed to create order' });
-		}
-
-		if (o.lines.length > 0) {
-			const linesInsert = o.lines.map((l, i) => ({
-				order_id: orderRow.id,
+		const row = {
+			id: ids.orderId(o.brand_id, o.season_id),
+			organization_id: orderOrgId,
+			order_type: o.order_type,
+			account_id: o.account_id,
+			freeform_name: o.freeform_name,
+			location_id: shipToLocationId,
+			bill_to_location_id: billToLocationId,
+			brand_id: o.brand_id,
+			season_id: o.season_id,
+			order_year: o.order_year,
+			delivery_id: o.delivery_id,
+			expected_ship_date: o.expected_ship_date,
+			start_ship_date: o.start_ship_date,
+			status: o.status,
+			total_amount: o.total_amount,
+			payment_preference: paymentPrefValue,
+			payment_terms: paymentTermsValue,
+			shipping_method: shippingMethodValue,
+			po_number: poNumberValue,
+			notes: internalNoteValue,
+			rep_user_id: finalizeData?.rep_user_id ?? null,
+			channel: finalizeData?.channel ?? (locals.isBuyer ? 'web-buyer' : 'web-rep'),
+			source_type_id: selectedSourceName
+				? (sourceByOrgName.get(`${orderOrgId}::${selectedSourceName.toLowerCase()}`) ?? null)
+				: null,
+			show_date_id: finalizeData?.show_date_id ?? null,
+			show_id: resolvedShowId,
+			terms_id: canStampTerms ? ba!.terms_id : null,
+			terms_agreed_by: canStampTerms ? user.id : null,
+			terms_agreed_at: canStampTerms ? now : null,
+			// created_by is the p_actor argument, not a row field.
+			submitted_at: o.status === 'submitted' || o.status === 'confirmed' ? now : null,
+			confirmed_at: o.status === 'confirmed' ? now : null,
+			lines: o.lines.map((l, i) => ({
 				product_id: l.product_id,
 				style_number: l.style_number,
 				description: l.description,
@@ -345,20 +386,58 @@ export async function submitOrder(
 				qty: l.qty,
 				unit_price: l.unit_price,
 				sort_order: i
-			}));
-			const { error: lineErr } = await supabase.rpc('insert_order_lines_with_actor', {
-				actor: user.id,
-				lines: linesInsert
-			});
-			if (lineErr) {
-				console.error('[submit-order] order_lines insert failed', {
-					order_id: orderRow.id,
-					line_count: linesInsert.length,
-					error: lineErr
-				});
-				return fail(500, { message: lineErr.message });
-			}
+			}))
+		};
+		return { o, orderOrgId, row };
+	});
+
+	// One transaction for the inline account, every order and every line. Order
+	// ids come from the submission id, so a retry returns the stored orders with
+	// inserted = false instead of writing them again.
+	const { data: written, error: writeErr } = await supabase.rpc('create_order_submission', {
+		p_actor: user.id,
+		p_account: freeformAccountRow,
+		p_orders: prepared.map((p) => p.row)
+	});
+
+	if (writeErr || !written) {
+		console.error('[submit-order] order submission write failed', {
+			org_id: organization.id,
+			user_id: user.id,
+			role,
+			submission_id: ids.submissionId,
+			order_count: prepared.length,
+			error: writeErr
+		});
+		// A client id that belongs to another org or user. Retrying would get the
+		// same answer, so it is not a server error.
+		if (writeErr?.code === '23505') {
+			return { ok: false, status: 409, message: 'This order id is already in use.' };
 		}
+		return { ok: false, status: 500, message: 'Could not save the order. Try again.' };
+	}
+
+	const results = new Map(
+		(written as Array<{ order_id: string; order_number: string; inserted: boolean }>).map((r) => [
+			r.order_id,
+			r
+		])
+	);
+	const orders: Array<{ id: string; order_number: string; inserted: boolean }> = [];
+
+	for (const { o, orderOrgId, row } of prepared) {
+		const result = results.get(row.id);
+		if (!result) continue;
+		orders.push({
+			id: result.order_id,
+			order_number: result.order_number,
+			inserted: result.inserted
+		});
+
+		// A replay already ran its side effects the first time.
+		if (!result.inserted) continue;
+
+		const orderRow = { id: result.order_id, order_number: result.order_number };
 
 		// orderOrgId, not organization.id: a brand-org writer creates the order in
 		// the brand's org, and the row must land on that org's timeline.
@@ -385,7 +464,6 @@ export async function submitOrder(
 				metadata: { status: o.status, brandId: o.brand_id, totalAmount: o.total_amount }
 			});
 
-			const origin = request.headers.get('origin') ?? '';
 			sendOrderEmail(
 				o.status,
 				{
@@ -407,15 +485,25 @@ export async function submitOrder(
 			});
 			emitOrderEvent(orderOrgId, orderRow.id, isConfirmed ? 'confirmed' : 'submitted', origin);
 		}
-
-		createdIds.push(orderRow.id);
-		createdNumbers.push(orderRow.order_number);
 	}
 
-	if (createdNumbers.length === 0) {
-		throw redirect(303, '/orders');
+	if (drift) {
+		const reason = driftReason(drift);
+		const first = orders.find((o) => o.inserted);
+		// Once, on the first write; a replay already told the rep.
+		if (first) {
+			await createNotification({
+				organizationId: organization.id,
+				userId: user.id,
+				type: 'order_needs_review',
+				title: 'Order saved as a draft',
+				body: reason,
+				link: `/orders/${first.id}`
+			}).catch((err: unknown) =>
+				console.error('[submit-order] drift notification failed', { error: err })
+			);
+		}
+		return { ok: true, orders, drift: { reason } };
 	}
-
-	const ids = createdNumbers.slice(0, 10).join(',');
-	throw redirect(303, `/orders/confirmation?ids=${ids}`);
+	return { ok: true, orders };
 }

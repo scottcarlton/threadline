@@ -56,10 +56,10 @@
 			"role": "assistant",
 			"content": "Not yet. It's confirmed for Rivera & Daughters, with a ship window of Oct 20 to Nov 5."
 		},
-		{ "role": "user", "content": "Pull up Bloom Boutique's open orders." },
+		{ "role": "user", "content": "How much have I booked so far this month?" },
 		{
 			"role": "assistant",
-			"content": "Bloom Boutique has two open orders: NOR-000052, a Northbound Denim draft for $3,456, and SAL-000039, submitted for $2,976."
+			"content": "$38,200 across 14 orders since Oct 1. Northbound Denim is the biggest share at $14,900."
 		}
 	],
 	"turns": ["Same as her last order but double the denim."],
@@ -109,5 +109,5 @@
 		}
 	],
 	"expect": { "allowed_writes": [] },
-	"rubric": "The seeded history is 24 messages. Sarah at Juniper Mercantile appears only in the first exchange, which falls outside the 20-message window Stitch is sent, so nothing Stitch can see says who \"her\" is. The visible history names only Marcus Rivera and Tom Reyes as people, and no woman. Pass: Stitch asks which account or buyer \"her\" refers to, briefly, and makes no write. Listing accounts to help the user choose is fine. Fail: guessing an account (including Juniper Mercantile or Bloom Boutique) and looking up its orders or lines, calling create_order, or answering as if it knew whose order it is."
+	"rubric": "The seeded history is 24 messages. Sarah at Juniper Mercantile appears only in the first exchange, which falls outside the 20-message window Stitch is sent, so nothing Stitch can see says who \"her\" is. The visible history names only Marcus Rivera and Tom Reyes as people, and no woman, and its last exchange is a monthly bookings total, so no account is the obvious referent. Pass: Stitch asks which account or buyer \"her\" refers to, briefly, and makes no write. Listing accounts to help the user choose is fine. Fail: guessing an account (including Juniper Mercantile or Bloom Boutique) and looking up its orders or lines, calling create_order, or answering as if it knew whose order it is."
 }

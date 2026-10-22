@@ -3,6 +3,8 @@ name: CI
 on:
   pull_request:
     branches: [dev, main]
+    # `edited` covers stacked PRs retargeted to dev after their parent merges
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [dev, main]
 

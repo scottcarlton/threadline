@@ -31,7 +31,19 @@
 	import { startNotificationPolling } from '$lib/stores/notifications.js';
 	import { startAppointmentPolling } from '$lib/stores/appointments.js';
 	import { startOrderAttentionPolling } from '$lib/stores/orderAttention.js';
-	import { registerServiceWorker, isOnline } from '$lib/stores/pwa.js';
+	import {
+		registerServiceWorker,
+		requestOfflinePages,
+		warmProductImages,
+		isOnline,
+		isStandalone
+	} from '$lib/stores/pwa.js';
+	import { orderSnapshot, outbox, requestPersistentStorage } from '$lib/offline';
+	import { warmImageUrls } from '$lib/pwa/offline-shell';
+	import { confirmSignOut } from '$lib/offline/sync-ui';
+	import { registerSenders } from '$lib/offline/senders';
+	import SyncPanel from '$lib/components/pwa/SyncPanel.svelte';
+	import SignOutWarning from '$lib/components/pwa/SignOutWarning.svelte';
 	import OfflineBanner from '$lib/components/pwa/OfflineBanner.svelte';
 	import InstallPrompt from '$lib/components/pwa/InstallPrompt.svelte';
 	import { startVoiceCapture, type VoiceCaptureHandle } from '$lib/utils/voice-capture';
@@ -47,6 +59,7 @@
 	import MobileBottomNav from '$lib/components/layout/MobileBottomNav.svelte';
 	import { selectedProductIds } from '$lib/stores/productSelection.js';
 	import { supabase } from '$lib/supabase.js';
+	import { clearAppCaches } from '$lib/utils/clear-app-caches.js';
 
 	const { messages, loading, title: conversationTitle } = conversation;
 
@@ -61,6 +74,10 @@
 	}
 
 	async function handleSignOut() {
+		// Sign-out deletes the offline outbox; confirm first if it holds unsent work.
+		if (!(await confirmSignOut(outbox.unsynced))) return;
+		// First, so a failed network call below can't leave cached data behind.
+		await clearAppCaches();
 		await supabase.auth.signOut();
 		// Clear the httpOnly active_org_id cookie server-side; client signOut can't.
 		await fetch('/logout', { method: 'POST' });
@@ -172,13 +189,52 @@
 			const stopAttention = startOrderAttentionPolling(60000);
 			const stopNotifications = startNotificationPolling(30000);
 			registerServiceWorker();
+			// Offline outbox (SCO-206): send anything this rep saved while offline.
+			if (data.user?.id) {
+				void outbox.start(data.user.id).then(() => registerSenders(outbox));
+				// Reps keep the order wizard's data on the device (SCO-208).
+				if (!data.isBuyer && data.organization?.id) {
+					void orderSnapshot.start(data.user.id, data.organization.id);
+				}
+				if ($isStandalone) void requestPersistentStorage();
+			}
+			// Offline app shell (SCO-209): keep the offline-capable pages cached for
+			// this user, and refresh them when a new worker takes over or the
+			// connection returns.
+			const refreshOfflinePages = () => {
+				if (!data.isBuyer) void requestOfflinePages();
+			};
+			navigator.serviceWorker?.addEventListener('controllerchange', refreshOfflinePages);
+			window.addEventListener('online', refreshOfflinePages);
 			return () => {
+				navigator.serviceWorker?.removeEventListener('controllerchange', refreshOfflinePages);
+				window.removeEventListener('online', refreshOfflinePages);
+				outbox.stop();
+				orderSnapshot.stop();
 				stopUnread?.();
 				stopAppointments?.();
 				stopAttention?.();
 				stopNotifications?.();
 			};
 		}
+	});
+
+	// Fetch product images ahead whenever a fresh catalog lands, so the order
+	// wizard has pictures offline (SCO-208).
+	const currentSnapshot = orderSnapshot.current;
+	let warmedAt = 0;
+	$effect(() => {
+		const snap = $currentSnapshot;
+		if (!snap || snap.fetchedAt === warmedAt) return;
+		warmedAt = snap.fetchedAt;
+		void warmProductImages(warmImageUrls(snap.products));
+	});
+
+	// The cached offline pages carry the current org's data, so re-cache on
+	// sign-in and on every org switch.
+	$effect(() => {
+		const orgId = data.organization?.id;
+		if (data.session && orgId && !data.isBuyer) void requestOfflinePages();
 	});
 
 	const chatFontStyle = $derived(
@@ -855,6 +911,8 @@
 	{#if data.session && !isAuthRoute}
 		<NotificationToasts />
 		<NotificationCenter open={notificationsOpen} onclose={() => (notificationsOpen = false)} />
+		<SyncPanel />
+		<SignOutWarning />
 	{/if}
 {/if}
 
