@@ -512,6 +512,11 @@
 			? 'Note'
 			: 'Order'}{(data.totalCount ?? orderList.length) !== 1 ? 's' : ''}"
 	>
+		{#if isBrandOrg && canCreate}
+			<Button variant="outline" class="hidden sm:inline-flex" onclick={() => (showImport = true)}
+				>Import</Button
+			>
+		{/if}
 		{#if canCreate}
 			<Button href="/orders/new" class="min-w-[100px]">
 				<svg
