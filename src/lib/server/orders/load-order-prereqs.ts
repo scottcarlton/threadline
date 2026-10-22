@@ -245,3 +245,5 @@ export async function loadOrderPrereqs(locals: App.Locals) {
 		brandSettings
 	};
 }
+
+export type OrderPrereqs = Awaited<ReturnType<typeof loadOrderPrereqs>>;

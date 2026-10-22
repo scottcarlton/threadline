@@ -3,20 +3,24 @@ import type { OutboxItem } from './types';
 /**
  * The device's offline store. One database per origin; rows carry the user id
  * so a second rep signing in on the same iPad never reads the first rep's
- * items. The reference snapshot (SCO-208) adds its stores in a later version.
+ * items.
+ *
+ * v1  outbox
+ * v2  snapshot: reference data and catalog for the order wizard (SCO-208)
  */
 export const OFFLINE_DB_NAME = 'threadline-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const OUTBOX = 'outbox';
+export const SNAPSHOT = 'snapshot';
 
-function request<T>(req: IDBRequest<T>): Promise<T> {
+export function request<T>(req: IDBRequest<T>): Promise<T> {
 	return new Promise((resolve, reject) => {
 		req.onsuccess = () => resolve(req.result);
 		req.onerror = () => reject(req.error);
 	});
 }
 
-function done(tx: IDBTransaction): Promise<void> {
+export function done(tx: IDBTransaction): Promise<void> {
 	return new Promise((resolve, reject) => {
 		tx.oncomplete = () => resolve();
 		tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
@@ -33,12 +37,33 @@ export function openOfflineDb(factory: IDBFactory = indexedDB): Promise<IDBDatab
 				const store = db.createObjectStore(OUTBOX, { keyPath: 'id' });
 				store.createIndex('userId', 'userId', { unique: false });
 			}
+			if (!db.objectStoreNames.contains(SNAPSHOT)) {
+				db.createObjectStore(SNAPSHOT, { keyPath: 'key' });
+			}
 		};
 		req.onsuccess = () => resolve(req.result);
 		req.onerror = () => reject(req.error);
-		req.onblocked = () =>
-			reject(new Error('Offline store is open in another tab on an old version'));
+		// Another tab still has an older version open. It closes on
+		// `versionchange` (see connection below), and then this open succeeds;
+		// rejecting here would fail every upgrade that races a second tab.
+		req.onblocked = () => console.warn('[offline] waiting for another tab to release the store');
 	});
+}
+
+/**
+ * A lazily opened connection that steps aside when another tab, or sign-out,
+ * deletes or upgrades the database, and reopens on the next call.
+ */
+export function connection(open: () => Promise<IDBDatabase>): () => Promise<IDBDatabase> {
+	let dbPromise: Promise<IDBDatabase> | null = null;
+	return () =>
+		(dbPromise ??= open().then((conn) => {
+			conn.addEventListener('versionchange', () => {
+				conn.close();
+				dbPromise = null;
+			});
+			return conn;
+		}));
 }
 
 /** Storage the drain loop needs. The IndexedDB one below is the only real one. */
@@ -50,17 +75,7 @@ export type OutboxStore = {
 };
 
 export function createIdbOutboxStore(open: () => Promise<IDBDatabase>): OutboxStore {
-	let dbPromise: Promise<IDBDatabase> | null = null;
-	const db = () =>
-		(dbPromise ??= open().then((conn) => {
-			// Another tab (or sign-out) is deleting or upgrading the database. Let
-			// go so it is not blocked, and reopen on the next call.
-			conn.addEventListener('versionchange', () => {
-				conn.close();
-				dbPromise = null;
-			});
-			return conn;
-		}));
+	const db = connection(open);
 
 	return {
 		async list(userId) {
