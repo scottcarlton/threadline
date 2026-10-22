@@ -22,7 +22,7 @@ function ctx(supabase: SupabaseClient) {
 	};
 }
 
-describe('executeToolCall write validation', () => {
+describe('executeToolCall input validation', () => {
 	it('refuses a write whose input fails its schema without running the handler', async () => {
 		const { client, from } = untouchable();
 		const r = await executeToolCall('update_order_line', { line_id: 'l1' }, ctx(client));
@@ -42,6 +42,22 @@ describe('executeToolCall write validation', () => {
 		expect(r.success).toBe(false);
 		expect(r.error).toContain('start_ship_date');
 		expect(from).not.toHaveBeenCalled();
+	});
+
+	it('checks read tools the same way', async () => {
+		const { client, from } = untouchable();
+		const r = await executeToolCall('query_data', { entity: 'invoices' }, ctx(client));
+		expect(r.success).toBe(false);
+		expect(r.error).toMatch(/^Invalid input for query_data\./);
+		expect(from).not.toHaveBeenCalled();
+	});
+
+	it('refuses a name that is not a tool', async () => {
+		const { client } = untouchable();
+		expect(await executeToolCall('drop_tables', {}, ctx(client))).toEqual({
+			success: false,
+			error: 'Unknown tool: drop_tables'
+		});
 	});
 
 	it('runs the handler with parsed input when the call is valid', async () => {
