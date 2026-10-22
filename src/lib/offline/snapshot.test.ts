@@ -138,6 +138,45 @@ describe('createSnapshotSync', () => {
 	});
 });
 
+describe('ensure', () => {
+	it('returns the stored copy without a network call', async () => {
+		const store = memorySnapshots([snap({ fetchedAt: 3 })]);
+		const fetchFn = serverReply({});
+		const sync = createSnapshotSync({
+			store,
+			fetchFn,
+			isOnline: () => true,
+			events: null,
+			doc: null
+		});
+		expect((await sync.ensure('user-1', 'org-1'))?.fetchedAt).toBe(3);
+		expect(fetchFn).not.toHaveBeenCalled();
+	});
+
+	it('fetches when nothing is stored and the device is online', async () => {
+		const store = memorySnapshots();
+		const fetchFn = serverReply({ orgId: 'org-1', fetchedAt: 7, prereqs: {}, products: [] });
+		const sync = createSnapshotSync({
+			store,
+			fetchFn,
+			isOnline: () => true,
+			events: null,
+			doc: null
+		});
+		expect((await sync.ensure('user-1', 'org-1'))?.fetchedAt).toBe(7);
+	});
+
+	it('returns null offline with nothing stored', async () => {
+		const sync = createSnapshotSync({
+			store: memorySnapshots(),
+			isOnline: () => false,
+			events: null,
+			doc: null
+		});
+		expect(await sync.ensure('user-1', 'org-1')).toBeNull();
+	});
+});
+
 describe('IndexedDB snapshot store', () => {
 	it('round-trips a snapshot', async () => {
 		const factory = new IDBFactory();
