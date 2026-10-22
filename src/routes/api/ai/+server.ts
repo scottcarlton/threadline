@@ -29,6 +29,7 @@ import {
 	trackedClient,
 	trackedToolExecutor,
 	logToolDenial,
+	logToolInvalid,
 	type TurnContext
 } from '$lib/server/stitch/telemetry.js';
 import { reportAiDegraded, reportAiError } from '$lib/server/ai-errors.js';
@@ -476,7 +477,8 @@ function stitchTurnParams(p: {
 				}),
 			p.turn
 		),
-		onDenied: (name, reason) => logToolDenial(p.turn, name, reason)
+		onDenied: (name, reason) => logToolDenial(p.turn, name, reason),
+		onInvalid: (name, error) => logToolInvalid(p.turn, name, error)
 	};
 }
 

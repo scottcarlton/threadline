@@ -2,6 +2,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { ToolResult } from '../ai-tools.js';
 import { WRITE_TOOLS } from './tools.js';
+import { checkToolInput } from '../../schemas/stitch-tools.js';
 
 export const STITCH_MODEL = 'claude-sonnet-4-6';
 const MAX_TOKENS = 4096;
@@ -12,7 +13,13 @@ export type StitchEvent =
 	| { type: 'tool_start'; name: string }
 	| { type: 'tool_result'; name: string; ok: boolean };
 
-export type StitchAttempt = { name: string; input: Record<string, unknown>; denied: boolean };
+export type StitchAttempt = {
+	name: string;
+	input: Record<string, unknown>;
+	denied: boolean;
+	/** The input failed the tool's schema, so the tool never ran. */
+	invalid?: true;
+};
 
 /** Why a tool call was refused before it ran. Matches ai_tool_calls.denial_reason. */
 export type StitchDenialReason = 'guest_read_only' | 'brand_scope';
@@ -53,6 +60,8 @@ export type RunStitchTurnParams = {
 	onResponse?: (message: Anthropic.Message) => void;
 	/** A tool call refused before it ran; executeTool never sees these. */
 	onDenied?: (name: string, reason: StitchDenialReason) => void;
+	/** A tool call whose input failed its schema; executeTool never sees these either. */
+	onInvalid?: (name: string, error: string) => void;
 	model?: string;
 };
 
@@ -144,8 +153,25 @@ export async function runStitchTurn(p: RunStitchTurnParams): Promise<StitchTurnR
 				continue;
 			}
 
+			// Checked here, not only inside the executor, so the model gets an
+			// is_error result to correct from and telemetry can tell a bad call
+			// from a failed one. Handlers then get only the declared fields.
+			const checked = checkToolInput(block.name, toolInput);
+			if (!checked.success) {
+				attempted.push({ name: block.name, input: toolInput, denied: false, invalid: true });
+				p.onInvalid?.(block.name, checked.error);
+				toolResults.push({
+					type: 'tool_result',
+					tool_use_id: block.id,
+					is_error: true,
+					content: checked.error
+				});
+				emit({ type: 'tool_result', name: block.name, ok: false });
+				continue;
+			}
+
 			attempted.push({ name: block.name, input: toolInput, denied: false });
-			const result = await p.executeTool(block.name, toolInput);
+			const result = await p.executeTool(block.name, checked.data);
 			actions.push({ tool: block.name, input: toolInput, result });
 			toolResults.push({
 				type: 'tool_result',

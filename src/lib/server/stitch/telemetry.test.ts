@@ -8,7 +8,8 @@ const logToolCall = vi.fn();
 vi.mock('../ai-usage.js', () => ({ logUsage, logUsageFailure }));
 vi.mock('../ai-tool-calls.js', () => ({ logToolCall }));
 
-const { trackedClient, trackedToolExecutor, logToolDenial } = await import('./telemetry.js');
+const { trackedClient, trackedToolExecutor, logToolDenial, logToolInvalid } =
+	await import('./telemetry.js');
 
 const ctx = {
 	endpoint: 'chat',
@@ -160,6 +161,20 @@ describe('logToolDenial', () => {
 				tool: 'create_order',
 				status: 'denied',
 				denialReason: 'guest_read_only'
+			})
+		);
+	});
+});
+
+describe('logToolInvalid', () => {
+	it('records a schema failure as invalid, with the issues as its error', () => {
+		logToolInvalid(ctx, 'create_order', 'Invalid input for create_order. lines: Required');
+
+		expect(logToolCall).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tool: 'create_order',
+				status: 'invalid',
+				error: 'Invalid input for create_order. lines: Required'
 			})
 		);
 	});
