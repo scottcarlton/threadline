@@ -2,6 +2,7 @@
 	import { fade } from 'svelte/transition';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { parseCSV as parseOrderCSV } from '$lib/utils/csv-parse.js';
+	import { isXlsxFile, parseXlsx } from '$lib/utils/xlsx-parse.js';
 	import {
 		SCANNING_MIN_MS,
 		PREPARING_MIN_MS,
@@ -14,7 +15,7 @@
 	import type { OrderImportResult } from '$lib/schemas/order-import.js';
 
 	// Order import flow: tabs (Upload | Paste CSV) → loading stages →
-	// preview list → Save Items / Continue. CSV-only. Mirrors
+	// preview list → Save Items / Continue. CSV or .xlsx upload. Mirrors
 	// <ProductImportFlow> visually so every import surface feels the
 	// same. Server endpoint resolves accounts/products per row and
 	// returns counts of created / skipped / errored rows.
@@ -48,18 +49,20 @@
 	async function handleFile(file: File) {
 		errorMessage = '';
 		const isCsv = file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
-		if (!isCsv) {
-			errorMessage = 'Unsupported file. Drop a CSV.';
+		const isXlsx = isXlsxFile(file);
+		if (!isCsv && !isXlsx) {
+			errorMessage = 'Unsupported file. Drop a CSV or Excel file.';
 			return;
 		}
 
 		parsingStage = 'scanning';
 		const scanStart = Date.now();
 		try {
-			const text = await file.text();
-			const { headers, rows } = parseOrderCSV(text);
+			const { headers, rows } = isXlsx ? await parseXlsx(file) : parseOrderCSV(await file.text());
 			if (rows.length === 0) {
-				errorMessage = 'No rows found. Make sure your CSV has a header row.';
+				errorMessage = isXlsx
+					? 'No rows found. Make sure the first sheet has a header row.'
+					: 'No rows found. Make sure your CSV has a header row.';
 				return;
 			}
 			await ensureMinElapsed(scanStart, SCANNING_MIN_MS);
@@ -199,7 +202,7 @@
 			<input
 				id="order-import-file-input"
 				type="file"
-				accept=".csv,text/csv"
+				accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 				class="hidden"
 				onchange={(e) => {
 					const target = e.target as HTMLInputElement;
@@ -238,7 +241,7 @@
 					<p class="text-sm text-muted-foreground">
 						Drop a file or
 						<span class="text-foreground underline underline-offset-2">select</span>
-						to try again. CSV up to 20MB.
+						to try again. CSV or Excel up to 20MB.
 					</p>
 				</label>
 			{:else}
@@ -272,7 +275,7 @@
 						Drag and Drop or
 						<span class="text-foreground underline underline-offset-2">Select File</span>
 					</p>
-					<p class="text-sm text-muted-foreground">Support CSV up to 20MB</p>
+					<p class="text-sm text-muted-foreground">Support CSV or Excel up to 20MB</p>
 				</label>
 			{/if}
 		{:else if errorMessage}
