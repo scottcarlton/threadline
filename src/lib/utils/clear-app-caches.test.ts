@@ -10,6 +10,7 @@ function fakeCacheStorage(contents: Record<string, string[]>) {
 	);
 	const storage = {
 		keys: async () => [...stores.keys()],
+		delete: async (name: string) => stores.delete(name),
 		open: async (name: string) => {
 			const set = stores.get(name)!;
 			return {
@@ -26,13 +27,17 @@ function fakeCacheStorage(contents: Record<string, string[]>) {
 }
 
 describe('clearAppCaches', () => {
-	it('removes every cached response except the offline fallback', async () => {
+	it('removes user pages and keeps the code the app needs to open offline', async () => {
 		const { storage, remaining } = fakeCacheStorage({
-			'cache-v1': ['/offline.html', '/dashboard', '/_app/immutable/app.js'],
-			'cache-v0': ['/accounts/123']
+			'cache-v1': ['/offline.html', '/dashboard', '/_app/immutable/app.js', '/icons/icon-192.png'],
+			'cache-v0': ['/accounts/123'],
+			'pages-v1': ['/accounts/new']
 		});
-		await clearAppCaches(storage);
-		expect(remaining()).toEqual({ 'cache-v1': ['/offline.html'], 'cache-v0': [] });
+		await clearAppCaches(storage, async () => {});
+		expect(remaining()).toEqual({
+			'cache-v1': ['/offline.html', '/_app/immutable/app.js', '/icons/icon-192.png'],
+			'cache-v0': []
+		});
 	});
 
 	it('is a no-op when Cache Storage is unavailable', async () => {

@@ -58,3 +58,19 @@ export async function registerServiceWorker(): Promise<void> {
 		console.error('Service worker registration failed:', err);
 	}
 }
+
+/**
+ * Ask the service worker to keep fresh copies of the offline-capable pages for
+ * the signed-in user (SCO-209). Call while signed in and online: on load, when
+ * the org changes (the pages carry org data), when a new worker takes over (its
+ * page cache starts empty), and on reconnect.
+ */
+export async function requestOfflinePages(): Promise<void> {
+	if (!browser || !('serviceWorker' in navigator) || !navigator.onLine) return;
+	try {
+		const reg = await navigator.serviceWorker.ready;
+		reg.active?.postMessage({ type: 'cache-offline-pages' });
+	} catch (err) {
+		console.error('Requesting offline pages failed:', err);
+	}
+}
