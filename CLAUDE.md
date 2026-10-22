@@ -77,6 +77,10 @@ Run `bun run test:run` before claiming work is complete.
 
 ## Code Style
 
+### Writing
+
+- No em dashes anywhere: UI copy, comments, commit messages, PR bodies. Rewrite the sentence instead.
+
 ### Typography
 
 - Minimum body size is `text-sm` (14px). **Avoid `text-xs`** (12px) unless explicitly approved by the user.
@@ -119,6 +123,11 @@ Canonical pattern across `/accounts`, `/products`, `/orders`, `/reports`, `/shop
 - Supabase joined selects (e.g. `.select('id, shows(name)')`) often infer the join as `never`. Cast the joined field: `sd.shows as { name?: string } | { name?: string }[] | null`.
 - Motion v12: use `ease` (not `easing`) in `AnimationOptions`. When `animate(element, keyframes)` picks the wrong overload, cast keyframes: `{...} as Parameters<typeof animate>[1]`. Use `querySelectorAll<HTMLElement>` for typed iteration.
 
+### Server data access
+
+- `supabaseAdmin` bypasses RLS. Every call site needs an ownership check derived on the server (the caller's org, user, or membership), and an empty scope must deny, never widen.
+- Inserts go through `supabaseAdmin` with an app-layer role check, because `@supabase/ssr` drops the JWT on writes.
+
 ## Forms & Validation
 
 All new forms use **Zod schemas + sveltekit-superforms + svelte-sonner**. Reference implementation: `src/routes/accounts/new/`.
@@ -145,7 +154,7 @@ Don't roll new ad-hoc `let error = $state('')` patterns. If a form is being touc
 - Tasks and milestones live in Linear project **"Threadline"**
 - **Specs, implementation plans, and anything a PM would read live in Notion, not the repo.** Create each spec as a child page of Notion **Threadline → Projects**, in the same shape as the existing pages there (e.g. "Order Invoicing"). Put an implementation plan under its spec page. Audits, QA matrices, and research go under Threadline → QA & Audits or Threadline → Strategy. Link Linear tickets to the Notion page. Do not commit specs or plans to `docs/superpowers/specs/`, `docs/superpowers/plans/`, or anywhere else in the repo, even when a skill defaults to writing one there.
 - Move tickets to **In Progress** when you start work, not after completing it
-- Skills: `.claude/skills/linear-flow` (pickup → branch → PR → close), `.claude/skills/linear-milestone` (plan all tickets in a milestone), `.claude/skills/git-pre` (end-of-feature: verify → self-review → commit → sync dev → push → open PR)
+- Skills: `/kickoff [ticket | project | initiative]` (pick up work and run it to merged; with no argument it picks the most relevant ticket), `/ship` (finish a branch: verify, review, commit, PR, Linear, auto-merge into dev), `/linear-milestone` (plan all tickets in a milestone)
 
 ## Verification Before Completion
 
