@@ -34,6 +34,7 @@ import {
 } from '$lib/server/stitch/telemetry.js';
 import { reportAiDegraded, reportAiError } from '$lib/server/ai-errors.js';
 import { randomUUID } from 'node:crypto';
+import { aiChatRequestSchema } from '$lib/schemas/ai-chat.js';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -69,6 +70,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
+	const parsed = aiChatRequestSchema.safeParse(await request.json().catch(() => null));
+	if (!parsed.success) {
+		return json({ error: 'Invalid payload', details: parsed.error.issues }, { status: 400 });
+	}
 	const {
 		message,
 		files,
@@ -78,14 +83,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		entityContext: entityCtx,
 		agentId,
 		stream
-	} = await request.json();
+	} = parsed.data;
 	const origin = request.headers.get('origin') || new URL(request.url).origin;
 	const requestStartTime = Date.now();
 	const turnId = randomUUID();
-
-	if (!message || typeof message !== 'string') {
-		return json({ error: 'Message is required' }, { status: 400 });
-	}
 
 	const limit = await checkAiLimits(locals.organization.id, locals.user.id, 'chat');
 	if (!limit.allowed) {
@@ -107,7 +108,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	// the policy.
 	let activeConversationId: string | null;
 	let isNewConversation = false;
-	if (typeof conversationId === 'string' && conversationId) {
+	if (conversationId) {
 		const owns = await conversationBelongsTo(conversationId, locals.user.id);
 		if (!owns) return json({ error: 'Conversation not found' }, { status: 403 });
 		activeConversationId = conversationId;
@@ -254,11 +255,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Persist the user turn before the model call. Attachment bytes are never
 		// stored, only enough metadata to render the turn on resume.
 		if (activeConversationId) {
-			const storedAttachments: StoredAttachment[] | null = Array.isArray(files)
-				? files.map((f: { name: string; type: string; data: string }) => ({
-						name: f.name,
+			const storedAttachments: StoredAttachment[] | null = files
+				? files.map((f) => ({
+						name: f.name ?? 'attachment',
 						type: f.type,
-						size: f.data?.length ?? 0
+						size: f.data.length
 					}))
 				: null;
 			await appendMessage(
