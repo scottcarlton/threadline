@@ -19,8 +19,11 @@ Thumbs.db
 !.env.test
 !.env.ci
 
-# Claude Code
-.claude/
+# Claude Code: skills and shared settings are tracked for the team;
+# personal settings and session data are not.
+.claude/*
+!.claude/skills/
+!.claude/settings.json
 
 # Vite
 vite.config.js.timestamp-*
