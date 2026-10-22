@@ -13,7 +13,15 @@ const config = {
 			return isExternalLibrary ? undefined : true;
 		}
 	},
-	kit: { adapter: adapter() }
+	kit: {
+		adapter: adapter(),
+		experimental: {
+			// Run src/instrumentation.server.ts before the app, and emit spans for
+			// handle, load, actions, and remote functions. Sentry picks both up.
+			instrumentation: { server: true },
+			tracing: { server: true }
+		}
+	}
 };
 
 export default config;
