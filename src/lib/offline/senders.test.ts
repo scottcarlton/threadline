@@ -67,3 +67,18 @@ describe('sendOrder', () => {
 		expect((await sendOrder(queued, respond(status, { message: 'x' }))).status).toBe(expected);
 	});
 });
+
+describe('sendOrder drift', () => {
+	it('flags an order saved as a draft for review, keeping its numbers', async () => {
+		const orders = [{ id: 'o1', order_number: 'A-1', inserted: true }];
+		const result = await sendOrder(
+			item({ id: 'sub-2', kind: 'order.create', payload: {} }),
+			respond(200, { orders, drift: { reason: 'Saved as a draft: a brand updated its terms.' } })
+		);
+		expect(result).toEqual({
+			status: 'needs_review',
+			reason: 'Saved as a draft: a brand updated its terms.',
+			result: { orders }
+		});
+	});
+});

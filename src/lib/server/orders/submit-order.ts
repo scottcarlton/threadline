@@ -7,7 +7,8 @@ import {
 	type CartLine
 } from '$lib/server/orders/cart.js';
 import { sendOrderEmail } from '$lib/server/order-emails.js';
-import { notifyBrandAdmins } from '$lib/server/notifications.js';
+import { createNotification, notifyBrandAdmins } from '$lib/server/notifications.js';
+import { detectDrift, driftReason } from '$lib/server/orders/drift.js';
 import { emitOrderEvent } from '$lib/server/integrations/events.js';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isPaymentPreferenceCode } from '$lib/payment-methods';
@@ -23,6 +24,8 @@ export type SubmitOutcome =
 			ok: true;
 			/** One per brand/season group, in cart order. `inserted` is false on a replay. */
 			orders: Array<{ id: string; order_number: string; inserted: boolean }>;
+			/** Set when a captured order was saved as a draft because of drift. */
+			drift?: { reason: string };
 	  }
 	| { ok: false; status: 400 | 401 | 403 | 409 | 500; message: string };
 
@@ -64,7 +67,15 @@ export async function submitOrder(
 export async function submitOrderPayload(
 	json: unknown,
 	locals: App.Locals,
-	origin: string
+	origin: string,
+	opts: {
+		/**
+		 * The order was captured earlier on a device (the offline outbox). Prices
+		 * or terms that changed since then save it as a draft for the rep to
+		 * review, instead of submitting on numbers they never saw (SCO-209).
+		 */
+		captured?: boolean;
+	} = {}
 ): Promise<SubmitOutcome> {
 	const { organization, user } = locals;
 	const role = locals.membership?.role;
@@ -93,7 +104,8 @@ export async function submitOrderPayload(
 	try {
 		auth = await authorizeSubmitPayload(supabase, payload, scope, {
 			userId: user.id,
-			orgId: organization.id
+			orgId: organization.id,
+			staleTerms: opts.captured ? 'collect' : 'deny'
 		});
 	} catch (err) {
 		console.error('[submit-order] authorization lookup failed', {
@@ -111,6 +123,14 @@ export async function submitOrderPayload(
 		});
 		return { ok: false, status: auth.status, message: auth.message };
 	}
+
+	// A captured order whose prices or terms moved on is saved as a draft: it
+	// still lands (nothing the rep wrote is lost), but nothing goes to the brand
+	// until the rep has looked at it.
+	const drift = opts.captured
+		? detectDrift(payload.lines, auth.products, auth.staleTermsBrandIds)
+		: null;
+	if (drift) payload.submitStatus = 'draft';
 
 	// Price, style number and description come from the product row, never the
 	// client. The wizard shows wholesale_price today, so this matches what the
@@ -467,5 +487,23 @@ export async function submitOrderPayload(
 		}
 	}
 
+	if (drift) {
+		const reason = driftReason(drift);
+		const first = orders.find((o) => o.inserted);
+		// Once, on the first write; a replay already told the rep.
+		if (first) {
+			await createNotification({
+				organizationId: organization.id,
+				userId: user.id,
+				type: 'order_needs_review',
+				title: 'Order saved as a draft',
+				body: reason,
+				link: `/orders/${first.id}`
+			}).catch((err: unknown) =>
+				console.error('[submit-order] drift notification failed', { error: err })
+			);
+		}
+		return { ok: true, orders, drift: { reason } };
+	}
 	return { ok: true, orders };
 }

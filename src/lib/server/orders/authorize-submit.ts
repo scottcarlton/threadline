@@ -38,10 +38,20 @@ export type SubmitRefs = {
 	repMemberships: Array<{ profile_id: string; role: string; organization_id: string }>;
 };
 
-export type SubmitContext = { userId: string; orgId: string };
+export type SubmitContext = {
+	userId: string;
+	orgId: string;
+	/**
+	 * What to do with an agreement on terms the brand has since replaced.
+	 * 'deny' (default): 409, the rep is right there to re-read them.
+	 * 'collect': let it through and report the brand, for an order captured
+	 * offline earlier; the caller saves it as a draft (SCO-209).
+	 */
+	staleTerms?: 'deny' | 'collect';
+};
 
 export type AuthorizeResult =
-	| { ok: true; products: Map<string, ProductRef> }
+	| { ok: true; products: Map<string, ProductRef>; staleTermsBrandIds: string[] }
 	| { ok: false; status: 400 | 403 | 409; message: string };
 
 export type ReferencedIds = {
@@ -197,6 +207,7 @@ export function checkSubmitReferences(
 		}
 	}
 
+	const staleTermsBrandIds: string[] = [];
 	for (const ba of f?.brand_agreements ?? []) {
 		if (!ba.terms_id) continue;
 		const t = refs.terms.get(ba.terms_id);
@@ -204,11 +215,14 @@ export function checkSubmitReferences(
 			return deny(400, 'Those terms do not belong to the brand.');
 		}
 		if (!t.is_current) {
-			return deny(409, 'The brand updated its terms. Review the new terms and submit again.');
+			if (ctx.staleTerms !== 'collect') {
+				return deny(409, 'The brand updated its terms. Review the new terms and submit again.');
+			}
+			staleTermsBrandIds.push(ba.brand_id);
 		}
 	}
 
-	return { ok: true, products: refs.products };
+	return { ok: true, products: refs.products, staleTermsBrandIds };
 }
 
 /** Fetch every row the rule check needs, in parallel, through the admin client. */

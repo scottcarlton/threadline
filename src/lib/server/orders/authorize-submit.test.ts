@@ -296,6 +296,16 @@ describe('checkSubmitReferences', () => {
 		expect(check(payload({ finalize: finalize() }), r)).toMatchObject({ ok: false, status: 409 });
 	});
 
+	it('reports superseded terms instead of refusing, for an order captured offline', () => {
+		const r = refs({ terms: new Map([[TERMS, { brand_id: BRAND, is_current: false }]]) });
+		expect(
+			checkSubmitReferences(payload({ finalize: finalize() }), r, scope(), {
+				...ctx,
+				staleTerms: 'collect'
+			})
+		).toMatchObject({ ok: true, staleTermsBrandIds: [BRAND] });
+	});
+
 	describe('buyers', () => {
 		const buyer = scope({
 			isBuyer: true,

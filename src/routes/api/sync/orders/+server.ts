@@ -8,6 +8,9 @@ import { submitOrderPayload } from '$lib/server/orders/submit-order.js';
  * sync time: being captured earlier grants nothing. A replayed submission
  * returns the stored orders and fires no emails, notifications or events.
  *
+ * Prices or terms that changed since capture save the order as a draft and
+ * notify the rep (SCO-209); the response carries the reason.
+ *
  * The order is checked against the org it was saved in. If the rep has since
  * switched org, the item fails with a clear reason rather than landing in the
  * wrong org; switching back and retrying sends it.
@@ -29,7 +32,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		);
 	}
 
-	const outcome = await submitOrderPayload(body.payload, locals, url.origin);
+	const outcome = await submitOrderPayload(body.payload, locals, url.origin, { captured: true });
 	if (!outcome.ok) return json({ message: outcome.message }, { status: outcome.status });
-	return json({ orders: outcome.orders });
+	return json({ orders: outcome.orders, drift: outcome.drift ?? null });
 };
