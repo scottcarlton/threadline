@@ -2,12 +2,7 @@ import * as Sentry from '@sentry/sveltekit';
 import { createServerClient } from '@supabase/ssr';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
-import { dev } from '$app/environment';
-import {
-	PUBLIC_SUPABASE_URL,
-	PUBLIC_SUPABASE_ANON_KEY,
-	PUBLIC_SENTRY_DSN
-} from '$env/static/public';
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { isSystemAdminEmail } from '$lib/server/system-admin.js';
 import { isEmailWhitelisted } from '$lib/server/beta-whitelist.js';
@@ -17,26 +12,6 @@ import { landingPathForOrgType } from '$lib/server/landing.js';
 import type { OrgType } from '$lib/types/database.js';
 import { resolveQueryScope } from '$lib/server/queries/scope.js';
 import { once } from '$lib/utils/once.js';
-
-Sentry.init({
-	dsn: PUBLIC_SENTRY_DSN,
-	enabled: !dev,
-	environment: import.meta.env.VERCEL_ENV ?? (dev ? 'development' : 'production'),
-	tracesSampleRate: 0.1,
-	beforeSend(event, hint) {
-		const err = hint?.originalException as
-			| { status?: number; location?: string; body?: { message?: string } }
-			| undefined;
-
-		// SvelteKit `error(404, …)` / `redirect(303, …)` aren't bugs — don't page on them.
-		if (err && typeof err === 'object') {
-			if (typeof err.status === 'number' && err.status >= 300 && err.status < 500) return null;
-			if (typeof err.location === 'string') return null;
-		}
-
-		return event;
-	}
-});
 
 const PUBLIC_ROUTES = [
 	'/login',
