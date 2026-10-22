@@ -1,9 +1,11 @@
 import { browser } from '$app/environment';
 import { createIdbOutboxStore, deleteOfflineDb, openOfflineDb } from './db';
 import { createOutbox } from './runtime';
+import { createIdbSnapshotStore, createSnapshotSync } from './snapshot';
 
 export type { OutboxItem, OutboxKind, OutboxStatus, SendResult, Sender } from './types';
 export type { SyncState } from './runtime';
+export type { OrderSnapshot } from './snapshot';
 export { classifyResponse } from './machine';
 
 const CHANNEL_NAME = 'threadline-outbox';
@@ -17,6 +19,11 @@ export const outbox = createOutbox({
 	locks: browser && 'locks' in navigator ? navigator.locks : undefined,
 	channel: () =>
 		typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(CHANNEL_NAME)
+});
+
+/** The order wizard's reference data and catalog on this device (SCO-208). */
+export const orderSnapshot = createSnapshotSync({
+	store: createIdbSnapshotStore(() => openOfflineDb())
 });
 
 /**
@@ -38,5 +45,6 @@ export async function requestPersistentStorage(): Promise<boolean> {
 export async function clearOfflineData(): Promise<void> {
 	if (!browser || typeof indexedDB === 'undefined') return;
 	outbox.stop();
+	orderSnapshot.stop();
 	await deleteOfflineDb();
 }
