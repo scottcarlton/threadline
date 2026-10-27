@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { parseCSV as parseProductCSV } from '$lib/utils/csv-parse.js';
+	import { isXlsxFile, parseXlsx } from '$lib/utils/xlsx-parse.js';
 	import { unreadableStylesNotice } from '$lib/utils/linesheet-unreadable.js';
 	import {
 		SCANNING_MIN_MS,
@@ -111,12 +112,28 @@
 	}
 
 	// ─── Handlers ──────────────────────────────────────────────────
+	async function parseCsvWithText(file: File) {
+		const text = await file.text();
+		return { ...parseProductCSV(text), text };
+	}
+
+	// A workbook has no raw text, so the season hint scan reads the cell
+	// values instead, header row first, as a CSV would present them.
+	async function parseXlsxWithText(file: File) {
+		const parsed = await parseXlsx(file);
+		const text = [parsed.headers, ...parsed.rows.map((r) => Object.values(r))]
+			.map((cells) => cells.join(' '))
+			.join('\n');
+		return { ...parsed, text };
+	}
+
 	async function handleFile(file: File) {
 		errorMessage = '';
 		const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 		const isCsv = file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
-		if (!isPdf && !isCsv) {
-			errorMessage = 'Unsupported file. Drop a PDF or CSV.';
+		const isXlsx = isXlsxFile(file);
+		if (!isPdf && !isCsv && !isXlsx) {
+			errorMessage = 'Unsupported file. Drop a PDF, CSV or Excel file.';
 			return;
 		}
 
@@ -167,11 +184,14 @@
 				return;
 			}
 
-			// CSV
-			const text = await file.text();
-			const { headers, rows } = parseProductCSV(text);
+			// CSV or Excel. Both yield the same headers and rows.
+			const { headers, rows, text } = isXlsx
+				? await parseXlsxWithText(file)
+				: await parseCsvWithText(file);
 			if (rows.length === 0) {
-				errorMessage = 'No rows found. Make sure your CSV has a header row.';
+				errorMessage = isXlsx
+					? 'No rows found. Make sure the first sheet has a header row.'
+					: 'No rows found. Make sure your CSV has a header row.';
 				return;
 			}
 			await ensureMinElapsed(scanStart, SCANNING_MIN_MS);
@@ -354,7 +374,7 @@
 			<input
 				id="product-import-file-input"
 				type="file"
-				accept=".pdf,.csv,application/pdf,text/csv"
+				accept=".pdf,.csv,.xlsx,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 				class="hidden"
 				onchange={(e) => {
 					const target = e.target as HTMLInputElement;
@@ -394,7 +414,7 @@
 					<p class="text-sm text-muted-foreground">
 						Drop a file or
 						<span class="text-foreground underline underline-offset-2">select</span>
-						to try again. PDF or CSV up to 20MB.
+						to try again. PDF, CSV or Excel up to 20MB.
 					</p>
 				</label>
 			{:else}
@@ -429,7 +449,7 @@
 						Drag and Drop or
 						<span class="text-foreground underline underline-offset-2">Select File</span>
 					</p>
-					<p class="text-sm text-muted-foreground">Support PDF or CSV up to 20MB</p>
+					<p class="text-sm text-muted-foreground">Support PDF, CSV or Excel up to 20MB</p>
 				</label>
 			{/if}
 		{:else if errorMessage}
