@@ -8,14 +8,14 @@ Scope: every path that sends data to Anthropic or acts on a model's output.
 
 | Surface           | Entry point                                         | Auth                         | Model      | max_tokens | Write-capable tools      |
 | ----------------- | --------------------------------------------------- | ---------------------------- | ---------- | ---------- | ------------------------ |
-| Stitch chat       | `routes/api/ai/+server.ts:1001`                     | session, non-buyer           | sonnet-4-6 | 4096       | yes, full tool set       |
+| Stitch chat       | `routes/api/ai/+server.ts:1001`                     | session, non-buyer           | sonnet-5-5 | 16000      | yes, full tool set       |
 | Intent classifier | `routes/api/ai/+server.ts:1221`                     | same                         | haiku-4-5  | 20         | no                       |
 | Fast path         | `routes/api/ai/+server.ts:1244`                     | same                         | haiku-4-5  | 1024       | no                       |
-| Daily briefing    | `routes/api/ai/briefing/+server.ts`                 | session                      | sonnet-4-6 | 4096       | no                       |
-| Line sheet parse  | `routes/api/products/parse-linesheet/+server.ts:82` | session                      | sonnet-4-6 | 16384      | no (returns JSON)        |
-| Org agents        | `lib/server/agent-executor.ts:75`                   | cron secret / internal event | sonnet-4-6 | 4096       | yes, whitelist optional  |
-| SMS + WhatsApp    | `lib/server/messaging/agent.ts:278`                 | Twilio signature             | sonnet-4-6 | 1024       | yes, `place_order`       |
-| Inbound email     | `lib/server/email-intake/parser.ts:100`             | Brevo webhook signature      | sonnet-4-6 | 4096       | yes, auto-submits orders |
+| Daily briefing    | `routes/api/ai/briefing/+server.ts`                 | session                      | haiku-4-5  | 4096       | no                       |
+| Line sheet parse  | `routes/api/products/parse-linesheet/+server.ts:82` | session                      | sonnet-5-5 | 16384      | no (returns JSON)        |
+| Org agents        | `lib/server/agent-executor.ts:75`                   | cron secret / internal event | sonnet-5-5 | 16000      | yes, whitelist optional  |
+| SMS + WhatsApp    | `lib/server/messaging/agent.ts:278`                 | Twilio signature             | sonnet-5-5 | 4096       | yes, `place_order`       |
+| Inbound email     | `lib/server/email-intake/parser.ts:100`             | Brevo webhook signature      | sonnet-5-5 | 16000      | yes, auto-submits orders |
 
 Tool loops are capped at 10 iterations in chat (`+server.ts:1312`, `:1465`) and in the agent executor (`agent-executor.ts:87`).
 

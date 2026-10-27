@@ -4,7 +4,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { runConversation } from './conversation';
 
 type Scripted = { classify: string[]; chat: string[]; turns: Anthropic.Message[] };
-const m = (content: unknown[], stop_reason: string, model = 'claude-sonnet-4-6') =>
+const m = (content: unknown[], stop_reason: string, model = 'claude-sonnet-5-5') =>
 	({
 		model,
 		content,

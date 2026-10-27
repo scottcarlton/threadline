@@ -293,8 +293,10 @@ export async function runAgent(input: AgentInput): Promise<string> {
 		const response = await createTracked(
 			anthropic,
 			{
-				model: 'claude-sonnet-4-6',
-				max_tokens: 1024,
+				model: 'claude-sonnet-5-5',
+				// Thinking counts toward max_tokens; the reply itself stays short.
+				max_tokens: 4096,
+				output_config: { effort: 'low' },
 				system: systemPrompt,
 				tools: MESSAGING_TOOLS,
 				messages
