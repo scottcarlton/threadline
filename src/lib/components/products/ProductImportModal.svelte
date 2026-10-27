@@ -28,7 +28,7 @@
 	<DialogContent class="max-w-2xl p-6">
 		<DialogTitle class="text-lg font-semibold">Import products</DialogTitle>
 		<p class="mt-1 text-sm text-muted-foreground">
-			Import your products by uploading a PDF or CSV file or paste a CSV
+			Import your products by uploading a PDF, CSV or Excel file, or paste a CSV
 		</p>
 		<div class="mt-5">
 			<ProductImportFlow

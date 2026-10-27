@@ -1,5 +1,6 @@
 import { writable, type Writable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { offlinePagesFor } from '$lib/pwa/offline-shell';
 
 export interface BeforeInstallPromptEvent extends Event {
 	prompt: () => Promise<void>;
@@ -60,16 +61,17 @@ export async function registerServiceWorker(): Promise<void> {
 }
 
 /**
- * Ask the service worker to keep fresh copies of the offline-capable pages for
- * the signed-in user (SCO-209). Call while signed in and online: on load, when
- * the org changes (the pages carry org data), when a new worker takes over (its
- * page cache starts empty), and on reconnect.
+ * Ask the service worker to keep fresh copies of the offline pages for the
+ * signed-in user (SCO-209): the rep forms, plus the in-app fallback for
+ * everyone. Call while signed in and online: on load, when the org changes (the
+ * pages carry org data), when a new worker takes over (its page cache starts
+ * empty), and on reconnect.
  */
-export async function requestOfflinePages(): Promise<void> {
+export async function requestOfflinePages(opts: { buyer: boolean }): Promise<void> {
 	if (!browser || !('serviceWorker' in navigator) || !navigator.onLine) return;
 	try {
 		const reg = await navigator.serviceWorker.ready;
-		reg.active?.postMessage({ type: 'cache-offline-pages' });
+		reg.active?.postMessage({ type: 'cache-offline-pages', routes: offlinePagesFor(opts) });
 	} catch (err) {
 		console.error('Requesting offline pages failed:', err);
 	}
