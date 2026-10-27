@@ -21,7 +21,7 @@
 	<DialogContent class="max-w-2xl p-6">
 		<DialogTitle class="text-lg font-semibold">Import orders</DialogTitle>
 		<p class="mt-1 text-sm text-muted-foreground">
-			Import your orders by uploading a CSV file or paste a CSV. One row per order line.
+			Import your orders by uploading a CSV or Excel file, or paste a CSV. One row per order line.
 		</p>
 		<div class="mt-5">
 			<OrderImportFlow onComplete={handleComplete} />
