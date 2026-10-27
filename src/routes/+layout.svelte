@@ -198,12 +198,10 @@
 				}
 				if ($isStandalone) void requestPersistentStorage();
 			}
-			// Offline app shell (SCO-209): keep the offline-capable pages cached for
-			// this user, and refresh them when a new worker takes over or the
+			// Offline app shell (SCO-209): keep the offline pages cached for this
+			// user, and refresh them when a new worker takes over or the
 			// connection returns.
-			const refreshOfflinePages = () => {
-				if (!data.isBuyer) void requestOfflinePages();
-			};
+			const refreshOfflinePages = () => void requestOfflinePages({ buyer: !!data.isBuyer });
 			navigator.serviceWorker?.addEventListener('controllerchange', refreshOfflinePages);
 			window.addEventListener('online', refreshOfflinePages);
 			return () => {
@@ -234,7 +232,8 @@
 	// sign-in and on every org switch.
 	$effect(() => {
 		const orgId = data.organization?.id;
-		if (data.session && orgId && !data.isBuyer) void requestOfflinePages();
+		if (data.session && (orgId || data.isBuyer))
+			void requestOfflinePages({ buyer: !!data.isBuyer });
 	});
 
 	const chatFontStyle = $derived(
