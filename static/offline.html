@@ -132,6 +132,9 @@
 				{ path: '/orders/new', label: 'New order' }
 			];
 
+			// Back online: load the page the user asked for.
+			window.addEventListener('online', () => location.reload());
+
 			(async () => {
 				if (!('caches' in window)) return;
 				try {
