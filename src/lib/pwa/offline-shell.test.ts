@@ -2,8 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+	CACHEABLE_PAGES,
 	IMAGES_CACHE,
+	OFFLINE_FALLBACK,
 	OFFLINE_ROUTES,
+	fullPageDataKey,
+	fullPageDataPath,
+	isCacheablePageData,
+	isFullPageDataRequest,
+	isPageDataPath,
+	offlineCandidates,
+	offlinePagesFor,
+	visitedPageKey,
 	isProductImagePath,
 	isUserCache,
 	warmImageUrls,
@@ -48,6 +58,122 @@ describe('offlineRouteFor', () => {
 		expect(offlineRouteFor('/accounts')).toBeNull();
 		expect(offlineRouteFor('/accounts/new/extra')).toBeNull();
 		expect(offlineRouteFor('/')).toBeNull();
+	});
+});
+
+const at = (href: string) => new URL(href, 'https://app.test');
+
+describe('offlinePagesFor', () => {
+	it('gives reps the offline forms and the fallback', () => {
+		expect(offlinePagesFor({ buyer: false })).toEqual([...OFFLINE_ROUTES, OFFLINE_FALLBACK]);
+	});
+
+	it('gives buyers only the fallback, since they cannot open the rep forms', () => {
+		expect(offlinePagesFor({ buyer: true })).toEqual([OFFLINE_FALLBACK]);
+	});
+
+	it('lets the worker cache every page either role asks for', () => {
+		expect([...CACHEABLE_PAGES].sort()).toEqual([...OFFLINE_ROUTES, OFFLINE_FALLBACK].sort());
+	});
+});
+
+describe('visitedPageKey', () => {
+	it('keys a page by path and query, ignoring a trailing slash', () => {
+		expect(visitedPageKey(at('/orders'))).toBe('/orders');
+		expect(visitedPageKey(at('/orders/'))).toBe('/orders');
+		expect(visitedPageKey(at('/orders?status=open'))).toBe('/orders?status=open');
+		expect(visitedPageKey(at('/'))).toBe('/');
+	});
+
+	it('keeps a page data request under its own key', () => {
+		expect(visitedPageKey(at('/orders/__data.json?x-sveltekit-invalidated=01'))).toBe(
+			'/orders/__data.json?x-sveltekit-invalidated=01'
+		);
+	});
+
+	it.each(['/login', '/login/', '/login?next=/orders', '/logout', '/auth/callback'])(
+		'never keeps %s',
+		(href) => {
+			expect(visitedPageKey(at(href))).toBeNull();
+		}
+	);
+
+	it('does not mistake a lookalike path for sign-in', () => {
+		expect(visitedPageKey(at('/logins-report'))).toBe('/logins-report');
+	});
+});
+
+describe('offlineCandidates', () => {
+	it('tries the saved copy, then the in-app fallback', () => {
+		expect(offlineCandidates(at('/orders'))).toEqual(['/orders', OFFLINE_FALLBACK]);
+	});
+
+	it('falls back to the offline form for its own URL', () => {
+		expect(offlineCandidates(at('/orders/new/'))).toEqual(['/orders/new', OFFLINE_FALLBACK]);
+		expect(offlineCandidates(at('/accounts/new?from=x'))).toEqual([
+			'/accounts/new?from=x',
+			'/accounts/new',
+			OFFLINE_FALLBACK
+		]);
+	});
+
+	it('never serves a saved sign-in page', () => {
+		expect(offlineCandidates(at('/login'))).toEqual([OFFLINE_FALLBACK]);
+	});
+});
+
+describe('isPageDataPath', () => {
+	it('matches SvelteKit data requests only', () => {
+		expect(isPageDataPath('/orders/__data.json')).toBe(true);
+		expect(isPageDataPath('/__data.json')).toBe(true);
+		expect(isPageDataPath('/orders')).toBe(false);
+		expect(isPageDataPath('/api/orders.json')).toBe(false);
+	});
+});
+
+describe('full page data', () => {
+	it('builds the data URL that runs every load', () => {
+		expect(fullPageDataPath('/orders/new')).toBe('/orders/new/__data.json');
+		expect(fullPageDataPath('/')).toBe('/__data.json');
+	});
+
+	it('keys full data without the invalidation mask, keeping other params', () => {
+		expect(fullPageDataKey(at('/orders/__data.json?x-sveltekit-invalidated=01'))).toBe(
+			'/orders/__data.json'
+		);
+		expect(fullPageDataKey(at('/orders/__data.json?status=open&x-sveltekit-invalidated=11'))).toBe(
+			'/orders/__data.json?status=open'
+		);
+	});
+
+	it('treats a missing or all-ones mask as every load', () => {
+		expect(isFullPageDataRequest(at('/orders/__data.json'))).toBe(true);
+		expect(isFullPageDataRequest(at('/orders/__data.json?x-sveltekit-invalidated=111'))).toBe(true);
+		expect(isFullPageDataRequest(at('/orders/__data.json?x-sveltekit-invalidated=01'))).toBe(false);
+	});
+
+	it('never collides with the static offline page', () => {
+		expect(OFFLINE_FALLBACK).not.toBe('/offline');
+	});
+});
+
+describe('isCacheablePageData', () => {
+	const data = (over: Partial<Parameters<typeof isCacheablePageData>[0]> = {}) => ({
+		...page(),
+		headers: new Headers({ 'content-type': 'application/json' }),
+		...over
+	});
+
+	it('keeps real page data', () => {
+		expect(isCacheablePageData(data())).toBe(true);
+	});
+
+	it.each([
+		['an error', { ok: false }],
+		['a redirect', { redirected: true }],
+		['HTML', { headers: new Headers({ 'content-type': 'text/html' }) }]
+	])('refuses %s', (_label, over) => {
+		expect(isCacheablePageData(data(over))).toBe(false);
 	});
 });
 
