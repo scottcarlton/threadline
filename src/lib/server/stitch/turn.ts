@@ -4,8 +4,9 @@ import type { ToolResult } from '../ai-tools.js';
 import { WRITE_TOOLS } from './tools.js';
 import { checkToolInput } from '../../schemas/stitch-tools.js';
 
-export const STITCH_MODEL = 'claude-sonnet-4-6';
-const MAX_TOKENS = 4096;
+export const STITCH_MODEL = 'claude-sonnet-5-5';
+// Thinking counts toward max_tokens on Sonnet 5.5, so leave room for it.
+const MAX_TOKENS = 16000;
 const MAX_TOOL_ITERATIONS = 10;
 
 export type StitchEvent =
@@ -108,6 +109,8 @@ export async function runStitchTurn(p: RunStitchTurnParams): Promise<StitchTurnR
 		const modelStream = p.client.messages.stream({
 			model: p.model ?? STITCH_MODEL,
 			max_tokens: MAX_TOKENS,
+			// Multistep tool use: Sonnet 5.5's recommended starting level.
+			output_config: { effort: 'medium' },
 			system: p.system,
 			tools: p.tools,
 			messages: p.messages

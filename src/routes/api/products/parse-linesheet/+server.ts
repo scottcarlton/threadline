@@ -88,11 +88,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const response = await createTracked(
 			anthropic,
 			{
-				model: 'claude-sonnet-4-6',
+				model: 'claude-sonnet-5-5',
 				max_tokens: 16384,
+				output_config: { effort: 'low' },
 				system: SYSTEM_PROMPT,
+				// Sonnet 5.5 rejects a forced tool_choice. The user message asks for
+				// the call, and a reply without one returns 422 below as before.
 				tools: [extractionTool],
-				tool_choice: { type: 'tool', name: 'parse_products' },
 				messages: [{ role: 'user', content }]
 			},
 			{
@@ -103,7 +105,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		);
 
-		// Forced tool_choice means valid JSON, not valid data. The schema check
+		// A tool call means valid JSON, not valid data. The schema check
 		// below is what decides whether a row is usable.
 		const toolBlock = response.content.find((b) => b.type === 'tool_use');
 		if (!toolBlock || toolBlock.type !== 'tool_use') {

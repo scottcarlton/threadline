@@ -51,17 +51,19 @@ export async function parseInboundOrder(
 	const response = await createTracked(
 		anthropic,
 		{
-			model: 'claude-sonnet-4-6',
-			max_tokens: 4096,
+			model: 'claude-sonnet-5-5',
+			max_tokens: 16000,
+			output_config: { effort: 'low' },
 			system: `${SYSTEM_PROMPT}
 
 ${UNTRUSTED_CONTENT_RULE}`,
+			// Sonnet 5.5 rejects a forced tool_choice. The prompt asks for the
+			// call, and a reply without one fails below as before.
 			tools: [extractionTool],
-			tool_choice: { type: 'tool', name: 'extract_order' },
 			messages: [
 				{
 					role: 'user',
-					content: `Extract the order from this email.\n\n${wrapUntrusted('inbound email', body)}`
+					content: `Extract the order from this email. You MUST call the extract_order tool with the result.\n\n${wrapUntrusted('inbound email', body)}`
 				}
 			]
 		},
