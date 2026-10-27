@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { orderImportSchema, type OrderImportResult } from '$lib/schemas/order-import.js';
+import type { OrderType } from '$lib/types/database.js';
 
 // Bulk order import endpoint. One CSV row = one order with one line
 // item (matches the legacy BulkImportModal contract — preserve for now,
@@ -131,7 +132,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				account_id: accountId,
 				created_by: userId,
 				status: 'draft',
-				order_type: 'direct',
+				// supabaseAdmin is untyped here, so pin the enum value at compile time.
+				order_type: 'order' satisfies OrderType,
 				expected_ship_date: row.expected_ship_date,
 				notes: row.notes,
 				total_amount: totalAmount
