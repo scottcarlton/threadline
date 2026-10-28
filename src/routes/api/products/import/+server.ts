@@ -31,9 +31,11 @@ import {
 // schema migration ever adds the constraint, we can switch to a single
 // UPSERT round trip.
 //
-// Variants: each product's sizes × colors arrays cross-product into
-// `product_variants` rows. Empty sizes + non-empty colors → one row per
-// color with size=null (and vice versa). Both empty → no variants.
+// Variants: a draft with explicit `variants` (long-format files, one row
+// per size and color) inserts exactly those, SKUs included. Otherwise each
+// product's sizes × colors arrays cross-product into `product_variants`
+// rows. Empty sizes + non-empty colors → one row per color with size=null
+// (and vice versa). Both empty → no variants.
 //
 // Images: best-effort. Per product with a non-null image_url we call
 // fetchAndUploadProductImageFromUrl after the product row exists. A
@@ -227,6 +229,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 };
 
 function buildVariantRows(productId: string, draft: ProductDraft) {
+	// Long-format files list each variant on its own row, with its SKU. Keep
+	// exactly those instead of crossing every size with every color.
+	if (draft.variants && draft.variants.length > 0) {
+		return draft.variants.map((v) => ({
+			product_id: productId,
+			color: v.color,
+			size: v.size,
+			sku: v.sku
+		}));
+	}
+
 	const sizes = draft.sizes.length > 0 ? draft.sizes : [null];
 	const colors = draft.colors.length > 0 ? draft.colors : [null];
 
@@ -234,10 +247,15 @@ function buildVariantRows(productId: string, draft: ProductDraft) {
 	// the original arrays were empty), don't create a phantom variant row.
 	if (draft.sizes.length === 0 && draft.colors.length === 0) return [];
 
-	const rows: { product_id: string; color: string | null; size: string | null }[] = [];
+	const rows: {
+		product_id: string;
+		color: string | null;
+		size: string | null;
+		sku: string | null;
+	}[] = [];
 	for (const color of colors) {
 		for (const size of sizes) {
-			rows.push({ product_id: productId, color, size });
+			rows.push({ product_id: productId, color, size, sku: null });
 		}
 	}
 	return rows;
