@@ -32,3 +32,24 @@ describe('productDraftSchema wholesale_price', () => {
 		expect(priceError(-1)).toBe('wholesale_price must be 0 or more');
 	});
 });
+
+describe('productDraftSchema variants', () => {
+	it('keeps explicit variants with their SKUs, blanks as null', () => {
+		const result = productDraftSchema.parse({
+			...base,
+			wholesale_price: 24,
+			variants: [
+				{ size: 'S', color: 'Oat', sku: 'ST-1-OAT-S' },
+				{ size: ' M ', color: '', sku: 'ST-1-M' }
+			]
+		});
+		expect(result.variants).toEqual([
+			{ size: 'S', color: 'Oat', sku: 'ST-1-OAT-S' },
+			{ size: 'M', color: null, sku: 'ST-1-M' }
+		]);
+	});
+
+	it('leaves variants undefined when the draft has none', () => {
+		expect(productDraftSchema.parse({ ...base, wholesale_price: 24 }).variants).toBeUndefined();
+	});
+});
