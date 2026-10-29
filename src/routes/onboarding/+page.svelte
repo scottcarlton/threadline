@@ -299,8 +299,17 @@
 	// and collects the money, so asking a rep is asking the wrong party. The
 	// org-level tools step goes too; the mailbox above it stays, since that's
 	// where a rep's orders arrive. The tools are still available later at
-	// /organization/integrations.
-	const REP_SKIPPED_SUBS = new Set(['address', 'payment-terms', 'payment-methods', 'connect']);
+	// /organization/integrations. Products go as well: the import writes into
+	// the org's own brand catalog, which only a brand org has, so a rep's
+	// upload there could only fail (SCO-214). A rep sees a brand's catalog
+	// through the brand.
+	const REP_SKIPPED_SUBS = new Set([
+		'products',
+		'address',
+		'payment-terms',
+		'payment-methods',
+		'connect'
+	]);
 
 	// A retailer is on the paying end of the same two questions, so they're the
 	// wrong party there too. Everything else in Settings still applies: the
@@ -316,8 +325,8 @@
 					if (p.id === 'import' && orgType === 'rep') {
 						return {
 							...p,
-							subtitle: 'Your brands, team, accounts, products, and orders',
-							subs: [brandsSub, ...p.subs]
+							subtitle: 'Your brands, team, accounts, and orders',
+							subs: [brandsSub, ...p.subs.filter((sub) => !skipped.has(sub.id))]
 						};
 					}
 					const subs = p.subs.filter((sub) => !skipped.has(sub.id));
