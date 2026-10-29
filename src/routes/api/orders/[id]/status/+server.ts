@@ -8,6 +8,8 @@ import {
 	mayAdvanceOrderStatus,
 	FULFILLMENT_STATUS_ERROR
 } from '$lib/utils/order-status-permissions.js';
+import { supabaseAdmin } from '$lib/server/supabase.js';
+import { findMinimumViolations, blockingViolations } from '$lib/server/orders/order-minimum.js';
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 	draft: ['submitted'],
@@ -48,7 +50,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 
 	const { data: order, error: fetchErr } = await supabase
 		.from('orders')
-		.select('id, order_number, status, total_amount, brand_id, account_id, created_by')
+		.select('id, order_number, order_type, status, total_amount, brand_id, account_id, created_by')
 		.eq('id', params.id)
 		.single();
 
@@ -86,6 +88,38 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
 			{ error: `Cannot transition from ${order.status} to ${newStatus}` },
 			{ status: 400 }
 		);
+	}
+
+	// Brand minimum (SCO-137): only the brand's own org may submit an order
+	// under its minimum. The order was already read through RLS above, so the
+	// service role here only looks up the brand's settings and the account
+	// override, which a connected rep cannot read directly.
+	if (newStatus === 'submitted' && order.order_type !== 'note') {
+		const blocks = blockingViolations(
+			await findMinimumViolations(
+				supabaseAdmin,
+				[
+					{
+						brand_id: order.brand_id,
+						account_id: order.account_id,
+						total_amount: order.total_amount
+					}
+				],
+				// A buyer never overrides, even when its org is the brand's.
+				locals.isBuyer ? null : organization.id
+			)
+		);
+		if (blocks.length > 0) {
+			locals.audit.record('order.status_changed', {
+				subjectId: order.id,
+				subjectLabel: order.order_number,
+				status: 'failure',
+				errorCode: 'under_minimum',
+				errorMessage: blocks[0].message,
+				changes: { status: { before: order.status, after: newStatus } }
+			});
+			return json({ error: blocks[0].message }, { status: 400 });
+		}
 	}
 
 	const updateData: Record<string, unknown> = {
