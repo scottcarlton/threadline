@@ -1,9 +1,8 @@
 <script lang="ts">
-	// Onboarding — conversational shell with orchestrated entrance.
-	// P0: shell + mock state machine. P1: General Information wired to
-	// create-org / create-retailer with resume. Import/Settings/Integrations
-	// (P2+) still advance via the mock. Copy is provisional and NOT final — run
-	// it against brand guidelines §1.5 before ship:
+	// Onboarding: conversational shell with orchestrated entrance. General
+	// Information creates the org (create-org / create-retailer) with resume;
+	// Import, Settings and Connections run on the live import and integration
+	// endpoints. Copy follows brand voice, §1.5 of the brand guidelines:
 	// https://app.notion.com/p/3ff0c8824fed811b940eff4b650e1eca
 	//
 	// Entrance choreography (mount):
@@ -95,18 +94,17 @@
 		subs: SubStep[];
 	}
 
-	// Brand-flavored set for the P0 mock. The org-type-aware matrix (rep/brand)
-	// is P2, so this is representative, not final. `buildPhases` below layers the
-	// rep-only differences on top of this base.
+	// The brand org's flow. `buildPhases` below layers the rep and retailer
+	// differences on top of this base.
 	const basePhases: Phase[] = [
 		{
 			id: 'general',
 			title: 'General Information',
-			subtitle: 'Name, Organization Type and Organization Name',
+			subtitle: 'Your name, organization type, and organization name',
 			subs: [
 				{
 					id: 'name',
-					question: "Hello. Let's get you set up — first, what should I call you?",
+					question: 'Hello. What should I call you?',
 					placeholder: 'First and last name',
 					required: true,
 					kind: 'text'
@@ -121,29 +119,26 @@
 						{
 							value: 'brand',
 							label: 'Brand',
-							description:
-								'I manage my product catalog, track orders across all sales channels, and work with reps.',
+							description: 'I own a line and sell it wholesale, directly or through reps.',
 							icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
 						},
 						{
 							value: 'rep',
 							label: 'Independent Sales Rep',
-							description:
-								'I represent multiple brands and manage accounts, orders, and commissions.',
+							description: 'I carry multiple brands and sell them into stores on commission.',
 							icon: 'M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z'
 						},
 						{
 							value: 'retailer',
 							label: 'Retailer',
-							description:
-								'I buy wholesale from brands and want my orders and account details in one place.',
+							description: 'I buy wholesale for my store, from brands and their reps.',
 							icon: 'M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z'
 						}
 					]
 				},
 				{
 					id: 'orgName',
-					question: 'And what should we call your organization?',
+					question: "What's your organization called?",
 					placeholder: 'Organization name',
 					required: true,
 					kind: 'text'
@@ -153,7 +148,7 @@
 		{
 			id: 'import',
 			title: 'Import Files',
-			subtitle: 'Upload members, accounts, products, and orders',
+			subtitle: 'Your team, accounts, products, and orders',
 			subs: [
 				{
 					id: 'members',
@@ -169,7 +164,7 @@
 					placeholder: 'You can paste your data here too…',
 					kind: 'upload',
 					dropTitle: 'Drop your account list',
-					dropHint: "Add a CSV and I'll get to work on it."
+					dropHint: 'A CSV with one account per row.'
 				},
 				{
 					id: 'products',
@@ -181,18 +176,19 @@
 				},
 				{
 					id: 'orders',
-					question: "Have existing orders? Drop them in and I'll match them up.",
+					question:
+						"Have open orders? Drop them in and I'll match them to your accounts and styles.",
 					placeholder: 'You can paste your data here too…',
 					kind: 'upload',
 					dropTitle: 'Drop your orders',
-					dropHint: "Add a CSV and I'll match them up."
+					dropHint: 'A CSV with account, style number, and quantity columns.'
 				}
 			]
 		},
 		{
 			id: 'settings',
 			title: 'Settings',
-			subtitle: 'Add details about your organization',
+			subtitle: 'Your address, payment terms, and how buyers pay',
 			subs: [
 				{
 					id: 'address',
@@ -245,7 +241,7 @@
 					// Only providers with a live connect flow are listed here — see
 					// src/routes/organization/integrations. QuickBooks/Xero are still
 					// coming-soon, so onboarding must not promise them.
-					question: 'Last thing — want to connect the tools you already use?',
+					question: 'Last thing. Want to connect the tools you already use?',
 					placeholder: 'You can always connect these later',
 					kind: 'connect',
 					options: [
@@ -293,7 +289,7 @@
 		placeholder: 'You can paste your data here too…',
 		kind: 'upload',
 		dropTitle: 'Drop your brand list',
-		dropHint: "Add a CSV and I'll get to work on it."
+		dropHint: 'A CSV with one brand per row.'
 	};
 
 	// Steps a rep doesn't get asked. The business address is a shipping and
@@ -320,7 +316,7 @@
 					if (p.id === 'import' && orgType === 'rep') {
 						return {
 							...p,
-							subtitle: 'Upload brands, members, accounts, products, and orders',
+							subtitle: 'Your brands, team, accounts, products, and orders',
 							subs: [brandsSub, ...p.subs]
 						};
 					}
@@ -352,8 +348,7 @@
 		| null;
 
 	const WELCOME = 'Welcome to Threadline';
-	const SUBTITLE =
-		"Let's set up your organization — a few quick questions and we'll build out your catalog and accounts.";
+	const SUBTITLE = 'A few questions and your organization is ready to work.';
 
 	// Resume: the org row only exists once General Information is done, and its
 	// onboarding_step (1-based phase) tells us which phase to resume at. Reading
@@ -652,7 +647,7 @@
 						lines.push(
 							n > 0
 								? { text: `Invited ${n} ${plural(n, 'person', 'people')} to your team`, ok: true }
-								: { text: 'No team invited — skipped for now', ok: false }
+								: { text: 'Team invites skipped for now', ok: false }
 						);
 						break;
 					}
@@ -661,7 +656,7 @@
 						lines.push(
 							n > 0
 								? { text: `Imported ${n} ${plural(n, 'account', 'accounts')}`, ok: true }
-								: { text: 'No accounts imported — skipped for now', ok: false }
+								: { text: 'Account import skipped for now', ok: false }
 						);
 						break;
 					}
@@ -670,7 +665,7 @@
 						lines.push(
 							n > 0
 								? { text: `${n} ${plural(n, 'product', 'products')} added`, ok: true }
-								: { text: 'No products added — skipped for now', ok: false }
+								: { text: 'Products skipped for now', ok: false }
 						);
 						break;
 					}
@@ -679,28 +674,28 @@
 						lines.push(
 							n > 0
 								? { text: `Imported ${n} ${plural(n, 'order', 'orders')}`, ok: true }
-								: { text: 'No orders imported — skipped for now', ok: false }
+								: { text: 'Order import skipped for now', ok: false }
 						);
 						break;
 					}
 					case 'address':
 						lines.push(
 							skipped
-								? { text: 'Business address — skipped for now', ok: false }
+								? { text: 'Business address skipped for now', ok: false }
 								: { text: 'Business address saved', ok: true }
 						);
 						break;
 					case 'payment-terms':
 						lines.push(
 							skipped
-								? { text: 'Payment terms — skipped for now', ok: false }
+								? { text: 'Payment terms skipped for now', ok: false }
 								: { text: 'Payment terms set', ok: true }
 						);
 						break;
 					case 'payment-methods':
 						lines.push(
 							skipped
-								? { text: 'Payment methods — skipped for now', ok: false }
+								? { text: 'Payment methods skipped for now', ok: false }
 								: { text: 'Payment methods set', ok: true }
 						);
 						break;
@@ -711,20 +706,23 @@
 										text: `${data.mailbox.provider === 'outlook' ? 'Outlook' : 'Gmail'} connected`,
 										ok: true
 									}
-								: { text: 'Email — skipped for now', ok: false }
+								: { text: 'Email skipped for now', ok: false }
 						);
 						break;
 					case 'connect':
 						lines.push(
 							startedConnections.length > 0
-								? { text: `Integrations — ${startedConnections.length} connected`, ok: true }
-								: { text: 'Integrations — skipped for now', ok: false }
+								? {
+										text: `${startedConnections.length} ${plural(startedConnections.length, 'integration', 'integrations')} connected`,
+										ok: true
+									}
+								: { text: 'Integrations skipped for now', ok: false }
 						);
 						break;
 					default:
 						lines.push(
 							skipped
-								? { text: `${sb.id} — skipped for now`, ok: false }
+								? { text: `${sb.id} skipped for now`, ok: false }
 								: { text: `${sb.id} saved`, ok: true }
 						);
 				}
@@ -902,7 +900,8 @@
 					body: JSON.stringify({ retailerName: values.orgName, displayName: values.name })
 				});
 				if (!res.ok) {
-					errorMsg = (await res.json()).error || 'Could not create your organization.';
+					errorMsg =
+						(await res.json()).error || "Your organization couldn't be created. Please try again.";
 					loading = false;
 					return;
 				}
@@ -920,7 +919,8 @@
 				})
 			});
 			if (!res.ok) {
-				errorMsg = (await res.json()).error || 'Could not create your organization.';
+				errorMsg =
+					(await res.json()).error || "Your organization couldn't be created. Please try again.";
 				loading = false;
 				return;
 			}
@@ -951,7 +951,7 @@
 				// is always on screen, so it has to work.
 				const matched = matchOrgType(draft);
 				if (!matched) {
-					errorMsg = 'Tell me brand, sales rep, or retailer — or pick one above.';
+					errorMsg = 'Tell me brand, sales rep, or retailer, or pick one above.';
 					return;
 				}
 				draft = '';
@@ -1720,7 +1720,7 @@
 				}
 				if (sent === 0) {
 					ingestState = 'preview';
-					errorMsg = 'None of those invites could be sent — they may already be members.';
+					errorMsg = 'None of those invites went out. They may already be on your team.';
 					return;
 				}
 				addStat({ key: 'members', n: String(sent) });
@@ -1821,7 +1821,7 @@
 				if (created === 0) {
 					ingestState = 'preview';
 					errorMsg =
-						'None of those rows matched an account and product — bring those in first, then try again.';
+						'None of those rows matched an account and a style. Import those first, then try again.';
 					return;
 				}
 				addStat({ key: 'orders', n: String(created) });
@@ -2512,7 +2512,7 @@
 										</p>
 										{#if droppedRows}
 											<p class="mt-1 text-sm text-zinc-400">
-												That's the first {ingestRows.length} — {droppedRows} more didn't make this round.
+												That's the first {ingestRows.length}. {droppedRows} more didn't fit in this round.
 												Split the file to bring in the rest.
 											</p>
 										{/if}
@@ -3157,7 +3157,7 @@
 					<div>
 						<p class="font-semibold">Prefer a human?</p>
 						<p class="mt-1 text-sm text-muted-foreground">
-							Not comfortable setting up your organization, or need help using Threadline.
+							Book a call and we'll walk through setup with you.
 						</p>
 						<a
 							href="https://calendar.app.google/c8NotsgGCKcKgajD6"
