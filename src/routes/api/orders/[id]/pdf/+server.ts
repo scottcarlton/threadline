@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { generateOrderPdf, type OrderData } from '$lib/server/pdf';
 import { loadOrderForOrg, type OrderRow } from '$lib/server/orders/authorize-order';
+import { ORDER_PDF_ROLES } from '$lib/utils/order-menu-permissions';
 
 type OrderForPdf = OrderRow & OrderData;
 
@@ -10,7 +11,8 @@ type OrderForPdf = OrderRow & OrderData;
 // (Yes/Yes/Scoped/Scoped/No), so guest is excluded.
 // https://app.notion.com/p/3a70c8824fed81eeb9e2e25bf21e51d6
 // Brand scoping for member/sales is enforced by RLS on the underlying order.
-const PDF_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
+// Shared with the order detail menu (orderMenuItems).
+const PDF_ROLES = ORDER_PDF_ROLES;
 
 export const GET: RequestHandler = async ({ locals, params }) => {
 	if (!locals.session || !locals.user || !locals.organization) {

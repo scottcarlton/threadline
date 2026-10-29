@@ -21,6 +21,7 @@
 	import { diffLineEdits, type DraftRowInput } from '$lib/utils/order-line-diff.js';
 	import { allowedNextStatuses, mayEditShipWindow } from '$lib/utils/order-status-permissions.js';
 	import { mayConvertNote } from '$lib/utils/order-convert-permissions.js';
+	import { orderMenuItems } from '$lib/utils/order-menu-permissions.js';
 	import { classifyOrder, SPOTLIGHT_LABELS } from '$lib/utils/order-spotlight.js';
 	import { invoiceDisplayStatus, invoiceBalance } from '$lib/utils/invoice-status.js';
 	import {
@@ -297,6 +298,22 @@
 	// convert action enforces server-side. Own-org convert is unchanged.
 	const canConvertNote = $derived(
 		canEdit && (!isFederatedView || mayConvertNote(data.membership?.role ?? '', true))
+	);
+
+	// "More actions" items, each matching its server-side rule (SCO-173). The
+	// trigger hides when nothing is left, rather than opening an empty menu.
+	const menu = $derived(
+		orderMenuItems(
+			{
+				isBuyer: data.isBuyer === true,
+				isFederatedView,
+				role: data.membership?.role ?? ''
+			},
+			order.status
+		)
+	);
+	const hasMenuItems = $derived(
+		menu.clone || menu.downloadPdf || menu.cancel || Boolean(data.returnEntry)
 	);
 
 	// Brand-side federated view: BOA can advance status at every step AND can
@@ -972,7 +989,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 	async function confirmCancel() {
 		if (!cancelReason.trim()) return;
 		cancellingOrder = true;
-		await supabase
+		const { error: cancelError } = await supabase
 			.from('orders')
 			.update({
 				status: 'cancelled',
@@ -982,6 +999,10 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 			})
 			.eq('id', order.id);
 		cancellingOrder = false;
+		if (cancelError) {
+			toast.error('Could not cancel order');
+			return;
+		}
 		cancelOpen = false;
 		invalidateAll();
 	}
@@ -1316,116 +1337,122 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</svg>
 				<span class="sr-only sm:not-sr-only">Send to Account</span>
 			</Button>
-			<DropdownMenu.Root>
-				<DropdownMenu.Trigger
-					class="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-					aria-label="More actions"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-4 w-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
+			{#if hasMenuItems}
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger
+						class="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+						aria-label="More actions"
 					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"
-						/>
-					</svg>
-				</DropdownMenu.Trigger>
-				<DropdownMenu.Portal>
-					<DropdownMenu.Content
-						align="end"
-						sideOffset={4}
-						class="z-50 min-w-[10rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-					>
-						<DropdownMenu.Item
-							onSelect={handleCloneOrder}
-							disabled={cloning}
-							class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
 						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-4 w-4"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-								stroke-width="1.5"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2m-6 12h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2Z"
-								/>
-							</svg>
-							Clone order
-						</DropdownMenu.Item>
-						<DropdownMenu.Item
-							onSelect={handleDownloadPdf}
-							disabled={downloadingPdf}
-							class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"
+							/>
+						</svg>
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Portal>
+						<DropdownMenu.Content
+							align="end"
+							sideOffset={4}
+							class="z-50 min-w-[10rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
 						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-4 w-4"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-								stroke-width="1.5"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
-								/>
-							</svg>
-							Download PDF
-						</DropdownMenu.Item>
-						{#if data.returnEntry}
-							<DropdownMenu.Item
-								onSelect={() =>
-									// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() has no query-string form; same pattern as /organization/members
-									goto(`${resolve('/returns/new')}?order=${order.id}`)}
-								class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[highlighted]:bg-muted"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4"
-									viewBox="0 0 24 24"
-									fill="currentColor"
+							{#if menu.clone}
+								<DropdownMenu.Item
+									onSelect={handleCloneOrder}
+									disabled={cloning}
+									class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
 								>
-									<path
-										d="M12.0049 2C17.5277 2 22.0049 6.47715 22.0049 12C22.0049 17.5228 17.5277 22 12.0049 22C9.57847 22 7.3539 21.1358 5.62216 19.6985L5.37815 19.4892L6.27949 17.5875C7.73229 19.0759 9.76067 20 12.0049 20C16.4232 20 20.0049 16.4183 20.0049 12C20.0049 7.58172 16.4232 4 12.0049 4C7.66997 4 4.14034 7.44784 4.00869 11.7508L4.00488 12H6.50488L3.79854 17.7161C2.66796 16.096 2.00488 14.1254 2.00488 12C2.00488 6.47715 6.48204 2 12.0049 2ZM13.0049 6V8H15.5049V10H10.0049C9.72874 10 9.50488 10.2239 9.50488 10.5C9.50488 10.7455 9.68176 10.9496 9.91501 10.9919L10.0049 11H14.0049C15.3856 11 16.5049 12.1193 16.5049 13.5C16.5049 14.8807 15.3856 16 14.0049 16H13.0049V18H11.0049V16H8.50488V14H14.0049C14.281 14 14.5049 13.7761 14.5049 13.5C14.5049 13.2545 14.328 13.0504 14.0948 13.0081L14.0049 13H10.0049C8.62417 13 7.50488 11.8807 7.50488 10.5C7.50488 9.11929 8.62417 8 10.0049 8H11.0049V6H13.0049Z"
-									/>
-								</svg>
-								{data.returnEntry.label}
-							</DropdownMenu.Item>
-						{/if}
-						{#if order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'cancelled'}
-							<DropdownMenu.Separator class="my-1 h-px bg-border" />
-							<DropdownMenu.Item
-								onSelect={() => (cancelOpen = true)}
-								class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm text-destructive outline-none data-[highlighted]:bg-destructive/10"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="1.5"
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2m-6 12h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2Z"
+										/>
+									</svg>
+									Clone order
+								</DropdownMenu.Item>
+							{/if}
+							{#if menu.downloadPdf}
+								<DropdownMenu.Item
+									onSelect={handleDownloadPdf}
+									disabled={downloadingPdf}
+									class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
 								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-								</svg>
-								Cancel order
-							</DropdownMenu.Item>
-						{/if}
-					</DropdownMenu.Content>
-				</DropdownMenu.Portal>
-			</DropdownMenu.Root>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+										/>
+									</svg>
+									Download PDF
+								</DropdownMenu.Item>
+							{/if}
+							{#if data.returnEntry}
+								<DropdownMenu.Item
+									onSelect={() =>
+										// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() has no query-string form; same pattern as /organization/members
+										goto(`${resolve('/returns/new')}?order=${order.id}`)}
+									class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none data-[highlighted]:bg-muted"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										viewBox="0 0 24 24"
+										fill="currentColor"
+									>
+										<path
+											d="M12.0049 2C17.5277 2 22.0049 6.47715 22.0049 12C22.0049 17.5228 17.5277 22 12.0049 22C9.57847 22 7.3539 21.1358 5.62216 19.6985L5.37815 19.4892L6.27949 17.5875C7.73229 19.0759 9.76067 20 12.0049 20C16.4232 20 20.0049 16.4183 20.0049 12C20.0049 7.58172 16.4232 4 12.0049 4C7.66997 4 4.14034 7.44784 4.00869 11.7508L4.00488 12H6.50488L3.79854 17.7161C2.66796 16.096 2.00488 14.1254 2.00488 12C2.00488 6.47715 6.48204 2 12.0049 2ZM13.0049 6V8H15.5049V10H10.0049C9.72874 10 9.50488 10.2239 9.50488 10.5C9.50488 10.7455 9.68176 10.9496 9.91501 10.9919L10.0049 11H14.0049C15.3856 11 16.5049 12.1193 16.5049 13.5C16.5049 14.8807 15.3856 16 14.0049 16H13.0049V18H11.0049V16H8.50488V14H14.0049C14.281 14 14.5049 13.7761 14.5049 13.5C14.5049 13.2545 14.328 13.0504 14.0948 13.0081L14.0049 13H10.0049C8.62417 13 7.50488 11.8807 7.50488 10.5C7.50488 9.11929 8.62417 8 10.0049 8H11.0049V6H13.0049Z"
+										/>
+									</svg>
+									{data.returnEntry.label}
+								</DropdownMenu.Item>
+							{/if}
+							{#if menu.cancel}
+								<DropdownMenu.Separator class="my-1 h-px bg-border" />
+								<DropdownMenu.Item
+									onSelect={() => (cancelOpen = true)}
+									class="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm text-destructive outline-none data-[highlighted]:bg-destructive/10"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="1.5"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+									</svg>
+									Cancel order
+								</DropdownMenu.Item>
+							{/if}
+						</DropdownMenu.Content>
+					</DropdownMenu.Portal>
+				</DropdownMenu.Root>
+			{/if}
 		</div>
 	</div>
 
