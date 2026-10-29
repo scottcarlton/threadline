@@ -10,7 +10,11 @@ import type { ReceivedEmail } from '$lib/server/email-intake/brevo-inbound.js';
 import { resolveOrgFromSender } from '$lib/server/email-intake/route.js';
 import { parseInboundOrder, OrderExtractionInvalidError } from '$lib/server/email-intake/parser.js';
 import { resolveEntities } from '$lib/server/email-intake/resolve.js';
-import { decideOutcome, executeOutcome } from '$lib/server/email-intake/outcome.js';
+import {
+	applyOrderMinimum,
+	decideOutcome,
+	executeOutcome
+} from '$lib/server/email-intake/outcome.js';
 import { evaluateSenderAuth } from '$lib/server/email-intake/authentication.js';
 import { reportAiError } from '$lib/server/ai-errors.js';
 
@@ -162,7 +166,7 @@ async function processItem(
 			.update({ organization_id: resolved.organizationId })
 			.eq('id', intakeId);
 
-		const outcome = decideOutcome(resolved, senderAuth);
+		const outcome = await applyOrderMinimum(resolved, decideOutcome(resolved, senderAuth));
 		await executeOutcome(intakeId, resolved, outcome);
 
 		return { intake_id: intakeId, status: outcome.status };

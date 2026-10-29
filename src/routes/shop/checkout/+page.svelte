@@ -15,6 +15,11 @@
 	import { acceptedMethodsOnly, acceptedTermsOnly } from '$lib/payment-methods';
 	import { SHIPPING_METHODS } from '$lib/schemas/order-finalize';
 	import { toast } from 'svelte-sonner';
+	import {
+		effectiveOrderMinimum,
+		minimumBuyerMessage,
+		minimumShortfall
+	} from '$lib/utils/order-minimum';
 
 	let { data } = $props();
 
@@ -33,6 +38,8 @@
 			payment_preference: string | null;
 			payment_terms: string | null;
 			shipping_method: string | null;
+			organization_id: string;
+			order_minimum_override: number | string | null;
 		} | null
 	);
 	type LocationRow = {
@@ -275,8 +282,23 @@
 		brandsWithTerms.length === 0 || brandsWithTerms.every((id) => termsAgreedByBrand[id])
 	);
 
+	// Brand minimums (SCO-137). A buyer can't submit under a brand's minimum
+	// and has no draft to save, so each short order says how much to add. The
+	// server enforces the same rule.
+	const minimumNotices = $derived(
+		orderGroups.flatMap((g) => {
+			const settings = data.brandSettings?.[g.brandId];
+			if (!settings) return [];
+			const minimum = effectiveOrderMinimum(settings, account);
+			const shortfall = minimumShortfall(groupTotals.get(g.key)?.amount ?? 0, minimum);
+			if (minimum === null || shortfall === null) return [];
+			return [{ key: g.key, message: minimumBuyerMessage(g.brandName, minimum, shortfall) }];
+		})
+	);
+
 	const canSubmit = $derived.by(() => {
 		if (orderGroups.length === 0) return false;
+		if (minimumNotices.length > 0) return false;
 		for (const group of orderGroups) {
 			const dates = getShipDates(group.key);
 			if (!dates.startShip || !dates.completeShip) return false;
@@ -921,6 +943,12 @@
 								<dd class="font-mono font-semibold">{fmt.format(grandTotal)}</dd>
 							</div>
 						</dl>
+
+						{#each minimumNotices as notice (notice.key)}
+							<div class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+								{notice.message}
+							</div>
+						{/each}
 
 						<Button class="w-full" disabled={!canSubmit || submitting} onclick={doSubmit}>
 							{#if submitting}

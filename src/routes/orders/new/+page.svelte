@@ -1,4 +1,12 @@
 <script lang="ts">
+	import {
+		effectiveOrderMinimum,
+		minimumBlockedMessage,
+		minimumBuyerMessage,
+		minimumDraftHint,
+		minimumOverrideNote,
+		minimumShortfall
+	} from '$lib/utils/order-minimum';
 	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -53,6 +61,8 @@
 		state: string | null;
 		zip: string | null;
 		payment_preference: string | null;
+		organization_id?: string;
+		order_minimum_override?: number | string | null;
 	};
 	type LocationRow = {
 		id: string;
@@ -1178,6 +1188,43 @@
 	);
 
 	const grandTotal = $derived(groups.reduce((sum, g) => sum + g.total, 0));
+
+	// Brand minimums (SCO-137): an order under its brand's minimum can be saved
+	// as a draft but not submitted, unless this org owns the brand. The server
+	// enforces the same rule; this is the warning before the rep gets there.
+	const minimumNotices = $derived(
+		cart.type === 'note'
+			? []
+			: groups.flatMap((g) => {
+					const settings = data.brandSettings?.[g.brand_id];
+					if (!settings) return [];
+					const minimum = effectiveOrderMinimum(
+						settings,
+						account
+							? {
+									organization_id: account.organization_id ?? '',
+									order_minimum_override: account.order_minimum_override ?? null
+								}
+							: null
+					);
+					const shortfall = minimumShortfall(g.total, minimum);
+					if (minimum === null || shortfall === null) return [];
+					// A buyer never overrides, even when its org is the brand's.
+					const canOverride = !isBuyer && settings.owner_org_id === data.organization?.id;
+					return [
+						{
+							key: groupKey(g.brand_id, g.season_id),
+							canOverride,
+							message: canOverride
+								? minimumOverrideNote(minimum, shortfall)
+								: isBuyer
+									? minimumBuyerMessage(brandName(g.brand_id), minimum, shortfall)
+									: `${minimumBlockedMessage(brandName(g.brand_id), minimum, shortfall)} ${minimumDraftHint(brandName(g.brand_id))}`
+						}
+					];
+				})
+	);
+	const minimumBlocked = $derived(minimumNotices.some((n) => !n.canOverride));
 	const grandUnits = $derived(groups.reduce((sum, g) => sum + g.units, 0));
 
 	// Unified source picker: shows (specific dates) on top, then source types.
@@ -2380,6 +2427,12 @@
 					</div>
 				{/if}
 
+				{#each minimumNotices as notice (notice.key)}
+					<div class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+						{notice.message}
+					</div>
+				{/each}
+
 				<!-- ─────── Applies to all orders ─────── -->
 				<section class="space-y-3">
 					<div class="flex items-baseline justify-between">
@@ -3068,6 +3121,7 @@
 									size="lg"
 									class="flex-1 rounded-none"
 									disabled={submitting ||
+										minimumBlocked ||
 										(isFreeform && !hasFreeformDetails) ||
 										(termsBlockedBrands.length > 0 && !allBrandTermsAgreed)}
 									onclick={() => {
@@ -3110,6 +3164,7 @@
 										>
 											<DropdownMenu.Item
 												onSelect={() => submitOrderAs('submitted')}
+												disabled={minimumBlocked}
 												class="flex cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 text-sm outline-none data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[highlighted]:bg-muted"
 											>
 												<svg
