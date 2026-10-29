@@ -158,6 +158,7 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/routes/api/orders/[id]/lines/+server.ts',
 	'src/routes/api/orders/[id]/pdf/+server.ts',
 	'src/routes/api/orders/[id]/send/+server.ts',
+	'src/routes/api/orders/[id]/status/+server.ts',
 	'src/routes/api/orders/attention/+server.ts',
 	'src/routes/api/orders/import/+server.ts',
 	'src/routes/api/orders/list/+server.ts',

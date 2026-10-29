@@ -1537,6 +1537,7 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 							{#each advanceableStatuses as nextStatus (nextStatus)}
 								<Button
 									size="sm"
+									disabled={nextStatus === 'submitted' && data.minimumNotice?.blocked === true}
 									onclick={() => {
 										if (nextStatus === 'preparing') {
 											openPrepareDialog();
@@ -1555,6 +1556,11 @@ Shipping is at buyer's expense unless otherwise agreed in writing. Shipping fees
 				</div>
 				{#if statusContext}
 					<div class="mt-3 text-sm text-muted-foreground">{statusContext}</div>
+				{/if}
+				{#if data.minimumNotice}
+					<div class="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+						{data.minimumNotice.message}
+					</div>
 				{/if}
 			</div>
 

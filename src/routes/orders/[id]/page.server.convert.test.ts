@@ -38,6 +38,15 @@ vi.mock('$lib/server/supabase.js', () => ({
 }));
 
 vi.mock('$lib/server/log-supabase-error.js', () => ({ logSupabaseError: vi.fn() }));
+// Minimum lookups are covered in order-minimum.test.ts. None of these notes is
+// under a minimum unless a test says so.
+const findMinimumViolations = vi.fn(
+	async () => [] as Array<{ canOverride: boolean; message: string }>
+);
+vi.mock('$lib/server/orders/order-minimum.js', () => ({
+	findMinimumViolations,
+	blockingViolations: (v: Array<{ canOverride: boolean }>) => v.filter((x) => !x.canOverride)
+}));
 
 const { actions } = await import('./+page.server');
 
@@ -119,5 +128,26 @@ describe('convert action — own-org note', () => {
 		const result = (await actions.convert(makeEvent('guest', REP_ORG))) as ConvertResult;
 		expect(result.status).toBe(403);
 		expect(ordersUpdate).not.toHaveBeenCalled();
+	});
+});
+
+describe('convert action, brand minimum (SCO-137)', () => {
+	it('keeps the note when the order would be under the minimum', async () => {
+		findMinimumViolations.mockResolvedValueOnce([
+			{ canOverride: false, message: "This order is $50.00 under Acme's $500.00 minimum." }
+		]);
+		const result = (await actions.convert(makeEvent('admin', REP_ORG))) as {
+			status?: number;
+			data?: { message?: string };
+		};
+		expect(result.status).toBe(400);
+		expect(result.data?.message).toContain('minimum');
+		expect(ordersUpdate).not.toHaveBeenCalled();
+	});
+
+	it('lets the brand org convert under its own minimum', async () => {
+		findMinimumViolations.mockResolvedValueOnce([{ canOverride: true, message: 'note' }]);
+		const result = (await actions.convert(makeEvent('admin', BRAND_ORG))) as ConvertResult;
+		expect(result).toEqual({ ok: true });
 	});
 });

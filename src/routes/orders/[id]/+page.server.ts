@@ -11,6 +11,7 @@ import {
 	FEDERATED_CONVERT_DENIED_ERROR
 } from '$lib/utils/order-convert-permissions.js';
 import { resolveReturnEntry } from '$lib/server/returns/entry-point.js';
+import { findMinimumViolations, blockingViolations } from '$lib/server/orders/order-minimum.js';
 import type { SourceOrderForReturn } from '$lib/server/returns/create-return.js';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
@@ -349,6 +350,30 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		actorOrgId: organization?.id ?? null
 	});
 
+	// A draft under its brand's minimum (SCO-137): the brand sees that it may
+	// submit anyway, anyone else sees why Submit is off. Service role only for
+	// the settings lookup; the order itself was read through RLS above.
+	const draft = orderResult.data as unknown as {
+		status: string;
+		order_type: string;
+		brand_id: string | null;
+		account_id: string | null;
+		total_amount: number | string | null;
+	};
+	let minimumNotice: { message: string; blocked: boolean } | null = null;
+	if (draft.status === 'draft' && draft.order_type === 'order' && draft.brand_id) {
+		const [violation] = await findMinimumViolations(
+			supabaseAdmin,
+			[
+				{ brand_id: draft.brand_id, account_id: draft.account_id, total_amount: draft.total_amount }
+			],
+			locals.isBuyer ? null : (organization?.id ?? null)
+		);
+		if (violation) {
+			minimumNotice = { message: violation.message, blocked: !violation.canOverride };
+		}
+	}
+
 	return {
 		order: orderResult.data,
 		invoice: invoiceResult.data ?? null,
@@ -360,6 +385,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		today: new Date().toISOString().slice(0, 10),
 		lines: linesResult.data ?? [],
 		returnEntry,
+		minimumNotice,
 		productsById,
 		brandAssets: brandAssetsRes.data ?? [],
 		commissionOverride: overrideRes.data?.rate ?? null,
@@ -472,7 +498,7 @@ export const actions: Actions = {
 		const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 		const baseOrder = supabaseAdmin
 			.from('orders')
-			.select('id, organization_id, order_type, brand_id, account_id');
+			.select('id, organization_id, order_type, brand_id, account_id, total_amount');
 		const orderRes = await (UUID_RE.test(params.id)
 			? baseOrder.eq('id', params.id).single()
 			: baseOrder.eq('order_number', params.id).single());
@@ -483,6 +509,7 @@ export const actions: Actions = {
 			order_type: string;
 			brand_id: string;
 			account_id: string | null;
+			total_amount: number | string | null;
 		};
 		if (row.organization_id !== organization.id) {
 			// Cross-org: allow when there's an active federated_order_links row
@@ -523,6 +550,13 @@ export const actions: Actions = {
 				message: 'Buyer terms must be agreed to the current version.'
 			});
 		}
+
+		// Converting submits the order, so the brand minimum applies (SCO-137).
+		// The brand's own org may convert under it; anyone else keeps the note.
+		const [minimumBlock] = blockingViolations(
+			await findMinimumViolations(supabaseAdmin, [row], locals.isBuyer ? null : organization.id)
+		);
+		if (minimumBlock) return fail(400, { message: minimumBlock.message });
 
 		const now = new Date().toISOString();
 		const update: Record<string, unknown> = {
