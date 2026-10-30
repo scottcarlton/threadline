@@ -88,6 +88,15 @@
 		goto(resolve(`/reports/${report}?days=${days}`), { replaceState: true });
 	}
 
+	// The PDF is built on the server from the same filter as the page.
+	const pdfHref = $derived(
+		report === 'product-performance'
+			? `/api/reports/${report}/pdf?days=${data.daysBack ?? 90}`
+			: report === 'pipeline'
+				? `/api/reports/${report}/pdf`
+				: `/api/reports/${report}/pdf?year=${year}`
+	);
+
 	function exportReport() {
 		if (!rows.length) return;
 		downloadCSV(rows, `${report}-${year}.csv`);
@@ -152,6 +161,7 @@
 			{/if}
 			{#if rows.length > 0}
 				<Button variant="outline" size="sm" onclick={exportReport}>Export CSV</Button>
+				<Button variant="outline" size="sm" href={pdfHref}>Export PDF</Button>
 			{/if}
 		</PageHeader>
 	</div>
