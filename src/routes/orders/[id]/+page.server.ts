@@ -347,7 +347,9 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	const returnEntry = await resolveReturnEntry({
 		order: orderResult.data as unknown as SourceOrderForReturn,
 		supabase,
-		actorOrgId: organization?.id ?? null
+		actorOrgId: organization?.id ?? null,
+		isBuyer: locals.isBuyer,
+		role: locals.membership?.role ?? ''
 	});
 
 	// A draft under its brand's minimum (SCO-137): the brand sees that it may
