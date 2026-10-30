@@ -6,6 +6,7 @@
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import BarChart from '$lib/components/charts/BarChart.svelte';
+	import ShareReportDialog from '$lib/components/reports/ShareReportDialog.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
 	import { buildReportChart } from '$lib/utils/report-chart.js';
 	import { onMount } from 'svelte';
@@ -97,6 +98,15 @@
 				: `/api/reports/${report}/pdf?year=${year}`
 	);
 
+	// Share links (SCO-151): admin and owner only, decided on the server.
+	let shareOpen = $state(false);
+	const shareYear = $derived(
+		report === 'product-performance' || report === 'pipeline' ? undefined : year
+	);
+	const shareDays = $derived(
+		report === 'product-performance' ? Number(data.daysBack ?? 90) : undefined
+	);
+
 	function exportReport() {
 		if (!rows.length) return;
 		downloadCSV(rows, `${report}-${year}.csv`);
@@ -162,9 +172,23 @@
 			{#if rows.length > 0}
 				<Button variant="outline" size="sm" onclick={exportReport}>Export CSV</Button>
 				<Button variant="outline" size="sm" href={pdfHref}>Export PDF</Button>
+				{#if data.canShare}
+					<Button variant="outline" size="sm" onclick={() => (shareOpen = true)}>Share</Button>
+				{/if}
 			{/if}
 		</PageHeader>
 	</div>
+
+	{#if data.canShare}
+		<ShareReportDialog
+			bind:open={shareOpen}
+			shareForm={data.shareForm}
+			revokeForm={data.revokeForm}
+			links={data.shareLinks}
+			year={shareYear}
+			days={shareDays}
+		/>
+	{/if}
 
 	{#if chart && !chartHidden}
 		<BarChart {chart} />

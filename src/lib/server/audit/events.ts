@@ -60,6 +60,17 @@ export const AUDIT_EVENTS = {
 		label: 'completed onboarding',
 		subjectType: 'organizations'
 	},
+	// A public link sends org data outside the login wall (SCO-151).
+	'report.shared': {
+		category: 'organization',
+		label: 'shared a report by public link',
+		subjectType: 'report_share_links'
+	},
+	'report.share_revoked': {
+		category: 'organization',
+		label: 'revoked a report link',
+		subjectType: 'report_share_links'
+	},
 
 	// ── Membership ──────────────────────────────────────────────────────────
 	'member.invited': { category: 'membership', label: 'invited a member', subjectType: 'profiles' },

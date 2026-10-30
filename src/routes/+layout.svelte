@@ -253,7 +253,8 @@
 			$page.url.pathname.startsWith('/upload') ||
 			$page.url.pathname.startsWith('/onboarding') ||
 			$page.url.pathname.startsWith('/beta') ||
-			$page.url.pathname.startsWith('/legal')
+			$page.url.pathname.startsWith('/legal') ||
+			$page.url.pathname.startsWith('/reports/shared/')
 	);
 
 	const hideAiDock = $derived(

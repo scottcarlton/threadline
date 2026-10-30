@@ -34,6 +34,17 @@ describe('isPublicRoute', () => {
 		expect(endpointsUnder('api/webhooks')).toContain('/api/webhooks/messaging');
 	});
 
+	it('lets a public report link through, which authorizes by its own token', () => {
+		expect(isPublicRoute('/reports/shared/abc123')).toBe(true);
+	});
+
+	it.each(['/reports', '/reports/sales-by-brand', '/reports/shared', '/api/reports/pipeline/pdf'])(
+		'keeps report %s behind sign-in',
+		(path) => {
+			expect(isPublicRoute(path)).toBe(false);
+		}
+	);
+
 	it.each(['/api/cronjobs', '/api/webhooksettings', '/api/orders', '/orders', '/'])(
 		'keeps %s behind sign-in',
 		(path) => {
