@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	freeEntryOrderOrgId,
 	initialReturnStatus,
+	mayCreateReturn,
 	ownershipFromFreeEntry,
 	ownershipFromOrder,
 	refuseOrderReturn,
@@ -28,21 +29,26 @@ describe('initialReturnStatus', () => {
 	it('approves when the issuing org creates it', () => {
 		// The brand is the approver, so asking it to approve its own record is
 		// theatre.
-		expect(initialReturnStatus(BRAND_ORG, BRAND_ORG)).toBe('approved');
+		expect(initialReturnStatus(BRAND_ORG, BRAND_ORG, 'admin')).toBe('approved');
+	});
+
+	it('requests when a sales member of the issuing org creates it', () => {
+		// A BLSR may create returns but not approve them (SCO-213).
+		expect(initialReturnStatus(BRAND_ORG, BRAND_ORG, 'sales')).toBe('requested');
 	});
 
 	it('requests when a different org creates it', () => {
-		expect(initialReturnStatus(REP_ORG, BRAND_ORG)).toBe('requested');
+		expect(initialReturnStatus(REP_ORG, BRAND_ORG, 'admin')).toBe('requested');
 	});
 
 	it('requests when a buyer creates it, who has no org at all', () => {
-		expect(initialReturnStatus(null, BRAND_ORG)).toBe('requested');
+		expect(initialReturnStatus(null, BRAND_ORG, 'admin')).toBe('requested');
 	});
 
 	it('keys on org membership, not org type', () => {
 		// A rep org owning a manual brand locally IS the issuer for that brand's
 		// returns, with no second party to ask.
-		expect(initialReturnStatus(REP_ORG, REP_ORG)).toBe('approved');
+		expect(initialReturnStatus(REP_ORG, REP_ORG, 'admin')).toBe('approved');
 	});
 });
 
@@ -72,33 +78,38 @@ describe('ownershipFromOrder', () => {
 	it('owns the row to the brand org, not the order org', () => {
 		// The single most important rule in this module. Getting it backwards
 		// writes a row the wrong tenant can see.
-		const o = ownershipFromOrder(order(), BRAND_ORG, REP_ORG);
+		const o = ownershipFromOrder(order(), BRAND_ORG, REP_ORG, 'admin');
 		expect(o.organizationId).toBe(BRAND_ORG);
 		expect(o.orderOrgId).toBe(REP_ORG);
 	});
 
 	it('copies brand and account off the order rather than the client', () => {
-		const o = ownershipFromOrder(order(), BRAND_ORG, REP_ORG);
+		const o = ownershipFromOrder(order(), BRAND_ORG, REP_ORG, 'admin');
 		expect(o.brandId).toBe(BRAND);
 		expect(o.accountId).toBe(ACCOUNT);
 	});
 
 	it('approves when the brand org creates it', () => {
-		expect(ownershipFromOrder(order(), BRAND_ORG, BRAND_ORG).status).toBe('approved');
+		expect(ownershipFromOrder(order(), BRAND_ORG, BRAND_ORG, 'admin').status).toBe('approved');
 	});
 
 	it('requests when the rep creates it', () => {
-		expect(ownershipFromOrder(order(), BRAND_ORG, REP_ORG).status).toBe('requested');
+		expect(ownershipFromOrder(order(), BRAND_ORG, REP_ORG, 'admin').status).toBe('requested');
 	});
 
 	it('requests when a buyer creates it', () => {
-		expect(ownershipFromOrder(order(), BRAND_ORG, null).status).toBe('requested');
+		expect(ownershipFromOrder(order(), BRAND_ORG, null, 'admin').status).toBe('requested');
 	});
 
 	it('sets order_org_id equal to organization_id on a brand-internal order', () => {
 		// Which is correct: the rep arm excludes equal values, so a brand-internal
 		// return is governed solely by the brand-scoped policy.
-		const o = ownershipFromOrder(order({ organization_id: BRAND_ORG }), BRAND_ORG, BRAND_ORG);
+		const o = ownershipFromOrder(
+			order({ organization_id: BRAND_ORG }),
+			BRAND_ORG,
+			BRAND_ORG,
+			'admin'
+		);
 		expect(o.orderOrgId).toBe(BRAND_ORG);
 		expect(o.organizationId).toBe(BRAND_ORG);
 	});
@@ -106,18 +117,22 @@ describe('ownershipFromOrder', () => {
 
 describe('ownershipFromFreeEntry', () => {
 	it('owns the row to the brand org', () => {
-		const o = ownershipFromFreeEntry(BRAND, BRAND_ORG, ACCOUNT, REP_ORG);
+		const o = ownershipFromFreeEntry(BRAND, BRAND_ORG, ACCOUNT, REP_ORG, 'admin');
 		expect(o.organizationId).toBe(BRAND_ORG);
 		expect(o.brandId).toBe(BRAND);
 		expect(o.accountId).toBe(ACCOUNT);
 	});
 
 	it('carries the rep org when a rep raises it', () => {
-		expect(ownershipFromFreeEntry(BRAND, BRAND_ORG, ACCOUNT, REP_ORG).orderOrgId).toBe(REP_ORG);
+		expect(ownershipFromFreeEntry(BRAND, BRAND_ORG, ACCOUNT, REP_ORG, 'admin').orderOrgId).toBe(
+			REP_ORG
+		);
 	});
 
 	it('leaves order_org_id null when the brand raises it', () => {
-		expect(ownershipFromFreeEntry(BRAND, BRAND_ORG, ACCOUNT, BRAND_ORG).orderOrgId).toBeNull();
+		expect(
+			ownershipFromFreeEntry(BRAND, BRAND_ORG, ACCOUNT, BRAND_ORG, 'admin').orderOrgId
+		).toBeNull();
 	});
 });
 
@@ -205,5 +220,19 @@ describe('refuseOrderReturn', () => {
 	it('has a message for every refusal', () => {
 		const reasons = ['not_delivered', 'returns_disabled', 'window_expired', 'no_account'] as const;
 		for (const r of reasons) expect(RETURN_REFUSAL_MESSAGES[r]).toBeTruthy();
+	});
+});
+
+describe('mayCreateReturn', () => {
+	it.each(['admin', 'owner', 'member', 'sales'])('lets %s create a return', (role) => {
+		expect(mayCreateReturn({ isBuyer: false, role })).toBe(true);
+	});
+
+	it.each(['guest', ''])('refuses %s, who can only read returns', (role) => {
+		expect(mayCreateReturn({ isBuyer: false, role })).toBe(false);
+	});
+
+	it('lets a buyer create one, whatever role field they carry', () => {
+		expect(mayCreateReturn({ isBuyer: true, role: '' })).toBe(true);
 	});
 });

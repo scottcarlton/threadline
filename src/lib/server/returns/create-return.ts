@@ -42,16 +42,48 @@ export interface ReturnOwnership {
  * "manual brand" locally, in which case its own members are the issuing org for
  * that brand's returns and there is no second party to ask.
  *
+ * Within the issuing org, only an approving role approves on creation. A sales
+ * member of the brand opens a request like anyone else (SCO-213).
+ *
  * This decides the value the INSERT asks for; whether it is *allowed* is
- * enforced independently by the three INSERT policies in 20260915000010, which
- * pin the status each initiator may create at. Both layers say the same thing
- * on purpose.
+ * enforced independently by the INSERT policies (20260915000010, tightened in
+ * 20261030000001), which pin the status each initiator may create at. Both
+ * layers say the same thing on purpose.
  */
 export function initialReturnStatus(
 	actorOrgId: string | null,
-	issuingOrgId: string
+	issuingOrgId: string,
+	actorRole: string
 ): ReturnCreateStatus {
-	return actorOrgId !== null && actorOrgId === issuingOrgId ? 'approved' : 'requested';
+	const isIssuer = actorOrgId !== null && actorOrgId === issuingOrgId;
+	return isIssuer && RETURN_APPROVE_ROLES.has(actorRole) ? 'approved' : 'requested';
+}
+
+/**
+ * Roles that may create a return already approved, as the issuing brand. Mirrors
+ * the "Brand can create a return" INSERT policy and TRANSITION_ROLES: approving
+ * means taking goods back and crediting for them, which is not a sales action.
+ */
+export const RETURN_APPROVE_ROLES = new Set(['admin', 'owner', 'member']);
+
+/**
+ * Roles that may create a return at all (SCO-213). The order-writing set, on
+ * either side: a rep's salesperson is who the buyer calls, and a brand's sales
+ * staff (BLSR) logs returns for the accounts they look after. A sales member of
+ * the issuing brand opens it as `requested` for an approver to accept; see
+ * initialReturnStatus(). Guest is read-only per Roles & Access.
+ */
+export const RETURN_CREATE_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
+
+/**
+ * Whether this caller may create a return, which also decides whether "New
+ * return", the order menu item and /returns/new are offered.
+ *
+ * A buyer has no member role; RLS pins them to their own account and the brands
+ * it can buy from, so the role axis does not apply.
+ */
+export function mayCreateReturn(actor: { isBuyer: boolean; role: string }): boolean {
+	return actor.isBuyer || RETURN_CREATE_ROLES.has(actor.role);
 }
 
 /**
@@ -95,14 +127,15 @@ export interface SourceOrderForReturn {
 export function ownershipFromOrder(
 	order: SourceOrderForReturn,
 	brandOrgId: string,
-	actorOrgId: string | null
+	actorOrgId: string | null,
+	actorRole: string
 ): ReturnOwnership {
 	return {
 		organizationId: brandOrgId,
 		brandId: order.brand_id,
 		orderOrgId: order.organization_id,
 		accountId: order.account_id,
-		status: initialReturnStatus(actorOrgId, brandOrgId)
+		status: initialReturnStatus(actorOrgId, brandOrgId, actorRole)
 	};
 }
 
@@ -111,14 +144,15 @@ export function ownershipFromFreeEntry(
 	brandId: string,
 	brandOrgId: string,
 	accountId: string,
-	actorOrgId: string | null
+	actorOrgId: string | null,
+	actorRole: string
 ): ReturnOwnership {
 	return {
 		organizationId: brandOrgId,
 		brandId,
 		orderOrgId: freeEntryOrderOrgId(actorOrgId, brandOrgId),
 		accountId,
-		status: initialReturnStatus(actorOrgId, brandOrgId)
+		status: initialReturnStatus(actorOrgId, brandOrgId, actorRole)
 	};
 }
 

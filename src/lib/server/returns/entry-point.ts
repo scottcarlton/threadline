@@ -1,7 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { loadReturnPolicy } from './policy.js';
 import { checkReturnEligibility } from './credit.js';
-import { refuseOrderReturn, type SourceOrderForReturn } from './create-return.js';
+import {
+	initialReturnStatus,
+	mayCreateReturn,
+	refuseOrderReturn,
+	type SourceOrderForReturn
+} from './create-return.js';
 
 /**
  * Whether to offer a return on an order detail page, and what to call it.
@@ -24,12 +29,19 @@ export async function resolveReturnEntry(params: {
 	order: SourceOrderForReturn;
 	supabase: SupabaseClient;
 	actorOrgId: string | null;
+	isBuyer: boolean;
+	/** The caller's member role in `actorOrgId`; empty when there is none. */
+	role: string;
 }): Promise<ReturnEntryPoint | null> {
-	const { order, supabase, actorOrgId } = params;
+	const { order, supabase, actorOrgId, isBuyer, role } = params;
 
 	// Cheapest gate first: nothing else matters until the goods have landed,
 	// and this is true for every actor including the brand.
 	if (order.status !== 'delivered') return null;
+
+	// Same gate as the create action, so a guest is never offered an action
+	// the server refuses (SCO-213).
+	if (!mayCreateReturn({ isBuyer, role })) return null;
 
 	const { data: brand } = await supabase
 		.from('brands')
@@ -57,7 +69,12 @@ export async function resolveReturnEntry(params: {
 	if (refusal) return null;
 
 	return {
-		label: isIssuer ? 'Log return' : 'Request return',
+		// Keyed on the status the row would start at, not on isIssuer: a sales
+		// member of the brand opens a request for an approver (SCO-213).
+		label:
+			initialReturnStatus(actorOrgId, issuingOrgId, role) === 'approved'
+				? 'Log return'
+				: 'Request return',
 		href: `/returns/new?order=${order.id}`
 	};
 }
