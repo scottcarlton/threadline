@@ -19,6 +19,9 @@
 	import { page } from '$app/stores';
 	import ActionFeed from '$lib/components/insights/ActionFeed.svelte';
 	import Scoreboard from '$lib/components/insights/Scoreboard.svelte';
+	import TrendChart from '$lib/components/charts/TrendChart.svelte';
+	import { SelectField } from '$lib/components/ui/select/index.js';
+	import type { TrendMeasure } from '$lib/utils/sales-trend.js';
 
 	let { data } = $props();
 	const isAdmin = $derived(data.membership?.role === 'admin' || data.membership?.role === 'owner');
@@ -120,6 +123,26 @@
 	// Style velocity data
 	const styleVelocity = $derived(data.styleVelocity ?? []);
 	const velocityWindow = $derived(data.velocityWindow ?? 14);
+
+	// Sales trend (SCO-148). The measure is a view toggle; the brand is a URL
+	// param so the server counts only that brand's orders.
+	const salesTrend = $derived(data.salesTrend);
+	let trendMeasure = $state<TrendMeasure>('revenue');
+	const trendBrandItems = $derived([
+		{ value: '', label: 'All brands' },
+		...(data.trendBrands ?? []).map((b: { id: string; name: string }) => ({
+			value: b.id,
+			label: b.name
+		}))
+	]);
+
+	function handleTrendBrandChange(brandId: string) {
+		const url = new URL($page.url);
+		if (brandId) url.searchParams.set('trend_brand', brandId);
+		else url.searchParams.delete('trend_brand');
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(`${resolve('/insight')}${url.search}`, { replaceState: true, noScroll: true });
+	}
 
 	// Tab state
 	let activeTab = $state<'shows' | 'deliveries' | 'commissions' | 'velocity'>('deliveries');
@@ -752,6 +775,50 @@
 				<Scoreboard kpis={scoreboard} />
 			</div>
 		</div>
+
+		{#if salesTrend}
+			<section class="space-y-4 border p-4" aria-labelledby="sales-trend-heading">
+				<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div>
+						<h2 id="sales-trend-heading" class="text-lg font-semibold">Sales trend</h2>
+						<p class="text-sm text-muted-foreground">
+							Each month against the same month a year earlier.
+						</p>
+					</div>
+					<div class="flex flex-wrap items-center gap-2">
+						<div class="flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
+							{#each [{ value: 'revenue', label: 'Revenue' }, { value: 'orders', label: 'Orders' }] as const as opt (opt.value)}
+								<button
+									class="cursor-pointer rounded-md px-3 py-1 text-sm font-medium transition-colors {trendMeasure ===
+									opt.value
+										? 'bg-background text-foreground shadow-sm'
+										: 'text-muted-foreground hover:text-foreground'}"
+									aria-pressed={trendMeasure === opt.value}
+									onclick={() => (trendMeasure = opt.value)}
+								>
+									{opt.label}
+								</button>
+							{/each}
+						</div>
+						{#if (data.trendBrands ?? []).length > 1}
+							<SelectField
+								class="w-48"
+								items={trendBrandItems}
+								value={data.trendBrandId ?? ''}
+								onValueChange={handleTrendBrandChange}
+							/>
+						{/if}
+					</div>
+				</div>
+				{#if salesTrend.empty}
+					<p class="text-sm text-muted-foreground">
+						No orders in the last two years{data.trendBrandId ? ' for this brand' : ''}.
+					</p>
+				{:else}
+					<TrendChart months={salesTrend.months} measure={trendMeasure} />
+				{/if}
+			</section>
+		{/if}
 
 		<!-- Deep Dive: Existing analytics tabs -->
 		<div class="border-t pt-4">

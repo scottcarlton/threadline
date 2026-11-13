@@ -60,7 +60,7 @@ const base = {
 };
 
 describe('runConversation', () => {
-	it('follows the classifier per turn and rebuilds text-only history between turns', async () => {
+	it('follows the classifier per turn and rebuilds text history with a tool note between turns', async () => {
 		const { client, seen } = fake({
 			classify: ['TOOLS', 'TOOLS'],
 			chat: [],
@@ -78,10 +78,15 @@ describe('runConversation', () => {
 		});
 		expect(out.map((t) => t.route)).toEqual(['TOOLS', 'TOOLS']);
 		expect(out[0].attempted.map((a) => a.name)).toEqual(['list_brands']);
-		// Turn 2 sees only plain text from turn 1: no tool_use or tool_result blocks.
+		expect(out[0].toolCalls).toEqual([{ tool: 'list_brands', status: 'ok' }]);
+		// Turn 2 sees turn 1 as plain text plus the note that list_brands ran:
+		// no tool_use or tool_result blocks, and no tool results.
 		expect(seen.stream[2]).toEqual([
 			{ role: 'user', content: 'order for Bloom' },
-			{ role: 'assistant', content: 'Which brand?' },
+			{
+				role: 'assistant',
+				content: 'Which brand?\n\n[Tools run for this reply: list_brands (ok). Results not shown.]'
+			},
 			{ role: 'user', content: 'Saltwater Linen' }
 		]);
 		expect(out[1].text).toBe('Submitted SAL-1.');
@@ -104,6 +109,7 @@ describe('runConversation', () => {
 		});
 		expect(out[0].route).toBe('CHAT');
 		expect(out[0].attempted).toEqual([]);
+		expect(out[0].toolCalls).toBeNull();
 		expect(seen.stream).toHaveLength(0);
 		expect(seen.chat[0]).toEqual([
 			{ role: 'user', content: 'q' },

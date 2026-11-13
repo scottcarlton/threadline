@@ -98,12 +98,12 @@ export function sanitizeConversationHistory(
  * that only matters for client input. Rows this server wrote are already
  * known to be plain text turns with a valid role.
  */
-export function applyHistoryLimits(turns: PlainTurn[], limits: HistoryLimits): PlainTurn[] {
+export function applyHistoryLimits<T extends PlainTurn>(turns: T[], limits: HistoryLimits): T[] {
 	// Newest turns are the useful ones, so trim from the front.
 	const recent = turns.slice(-limits.maxTurns);
 
-	const capped = recent.map((turn) => ({
-		role: turn.role,
+	const capped: T[] = recent.map((turn) => ({
+		...turn,
 		content:
 			turn.content.length > limits.maxCharsPerTurn
 				? turn.content.slice(0, limits.maxCharsPerTurn) + TRUNCATION_MARKER
@@ -111,7 +111,7 @@ export function applyHistoryLimits(turns: PlainTurn[], limits: HistoryLimits): P
 	}));
 
 	// Total budget, applied oldest-first so the most recent context survives.
-	const withinBudget: PlainTurn[] = [];
+	const withinBudget: T[] = [];
 	let total = 0;
 	for (let i = capped.length - 1; i >= 0; i--) {
 		const turn = capped[i];
@@ -121,7 +121,7 @@ export function applyHistoryLimits(turns: PlainTurn[], limits: HistoryLimits): P
 	}
 
 	// Strict alternation starting with user.
-	const alternating: PlainTurn[] = [];
+	const alternating: T[] = [];
 	for (const turn of withinBudget) {
 		const previous = alternating[alternating.length - 1];
 		if (!previous) {
@@ -140,16 +140,64 @@ export function applyHistoryLimits(turns: PlainTurn[], limits: HistoryLimits): P
 	return alternating;
 }
 
-/** Stored rows to Messages API params. Empty turns are dropped, not sent. */
+export const TOOL_CALL_STATUSES = ['ok', 'error', 'denied', 'invalid'] as const;
+export type ToolCallStatus = (typeof TOOL_CALL_STATUSES)[number];
+export type ToolCallSummary = { tool: string; status: ToolCallStatus };
+
+/** A stored row: a plain turn plus, for assistant rows, the tools behind it. */
+export type StoredTurn = PlainTurn & { toolCalls?: ToolCallSummary[] | null };
+
+/**
+ * Read ai_messages.tool_calls back. The column is server-written, but a row
+ * that does not parse is dropped rather than trusted, and an unusable value
+ * reads as no tool calls.
+ */
+export function parseToolCalls(raw: unknown): ToolCallSummary[] | null {
+	if (!Array.isArray(raw)) return null;
+	const calls: ToolCallSummary[] = [];
+	for (const entry of raw) {
+		if (typeof entry !== 'object' || entry === null) continue;
+		const { tool, status } = entry as Record<string, unknown>;
+		if (typeof tool !== 'string' || !/^[a-z0-9_]{1,64}$/.test(tool)) continue;
+		if (!TOOL_CALL_STATUSES.includes(status as ToolCallStatus)) continue;
+		calls.push({ tool, status: status as ToolCallStatus });
+	}
+	return calls.length > 0 ? calls : null;
+}
+
+/**
+ * The note appended to an assistant turn in rebuilt history, so a follow-up
+ * turn knows which tools ran behind that reply. Repeats of the same tool and
+ * status collapse to a count. Results are deliberately left out: they are not
+ * stored, and the model is told to look again when it needs them.
+ */
+export function toolCallNote(calls: ToolCallSummary[]): string {
+	const counts = new Map<string, number>();
+	for (const c of calls) {
+		const key = `${c.tool} (${c.status})`;
+		counts.set(key, (counts.get(key) ?? 0) + 1);
+	}
+	const parts = [...counts].map(([key, n]) => (n > 1 ? `${key} x${n}` : key));
+	return `[Tools run for this reply: ${parts.join(', ')}. Results not shown.]`;
+}
+
+/**
+ * Stored rows to Messages API params. Empty turns are dropped, not sent. An
+ * assistant row that recorded tool calls gets a tool note appended after the
+ * limits are applied, so truncation never cuts the note off.
+ */
 export function toHistoryMessages(
-	rows: PlainTurn[],
+	rows: StoredTurn[],
 	limits: HistoryLimits = DEFAULT_HISTORY_LIMITS
 ): Anthropic.MessageParam[] {
 	const nonEmpty = rows
-		.map((row) => ({ role: row.role, content: row.content.trim() }))
+		.map((row) => ({ ...row, content: row.content.trim() }))
 		.filter((row) => row.content.length > 0);
 	return applyHistoryLimits(nonEmpty, limits).map((turn) => ({
 		role: turn.role,
-		content: turn.content
+		content:
+			turn.role === 'assistant' && turn.toolCalls && turn.toolCalls.length > 0
+				? `${turn.content}\n\n${toolCallNote(turn.toolCalls)}`
+				: turn.content
 	}));
 }

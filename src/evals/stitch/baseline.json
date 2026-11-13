@@ -1,0 +1,13 @@
+{
+	"prompt_version": "3.4.0",
+	"date": "2026-11-13",
+	"cases": 32,
+	"reps": 2,
+	"margin": 0.12,
+	"metrics": {
+		"faithful": 0.828,
+		"right_action": 0.75,
+		"brief": 0.672,
+		"voice": 0.922
+	}
+}
