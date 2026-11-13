@@ -85,7 +85,10 @@ jobs:
           bun-version: latest
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned to the CLI in bun.lock so CI starts the same stack as local
+          # dev. CLI v3 rejects the [inbucket] section that v2 requires; move
+          # both together when upgrading.
+          version: 2.91.2
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Start Supabase
