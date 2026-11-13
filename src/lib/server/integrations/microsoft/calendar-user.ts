@@ -121,13 +121,7 @@ type MsCalendarEventInput = {
 	duration?: number;
 };
 
-export async function createMsCalendarEvent(
-	profileId: string,
-	event: MsCalendarEventInput
-): Promise<string | null> {
-	const token = await getMsCalendarToken(profileId);
-	if (!token) return null;
-
+function msEventBody(event: MsCalendarEventInput): Record<string, unknown> {
 	const isAllDay = !event.startTime;
 
 	let body: Record<string, unknown>;
@@ -167,6 +161,17 @@ export async function createMsCalendarEvent(
 			end: { dateTime: endDateTime, timeZone: 'UTC' }
 		};
 	}
+	return body;
+}
+
+export async function createMsCalendarEvent(
+	profileId: string,
+	event: MsCalendarEventInput
+): Promise<string | null> {
+	const token = await getMsCalendarToken(profileId);
+	if (!token) return null;
+
+	const body = msEventBody(event);
 
 	const res = await fetch('https://graph.microsoft.com/v1.0/me/events', {
 		method: 'POST',
@@ -180,6 +185,29 @@ export async function createMsCalendarEvent(
 	if (!res.ok) return null;
 	const data = await res.json();
 	return (data.id as string) ?? null;
+}
+
+/** Rewrites an existing event in place. False when it could not be updated. */
+export async function updateMsCalendarEvent(
+	profileId: string,
+	eventId: string,
+	event: MsCalendarEventInput
+): Promise<boolean> {
+	const token = await getMsCalendarToken(profileId);
+	if (!token) return false;
+
+	const res = await fetch(
+		`https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(eventId)}`,
+		{
+			method: 'PATCH',
+			headers: {
+				Authorization: `Bearer ${token}`,
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(msEventBody(event))
+		}
+	);
+	return res.ok;
 }
 
 export async function deleteMsCalendarEvent(profileId: string, eventId: string): Promise<boolean> {
