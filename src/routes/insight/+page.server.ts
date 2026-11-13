@@ -1,3 +1,4 @@
+import { loadRepSetupState } from '$lib/server/insights-setup.js';
 import { loadSalesTrend } from '$lib/server/sales-trend.js';
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
@@ -83,35 +84,11 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	// ── Setup checklist (onboarding state) ──────────────────────────────
 	// Nx-BLSR users are sales-role, not org-admin — they don't run onboarding.
 	// Skip the checklist for them so they don't see "0 brands" against a rep-org
-	// perspective they don't own.
-	const [brandCountCheck, productCountCheck, accountCountCheck, orderCountCheck] = nxBlsr
-		? [{ count: 1 }, { count: 1 }, { count: 1 }, { count: 1 }]
-		: await Promise.all([
-				supabase
-					.from('brands')
-					.select('id', { count: 'exact', head: true })
-					.in('organization_id', orgScope)
-					.eq('is_active', true),
-				supabase
-					.from('products')
-					.select('id', { count: 'exact', head: true })
-					.in('organization_id', orgScope)
-					.eq('is_active', true),
-				supabase
-					.from('accounts')
-					.select('id', { count: 'exact', head: true })
-					.in('organization_id', orgScope)
-					.eq('is_active', true),
-				supabase
-					.from('orders')
-					.select('id', { count: 'exact', head: true })
-					.in('organization_id', orgScope)
-			]);
-
-	const hasBrands = (brandCountCheck.count ?? 0) > 0;
-	const hasProducts = (productCountCheck.count ?? 0) > 0;
-	const hasAccounts = (accountCountCheck.count ?? 0) > 0;
-	const hasOrders = (orderCountCheck.count ?? 0) > 0;
+	// perspective they don't own. Rep orgs count what they can sell through,
+	// including connected brand orgs' catalogs and accounts (SCO-224).
+	const { hasBrands, hasProducts, hasAccounts, hasOrders } = nxBlsr
+		? { hasBrands: true, hasProducts: true, hasAccounts: true, hasOrders: true }
+		: await loadRepSetupState(supabase, orgId);
 	const setupComplete = hasBrands && hasProducts && hasAccounts;
 
 	// Get brand list for the wizard's product brand picker + first brand link
