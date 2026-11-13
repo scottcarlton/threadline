@@ -5,7 +5,7 @@ import { runCase, gradeCase, perfFrom, loadCases } from './adapter';
 import { loadStitchCases } from './schema';
 import { JUDGE_MODEL, JUDGE_METRICS } from './judge';
 
-const m = (content: unknown[], stop_reason: string, model = 'claude-sonnet-4-6') =>
+const m = (content: unknown[], stop_reason: string, model = 'claude-sonnet-5-5') =>
 	({
 		model,
 		content,
@@ -104,7 +104,7 @@ describe('adapter', () => {
 		expect(run.turns).toBe(2);
 		expect(run.tool_calls).toBe(2);
 		expect(run.unscripted_calls).toBe(0);
-		expect(run.model).toBe('claude-sonnet-4-6');
+		expect(run.model).toBe('claude-sonnet-5-5');
 		expect(run.usage).toEqual({
 			input_tokens: 40,
 			output_tokens: 20,

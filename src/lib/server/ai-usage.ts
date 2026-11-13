@@ -53,6 +53,20 @@ export function logUsage(input: UsageLogInput): void {
 			extra: { turnId: input.turnId ?? null, model: input.response.model }
 		});
 	}
+	// Also a 200: the model's safety classifiers declined. The category says
+	// which one, so a spike from benign traffic can be told apart.
+	if (input.response.stop_reason === 'refusal') {
+		reportAiDegraded('model_refusal', {
+			endpoint: input.endpoint,
+			purpose: input.purpose,
+			organizationId: input.organizationId,
+			extra: {
+				turnId: input.turnId ?? null,
+				model: input.response.model,
+				category: input.response.stop_details?.category ?? null
+			}
+		});
+	}
 	writeUsage({
 		...baseRecord(input),
 		model: input.response.model || input.model || 'unknown',

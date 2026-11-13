@@ -39,7 +39,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		supabaseAdmin
 			.from('accounts')
 			.select(
-				'id, business_name, contact_email, address_line1, address_line2, city, state, zip, payment_preference, payment_terms, shipping_method'
+				'id, organization_id, business_name, contact_email, address_line1, address_line2, city, state, zip, payment_preference, payment_terms, shipping_method, order_minimum_override'
 			)
 			.eq('id', accountId)
 			.single(),

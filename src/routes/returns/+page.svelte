@@ -100,7 +100,9 @@
 		{#if data.canExportCreditMemos}
 			<Button variant="outline" href="/api/returns/credit-memos/export">Export credit memos</Button>
 		{/if}
-		<Button href={resolve('/returns/new')}>New return</Button>
+		{#if data.canCreateReturn}
+			<Button href={resolve('/returns/new')}>New return</Button>
+		{/if}
 	</PageHeader>
 
 	<!--

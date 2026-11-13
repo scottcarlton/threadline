@@ -18,6 +18,8 @@ import { resolveOrderSettings } from '$lib/server/orders/resolve-order-settings.
 import { resolveOrderScope } from '$lib/server/orders/order-scope.js';
 import { authorizeSubmitPayload } from '$lib/server/orders/authorize-submit.js';
 import { submissionIds } from '$lib/server/orders/order-ids.js';
+import { findMinimumViolations, blockingViolations } from '$lib/server/orders/order-minimum.js';
+import { minimumBuyerMessage, minimumDraftHint } from '$lib/utils/order-minimum';
 
 export type SubmitOutcome =
 	| {
@@ -267,6 +269,40 @@ export async function submitOrderPayload(
 		return { ok: false, status: 500, message: 'Failed to resolve brand commerce settings' };
 	}
 
+	// Brand minimums (SCO-137). Notes and drafts are exempt: a note is not an
+	// order yet, and a draft is where an under-minimum order waits for the brand.
+	// The brand's own org may submit under its minimum, so a brand-org writer
+	// never trips this. An order captured offline is saved as a draft instead of
+	// rejected, so nothing the rep wrote is lost.
+	const submitting = newOrders.filter((o) => o.order_type !== 'note' && o.status !== 'draft');
+	const minimumBlocks = blockingViolations(
+		await findMinimumViolations(
+			supabase,
+			submitting.map((o) => ({
+				brand_id: o.brand_id,
+				account_id: o.account_id,
+				total_amount: o.total_amount
+			})),
+			// A buyer never overrides, even when its org is the brand's.
+			locals.isBuyer ? null : organization.id,
+			brandCommerce
+		)
+	);
+	let minimumReason: string | null = null;
+	if (minimumBlocks.length > 0) {
+		// A buyer at checkout has no draft to save, so it is told what to add.
+		const message = minimumBlocks
+			.map((v) =>
+				locals.isBuyer
+					? minimumBuyerMessage(v.brand_name, v.minimum, v.shortfall)
+					: `${v.message} ${minimumDraftHint(v.brand_name)}`
+			)
+			.join(' ');
+		if (!opts.captured) return { ok: false, status: 400, message };
+		for (const v of minimumBlocks) submitting[v.index].status = 'draft';
+		minimumReason = message;
+	}
+
 	const brandOrgMap = new Map<string, string>();
 	if (isBrandOrgWriter) {
 		for (const [brandId, settings] of brandCommerce) {
@@ -487,8 +523,9 @@ export async function submitOrderPayload(
 		}
 	}
 
-	if (drift) {
-		const reason = driftReason(drift);
+	const reviewReason = [drift ? driftReason(drift) : null, minimumReason].filter(Boolean).join(' ');
+	if (reviewReason) {
+		const reason = reviewReason;
 		const first = orders.find((o) => o.inserted);
 		// Once, on the first write; a replay already told the rep.
 		if (first) {

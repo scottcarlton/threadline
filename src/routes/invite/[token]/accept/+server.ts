@@ -2,6 +2,8 @@ import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { resolveAcceptingProfileId } from '$lib/server/invites/authorize.js';
+import { checkSeatLimit } from '$lib/server/billing/entitlements.js';
+import type { OrgType } from '$lib/types/database.js';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
 	const { session, user: sessionUser } = await locals.safeGetSession();
@@ -17,7 +19,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		.from('invitations')
 		// organizations(name) so the audit rows below carry the org's name. The
 		// invitee has no membership yet, so the hook has no default to supply it.
-		.select('*, organizations(name)')
+		.select('*, organizations(name, org_type)')
 		.eq('token', token)
 		.is('accepted_at', null)
 		.single();
@@ -42,6 +44,24 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			303,
 			`/login?error=invite_email_mismatch&expected=${encodeURIComponent(invitation.email)}`
 		);
+	}
+
+	// Plan seats (SCO-47). The org may have filled up or downgraded since the
+	// invitation went out.
+	const seatOrg = (
+		invitation as { organizations?: { org_type?: string } | { org_type?: string }[] | null }
+	).organizations;
+	const seatOrgType = (Array.isArray(seatOrg) ? seatOrg[0]?.org_type : seatOrg?.org_type) as
+		| OrgType
+		| undefined;
+	if (seatOrgType) {
+		const seats = await checkSeatLimit(
+			supabaseAdmin,
+			{ id: invitation.organization_id, orgType: seatOrgType },
+			invitation.role,
+			'accept'
+		);
+		if (!seats.ok) throw redirect(303, '/login?error=invite_no_seats');
 	}
 
 	// Normalize sales-scoped fields the same way /api/invite/send does

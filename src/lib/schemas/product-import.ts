@@ -70,6 +70,15 @@ const requiredPrice = z.preprocess(
 		.min(0, 'wholesale_price must be 0 or more')
 );
 
+// One explicit variant from a long-format file (one row per size and color).
+// When a draft carries these, the endpoint inserts exactly these rows, SKU
+// included, instead of crossing sizes x colors.
+export const productVariantDraftSchema = z.object({
+	size: optTrimmedString,
+	color: optTrimmedString,
+	sku: optTrimmedString
+});
+
 export const productDraftSchema = z.object({
 	style_number: z.string().trim().min(1, 'style_number is required'),
 	name: z.string().trim().min(1, 'name is required'),
@@ -82,7 +91,8 @@ export const productDraftSchema = z.object({
 	colors: flexibleStringArray,
 	season_id: z.union([z.string().uuid(), z.null(), z.undefined()]).transform((v) => v ?? null),
 	product_year: optYear,
-	image_url: optTrimmedString
+	image_url: optTrimmedString,
+	variants: z.array(productVariantDraftSchema).optional()
 });
 
 export type ProductDraft = z.infer<typeof productDraftSchema>;

@@ -82,6 +82,28 @@ describe('logUsage', () => {
 		);
 	});
 
+	it('flags a refusal with its category', () => {
+		reportAiDegraded.mockClear();
+		logUsage({
+			endpoint: 'chat',
+			purpose: 'tools',
+			organizationId: ORG,
+			response: message({
+				stop_reason: 'refusal',
+				stop_details: { type: 'refusal', category: 'cyber', explanation: null }
+			} as Partial<Anthropic.Message>)
+		});
+
+		expect(lastRow().stop_reason).toBe('refusal');
+		expect(reportAiDegraded).toHaveBeenCalledWith(
+			'model_refusal',
+			expect.objectContaining({
+				endpoint: 'chat',
+				extra: expect.objectContaining({ category: 'cyber' })
+			})
+		);
+	});
+
 	it('does not flag a response that ended normally', () => {
 		reportAiDegraded.mockClear();
 		logUsage({ endpoint: 'chat', purpose: 'tools', organizationId: ORG, response: message() });

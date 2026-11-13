@@ -6,6 +6,7 @@ import {
 	expectDeleteAllowed,
 	expectDeleteDenied,
 	expectHidden,
+	expectInsertAllowed,
 	expectInsertDenied,
 	expectUpdateAllowed,
 	expectUpdateDenied,
@@ -161,6 +162,63 @@ describe('returns RLS', () => {
 		});
 	});
 
+	describe('brand sales (SCO-213)', () => {
+		const brandReturn = {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			account_id: RLS_IDS.accountBrandA
+		};
+
+		it('can open a request for an approver', async () => {
+			const client = await personaClient('brandASales');
+			const id = await expectInsertAllowed(client, 'return_authorizations', {
+				...brandReturn,
+				status: 'requested'
+			});
+			await adminClient().from('return_authorizations').delete().eq('id', id);
+		});
+
+		it('cannot create a return already approved', async () => {
+			// Approving takes goods back and credits for them, which is not a
+			// sales action; admin, owner and member approve.
+			const client = await personaClient('brandASales');
+			await expectInsertDenied(client, 'return_authorizations', {
+				...brandReturn,
+				status: 'approved'
+			});
+		});
+
+		it('refuses a brand guest, who is read-only', async () => {
+			const client = await personaClient('brandAGuest');
+			await expectInsertDenied(client, 'return_authorizations', {
+				...brandReturn,
+				status: 'requested'
+			});
+		});
+	});
+
+	describe('rep org roles (SCO-213)', () => {
+		const request = {
+			organization_id: RLS_IDS.orgBrandA,
+			brand_id: RLS_IDS.brandA1,
+			order_org_id: RLS_IDS.orgRepA,
+			account_id: RLS_IDS.accountBrandA,
+			status: 'requested'
+		};
+
+		it('lets a rep sales member request a return', async () => {
+			// The salesperson on the account is who the buyer calls.
+			const client = await personaClient('repASales');
+			const id = await expectInsertAllowed(client, 'return_authorizations', request);
+			await adminClient().from('return_authorizations').delete().eq('id', id);
+		});
+
+		it('refuses a rep guest, who is read-only', async () => {
+			const client = await personaClient('repAGuest');
+			await expectInsertDenied(client, 'return_authorizations', request);
+		});
+	});
+
 	describe('buyer', () => {
 		it('sees returns for their own account, including pending ones', async () => {
 			const client = await personaClient('buyer');
@@ -224,6 +282,43 @@ describe('returns RLS', () => {
 			const client = await personaClient('brandBAdmin');
 			await expectHidden(client, 'return_lines', RLS_IDS.returnLineRequestedRepA);
 		});
+
+		it('can be added by the requesting rep while the return is requested', async () => {
+			const client = await personaClient('repAAdmin');
+			const id = await expectInsertAllowed(client, 'return_lines', {
+				return_id: RLS_IDS.returnRequestedRepA,
+				style_number: 'RLS-A1',
+				qty: 1,
+				unit_price: 100
+			});
+			await adminClient().from('return_lines').delete().eq('id', id);
+		});
+
+		it('can be added by brand sales while the return is requested', async () => {
+			const client = await personaClient('brandASales');
+			const id = await expectInsertAllowed(client, 'return_lines', {
+				return_id: RLS_IDS.returnRequestedRepA,
+				style_number: 'RLS-A1',
+				qty: 1,
+				unit_price: 100
+			});
+			await adminClient().from('return_lines').delete().eq('id', id);
+		});
+
+		it.each(['repAGuest', 'brandAGuest'] as const)(
+			'cannot be added by %s, though they can read the request',
+			async (persona) => {
+				// Every SELECT arm is role-blind, so before SCO-213 a guest on
+				// either side could add lines to any request they could see.
+				const client = await personaClient(persona);
+				await expectInsertDenied(client, 'return_lines', {
+					return_id: RLS_IDS.returnRequestedRepA,
+					style_number: 'RLS-A1',
+					qty: 1,
+					unit_price: 100
+				});
+			}
+		);
 
 		it('cannot be edited by the rep or the buyer', async () => {
 			const rep = await personaClient('repAAdmin');

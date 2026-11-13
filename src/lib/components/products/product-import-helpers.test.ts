@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+	buildPreviewFromCsv,
 	detectHintFromText,
 	detectHintFromCsvRows,
 	matchSeasonId,
@@ -135,5 +136,109 @@ describe('yearOptions', () => {
 		const opts = yearOptions();
 		const current = new Date().getFullYear();
 		expect(opts).toEqual([current - 2, current - 1, current, current + 1, current + 2]);
+	});
+});
+
+// Mirrors parseCSV: rows keyed by lowercased header.
+function sheet(headers: string[], body: string[][]) {
+	const rows = body.map((cells) =>
+		Object.fromEntries(headers.map((h, i) => [h.toLowerCase(), cells[i] ?? '']))
+	);
+	return buildPreviewFromCsv(headers, rows);
+}
+
+describe('buildPreviewFromCsv', () => {
+	it('keeps one row per product for the template shape', () => {
+		const { previewRows } = sheet(
+			['style_number', 'name', 'wholesale_price', 'sizes', 'colors'],
+			[
+				['CT-01', 'Crew Tee', '24.00', 'XS, S, M', 'Black, White'],
+				['CT-02', 'Boxy Tee', '26.00', 'S, M', 'Oat']
+			]
+		);
+		expect(previewRows).toHaveLength(2);
+		expect(previewRows[0]).toMatchObject({
+			style_number: 'CT-01',
+			name: 'Crew Tee',
+			wholesale_price: '24.00',
+			sizes: ['XS', 'S', 'M'],
+			colors: ['Black', 'White']
+		});
+		expect(previewRows[0].variants).toBeUndefined();
+	});
+
+	it('groups one-row-per-variant files into one product with SKU variants', () => {
+		const { previewRows, previewUnmapped } = sheet(
+			['Style Number', 'Name', 'Wholesale Price', 'Size', 'Color', 'SKU'],
+			[
+				['XV-201', 'Crew Tee', '24', 'S', 'Oat', 'XV-201-OAT-S'],
+				['XV-201', 'Crew Tee', '24', 'M', 'Oat', 'XV-201-OAT-M'],
+				['XV-201', 'Crew Tee', '24', 'L', 'Oat', 'XV-201-OAT-L'],
+				['XV-202', 'Boxy Tee', '26', 'M', 'Black', 'XV-202-BLK-M']
+			]
+		);
+		expect(previewRows).toHaveLength(2);
+		expect(previewRows[0]).toMatchObject({
+			style_number: 'XV-201',
+			sizes: ['S', 'M', 'L'],
+			colors: ['Oat'],
+			variants: [
+				{ size: 'S', color: 'Oat', sku: 'XV-201-OAT-S' },
+				{ size: 'M', color: 'Oat', sku: 'XV-201-OAT-M' },
+				{ size: 'L', color: 'Oat', sku: 'XV-201-OAT-L' }
+			]
+		});
+		expect(previewRows[1]).toMatchObject({ style_number: 'XV-202', sizes: ['M'] });
+		expect(previewUnmapped).toEqual([]);
+	});
+
+	it('groups variant rows without a SKU column and lets the server cross sizes and colors', () => {
+		const { previewRows } = sheet(
+			['Style Number', 'Name', 'Wholesale Price', 'Size', 'Color'],
+			[
+				['XV-201', 'Crew Tee', '24', 'S', 'Oat'],
+				['XV-201', 'Crew Tee', '24', 'M', 'Black']
+			]
+		);
+		expect(previewRows).toHaveLength(1);
+		expect(previewRows[0]).toMatchObject({ sizes: ['S', 'M'], colors: ['Oat', 'Black'] });
+		expect(previewRows[0].variants).toBeUndefined();
+	});
+
+	it('backfills fields the first row of a style left blank', () => {
+		const { previewRows } = sheet(
+			['Style Number', 'Name', 'Wholesale Price', 'Size', 'Description'],
+			[
+				['XV-201', 'Crew Tee', '24', 'S', ''],
+				['XV-201', '', '', 'M', 'Heavy cotton']
+			]
+		);
+		expect(previewRows).toHaveLength(1);
+		expect(previewRows[0]).toMatchObject({
+			name: 'Crew Tee',
+			wholesale_price: '24',
+			description: 'Heavy cotton',
+			sizes: ['S', 'M']
+		});
+	});
+
+	it('uses a lone SKU column as the style number', () => {
+		const { previewRows } = sheet(
+			['SKU', 'Name', 'Wholesale Price'],
+			[['CT-01', 'Crew Tee', '24']]
+		);
+		expect(previewRows[0]).toMatchObject({ style_number: 'CT-01' });
+		expect(previewRows[0].variants).toBeUndefined();
+	});
+
+	it('keeps rows with no style number separate so the server can name them', () => {
+		const { previewRows } = sheet(
+			['Style Number', 'Name', 'Wholesale Price'],
+			[
+				['', 'Crew Tee', '24'],
+				['', 'Boxy Tee', '26']
+			]
+		);
+		expect(previewRows).toHaveLength(2);
 	});
 });

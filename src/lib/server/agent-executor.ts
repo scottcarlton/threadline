@@ -94,8 +94,9 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 		let response = await createTracked(
 			anthropic,
 			{
-				model: 'claude-sonnet-4-6',
-				max_tokens: 4096,
+				model: 'claude-sonnet-5-5',
+				max_tokens: 16000,
+				output_config: { effort: 'medium' },
 				system: systemBlocks,
 				tools: agentTools,
 				messages
@@ -172,8 +173,9 @@ export async function executeAgent(params: AgentExecutionParams): Promise<AgentE
 			response = await createTracked(
 				anthropic,
 				{
-					model: 'claude-sonnet-4-6',
-					max_tokens: 4096,
+					model: 'claude-sonnet-5-5',
+					max_tokens: 16000,
+					output_config: { effort: 'medium' },
 					system: systemBlocks,
 					tools: agentTools,
 					messages

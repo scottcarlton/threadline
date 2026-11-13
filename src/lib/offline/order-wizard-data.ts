@@ -66,6 +66,9 @@ export type WizardAccount = {
 	state: string | null;
 	zip: string | null;
 	payment_preference: string | null;
+	/** Optional: snapshots cached before SCO-137 don't carry these. */
+	organization_id?: string;
+	order_minimum_override?: number | string | null;
 };
 
 export type WizardLocation = {

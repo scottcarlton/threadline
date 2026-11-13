@@ -19,7 +19,9 @@ export const PUBLIC_ROUTES = [
 	'/api/cron/',
 	'/api/webhooks/',
 	'/beta',
-	'/legal'
+	'/legal',
+	// Public report links (SCO-151). Each page authorizes by its own token.
+	'/reports/shared/'
 ];
 
 export function isPublicRoute(pathname: string): boolean {

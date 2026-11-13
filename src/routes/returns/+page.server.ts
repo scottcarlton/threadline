@@ -1,4 +1,5 @@
 import { TRANSITION_ROLES } from '$lib/server/returns/apply-transition.js';
+import { mayCreateReturn } from '$lib/server/returns/create-return.js';
 import type { PageServerLoad } from './$types';
 import {
 	computeReturnMetrics,
@@ -41,6 +42,11 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		// looking at someone else's account and needs it on every row.
 		viewerKind: scope?.kind ?? null,
 		// Credit memos are the brand's books, exported by the roles that issue them.
+		// Guests read returns but never create one (SCO-213).
+		canCreateReturn: mayCreateReturn({
+			isBuyer: locals.isBuyer,
+			role: locals.membership?.role ?? ''
+		}),
 		canExportCreditMemos:
 			locals.orgType === 'brand' && TRANSITION_ROLES.has(locals.membership?.role ?? ''),
 		metrics: computeReturnMetrics(book)

@@ -64,12 +64,14 @@ export function reportAiValidation(ctx: AiValidationContext): void {
 export type AiDegradedKind =
 	| 'iteration_cap'
 	| 'max_tokens'
+	| 'model_refusal'
 	| 'classifier_unrecognized'
 	| 'suggestions_unparseable';
 
 /**
  * Record a turn that "succeeded" but not the way it should have: the tool loop
- * ran out of iterations, a response was cut off at max_tokens, the classifier
+ * ran out of iterations, a response was cut off at max_tokens, the model's
+ * safety classifiers declined the request (stop_reason "refusal"), the classifier
  * answered with neither label, or the suggestions line did not parse. None of
  * these throw, so without this they were invisible. A Sentry warning grouped
  * by kind and endpoint; the event count is the rate.

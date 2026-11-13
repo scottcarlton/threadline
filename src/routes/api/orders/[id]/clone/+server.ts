@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { notifyOrgMembers } from '$lib/server/notifications';
 import { loadOwnOrgOrder, type OrderRow } from '$lib/server/orders/authorize-order';
+import { ORDER_WRITE_ROLES } from '$lib/utils/order-convert-permissions';
 
 type SourceOrder = OrderRow & {
 	order_number: string | null;
@@ -23,7 +24,9 @@ type SourceOrder = OrderRow & {
 // A clone is an order creation. The Roles & Access matrix (§4, "Orders:
 // create / edit / submit") excludes guest.
 // https://app.notion.com/p/3a70c8824fed81eeb9e2e25bf21e51d6
-const CLONE_ROLES = new Set(['admin', 'owner', 'member', 'sales']);
+// Shared with the order detail menu (orderMenuItems) so the UI never offers a
+// clone this endpoint would refuse.
+const CLONE_ROLES = ORDER_WRITE_ROLES;
 
 export const POST: RequestHandler = async ({ locals, params }) => {
 	if (!locals.session || !locals.user || !locals.organization) {

@@ -5,7 +5,11 @@
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import LongArrow from '$lib/components/ui/long-arrow.svelte';
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
+	import BarChart from '$lib/components/charts/BarChart.svelte';
+	import ShareReportDialog from '$lib/components/reports/ShareReportDialog.svelte';
 	import { downloadCSV } from '$lib/utils/csv.js';
+	import { buildReportChart } from '$lib/utils/report-chart.js';
+	import { onMount } from 'svelte';
 
 	let { data } = $props();
 	const report = $derived(data.report as string);
@@ -85,6 +89,24 @@
 		goto(resolve(`/reports/${report}?days=${days}`), { replaceState: true });
 	}
 
+	// The PDF is built on the server from the same filter as the page.
+	const pdfHref = $derived(
+		report === 'product-performance'
+			? `/api/reports/${report}/pdf?days=${data.daysBack ?? 90}`
+			: report === 'pipeline'
+				? `/api/reports/${report}/pdf`
+				: `/api/reports/${report}/pdf?year=${year}`
+	);
+
+	// Share links (SCO-151): admin and owner only, decided on the server.
+	let shareOpen = $state(false);
+	const shareYear = $derived(
+		report === 'product-performance' || report === 'pipeline' ? undefined : year
+	);
+	const shareDays = $derived(
+		report === 'product-performance' ? Number(data.daysBack ?? 90) : undefined
+	);
+
 	function exportReport() {
 		if (!rows.length) return;
 		downloadCSV(rows, `${report}-${year}.csv`);
@@ -104,6 +126,29 @@
 		{ value: '180', label: '180 days' }
 	];
 
+	// Drawn from the same rows as the table, so it follows every filter.
+	const chart = $derived(buildReportChart(report, variant, rows));
+
+	// One preference for every report, remembered in this browser only. The
+	// server always renders the chart; a stored "hidden" applies on mount.
+	const CHART_PREF_KEY = 'reports.chart.hidden';
+	let chartHidden = $state(false);
+	onMount(() => {
+		try {
+			chartHidden = localStorage.getItem(CHART_PREF_KEY) === '1';
+		} catch {
+			// Storage blocked: keep the default.
+		}
+	});
+	function toggleChart() {
+		chartHidden = !chartHidden;
+		try {
+			localStorage.setItem(CHART_PREF_KEY, chartHidden ? '1' : '0');
+		} catch {
+			// Storage blocked: the choice lasts for this page only.
+		}
+	}
+
 	let selectedYear = $derived(String(year));
 	let selectedDays = $derived(String(data.daysBack ?? 90));
 </script>
@@ -119,11 +164,35 @@
 			{:else if report !== 'pipeline'}
 				<SelectField items={yearItems} bind:value={selectedYear} onValueChange={changeYear} />
 			{/if}
+			{#if chart}
+				<Button variant="outline" size="sm" onclick={toggleChart}
+					>{chartHidden ? 'Show chart' : 'Hide chart'}</Button
+				>
+			{/if}
 			{#if rows.length > 0}
 				<Button variant="outline" size="sm" onclick={exportReport}>Export CSV</Button>
+				<Button variant="outline" size="sm" href={pdfHref}>Export PDF</Button>
+				{#if data.canShare}
+					<Button variant="outline" size="sm" onclick={() => (shareOpen = true)}>Share</Button>
+				{/if}
 			{/if}
 		</PageHeader>
 	</div>
+
+	{#if data.canShare}
+		<ShareReportDialog
+			bind:open={shareOpen}
+			shareForm={data.shareForm}
+			revokeForm={data.revokeForm}
+			links={data.shareLinks}
+			year={shareYear}
+			days={shareDays}
+		/>
+	{/if}
+
+	{#if chart && !chartHidden}
+		<BarChart {chart} />
+	{/if}
 
 	{#if rows.length === 0 && !hasCustomEmptyState}
 		<div class="flex flex-col items-center justify-center py-16">

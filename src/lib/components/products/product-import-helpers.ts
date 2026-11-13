@@ -4,7 +4,7 @@
 // logic lives in `ProductImportFlow.svelte`; everything in this file is
 // side-effect-free or self-contained.
 
-import { suggestColumnMapping } from '$lib/utils/csv-column-suggest.js';
+import { mapProductHeaders } from '$lib/utils/csv-column-suggest.js';
 
 // ─── Loading-state pacing ─────────────────────────────────────────────
 // Each loading stage stays visible for at least the per-stage minimum,
@@ -71,35 +71,116 @@ export function preloadPreviewImages(rows: Record<string, unknown>[]): Promise<v
 }
 
 // ─── CSV → preview row shape ─────────────────────────────────────────
-// Best-effort auto-map CSV headers to product fields and return the
-// preview rows + the headers that didn't auto-map. Anything missing
-// required fields surfaces server-side at commit time.
+// Auto-map CSV headers to product fields and return one preview row per
+// product + the headers that didn't map. Anything missing required fields
+// surfaces server-side at commit time.
+//
+// Files come in two shapes, and both go through the same path:
+//   - one row per product, sizes and colors as lists ("S, M, L")
+//   - one row per variant (size x color), often with a SKU per row
+// Rows are grouped by style number, so the second shape lands as one
+// product with its variants. A file of the first shape is just groups of
+// one.
 
 export type PreviewBuild = {
 	previewRows: Record<string, unknown>[];
 	previewUnmapped: string[];
 };
 
+// A variant SKU column. Matched separately because `sku` is also a style
+// number synonym: in a file that has both, the style column groups the
+// product and the SKU belongs on each variant.
+const SKU_HEADERS = new Set(['sku', 'variantsku', 'skunumber', 'skuno']);
+
+function splitList(cell: string): string[] {
+	return Array.from(
+		new Set(
+			cell
+				.split(/[,;|]/)
+				.map((s) => s.trim())
+				.filter((s) => s.length > 0)
+		)
+	);
+}
+
+type VariantDraft = { size: string | null; color: string | null; sku: string | null };
+
+type Group = {
+	row: Record<string, unknown>;
+	sizes: Set<string>;
+	colors: Set<string>;
+	variants: VariantDraft[];
+	// False once any row can't be read as a single variant (a list cell or a
+	// missing SKU). The server then falls back to sizes x colors.
+	explicit: boolean;
+};
+
+const LIST_FIELDS = new Set(['sizes', 'colors']);
+
 export function buildPreviewFromCsv(
 	headers: string[],
 	rows: Record<string, string>[]
 ): PreviewBuild {
-	const fieldByHeader = new Map<string, ReturnType<typeof suggestColumnMapping>>();
-	for (const h of headers) {
-		fieldByHeader.set(h, suggestColumnMapping(h));
-	}
-	const headerByField = new Map<string, string>();
-	for (const [h, f] of fieldByHeader) {
-		if (f) headerByField.set(f, h);
-	}
-	const previewRows = rows.map((row) => {
-		const out: Record<string, unknown> = {};
-		for (const [field, header] of headerByField) {
-			out[field] = row[header.toLowerCase()] ?? '';
+	const headerByField = mapProductHeaders(headers, rows);
+	const mappedHeaders = new Set(headerByField.values());
+	const skuHeader = headers
+		.map((h) => h.trim().toLowerCase())
+		.find((h) => !mappedHeaders.has(h) && SKU_HEADERS.has(h.replace(/[^a-z0-9]/g, '')));
+
+	const styleHeader = headerByField.get('style_number');
+	const sizeHeader = headerByField.get('sizes');
+	const colorHeader = headerByField.get('colors');
+	const cell = (row: Record<string, string>, h: string | undefined) =>
+		h ? (row[h] ?? '').trim() : '';
+
+	const groups: Group[] = [];
+	const byStyle = new Map<string, Group>();
+
+	for (const row of rows) {
+		const style = cell(row, styleHeader);
+		const sizes = splitList(cell(row, sizeHeader));
+		const colors = splitList(cell(row, colorHeader));
+		const sku = cell(row, skuHeader) || null;
+
+		let group = style ? byStyle.get(style) : undefined;
+		if (!group) {
+			group = { row: {}, sizes: new Set(), colors: new Set(), variants: [], explicit: true };
+			groups.push(group);
+			// A row with no style number can't be grouped. It stays on its own
+			// so the server names it in the error.
+			if (style) byStyle.set(style, group);
 		}
+
+		// First non-empty value wins per field. Exports often carry the
+		// description or image on one row of the style only.
+		for (const [field, header] of headerByField) {
+			if (LIST_FIELDS.has(field)) continue;
+			const value = cell(row, header);
+			if (!group.row[field] && value) group.row[field] = value;
+			else if (!(field in group.row)) group.row[field] = '';
+		}
+		for (const s of sizes) group.sizes.add(s);
+		for (const c of colors) group.colors.add(c);
+
+		if (!skuHeader || !sku || sizes.length > 1 || colors.length > 1) {
+			if (sizes.length > 0 || colors.length > 0 || sku) group.explicit = false;
+		} else {
+			group.variants.push({ size: sizes[0] ?? null, color: colors[0] ?? null, sku });
+		}
+	}
+
+	const previewRows = groups.map((g) => {
+		const out: Record<string, unknown> = { ...g.row };
+		if (sizeHeader) out.sizes = [...g.sizes];
+		if (colorHeader) out.colors = [...g.colors];
+		if (g.explicit && g.variants.length > 0) out.variants = g.variants;
 		return out;
 	});
-	const previewUnmapped = headers.filter((h) => !fieldByHeader.get(h));
+
+	const previewUnmapped = headers.filter((h) => {
+		const key = h.trim().toLowerCase();
+		return !mappedHeaders.has(key) && key !== skuHeader;
+	});
 	return { previewRows, previewUnmapped };
 }
 

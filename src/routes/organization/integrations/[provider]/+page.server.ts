@@ -1,12 +1,12 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-
-const VALID_PROVIDERS = ['google_sheets', 'slack', 'notion', 'microsoft'];
+import type { IntegrationProvider } from '$lib/types/database.js';
+import { isManageableProvider } from '$lib/utils/integration-sync';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const provider = params.provider;
 
-	if (!VALID_PROVIDERS.includes(provider)) {
+	if (!isManageableProvider(provider as IntegrationProvider)) {
 		throw error(404, 'Integration not found');
 	}
 

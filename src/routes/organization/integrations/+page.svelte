@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { isManageableProvider, type LatestSync } from '$lib/utils/integration-sync';
 	import IntegrationLogo from '$lib/components/integrations/IntegrationLogo.svelte';
 	import { Dialog } from 'bits-ui';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -9,6 +11,11 @@
 
 	let { data } = $props();
 	const connections = $derived((data.connections ?? []) as IntegrationConnection[]);
+	const latestSync = $derived((data.latestSync ?? {}) as Record<string, LatestSync>);
+
+	function formatSyncDate(dateStr: string): string {
+		return new Date(dateStr).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+	}
 
 	type IntegrationDef = {
 		provider: IntegrationProvider;
@@ -261,6 +268,20 @@
 				<div>
 					<p class="text-sm font-semibold">{integration.name}</p>
 					<p class="mt-0.5 text-sm text-muted-foreground">{integration.description}</p>
+					{#if conn?.status === 'active' && latestSync[conn.id]}
+						{@const sync = latestSync[conn.id]}
+						{#if sync.status === 'error'}
+							<p class="mt-2 text-sm text-destructive">
+								Last sync failed {formatSyncDate(sync.created_at)}
+							</p>
+						{:else}
+							<p class="mt-2 text-sm text-muted-foreground">
+								Last sync {formatSyncDate(sync.created_at)}
+							</p>
+						{/if}
+					{:else if conn?.status === 'error'}
+						<p class="mt-2 text-sm text-destructive">Access expired. Reconnect to keep syncing.</p>
+					{/if}
 				</div>
 
 				{#if conn?.status === 'active'}
@@ -286,15 +307,29 @@
 							</Button>
 						</div>
 					{:else}
-						<Button
-							variant="outline"
-							size="sm"
-							class="w-full border-destructive/50! text-destructive hover:bg-destructive/5 hover:text-destructive"
-							onclick={() => disconnect(integration.provider)}
-							disabled={disconnecting === integration.provider}
-						>
-							{disconnecting === integration.provider ? 'Disconnecting...' : 'Disconnect'}
-						</Button>
+						<div class="space-y-2">
+							{#if isManageableProvider(integration.provider)}
+								<Button
+									variant="outline"
+									size="sm"
+									class="w-full"
+									href={resolve('/organization/integrations/[provider]', {
+										provider: integration.provider
+									})}
+								>
+									Manage
+								</Button>
+							{/if}
+							<Button
+								variant="outline"
+								size="sm"
+								class="w-full border-destructive/50! text-destructive hover:bg-destructive/5 hover:text-destructive"
+								onclick={() => disconnect(integration.provider)}
+								disabled={disconnecting === integration.provider}
+							>
+								{disconnecting === integration.provider ? 'Disconnecting...' : 'Disconnect'}
+							</Button>
+						</div>
 					{/if}
 				{:else if integration.provider === 'shopify'}
 					<Button variant="outline" size="sm" class="w-full" onclick={openShopifyDialog}>
@@ -302,7 +337,7 @@
 					</Button>
 				{:else if integration.connectUrl}
 					<Button variant="outline" size="sm" class="w-full" href={integration.connectUrl}>
-						Connect
+						{conn?.status === 'error' ? 'Reconnect' : 'Connect'}
 					</Button>
 				{/if}
 			</div>

@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { recordConnectInviteUse } from '$lib/server/connections.js';
 import { notifyOrgAdmins } from '$lib/server/notifications.js';
+import { checkConnectionLimit } from '$lib/server/billing/entitlements.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { session, organization, orgType, membership } = locals;
@@ -28,6 +29,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Invite code has expired' }, { status: 410 });
 	if (invite.max_uses > 0 && invite.use_count >= invite.max_uses)
 		return json({ error: 'Invite code has reached max uses' }, { status: 410 });
+
+	// Plan limits (SCO-47), checked before the invite is claimed so a refusal
+	// doesn't burn a single-use code. Both sides are checked even for a
+	// pending request, so the rep hears now rather than at approval.
+	const limit = await checkConnectionLimit(
+		supabaseAdmin,
+		{ repOrgId: organization.id, brandOrgId: invite.brand_org_id },
+		'rep'
+	);
+	if (!limit.ok) return json({ error: limit.message }, { status: 402 });
 
 	// Atomically claim the invite when single-use (max_uses > 0).
 	// Prevents two reps from racing to redeem the same one-time link.

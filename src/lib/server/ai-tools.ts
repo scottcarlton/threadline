@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getGmailClient, parseMessage, buildRawEmail } from './gmail.js';
 import { supabaseAdmin } from './supabase.js';
+import { findMinimumViolations, blockingViolations } from './orders/order-minimum.js';
 import { checkFilterColumns, omitForEntity } from './ai-query-columns.js';
 import {
 	FULFILLMENT_STATUSES,
@@ -617,8 +618,24 @@ async function createOrder(
 		};
 	}
 
+	// Brand minimum (SCO-137): under the minimum the order stays a draft, unless
+	// the brand's own org is placing it. The reason goes back to the model so it
+	// can tell the user why.
+	let minimumReason: string | null = null;
+	if (finalStatus === 'submitted' && orderType === 'order') {
+		const total = lineRows.reduce((sum, r) => sum + r.qty * r.unit_price, 0);
+		const [block] = blockingViolations(
+			await findMinimumViolations(
+				supabaseAdmin,
+				[{ brand_id: brand.id, account_id: account.id, total_amount: total }],
+				ctx.organizationId
+			)
+		);
+		minimumReason = block?.message ?? null;
+	}
+
 	// --- Promote to submitted (unless the caller asked for draft) ---
-	if (finalStatus === 'submitted') {
+	if (finalStatus === 'submitted' && !minimumReason) {
 		const { error: statusErr } = await ctx.supabase
 			.from('orders')
 			.update({ status: 'submitted', submitted_at: new Date().toISOString() })
@@ -668,7 +685,14 @@ async function createOrder(
 			'seasons'
 		]
 	});
-	return { success: true, data: { ...trimmed, lines_added: lineRows.length } };
+	return {
+		success: true,
+		data: {
+			...trimmed,
+			lines_added: lineRows.length,
+			...(minimumReason ? { saved_as_draft_reason: minimumReason } : {})
+		}
+	};
 }
 
 // Fire the same email + in-app notifications that /orders/new does on submit.

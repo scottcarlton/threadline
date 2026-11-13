@@ -2,6 +2,7 @@ import { supabaseAdmin } from '$lib/server/supabase.js';
 import type { ResolvedOrder, ResolvedLine } from './resolve.js';
 import { THRESHOLDS } from './resolve.js';
 import type { SenderAuthVerdict } from './authentication.js';
+import { findMinimumViolations, blockingViolations } from '$lib/server/orders/order-minimum.js';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -84,6 +85,35 @@ export function decideOutcome(
 }
 
 // ── Execution ────────────────────────────────────────────────
+
+/**
+ * Hold an auto-submit for review when the order is under its brand's minimum
+ * (SCO-137). The order still lands, as a draft, so the brand can approve it.
+ * The intake's own org is the actor: a brand receiving its own orders may
+ * submit under its minimum, so only a rep's intake is held.
+ */
+export async function applyOrderMinimum(
+	resolved: ResolvedOrder & { kind: 'resolved' },
+	outcome: Outcome
+): Promise<Outcome> {
+	if (outcome.status !== 'submitted' || !resolved.brandId) return outcome;
+	const total = resolved.lines.reduce(
+		(sum, line) => sum + line.variants.reduce((s, v) => s + v.qty * v.unitPrice, 0),
+		0
+	);
+	const [block] = blockingViolations(
+		await findMinimumViolations(
+			supabaseAdmin,
+			[{ brand_id: resolved.brandId, account_id: resolved.accountId, total_amount: total }],
+			resolved.organizationId
+		)
+	);
+	if (!block) return outcome;
+	return {
+		status: 'needs_review',
+		reasons: [...outcome.reasons, { lineIndex: null, reason: block.message }]
+	};
+}
 
 /**
  * Execute the outcome: create the order and update the intake record.

@@ -1,6 +1,7 @@
 import type { PageServerLoad, Actions } from './$types';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/server/supabase.js';
+import { findMinimumViolations, blockingViolations } from '$lib/server/orders/order-minimum.js';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const { supabase, user, organization } = locals;
@@ -73,6 +74,19 @@ export const actions: Actions = {
 
 		if (intake.status !== 'needs_review') {
 			return fail(400, { message: 'Intake is not in review status' });
+		}
+
+		// Brand minimum (SCO-137): only the brand's own org may submit under it.
+		const { data: pending } = await supabaseAdmin
+			.from('orders')
+			.select('brand_id, account_id, total_amount')
+			.eq('id', intake.order_id)
+			.single();
+		if (pending?.brand_id) {
+			const [block] = blockingViolations(
+				await findMinimumViolations(supabaseAdmin, [pending], organization.id)
+			);
+			if (block) return fail(400, { message: block.message });
 		}
 
 		const { error: orderError } = await supabaseAdmin

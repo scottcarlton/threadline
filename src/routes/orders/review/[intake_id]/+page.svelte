@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { toast } from 'svelte-sonner';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
@@ -77,8 +78,14 @@
 				action="?/approve"
 				use:enhance={() => {
 					approving = true;
-					return async ({ update }) => {
+					return async ({ result, update }) => {
 						approving = false;
+						if (result.type === 'failure') {
+							toast.error(
+								(result.data as { message?: string } | undefined)?.message ??
+									'Could not submit the order'
+							);
+						}
 						await update();
 					};
 				}}

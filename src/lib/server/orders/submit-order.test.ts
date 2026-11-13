@@ -49,6 +49,22 @@ vi.mock('$lib/server/orders/resolve-order-settings.js', () => ({
 	)
 }));
 
+// Minimum lookups are covered in order-minimum.test.ts; here each test says
+// what the lookup returns. The default is no violations.
+type Violation = {
+	index: number;
+	canOverride: boolean;
+	message: string;
+	brand_name?: string;
+	minimum?: number;
+	shortfall?: number;
+};
+const findMinimumViolations = vi.fn<(...args: unknown[]) => Promise<Violation[]>>(async () => []);
+vi.mock('$lib/server/orders/order-minimum.js', () => ({
+	findMinimumViolations,
+	blockingViolations: (v: Violation[]) => v.filter((x) => !x.canOverride)
+}));
+
 const { submitOrder, submitOrderPayload } = await import('./submit-order');
 const { uuidV5 } = await import('./order-ids');
 
@@ -96,6 +112,8 @@ async function run(req: Request, l: App.Locals) {
 }
 
 beforeEach(() => {
+	findMinimumViolations.mockReset();
+	findMinimumViolations.mockResolvedValue([]);
 	rpc.mockReset();
 	sendOrderEmail.mockReset();
 	notifyBrandAdmins.mockReset();
@@ -348,5 +366,122 @@ describe('drift on captured orders (SCO-209)', () => {
 		});
 		await submitOrderPayload(captured(8), locals(), '', { captured: true });
 		expect(createNotification).not.toHaveBeenCalled();
+	});
+});
+
+describe('brand minimum (SCO-137)', () => {
+	const UNDER =
+		"This order is $480.00 under Acme's $500.00 minimum. Save it as a draft and Acme can approve it.";
+	const payload = (over: Record<string, unknown> = {}) => ({
+		submission_id: SUBMISSION,
+		type: 'order',
+		account_id: ACCOUNT,
+		freeform_name: null,
+		order_year: 2026,
+		submitStatus: 'submitted',
+		payment_preference: null,
+		lines: [
+			{ product_id: PRODUCT, brand_id: BRAND, season_id: null, color: 'Black', size: 'M', qty: 2 }
+		],
+		groups: [{ brand_id: BRAND, season_id: null, delivery: null, location_id: null }],
+		...over
+	});
+	const written = {
+		data: [{ order_id: orderId, order_number: 'A-1', inserted: true }],
+		error: null
+	};
+
+	beforeEach(() => createNotification.mockClear());
+
+	it('rejects an online submit under the minimum and writes nothing', async () => {
+		findMinimumViolations.mockResolvedValue([
+			{
+				index: 0,
+				canOverride: false,
+				message: UNDER,
+				brand_name: 'Acme',
+				minimum: 500,
+				shortfall: 480
+			}
+		]);
+		const out = await submitOrderPayload(payload(), locals(), '');
+		expect(out).toEqual({
+			ok: false,
+			status: 400,
+			message: `${UNDER} Save it as a draft for Acme to review.`
+		});
+		expect(rpc).not.toHaveBeenCalled();
+	});
+
+	it('saves a captured order under the minimum as a draft and tells the rep', async () => {
+		findMinimumViolations.mockResolvedValue([
+			{
+				index: 0,
+				canOverride: false,
+				message: UNDER,
+				brand_name: 'Acme',
+				minimum: 500,
+				shortfall: 480
+			}
+		]);
+		rpc.mockResolvedValue(written);
+		const out = await submitOrderPayload(payload(), locals(), '', { captured: true });
+		expect(rpc.mock.calls[0][1].p_orders[0]).toMatchObject({ status: 'draft', submitted_at: null });
+		expect(out).toMatchObject({
+			ok: true,
+			drift: { reason: `${UNDER} Save it as a draft for Acme to review.` }
+		});
+		expect(createNotification).toHaveBeenCalledTimes(1);
+		expect(sendOrderEmail).not.toHaveBeenCalled();
+	});
+
+	it("lets the brand's own org submit under its minimum", async () => {
+		findMinimumViolations.mockResolvedValue([{ index: 0, canOverride: true, message: 'note' }]);
+		rpc.mockResolvedValue(written);
+		const out = await submitOrderPayload(payload(), locals(), '');
+		expect(out).toMatchObject({ ok: true });
+		expect(rpc.mock.calls[0][1].p_orders[0].status).toBe('submitted');
+	});
+
+	it('does not check drafts or notes', async () => {
+		rpc.mockResolvedValue(written);
+		await submitOrderPayload(payload({ submitStatus: 'draft' }), locals(), '');
+		await submitOrderPayload(payload({ type: 'note' }), locals(), '');
+		for (const call of findMinimumViolations.mock.calls) expect(call[1]).toEqual([]);
+	});
+
+	it('tells a buyer what to add instead of offering a draft', async () => {
+		findMinimumViolations.mockResolvedValue([
+			{
+				index: 0,
+				canOverride: false,
+				message: UNDER,
+				brand_name: 'Acme',
+				minimum: 500,
+				shortfall: 480
+			}
+		]);
+		const buyer = { ...locals(), isBuyer: true, membership: null } as unknown as App.Locals;
+		const out = await submitOrderPayload(payload(), buyer, '');
+		expect(out).toEqual({
+			ok: false,
+			status: 400,
+			message: "Add $480.00 to reach Acme's $500.00 minimum."
+		});
+	});
+
+	it('checks a buyer with no override, even inside the brand org', async () => {
+		rpc.mockResolvedValue(written);
+		const buyer = { ...locals(), isBuyer: true, membership: null } as unknown as App.Locals;
+		await submitOrderPayload(payload(), buyer, '');
+		expect(findMinimumViolations.mock.calls[0][2]).toBeNull();
+	});
+
+	it('checks submitted orders as the acting org', async () => {
+		rpc.mockResolvedValue(written);
+		await submitOrderPayload(payload(), locals(), '');
+		const [, orders, actorOrgId] = findMinimumViolations.mock.calls[0];
+		expect(orders).toEqual([{ brand_id: BRAND, account_id: ACCOUNT, total_amount: 20 }]);
+		expect(actorOrgId).toBe(ORG);
 	});
 });

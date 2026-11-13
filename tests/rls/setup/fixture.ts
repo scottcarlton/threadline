@@ -11,6 +11,7 @@ export type RlsPersona =
 	| 'brandBAdmin'
 	| 'repAAdmin'
 	| 'repASales'
+	| 'repAGuest'
 	| 'repBAdmin'
 	| 'buyer';
 
@@ -22,6 +23,7 @@ export const PERSONA_EMAILS: Record<RlsPersona, string> = {
 	brandBAdmin: fixtureEmail('brand-b-admin'),
 	repAAdmin: fixtureEmail('rep-a-admin'),
 	repASales: fixtureEmail('rep-a-sales'),
+	repAGuest: fixtureEmail('rep-a-guest'),
 	repBAdmin: fixtureEmail('rep-b-admin'),
 	buyer: fixtureEmail('buyer')
 };
@@ -176,7 +178,8 @@ async function seedMemberships(admin: SupabaseClient): Promise<void> {
 		{ persona: 'brandASales', org: RLS_IDS.orgBrandA, role: 'sales', manager: null },
 		{ persona: 'brandAMember', org: RLS_IDS.orgBrandA, role: 'member', manager: null },
 		{ persona: 'brandAGuest', org: RLS_IDS.orgBrandA, role: 'guest', manager: null },
-		{ persona: 'repASales', org: RLS_IDS.orgRepA, role: 'sales', manager: 'repAAdmin' }
+		{ persona: 'repASales', org: RLS_IDS.orgRepA, role: 'sales', manager: 'repAAdmin' },
+		{ persona: 'repAGuest', org: RLS_IDS.orgRepA, role: 'guest', manager: null }
 	];
 	for (const r of reports) {
 		const row = must<{ id: string }>(

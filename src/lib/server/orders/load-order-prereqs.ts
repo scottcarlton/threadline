@@ -73,7 +73,7 @@ export async function loadOrderPrereqs(locals: App.Locals) {
 			let q = supabaseAdmin
 				.from('accounts')
 				.select(
-					'id, business_name, contact_email, address_line1, address_line2, city, state, zip, payment_preference, payment_terms, shipping_method'
+					'id, organization_id, business_name, contact_email, address_line1, address_line2, city, state, zip, payment_preference, payment_terms, shipping_method, order_minimum_override'
 				);
 			if (buyerAccountIds) q = q.in('id', buyerAccountIds.length ? buyerAccountIds : ['__none__']);
 			else q = q.in('organization_id', visibleOrgIds).eq('is_active', true).is('archived_at', null);

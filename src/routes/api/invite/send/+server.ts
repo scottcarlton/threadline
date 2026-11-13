@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { findUserIdByEmail } from '$lib/server/user-lookup.js';
+import { checkSeatLimit } from '$lib/server/billing/entitlements.js';
 import { sendEmail } from '$lib/server/email.js';
 import { inviteParams } from '$lib/server/email-templates.js';
 import templateIds from '../../../../../emails/template-ids.json';
@@ -35,6 +36,16 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	if (!['admin', 'member', 'sales', 'guest'].includes(role)) {
 		return json({ error: 'Invalid role' }, { status: 400 });
 	}
+
+	// Plan seats (SCO-47). Pending invitations count, so an org can't invite
+	// past its seats and settle it at accept time.
+	const seats = await checkSeatLimit(
+		supabaseAdmin,
+		{ id: organization.id, orgType: locals.orgType },
+		role,
+		'invite'
+	);
+	if (!seats.ok) return json({ error: seats.message }, { status: 402 });
 
 	const scopedBrandIds = Array.isArray(brandIds) ? (brandIds as string[]) : [];
 	// Territory assignments are sales-only; ignore for other roles.

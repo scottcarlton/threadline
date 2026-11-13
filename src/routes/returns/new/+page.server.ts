@@ -1,4 +1,4 @@
-import { fail } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { message, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -8,6 +8,7 @@ import { createReturnSchema } from '$lib/schemas/return-authorization.js';
 import { loadReturnPolicy } from '$lib/server/returns/policy.js';
 import { checkReturnEligibility, validateReturnQuantities } from '$lib/server/returns/credit.js';
 import {
+	mayCreateReturn,
 	ownershipFromFreeEntry,
 	ownershipFromOrder,
 	refuseOrderReturn,
@@ -67,6 +68,10 @@ function joined<T>(value: T | T[] | null): T | null {
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
+	if (!mayCreateReturn({ isBuyer: locals.isBuyer, role: locals.membership?.role ?? '' })) {
+		throw error(403, 'Not allowed');
+	}
+
 	const form = await superValidate(zod4(createReturnSchema));
 
 	// Deep link from order detail: /returns/new?order=<id>. The action
@@ -176,6 +181,14 @@ export const actions: Actions = {
 		const issuingOrgId = (brandResult.data as { organization_id: string }).organization_id;
 		const isIssuer = actorOrgId !== null && actorOrgId === issuingOrgId;
 
+		// ── Role ─────────────────────────────────────────────────────────────
+		// The load refuses the same callers; this is the write path, which a
+		// direct POST reaches without the page. RLS enforces the same set.
+		const actorRole = locals.membership?.role ?? '';
+		if (!mayCreateReturn({ isBuyer: locals.isBuyer, role: actorRole })) {
+			return fail(403, { form, message: 'Guests can view returns but cannot create them.' });
+		}
+
 		// ── Eligibility, and the quantity cap ────────────────────────────────
 		if (mode === 'order' && sourceOrder) {
 			const policy = await loadReturnPolicy(issuingOrgId);
@@ -262,8 +275,8 @@ export const actions: Actions = {
 		// ── Write ────────────────────────────────────────────────────────────
 		const ownership =
 			mode === 'order' && sourceOrder
-				? ownershipFromOrder(sourceOrder, issuingOrgId, actorOrgId)
-				: ownershipFromFreeEntry(resolvedBrandId, issuingOrgId, accountId!, actorOrgId);
+				? ownershipFromOrder(sourceOrder, issuingOrgId, actorOrgId, actorRole)
+				: ownershipFromFreeEntry(resolvedBrandId, issuingOrgId, accountId!, actorOrgId, actorRole);
 
 		const insertResult = await supabase
 			.from('return_authorizations')
