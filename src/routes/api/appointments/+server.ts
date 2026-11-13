@@ -2,9 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import {
-	syncAppointmentToCalendar,
-	deleteAppointmentFromCalendar,
-	deleteAppointmentFromMsCalendar
+	reconcileAppointmentCalendar,
+	removeAppointmentFromCalendars
 } from '$lib/server/integrations/calendar-sync.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -70,51 +69,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		});
 	}
 
-	// Auto-sync to Google Calendar (fire-and-forget)
+	// Mirror to the creator's connected calendars (fire-and-forget).
 	if (appointment) {
-		const accountName = account_id
-			? await supabaseAdmin
-					.from('accounts')
-					.select('business_name')
-					.eq('id', account_id)
-					.single()
-					.then((r) => (r.data as { business_name: string } | null)?.business_name ?? null)
-			: (freeform_account_name as string | null);
-
-		let showName: string | null = null;
-		let showCity: string | null = null;
-		let showState: string | null = null;
-		if (show_date_id) {
-			const { data: sd } = await supabaseAdmin
-				.from('show_dates')
-				.select('city, state, shows(name)')
-				.eq('id', show_date_id)
-				.single();
-			if (sd) {
-				const sdTyped = sd as unknown as {
-					city: string | null;
-					state: string | null;
-					shows: { name: string } | { name: string }[] | null;
-				};
-				const show = Array.isArray(sdTyped.shows) ? sdTyped.shows[0] : sdTyped.shows;
-				showName = show?.name ?? null;
-				showCity = sdTyped.city;
-				showState = sdTyped.state;
-			}
-		}
-
-		syncAppointmentToCalendar(session.user.id, request.url, {
-			id: appointment.id,
-			scheduled_date: scheduled_date ?? null,
-			scheduled_time: scheduled_time ?? null,
-			duration_minutes: duration_minutes ?? 30,
-			notes: notes ?? null,
-			location_detail: location_detail ?? null,
-			accountName,
-			showName,
-			showCity,
-			showState
-		});
+		reconcileAppointmentCalendar(appointment.id, organization.id, new URL(request.url).origin);
 	}
 
 	// Auto-create show_visit record if linked to a show and a real account
@@ -178,6 +135,10 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		return json({ error: updateError.message }, { status: 500 });
 	}
 
+	// Keep the calendar copy current: a new time moves the event, a cancel
+	// removes it (SCO-146).
+	reconcileAppointmentCalendar(appointment.id, organization.id, new URL(request.url).origin);
+
 	return json({ appointment });
 };
 
@@ -197,7 +158,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 
 	const { data: existing } = await locals.supabase
 		.from('appointments')
-		.select('google_calendar_event_id, ms_calendar_event_id')
+		.select('created_by, google_calendar_event_id, ms_calendar_event_id')
 		.eq('id', id)
 		.eq('organization_id', organization.id)
 		.single();
@@ -212,12 +173,8 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		return json({ error: deleteError.message }, { status: 500 });
 	}
 
-	if (existing?.google_calendar_event_id) {
-		deleteAppointmentFromCalendar(session.user.id, request.url, existing.google_calendar_event_id);
-	}
-	if (existing?.ms_calendar_event_id) {
-		deleteAppointmentFromMsCalendar(session.user.id, existing.ms_calendar_event_id);
-	}
+	// The events sit in the creator's calendars, whoever deletes the appointment.
+	if (existing) removeAppointmentFromCalendars(new URL(request.url).origin, existing);
 
 	// The catalog has no appointment.deleted, and cancelled is what this means
 	// to anyone reading the timeline: the appointment is not happening.

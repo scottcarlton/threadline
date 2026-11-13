@@ -1,3 +1,7 @@
+import {
+	reconcileAppointmentCalendar,
+	removeAppointmentFromCalendars
+} from '$lib/server/integrations/calendar-sync.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getGmailClient, parseMessage, buildRawEmail } from './gmail.js';
 import { supabaseAdmin } from './supabase.js';
@@ -1503,6 +1507,7 @@ async function createAppointment(
 		.single();
 
 	if (error) return { success: false, error: error.message };
+	reconcileAppointmentCalendar(data.id, ctx.organizationId, ctx.origin);
 	return { success: true, data };
 }
 
@@ -1526,6 +1531,7 @@ async function updateAppointment(
 		.single();
 
 	if (error) return { success: false, error: error.message };
+	reconcileAppointmentCalendar(data.id, ctx.organizationId, ctx.origin);
 	return { success: true, data };
 }
 
@@ -1533,6 +1539,13 @@ async function deleteAppointment(
 	input: ToolInput<'delete_appointment'>,
 	ctx: ToolContext
 ): Promise<ToolResult> {
+	const { data: existing } = await ctx.supabase
+		.from('appointments')
+		.select('created_by, google_calendar_event_id, ms_calendar_event_id')
+		.eq('id', input.appointment_id)
+		.eq('organization_id', ctx.organizationId)
+		.maybeSingle();
+
 	const { error } = await ctx.supabase
 		.from('appointments')
 		.delete()
@@ -1540,6 +1553,7 @@ async function deleteAppointment(
 		.eq('organization_id', ctx.organizationId);
 
 	if (error) return { success: false, error: error.message };
+	if (existing) removeAppointmentFromCalendars(ctx.origin, existing);
 	return { success: true, data: { deleted: true } };
 }
 

@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { googleEventTimes } from '$lib/utils/calendar-event-times.js';
 import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '$env/static/private';
 import { supabaseAdmin } from '../supabase.js';
 import type { IntegrationConnection } from '$lib/types/database.js';
@@ -97,36 +98,7 @@ export async function createCalendarEvent(
 	const client = await getCalendarClient(profileId, origin);
 	if (!client) return null;
 
-	let start: { date: string } | { dateTime: string; timeZone: string };
-	let end: { date: string } | { dateTime: string; timeZone: string };
-
-	if (event.startTime) {
-		// Timed event
-		const startDateTime = `${event.startDate}T${event.startTime}:00`;
-
-		let endDateTime: string;
-		if (event.endDate && event.endTime) {
-			endDateTime = `${event.endDate}T${event.endTime}:00`;
-		} else if (event.endDate) {
-			endDateTime = `${event.endDate}T${event.startTime}:00`;
-		} else {
-			// Default duration: 30 minutes
-			const durationMinutes = event.duration ?? 30;
-			const startMs = new Date(`${event.startDate}T${event.startTime}:00`).getTime();
-			const endMs = startMs + durationMinutes * 60 * 1000;
-			const endDate = new Date(endMs);
-			const padded = (n: number) => String(n).padStart(2, '0');
-			endDateTime = `${event.startDate}T${padded(endDate.getHours())}:${padded(endDate.getMinutes())}:00`;
-		}
-
-		start = { dateTime: startDateTime, timeZone: 'UTC' };
-		end = { dateTime: endDateTime, timeZone: 'UTC' };
-	} else {
-		// All-day event
-		const endDate = event.endDate ?? event.startDate;
-		start = { date: event.startDate };
-		end = { date: endDate };
-	}
+	const { start, end } = googleEventTimes(event);
 
 	const response = await client.calendar.events.insert({
 		calendarId: 'primary',
@@ -140,6 +112,31 @@ export async function createCalendarEvent(
 	});
 
 	return response.data.id ?? null;
+}
+
+/** Rewrites an existing event in place. False when the user has no connection. */
+export async function updateCalendarEvent(
+	profileId: string,
+	origin: string,
+	eventId: string,
+	event: CalendarEventInput
+): Promise<boolean> {
+	const client = await getCalendarClient(profileId, origin);
+	if (!client) return false;
+
+	const { start, end } = googleEventTimes(event);
+	await client.calendar.events.patch({
+		calendarId: 'primary',
+		eventId,
+		requestBody: {
+			summary: event.summary,
+			description: event.description ?? null,
+			location: event.location ?? null,
+			start,
+			end
+		}
+	});
+	return true;
 }
 
 export async function deleteCalendarEvent(
