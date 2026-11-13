@@ -1,7 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { OrgType } from '$lib/types/database';
-import { supabaseAdmin } from '$lib/server/supabase.js';
-import { loadManagerScope } from '$lib/server/scoping.js';
+import { loadOrderScope } from './order-scope.js';
 import { getNxBlsrBrandOrgIds, isNxBlsr } from '$lib/server/nx-blsr';
 
 const repReportTitles: Record<string, string> = {
@@ -54,47 +53,7 @@ export async function loadReport(locals: App.Locals, report: string, url: URL) {
 	const orgId = organization.id;
 	const orgScope = nxBlsr ? brandOrgIds : [orgId];
 	const year = parseInt(url.searchParams.get('year') ?? '') || new Date().getFullYear();
-	const brandScope = locals.brandScope as string[] | null;
-	const isSales = locals.membership?.role === 'sales';
-
-	const userId = locals.user?.id;
-	const salesScope =
-		isSales && userId
-			? await loadManagerScope(supabaseAdmin, userId, locals.membership?.id ?? null)
-			: null;
-
-	// Precompute the set of org accounts this sales user covers via territory
-	// (plus untagged accounts, so orgs that haven't tagged don't strand sales).
-	let salesAccountIds: string[] | null = null;
-	if (salesScope?.hasTerritoryScope) {
-		const territoryIds = salesScope.visibleTerritoryIds.join(',');
-		const { data: rows } = await supabaseAdmin
-			.from('accounts')
-			.select('id')
-			.eq('organization_id', orgId)
-			.or(`territory_id.in.(${territoryIds}),territory_id.is.null`);
-		salesAccountIds = (rows ?? []).map((a: { id: string }) => a.id);
-	}
-
-	// Helper: apply brand scope filter to any query with a brand_id column
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	function scopeByBrand(query: any) {
-		return brandScope && brandScope.length > 0 ? query.in('brand_id', brandScope) : query;
-	}
-
-	// Helper: scope sales users to their own records + managed reports' records
-	// + orders on accounts they cover via territory (including untagged).
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	function scopeByRep(query: any) {
-		if (!salesScope) return query;
-		if (salesAccountIds && salesAccountIds.length > 0) {
-			const createdByClause = salesScope.createdByScope.join(',');
-			return query.or(
-				`created_by.in.(${createdByClause}),account_id.in.(${salesAccountIds.join(',')})`
-			);
-		}
-		return query.in('created_by', salesScope.createdByScope);
-	}
+	const { scopeByBrand, scopeByRep } = await loadOrderScope(locals, orgId);
 
 	switch (report) {
 		case 'sales-by-brand': {

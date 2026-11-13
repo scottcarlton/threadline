@@ -73,7 +73,7 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/lib/server/queries/expenses.ts',
 	'src/lib/server/queries/invoices.ts',
 	'src/lib/server/queries/scope.ts',
-	'src/lib/server/reports/load-report.ts',
+	'src/lib/server/reports/order-scope.ts',
 	'src/lib/server/reports/share-links.ts',
 	'src/lib/server/retailers.ts',
 	'src/lib/server/returns/apply-transition.ts',

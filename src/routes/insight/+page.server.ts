@@ -1,3 +1,4 @@
+import { loadSalesTrend } from '$lib/server/sales-trend.js';
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { computeAccountHealth } from '$lib/server/account-health.js';
@@ -49,6 +50,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			showAppointments: [],
 			styleVelocity: [],
 			velocityWindow: 14,
+			salesTrend: null,
+			trendBrands: [],
+			trendBrandId: null,
 			setupStatus: null,
 			shippingMethods: []
 		};
@@ -147,6 +151,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			showAppointments: [],
 			styleVelocity: [],
 			velocityWindow: 14,
+			salesTrend: null,
+			trendBrands: [],
+			trendBrandId: null,
 			setupStatus: null,
 			shippingMethods: []
 		};
@@ -609,6 +616,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	const orderChange =
 		priorOrderCount > 0 ? ((ytdOrderCount - priorOrderCount) / priorOrderCount) * 100 : null;
 
+	// Sales trend (SCO-148): counted the way Reports counts, see loadSalesTrend.
+	const salesTrend = await loadSalesTrend(locals, orgId, url.searchParams.get('trend_brand'));
+
 	const scoreboard = [
 		{
 			label: 'YTD Revenue',
@@ -668,6 +678,9 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		commMonthParam,
 		styleVelocity,
 		velocityWindow,
+		salesTrend: salesTrend.trend,
+		trendBrands: salesTrend.brands,
+		trendBrandId: salesTrend.selectedBrandId,
 		setupStatus: null,
 		shippingMethods: []
 	};
@@ -974,6 +987,9 @@ async function loadBrandInsight(admin: typeof supabaseAdmin, brandOrgIdInput: st
 		showSummary: [],
 		showAppointments: [],
 		styleVelocity: [],
-		velocityWindow: 14
+		velocityWindow: 14,
+		salesTrend: null,
+		trendBrands: [],
+		trendBrandId: null
 	};
 }
