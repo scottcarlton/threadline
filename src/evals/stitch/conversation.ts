@@ -1,7 +1,12 @@
 // src/evals/stitch/conversation.ts
 import type Anthropic from '@anthropic-ai/sdk';
 import type { ToolResult } from '../../lib/server/ai-tools.js';
-import { toHistoryMessages, type PlainTurn } from '../../lib/server/ai-history.js';
+import {
+	toHistoryMessages,
+	type PlainTurn,
+	type StoredTurn,
+	type ToolCallSummary
+} from '../../lib/server/ai-history.js';
 import {
 	classifyStitchMessage,
 	type StitchCreateClient,
@@ -10,6 +15,7 @@ import {
 import { runStitchChatReply } from '../../lib/server/stitch/chat.js';
 import {
 	runStitchTurn,
+	toolCallSummary,
 	type StitchAttempt,
 	type StitchModelClient
 } from '../../lib/server/stitch/turn.js';
@@ -22,6 +28,8 @@ export type LiveTurn = {
 	rawText: string;
 	suggestions?: string[];
 	attempted: StitchAttempt[];
+	/** What production stores on the assistant row; null for a CHAT turn. */
+	toolCalls: ToolCallSummary[] | null;
 	classifier: Anthropic.Message;
 	responses: Anthropic.Message[];
 	stopReason: string | null;
@@ -30,10 +38,10 @@ export type LiveTurn = {
 
 /**
  * Drive a conversation the way /api/ai does, one user turn at a time: rebuild
- * text-only history from what was stored, classify, then run the Haiku CHAT
- * reply or the Sonnet tool turn. What is stored per turn matches production:
- * the user message and the suggestions-stripped reply, nothing else, so tool
- * results never carry into later turns.
+ * history from what was stored, classify, then run the Haiku CHAT reply or
+ * the Sonnet tool turn. What is stored per turn matches production: the user
+ * message, the suggestions-stripped reply, and the reply's tool call summary.
+ * Tool results never carry into later turns; only the note that the calls ran.
  */
 export async function runConversation(p: {
 	client: StitchModelClient & StitchCreateClient;
@@ -45,7 +53,7 @@ export async function runConversation(p: {
 	brandScope: string[] | null;
 	executeTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
 }): Promise<LiveTurn[]> {
-	const stored: PlainTurn[] = p.history.map((h) => ({ ...h }));
+	const stored: StoredTurn[] = p.history.map((h) => ({ ...h }));
 	const out: LiveTurn[] = [];
 
 	for (const [index, user] of p.turns.entries()) {
@@ -66,6 +74,7 @@ export async function runConversation(p: {
 				rawText: reply.rawText,
 				suggestions: reply.suggestions,
 				attempted: [],
+				toolCalls: null,
 				responses: [reply.response],
 				stopReason: reply.response.stop_reason
 			};
@@ -84,13 +93,17 @@ export async function runConversation(p: {
 				rawText: r.rawText,
 				suggestions: r.suggestions,
 				attempted: r.attempted,
+				toolCalls: toolCallSummary(r),
 				responses: r.responses,
 				stopReason: r.stopReason
 			};
 		}
 
 		out.push({ index, user, route, classifier, transcript: messages.slice(prior.length), ...turn });
-		stored.push({ role: 'user', content: user }, { role: 'assistant', content: turn.text });
+		stored.push(
+			{ role: 'user', content: user },
+			{ role: 'assistant', content: turn.text, toolCalls: turn.toolCalls }
+		);
 	}
 	return out;
 }

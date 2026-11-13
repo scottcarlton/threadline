@@ -20,6 +20,7 @@ import { buildStitchTools } from '$lib/server/stitch/tools.js';
 import { buildStitchSystem } from '$lib/server/stitch/system.js';
 import {
 	runStitchTurn,
+	toolCallSummary,
 	type RunStitchTurnParams,
 	type StitchTurnResult
 } from '$lib/server/stitch/turn.js';
@@ -400,7 +401,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		let messageId: string | null = null;
 		if (activeConversationId) {
-			messageId = await appendMessage(activeConversationId, 'assistant', responseText, turnId);
+			messageId = await appendMessage(
+				activeConversationId,
+				'assistant',
+				responseText,
+				turnId,
+				null,
+				toolCallSummary(result)
+			);
 			if (isNewConversation) {
 				generateTitle({
 					anthropic,
@@ -544,7 +552,9 @@ function streamResponse(params: StreamResponseParams): Response {
 						params.conversationId,
 						'assistant',
 						responseText,
-						params.turn.turnId
+						params.turn.turnId,
+						null,
+						toolCallSummary(turn)
 					);
 					if (params.isNewConversation) {
 						generateTitle({
