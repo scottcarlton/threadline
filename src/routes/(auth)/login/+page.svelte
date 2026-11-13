@@ -25,6 +25,8 @@
 		invitation_expired: 'That invitation has expired. Ask your admin to send a new one.',
 		invite_accept_failed:
 			'Something went wrong accepting that invitation. Please try again or contact your admin.',
+		invite_no_seats:
+			'That organization has no open seats. Ask your admin to free one or upgrade the plan.',
 		beta_not_whitelisted: 'Threadline is in private beta.'
 	};
 
