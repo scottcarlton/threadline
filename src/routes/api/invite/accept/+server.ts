@@ -3,6 +3,8 @@ import type { RequestHandler } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { notifyOrgMembers } from '$lib/server/notifications.js';
 import { resolveAcceptingProfileId } from '$lib/server/invites/authorize.js';
+import { checkSeatLimit } from '$lib/server/billing/entitlements.js';
+import type { OrgType } from '$lib/types/database.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { token, userId: bodyUserId } = await request.json();
@@ -17,7 +19,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// organizations(name) so the audit row carries the org's name, not just
 		// its id. The console renders organization_name, and the invitee has no
 		// membership yet, so the hook has no default org name to fall back on.
-		.select('*, organizations(name)')
+		.select('*, organizations(name, org_type)')
 		.eq('token', token)
 		.is('accepted_at', null)
 		.single();
@@ -41,6 +43,32 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: authResult.error }, { status: authResult.status });
 	}
 	const userId = authResult.profileId;
+
+	// Plan seats (SCO-47). The org may have filled up or downgraded since the
+	// invitation went out.
+	const seatOrg = (
+		invitation as { organizations?: { org_type?: string } | { org_type?: string }[] | null }
+	).organizations;
+	const seatOrgType = (Array.isArray(seatOrg) ? seatOrg[0]?.org_type : seatOrg?.org_type) as
+		| OrgType
+		| undefined;
+	if (seatOrgType) {
+		const seats = await checkSeatLimit(
+			supabaseAdmin,
+			{ id: invitation.organization_id, orgType: seatOrgType },
+			invitation.role,
+			'accept'
+		);
+		if (!seats.ok) {
+			return json(
+				{
+					error:
+						'That organization has no open seats. Ask your admin to free one or upgrade the plan.'
+				},
+				{ status: 402 }
+			);
+		}
+	}
 
 	// Create organization membership
 	const { error: memberError } = await supabaseAdmin.from('organization_members').insert({
