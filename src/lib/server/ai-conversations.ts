@@ -15,9 +15,12 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from './supabase.js';
 import {
 	DEFAULT_HISTORY_LIMITS,
+	parseToolCalls,
 	toHistoryMessages,
 	type HistoryLimits,
-	type PlainTurn
+	type PlainTurn,
+	type StoredTurn,
+	type ToolCallSummary
 } from './ai-history.js';
 
 export type StoredAttachment = { name: string; type: string; size: number };
@@ -112,6 +115,10 @@ export async function conversationBelongsTo(
  * turnId is the request's telemetry id, so a rating on this message can be
  * joined to the model and tool calls behind it.
  *
+ * toolCalls is the summary of tools an assistant turn called (toolCallSummary
+ * in stitch/turn.ts). loadHistory turns it back into a note so the next turn
+ * knows those calls happened.
+ *
  * Returns the new message id, or null if the insert failed. Failures are
  * logged and swallowed: a user should never lose an answer because a history
  * insert failed.
@@ -121,7 +128,8 @@ export async function appendMessage(
 	role: 'user' | 'assistant',
 	content: string,
 	turnId: string,
-	attachments: StoredAttachment[] | null = null
+	attachments: StoredAttachment[] | null = null,
+	toolCalls: ToolCallSummary[] | null = null
 ): Promise<string | null> {
 	const { data, error } = await supabaseAdmin
 		.from('ai_messages')
@@ -130,7 +138,8 @@ export async function appendMessage(
 			role,
 			content,
 			attachments,
-			turn_id: turnId
+			turn_id: turnId,
+			tool_calls: toolCalls && toolCalls.length > 0 ? toolCalls : null
 		})
 		.select('id')
 		.single();
@@ -153,14 +162,20 @@ export async function loadHistory(
 ): Promise<Anthropic.MessageParam[]> {
 	const { data, error } = await supabaseAdmin
 		.from('ai_messages')
-		.select('role, content')
+		.select('role, content, tool_calls')
 		.eq('conversation_id', conversationId)
 		.order('created_at', { ascending: true });
 	if (error) {
 		console.error('ai_messages select failed:', error.message);
 		return [];
 	}
-	const rows = (data ?? []) as PlainTurn[];
+	const rows = ((data ?? []) as Array<PlainTurn & { tool_calls: unknown }>).map(
+		(row): StoredTurn => ({
+			role: row.role,
+			content: row.content,
+			toolCalls: parseToolCalls(row.tool_calls)
+		})
+	);
 	return toHistoryMessages(rows, limits);
 }
 

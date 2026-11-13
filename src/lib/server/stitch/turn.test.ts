@@ -1,7 +1,13 @@
 // src/lib/server/stitch/turn.test.ts
 import { describe, it, expect, vi } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
-import { runStitchTurn, splitSuggestions, type StitchEvent, type StitchModelClient } from './turn';
+import {
+	runStitchTurn,
+	splitSuggestions,
+	toolCallSummary,
+	type StitchEvent,
+	type StitchModelClient
+} from './turn';
 
 function msg(
 	content: Anthropic.ContentBlock[],
@@ -68,6 +74,41 @@ describe('splitSuggestions', () => {
 	});
 	it('leaves text untouched when there is no line', () => {
 		expect(splitSuggestions('Done.\n')).toEqual({ text: 'Done.\n' });
+	});
+});
+
+describe('toolCallSummary', () => {
+	it('pairs each attempt with how it ended, in call order', () => {
+		expect(
+			toolCallSummary({
+				attempted: [
+					{ name: 'query_data', input: {}, denied: false },
+					{ name: 'send_email', input: {}, denied: true },
+					{ name: 'create_order', input: {}, denied: false, invalid: true },
+					{ name: 'create_order', input: {}, denied: false },
+					{ name: 'list_brands', input: {}, denied: false }
+				],
+				actions: [
+					{ tool: 'query_data', input: {}, result: { success: true, data: [] } },
+					{
+						tool: 'create_order',
+						input: {},
+						result: { success: false, error: 'Account not found' }
+					},
+					{ tool: 'list_brands', input: {}, result: { success: true, data: [] } }
+				]
+			})
+		).toEqual([
+			{ tool: 'query_data', status: 'ok' },
+			{ tool: 'send_email', status: 'denied' },
+			{ tool: 'create_order', status: 'invalid' },
+			{ tool: 'create_order', status: 'error' },
+			{ tool: 'list_brands', status: 'ok' }
+		]);
+	});
+
+	it('is empty when no tools were called', () => {
+		expect(toolCallSummary({ attempted: [], actions: [] })).toEqual([]);
 	});
 });
 

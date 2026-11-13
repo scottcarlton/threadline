@@ -3,6 +3,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { ToolResult } from '../ai-tools.js';
 import { WRITE_TOOLS } from './tools.js';
 import { checkToolInput } from '../../schemas/stitch-tools.js';
+import type { ToolCallSummary } from '../ai-history.js';
 
 export const STITCH_MODEL = 'claude-sonnet-5-5';
 // Thinking counts toward max_tokens on Sonnet 5.5, so leave room for it.
@@ -38,6 +39,24 @@ export type StitchTurnResult = {
 	/** The model ended with a SUGGESTIONS line that was not valid JSON. */
 	malformedSuggestions: boolean;
 };
+
+/**
+ * What to store on the assistant row about the tools a turn called: name and
+ * how each ended, in call order. `actions` holds only the calls that ran, in
+ * the same order as their non-denied, valid entries in `attempted`.
+ */
+export function toolCallSummary(
+	result: Pick<StitchTurnResult, 'attempted' | 'actions'>
+): ToolCallSummary[] {
+	let ran = 0;
+	return result.attempted.map((a) => {
+		if (a.denied) return { tool: a.name, status: 'denied' };
+		if (a.invalid) return { tool: a.name, status: 'invalid' };
+		const action = result.actions[ran++];
+		const failed = (action?.result as ToolResult | undefined)?.success === false;
+		return { tool: a.name, status: failed ? 'error' : 'ok' };
+	});
+}
 
 /** The slice of the Anthropic client a streamed turn uses, so tests can fake it. */
 export type StitchModelClient = {
