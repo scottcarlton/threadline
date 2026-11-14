@@ -43,6 +43,7 @@ const KNOWN_BYPASS_FILES: string[] = [
 	'src/lib/server/email/service.ts',
 	'src/lib/server/gmail.ts',
 	'src/lib/server/insights-engine.ts',
+	'src/lib/server/integrations/calendar-inbound.ts',
 	'src/lib/server/integrations/calendar-sync.ts',
 	'src/lib/server/integrations/calendly.ts',
 	'src/lib/server/integrations/discord.ts',

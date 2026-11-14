@@ -7,6 +7,7 @@
 	import PageHeader from '$lib/components/shared/PageHeader.svelte';
 	import { SelectField } from '$lib/components/ui/select/index.js';
 	import { formatPhone } from '$lib/utils/phone';
+	import type { ExternalEvent } from '$lib/utils/external-events.js';
 
 	let { data } = $props();
 
@@ -138,6 +139,53 @@
 			list = list.filter((a) => a.created_by !== data.user?.id);
 		}
 		return list;
+	});
+
+	// The viewer's own Google Calendar events, streamed in after the page
+	// renders (SCO-146). Read-only, and always the viewer's, so they sit out
+	// of Completed, the "others" filter and a single show's view.
+	let externalEvents = $state<ExternalEvent[]>([]);
+	$effect(() => {
+		const pending = data.externalEvents;
+		let live = true;
+		Promise.resolve(pending)
+			.then((events) => {
+				if (live) externalEvents = events ?? [];
+			})
+			.catch(() => {
+				if (live) externalEvents = [];
+			});
+		return () => {
+			live = false;
+		};
+	});
+	const visibleExternal = $derived.by(() => {
+		if (filterTab === 'completed' || selectedShowDateId) return [];
+		if (isAdmin && ownerFilter === 'others') return [];
+		if (filterTab === 'today') return externalEvents.filter((e) => e.date === todayStr);
+		return externalEvents;
+	});
+
+	type ListRow =
+		| { kind: 'appt'; key: string; sort: string; appt: Appointment }
+		| { kind: 'external'; key: string; sort: string; event: ExternalEvent };
+	const listRows = $derived.by(() => {
+		const rows: ListRow[] = [
+			...filteredAppointments.map((a) => ({
+				kind: 'appt' as const,
+				key: a.id,
+				sort: `${a.scheduled_date ?? '9999-99-99'}T${(a.scheduled_time ?? '99:99').slice(0, 5)}`,
+				appt: a
+			})),
+			...visibleExternal.map((e) => ({
+				kind: 'external' as const,
+				key: `gcal:${e.id}`,
+				sort: `${e.date}T${e.time ?? '00:00'}`,
+				event: e
+			}))
+		];
+		// Stable, so appointments keep their server order within a time slot.
+		return rows.sort((a, b) => (a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0));
 	});
 
 	const myCount = $derived(appointments.filter((a) => a.created_by === data.user?.id).length);
@@ -716,78 +764,110 @@
 				Schedule your first appointment to start tracking meetings
 			</p>
 		</div>
-	{:else if filteredAppointments.length === 0 && !showAddForm}
+	{:else if listRows.length === 0 && !showAddForm}
 		<div class="rounded-none p-12 text-center">
 			<p class="text-lg font-semibold">No matching appointments</p>
 			<p class="mt-2 text-sm text-muted-foreground">Try adjusting your filters</p>
 		</div>
-	{:else if filteredAppointments.length > 0}
+	{:else if listRows.length > 0}
 		<div class="space-y-2">
-			{#each filteredAppointments as appt (appt.id)}
-				{@const isMine = appt.created_by === data.user?.id}
-				<!-- svelte-ignore a11y_click_events_have_key_events -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div
-					class="relative flex cursor-pointer items-center gap-6 overflow-hidden rounded-none border bg-card p-4 transition-colors hover:bg-muted/50"
-					onclick={() => (selectedAppointment = appt)}
-				>
-					{#if isAdmin && isMine}
-						<div class="absolute top-0 bottom-0 left-0 w-[3px] bg-primary"></div>
-					{/if}
-					<!-- Left: Date & Time stacked -->
-					<div class="flex min-w-[60px] flex-col items-center text-center">
-						<span class="text-xs leading-tight font-medium text-muted-foreground uppercase"
-							>{parseMonth(appt.scheduled_date)}</span
-						>
-						<span
-							class="text-2xl leading-tight font-bold {isAdmin && !isMine
-								? 'text-muted-foreground'
-								: ''}">{parseDay(appt.scheduled_date)}</span
-						>
-						<span class="text-sm leading-tight text-muted-foreground"
-							>{formatTime(appt.scheduled_time)}</span
-						>
-					</div>
-					<!-- Right: Contact + Account + Show -->
-					<div class="min-w-0 flex-1">
-						{#if appt.accounts?.contact_first_name || appt.accounts?.contact_last_name}
-							<p class="truncate text-sm">
-								{[appt.accounts.contact_first_name, appt.accounts.contact_last_name]
-									.filter(Boolean)
-									.join(' ')}
+			{#each listRows as row (row.key)}
+				{#if row.kind === 'external'}
+					{@const ev = row.event}
+					<svelte:element
+						this={ev.url ? 'a' : 'div'}
+						href={ev.url ?? undefined}
+						target={ev.url ? '_blank' : undefined}
+						rel={ev.url ? 'noopener noreferrer' : undefined}
+						class="relative flex items-center gap-6 overflow-hidden rounded-none border bg-card p-4 transition-colors {ev.url
+							? 'hover:bg-muted/50'
+							: ''}"
+					>
+						<div class="flex min-w-[60px] flex-col items-center text-center">
+							<span class="text-sm leading-tight font-medium text-muted-foreground uppercase"
+								>{parseMonth(ev.date)}</span
+							>
+							<span class="text-2xl leading-tight font-bold text-muted-foreground"
+								>{parseDay(ev.date)}</span
+							>
+							<span class="text-sm leading-tight text-muted-foreground"
+								>{ev.time ? formatTime(ev.time) : 'All day'}</span
+							>
+						</div>
+						<div class="min-w-0 flex-1">
+							<p class="truncate text-base font-medium">{ev.summary}</p>
+							<p class="mt-1 text-sm text-muted-foreground">
+								Google Calendar{#if ev.url}<span class="sr-only">, opens in a new tab</span>{/if}
 							</p>
-						{:else if appt.freeform_contact_name}
-							<p class="truncate text-sm">{appt.freeform_contact_name}</p>
+						</div>
+					</svelte:element>
+				{:else}
+					{@const appt = row.appt}
+					{@const isMine = appt.created_by === data.user?.id}
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="relative flex cursor-pointer items-center gap-6 overflow-hidden rounded-none border bg-card p-4 transition-colors hover:bg-muted/50"
+						onclick={() => (selectedAppointment = appt)}
+					>
+						{#if isAdmin && isMine}
+							<div class="absolute top-0 bottom-0 left-0 w-[3px] bg-primary"></div>
 						{/if}
-						<p class="truncate text-base font-medium">
-							{appt.accounts?.business_name ?? appt.freeform_account_name ?? '--'}
-						</p>
-						{#if isAdmin && !isMine}
-							<div class="mt-1 flex items-center gap-2">
-								{#if appt.show_dates}
+						<!-- Left: Date & Time stacked -->
+						<div class="flex min-w-[60px] flex-col items-center text-center">
+							<span class="text-xs leading-tight font-medium text-muted-foreground uppercase"
+								>{parseMonth(appt.scheduled_date)}</span
+							>
+							<span
+								class="text-2xl leading-tight font-bold {isAdmin && !isMine
+									? 'text-muted-foreground'
+									: ''}">{parseDay(appt.scheduled_date)}</span
+							>
+							<span class="text-sm leading-tight text-muted-foreground"
+								>{formatTime(appt.scheduled_time)}</span
+							>
+						</div>
+						<!-- Right: Contact + Account + Show -->
+						<div class="min-w-0 flex-1">
+							{#if appt.accounts?.contact_first_name || appt.accounts?.contact_last_name}
+								<p class="truncate text-sm">
+									{[appt.accounts.contact_first_name, appt.accounts.contact_last_name]
+										.filter(Boolean)
+										.join(' ')}
+								</p>
+							{:else if appt.freeform_contact_name}
+								<p class="truncate text-sm">{appt.freeform_contact_name}</p>
+							{/if}
+							<p class="truncate text-base font-medium">
+								{appt.accounts?.business_name ?? appt.freeform_account_name ?? '--'}
+							</p>
+							{#if isAdmin && !isMine}
+								<div class="mt-1 flex items-center gap-2">
+									{#if appt.show_dates}
+										<span
+											class="inline-flex rounded-sm bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+											>{Array.isArray(appt.show_dates.shows)
+												? appt.show_dates.shows[0]?.name
+												: (appt.show_dates.shows?.name ?? '')}</span
+										>
+									{/if}
+									{#if appt.profiles?.display_name}
+										<span class="text-xs text-muted-foreground">{appt.profiles.display_name}</span>
+									{/if}
+								</div>
+							{:else if appt.show_dates}
+								<div class="mt-1">
 									<span
 										class="inline-flex rounded-sm bg-muted px-2 py-0.5 text-xs text-muted-foreground"
 										>{Array.isArray(appt.show_dates.shows)
 											? appt.show_dates.shows[0]?.name
 											: (appt.show_dates.shows?.name ?? '')}</span
 									>
-								{/if}
-								{#if appt.profiles?.display_name}
-									<span class="text-xs text-muted-foreground">{appt.profiles.display_name}</span>
-								{/if}
-							</div>
-						{:else if appt.show_dates}
-							<div class="mt-1">
-								<span
-									class="inline-flex rounded-sm bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-									>{Array.isArray(appt.show_dates.shows)
-										? appt.show_dates.shows[0]?.name
-										: (appt.show_dates.shows?.name ?? '')}</span
-								>
-							</div>
-						{/if}
+								</div>
+							{/if}
+						</div>
 					</div>
-				</div>
+				{/if}
 			{/each}
 		</div>
 	{/if}
