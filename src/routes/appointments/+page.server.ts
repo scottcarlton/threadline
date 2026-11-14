@@ -1,6 +1,8 @@
 import type { PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase.js';
 import { loadManagerScope } from '$lib/server/scoping.js';
+import { loadExternalCalendarEvents } from '$lib/server/integrations/calendar-inbound.js';
+import type { ExternalEvent } from '$lib/utils/external-events.js';
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('data:appointments');
@@ -11,7 +13,8 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 			showDates: [],
 			selectedShowDateId: null,
 			appointments: [],
-			accounts: []
+			accounts: [],
+			externalEvents: Promise.resolve([] as ExternalEvent[])
 		};
 	}
 
@@ -96,6 +99,10 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		showDates: showDatesRes.data ?? [],
 		selectedShowDateId,
 		appointments: appointments ?? [],
-		accounts: accountsRes.data ?? []
+		accounts: accountsRes.data ?? [],
+		// Streamed: the page renders without waiting on Google (SCO-146).
+		externalEvents: locals.user?.id
+			? loadExternalCalendarEvents(locals.user.id, orgId, url.origin)
+			: Promise.resolve([] as ExternalEvent[])
 	};
 };
